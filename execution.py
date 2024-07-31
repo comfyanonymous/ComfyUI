@@ -13,6 +13,30 @@ import nodes
 
 import comfy.model_management
 
+def force_bhw3(image):
+    #convert [CHW, BCHW, CWH] to BHW3
+    was_list = False
+    
+    while isinstance(image, list):
+        was_list = True
+        image = image[0]
+    
+    if len(image.shape) == 3:
+        #add batch dimension
+        image = image.unsqueeze(0)
+    
+    if image.shape[1] == 3:
+        #BCHW color
+        image = image.permute(0, 2, 3, 1)
+        return image if not was_list else [image]
+    
+    if image.shape[1] == 1:
+        #BCWH black and white
+        image = image.permute(0, 3, 2, 1).expand(-1, -1, -1, 3)
+        return image if not was_list else [image]
+    
+    return image if not was_list else [image]
+
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
@@ -42,6 +66,14 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
     return input_data_all
 
 def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
+    #Ensure image inputs are in BHW3 format
+    input_types = obj.INPUT_TYPES()
+    for _, v in input_types.items():
+        if isinstance(v, dict):
+            for k2, v2 in v.items():
+                if v2[0] == "IMAGE":
+                    input_data_all[k2] = [force_bhw3(x) for x in input_data_all[k2]]
+    
     # check if node wants the lists
     input_is_list = False
     if hasattr(obj, "INPUT_IS_LIST"):
@@ -73,6 +105,26 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
             if allow_interrupt:
                 nodes.before_node_execution()
             results.append(getattr(obj, func)(**slice_dict(input_data_all, i)))
+
+    #Ensure IMAGE outputs conform to BHWC
+    return_indexs = {}
+    formated_results = []
+    
+    if hasattr(obj, "RETURN_NAMES") and hasattr(obj, "RETURN_TYPES"):       
+        for i, t in enumerate(obj.RETURN_TYPES):
+            return_indexs[i] = t
+        
+        for i, r in enumerate(results[0]):
+            if return_indexs[i] == "IMAGE":
+                print(f"Result: {force_bhw3(r).shape}")
+                formated_results.append(force_bhw3(r))
+            else:
+                formated_results.append(r)
+        
+        results = [tuple(formated_results)]
+        
+        del formated_results        
+    
     return results
 
 def get_output_data(obj, input_data_all):
