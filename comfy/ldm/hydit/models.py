@@ -355,7 +355,7 @@ class HunYuanDiT(nn.Module):
         if self.use_style_cond:
             if style is None:
                 style = torch.zeros((extra_vec.shape[0],), device=x.device, dtype=torch.int)
-            style_embedding = self.style_embedder(style)
+            style_embedding = self.style_embedder(style, out_dtype=x.dtype)
             extra_vec = torch.cat([extra_vec, style_embedding], dim=1)
 
         # Concatenate all extra vectors
