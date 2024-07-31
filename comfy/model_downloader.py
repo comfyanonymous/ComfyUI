@@ -82,7 +82,7 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                         file_size = os.stat(path, follow_symlinks=True).st_size if os.path.isfile(path) else None
                     except:
                         file_size = None
-                    if os.path.isfile(path) and file_size == known_file.size:
+                    if os.path.isfile(path) and known_file.size is None or file_size == known_file.size:
                         return path
 
                     path = hf_hub_download(repo_id=known_file.repo_id,
