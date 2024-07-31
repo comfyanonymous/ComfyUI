@@ -108,7 +108,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
 
     #Ensure IMAGE outputs conform to BHWC
     return_indexs = {}
-    formated_results = []
+    formatted_results = []
     
     if hasattr(obj, "RETURN_NAMES") and hasattr(obj, "RETURN_TYPES"):       
         for i, t in enumerate(obj.RETURN_TYPES):
@@ -117,13 +117,13 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
         for i, r in enumerate(results[0]):
             if return_indexs[i] == "IMAGE":
                 print(f"Result: {force_bhw3(r).shape}")
-                formated_results.append(force_bhw3(r))
+                formatted_results.append(force_bhw3(r))
             else:
-                formated_results.append(r)
+                formatted_results.append(r)
         
-        results = [tuple(formated_results)]
+        results = [tuple(formatted_results)]
         
-        del formated_results        
+        del formatted_results        
     
     return results
 
