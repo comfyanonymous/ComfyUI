@@ -1,4 +1,5 @@
 from .component_model import files
+from .model_management import load_models_gpu
 from .utils import load_torch_file, transformers_convert, state_dict_prefix_replace
 import torch
 import json
@@ -57,7 +58,7 @@ class ClipVisionModel():
         return self.model.state_dict()
 
     def encode_image(self, image):
-        model_management.load_model_gpu(self.patcher)
+        load_models_gpu([self.patcher])
         pixel_values = clip_preprocess(image.to(self.load_device), size=self.image_size).float()
         out = self.model(pixel_values=pixel_values, intermediate_output=-2)
 

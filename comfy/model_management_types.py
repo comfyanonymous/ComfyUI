@@ -9,11 +9,12 @@ class ModelManageable(Protocol):
     """
     Objects which implement this protocol can be managed by
 
-    >>> import comfy.model_management
-    >>> class SomeObj("ModelManageable"):
+    >>> from comfy.model_management import load_models_gpu
+    >>> class ModelWrapper(ModelManageable):
     >>>     ...
     >>>
-    >>> comfy.model_management.load_model_gpu(SomeObj())
+    >>> some_model = ModelWrapper()
+    >>> load_models_gpu([some_model])
     """
     load_device: torch.device
     offload_device: torch.device

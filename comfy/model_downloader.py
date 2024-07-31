@@ -29,7 +29,7 @@ _session = Session()
 _hf_fs = HfFileSystem()
 
 
-def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[List[Any]] = None) -> List[str]:
+def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> List[str]:
     if known_files is None:
         known_files = _get_known_models_for_folder_name(folder_name)
 

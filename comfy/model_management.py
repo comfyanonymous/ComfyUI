@@ -6,7 +6,7 @@ import sys
 import warnings
 from enum import Enum
 from threading import RLock
-from typing import Literal, List
+from typing import Literal, List, Sequence
 
 import psutil
 import torch
@@ -15,6 +15,7 @@ from opentelemetry.trace import get_current_span
 from . import interruption
 from .cli_args import args
 from .cmd.main_pre import tracer
+from .component_model.deprecation import _deprecate_method
 from .model_management_types import ModelManageable
 
 model_management_lock = RLock()
@@ -439,7 +440,7 @@ def free_memory(memory_required, device, keep_loaded=[]) -> List[LoadedModel]:
 
 
 @tracer.start_as_current_span("Load Models GPU")
-def load_models_gpu(models, memory_required=0, force_patch_weights=False):
+def load_models_gpu(models: Sequence[ModelManageable], memory_required: int = 0, force_patch_weights=False) -> None:
     global vram_state
     span = get_current_span()
     if memory_required != 0:
@@ -472,59 +473,61 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False):
                 models_to_load.append(loaded_model)
 
         models_freed: List[LoadedModel] = []
-        if len(models_to_load) == 0:
-            devs = set(map(lambda a: a.device, models_already_loaded))
-            for d in devs:
-                if d != torch.device("cpu"):
-                    models_freed += free_memory(extra_mem, d, models_already_loaded)
+        try:
+            if len(models_to_load) == 0:
+                devs = set(map(lambda a: a.device, models_already_loaded))
+                for d in devs:
+                    if d != torch.device("cpu"):
+                        models_freed += free_memory(extra_mem, d, models_already_loaded)
+                return
+
+            total_memory_required = {}
+            for loaded_model in models_to_load:
+                if unload_model_clones(loaded_model.model, unload_weights_only=True, force_unload=False):  # unload clones where the weights are different
+                    total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
+
+            for device in total_memory_required:
+                if device != torch.device("cpu"):
+                    # todo: where does 1.3 come from?
+                    models_freed += free_memory(total_memory_required[device] * 1.3 + extra_mem, device, models_already_loaded)
+
+            for loaded_model in models_to_load:
+                weights_unloaded = unload_model_clones(loaded_model.model, unload_weights_only=False, force_unload=False)  # unload the rest of the clones where the weights can stay loaded
+                if weights_unloaded is not None:
+                    loaded_model.weights_loaded = not weights_unloaded
+
+            for loaded_model in models_to_load:
+                model = loaded_model.model
+                torch_dev = model.load_device
+                if is_device_cpu(torch_dev):
+                    vram_set_state = VRAMState.DISABLED
+                else:
+                    vram_set_state = vram_state
+                lowvram_model_memory = 0
+                if lowvram_available and (vram_set_state == VRAMState.LOW_VRAM or vram_set_state == VRAMState.NORMAL_VRAM):
+                    model_size = loaded_model.model_memory_required(torch_dev)
+                    current_free_mem = get_free_memory(torch_dev)
+                    lowvram_model_memory = int(max(64 * (1024 * 1024), (current_free_mem - 1024 * (1024 * 1024)) / 1.3))
+                    if model_size <= (current_free_mem - inference_memory):  # only switch to lowvram if really necessary
+
+                        lowvram_model_memory = 0
+
+                if vram_set_state == VRAMState.NO_VRAM:
+                    lowvram_model_memory = 64 * 1024 * 1024
+
+                loaded_model.model_load(lowvram_model_memory, force_patch_weights=force_patch_weights)
+                current_loaded_models.insert(0, loaded_model)
             return
-
-        total_memory_required = {}
-        for loaded_model in models_to_load:
-            if unload_model_clones(loaded_model.model, unload_weights_only=True, force_unload=False):  # unload clones where the weights are different
-                total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
-
-        for device in total_memory_required:
-            if device != torch.device("cpu"):
-                models_freed += free_memory(total_memory_required[device] * 1.3 + extra_mem, device, models_already_loaded)
-
-        span.set_attribute("models_to_load", list(map(str, models_to_load)))
-        span.set_attribute("models_freed", list(map(str, models_freed)))
-
-        logging.info(f"Models loaded: {','.join(map(str, models_to_load))}, models freed: {','.join(map(str, models_freed))}")
-
-        for loaded_model in models_to_load:
-            weights_unloaded = unload_model_clones(loaded_model.model, unload_weights_only=False, force_unload=False)  # unload the rest of the clones where the weights can stay loaded
-            if weights_unloaded is not None:
-                loaded_model.weights_loaded = not weights_unloaded
-
-        for loaded_model in models_to_load:
-            model = loaded_model.model
-            torch_dev = model.load_device
-            if is_device_cpu(torch_dev):
-                vram_set_state = VRAMState.DISABLED
-            else:
-                vram_set_state = vram_state
-            lowvram_model_memory = 0
-            if lowvram_available and (vram_set_state == VRAMState.LOW_VRAM or vram_set_state == VRAMState.NORMAL_VRAM):
-                model_size = loaded_model.model_memory_required(torch_dev)
-                current_free_mem = get_free_memory(torch_dev)
-                lowvram_model_memory = int(max(64 * (1024 * 1024), (current_free_mem - 1024 * (1024 * 1024)) / 1.3))
-                if model_size <= (current_free_mem - inference_memory):  # only switch to lowvram if really necessary
-
-                    lowvram_model_memory = 0
-
-            if vram_set_state == VRAMState.NO_VRAM:
-                lowvram_model_memory = 64 * 1024 * 1024
-
-            loaded_model.model_load(lowvram_model_memory, force_patch_weights=force_patch_weights)
-            current_loaded_models.insert(0, loaded_model)
-        return
+        finally:
+            span.set_attribute("models", list(map(str, models)))
+            span.set_attribute("models_to_load", list(map(str, models_to_load)))
+            span.set_attribute("models_freed", list(map(str, models_freed)))
+            logging.info(f"Requested to load {','.join(map(str, models))}, models loaded: {','.join(map(str, models_to_load))}, models freed: {','.join(map(str, models_freed))}")
 
 
+@_deprecate_method(message="Use load_models_gpu instead", version="0.0.2")
 def load_model_gpu(model):
-    with model_management_lock:
-        return load_models_gpu([model])
+    return load_models_gpu([model])
 
 
 def loaded_models(only_currently_used=False):

@@ -128,7 +128,9 @@ class CustomNode(Protocol):
     CATEGORY: ClassVar[str]
     OUTPUT_NODE: Optional[ClassVar[bool]]
 
-    IS_CHANGED: Optional[ClassVar[IsChangedMethod]]
+    @classmethod
+    def IS_CHANGED(cls, *args, **kwargs) -> str:
+        ...
 
     @classmethod
     def __call__(cls, *args, **kwargs) -> 'CustomNode':

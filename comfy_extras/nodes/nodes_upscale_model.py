@@ -1,24 +1,135 @@
 import logging
-import torch
+from typing import Optional, Any
 
+import torch
 from spandrel import ModelLoader, ImageModelDescriptor
+
 from comfy import model_management
 from comfy import utils
+from comfy.component_model.tensor_types import RGBImageBatch
 from comfy.model_downloader import get_filename_list_with_downloadable, KNOWN_UPSCALERS, get_or_download
-
+from comfy.model_management import load_models_gpu
+from comfy.model_management_types import ModelManageable
 
 try:
     from spandrel_extra_arches import EXTRA_REGISTRY  # pylint: disable=import-error
     from spandrel import MAIN_REGISTRY
+
     MAIN_REGISTRY.add(*EXTRA_REGISTRY)
     logging.info("Successfully imported spandrel_extra_arches: support for non commercial upscale models.")
 except:
     pass
 
+
+class UpscaleModelManageable(ModelManageable):
+    def __init__(self, model_descriptor: ImageModelDescriptor, ckpt_name: str):
+        self.ckpt_name = ckpt_name
+        self.model_descriptor = model_descriptor
+        self.model = model_descriptor.model
+        self.load_device = model_management.unet_offload_device()
+        self.offload_device = model_management.unet_offload_device()
+        self._current_device = self.offload_device
+        self._lowvram_patch_counter = 0
+
+        # Private properties for image sizes and channels
+        self._input_size = (1, 512, 512)  # Default input size (batch, height, width)
+        self._input_channels = model_descriptor.input_channels
+        self._output_channels = model_descriptor.output_channels
+        self.tile = 512
+
+    @property
+    def current_device(self) -> torch.device:
+        return self._current_device
+
+    @property
+    def input_size(self) -> tuple[int, int, int]:
+        return self._input_size
+
+    @input_size.setter
+    def input_size(self, size: tuple[int, int, int]):
+        self._input_size = size
+
+    @property
+    def output_size(self) -> tuple[int, int, int]:
+        return (self._input_size[0],
+                self._input_size[1] * self.model_descriptor.scale,
+                self._input_size[2] * self.model_descriptor.scale)
+
+    def set_input_size_from_images(self, images: RGBImageBatch):
+        if images.ndim != 4:
+            raise ValueError("Input must be a 4D tensor (batch, height, width, channels)")
+        if images.shape[-1] != 3:
+            raise ValueError("Input must have 3 channels (RGB)")
+        self._input_size = (images.shape[0], images.shape[1], images.shape[2])
+
+    def is_clone(self, other: Any) -> bool:
+        return isinstance(other, UpscaleModelManageable) and self.model is other.model
+
+    def clone_has_same_weights(self, clone: torch.nn.Module) -> bool:
+        return self.is_clone(clone)
+
+    def model_size(self) -> int:
+        # Calculate the size of the model parameters
+        model_params_size = sum(p.numel() * p.element_size() for p in self.model.parameters())
+
+        # Get the byte size of the model's dtype
+        dtype_size = torch.finfo(self.model_dtype()).bits // 8
+
+        # Calculate the memory required for input and output images
+        input_size = self._input_size[0] * min(self.tile, self._input_size[1]) * min(self.tile, self._input_size[2]) * self._input_channels * dtype_size
+        output_size = self.output_size[0] * self.output_size[1] * self.output_size[2] * self._output_channels * dtype_size
+
+        # Add some extra memory for processing
+        extra_memory = (input_size + output_size) * 2  # This is an estimate, adjust as needed
+
+        return model_params_size + input_size + output_size + extra_memory
+
+    def model_patches_to(self, arg: torch.device | torch.dtype):
+        if isinstance(arg, torch.device):
+            self.model.to(device=arg)
+        else:
+            self.model.to(dtype=arg)
+
+    def model_dtype(self) -> torch.dtype:
+        return next(self.model.parameters()).dtype
+
+    def patch_model_lowvram(self, device_to: torch.device, lowvram_model_memory: int, force_patch_weights: Optional[bool] = False) -> torch.nn.Module:
+        self.model.to(device=device_to)
+        self._current_device = device_to
+        self._lowvram_patch_counter += 1
+        return self.model
+
+    def patch_model(self, device_to: torch.device, patch_weights: bool) -> torch.nn.Module:
+        if patch_weights:
+            self.model.to(device=device_to)
+            self._current_device = device_to
+        return self.model
+
+    def unpatch_model(self, offload_device: torch.device, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
+        if unpatch_weights:
+            self.model.to(device=offload_device)
+            self._current_device = offload_device
+        return self.model
+
+    @property
+    def lowvram_patch_counter(self) -> int:
+        return self._lowvram_patch_counter
+
+    @lowvram_patch_counter.setter
+    def lowvram_patch_counter(self, value: int):
+        self._lowvram_patch_counter = value
+
+    def __str__(self):
+        if self.ckpt_name is not None:
+            return f"<UpscaleModelManageable for {self.ckpt_name} ({self.model.__class__.__name__})>"
+        else:
+            return f"<UpscaleModelManageable for {self.model.__class__.__name__}>"
+
+
 class UpscaleModelLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"model_name": (get_filename_list_with_downloadable("upscale_models", KNOWN_UPSCALERS),),
+        return {"required": {"model_name": (get_filename_list_with_downloadable("upscale_models"),),
                              }}
 
     RETURN_TYPES = ("UPSCALE_MODEL",)
@@ -36,7 +147,7 @@ class UpscaleModelLoader:
         if not isinstance(out, ImageModelDescriptor):
             raise Exception("Upscale model must be a single-image model.")
 
-        return (out,)
+        return (UpscaleModelManageable(out, model_name),)
 
 
 class ImageUpscaleWithModel:
@@ -51,33 +162,30 @@ class ImageUpscaleWithModel:
 
     CATEGORY = "image/upscaling"
 
-    def upscale(self, upscale_model, image):
-        device = model_management.get_torch_device()
+    def upscale(self, upscale_model: UpscaleModelManageable, image: RGBImageBatch):
+        upscale_model.set_input_size_from_images(image)
+        load_models_gpu([upscale_model])
 
-        memory_required = model_management.module_size(upscale_model.model)
-        memory_required += (512 * 512 * 3) * image.element_size() * max(upscale_model.scale, 1.0) * 384.0  # The 384.0 is an estimate of how much some of these models take, TODO: make it more accurate
-        memory_required += image.nelement() * image.element_size()
-        model_management.free_memory(memory_required, device)
+        in_img = image.movedim(-1, -3).to(upscale_model.current_device, dtype=upscale_model.model_dtype())
 
-        upscale_model.to(device)
-        in_img = image.movedim(-1, -3).to(device)
-
-        tile = 512
+        tile = upscale_model.tile
         overlap = 32
 
         oom = True
+        s = None
         while oom:
             try:
                 steps = in_img.shape[0] * utils.get_tiled_scale_steps(in_img.shape[3], in_img.shape[2], tile_x=tile, tile_y=tile, overlap=overlap)
                 pbar = utils.ProgressBar(steps)
-                s = utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar)
+                s = utils.tiled_scale(in_img, lambda a: upscale_model.model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.model.scale, pbar=pbar)
                 oom = False
             except model_management.OOM_EXCEPTION as e:
                 tile //= 2
-                if tile < 128:
+                overlap //= 2
+                if tile < 64 or overlap < 4:
                     raise e
 
-        upscale_model.to("cpu")
+        # upscale_model.to("cpu")
         s = torch.clamp(s.movedim(-3, -1), min=0, max=1.0)
         return (s,)
 

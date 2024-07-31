@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import pathlib
 import warnings
 from typing import Optional, Any, Callable, Union, List
 
@@ -175,7 +176,7 @@ class TransformersManagedModel(ModelManageable):
             if hasattr(self.processor, "to"):
                 self.processor.to(device=self.load_device)
 
-            assert "<image>" in prompt, "You must specify a &lt;image&gt; token inside the prompt for it to be substituted correctly by a HuggingFace processor"
+            assert "<image>" in prompt.lower(), "You must specify a &lt;image&gt; token inside the prompt for it to be substituted correctly by a HuggingFace processor"
             batch_feature: BatchFeature = self.processor([prompt], images=images, padding=True, return_tensors="pt")
             if hasattr(self.processor, "to"):
                 self.processor.to(device=self.offload_device)
@@ -188,3 +189,10 @@ class TransformersManagedModel(ModelManageable):
                 "inputs": batch_feature["input_ids"],
                 **batch_feature
             }
+
+    def __str__(self):
+        if self.repo_id is not None:
+            repo_id_as_path = pathlib.PurePath(self.repo_id)
+            return f"<TransformersManagedModel for {'/'.join(repo_id_as_path.parts[-2:])} ({self.model.__class__.__name__})>"
+        else:
+            return f"<TransformersManagedModel for {self.model.__class__.__name__}>"

@@ -18,7 +18,7 @@ from comfy.language.chat_templates import KNOWN_CHAT_TEMPLATES
 from comfy.language.language_types import ProcessorResult
 from comfy.language.transformers_model_management import TransformersManagedModel
 from comfy.model_downloader import get_huggingface_repo_list, get_or_download_huggingface_repo
-from comfy.model_management import get_torch_device_name, load_model_gpu, unet_dtype, unet_offload_device
+from comfy.model_management import get_torch_device_name, unet_dtype, unet_offload_device, load_models_gpu
 from comfy.nodes.package_typing import CustomNode, InputTypes, ValidatedNodeResult
 from comfy.utils import comfy_tqdm, seed_for_block, comfy_progress, ProgressBar
 
@@ -340,7 +340,7 @@ class TransformersGenerate(CustomNode):
         tokens = copy.copy(tokens)
         sampler = sampler or {}
         generate_kwargs = copy.copy(sampler)
-        load_model_gpu(model)
+        load_models_gpu([model])
         transformers_model: PreTrainedModel = model.model
         tokenizer: PreTrainedTokenizerBase | AutoTokenizer = model.tokenizer
         # remove unused inputs

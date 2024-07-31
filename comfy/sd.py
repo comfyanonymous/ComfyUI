@@ -20,6 +20,7 @@ from . import model_sampling
 from . import sd1_clip
 from . import sdxl_clip
 from . import utils
+from .model_management import load_models_gpu
 
 from .text_encoders import sd2_clip
 from .text_encoders import sd3_clip
@@ -153,7 +154,7 @@ class CLIP:
         return sd_clip
 
     def load_model(self):
-        model_management.load_model_gpu(self.patcher)
+        load_models_gpu([self.patcher])
         return self.patcher
 
     def get_key_patches(self):
@@ -337,7 +338,7 @@ class VAE:
         return pixel_samples
 
     def decode_tiled(self, samples, tile_x=64, tile_y=64, overlap=16):
-        model_management.load_model_gpu(self.patcher)
+        load_models_gpu([self.patcher])
         output = self.decode_tiled_(samples, tile_x, tile_y, overlap)
         return output.movedim(1, -1)
 
@@ -366,7 +367,7 @@ class VAE:
 
     def encode_tiled(self, pixel_samples, tile_x=512, tile_y=512, overlap=64):
         pixel_samples = self.vae_encode_crop_pixels(pixel_samples)
-        model_management.load_model_gpu(self.patcher)
+        load_models_gpu([self.patcher])
         pixel_samples = pixel_samples.movedim(-1, 1)
         samples = self.encode_tiled_(pixel_samples, tile_x=tile_x, tile_y=tile_y, overlap=overlap)
         return samples
@@ -574,7 +575,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     if output_model:
         _model_patcher = model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device(), current_device=inital_load_device, ckpt_name=os.path.basename(ckpt_path))
         if inital_load_device != torch.device("cpu"):
-            model_management.load_model_gpu(_model_patcher)
+            load_models_gpu([_model_patcher])
 
     return (_model_patcher, clip, vae, clipvision)
 
