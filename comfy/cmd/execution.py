@@ -131,6 +131,7 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
         elif input_category is not None:
             input_data_all[x] = [input_data]
 
+    # todo: this should be retrieved from the execution context
     if "hidden" in valid_inputs:
         h = valid_inputs["hidden"]
         for x in h:
@@ -432,7 +433,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             for name, inputs in input_data_all.items():
                 input_data_formatted[name] = [format_value(x) for x in inputs]
 
-        logging.error(f"!!! Exception during processing !!! {ex}")
+        logging.error("An error occurred while executing a workflow", exc_info=ex)
         logging.error(traceback.format_exc())
 
         error_details: RecursiveExecutionErrorDetails = {
@@ -446,7 +447,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
 
     executed.add(unique_id)
 
-    return (ExecutionResult.SUCCESS, None, None)
+    return ExecutionResult.SUCCESS, None, None
 
 
 class PromptExecutor:

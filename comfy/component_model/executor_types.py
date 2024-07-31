@@ -160,7 +160,7 @@ class RecursiveExecutionErrorDetails(TypedDict, total=True):
 
 
 class RecursiveExecutionTuple(typing.NamedTuple):
-    valid: bool
+    valid: ExecutionResult
     error_details: Optional[RecursiveExecutionErrorDetails | RecursiveExecutionErrorDetailsInterrupted]
     exc_info: Optional[Exception]
 
