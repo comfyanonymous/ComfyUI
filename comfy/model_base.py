@@ -256,7 +256,7 @@ class BaseModel(torch.nn.Module):
         else:
             #TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
             area = input_shape[0] * math.prod(input_shape[2:])
-            return (((area * 0.6) / 0.9) + 1024) * (1024 * 1024)
+            return (area * 0.3) * (1024 * 1024)
 
 
 def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0, seed=None):
@@ -702,3 +702,15 @@ class Flux(BaseModel):
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([kwargs.get("guidance", 3.5)]))
         return out
+
+    def memory_required(self, input_shape):
+        if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention():
+            dtype = self.get_dtype()
+            if self.manual_cast_dtype is not None:
+                dtype = self.manual_cast_dtype
+            #TODO: this probably needs to be tweaked
+            area = input_shape[0] * input_shape[2] * input_shape[3]
+            return (area * comfy.model_management.dtype_size(dtype) * 0.020) * (1024 * 1024)
+        else:
+            area = input_shape[0] * input_shape[2] * input_shape[3]
+            return (area * 0.3) * (1024 * 1024)
