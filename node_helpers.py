@@ -25,7 +25,7 @@ def pillow(fn, arg):
     finally:
         if prev_value is not None:
             ImageFile.LOAD_TRUNCATED_IMAGES = prev_value
-        return x
+    return x
 
 def hasher():
     hashfuncs = {
