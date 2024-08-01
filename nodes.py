@@ -2043,6 +2043,7 @@ def init_builtin_extra_nodes():
         "nodes_gits.py",
         "nodes_controlnet.py",
         "nodes_hunyuan.py",
+        "nodes_flux.py",
     ]
 
     import_failed = []
