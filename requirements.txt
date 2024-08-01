@@ -16,3 +16,6 @@ psutil
 kornia>=0.7.1
 spandrel
 soundfile
+
+#bizy specific dependencies
+numpy<2.0

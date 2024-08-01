@@ -1,0 +1,66 @@
+name: "Build BizyAir"
+
+on:
+  push:
+    branches:
+      - use-cpu
+
+  workflow_dispatch:
+    inputs:
+      cu:
+        description: 'cuda version'
+        required: true
+        type: string
+        default: "121"
+
+      python_minor:
+        description: 'python minor version'
+        required: true
+        type: string
+        default: "11"
+
+      python_patch:
+        description: 'python patch version'
+        required: true
+        type: string
+        default: "8"
+
+      cpu:
+        description: 'if it is a cpu build'
+        required: false
+        type: boolean
+        default: true
+
+      xformers:
+        description: 'xformers version'
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: bizyairui_releases-build-cpu${{ inputs.cpu }}-${{ inputs.python_minor }}-xformers${{ inputs.xformers }}-${{ inputs.python_patch }}-${{ inputs.python_minor }}-${{ inputs.cu }}
+  cancel-in-progress: true
+
+jobs:
+  deps:
+    uses: ./.github/workflows/windows_release_dependencies.yml
+    secrets: inherit
+    with:
+      xformers: ${{ inputs.xformers || '' }}
+      cu: ${{ inputs.cu || 121 }}
+      python_minor: ${{ inputs.python_minor || 11 }}
+      python_patch: ${{ inputs.python_patch || 8 }}
+      cpu: ${{ inputs.cpu || true }}
+  build:
+    needs: deps
+    uses: ./.github/workflows/windows_release_package.yml
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: read
+    secrets: inherit
+    with:
+      cu: ${{ inputs.cu || 121 }}
+      python_minor: ${{ inputs.python_minor || 11 }}
+      python_patch: ${{ inputs.python_patch || 8 }}
+      cpu: ${{ inputs.cpu || true }}

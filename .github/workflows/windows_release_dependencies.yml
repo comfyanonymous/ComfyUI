@@ -1,6 +1,43 @@
 name: "Windows Release dependencies"
 
 on:
+  workflow_call:
+    inputs:
+      xformers:
+        description: 'xformers version'
+        required: false
+        type: string
+        default: ""
+      cu:
+        description: 'cuda version'
+        required: true
+        type: string
+        default: "121"
+
+      python_minor:
+        description: 'python minor version'
+        required: true
+        type: string
+        default: "11"
+
+      python_patch:
+        description: 'python patch version'
+        required: true
+        type: string
+        default: "8"
+
+      cpu:
+        description: 'if it is a cpu build'
+        required: false
+        type: boolean
+        default: true
+
+      force:
+        description: 'force update the dependencies'
+        required: false
+        type: boolean
+        default: false
+
   workflow_dispatch:
     inputs:
       xformers:
@@ -25,20 +62,42 @@ on:
         required: true
         type: string
         default: "8"
+
+      cpu:
+        description: 'if it is a cpu build'
+        required: false
+        type: boolean
+        default: true
 #  push:
 #    branches:
 #      - master
+
+env:
+  BIZY_VARIANT: cu${{ inputs.cu }}
 
 jobs:
   build_dependencies:
     runs-on: windows-latest
     steps:
+        - if: ${{ inputs.cpu == true }}
+          shell: bash
+          run: echo "BIZY_VARIANT=cpu" >> $GITHUB_ENV
+        - uses: actions/cache/restore@v4
+          id: cache
+          if: github.event_name != 'workflow_dispatch' && !(github.event.inputs.force || false)
+          with:
+            path: |
+              ${{ env.BIZY_VARIANT }}_python_deps.tar
+              update_comfyui_and_python_dependencies.bat
+            key: ${{ runner.os }}-build-${{ env.BIZY_VARIANT }}-${{ inputs.python_minor }}
         - uses: actions/checkout@v4
+          if: ${{ !steps.cache.outputs.cache-hit }}
         - uses: actions/setup-python@v5
+          if: ${{ !steps.cache.outputs.cache-hit }}
           with:
             python-version: 3.${{ inputs.python_minor }}.${{ inputs.python_patch }}
-
         - shell: bash
+          if: ${{ !steps.cache.outputs.cache-hit }}
           run: |
             echo "@echo off
             call update_comfyui.bat nopause
@@ -48,19 +107,20 @@ jobs:
             echo If you just want to update normally, close this and run update_comfyui.bat instead.
             echo -
             pause
-            ..\python_embeded\python.exe -s -m pip install --upgrade torch torchvision torchaudio ${{ inputs.xformers }} --extra-index-url https://download.pytorch.org/whl/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2
+            ..\python_embeded\python.exe -s -m pip install --upgrade torch torchvision torchaudio ${{ inputs.xformers }} --extra-index-url https://download.pytorch.org/whl/${{ env.BIZY_VARIANT }} -r ../ComfyUI/requirements.txt pygit2
             pause" > update_comfyui_and_python_dependencies.bat
 
-            python -m pip wheel --no-cache-dir torch torchvision torchaudio ${{ inputs.xformers }} --extra-index-url https://download.pytorch.org/whl/cu${{ inputs.cu }} -r requirements.txt pygit2 -w ./temp_wheel_dir
+            python -m pip wheel --no-cache-dir torch torchvision torchaudio ${{ inputs.xformers }} --extra-index-url https://download.pytorch.org/whl/${{ env.BIZY_VARIANT }} -r requirements.txt pygit2 -w ./temp_wheel_dir
             python -m pip install --no-cache-dir ./temp_wheel_dir/*
             echo installed basic
             ls -lah temp_wheel_dir
-            mv temp_wheel_dir cu${{ inputs.cu }}_python_deps
-            tar cf cu${{ inputs.cu }}_python_deps.tar cu${{ inputs.cu }}_python_deps
+            mv temp_wheel_dir ${{ env.BIZY_VARIANT }}_python_deps
+            tar cf ${{ env.BIZY_VARIANT }}_python_deps.tar ${{ env.BIZY_VARIANT }}_python_deps
 
         - uses: actions/cache/save@v4
+          if: ${{ !steps.cache.outputs.cache-hit }}
           with:
             path: |
-              cu${{ inputs.cu }}_python_deps.tar
+              ${{ env.BIZY_VARIANT }}_python_deps.tar
               update_comfyui_and_python_dependencies.bat
-            key: ${{ runner.os }}-build-cu${{ inputs.cu }}-${{ inputs.python_minor }}
+            key: ${{ runner.os }}-build-${{ env.BIZY_VARIANT }}-${{ inputs.python_minor }}
