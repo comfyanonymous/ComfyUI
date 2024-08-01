@@ -23,6 +23,7 @@ import comfy.text_encoders.sd3_clip
 import comfy.text_encoders.sa_t5
 import comfy.text_encoders.aura_t5
 import comfy.text_encoders.hydit
+import comfy.text_encoders.flux
 
 import comfy.model_patcher
 import comfy.lora
@@ -387,6 +388,7 @@ class CLIPType(Enum):
     SD3 = 3
     STABLE_AUDIO = 4
     HUNYUAN_DIT = 5
+    FLUX = 6
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION):
     clip_data = []
@@ -438,6 +440,9 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
         elif clip_type == CLIPType.HUNYUAN_DIT:
             clip_target.clip = comfy.text_encoders.hydit.HyditModel
             clip_target.tokenizer = comfy.text_encoders.hydit.HyditTokenizer
+        elif clip_type == CLIPType.FLUX:
+            clip_target.clip = comfy.text_encoders.flux.FluxClipModel
+            clip_target.tokenizer = comfy.text_encoders.flux.FluxTokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer

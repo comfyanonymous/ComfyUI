@@ -139,3 +139,14 @@ class SD3(LatentFormat):
 
 class StableAudio1(LatentFormat):
     latent_channels = 64
+
+class Flux(SD3):
+    def __init__(self):
+        self.scale_factor = 0.3611
+        self.shift_factor = 0.1159
+
+    def process_in(self, latent):
+        return (latent - self.shift_factor) * self.scale_factor
+
+    def process_out(self, latent):
+        return (latent / self.scale_factor) + self.shift_factor

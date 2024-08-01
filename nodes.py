@@ -859,7 +859,7 @@ class DualCLIPLoader:
     def INPUT_TYPES(s):
         return {"required": { "clip_name1": (folder_paths.get_filename_list("clip"), ),
                               "clip_name2": (folder_paths.get_filename_list("clip"), ),
-                              "type": (["sdxl", "sd3"], ),
+                              "type": (["sdxl", "sd3", "flux"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -873,6 +873,8 @@ class DualCLIPLoader:
             clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
         elif type == "sd3":
             clip_type = comfy.sd.CLIPType.SD3
+        elif type == "flux":
+            clip_type = comfy.sd.CLIPType.FLUX
 
         clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)

@@ -272,3 +272,43 @@ class StableCascadeSampling(ModelSamplingDiscrete):
 
         percent = 1.0 - percent
         return self.sigma(torch.tensor(percent))
+
+
+def flux_time_shift(mu: float, sigma: float, t):
+    return math.exp(mu) / (math.exp(mu) + (1 / t - 1) ** sigma)
+
+class ModelSamplingFlux(torch.nn.Module):
+    def __init__(self, model_config=None):
+        super().__init__()
+        if model_config is not None:
+            sampling_settings = model_config.sampling_settings
+        else:
+            sampling_settings = {}
+
+        self.set_parameters(shift=sampling_settings.get("shift", 1.15))
+
+    def set_parameters(self, shift=1.15, timesteps=10000):
+        self.shift = shift
+        ts = self.sigma((torch.arange(1, timesteps + 1, 1) / timesteps))
+        self.register_buffer('sigmas', ts)
+
+    @property
+    def sigma_min(self):
+        return self.sigmas[0]
+
+    @property
+    def sigma_max(self):
+        return self.sigmas[-1]
+
+    def timestep(self, sigma):
+        return sigma
+
+    def sigma(self, timestep):
+        return flux_time_shift(self.shift, 1.0, timestep)
+
+    def percent_to_sigma(self, percent):
+        if percent <= 0.0:
+            return 1.0
+        if percent >= 1.0:
+            return 0.0
+        return 1.0 - percent
