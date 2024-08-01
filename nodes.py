@@ -818,15 +818,17 @@ class UNETLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "unet_name": (folder_paths.get_filename_list("unet"), ),
+                              "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e5m2"],)
                              }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "load_unet"
 
     CATEGORY = "advanced/loaders"
 
-    def load_unet(self, unet_name):
+    def load_unet(self, unet_name, weight_dtype):
+        weight_dtype = {"default":None, "fp8_e4m3fn":torch.float8_e4m3fn, "fp8_e5m2":torch.float8_e4m3fn}[weight_dtype]
         unet_path = folder_paths.get_full_path("unet", unet_name)
-        model = comfy.sd.load_unet(unet_path)
+        model = comfy.sd.load_unet(unet_path, dtype=weight_dtype)
         return (model,)
 
 class CLIPLoader:
