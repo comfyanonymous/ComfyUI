@@ -1,7 +1,7 @@
 import torch
-from comfy import model_management
-from comfy import utils
-from comfy import conds
+from . import model_management
+from . import utils
+from . import conds
 
 def prepare_mask(noise_mask, shape, device):
     """ensures noise mask is of proper dimensions"""
@@ -62,7 +62,9 @@ def prepare_sampling(model, noise_shape, conds):
     device = model.load_device
     real_model = None
     models, inference_memory = get_additional_models(conds, model.model_dtype())
-    model_management.load_models_gpu([model] + models, model.memory_required([noise_shape[0] * 2] + list(noise_shape[1:])) + inference_memory)
+    memory_required = model.memory_required([noise_shape[0] * 2] + list(noise_shape[1:])) + inference_memory
+    minimum_memory_required = model.memory_required([noise_shape[0]] + list(noise_shape[1:])) + inference_memory
+    model_management.load_models_gpu([model] + models, memory_required=memory_required, minimum_memory_required=minimum_memory_required)
     real_model = model.model
 
     return real_model, conds, models

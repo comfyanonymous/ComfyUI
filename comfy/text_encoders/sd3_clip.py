@@ -3,17 +3,16 @@ import logging
 import torch
 from transformers import T5TokenizerFast
 
-import comfy.model_management
-import comfy.text_encoders.t5
-from comfy import sd1_clip
-from comfy import sdxl_clip
-from comfy.component_model import files
+from .t5 import T5
+from .. import sd1_clip, model_management
+from .. import sdxl_clip
+from ..component_model import files
 
 
 class T5XXLModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, textmodel_json_config=None):
         textmodel_json_config = files.get_path_as_dict(textmodel_json_config, "t5_config_xxl.json", package=__package__)
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=comfy.text_encoders.t5.T5)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5)
 
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
@@ -22,8 +21,6 @@ class T5XXLTokenizer(sd1_clip.SDTokenizer):
             tokenizer_data = dict()
         tokenizer_path = files.get_package_as_path("comfy.text_encoders.t5_tokenizer")
         super().__init__(tokenizer_path, pad_with_end=False, embedding_size=4096, embedding_key='t5xxl', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=77)
-
-
 
 
 class SD3Tokenizer:
@@ -45,6 +42,7 @@ class SD3Tokenizer:
     def state_dict(self):
         return dict()
 
+
 class SD3ClipModel(torch.nn.Module):
     def __init__(self, clip_l=True, clip_g=True, t5=True, dtype_t5=None, device="cpu", dtype=None):
         super().__init__()
@@ -62,14 +60,7 @@ class SD3ClipModel(torch.nn.Module):
             self.clip_g = None
 
         if t5:
-            if dtype_t5 is None:
-                dtype_t5 = dtype
-            elif comfy.model_management.dtype_size(dtype_t5) > comfy.model_management.dtype_size(dtype):
-                dtype_t5 = dtype
-
-            if not comfy.model_management.supports_cast(device, dtype_t5):
-                dtype_t5 = dtype
-
+            dtype_t5 = model_management.pick_weight_dtype(dtype_t5, dtype, device)
             self.t5xxl = T5XXLModel(device=device, dtype=dtype_t5)
             self.dtypes.add(dtype_t5)
         else:
@@ -105,7 +96,7 @@ class SD3ClipModel(torch.nn.Module):
             if self.clip_l is not None:
                 lg_out, l_pooled = self.clip_l.encode_token_weights(token_weight_pairs_l)
             else:
-                l_pooled = torch.zeros((1, 768), device=comfy.model_management.intermediate_device())
+                l_pooled = torch.zeros((1, 768), device=model_management.intermediate_device())
 
             if self.clip_g is not None:
                 g_out, g_pooled = self.clip_g.encode_token_weights(token_weight_pairs_g)
@@ -115,7 +106,7 @@ class SD3ClipModel(torch.nn.Module):
                     lg_out = torch.nn.functional.pad(g_out, (768, 0))
             else:
                 g_out = None
-                g_pooled = torch.zeros((1, 1280), device=comfy.model_management.intermediate_device())
+                g_pooled = torch.zeros((1, 1280), device=model_management.intermediate_device())
 
             if lg_out is not None:
                 lg_out = torch.nn.functional.pad(lg_out, (0, 4096 - lg_out.shape[-1]))
@@ -130,10 +121,10 @@ class SD3ClipModel(torch.nn.Module):
                 out = t5_out
 
         if out is None:
-            out = torch.zeros((1, 77, 4096), device=comfy.model_management.intermediate_device())
+            out = torch.zeros((1, 77, 4096), device=model_management.intermediate_device())
 
         if pooled is None:
-            pooled = torch.zeros((1, 768 + 1280), device=comfy.model_management.intermediate_device())
+            pooled = torch.zeros((1, 768 + 1280), device=model_management.intermediate_device())
 
         return out, pooled
 

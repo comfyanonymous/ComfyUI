@@ -4,8 +4,6 @@ import contextlib
 import itertools
 import logging
 import math
-import os
-import os.path
 import random
 import struct
 import sys
@@ -45,7 +43,7 @@ def load_torch_file(ckpt, safe_load=False, device=None):
         device = torch.device("cpu")
     if ckpt is None:
         raise FileNotFoundError("the checkpoint was not found")
-    if ckpt.lower().endswith(".safetensors"):
+    if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         sd = safetensors.torch.load_file(ckpt, device=device.type)
     else:
         if safe_load:

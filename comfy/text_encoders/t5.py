@@ -1,6 +1,10 @@
-import torch
 import math
-from comfy.ldm.modules.attention import optimized_attention_for_device
+
+import torch
+
+from .. import ops
+from ..ldm.modules.attention import optimized_attention_for_device
+
 
 class T5LayerNorm(torch.nn.Module):
     def __init__(self, hidden_size, eps=1e-6, dtype=None, device=None, operations=None):
@@ -11,12 +15,14 @@ class T5LayerNorm(torch.nn.Module):
     def forward(self, x):
         variance = x.pow(2).mean(-1, keepdim=True)
         x = x * torch.rsqrt(variance + self.variance_epsilon)
-        return self.weight.to(device=x.device, dtype=x.dtype) * x
+        return ops.cast_to_input(self.weight, x) * x
+
 
 activations = {
     "gelu_pytorch_tanh": lambda a: torch.nn.functional.gelu(a, approximate="tanh"),
     "relu": torch.nn.functional.relu,
 }
+
 
 class T5DenseActDense(torch.nn.Module):
     def __init__(self, model_dim, ff_dim, ff_activation, dtype, device, operations):
@@ -31,6 +37,7 @@ class T5DenseActDense(torch.nn.Module):
         # x = self.dropout(x)
         x = self.wo(x)
         return x
+
 
 class T5DenseGatedActDense(torch.nn.Module):
     def __init__(self, model_dim, ff_dim, ff_activation, dtype, device, operations):
@@ -48,6 +55,7 @@ class T5DenseGatedActDense(torch.nn.Module):
         # x = self.dropout(x)
         x = self.wo(x)
         return x
+
 
 class T5LayerFF(torch.nn.Module):
     def __init__(self, model_dim, ff_dim, ff_activation, gated_act, dtype, device, operations):
@@ -67,6 +75,7 @@ class T5LayerFF(torch.nn.Module):
         x += forwarded_states
         return x
 
+
 class T5Attention(torch.nn.Module):
     def __init__(self, model_dim, inner_dim, num_heads, relative_attention_bias, dtype, device, operations):
         super().__init__()
@@ -82,7 +91,7 @@ class T5Attention(torch.nn.Module):
         if relative_attention_bias:
             self.relative_attention_num_buckets = 32
             self.relative_attention_max_distance = 128
-            self.relative_attention_bias = torch.nn.Embedding(self.relative_attention_num_buckets, self.num_heads, device=device)
+            self.relative_attention_bias = operations.Embedding(self.relative_attention_num_buckets, self.num_heads, device=device, dtype=dtype)
 
     @staticmethod
     def _relative_position_bucket(relative_position, bidirectional=True, num_buckets=32, max_distance=128):
@@ -121,9 +130,9 @@ class T5Attention(torch.nn.Module):
 
         # The other half of the buckets are for logarithmically bigger bins in positions up to max_distance
         relative_position_if_large = max_exact + (
-            torch.log(relative_position.float() / max_exact)
-            / math.log(max_distance / max_exact)
-            * (num_buckets - max_exact)
+                torch.log(relative_position.float() / max_exact)
+                / math.log(max_distance / max_exact)
+                * (num_buckets - max_exact)
         ).to(torch.long)
         relative_position_if_large = torch.min(
             relative_position_if_large, torch.full_like(relative_position_if_large, num_buckets - 1)
@@ -132,7 +141,7 @@ class T5Attention(torch.nn.Module):
         relative_buckets += torch.where(is_small, relative_position, relative_position_if_large)
         return relative_buckets
 
-    def compute_bias(self, query_length, key_length, device):
+    def compute_bias(self, query_length, key_length, device, dtype):
         """Compute binned relative position bias"""
         context_position = torch.arange(query_length, dtype=torch.long, device=device)[:, None]
         memory_position = torch.arange(key_length, dtype=torch.long, device=device)[None, :]
@@ -143,7 +152,7 @@ class T5Attention(torch.nn.Module):
             num_buckets=self.relative_attention_num_buckets,
             max_distance=self.relative_attention_max_distance,
         )
-        values = self.relative_attention_bias(relative_position_bucket)  # shape (query_length, key_length, num_heads)
+        values = self.relative_attention_bias(relative_position_bucket, out_dtype=dtype)  # shape (query_length, key_length, num_heads)
         values = values.permute([2, 0, 1]).unsqueeze(0)  # shape (1, num_heads, query_length, key_length)
         return values
 
@@ -152,7 +161,7 @@ class T5Attention(torch.nn.Module):
         k = self.k(x)
         v = self.v(x)
         if self.relative_attention_bias is not None:
-            past_bias = self.compute_bias(x.shape[1], x.shape[1], x.device)
+            past_bias = self.compute_bias(x.shape[1], x.shape[1], x.device, x.dtype)
 
         if past_bias is not None:
             if mask is not None:
@@ -162,6 +171,7 @@ class T5Attention(torch.nn.Module):
 
         out = optimized_attention(q, k * ((k.shape[-1] / self.num_heads) ** 0.5), v, self.num_heads, mask)
         return self.o(out), past_bias
+
 
 class T5LayerSelfAttention(torch.nn.Module):
     def __init__(self, model_dim, inner_dim, ff_dim, num_heads, relative_attention_bias, dtype, device, operations):
@@ -177,6 +187,7 @@ class T5LayerSelfAttention(torch.nn.Module):
         x += output
         return x, past_bias
 
+
 class T5Block(torch.nn.Module):
     def __init__(self, model_dim, inner_dim, ff_dim, ff_activation, gated_act, num_heads, relative_attention_bias, dtype, device, operations):
         super().__init__()
@@ -189,6 +200,7 @@ class T5Block(torch.nn.Module):
         x = self.layer[-1](x)
         return x, past_bias
 
+
 class T5Stack(torch.nn.Module):
     def __init__(self, num_layers, model_dim, inner_dim, ff_dim, ff_activation, gated_act, num_heads, relative_attention, dtype, device, operations):
         super().__init__()
@@ -199,7 +211,7 @@ class T5Stack(torch.nn.Module):
         self.final_layer_norm = T5LayerNorm(model_dim, dtype=dtype, device=device, operations=operations)
         # self.dropout = nn.Dropout(config.dropout_rate)
 
-    def forward(self, x, attention_mask=None, intermediate_output=None, final_layer_norm_intermediate=True):
+    def forward(self, x, attention_mask=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None):
         mask = None
         if attention_mask is not None:
             mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])).expand(attention_mask.shape[0], 1, attention_mask.shape[-1], attention_mask.shape[-1])
@@ -217,6 +229,7 @@ class T5Stack(torch.nn.Module):
             intermediate = self.final_layer_norm(intermediate)
         return x, intermediate
 
+
 class T5(torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
@@ -225,7 +238,7 @@ class T5(torch.nn.Module):
 
         self.encoder = T5Stack(self.num_layers, model_dim, model_dim, config_dict["d_ff"], config_dict["dense_act_fn"], config_dict["is_gated_act"], config_dict["num_heads"], config_dict["model_type"] != "umt5", dtype, device, operations)
         self.dtype = dtype
-        self.shared = torch.nn.Embedding(config_dict["vocab_size"], model_dim, device=device)
+        self.shared = operations.Embedding(config_dict["vocab_size"], model_dim, device=device, dtype=dtype)
 
     def get_input_embeddings(self):
         return self.shared
@@ -234,5 +247,7 @@ class T5(torch.nn.Module):
         self.shared = embeddings
 
     def forward(self, input_ids, *args, **kwargs):
-        x = self.shared(input_ids)
+        x = self.shared(input_ids, out_dtype=kwargs.get("dtype", torch.float32))
+        if self.dtype not in [torch.float32, torch.float16, torch.bfloat16]:
+            x = torch.nan_to_num(x)  # Fix for fp8 T5 base
         return self.encoder(x, *args, **kwargs)

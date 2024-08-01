@@ -10,7 +10,7 @@ from typing import Optional, List, Set, Dict, Any, Iterator, Sequence
 from ..cli_args import args
 from ..component_model.files import get_package_as_path
 
-supported_pt_extensions = frozenset(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
+supported_pt_extensions = frozenset(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'])
 
 
 @dataclasses.dataclass

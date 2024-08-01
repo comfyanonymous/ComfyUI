@@ -1,6 +1,6 @@
 from importlib import resources
 
-from comfy import sd1_clip
+from .. import sd1_clip
 from .spiece_tokenizer import SPieceTokenizer
 from ..text_encoders import t5
 from ..component_model.files import get_path_as_dict

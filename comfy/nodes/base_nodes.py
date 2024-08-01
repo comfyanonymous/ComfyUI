@@ -815,15 +815,17 @@ class UNETLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "unet_name": (get_filename_list_with_downloadable("unet", KNOWN_UNET_MODELS),),
+                              "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e5m2"],)
                              }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "load_unet"
 
     CATEGORY = "advanced/loaders"
 
-    def load_unet(self, unet_name):
+    def load_unet(self, unet_name, weight_dtype):
+        weight_dtype = {"default":None, "fp8_e4m3fn":torch.float8_e4m3fn, "fp8_e5m2":torch.float8_e4m3fn}[weight_dtype]
         unet_path = get_or_download("unet", unet_name, KNOWN_UNET_MODELS)
-        model = sd.load_unet(unet_path)
+        model = sd.load_unet(unet_path, dtype=weight_dtype)
         return (model,)
 
 class CLIPLoader:
@@ -857,7 +859,7 @@ class DualCLIPLoader:
     def INPUT_TYPES(s):
         return {"required": { "clip_name1": (folder_paths.get_filename_list("clip"),), "clip_name2": (
         folder_paths.get_filename_list("clip"),),
-                              "type": (["sdxl", "sd3"], ),
+                              "type": (["sdxl", "sd3", "flux"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -871,6 +873,8 @@ class DualCLIPLoader:
             clip_type = sd.CLIPType.STABLE_DIFFUSION
         elif type == "sd3":
             clip_type = sd.CLIPType.SD3
+        elif type == "flux":
+            clip_type = sd.CLIPType.FLUX
         else:
             raise ValueError(f"Unknown clip type argument passed: {type} for model {clip_name1} and {clip_name2}")
 
@@ -1856,6 +1860,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "StyleModelLoader": "Load Style Model",
     "CLIPVisionLoader": "Load CLIP Vision",
     "UpscaleModelLoader": "Load Upscale Model",
+    "UNETLoader": "Load Diffusion Model",
     # Conditioning
     "CLIPVisionEncode": "CLIP Vision Encode",
     "StyleModelApply": "Apply Style Model",
