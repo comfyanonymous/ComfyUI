@@ -26,7 +26,7 @@ class FluxParams:
     num_heads: int
     depth: int
     depth_single_blocks: int
-    axes_dim: list[int]
+    axes_dim: list
     theta: int
     qkv_bias: bool
     guidance_embed: bool
@@ -92,7 +92,7 @@ class Flux(nn.Module):
         txt_ids: Tensor,
         timesteps: Tensor,
         y: Tensor,
-        guidance: Tensor | None = None,
+        guidance: Tensor = None,
     ) -> Tensor:
         if img.ndim != 3 or txt.ndim != 3:
             raise ValueError("Input img and txt tensors must have 3 dimensions.")
