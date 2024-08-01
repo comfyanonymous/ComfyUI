@@ -441,7 +441,13 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
             clip_target.clip = comfy.text_encoders.hydit.HyditModel
             clip_target.tokenizer = comfy.text_encoders.hydit.HyditTokenizer
         elif clip_type == CLIPType.FLUX:
-            clip_target.clip = comfy.text_encoders.flux.FluxClipModel
+            weight_name = "encoder.block.23.layer.1.DenseReluDense.wi_1.weight"
+            weight = clip_data[0].get(weight_name, clip_data[1].get(weight_name, None))
+            dtype_t5 = None
+            if weight is not None:
+                dtype_t5 = weight.dtype
+
+            clip_target.clip = comfy.text_encoders.flux.flux_clip(dtype_t5=dtype_t5)
             clip_target.tokenizer = comfy.text_encoders.flux.FluxTokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
