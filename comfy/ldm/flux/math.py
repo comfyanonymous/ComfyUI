@@ -2,6 +2,7 @@ import torch
 from einops import rearrange
 from torch import Tensor
 from comfy.ldm.modules.attention import optimized_attention
+import comfy.model_management
 
 def attention(q: Tensor, k: Tensor, v: Tensor, pe: Tensor) -> Tensor:
     q, k = apply_rope(q, k, pe)
@@ -13,12 +14,17 @@ def attention(q: Tensor, k: Tensor, v: Tensor, pe: Tensor) -> Tensor:
 
 def rope(pos: Tensor, dim: int, theta: int) -> Tensor:
     assert dim % 2 == 0
-    scale = torch.linspace(0, (dim - 2) / dim, steps=dim//2, dtype=torch.float64, device=pos.device)
+    if comfy.model_management.is_device_mps(pos.device):
+        device = torch.device("cpu")
+    else:
+        device = pos.device
+
+    scale = torch.linspace(0, (dim - 2) / dim, steps=dim//2, dtype=torch.float64, device=device)
     omega = 1.0 / (theta**scale)
-    out = torch.einsum("...n,d->...nd", pos.float(), omega)
+    out = torch.einsum("...n,d->...nd", pos.to(dtype=torch.float32, device=device), omega)
     out = torch.stack([torch.cos(out), -torch.sin(out), torch.sin(out), torch.cos(out)], dim=-1)
     out = rearrange(out, "b n d (i j) -> b n d i j", i=2, j=2)
-    return out.float()
+    return out.to(dtype=torch.float32, device=pos.device)
 
 
 def apply_rope(xq: Tensor, xk: Tensor, freqs_cis: Tensor):
