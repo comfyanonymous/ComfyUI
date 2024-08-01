@@ -37,6 +37,13 @@ on:
         type: string
         default: ""
 
+
+      force:
+        description: 'force update the dependencies'
+        required: false
+        type: boolean
+        default: false
+
 concurrency:
   group: bizyairui_releases-build-cpu${{ inputs.cpu }}-${{ inputs.python_minor }}-xformers${{ inputs.xformers }}-${{ inputs.python_patch }}-${{ inputs.python_minor }}-${{ inputs.cu }}
   cancel-in-progress: true
@@ -51,6 +58,7 @@ jobs:
       python_minor: ${{ inputs.python_minor || 11 }}
       python_patch: ${{ inputs.python_patch || 8 }}
       cpu: ${{ inputs.cpu || true }}
+      force: ${{ inputs.force || false }}
   build:
     needs: deps
     uses: ./.github/workflows/windows_release_package.yml
