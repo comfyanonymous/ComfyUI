@@ -897,7 +897,10 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
     if directml_enabled:
         return False
 
-    if cpu_mode() or mps_mode():
+    if mps_mode():
+        return True
+
+    if cpu_mode():
         return False
 
     if is_intel_xpu():
