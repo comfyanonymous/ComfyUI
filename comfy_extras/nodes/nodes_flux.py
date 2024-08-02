@@ -1,3 +1,4 @@
+import node_helpers
 
 class CLIPTextEncodeFlux:
     @classmethod
@@ -11,7 +12,7 @@ class CLIPTextEncodeFlux:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
-    CATEGORY = "advanced/conditioning"
+    CATEGORY = "advanced/conditioning/flux"
 
     def encode(self, clip, clip_l, t5xxl, guidance):
         tokens = clip.tokenize(clip_l)
@@ -22,6 +23,25 @@ class CLIPTextEncodeFlux:
         output["guidance"] = guidance
         return ([[cond, output]], )
 
+class FluxGuidance:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "conditioning": ("CONDITIONING", ),
+            "guidance": ("FLOAT", {"default": 3.5, "min": 0.0, "max": 100.0, "step": 0.1}),
+            }}
+
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "advanced/conditioning/flux"
+
+    def append(self, conditioning, guidance):
+        c = node_helpers.conditioning_set_values(conditioning, {"guidance": guidance})
+        return (c, )
+
+
 NODE_CLASS_MAPPINGS = {
     "CLIPTextEncodeFlux": CLIPTextEncodeFlux,
+    "FluxGuidance": FluxGuidance,
 }

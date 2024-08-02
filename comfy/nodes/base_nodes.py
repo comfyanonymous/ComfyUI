@@ -823,9 +823,14 @@ class UNETLoader:
     CATEGORY = "advanced/loaders"
 
     def load_unet(self, unet_name, weight_dtype):
-        weight_dtype = {"default":None, "fp8_e4m3fn":torch.float8_e4m3fn, "fp8_e5m2":torch.float8_e4m3fn}[weight_dtype]
+        dtype = None
+        if weight_dtype == "fp8_e4m3fn":
+            dtype = torch.float8_e4m3fn
+        elif weight_dtype == "fp8_e5m2":
+            dtype = torch.float8_e5m2
+
         unet_path = get_or_download("unet", unet_name, KNOWN_UNET_MODELS)
-        model = sd.load_unet(unet_path, dtype=weight_dtype)
+        model = sd.load_unet(unet_path, dtype=dtype)
         return (model,)
 
 class CLIPLoader:

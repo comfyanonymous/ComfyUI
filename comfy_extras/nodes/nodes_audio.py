@@ -8,6 +8,7 @@ import io
 import json
 import struct
 import random
+import hashlib
 from comfy.cli_args import args
 
 class EmptyLatentAudio:
