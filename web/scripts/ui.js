@@ -241,11 +241,8 @@ class ComfyList {
 									if (item.outputs) {
 										app.nodeOutputs = {};
 										for (const [key, value] of Object.entries(item.outputs)) {
-											if (item.meta && item.meta[key] && item.meta[key].display_node) {
-												app.nodeOutputs[item.meta[key].display_node] = value;
-											} else {
-												app.nodeOutputs[key] = value;
-											}
+											const realKey = item?.meta?.[key]?.display_node ?? key;
+											app.nodeOutputs[realKey] = value;
 										}
 									}
 								},
