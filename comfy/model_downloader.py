@@ -133,7 +133,7 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                         try:
                             os.makedirs(this_model_directory, exist_ok=True)
                             os.symlink(path, destination_link)
-                        except WindowsError:
+                        except Exception:
                             try:
                                 os.link(path, destination_link)
                             except Exception as exc_info:
