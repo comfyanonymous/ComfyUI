@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 
@@ -45,7 +46,6 @@ saved_model/**/* filter=lfs diff=lfs merge=lfs -text
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip("flakey")
 def test_known_repos(tmp_path_factory):
     prev_hub_cache = os.getenv("HF_HUB_CACHE")
     os.environ["HF_HUB_CACHE"] = str(tmp_path_factory.mktemp("huggingface_root_cache"))
@@ -66,21 +66,25 @@ def test_known_repos(tmp_path_factory):
     _delete_repo_from_huggingface_cache(test_repo_id, test_cache_dir)
     args.disable_known_models = False
     try:
-        folder_paths.folder_names_and_paths["huggingface"] += FolderPathsTuple("huggingface", [test_local_dir], {""})
-        folder_paths.folder_names_and_paths["huggingface_cache"] += FolderPathsTuple("huggingface_cache", [test_cache_dir], {""})
+        folder_paths.folder_names_and_paths["huggingface"] = FolderPathsTuple("huggingface", [test_local_dir], {""})
+        folder_paths.folder_names_and_paths["huggingface_cache"] = FolderPathsTuple("huggingface_cache", [test_cache_dir], {""})
 
         cache_hits, locals_hits = _get_cache_hits([test_cache_dir], [test_local_dir], test_repo_id)
         assert len(cache_hits) == 0, "not downloaded yet"
         assert len(locals_hits) == 0, "not downloaded yet"
 
         # test downloading the repo and observing a cache hit on second access
-        existing_repos = get_huggingface_repo_list()
-        assert test_repo_id not in existing_repos
+        try:
+            KNOWN_HUGGINGFACE_MODEL_REPOS.remove(test_repo_id)
+            logging.error("unexpected, the test_repo_id was already in the KNOWN_HUGGINGFACE_MODEL_REPOS symbol")
+        except KeyError:
+            known_repos = get_huggingface_repo_list()
+            assert test_repo_id not in known_repos
 
         # best to import this at the time that it is run, not when the test is initialized
         KNOWN_HUGGINGFACE_MODEL_REPOS.add(test_repo_id)
-        existing_repos = get_huggingface_repo_list()
-        assert test_repo_id in existing_repos
+        known_repos = get_huggingface_repo_list()
+        assert test_repo_id in known_repos
 
         cache_hits, locals_hits = _get_cache_hits([test_cache_dir], [test_local_dir], test_repo_id)
         assert len(cache_hits) == len(locals_hits) == 0, "not downloaded yet"

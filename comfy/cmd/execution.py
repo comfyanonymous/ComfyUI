@@ -648,7 +648,8 @@ def validate_inputs(prompt, item, validated: typing.Dict[str, ValidateInputsTupl
             r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
             received_type = r[val[1]]
             received_types[x] = received_type
-            if 'input_types' not in validate_function_inputs and received_type != type_input:
+            any_enum = received_type == [] and (isinstance(type_input, list) or isinstance(type_input, tuple))
+            if 'input_types' not in validate_function_inputs and received_type != type_input and not any_enum:
                 details = f"{x}, {received_type} != {type_input}"
                 error = {
                     "type": "return_type_mismatch",

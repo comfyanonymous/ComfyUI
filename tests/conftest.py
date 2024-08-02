@@ -89,9 +89,13 @@ def has_gpu() -> bool:
 @pytest.fixture(scope="module", autouse=False)
 def frontend_backend_worker_with_rabbitmq(tmp_path_factory) -> str:
     """
-    starts a frontend and backend worker against a started rabbitmq, and yields the address of the frontend
+    populates the cache with the sdxl checkpoints, starts a frontend and backend worker against a started rabbitmq, and yields the address of the frontend
     :return:
     """
+    from huggingface_hub import hf_hub_download
+    hf_hub_download("stabilityai/stable-diffusion-xl-base-1.0", "sd_xl_base_1.0.safetensors")
+    hf_hub_download("stabilityai/stable-diffusion-xl-refiner-1.0", "sd_xl_refiner_1.0.safetensors")
+
     tmp_path = tmp_path_factory.mktemp("comfy_background_server")
     processes_to_close: List[subprocess.Popen] = []
     from testcontainers.rabbitmq import RabbitMqContainer

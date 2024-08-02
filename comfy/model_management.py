@@ -453,28 +453,28 @@ def load_models_gpu(models: Sequence[ModelManageable], memory_required: int = 0,
     else:
         minimum_memory_required = max(inference_memory, minimum_memory_required)
 
-        models = set(models)
-        models_to_load = []
-        models_already_loaded = []
-        for x in models:
-            loaded_model = LoadedModel(x)
-            loaded = None
+    models = set(models)
+    models_to_load = []
+    models_already_loaded = []
+    for x in models:
+        loaded_model = LoadedModel(x)
+        loaded = None
 
-            try:
-                loaded_model_index = current_loaded_models.index(loaded_model)
-            except ValueError:
-                loaded_model_index = None
+        try:
+            loaded_model_index = current_loaded_models.index(loaded_model)
+        except ValueError:
+            loaded_model_index = None
 
-            if loaded_model_index is not None:
-                loaded = current_loaded_models[loaded_model_index]
-                if loaded.should_reload_model(force_patch_weights=force_patch_weights):  # TODO: cleanup this model reload logic
-                    current_loaded_models.pop(loaded_model_index).model_unload(unpatch_weights=True)
-                    loaded = None
-                else:
-                    loaded.currently_used = True
-                    models_already_loaded.append(loaded)
-            if loaded is None:
-                models_to_load.append(loaded_model)
+        if loaded_model_index is not None:
+            loaded = current_loaded_models[loaded_model_index]
+            if loaded.should_reload_model(force_patch_weights=force_patch_weights):  # TODO: cleanup this model reload logic
+                current_loaded_models.pop(loaded_model_index).model_unload(unpatch_weights=True)
+                loaded = None
+            else:
+                loaded.currently_used = True
+                models_already_loaded.append(loaded)
+        if loaded is None:
+            models_to_load.append(loaded_model)
 
         models_freed: List[LoadedModel] = []
         try:
@@ -513,7 +513,6 @@ def load_models_gpu(models: Sequence[ModelManageable], memory_required: int = 0,
                     current_free_mem = get_free_memory(torch_dev)
                     lowvram_model_memory = int(max(64 * (1024 * 1024), (current_free_mem - minimum_memory_required)))
                     if model_size <= lowvram_model_memory:  # only switch to lowvram if really necessary
-
                         lowvram_model_memory = 0
 
                 if vram_set_state == VRAMState.NO_VRAM:

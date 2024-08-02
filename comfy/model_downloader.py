@@ -4,15 +4,17 @@ import collections
 import logging
 import operator
 import os
+import shutil
 from functools import reduce
 from itertools import chain
 from os.path import join
 from pathlib import Path
-from typing import List, Any, Optional, Sequence, Final, Set, MutableSequence
+from typing import List, Optional, Sequence, Final, Set, MutableSequence
 
 import tqdm
 from huggingface_hub import hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem
-from huggingface_hub.utils import GatedRepoError
+from huggingface_hub.file_download import are_symlinks_supported
+from huggingface_hub.utils import GatedRepoError, LocalEntryNotFoundError
 from requests import Session
 from safetensors import safe_open
 from safetensors.torch import save_file
@@ -82,16 +84,31 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                         file_size = os.stat(path, follow_symlinks=True).st_size if os.path.isfile(path) else None
                     except:
                         file_size = None
-                    if os.path.isfile(path) and known_file.size is None or file_size == known_file.size:
+                    if os.path.isfile(path) and file_size == known_file.size:
                         return path
 
-                    path = hf_hub_download(repo_id=known_file.repo_id,
-                                           filename=known_file.filename,
-                                           # todo: in the latest huggingface implementation, this causes files to be downloaded as though the destination is the cache dir, rather than a local directory linking to a cache dir
-                                           local_dir=hf_destination_dir,
-                                           repo_type=known_file.repo_type,
-                                           revision=known_file.revision,
-                                           )
+                    cache_hit = False
+                    try:
+                        if not are_symlinks_supported():
+                            raise PermissionError("no symlink support")
+                        # always retrieve this from the cache if it already exists there
+                        path = hf_hub_download(repo_id=known_file.repo_id,
+                                               filename=known_file.filename,
+                                               repo_type=known_file.repo_type,
+                                               revision=known_file.revision,
+                                               local_files_only=True,
+                                               )
+                        logging.info(f"hf_hub_download cache hit for {known_file.repo_id}/{known_file.filename}")
+                        if linked_filename is None:
+                            linked_filename = known_file.filename
+                        cache_hit = True
+                    except (LocalEntryNotFoundError, PermissionError):
+                        path = hf_hub_download(repo_id=known_file.repo_id,
+                                               filename=known_file.filename,
+                                               local_dir=hf_destination_dir,
+                                               repo_type=known_file.repo_type,
+                                               revision=known_file.revision,
+                                               )
 
                     if known_file.convert_to_16_bit and file_size is not None and file_size != 0:
                         tensors = {}
@@ -103,17 +120,30 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                                     del x
                                     pb.update()
 
-                        save_file(tensors, path)
+                        # always save converted files to the destination so that the huggingface cache is not corrupted
+                        save_file(tensors, os.path.join(hf_destination_dir, known_file.filename))
 
                         for _, v in tensors.items():
                             del v
                         logging.info(f"Converted {path} to 16 bit, size is {os.stat(path, follow_symlinks=True).st_size}")
 
-                    try:
-                        if linked_filename is not None:
-                            os.symlink(os.path.join(hf_destination_dir, known_file.filename), os.path.join(this_model_directory, linked_filename))
-                    except Exception as exc_info:
-                        logging.error(f"Failed to link file with alternative download save name in a way that is compatible with Hugging Face caching {repr(known_file)}", exc_info=exc_info)
+                    link_exc_info = None
+                    if linked_filename is not None:
+                        destination_link = os.path.join(this_model_directory, linked_filename)
+                        try:
+                            os.makedirs(this_model_directory, exist_ok=True)
+                            os.symlink(path, destination_link)
+                        except WindowsError:
+                            try:
+                                os.link(path, destination_link)
+                            except Exception as exc_info:
+                                link_exc_info = exc_info
+                                if cache_hit:
+                                    shutil.copyfile(path, destination_link)
+                        except Exception as exc_info:
+                            link_exc_info = exc_info
+                    if link_exc_info is not None:
+                        logging.error(f"Failed to link file with alternative download save name in a way that is compatible with Hugging Face caching {repr(known_file)}. If cache_hit={cache_hit} is True, the file was copied into the destination.", exc_info=exc_info)
                 else:
                     url: Optional[str] = None
                     save_filename = known_file.save_with_filename or known_file.filename
@@ -463,7 +493,7 @@ def get_huggingface_repo_list(*extra_cache_dirs: str) -> List[str]:
         cache_item.repo_id for cache_item in \
         reduce(operator.or_,
                map(lambda cache_info: cache_info.repos, [scan_cache_dir()] + [scan_cache_dir(cache_dir=cache_dir) for cache_dir in extra_cache_dirs if os.path.isdir(cache_dir)]))
-        if cache_item.repo_type == "model"
+        if cache_item.repo_type == "model" or cache_item.repo_type == "space"
     )
 
     # also check local-dir style directories
@@ -489,9 +519,9 @@ def get_huggingface_repo_list(*extra_cache_dirs: str) -> List[str]:
         return list(existing_repo_ids | existing_local_dir_repos | known_repo_ids)
 
 
-def get_or_download_huggingface_repo(repo_id: str) -> Optional[str]:
-    cache_dirs = folder_paths.get_folder_paths("huggingface_cache")
-    local_dirs = folder_paths.get_folder_paths("huggingface")
+def get_or_download_huggingface_repo(repo_id: str, cache_dirs: Optional[list] = None, local_dirs: Optional[list] = None) -> Optional[str]:
+    cache_dirs = cache_dirs or folder_paths.get_folder_paths("huggingface_cache")
+    local_dirs = local_dirs or folder_paths.get_folder_paths("huggingface")
     cache_dirs_snapshots, local_dirs_snapshots = _get_cache_hits(cache_dirs, local_dirs, repo_id)
 
     local_dirs_cache_hit = len(local_dirs_snapshots) > 0

@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .... import ops
+from ... import ops
 from ..modules.diffusionmodules.mmdit import Mlp, TimestepEmbedder, PatchEmbed, RMSNorm
 from ..modules.diffusionmodules.util import timestep_embedding
 from torch.utils import checkpoint

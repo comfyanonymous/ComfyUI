@@ -10,6 +10,7 @@ from PIL import Image
 from freezegun import freeze_time
 
 from comfy.cmd import folder_paths
+from comfy.component_model.executor_types import ValidateInputsTuple
 from comfy_extras.nodes.nodes_open_api import SaveImagesResponse, IntRequestParameter, FloatRequestParameter, \
     StringRequestParameter, HashImage, StringPosixPathJoin, LegacyOutputURIs, DevNullUris, StringJoin, StringToUri, \
     UriFormat, ImageExifMerge, ImageExifCreationDateAndBatchNumber, ImageExif, ImageExifUncommon, \
@@ -123,7 +124,36 @@ def test_string_enum_request_parameter():
     n = StringEnumRequestParameter()
     v, = n.execute(value="test", name="test")
     assert v == "test"
-    # todo: check that a graph that uses this in a checkpoint is valid
+    prompt = {
+        "1": {
+            "inputs": {
+                "value": "euler",
+                "name": "sampler_name",
+                "title": "KSampler Node Sampler",
+                "description":
+                    "This allows users to select a sampler for generating images with Latent Diffusion Models, including Stable Diffusion, ComfyUI, and SDXL. \n\nChange this only if explicitly requested by the user.\n\nList of sampler choice (this parameter): valid choices for scheduler (value for scheduler parameter).\n\n- euler: normal, karras, exponential, sgm_uniform, simple, ddim_uniform\n- euler_ancestral: normal, karras\n- heun: normal, karras\n- heunpp2: normal, karras\n- dpm_2: normal, karras\n- dpm_2_ancestral: normal, karras\n- lms: normal, karras\n- dpm_fast: normal, exponential\n- dpm_adaptive: normal, exponential\n- dpmpp_2s_ancestral: karras, exponential\n- dpmpp_sde: karras, exponential\n- dpmpp_sde_gpu: karras, exponential\n- dpmpp_2m: karras, sgm_uniform\n- dpmpp_2m_sde: karras, sgm_uniform\n- dpmpp_2m_sde_gpu: karras, sgm_uniform\n- dpmpp_3m_sde: karras, sgm_uniform\n- dpmpp_3m_sde_gpu: karras, sgm_uniform\n- ddpm: normal, simple\n- lcm: normal, exponential\n- ddim: normal, ddim_uniform\n- uni_pc: normal, karras, exponential\n- uni_pc_bh2: normal, karras, exponential",
+                "__required": True,
+            },
+            "class_type": "StringEnumRequestParameter",
+            "_meta": {
+                "title": "StringEnumRequestParameter",
+            },
+        },
+        "2": {
+            "inputs": {
+                "sampler_name": ["1", 0],
+            },
+            "class_type": "KSamplerSelect",
+            "_meta": {
+                "title": "KSamplerSelect",
+            },
+        },
+    }
+    from comfy.cmd.execution import validate_inputs
+    validated: dict[str, ValidateInputsTuple] = {}
+    validated["1"] = validate_inputs(prompt, "1", validated)
+    validated["2"] = validate_inputs(prompt, "2", validated)
+    assert validated["2"].valid
 
 
 @pytest.mark.skip("issues")
