@@ -3,6 +3,7 @@ import copy
 import logging
 import threading
 import heapq
+import time
 import traceback
 from enum import Enum
 import inspect
@@ -406,7 +407,11 @@ class PromptExecutor:
         self.status_messages = []
         self.success = True
 
-    def add_message(self, event, data, broadcast: bool):
+    def add_message(self, event, data: dict, broadcast: bool):
+        data = {
+            **data,
+            "timestamp": int(time.time() * 1000),
+        }
         self.status_messages.append((event, data))
         if self.server.client_id is not None or broadcast:
             self.server.send_sync(event, data, self.server.client_id)
@@ -483,6 +488,9 @@ class PromptExecutor:
                     execution_list.unstage_node_execution()
                 else: # result == ExecutionResult.SUCCESS:
                     execution_list.complete_node_execution()
+            else:
+                # Only execute when the while-loop ends without break
+                self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
 
             ui_outputs = {}
             meta_outputs = {}

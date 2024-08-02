@@ -74,6 +74,12 @@ if __name__ == "__main__":
 
     import cuda_malloc
 
+if args.windows_standalone_build:
+    try:
+        import fix_torch
+    except:
+        pass
+
 import comfy.utils
 import yaml
 
