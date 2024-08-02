@@ -3,7 +3,7 @@ import time
 import logging
 from typing import Set, List, Dict, Tuple
 
-supported_pt_extensions: Set[str] = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
+supported_pt_extensions: Set[str] = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'])
 
 SupportedFileExtensionsType = Set[str]
 ScanPathType = List[str]

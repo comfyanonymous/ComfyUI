@@ -23,6 +23,7 @@ import comfy.text_encoders.sd3_clip
 import comfy.text_encoders.sa_t5
 import comfy.text_encoders.aura_t5
 import comfy.text_encoders.hydit
+import comfy.text_encoders.flux
 
 import comfy.model_patcher
 import comfy.lora
@@ -387,6 +388,7 @@ class CLIPType(Enum):
     SD3 = 3
     STABLE_AUDIO = 4
     HUNYUAN_DIT = 5
+    FLUX = 6
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION):
     clip_data = []
@@ -438,6 +440,15 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
         elif clip_type == CLIPType.HUNYUAN_DIT:
             clip_target.clip = comfy.text_encoders.hydit.HyditModel
             clip_target.tokenizer = comfy.text_encoders.hydit.HyditTokenizer
+        elif clip_type == CLIPType.FLUX:
+            weight_name = "encoder.block.23.layer.1.DenseReluDense.wi_1.weight"
+            weight = clip_data[0].get(weight_name, clip_data[1].get(weight_name, None))
+            dtype_t5 = None
+            if weight is not None:
+                dtype_t5 = weight.dtype
+
+            clip_target.clip = comfy.text_encoders.flux.flux_clip(dtype_t5=dtype_t5)
+            clip_target.tokenizer = comfy.text_encoders.flux.FluxTokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer
@@ -556,7 +567,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     return (model_patcher, clip, vae, clipvision)
 
 
-def load_unet_state_dict(sd): #load unet in diffusers or regular format
+def load_unet_state_dict(sd, dtype=None): #load unet in diffusers or regular format
 
     #Allow loading unets from checkpoint files
     diffusion_model_prefix = model_detection.unet_prefix_from_state_dict(sd)
@@ -565,7 +576,6 @@ def load_unet_state_dict(sd): #load unet in diffusers or regular format
         sd = temp_sd
 
     parameters = comfy.utils.calculate_parameters(sd)
-    unet_dtype = model_management.unet_dtype(model_params=parameters)
     load_device = model_management.get_torch_device()
     model_config = model_detection.model_config_from_unet(sd, "")
 
@@ -592,7 +602,11 @@ def load_unet_state_dict(sd): #load unet in diffusers or regular format
                     logging.warning("{} {}".format(diffusers_keys[k], k))
 
     offload_device = model_management.unet_offload_device()
-    unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=model_config.supported_inference_dtypes)
+    if dtype is None:
+        unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=model_config.supported_inference_dtypes)
+    else:
+        unet_dtype = dtype
+
     manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
     model = model_config.get_model(new_sd, "")
@@ -603,9 +617,9 @@ def load_unet_state_dict(sd): #load unet in diffusers or regular format
         logging.info("left over keys in unet: {}".format(left_over))
     return comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device)
 
-def load_unet(unet_path):
+def load_unet(unet_path, dtype=None):
     sd = comfy.utils.load_torch_file(unet_path)
-    model = load_unet_state_dict(sd)
+    model = load_unet_state_dict(sd, dtype=dtype)
     if model is None:
         logging.error("ERROR UNSUPPORTED UNET {}".format(unet_path))
         raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
