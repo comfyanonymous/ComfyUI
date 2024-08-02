@@ -28,7 +28,7 @@ class FluxTokenizer:
         return out
 
     def untokenize(self, token_weight_pair):
-        return self.clip_g.untokenize(token_weight_pair)
+        return self.clip_l.untokenize(token_weight_pair)
 
     def state_dict(self):
         return {}
