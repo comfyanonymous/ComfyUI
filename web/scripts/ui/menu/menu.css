@@ -330,6 +330,7 @@
 
 .comfyui-workflows-open .active {
 	font-weight: bold;
+	color: var(--primary-fg);
 }
 
 .comfyui-workflows-favorites:empty {
@@ -415,6 +416,10 @@
 	background-color: transparent;
 	color: var(--fg-color);
 	padding: 2px 4px;
+}
+
+.comfyui-workflows-tree-file.active .comfyui-workflows-file-action {
+	color: var(--primary-fg);
 }
 
 .lg ~ .comfyui-workflows-popup .comfyui-workflows-tree-file:not(:hover) .comfyui-workflows-file-action {

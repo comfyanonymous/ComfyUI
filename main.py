@@ -58,7 +58,6 @@ import shutil
 import threading
 import gc
 
-from comfy.cli_args import args
 import logging
 
 if os.name == "nt":
@@ -74,6 +73,12 @@ if __name__ == "__main__":
             os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
 
     import cuda_malloc
+
+if args.windows_standalone_build:
+    try:
+        import fix_torch
+    except:
+        pass
 
 import comfy.utils
 import yaml

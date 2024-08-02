@@ -42,7 +42,7 @@ jobs:
       working-directory: ComfyUI
     - name: Start ComfyUI server
       run: |
-        python main.py --cpu &
+        python main.py --cpu 2>&1 | tee console_output.log &
         wait-for-it --service 127.0.0.1:8188 -t 600
       working-directory: ComfyUI
     - name: Install ComfyUI_frontend dependencies
@@ -55,9 +55,22 @@ jobs:
     - name: Run Playwright tests
       run: npx playwright test
       working-directory: ComfyUI_frontend
+    - name: Check for unhandled exceptions in server log
+      run: |
+        if grep -qE "Exception|Error" console_output.log; then
+          echo "Unhandled exception/error found in server log."
+          exit 1
+        fi
+      working-directory: ComfyUI
     - uses: actions/upload-artifact@v4
       if: always()
       with:
         name: playwright-report
         path: ComfyUI_frontend/playwright-report/
+        retention-days: 30
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: console-output
+        path: ComfyUI/console_output.log
         retention-days: 30
