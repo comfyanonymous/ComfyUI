@@ -710,7 +710,7 @@ class Flux(BaseModel):
                 dtype = self.manual_cast_dtype
             #TODO: this probably needs to be tweaked
             area = input_shape[0] * input_shape[2] * input_shape[3]
-            return (area * comfy.model_management.dtype_size(dtype) * 0.020) * (1024 * 1024)
+            return (area * comfy.model_management.dtype_size(dtype) * 0.026) * (1024 * 1024)
         else:
             area = input_shape[0] * input_shape[2] * input_shape[3]
             return (area * 0.3) * (1024 * 1024)
