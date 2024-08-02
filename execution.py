@@ -13,29 +13,108 @@ import nodes
 
 import comfy.model_management
 
-def force_bhw3(image):
-    #convert [CHW, BCHW, CWH] to BHW3
-    was_list = False
+from comfy.cli_args import args
+
+
+def validate_image_shape(image):
+    transforms = {
+        "HW": lambda t: t.unsqueeze(0).unsqueeze(-1).expand(-1, -1, -1, 3),
+        "BHW": lambda t: t.unsqueeze(-1).expand(-1, -1, -1, 3),
+        "HWC": lambda t: t.unsqueeze(0),
+    }
     
-    while isinstance(image, list):
-        was_list = True
-        image = image[0]
+    image_len = len(image.shape)
     
-    if len(image.shape) == 3:
-        #add batch dimension
-        image = image.unsqueeze(0)
+    if image_len == 2:
+        #HW -> add Batch and Channel dimensions
+        image = transforms["HW"](image)
+        return image
     
-    if image.shape[1] == 3:
-        #BCHW color
-        image = image.permute(0, 2, 3, 1)
-        return image if not was_list else [image]
+    if image_len == 3:
+        if image.shape[-1] > 4 or image.shape[-1] < 3:
+            #BHW -> add Channel dimension
+            image = transforms["BHW"](image)
+            return image
+            
+        if image.shape[-1] == 3 or image.shape[-1] == 4:
+            #HW3 or HW4 -> add Batch dimension --- can misbehave in edge cases where image is BHW but W is 3 or 4 px
+            image = transforms["HWC"](image)
+            return image
+        
+    return image
+
+
+def generate_type_validator(valid_types, expected_type=None): 
+    def validate_type(node_type, output_name, value):
+        
+        if not isinstance(value, valid_types) and expected_type is not "IMAGE":
+            print(f"The value is not of the valid types. Expected one of {[t.__name__ for t in valid_types]}, got {[type(value)]}")
+            
+            if "all" == args.type_conformance:
+                return valid_types[0](value)
+            
+            if "error" == args.type_conformance:     
+                raise TypeError(f"The value is not of the valid types. Expected output: {output_name}, to be of type(s): {[vtype.__name__ for vtype in valid_types]}, got {[type(value).__name__]} instead")
+
+            return value
+        
+        if isinstance(value, valid_types) and expected_type is "IMAGE":
+            if args.type_conformance in ["all", "images"]:
+                return validate_image_shape(value)
+            
+            if len(value.shape) != 4 or value.shape[-1] > 4 or value.shape[-1] < 3:
+                    print(f"Image Shape Error: Node: {node_type}, Output: {output_name}, [{value.shape}] does not match the expected RGB format: torch.Size[B, H, W, 3] or the RGBA format: torch.Size[B, H, W, 4]")
+                    
+                    if "error" == args.type_conformance:
+                        raise ValueError(f"Image Shape Error: Node: {node_type}, Output: {output_name}, [{value.shape}] does not match the expected RGB format: torch.Size[B, H, W, 3] or the RGBA format: torch.Size[B, H, W, 4]")
+
+                    return value
+            
+            return value
+        return value
+        
+    return validate_type 
+
+
+def input_validation(input_data_all, obj):
+    validation_funcs = { 
+        "IMAGE": generate_type_validator((torch.Tensor,), "IMAGE"),
+        "INT": generate_type_validator((int,)), 
+        "FLOAT": generate_type_validator((float,)), 
+        "STRING": generate_type_validator((str,)), 
+    }
+    input_types = obj.INPUT_TYPES()
+    for _, v in input_types.items():
+        if isinstance(v, dict):
+            for k2, v2 in v.items():
+                if tuple(v2[0]) in validation_funcs.keys():
+                    input_data_all[k2] = [validation_funcs[v2[0]](obj.__class__.__name__, k2, x) for x in input_data_all[k2]]
+                
+    return input_data_all
+
+
+def output_validation(results, obj):
+    validation_funcs = { 
+        "IMAGE": generate_type_validator((torch.Tensor,), "IMAGE"),
+        "INT": generate_type_validator((int,)), 
+        "FLOAT": generate_type_validator((float,)), 
+        "STRING": generate_type_validator((str,)), 
+    }
+    if hasattr(obj, "RETURN_NAMES") and hasattr(obj, "RETURN_TYPES"):      
+        return_indexs = {}
+        formatted_results = []
+        
+        for i, return_type in enumerate(obj.RETURN_TYPES):
+            return_indexs[i] = return_type
+        
+        for i, result in enumerate(results[0]):
+            return_type = return_indexs[i]
+            formatted_results.append(validation_funcs[return_type](obj.__class__.__name__, obj.RETURN_NAMES[i], result) if return_type in validation_funcs.keys() else result)
+        
+        results = [tuple(formatted_results)]  
+        del formatted_results     
+    return results
     
-    if image.shape[1] == 1:
-        #BCWH black and white
-        image = image.permute(0, 3, 2, 1).expand(-1, -1, -1, 3)
-        return image if not was_list else [image]
-    
-    return image if not was_list else [image]
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
@@ -52,7 +131,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
             input_data_all[x] = obj
         else:
             if ("required" in valid_inputs and x in valid_inputs["required"]) or ("optional" in valid_inputs and x in valid_inputs["optional"]):
-                input_data_all[x] = [input_data]
+                    input_data_all[x] = [input_data]
 
     if "hidden" in valid_inputs:
         h = valid_inputs["hidden"]
@@ -63,16 +142,12 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 input_data_all[x] = [extra_data.get('extra_pnginfo', None)]
             if h[x] == "UNIQUE_ID":
                 input_data_all[x] = [unique_id]
+    
     return input_data_all
 
+
 def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
-    #Ensure image inputs are in BHW3 format
-    input_types = obj.INPUT_TYPES()
-    for _, v in input_types.items():
-        if isinstance(v, dict):
-            for k2, v2 in v.items():
-                if v2[0] == "IMAGE":
-                    input_data_all[k2] = [force_bhw3(x) for x in input_data_all[k2]]
+    input_data_all = input_validation(input_data_all, obj)
     
     # check if node wants the lists
     input_is_list = False
@@ -106,33 +181,15 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
                 nodes.before_node_execution()
             results.append(getattr(obj, func)(**slice_dict(input_data_all, i)))
 
-    #Ensure IMAGE outputs conform to BHWC
-    return_indexs = {}
-    formatted_results = []
-    
-    if hasattr(obj, "RETURN_NAMES") and hasattr(obj, "RETURN_TYPES"):       
-        for i, t in enumerate(obj.RETURN_TYPES):
-            return_indexs[i] = t
-        
-        for i, r in enumerate(results[0]):
-            if return_indexs[i] == "IMAGE":
-                print(f"Result: {force_bhw3(r).shape}")
-                formatted_results.append(force_bhw3(r))
-            else:
-                formatted_results.append(r)
-        
-        results = [tuple(formatted_results)]
-        
-        del formatted_results        
-    
+    results = output_validation(results, obj)           
     return results
 
+
 def get_output_data(obj, input_data_all):
-    
     results = []
     uis = []
     return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True)
-
+    
     for r in return_values:
         if isinstance(r, dict):
             if 'ui' in r:
