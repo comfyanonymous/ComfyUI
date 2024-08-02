@@ -413,6 +413,23 @@ class TestExecution:
         for i in range(3):
             assert numpy.array(images_literal[i]).min() == 255 and numpy.array(images_literal[i]).max() == 255, "All images should be white"
 
+    def test_mixed_lazy_results(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        val_list = g.node("TestMakeListNode", value1=0.0, value2=0.5, value3=1.0)
+        mask = g.node("StubMask", value=val_list.out(0), height=512, width=512, batch_size=1)
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        input2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+        mix = g.node("TestLazyMixImages", image1=input1.out(0), image2=input2.out(0), mask=mask.out(0))
+        rebatch = g.node("RebatchImages", images=mix.out(0), batch_size=3)
+        output = g.node("SaveImage", images=rebatch.out(0))
+
+        result = client.run(g)
+        images = result.get_images(output)
+        assert len(images) == 3, "Should have 3 image"
+        assert numpy.array(images[0]).min() == 0 and numpy.array(images[0]).max() == 0, "First image should be 0.0"
+        assert numpy.array(images[1]).min() == 127 and numpy.array(images[1]).max() == 127, "Second image should be 0.5"
+        assert numpy.array(images[2]).min() == 255 and numpy.array(images[2]).max() == 255, "Third image should be 1.0"
+
     def test_output_reuse(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
