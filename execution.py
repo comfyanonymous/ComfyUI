@@ -16,61 +16,82 @@ import comfy.model_management
 from comfy.cli_args import args
 
 
-def validate_image_shape(image):
-    transforms = {
-        "HW": lambda t: t.unsqueeze(0).unsqueeze(-1).expand(-1, -1, -1, 3),
-        "BHW": lambda t: t.unsqueeze(-1).expand(-1, -1, -1, 3),
-        "HWC": lambda t: t.unsqueeze(0),
-    }
-    
+import sys
+import copy
+import logging
+import threading
+import heapq
+import time
+import traceback
+import inspect
+from typing import List, Literal, NamedTuple, Optional
+
+import torch
+import nodes
+
+import comfy.model_management
+
+from comfy.cli_args import args
+
+
+def validate_image_shape(image, node_type, output_name):
     image_len = len(image.shape)
     
-    if image_len == 2:
-        #HW -> add Batch and Channel dimensions
-        image = transforms["HW"](image)
-        return image
-    
-    if image_len == 3:
-        if image.shape[-1] > 4 or image.shape[-1] < 3:
-            #BHW -> add Channel dimension
-            image = transforms["BHW"](image)
+    def type_check():
+        print(f"Checking Image Shape: {image.shape}")
+        if image_len != 4 or image.shape[-1] > 4 or image.shape[-1] < 3:
+            if "error" == args.type_conformance:
+                raise ValueError(f"Image Shape Error: Node: {node_type}, Output: {output_name}, [{image.shape}] does not match the expected RGB format: torch.Size[B, H, W, 3] or the RGBA format: torch.Size[B, H, W, 4]")
+            else:
+                print(f"Image Shape Error: Node: {node_type}, Output: {output_name}, [{image.shape}] does not match the expected RGB format: torch.Size[B, H, W, 3] or the RGBA format: torch.Size[B, H, W, 4]")
+            return False
+        return True
+
+    if type_check() != True and args.type_conformance in ["all", "images"]:
+        transforms = {
+            "HW": lambda t: t.unsqueeze(0).unsqueeze(-1).expand(-1, -1, -1, 3),
+            "BHW": lambda t: t.unsqueeze(-1).expand(-1, -1, -1, 3),
+            "HWC": lambda t: t.unsqueeze(0),
+        }
+        
+        if image_len == 2:
+            #HW -> add Batch and Channel dimensions
+            image = transforms["HW"](image)
             return image
-            
-        if image.shape[-1] == 3 or image.shape[-1] == 4:
-            #HW3 or HW4 -> add Batch dimension --- can misbehave in edge cases where image is BHW but W is 3 or 4 px
-            image = transforms["HWC"](image)
-            return image
+        
+        if image_len == 3:
+            if image.shape[-1] > 4 or image.shape[-1] < 3:
+                #BHW -> add Channel dimension
+                image = transforms["BHW"](image)
+                return image
+                
+            if image.shape[-1] == 3 or image.shape[-1] == 4:
+                #HW3 or HW4 -> add Batch dimension --- can misbehave in edge cases where image is BHW but W is 3 or 4 px
+                image = transforms["HWC"](image)
+                return image
         
     return image
-
-
-def generate_type_validator(valid_types, expected_type=None): 
+    
+    
+def generate_type_validator(valid_types, validator=None): 
     def validate_type(node_type, output_name, value):
-        
-        if not isinstance(value, valid_types) and expected_type is not "IMAGE":
-            print(f"The value is not of the valid types. Expected one of {[t.__name__ for t in valid_types]}, got {[type(value)]}")
+        print(type(validator))
+        if not isinstance(value, valid_types) and validator is None:
+            print(f"TypeError in Node: {node_type}. Expected {output_name} to be one of type(s): {[t.__name__ for t in valid_types]}, got {[type(value).__name__]} instead")
             
             if "all" == args.type_conformance:
                 return valid_types[0](value)
             
             if "error" == args.type_conformance:     
-                raise TypeError(f"The value is not of the valid types. Expected output: {output_name}, to be of type(s): {[vtype.__name__ for vtype in valid_types]}, got {[type(value).__name__]} instead")
+                raise TypeError(f"Expected: [{output_name}], to be one of type(s): {[vtype.__name__ for vtype in valid_types]}, got {[type(value).__name__]} instead")
 
             return value
         
-        if isinstance(value, valid_types) and expected_type is "IMAGE":
-            if args.type_conformance in ["all", "images"]:
-                return validate_image_shape(value)
-            
-            if len(value.shape) != 4 or value.shape[-1] > 4 or value.shape[-1] < 3:
-                    print(f"Image Shape Error: Node: {node_type}, Output: {output_name}, [{value.shape}] does not match the expected RGB format: torch.Size[B, H, W, 3] or the RGBA format: torch.Size[B, H, W, 4]")
-                    
-                    if "error" == args.type_conformance:
-                        raise ValueError(f"Image Shape Error: Node: {node_type}, Output: {output_name}, [{value.shape}] does not match the expected RGB format: torch.Size[B, H, W, 3] or the RGBA format: torch.Size[B, H, W, 4]")
-
-                    return value
-            
+        if isinstance(value, valid_types) and validator is not None:            
+            print(f"Validating {output_name} in Node: {node_type}")
+            value = validator(value, node_type, output_name)
             return value
+
         return value
         
     return validate_type 
@@ -78,7 +99,7 @@ def generate_type_validator(valid_types, expected_type=None):
 
 def input_validation(input_data_all, obj):
     validation_funcs = { 
-        "IMAGE": generate_type_validator((torch.Tensor,), "IMAGE"),
+        "IMAGE": generate_type_validator((torch.Tensor,), validator=validate_image_shape),
         "INT": generate_type_validator((int,)), 
         "FLOAT": generate_type_validator((float,)), 
         "STRING": generate_type_validator((str,)), 
@@ -87,6 +108,9 @@ def input_validation(input_data_all, obj):
     for _, v in input_types.items():
         if isinstance(v, dict):
             for k2, v2 in v.items():
+                #print(f"input_data_all[{k2}]: {input_data_all[k2]}")
+                #if v2[0] == "IMAGE":
+                #    input_data_all[k2] = [validate_image_shape(x) for x in input_data_all[k2]]
                 if tuple(v2[0]) in validation_funcs.keys():
                     input_data_all[k2] = [validation_funcs[v2[0]](obj.__class__.__name__, k2, x) for x in input_data_all[k2]]
                 
@@ -95,7 +119,7 @@ def input_validation(input_data_all, obj):
 
 def output_validation(results, obj):
     validation_funcs = { 
-        "IMAGE": generate_type_validator((torch.Tensor,), "IMAGE"),
+        "IMAGE": generate_type_validator((torch.Tensor,), validator=validate_image_shape),
         "INT": generate_type_validator((int,)), 
         "FLOAT": generate_type_validator((float,)), 
         "STRING": generate_type_validator((str,)), 
