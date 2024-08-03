@@ -928,10 +928,7 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
     if is_intel_xpu():
         return True
 
-    if device is None:
-        device = torch.device("cuda")
-
-    props = torch.cuda.get_device_properties(device)
+    props = torch.cuda.get_device_properties("cuda")
     if props.major >= 8:
         return True
 
