@@ -94,6 +94,7 @@ class BaseModel(torch.nn.Module):
         self.concat_keys = ()
         logging.info("model_type {}".format(model_type.name))
         logging.debug("adm {}".format(self.adm_channels))
+        logging.info("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
         self.memory_usage_factor = model_config.memory_usage_factor
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
