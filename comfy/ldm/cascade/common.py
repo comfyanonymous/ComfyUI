@@ -19,14 +19,7 @@
 import torch
 import torch.nn as nn
 from comfy.ldm.modules.attention import optimized_attention
-
-class Linear(torch.nn.Linear):
-    def reset_parameters(self):
-        return None
-
-class Conv2d(torch.nn.Conv2d):
-    def reset_parameters(self):
-        return None
+import comfy.ops
 
 class OptimizedAttention(nn.Module):
     def __init__(self, c, nhead, dropout=0.0, dtype=None, device=None, operations=None):
@@ -78,13 +71,13 @@ class GlobalResponseNorm(nn.Module):
     "from https://github.com/facebookresearch/ConvNeXt-V2/blob/3608f67cc1dae164790c5d0aead7bf2d73d9719b/models/utils.py#L105"
     def __init__(self, dim, dtype=None, device=None):
         super().__init__()
-        self.gamma = nn.Parameter(torch.zeros(1, 1, 1, dim, dtype=dtype, device=device))
-        self.beta = nn.Parameter(torch.zeros(1, 1, 1, dim, dtype=dtype, device=device))
+        self.gamma = nn.Parameter(torch.empty(1, 1, 1, dim, dtype=dtype, device=device))
+        self.beta = nn.Parameter(torch.empty(1, 1, 1, dim, dtype=dtype, device=device))
 
     def forward(self, x):
         Gx = torch.norm(x, p=2, dim=(1, 2), keepdim=True)
         Nx = Gx / (Gx.mean(dim=-1, keepdim=True) + 1e-6)
-        return self.gamma.to(device=x.device, dtype=x.dtype) * (x * Nx) + self.beta.to(device=x.device, dtype=x.dtype) + x
+        return comfy.ops.cast_to_input(self.gamma, x) * (x * Nx) + comfy.ops.cast_to_input(self.beta, x) + x
 
 
 class ResBlock(nn.Module):

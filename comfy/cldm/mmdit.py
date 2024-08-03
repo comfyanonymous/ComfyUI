@@ -56,15 +56,6 @@ class ControlNet(comfy.ldm.modules.diffusionmodules.mmdit.MMDiT):
         if context is not None:
             context = self.context_embedder(context)
 
-        if self.register_length > 0:
-            context = torch.cat(
-                (
-                    repeat(self.register, "1 ... -> b ...", b=x.shape[0]),
-                    default(context, torch.Tensor([]).type_as(x)),
-                ),
-                1,
-            )
-
         output = []
 
         blocks = len(self.joint_blocks)

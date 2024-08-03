@@ -62,8 +62,15 @@ except:
 
 print("checking out master branch")
 branch = repo.lookup_branch('master')
-ref = repo.lookup_reference(branch.name)
-repo.checkout(ref)
+if branch is None:
+    ref = repo.lookup_reference('refs/remotes/origin/master')
+    repo.checkout(ref)
+    branch = repo.lookup_branch('master')
+    if branch is None:
+        repo.create_branch('master', repo.get(ref.target))
+else:
+    ref = repo.lookup_reference(branch.name)
+    repo.checkout(ref)
 
 print("pulling latest changes")
 pull(repo)
