@@ -450,7 +450,8 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
         if lowvram_available and (vram_set_state == VRAMState.LOW_VRAM or vram_set_state == VRAMState.NORMAL_VRAM):
             model_size = loaded_model.model_memory_required(torch_dev)
             current_free_mem = get_free_memory(torch_dev)
-            lowvram_model_memory = int(max(64 * (1024 * 1024), (current_free_mem - minimum_memory_required)))
+            lowvram_model_memory = max(64 * (1024 * 1024), (current_free_mem - minimum_memory_required))
+            lowvram_model_memory = int(min(current_free_mem * 0.5, lowvram_model_memory))
             if model_size <= lowvram_model_memory: #only switch to lowvram if really necessary
                 lowvram_model_memory = 0
 
