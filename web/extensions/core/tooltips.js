@@ -95,9 +95,11 @@ app.registerExtension({
 			}
 		};
 
-		const onMouseMove = () => {
+		const onMouseMove = (e) => {
 			hideTooltip();
 			clearTimeout(idleTimeout);
+			
+			if(e.target.nodeName !== "CANVAS") return
 			idleTimeout = setTimeout(onIdle, 500);
 		};
 
