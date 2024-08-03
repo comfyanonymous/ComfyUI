@@ -652,7 +652,11 @@ class Flux(supported_models_base.BASE):
         return out
 
     def clip_target(self, state_dict={}):
-        return supported_models_base.ClipTarget(comfy.text_encoders.flux.FluxTokenizer, comfy.text_encoders.flux.FluxClipModel)
+        pref = self.text_encoder_key_prefix[0]
+        t5_key = "{}t5xxl.transformer.encoder.final_layer_norm.weight".format(pref)
+        if t5_key in state_dict:
+            dtype_t5 = state_dict[t5_key].dtype
+        return supported_models_base.ClipTarget(comfy.text_encoders.flux.FluxTokenizer, comfy.text_encoders.flux.flux_clip(dtype_t5=dtype_t5))
 
 class FluxSchnell(Flux):
     unet_config = {
