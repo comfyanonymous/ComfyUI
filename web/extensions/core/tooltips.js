@@ -5,8 +5,8 @@ import { $el } from "../../scripts/ui.js";
 
 function getHoveredWidget() {
 	if (!app) {
-        return;
-    }
+		return;
+	}
 
 	const node = app.canvas.node_over;
 	if (!node.widgets) return;
