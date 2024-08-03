@@ -67,6 +67,8 @@ app.registerExtension({
 		const onIdle = () => {
 			const { canvas } = app;
 			const node = canvas.node_over;
+			if (!node) return;
+
 			const nodeData = node.constructor.nodeData ?? {};
 
 			if (node.constructor.title_mode !== LiteGraph.NO_TITLE && canvas.graph_mouse[1] < node.pos[1]) {
