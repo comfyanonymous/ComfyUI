@@ -447,6 +447,8 @@ class ImageExif(ImageExifBase, CustomNode):
         return {
             "required": {
                 "images": ("IMAGE",),
+            },
+            "optional": {
                 **_common_image_metadatas
             }
         }
@@ -462,6 +464,8 @@ class ImageExifUncommon(ImageExifBase, CustomNode):
         return {
             "required": {
                 "images": ("IMAGE",),
+            },
+            "optional": {
                 **_common_image_metadatas,
                 "Make": ("STRING", {"default": ""}),
                 "Model": ("STRING", {"default": ""}),
