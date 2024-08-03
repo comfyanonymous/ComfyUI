@@ -51,6 +51,9 @@ def weight_dtype(sd, prefix=""):
             w = sd[k]
             dtypes[w.dtype] = dtypes.get(w.dtype, 0) + 1
 
+    if len(dtypes) == 0:
+        return None
+
     return max(dtypes, key=dtypes.get)
 
 def state_dict_key_replace(state_dict, keys_to_replace):
