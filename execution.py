@@ -108,9 +108,6 @@ def input_validation(input_data_all, obj):
     for _, v in input_types.items():
         if isinstance(v, dict):
             for k2, v2 in v.items():
-                #print(f"input_data_all[{k2}]: {input_data_all[k2]}")
-                #if v2[0] == "IMAGE":
-                #    input_data_all[k2] = [validate_image_shape(x) for x in input_data_all[k2]]
                 if tuple(v2[0]) in validation_funcs.keys():
                     input_data_all[k2] = [validation_funcs[v2[0]](obj.__class__.__name__, k2, x) for x in input_data_all[k2]]
                 
