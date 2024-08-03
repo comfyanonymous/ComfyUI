@@ -39,60 +39,65 @@ app.registerExtension({
 		const tooltipEl = $el("div.comfy-graph-tooltip", {
 			parent: document.body,
 		});
+		let idleTimeout;
 
-		let tooltipTimeout;
 		const hideTooltip = () => {
-			if (tooltipTimeout) {
-				clearTimeout(tooltipTimeout);
-			}
 			tooltipEl.style.display = "none";
 		};
 		const showTooltip = (tooltip) => {
-			if (tooltipTimeout) {
-				clearTimeout(tooltipTimeout);
-			}
-			if (tooltip) {
-				tooltipTimeout = setTimeout(() => {
-					tooltipEl.textContent = tooltip;
-					tooltipEl.style.display = "block";
-					tooltipEl.style.left = app.canvas.mouse[0] + "px";
-					tooltipEl.style.top = app.canvas.mouse[1] + "px";
-					const rect = tooltipEl.getBoundingClientRect();
-					if(rect.right > window.innerWidth) {
-						tooltipEl.style.left = (app.canvas.mouse[0] - rect.width) + "px";
-					}
+			if (!tooltip) return;
 
-					if(rect.top < 0) {
-						tooltipEl.style.top = (app.canvas.mouse[1] + rect.height) + "px";
-					}
-				}, 500);
+			tooltipEl.textContent = tooltip;
+			tooltipEl.style.display = "block";
+			tooltipEl.style.left = app.canvas.mouse[0] + "px";
+			tooltipEl.style.top = app.canvas.mouse[1] + "px";
+			const rect = tooltipEl.getBoundingClientRect();
+			if (rect.right > window.innerWidth) {
+				tooltipEl.style.left = app.canvas.mouse[0] - rect.width + "px";
+			}
+
+			if (rect.top < 0) {
+				tooltipEl.style.top = app.canvas.mouse[1] + rect.height + "px";
 			}
 		};
+		const getInputTooltip = (nodeData, name) => {
+			const inputDef = nodeData.input?.required?.[name] ?? nodeData.input?.optional?.[name];
+			return inputDef?.[1]?.tooltip;
+		};
+		const onIdle = () => {
+			const { canvas } = app;
+			const node = canvas.node_over;
+			const nodeData = node.constructor.nodeData ?? {};
 
-		const onCanvasPointerMove = function () {
-			hideTooltip();
-			const node = this.node_over;
-			if (!node) return;
-
-			const tooltips = node.constructor.nodeData?.tooltips;
-			if (!tooltips) return;
-
-			const inputSlot = this.isOverNodeInput(node, this.graph_mouse[0], this.graph_mouse[1], [0, 0]);
-			if (inputSlot !== -1) {
-				return showTooltip(tooltips.input?.[node.inputs[inputSlot].name]);
+			if (node.constructor.title_mode !== LiteGraph.NO_TITLE && canvas.graph_mouse[1] < node.pos[1]) {
+				return showTooltip(nodeData.description);
 			}
 
-			const outputSlot = this.isOverNodeOutput(node, this.graph_mouse[0], this.graph_mouse[1], [0, 0]);
+			if (node.flags?.collapsed) return;
+
+			const inputSlot = canvas.isOverNodeInput(node, canvas.graph_mouse[0], canvas.graph_mouse[1], [0, 0]);
+			if (inputSlot !== -1) {
+				const inputName = node.inputs[inputSlot].name;
+				return showTooltip(getInputTooltip(nodeData, inputName));
+			}
+
+			const outputSlot = canvas.isOverNodeOutput(node, canvas.graph_mouse[0], canvas.graph_mouse[1], [0, 0]);
 			if (outputSlot !== -1) {
-				return showTooltip(tooltips.output?.[outputSlot]);
+				return showTooltip(nodeData.output_tooltips?.[outputSlot]);
 			}
 
 			const widget = getHoveredWidget();
 			// Dont show for DOM widgets, these use native browser tooltips as we dont get proper mouse events on these
 			if (widget && !widget.element) {
-				return showTooltip(tooltips.input?.[widget.name]);
+				return showTooltip(widget.tooltip ?? getInputTooltip(nodeData, widget.name));
 			}
-		}.bind(app.canvas);
+		};
+
+		const onMouseMove = () => {
+			hideTooltip();
+			clearTimeout(idleTimeout);
+			idleTimeout = setTimeout(onIdle, 500);
+		};
 
 		app.ui.settings.addSetting({
 			id: "Comfy.EnableTooltips",
@@ -101,10 +106,10 @@ app.registerExtension({
 			defaultValue: true,
 			onChange(value) {
 				if (value) {
-					LiteGraph.pointerListenerAdd(app.canvasEl, "move", onCanvasPointerMove);
+					window.addEventListener("mousemove", onMouseMove);
 					window.addEventListener("click", hideTooltip);
 				} else {
-					LiteGraph.pointerListenerRemove(app.canvasEl, "move", onCanvasPointerMove);
+					window.removeEventListener("mousemove", onMouseMove);
 					window.removeEventListener("click", hideTooltip);
 				}
 			},
