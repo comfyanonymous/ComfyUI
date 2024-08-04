@@ -94,7 +94,8 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         with open(textmodel_json_config) as f:
             config = json.load(f)
 
-        self.transformer = model_class(config, dtype, device, comfy.ops.manual_cast)
+        self.operations = comfy.ops.manual_cast
+        self.transformer = model_class(config, dtype, device, self.operations)
         self.num_layers = self.transformer.num_layers
 
         self.max_length = max_length
@@ -140,15 +141,13 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
 
     def set_up_textual_embeddings(self, tokens, current_embeds):
         out_tokens = []
-        next_new_token = token_dict_size = current_embeds.weight.shape[0] - 1
+        next_new_token = token_dict_size = current_embeds.weight.shape[0]
         embedding_weights = []
 
         for x in tokens:
             tokens_temp = []
             for y in x:
                 if isinstance(y, numbers.Integral):
-                    if y == token_dict_size: #EOS token
-                        y = -1
                     tokens_temp += [int(y)]
                 else:
                     if y.shape[0] == current_embeds.weight.shape[1]:
@@ -163,12 +162,11 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
 
         n = token_dict_size
         if len(embedding_weights) > 0:
-            new_embedding = torch.nn.Embedding(next_new_token + 1, current_embeds.weight.shape[1], device=current_embeds.weight.device, dtype=current_embeds.weight.dtype)
-            new_embedding.weight[:token_dict_size] = current_embeds.weight[:-1]
+            new_embedding = self.operations.Embedding(next_new_token + 1, current_embeds.weight.shape[1], device=current_embeds.weight.device, dtype=current_embeds.weight.dtype)
+            new_embedding.weight[:token_dict_size] = current_embeds.weight
             for x in embedding_weights:
                 new_embedding.weight[n] = x
                 n += 1
-            new_embedding.weight[n] = current_embeds.weight[-1] #EOS embedding
             self.transformer.set_input_embeddings(new_embedding)
 
         processed_tokens = []
@@ -197,7 +195,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         if self.enable_attention_masks:
             attention_mask_model = attention_mask
 
-        outputs = self.transformer(tokens, attention_mask_model, intermediate_output=self.layer_idx, final_layer_norm_intermediate=self.layer_norm_hidden_state)
+        outputs = self.transformer(tokens, attention_mask_model, intermediate_output=self.layer_idx, final_layer_norm_intermediate=self.layer_norm_hidden_state, dtype=torch.float32)
         self.transformer.set_input_embeddings(backup_embeds)
 
         if self.layer == "last":

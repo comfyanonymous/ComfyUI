@@ -8,6 +8,7 @@ import torch.nn as nn
 from .. import attention
 from einops import rearrange, repeat
 from .util import timestep_embedding
+import comfy.ops
 
 def default(x, y):
     if x is not None:
@@ -69,12 +70,14 @@ class PatchEmbed(nn.Module):
             bias: bool = True,
             strict_img_size: bool = True,
             dynamic_img_pad: bool = True,
+            padding_mode='circular',
             dtype=None,
             device=None,
             operations=None,
     ):
         super().__init__()
         self.patch_size = (patch_size, patch_size)
+        self.padding_mode = padding_mode
         if img_size is not None:
             self.img_size = (img_size, img_size)
             self.grid_size = tuple([s // p for s, p in zip(self.img_size, self.patch_size)])
@@ -110,7 +113,7 @@ class PatchEmbed(nn.Module):
         if self.dynamic_img_pad:
             pad_h = (self.patch_size[0] - H % self.patch_size[0]) % self.patch_size[0]
             pad_w = (self.patch_size[1] - W % self.patch_size[1]) % self.patch_size[1]
-            x = torch.nn.functional.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
+            x = torch.nn.functional.pad(x, (0, pad_w, 0, pad_h), mode=self.padding_mode)
         x = self.proj(x)
         if self.flatten:
             x = x.flatten(2).transpose(1, 2)  # NCHW -> NLC
@@ -924,7 +927,7 @@ class MMDiT(nn.Module):
             context = self.context_processor(context)
 
         hw = x.shape[-2:]
-        x = self.x_embedder(x) + self.cropped_pos_embed(hw, device=x.device).to(dtype=x.dtype, device=x.device)
+        x = self.x_embedder(x) + comfy.ops.cast_to_input(self.cropped_pos_embed(hw, device=x.device), x)
         c = self.t_embedder(t, dtype=x.dtype)  # (N, D)
         if y is not None and self.y_embedder is not None:
             y = self.y_embedder(y)  # (N, D)

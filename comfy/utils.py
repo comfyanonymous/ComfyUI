@@ -11,7 +11,7 @@ import itertools
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
         device = torch.device("cpu")
-    if ckpt.lower().endswith(".safetensors"):
+    if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         sd = safetensors.torch.load_file(ckpt, device=device.type)
     else:
         if safe_load:
@@ -40,8 +40,21 @@ def calculate_parameters(sd, prefix=""):
     params = 0
     for k in sd.keys():
         if k.startswith(prefix):
-            params += sd[k].nelement()
+            w = sd[k]
+            params += w.nelement()
     return params
+
+def weight_dtype(sd, prefix=""):
+    dtypes = {}
+    for k in sd.keys():
+        if k.startswith(prefix):
+            w = sd[k]
+            dtypes[w.dtype] = dtypes.get(w.dtype, 0) + 1
+
+    if len(dtypes) == 0:
+        return None
+
+    return max(dtypes, key=dtypes.get)
 
 def state_dict_key_replace(state_dict, keys_to_replace):
     for x in keys_to_replace:
