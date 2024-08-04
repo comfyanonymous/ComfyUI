@@ -30,6 +30,7 @@ else
 
     brew install pyenv
     pyenv install 3.8
+    python3 -m ensurepip --upgrade
 
     echo "Python3.8 has been installed."
 fi

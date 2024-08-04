@@ -20,6 +20,7 @@ else
 
     sudo apt-get update
     sudo apt-get install -y python3.8
+    python3 -m ensurepip --upgrade
 
     echo "Python3.8 has been installed."
 fi
@@ -49,6 +50,11 @@ else
     sudo cp /var/cuda-repo-ubuntu2204-12-6-local/cuda-*-keyring.gpg /usr/share/keyrings/
     sudo apt-get update
     sudo apt-get -y install cuda-toolkit-12-6
+
+    echo 'export CUDA_HOME=/usr/local/cuda' >> ~/.bashrc
+    echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64' >> ~/.bashrc
+    echo 'export PATH=$PATH:$CUDA_HOME/bin' >> ~/.bashrc 
+    . ~/.bashrc
 
     echo "CUDA installed."
 fi
