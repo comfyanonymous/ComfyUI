@@ -265,7 +265,7 @@ def test_image_exif():
 
 
 def test_image_exif_uncommon():
-    assert "DigitalZoomRatio" in ImageExifUncommon.INPUT_TYPES()["required"]
+    assert "DigitalZoomRatio" in ImageExifUncommon.INPUT_TYPES()["optional"]
     ImageExifUncommon().execute(images=[_image_1x1])
 
 
