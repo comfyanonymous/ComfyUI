@@ -9,6 +9,7 @@ from .. import attention
 from einops import rearrange, repeat
 from .util import timestep_embedding
 import comfy.ops
+import comfy.ldm.common_dit
 
 def default(x, y):
     if x is not None:
@@ -111,9 +112,7 @@ class PatchEmbed(nn.Module):
         #             f"Input width ({W}) should be divisible by patch size ({self.patch_size[1]})."
         #         )
         if self.dynamic_img_pad:
-            pad_h = (self.patch_size[0] - H % self.patch_size[0]) % self.patch_size[0]
-            pad_w = (self.patch_size[1] - W % self.patch_size[1]) % self.patch_size[1]
-            x = torch.nn.functional.pad(x, (0, pad_w, 0, pad_h), mode=self.padding_mode)
+            x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size, padding_mode=self.padding_mode)
         x = self.proj(x)
         if self.flatten:
             x = x.flatten(2).transpose(1, 2)  # NCHW -> NLC
