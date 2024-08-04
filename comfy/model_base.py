@@ -84,6 +84,7 @@ class BaseModel(torch.nn.Module):
             if comfy.model_management.force_channels_last():
                 self.diffusion_model.to(memory_format=torch.channels_last)
                 logging.debug("using channels last mode for diffusion model")
+            logging.info("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
 
@@ -94,7 +95,6 @@ class BaseModel(torch.nn.Module):
         self.concat_keys = ()
         logging.info("model_type {}".format(model_type.name))
         logging.debug("adm {}".format(self.adm_channels))
-        logging.info("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
         self.memory_usage_factor = model_config.memory_usage_factor
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
