@@ -19,6 +19,7 @@ if %ERRORLEVEL% == 0 (
 goto :eof
 
 REM Check if Python is installed
+:CheckPython
 python --version >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
     echo Python3.8 is already installed.
@@ -33,6 +34,7 @@ if %ERRORLEVEL% EQU 0 (
 
     echo Python3.8 has been installed.
 )
+goto :eof
 
 REM Function to check if NVIDIA drivers are installed
 :CheckNvidiaDriver
@@ -70,6 +72,7 @@ if exist "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin\nvcc.exe"
 goto :eof
 
 call :CheckGit
+call :CheckPython
 call :CheckNvidiaDriver
 call :CheckCUDA
 
