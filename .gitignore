@@ -19,3 +19,8 @@ venv/
 /user/
 *.log
 web_custom_versions/
+*.txt
+*.deb*
+.venv/*
+*mycreds.txt*
+*client_secrets.json*
