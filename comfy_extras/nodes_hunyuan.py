@@ -57,8 +57,6 @@ class ControlNetApplyAdvancedHunYuan:
                     c_net = cnets[prev_cnet]
                 else:
                     c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent), vae)
-                    # c_net.set_extra_arg('encoder_hidden_states_t5', d.get('conditioning_mt5xl', None))
-                    # c_net.set_extra_arg('text_embedding_mask_t5', d.get('attention_mask_mt5xl', None))
                     
                     c_net.set_previous_controlnet(prev_cnet)
                     cnets[prev_cnet] = c_net

@@ -226,13 +226,13 @@ class HunYuanControlNet(nn.Module):
         _, _, oh, ow = x.shape
         th, tw = oh // self.patch_size, ow // self.patch_size
 
+        # Get image RoPE embedding according to `reso`lution.
         freqs_cis_img = calc_rope(x, self.patch_size, self.hidden_size // self.num_heads) # (cos_cis_img, sin_cis_img)
        
         # ========================= Build time and image embedding =========================
         t = self.t_embedder(t, dtype=self.dtype)
         x = self.x_embedder(x)
 
-        # Get image RoPE embedding according to `reso`lution.
 
         # ========================= Concatenate all extra vectors =========================
         # Build text tokens with pooling
