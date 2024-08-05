@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from importlib import resources as resources
+from pathlib import PurePath
 from typing import Optional
 
 
@@ -52,3 +53,9 @@ def get_package_as_path(package: str, subdir: Optional[str] = None) -> str:
     if traversable.is_dir():
         return str(traversable)
     raise ValueError(f"Could not find path for package={package}, subdir={subdir}, traversable={str(traversable)}")
+
+
+def canonicalize_path(path: os.PathLike | str | None) -> str | None:
+    if path is None:
+        return None
+    return PurePath(path).as_posix()

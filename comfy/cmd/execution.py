@@ -9,6 +9,8 @@ import threading
 import time
 import traceback
 import typing
+from os import PathLike
+from pathlib import PurePath
 from typing import List, Optional, Tuple
 
 import lazy_object_proxy
@@ -23,6 +25,7 @@ from ..component_model.executor_types import ExecutorToClientProgress, Validatio
     ValidationErrorDict, NodeErrorsDictValue, ValidationErrorExtraInfoDict, FormattedValue, RecursiveExecutionTuple, \
     RecursiveExecutionErrorDetails, RecursiveExecutionErrorDetailsInterrupted, ExecutionResult, DuplicateNodeError, \
     HistoryResultDict
+from ..component_model.files import canonicalize_path
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
 from ..execution_context import new_execution_context, ExecutionContext
 from ..nodes.package import import_all_nodes_in_workspace
@@ -748,6 +751,9 @@ def validate_inputs(prompt, item, validated: typing.Dict[str, ValidateInputsTupl
                     continue
 
                 if isinstance(type_input, list):
+                    if "\\" in val:
+                        # try to normalize paths for comparison purposes
+                        val = canonicalize_path(val)
                     if val not in type_input:
                         input_config = info
                         list_info = ""

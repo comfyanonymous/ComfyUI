@@ -249,7 +249,7 @@ class TransformersLoader(CustomNode):
 
             try:
                 model = AutoModel.from_pretrained(**from_pretrained_kwargs)
-            except:
+            except Exception as exc_info:
                 # not yet supported by automodel
                 model = LlavaNextForConditionalGeneration.from_pretrained(**from_pretrained_kwargs)
 

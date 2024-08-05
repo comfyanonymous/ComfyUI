@@ -23,6 +23,7 @@ from .cli_args import args
 from .cmd import folder_paths
 from .cmd.folder_paths import add_model_folder_path, supported_pt_extensions
 from .component_model.deprecation import _deprecate_method
+from .component_model.files import canonicalize_path
 from .interruption import InterruptProcessingException
 from .model_downloader_types import CivitFile, HuggingFile, CivitModelsGetResponse, CivitFile_, Downloadable, UrlFile
 from .utils import ProgressBar, comfy_tqdm
@@ -37,13 +38,14 @@ def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[
 
     existing = frozenset(folder_paths.get_filename_list(folder_name))
     downloadable = frozenset() if args.disable_known_models else frozenset(str(f) for f in known_files)
-    return sorted(list(existing | downloadable))
+    return list(map(canonicalize_path, sorted(list(existing | downloadable))))
 
 
 def get_or_download(folder_name: str, filename: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> Optional[str]:
     if known_files is None:
         known_files = _get_known_models_for_folder_name(folder_name)
 
+    filename = canonicalize_path(filename)
     path = folder_paths.get_full_path(folder_name, filename)
 
     if path is None and not args.disable_known_models:
@@ -52,7 +54,10 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
             this_model_directory = folder_paths.get_folder_paths(folder_name)[0]
             known_file: Optional[HuggingFile | CivitFile] = None
             for candidate in known_files:
-                if str(candidate) == filename or candidate.filename == filename or filename in candidate.alternate_filenames or filename == candidate.save_with_filename:
+                if (canonicalize_path(str(candidate)) == filename
+                        or canonicalize_path(candidate.filename) == filename
+                        or filename in list(map(canonicalize_path, candidate.alternate_filenames))
+                        or filename == canonicalize_path(candidate.save_with_filename)):
                     known_file = candidate
                     break
             if known_file is None:
@@ -133,14 +138,12 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                         try:
                             os.makedirs(this_model_directory, exist_ok=True)
                             os.symlink(path, destination_link)
-                        except Exception:
+                        except Exception as exc_info:
                             try:
                                 os.link(path, destination_link)
                             except Exception as exc_info:
-                                link_exc_info = exc_info
                                 if cache_hit:
                                     shutil.copyfile(path, destination_link)
-                        except Exception as exc_info:
                             link_exc_info = exc_info
                     if link_exc_info is not None:
                         logging.error(f"Failed to link file with alternative download save name in a way that is compatible with Hugging Face caching {repr(known_file)}. If cache_hit={cache_hit} is True, the file was copied into the destination.", exc_info=exc_info)
@@ -155,7 +158,7 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
 
                         civit_file: CivitFile_
                         for civit_file in chain.from_iterable(version['files'] for version in model_info['modelVersions']):
-                            if civit_file['name'] == filename:
+                            if canonicalize_path(civit_file['name']) == filename:
                                 url = civit_file['downloadUrl']
                                 break
                     elif isinstance(known_file, UrlFile):
@@ -399,6 +402,7 @@ KNOWN_APPROX_VAES: Final[KnownDownloadables] = KnownDownloadables([
 KNOWN_VAES: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("stabilityai/sdxl-vae", "sdxl_vae.safetensors"),
     HuggingFile("stabilityai/sd-vae-ft-mse-original", "vae-ft-mse-840000-ema-pruned.safetensors"),
+    HuggingFile("black-forest-labs/FLUX.1-schnell", "ae.sft"),
 ], folder_name="vae")
 
 KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
@@ -409,7 +413,9 @@ KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
 }
 
 KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
-    HuggingFile("ByteDance/Hyper-SD", "Hyper-SDXL-1step-Unet-Comfyui.fp16.safetensors")
+    HuggingFile("ByteDance/Hyper-SD", "Hyper-SDXL-1step-Unet-Comfyui.fp16.safetensors"),
+    HuggingFile("black-forest-labs/FLUX.1-schnell", "flux1-schnell.sft"),
+    HuggingFile("black-forest-labs/FLUX.1-dev", "flux1-dev.sft"),
 ], folder_name="unet")
 
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
