@@ -175,57 +175,122 @@ class PromptServer():
                 return a.hexdigest() == b.hexdigest()
             return False
 
+        def is_base64_string(s):
+            try:
+                if isinstance(s, str):
+                    if s.startswith('data:image'):
+                        return True
+                return False
+            except Exception as e:
+                return False
+        
         def image_upload(post, image_save_function=None):
+            print("Starting image upload process")
+            
             image = post.get("image")
             overwrite = post.get("overwrite")
             image_is_duplicate = False
 
             image_upload_type = post.get("type")
-            upload_dir, image_upload_type = get_dir_by_type(image_upload_type)
+            print(f"Image upload type: {image_upload_type}")
+            
+            # print(f"Received image data: {image}")
 
-            if image and image.file:
-                filename = image.filename
-                if not filename:
+            upload_dir, image_upload_type = get_dir_by_type(image_upload_type)
+            print(f"Upload directory: {upload_dir}, Image type: {image_upload_type}, Overwrite: {overwrite}")
+
+            if image and image.get("file"):
+                filename = image.get("filename")
+                file_content = image.get("file")
+                print(f"Filename: {filename}")
+
+                if not filename or not file_content:
+                    print("No filename or file content provided")
                     return web.Response(status=400)
 
                 subfolder = post.get("subfolder", "")
                 full_output_folder = os.path.join(upload_dir, os.path.normpath(subfolder))
                 filepath = os.path.abspath(os.path.join(full_output_folder, filename))
+                print(f"Full output folder: {full_output_folder}")
+                print(f"File path: {filepath}")
 
                 if os.path.commonpath((upload_dir, filepath)) != upload_dir:
+                    print("Security check failed: filepath not within upload directory")
                     return web.Response(status=400)
 
                 if not os.path.exists(full_output_folder):
                     os.makedirs(full_output_folder)
+                    print(f"Created output folder: {full_output_folder}")
 
                 split = os.path.splitext(filename)
+                print(f"File split: {split}")
 
                 if overwrite is not None and (overwrite == "true" or overwrite == "1"):
+                    print("Overwrite enabled")
                     pass
                 else:
                     i = 1
                     while os.path.exists(filepath):
-                        if compare_image_hash(filepath, image): #compare hash to prevent saving of duplicates with same name, fix for #3465
+                        print(f"File exists: {filepath}")
+                        if compare_image_hash(filepath, file_content): # compare hash to prevent saving of duplicates with same name
+                            print(f"Duplicate image found: {filepath}")
                             image_is_duplicate = True
                             break
                         filename = f"{split[0]} ({i}){split[1]}"
                         filepath = os.path.join(full_output_folder, filename)
                         i += 1
+                        print(f"New filename: {filename}, New filepath: {filepath}")
 
                 if not image_is_duplicate:
-                    if image_save_function is not None:
-                        image_save_function(image, post, filepath)
+                    if is_base64_string(file_content):
+                        print("File content is a Base64 string")
+                        # Handle base64 string
+                        image_bytes = base64.b64decode(file_content.split(",")[1])
+                        if image_save_function is not None:
+                            print(f"Using custom image save function for Base64 content")
+                            image_save_function(image_bytes, post, filepath)
+                        else:
+                            with open(filepath, "wb") as f:
+                                print(f"Saving Base64 decoded image to: {filepath}")
+                                f.write(image_bytes)
                     else:
-                        with open(filepath, "wb") as f:
-                            f.write(image.file.read())
-
-                return web.json_response({"name" : filename, "subfolder": subfolder, "type": image_upload_type})
+                        print("File content is a raw file-like object")
+                        # Handle raw file-like object
+                        if image_save_function is not None:
+                            print(f"Using custom image save function for raw file")
+                            image_save_function(file_content, post, filepath)
+                        else:
+                            with open(filepath, "wb") as f:
+                                print(f"Saving raw file to: {filepath}")
+                                f.write(file_content.read())
+                return web.json_response({"name": filename, "subfolder": subfolder, "type": image_upload_type})
             else:
+                print("No image provided in the post data")
                 return web.Response(status=400)
 
         @routes.post("/upload/image")
         async def upload_image(request):
-            post = await request.post()
+            content_type = request.headers.get('Content-Type')
+            print(f"Content-Type: {content_type}")
+
+            if 'application/json' in content_type:
+                try:
+                    post = await request.json()
+                    # print(f"Received JSON post data: {post}")
+                except Exception as e:
+                    print(f"Error parsing JSON: {e}")
+                    return web.Response(status=400, text="Invalid JSON data")
+            elif 'multipart/form-data' in content_type:
+                try:
+                    post = await request.post()
+                    # print(f"Received form-data post data: {post}")
+                except Exception as e:
+                    print(f"Error parsing form-data: {e}")
+                    return web.Response(status=400, text="Invalid form-data")
+            else:
+                print("Unsupported Content-Type")
+                return web.Response(status=400, text="Unsupported Content-Type")
+            
             return image_upload(post)
 
 

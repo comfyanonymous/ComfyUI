@@ -138,11 +138,11 @@ attn_group.add_argument("--use-pytorch-cross-attention", action="store_true",
 parser.add_argument("--disable-xformers",
                     action="store_true", help="Disable xformers.")
 
-upcast = parser.add_mutually_exclusive_group()
-upcast.add_argument("--force-upcast-attention", action="store_true",
-                    help="Force enable attention upcasting, please report if it fixes black images.")
-upcast.add_argument("--dont-upcast-attention", action="store_true",
-                    help="Disable all upcasting of attention. Should be unnecessary except for debugging.")
+# upcast = parser.add_mutually_exclusive_group()
+# upcast.add_argument("--force-upcast-attention", action="store_true",
+#                     help="Force enable attention upcasting, please report if it fixes black images.")
+# upcast.add_argument("--dont-upcast-attention", action="store_true",
+#                     help="Disable all upcasting of attention. Should be unnecessary except for debugging.")
 
 
 upcast = parser.add_mutually_exclusive_group()
@@ -180,6 +180,9 @@ parser.add_argument("--windows-standalone-build", action="store_true",
 
 parser.add_argument("--disable-metadata", action="store_true",
                     help="Disable saving prompt metadata in files.")
+
+parser.add_argument("--disable-all-custom-nodes", action="store_true", help="Disable loading all custom nodes.")
+
 
 parser.add_argument("--multi-user", action="store_true",
                     help="Enables per-user storage.")
