@@ -3,6 +3,7 @@ import copy
 import logging
 import threading
 import heapq
+import time
 import traceback
 import inspect
 from typing import List, Literal, NamedTuple, Optional
@@ -247,6 +248,8 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
             to_delete = True
         elif unique_id not in old_prompt:
             to_delete = True
+        elif class_type != old_prompt[unique_id]['class_type']:
+            to_delete = True
         elif inputs == old_prompt[unique_id]['inputs']:
             for x in inputs:
                 input_data = inputs[x]
@@ -281,7 +284,11 @@ class PromptExecutor:
         self.success = True
         self.old_prompt = {}
 
-    def add_message(self, event, data, broadcast: bool):
+    def add_message(self, event, data: dict, broadcast: bool):
+        data = {
+            **data,
+            "timestamp": int(time.time() * 1000),
+        }
         self.status_messages.append((event, data))
         if self.server.client_id is not None or broadcast:
             self.server.send_sync(event, data, self.server.client_id)
@@ -392,6 +399,9 @@ class PromptExecutor:
                 if self.success is not True:
                     self.handle_execution_error(prompt_id, prompt, current_outputs, executed, error, ex)
                     break
+            else:
+                # Only execute when the while-loop ends without break
+                self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
 
             for x in executed:
                 self.old_prompt[x] = copy.deepcopy(prompt[x])

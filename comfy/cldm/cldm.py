@@ -13,7 +13,7 @@ from ..ldm.modules.diffusionmodules.util import (
 from ..ldm.modules.attention import SpatialTransformer
 from ..ldm.modules.diffusionmodules.openaimodel import UNetModel, TimestepEmbedSequential, ResBlock, Downsample
 from ..ldm.util import exists
-from ..ldm.cascade.common import OptimizedAttention
+from .control_types import UNION_CONTROLNET_TYPES
 from collections import OrderedDict
 import comfy.ops
 from comfy.ldm.modules.attention import optimized_attention
@@ -93,7 +93,7 @@ class ControlNet(nn.Module):
         transformer_depth_middle=None,
         transformer_depth_output=None,
         attn_precision=None,
-        union_controlnet=False,
+        union_controlnet_num_control_type=None,
         device=None,
         operations=comfy.ops.disable_weight_init,
         **kwargs,
@@ -321,8 +321,8 @@ class ControlNet(nn.Module):
         self.middle_block_out = self.make_zero_conv(ch, operations=operations, dtype=self.dtype, device=device)
         self._feature_size += ch
 
-        if union_controlnet:
-            self.num_control_type = 6
+        if union_controlnet_num_control_type is not None:
+            self.num_control_type = union_controlnet_num_control_type
             num_trans_channel = 320
             num_trans_head = 8
             num_trans_layer = 1
@@ -362,7 +362,7 @@ class ControlNet(nn.Module):
             controlnet_cond = self.input_hint_block(hint[idx], emb, context)
             feat_seq = torch.mean(controlnet_cond, dim=(2, 3))
             if idx < len(control_type):
-                feat_seq += self.task_embedding[control_type[idx]]
+                feat_seq += self.task_embedding[control_type[idx]].to(dtype=feat_seq.dtype, device=feat_seq.device)
 
             inputs.append(feat_seq.unsqueeze(1))
             condition_list.append(controlnet_cond)
@@ -388,8 +388,20 @@ class ControlNet(nn.Module):
         emb = self.time_embed(t_emb)
 
         guided_hint = None
-        if self.control_add_embedding is not None:
+        if self.control_add_embedding is not None: #Union Controlnet
             control_type = kwargs.get("control_type", [])
+
+            if any([c >= self.num_control_type for c in control_type]):
+                max_type = max(control_type)
+                max_type_name = {
+                    v: k for k, v in UNION_CONTROLNET_TYPES.items()
+                }[max_type]
+                raise ValueError(
+                    f"Control type {max_type_name}({max_type}) is out of range for the number of control types" +
+                    f"({self.num_control_type}) supported.\n" +
+                    "Please consider using the ProMax ControlNet Union model.\n" +
+                    "https://huggingface.co/xinsir/controlnet-union-sdxl-1.0/tree/main"
+                )
 
             emb += self.control_add_embedding(control_type, emb.dtype, emb.device)
             if len(control_type) > 0:

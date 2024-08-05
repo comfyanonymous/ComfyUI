@@ -1599,7 +1599,7 @@ export class ComfyApp {
 				if (json) {
 					const workflow = JSON.parse(json);
 					const workflowName = getStorageValue("Comfy.PreviousWorkflow");
-					await this.loadGraphData(workflow, true, workflowName);
+					await this.loadGraphData(workflow, true, true, workflowName);
 					return true;
 				}
 			};
