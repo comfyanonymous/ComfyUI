@@ -1,14 +1,15 @@
+from __future__ import annotations
+
 import os
 import time
 import logging
 from collections.abc import Collection
-from typing import Set, List, Dict, Tuple
 
-supported_pt_extensions: Set[str] = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'])
+supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
 
-SupportedFileExtensionsType = Set[str]
-ScanPathType = List[str]
-folder_names_and_paths: Dict[str, Tuple[ScanPathType, SupportedFileExtensionsType]] = {}
+SupportedFileExtensionsType = set[str]
+ScanPathType = list[str]
+folder_names_and_paths: dict[str, tuple[ScanPathType, SupportedFileExtensionsType]] = {}
 
 base_path = os.path.dirname(os.path.realpath(__file__))
 models_dir = os.path.join(base_path, "models")
@@ -43,7 +44,7 @@ temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp
 input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
 user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user")
 
-filename_list_cache: Dict[str, Tuple[List[str], Dict[str, float], float]] = {}
+filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
 if not os.path.exists(input_directory):
     try:
@@ -89,7 +90,7 @@ def get_directory_by_type(type_name: str) -> str | None:
 
 # determine base_dir rely on annotation if name is 'filename.ext [annotation]' format
 # otherwise use default_path as base_dir
-def annotated_filepath(name: str) -> Tuple[str, str | None]:
+def annotated_filepath(name: str) -> tuple[str, str | None]:
     if name.endswith("[output]"):
         base_dir = get_output_directory()
         name = name[:-9]
@@ -134,10 +135,10 @@ def add_model_folder_path(folder_name: str, full_folder_path: str) -> None:
     else:
         folder_names_and_paths[folder_name] = ([full_folder_path], set())
 
-def get_folder_paths(folder_name: str) -> List[str]:
+def get_folder_paths(folder_name: str) -> list[str]:
     return folder_names_and_paths[folder_name][0][:]
 
-def recursive_search(directory: str, excluded_dir_names: List[str] | None=None) -> Tuple[List[str], Dict[str, float]]:
+def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) -> tuple[list[str], dict[str, float]]:
     if not os.path.isdir(directory):
         return [], {}
 
@@ -155,8 +156,8 @@ def recursive_search(directory: str, excluded_dir_names: List[str] | None=None) 
 
     logging.debug("recursive file list on directory {}".format(directory))
     dirpath: str
-    subdirs: List[str]
-    filenames: List[str]
+    subdirs: list[str]
+    filenames: list[str]
 
     for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
         subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]
@@ -174,7 +175,7 @@ def recursive_search(directory: str, excluded_dir_names: List[str] | None=None) 
     logging.debug("found {} files".format(len(result)))
     return result, dirs
 
-def filter_files_extensions(files: Collection[str], extensions: Collection[str]) -> List[str]:
+def filter_files_extensions(files: Collection[str], extensions: Collection[str]) -> list[str]:
     return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions or len(extensions) == 0, files)))
 
 
@@ -194,7 +195,7 @@ def get_full_path(folder_name: str, filename: str) -> str | None:
 
     return None
 
-def get_filename_list_(folder_name: str) -> Tuple[List[str], Dict[str, float], float]:
+def get_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], float]:
     global folder_names_and_paths
     output_list = set()
     folders = folder_names_and_paths[folder_name]
@@ -206,7 +207,7 @@ def get_filename_list_(folder_name: str) -> Tuple[List[str], Dict[str, float], f
 
     return sorted(list(output_list)), output_folders, time.perf_counter()
 
-def cached_filename_list_(folder_name: str) -> Tuple[List[str], Dict[str, float], float] | None:
+def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], float] | None:
     global filename_list_cache
     global folder_names_and_paths
     if folder_name not in filename_list_cache:
@@ -227,7 +228,7 @@ def cached_filename_list_(folder_name: str) -> Tuple[List[str], Dict[str, float]
 
     return out
 
-def get_filename_list(folder_name: str) -> List[str]:
+def get_filename_list(folder_name: str) -> list[str]:
     out = cached_filename_list_(folder_name)
     if out is None:
         out = get_filename_list_(folder_name)
@@ -235,8 +236,8 @@ def get_filename_list(folder_name: str) -> List[str]:
         filename_list_cache[folder_name] = out
     return list(out[0])
 
-def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, image_height=0):
-    def map_filename(filename: str) -> Tuple[int, str]:
+def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, image_height=0) -> tuple[str, str, int, str, str]:
+    def map_filename(filename: str) -> tuple[int, str]:
         prefix_len = len(os.path.basename(filename_prefix))
         prefix = filename[:prefix_len + 1]
         try:
