@@ -37,6 +37,20 @@ class SDXL(LatentFormat):
                 ]
         self.taesd_decoder_name = "taesdxl_decoder"
 
+class HunyuanDit(LatentFormat):
+    scale_factor = 0.13025
+
+    def __init__(self):
+        self.latent_rgb_factors = [
+                    #   R        G        B
+                    [ 0.3920,  0.4054,  0.4549],
+                    [-0.2634, -0.0196,  0.0653],
+                    [ 0.0568,  0.1687, -0.0755],
+                    [-0.3112, -0.2359, -0.2076]
+                ]
+        self.taesd_decoder_name = "taesdxl_decoder"
+        
+        
 class SDXL_Playground_2_5(LatentFormat):
     def __init__(self):
         self.scale_factor = 0.5
