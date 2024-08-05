@@ -87,6 +87,7 @@ class BaseModel(torch.nn.Module):
                 # todo: ???
                 self.diffusion_model.to(memory_format=torch.channels_last)
                 logging.debug("using channels last mode for diffusion model")
+            logging.info("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
 
@@ -95,6 +96,9 @@ class BaseModel(torch.nn.Module):
             self.adm_channels = 0
 
         self.concat_keys = ()
+        logging.info("model_type {}".format(model_type.name))
+        logging.debug("adm {}".format(self.adm_channels))
+        self.memory_usage_factor = model_config.memory_usage_factor
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         sigma = t
@@ -256,11 +260,11 @@ class BaseModel(torch.nn.Module):
                 dtype = self.manual_cast_dtype
             # TODO: this needs to be tweaked
             area = input_shape[0] * math.prod(input_shape[2:])
-            return (area * model_management.dtype_size(dtype) / 50) * (1024 * 1024)
+            return (area * model_management.dtype_size(dtype) * 0.01 * self.memory_usage_factor) * (1024 * 1024)
         else:
             # TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
             area = input_shape[0] * math.prod(input_shape[2:])
-            return (area * 0.3) * (1024 * 1024)
+            return (area * 0.15 * self.memory_usage_factor) * (1024 * 1024)
 
 
 def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0, seed=None):
@@ -614,17 +618,6 @@ class SD3(BaseModel):
             out['c_crossattn'] = conds.CONDRegular(cross_attn)
         return out
 
-    def memory_required(self, input_shape):
-        if model_management.xformers_enabled() or model_management.pytorch_attention_flash_attention():
-            dtype = self.get_dtype()
-            if self.manual_cast_dtype is not None:
-                dtype = self.manual_cast_dtype
-            # TODO: this probably needs to be tweaked
-            area = input_shape[0] * input_shape[2] * input_shape[3]
-            return (area * model_management.dtype_size(dtype) * 0.012) * (1024 * 1024)
-        else:
-            area = input_shape[0] * input_shape[2] * input_shape[3]
-            return (area * 0.3) * (1024 * 1024)
 
 class AuraFlow(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
@@ -722,15 +715,3 @@ class Flux(BaseModel):
             out['c_crossattn'] = conds.CONDRegular(cross_attn)
         out['guidance'] = conds.CONDRegular(torch.FloatTensor([kwargs.get("guidance", 3.5)]))
         return out
-
-    def memory_required(self, input_shape):
-        if model_management.xformers_enabled() or model_management.pytorch_attention_flash_attention():
-            dtype = self.get_dtype()
-            if self.manual_cast_dtype is not None:
-                dtype = self.manual_cast_dtype
-            #TODO: this probably needs to be tweaked
-            area = input_shape[0] * input_shape[2] * input_shape[3]
-            return (area * model_management.dtype_size(dtype) * 0.020) * (1024 * 1024)
-        else:
-            area = input_shape[0] * input_shape[2] * input_shape[3]
-            return (area * 0.3) * (1024 * 1024)
