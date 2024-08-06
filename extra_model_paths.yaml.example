@@ -23,17 +23,18 @@ a111:
 #config for comfyui
 #your base path should be either an existing comfy install or a central folder where you store all of your models, loras, etc.
 
-#comfyui:
-#     base_path: path/to/comfyui/
-#     checkpoints: models/checkpoints/
-#     clip: models/clip/
-#     clip_vision: models/clip_vision/
-#     configs: models/configs/
-#     controlnet: models/controlnet/
-#     embeddings: models/embeddings/
-#     loras: models/loras/
-#     upscale_models: models/upscale_models/
-#     vae: models/vae/
+comfyui:
+     base_path: /home/cold/comfyui_data/
+     checkpoints: models/checkpoints/
+     clip: models/clip/
+     clip_vision: models/clip_vision/
+     configs: models/configs/
+     controlnet: models/controlnet/
+     embeddings: models/embeddings/
+     loras: models/loras/
+     upscale_models: models/upscale_models/
+     custom_nodes: custom_nodes\
+     vae: models/vae/
 
 #other_ui:
 #    base_path: path/to/ui

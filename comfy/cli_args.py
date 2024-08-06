@@ -54,11 +54,11 @@ parser.add_argument("--max-upload-size", type=float,
 parser.add_argument("--extra-model-paths-config", type=str, default=None, metavar="PATH",
                     nargs='+', action='append', help="Load one or more extra_model_paths.yaml files.")
 parser.add_argument("--output-directory", type=str,
-                    default=None, help="Set the ComfyUI output directory.")
+                    default="/home/cold/comfyui_data/output", help="Set the ComfyUI output directory.")
 parser.add_argument("--temp-directory", type=str, default=None,
                     help="Set the ComfyUI temp directory (default is in the ComfyUI directory).")
 parser.add_argument("--input-directory", type=str,
-                    default=None, help="Set the ComfyUI input directory.")
+                    default="/home/cold/comfyui_data/input" help="Set the ComfyUI input directory.")
 parser.add_argument("--auto-launch", action="store_true",
                     help="Automatically launch ComfyUI in the default browser.")
 parser.add_argument("--disable-auto-launch", action="store_true",
