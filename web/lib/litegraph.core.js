@@ -4662,7 +4662,7 @@
     /**
      * returns the center of a connection point in canvas coords
      * @method getConnectionPos
-     * @param {boolean} is_input true if if a input slot, false if it is an output
+     * @param {boolean} is_input true if it is an input slot, false if it is an output
      * @param {number_or_string} slot (could be the number of the slot or the string with the name of the slot)
      * @param {vec2} out [optional] a place to store the output, to free garbage
      * @return {[x,y]} the position
