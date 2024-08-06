@@ -564,7 +564,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         logging.debug("left over keys: {}".format(left_over))
 
     if output_model:
-        model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device(), current_device=inital_load_device)
+        model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device())
         if inital_load_device != torch.device("cpu"):
             logging.info("loaded straight to GPU")
             model_management.load_model_gpu(model_patcher)
