@@ -1755,7 +1755,7 @@ export class ComfyApp {
 
 		// Register a node for each definition
 		for (const nodeId in defs) {
-			this.registerNodeDef(nodeId, defs[nodeId]);
+			await this.registerNodeDef(nodeId, defs[nodeId]);
 		}
 	}
 
