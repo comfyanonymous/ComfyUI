@@ -7,9 +7,7 @@ from collections.abc import Collection
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
 
-SupportedFileExtensionsType = set[str]
-ScanPathType = list[str]
-folder_names_and_paths: dict[str, tuple[ScanPathType, SupportedFileExtensionsType]] = {}
+folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
 
 base_path = os.path.dirname(os.path.realpath(__file__))
 models_dir = os.path.join(base_path, "models")
