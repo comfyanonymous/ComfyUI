@@ -58,4 +58,4 @@ def get_package_as_path(package: str, subdir: Optional[str] = None) -> str:
 def canonicalize_path(path: os.PathLike | str | None) -> str | None:
     if path is None:
         return None
-    return PurePath(path).as_posix()
+    return PurePath(str(path).replace("\\", "/")).as_posix()

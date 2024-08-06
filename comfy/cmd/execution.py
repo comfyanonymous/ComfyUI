@@ -754,6 +754,8 @@ def validate_inputs(prompt, item, validated: typing.Dict[str, ValidateInputsTupl
                     if "\\" in val:
                         # try to normalize paths for comparison purposes
                         val = canonicalize_path(val)
+                    if all(isinstance(item, (str, PathLike)) for item in type_input):
+                        type_input = [canonicalize_path(item) for item in type_input]
                     if val not in type_input:
                         input_config = info
                         list_info = ""
