@@ -7,7 +7,6 @@ comfyui:
   controlnet: models/controlnet/
   embeddings: models/embeddings/
   upscale_models: models/upscale_models/
-  custom_nodes: custom_nodes/
   vae: models/vae/
   loras: |
     models/lora
