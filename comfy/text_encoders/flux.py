@@ -52,9 +52,9 @@ class FluxClipModel(torch.nn.Module):
 
     def encode_token_weights(self, token_weight_pairs):
         token_weight_pairs_l = token_weight_pairs["l"]
-        token_weight_pars_t5 = token_weight_pairs["t5xxl"]
+        token_weight_pairs_t5 = token_weight_pairs["t5xxl"]
 
-        t5_out, t5_pooled = self.t5xxl.encode_token_weights(token_weight_pars_t5)
+        t5_out, t5_pooled = self.t5xxl.encode_token_weights(token_weight_pairs_t5)
         l_out, l_pooled = self.clip_l.encode_token_weights(token_weight_pairs_l)
         return t5_out, l_pooled
 
