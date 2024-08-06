@@ -1,0 +1,18 @@
+comfyui:
+  base_path: /home/cold/comfyui_data/
+  checkpoints: models/checkpoints/
+  clip: models/clip/
+  clip_vision: models/clip_vision/
+  configs: models/configs/
+  controlnet: models/controlnet/
+  embeddings: models/embeddings/
+  upscale_models: models/upscale_models/
+  custom_nodes: custom_nodes/
+  vae: models/vae/
+  loras: |
+    models/lora
+    models/ip_adapter_faceid/lora
+  hypernetworks: embeddings
+  ipadapter: |
+    models/ip_adapter_faceid/models
+    models/ip_adapter
