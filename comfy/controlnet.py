@@ -471,7 +471,7 @@ def load_controlnet_hunyuandit(controlnet_data):
     if len(unexpected) > 0:
         logging.debug("unexpected controlnet keys: {}".format(unexpected))
 
-    latent_format = comfy.latent_formats.HunyuanDit()
+    latent_format = comfy.latent_formats.SDXL()
     control = ControlNetWarperHunyuanDiT(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype)
     return control
 

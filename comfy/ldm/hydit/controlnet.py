@@ -101,7 +101,7 @@ class HunYuanControlNet(nn.Module):
         self.use_style_cond = use_style_cond
         self.norm = norm
         self.dtype = dtype
-        self.latent_format = comfy.latent_formats.HunyuanDit
+        self.latent_format = comfy.latent_formats.SDXL
 
 
         self.mlp_t5 = nn.Sequential(
@@ -263,7 +263,6 @@ class HunYuanControlNet(nn.Module):
         for layer, block in enumerate(self.blocks):
             x = block(x, c, text_states, freqs_cis_img)
             controls.append(self.after_proj_list[layer](x)) # zero linear for output
-
 
         return {'output': controls}
     
