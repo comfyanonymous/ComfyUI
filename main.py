@@ -5,8 +5,21 @@ import os
 import importlib.util
 import folder_paths
 import time
-from comfy.cli_args import args
+import asyncio
+import itertools
+import shutil
+import threading
+import gc
+import logging
+import yaml
 
+from comfy.cli_args import args
+from server import BinaryEventTypes
+import cuda_malloc
+import execution
+import server
+import nodes
+import comfy.model_management
 
 def execute_prestartup_script():
     def execute_script(script_path):
@@ -17,20 +30,21 @@ def execute_prestartup_script():
             spec.loader.exec_module(module)
             return True
         except Exception as e:
-            print(f"Failed to execute startup-script: {script_path} / {e}")
-        return False
+            logging.error(f"Failed to execute startup-script: {script_path} / {e}")
+            return False
 
     if args.disable_all_custom_nodes:
         return
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
+    node_prestartup_times = []
+
     for custom_node_path in node_paths:
         possible_modules = os.listdir(custom_node_path)
-        node_prestartup_times = []
 
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
-            if os.path.isfile(module_path) or module_path.endswith(".disabled") or module_path == "__pycache__":
+            if os.path.isfile(module_path) or possible_module.endswith(".disabled") or possible_module == "__pycache__":
                 continue
 
             script_path = os.path.join(module_path, "prestartup_script.py")
@@ -38,67 +52,20 @@ def execute_prestartup_script():
                 time_before = time.perf_counter()
                 success = execute_script(script_path)
                 node_prestartup_times.append((time.perf_counter() - time_before, module_path, success))
-    if len(node_prestartup_times) > 0:
-        print("\nPrestartup times for custom nodes:")
-        for n in sorted(node_prestartup_times):
-            if n[2]:
-                import_message = ""
-            else:
-                import_message = " (PRESTARTUP FAILED)"
-            print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
-        print()
 
-execute_prestartup_script()
-
-
-# Main code
-import asyncio
-import itertools
-import shutil
-import threading
-import gc
-
-import logging
-
-if os.name == "nt":
-    logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
-
-if __name__ == "__main__":
-    if args.cuda_device is not None:
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-        logging.info("Set cuda device to: {}".format(args.cuda_device))
-
-    if args.deterministic:
-        if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
-            os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
-
-    import cuda_malloc
-
-if args.windows_standalone_build:
-    try:
-        import fix_torch
-    except:
-        pass
-
-import comfy.utils
-import yaml
-
-import execution
-import server
-from server import BinaryEventTypes
-import nodes
-import comfy.model_management
+    if node_prestartup_times:
+        logging.info("\nPrestartup times for custom nodes:")
+        for time_taken, path, success in sorted(node_prestartup_times):
+            status_message = "" if success else " (PRESTARTUP FAILED)"
+            logging.info(f"{time_taken:6.1f} seconds{status_message}: {path}")
+        logging.info()
 
 def cuda_malloc_warning():
     device = comfy.model_management.get_torch_device()
     device_name = comfy.model_management.get_torch_device_name(device)
-    cuda_malloc_warning = False
     if "cudaMallocAsync" in device_name:
-        for b in cuda_malloc.blacklist:
-            if b in device_name:
-                cuda_malloc_warning = True
-        if cuda_malloc_warning:
-            logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
+        if any(b in device_name for b in cuda_malloc.blacklist):
+            logging.warning("\nWARNING: this card most likely does not support cuda-malloc. If you get \"CUDA error\", please run ComfyUI with: --disable-cuda-malloc\n")
 
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
@@ -109,55 +76,53 @@ def prompt_worker(q, server):
     while True:
         timeout = 1000.0
         if need_gc:
-            timeout = max(gc_collect_interval - (current_time - last_gc_collect), 0.0)
+            timeout = max(gc_collect_interval - (time.perf_counter() - last_gc_collect), 0.0)
 
-        queue_item = q.get(timeout=timeout)
-        if queue_item is not None:
-            item, item_id = queue_item
-            execution_start_time = time.perf_counter()
-            prompt_id = item[1]
-            server.last_prompt_id = prompt_id
+        try:
+            queue_item = q.get(timeout=timeout)
+            if queue_item is not None:
+                item, item_id = queue_item
+                execution_start_time = time.perf_counter()
+                prompt_id = item[1]
+                server.last_prompt_id = prompt_id
 
-            e.execute(item[2], prompt_id, item[3], item[4])
-            need_gc = True
-            q.task_done(item_id,
-                        e.outputs_ui,
-                        status=execution.PromptQueue.ExecutionStatus(
-                            status_str='success' if e.success else 'error',
-                            completed=e.success,
-                            messages=e.status_messages))
-            if server.client_id is not None:
-                server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, server.client_id)
+                e.execute(item[2], prompt_id, item[3], item[4])
+                need_gc = True
+                q.task_done(item_id, e.outputs_ui, status=execution.PromptQueue.ExecutionStatus(
+                    status_str='success' if e.success else 'error',
+                    completed=e.success,
+                    messages=e.status_messages))
 
-            current_time = time.perf_counter()
-            execution_time = current_time - execution_start_time
-            logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
+                if server.client_id is not None:
+                    server.send_sync("executing", {"node": None, "prompt_id": prompt_id}, server.client_id)
 
-        flags = q.get_flags()
-        free_memory = flags.get("free_memory", False)
+                logging.info(f"Prompt executed in {time.perf_counter() - execution_start_time:.2f} seconds")
 
-        if flags.get("unload_models", free_memory):
-            comfy.model_management.unload_all_models()
-            need_gc = True
-            last_gc_collect = 0
+            flags = q.get_flags()
+            if flags.get("unload_models", flags.get("free_memory", False)):
+                comfy.model_management.unload_all_models()
+                need_gc = True
+                last_gc_collect = 0
 
-        if free_memory:
-            e.reset()
-            need_gc = True
-            last_gc_collect = 0
+            if flags.get("free_memory", False):
+                e.reset()
+                need_gc = True
+                last_gc_collect = 0
 
-        if need_gc:
-            current_time = time.perf_counter()
-            if (current_time - last_gc_collect) > gc_collect_interval:
-                comfy.model_management.cleanup_models()
-                gc.collect()
-                comfy.model_management.soft_empty_cache()
-                last_gc_collect = current_time
-                need_gc = False
+            if need_gc:
+                current_time = time.perf_counter()
+                if (current_time - last_gc_collect) > gc_collect_interval:
+                    comfy.model_management.cleanup_models()
+                    gc.collect()
+                    comfy.model_management.soft_empty_cache()
+                    last_gc_collect = current_time
+                    need_gc = False
+
+        except Exception as e:
+            logging.error(f"Error in prompt_worker: {e}")
 
 async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
-
 
 def hijack_progress(server):
     def hook(value, total, preview_image):
@@ -167,35 +132,28 @@ def hijack_progress(server):
         server.send_sync("progress", progress, server.client_id)
         if preview_image is not None:
             server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
+    
     comfy.utils.set_progress_bar_global_hook(hook)
-
 
 def cleanup_temp():
     temp_dir = folder_paths.get_temp_directory()
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
-
 def load_extra_path_config(yaml_path):
     with open(yaml_path, 'r') as stream:
         config = yaml.safe_load(stream)
-    for c in config:
-        conf = config[c]
+    
+    for c, conf in config.items():
         if conf is None:
             continue
-        base_path = None
-        if "base_path" in conf:
-            base_path = conf.pop("base_path")
+        base_path = conf.pop("base_path", None)
         for x in conf:
             for y in conf[x].split("\n"):
-                if len(y) == 0:
-                    continue
-                full_path = y
-                if base_path is not None:
-                    full_path = os.path.join(base_path, full_path)
-                logging.info("Adding extra search path {} {}".format(x, full_path))
-                folder_paths.add_model_folder_path(x, full_path)
-
+                if y.strip():
+                    full_path = os.path.join(base_path, y) if base_path else y
+                    logging.info(f"Adding extra search path {x} {full_path}")
+                    folder_paths.add_model_folder_path(x, full_path)
 
 if __name__ == "__main__":
     if args.temp_directory:
@@ -208,8 +166,8 @@ if __name__ == "__main__":
         try:
             import new_updater
             new_updater.update_windows_updater()
-        except:
-            pass
+        except ImportError as e:
+            logging.error(f"Failed to import new_updater: {e}")
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -225,20 +183,17 @@ if __name__ == "__main__":
             load_extra_path_config(config_path)
 
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
-
     cuda_malloc_warning()
-
     server.add_routes()
     hijack_progress(server)
 
-    threading.Thread(target=prompt_worker, daemon=True, args=(q, server,)).start()
+    threading.Thread(target=prompt_worker, daemon=True, args=(q, server)).start()
 
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
         logging.info(f"Setting output directory to: {output_dir}")
         folder_paths.set_output_directory(output_dir)
 
-    #These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
     folder_paths.add_model_folder_path("checkpoints", os.path.join(folder_paths.get_output_directory(), "checkpoints"))
     folder_paths.add_model_folder_path("clip", os.path.join(folder_paths.get_output_directory(), "clip"))
     folder_paths.add_model_folder_path("vae", os.path.join(folder_paths.get_output_directory(), "vae"))
@@ -264,5 +219,7 @@ if __name__ == "__main__":
         loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
     except KeyboardInterrupt:
         logging.info("\nStopped server")
+    except Exception as e:
+        logging.error(f"Error during server run: {e}")
 
     cleanup_temp()
