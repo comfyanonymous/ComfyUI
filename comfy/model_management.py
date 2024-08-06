@@ -503,11 +503,11 @@ def cleanup_models(keep_clone_weights_loaded=False):
     to_delete = []
 
     for i in range(len(current_loaded_models)):
-        if sys.getrefcount(current_loaded_models[i].model) <= 2:
+        if sys.getrefcount(current_loaded_models[i].model) <= 3:
             if not keep_clone_weights_loaded:
                 to_delete = [i] + to_delete
             # TODO: find a less fragile way to do this.
-            elif sys.getrefcount(current_loaded_models[i].real_model) <= 3:  # references from .real_model + the .model
+            elif sys.getrefcount(current_loaded_models[i].real_model) <= 4:  # references from .real_model + the .model
                 to_delete = [i] + to_delete
 
     for i in to_delete:

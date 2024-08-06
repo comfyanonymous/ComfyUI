@@ -45,6 +45,8 @@ class ModelCache:
         item['sd'] = (keys, values)
 
     def cache_clip(self, key, clip_key, clip):
+        if not self._cache_state:
+            return
         item = self._get_item(key)
         item[clip_key] = clip
 
