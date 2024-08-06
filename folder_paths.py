@@ -1,7 +1,8 @@
 import os
 import time
+import mimetypes
 import logging
-from typing import Set, List, Dict, Tuple
+from typing import Set, List, Dict, Tuple, Literal
 
 supported_pt_extensions: Set[str] = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'])
 
@@ -43,6 +44,9 @@ input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "inp
 user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user")
 
 filename_list_cache = {}
+extension_mimetypes_cache = {
+    "webp" : "image",
+}
 
 if not os.path.exists(input_directory):
     try:
@@ -85,6 +89,28 @@ def get_directory_by_type(type_name):
         return get_input_directory()
     return None
 
+def filter_files_content_types(files: List[str], content_types: Literal["image", "video", "audio"]) -> List[str]:
+    """
+    Example:
+        files = os.listdir(folder_paths.get_input_directory())
+        filter_files_content_types(files, ["image", "audio", "video"])
+    """
+    global extension_mimetypes_cache
+    result = []
+    for file in files:
+        extension = file.split('.')[-1]
+        if extension not in extension_mimetypes_cache:
+            mime_type, _ = mimetypes.guess_type(file, strict=False)
+            if not mime_type:
+                continue
+            content_type = mime_type.split('/')[0]
+            extension_mimetypes_cache[extension] = content_type
+        else:
+            content_type = extension_mimetypes_cache[extension]
+
+        if content_type in content_types:
+            result.append(file)
+    return result
 
 # determine base_dir rely on annotation if name is 'filename.ext [annotation]' format
 # otherwise use default_path as base_dir
