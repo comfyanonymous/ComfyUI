@@ -33,7 +33,7 @@ comfyui:
      embeddings: models/embeddings/
      loras: models/loras/
      upscale_models: models/upscale_models/
-     custom_nodes: custom_nodes\
+     custom_nodes: custom_nodes/
      vae: models/vae/
 
 #other_ui:
