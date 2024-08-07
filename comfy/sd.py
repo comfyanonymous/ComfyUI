@@ -500,6 +500,9 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
 
 def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True):
     sd = comfy.utils.load_torch_file(ckpt_path)
+    return load_state_dict_guess_config(sd, output_vae, output_clip, output_clipvision, embedding_directory, output_model)
+
+def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True):
     sd_keys = sd.keys()
     clip = None
     clipvision = None
