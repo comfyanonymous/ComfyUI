@@ -184,7 +184,7 @@ class PromptServer():
             except Exception as e:
                 return False
         
-        async def image_upload(post, image_save_function=None):
+        def image_upload(post, image_save_function=None):
             print("Starting image upload process")
             
             image = post.get("image")
@@ -202,7 +202,7 @@ class PromptServer():
             if image:
                 if isinstance(image, web.FileField):
                     filename = image.filename
-                    file_content = await image.read()
+                    file_content = image.file.read()
                 else:
                     filename = image.get("filename")
                     file_content = image.get("file")
@@ -301,7 +301,7 @@ class PromptServer():
                 print("Unsupported Content-Type")
                 return web.Response(status=400, text="Unsupported Content-Type")
             
-            return await image_upload(post)
+            return image_upload(post)
 
 
         @routes.post("/upload/mask")
