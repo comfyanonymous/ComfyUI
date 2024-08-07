@@ -617,6 +617,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         model_cache.cache_clip_vision(ckpt_path, clipvision)
 
     model_cache.refresh_cache(clipvision)
+
     return (model_patcher, clip, vae, clipvision)
 
 
