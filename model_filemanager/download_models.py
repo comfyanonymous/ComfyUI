@@ -112,7 +112,7 @@ async def track_download_progress(response: aiohttp.ClientResponse, file_path: s
 
         await update_progress()
         
-        logging.info(f"Download completed. Total downloaded: {downloaded}")
+        logging.info(f"Successfully downloaded {model_name}. Total downloaded: {downloaded}")
         status = DownloadStatus(DownloadStatusType.COMPLETED, 100, f"Successfully downloaded {model_name}")
         await progress_callback(relative_path, status)
 
