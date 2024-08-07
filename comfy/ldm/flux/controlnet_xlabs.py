@@ -85,13 +85,6 @@ class ControlNetFlux(Flux):
         return {"output": (controlnet_block_res_samples * 10)[:19]}
 
     def forward(self, x, timesteps, context, y, guidance=None, hint=None, **kwargs):
-        # print(x.shape, timesteps.shape, context.shape, y.shape, guidance.shape, hint.shape)
-        # x = torch.zeros_like(x)
-        # timesteps = torch.zeros_like(timesteps)
-        # context = torch.zeros_like(context)
-        # y = torch.zeros_like(y)
-        # guidance = torch.zeros_like(guidance)
-        # hint = torch.zeros_like(hint)
         hint = hint * 2.0 - 1.0
 
         bs, c, h, w = x.shape
