@@ -19,3 +19,4 @@ venv/
 desktop_shortcut
 comfyui.log
 comfyui.prev.log
+*.log
