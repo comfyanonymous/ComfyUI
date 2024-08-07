@@ -22,6 +22,7 @@ a111:
 
 #config for comfyui
 #your base path should be either an existing comfy install or a central folder where you store all of your models, loras, etc.
+#absolute paths can be used to specify directories outside of the base_path.
 
 #comfyui:
 #     base_path: path/to/comfyui/
@@ -34,6 +35,7 @@ a111:
 #     loras: models/loras/
 #     upscale_models: models/upscale_models/
 #     vae: models/vae/
+#     custom_nodes: custom_nodes/
 
 #other_ui:
 #    base_path: path/to/ui
