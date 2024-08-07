@@ -12,6 +12,7 @@ import json
 import glob
 import struct
 import ssl
+import hashlib
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
@@ -24,8 +25,10 @@ import mimetypes
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
-
+import node_helpers
+from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
+
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -82,8 +85,12 @@ class PromptServer():
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
         self.sockets = dict()
-        self.web_root = os.path.join(os.path.dirname(
-            os.path.realpath(__file__)), "web")
+        self.web_root = (
+            FrontendManager.init_frontend(args.front_end_version)
+            if args.front_end_root is None
+            else args.front_end_root
+        )
+        logging.info(f"[Prompt Server] web root: {self.web_root}")
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None
@@ -110,7 +117,7 @@ class PromptServer():
                 # On reconnect if we are the currently executing client send the current node
                 if self.client_id == sid and self.last_node_id is not None:
                     await self.send("executing", { "node": self.last_node_id }, sid)
-                    
+
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.ERROR:
                         logging.warning('ws connection closed with exception %s' % ws.exception())
@@ -120,7 +127,11 @@ class PromptServer():
 
         @routes.get("/")
         async def get_root(request):
-            return web.FileResponse(os.path.join(self.web_root, "index.html"))
+            response = web.FileResponse(os.path.join(self.web_root, "index.html"))
+            response.headers['Cache-Control'] = 'no-cache'
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
 
         @routes.get("/embeddings")
         def get_embeddings(self):
@@ -131,9 +142,9 @@ class PromptServer():
         async def get_extensions(request):
             files = glob.glob(os.path.join(
                 glob.escape(self.web_root), 'extensions/**/*.js'), recursive=True)
-            
+
             extensions = list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files))
-            
+
             for name, dir in nodes.EXTENSION_WEB_DIRS.items():
                 files = glob.glob(os.path.join(glob.escape(dir), '**/*.js'), recursive=True)
                 extensions.extend(list(map(lambda f: "/extensions/" + urllib.parse.quote(
@@ -154,9 +165,25 @@ class PromptServer():
 
             return type_dir, dir_type
 
+        def compare_image_hash(filepath, image):
+            hasher = node_helpers.hasher()
+            
+            # function to compare hashes of two images to see if it already exists, fix to #3465
+            if os.path.exists(filepath):
+                a = hasher()
+                b = hasher()
+                with open(filepath, "rb") as f:
+                    a.update(f.read())
+                    b.update(image.file.read())
+                    image.file.seek(0)
+                    f.close()
+                return a.hexdigest() == b.hexdigest()
+            return False
+
         def image_upload(post, image_save_function=None):
             image = post.get("image")
             overwrite = post.get("overwrite")
+            image_is_duplicate = False
 
             image_upload_type = post.get("type")
             upload_dir, image_upload_type = get_dir_by_type(image_upload_type)
@@ -183,15 +210,19 @@ class PromptServer():
                 else:
                     i = 1
                     while os.path.exists(filepath):
+                        if compare_image_hash(filepath, image): #compare hash to prevent saving of duplicates with same name, fix for #3465
+                            image_is_duplicate = True
+                            break
                         filename = f"{split[0]} ({i}){split[1]}"
                         filepath = os.path.join(full_output_folder, filename)
                         i += 1
 
-                if image_save_function is not None:
-                    image_save_function(image, post, filepath)
-                else:
-                    with open(filepath, "wb") as f:
-                        f.write(image.file.read())
+                if not image_is_duplicate:
+                    if image_save_function is not None:
+                        image_save_function(image, post, filepath)
+                    else:
+                        with open(filepath, "wb") as f:
+                            f.write(image.file.read())
 
                 return web.json_response({"name" : filename, "subfolder": subfolder, "type": image_upload_type})
             else:
@@ -397,6 +428,7 @@ class PromptServer():
             info['name'] = node_class
             info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
             info['description'] = obj_class.DESCRIPTION if hasattr(obj_class,'DESCRIPTION') else ''
+            info['python_module'] = getattr(obj_class, "RELATIVE_PYTHON_MODULE", "nodes")
             info['category'] = 'sd'
             if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
                 info['output_node'] = True
@@ -527,9 +559,22 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
-        
+
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
+
+        # Prefix every route with /api for easier matching for delegation.
+        # This is very useful for frontend dev server, which need to forward
+        # everything except serving of static files.
+        # Currently both the old endpoints without prefix and new endpoints with
+        # prefix are supported.
+        api_routes = web.RouteTableDef()
+        for route in self.routes:
+            # Custom nodes might add extra static routes. Only process non-static
+            # routes to add /api prefix.
+            if isinstance(route, web.RouteDef):
+                api_routes.route(route.method, "/api" + route.path)(route.handler, **route.kwargs)
+        self.app.add_routes(api_routes)
         self.app.add_routes(self.routes)
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():

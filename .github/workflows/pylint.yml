@@ -1,0 +1,23 @@
+name: Python Linting
+
+on: [push, pull_request]
+
+jobs:
+  pylint:
+    name: Run Pylint
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.x
+
+    - name: Install Pylint
+      run: pip install pylint
+
+    - name: Run Pylint
+      run: pylint --rcfile=.pylintrc $(find . -type f -name "*.py")

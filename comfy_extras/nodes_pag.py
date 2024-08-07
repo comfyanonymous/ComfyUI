@@ -12,14 +12,14 @@ class PerturbedAttentionGuidance:
         return {
             "required": {
                 "model": ("MODEL",),
-                "scale": ("FLOAT", {"default": 3.0, "min": 0.0, "max": 100.0, "step": 0.1, "round": 0.01}),
+                "scale": ("FLOAT", {"default": 3.0, "min": 0.0, "max": 100.0, "step": 0.01, "round": 0.01}),
             }
         }
 
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "model_patches/unet"
 
     def patch(self, model, scale):
         unet_block = "middle"

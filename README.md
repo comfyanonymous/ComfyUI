@@ -11,16 +11,17 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
-- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/) and [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/)
+- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/), [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/), [SD3](https://comfyanonymous.github.io/ComfyUI_examples/sd3/) and [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
+- [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
-- Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
+- Smart memory management: can automatically run models on GPUs with as low as 1GB vram.
 - Works even if you don't have a GPU with: ```--cpu``` (slow)
 - Can load ckpt, safetensors and diffusers models/checkpoints. Standalone VAEs and CLIP models.
 - Embeddings/Textual inversion
 - [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
 - [Hypernetworks](https://comfyanonymous.github.io/ComfyUI_examples/hypernetworks/)
-- Loading full workflows (with seeds) from generated PNG files.
+- Loading full workflows (with seeds) from generated PNG, WebP and FLAC files.
 - Saving/Loading workflows as Json files.
 - Nodes interface can be used to create complex workflows like one for [Hires fix](https://comfyanonymous.github.io/ComfyUI_examples/2_pass_txt2img/) or much more advanced ones.
 - [Area Composition](https://comfyanonymous.github.io/ComfyUI_examples/area_composition/)
@@ -32,6 +33,8 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
 - [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
 - [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
+- [AuraFlow](https://comfyanonymous.github.io/ComfyUI_examples/aura_flow/)
+- [HunyuanDiT](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_dit/)
 - Latent previews with [TAESD](#how-to-show-high-quality-previews)
 - Starts up very fast.
 - Works fully offline: will never download anything.
@@ -53,7 +56,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | Ctrl + M                           | Mute/unmute selected nodes                                                                                         |
 | Ctrl + B                           | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
 | Delete/Backspace                   | Delete selected nodes                                                                                              |
-| Ctrl + Delete/Backspace            | Delete the current graph                                                                                           |
+| Ctrl + Backspace                   | Delete the current graph                                                                                           |
 | Space                              | Move the canvas around when held and moving the cursor                                                             |
 | Ctrl/Shift + Click                 | Add clicked node to selection                                                                                      |
 | Ctrl + C/Ctrl + V                  | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes)                     |
@@ -76,7 +79,7 @@ Ctrl can also be replaced with Cmd instead for macOS users
 
 There is a portable standalone build for Windows that should work for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
 
-### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_windows_portable_nvidia_cu121_or_cpu.7z)
+### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z)
 
 Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
 
@@ -106,7 +109,7 @@ AMD users can install rocm and pytorch with pip if you don't have it already ins
 
 This is the command to install the nightly with ROCm 6.0 which might have some performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.0```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.1```
 
 ### NVIDIA
 
@@ -116,7 +119,7 @@ Nvidia users should install stable pytorch using this command:
 
 This is the command to install pytorch nightly instead which might have performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu124```
 
 #### Troubleshooting
 
@@ -136,7 +139,16 @@ After this you should have everything installed and can proceed to running Comfy
 
 ### Others:
 
-#### [Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
+#### Intel GPUs
+
+Intel GPU support is available for all Intel GPUs supported by Intel's Extension for Pytorch (IPEX) with the support requirements listed in the [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) page. Choose your platform and method of install and follow the instructions. The steps are as follows:
+
+1. Start by installing the drivers or kernel listed or newer in the Installation page of IPEX linked above for Windows and Linux if needed.
+1. Follow the instructions to install [Intel's oneAPI Basekit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html) for your platform.
+1. Install the packages for IPEX using the instructions provided in the Installation page for your platform.
+1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux and run ComfyUI normally as described above after everything is installed.
+
+Additional discussion and help can be found [here](https://github.com/comfyanonymous/ComfyUI/discussions/476).
 
 #### Apple Mac silicon
 
@@ -152,20 +164,6 @@ You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS ve
 #### DirectML (AMD Cards on Windows)
 
 ```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
-
-### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
-
-You don't. If you have another UI installed and working with its own python venv you can use that venv to run ComfyUI. You can open up your favorite terminal and activate it:
-
-```source path_to_other_sd_gui/venv/bin/activate```
-
-or on Windows:
-
-With Powershell: ```"path_to_other_sd_gui\venv\Scripts\Activate.ps1"```
-
-With cmd.exe: ```"path_to_other_sd_gui\venv\Scripts\activate.bat"```
-
-And then you can use that terminal to run ComfyUI without installing any dependencies. Note that the venv folder might be called something else depending on the SD UI.
 
 # Running
 
@@ -198,12 +196,6 @@ To use a textual inversion concepts/embeddings in a text prompt put them in the 
 ```embedding:embedding_filename.pt```
 
 
-## How to increase generation speed?
-
-On non Nvidia hardware you can set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models. If you use xformers or pytorch attention this option does not do anything.
-
-```--dont-upcast-attention```
-
 ## How to show high-quality previews?
 
 Use ```--preview-method auto``` to enable previews.
@@ -222,12 +214,11 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 
 [Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
 
+See also: [https://www.comfy.org/](https://www.comfy.org/)
+
 # QA
 
-### Why did you make this?
+### Which GPU should I buy for this?
 
-I wanted to learn how Stable Diffusion worked in detail. I also wanted something clean and powerful that would let me experiment with SD without restrictions.
+[See this page for some recommendations](https://github.com/comfyanonymous/ComfyUI/wiki/Which-GPU-should-I-buy-for-ComfyUI)
 
-### Who is this for?
-
-This is for anyone that wants to make complex workflows with SD or that wants to learn more how SD works. The interface follows closely how SD works and the code should be much more simple to understand than other SD UIs.

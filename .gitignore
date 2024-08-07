@@ -9,6 +9,7 @@ __pycache__/
 !custom_nodes/example_node.py.example
 extra_model_paths.yaml
 /.vs
+.vscode/
 .idea/
 venv/
 /web/extensions/*
@@ -20,3 +21,5 @@ desktop_shortcut
 comfyui.log
 comfyui.prev.log
 *.log
+
+web_custom_versions/
