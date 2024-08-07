@@ -51,7 +51,7 @@ class ControlNetFlux(Flux):
         txt_ids: Tensor,
         timesteps: Tensor,
         y: Tensor,
-        guidance: Tensor | None = None,
+        guidance: Tensor = None,
     ) -> Tensor:
         if img.ndim != 3 or txt.ndim != 3:
             raise ValueError("Input img and txt tensors must have 3 dimensions.")
