@@ -448,33 +448,33 @@ def load_models_gpu(models: Sequence[ModelManageable], memory_required: int = 0,
     with model_management_lock:
         inference_memory = minimum_inference_memory()
         extra_mem = max(inference_memory, memory_required)
-    if minimum_memory_required is None:
-        minimum_memory_required = extra_mem
-    else:
-        minimum_memory_required = max(inference_memory, minimum_memory_required)
+        if minimum_memory_required is None:
+            minimum_memory_required = extra_mem
+        else:
+            minimum_memory_required = max(inference_memory, minimum_memory_required)
 
-    models = set(models)
-    models_to_load = []
-    models_already_loaded = []
-    for x in models:
-        loaded_model = LoadedModel(x)
-        loaded = None
+        models = set(models)
+        models_to_load = []
+        models_already_loaded = []
+        for x in models:
+            loaded_model = LoadedModel(x)
+            loaded = None
 
-        try:
-            loaded_model_index = current_loaded_models.index(loaded_model)
-        except ValueError:
-            loaded_model_index = None
+            try:
+                loaded_model_index = current_loaded_models.index(loaded_model)
+            except ValueError:
+                loaded_model_index = None
 
-        if loaded_model_index is not None:
-            loaded = current_loaded_models[loaded_model_index]
-            if loaded.should_reload_model(force_patch_weights=force_patch_weights):  # TODO: cleanup this model reload logic
-                current_loaded_models.pop(loaded_model_index).model_unload(unpatch_weights=True)
-                loaded = None
-            else:
-                loaded.currently_used = True
-                models_already_loaded.append(loaded)
-        if loaded is None:
-            models_to_load.append(loaded_model)
+            if loaded_model_index is not None:
+                loaded = current_loaded_models[loaded_model_index]
+                if loaded.should_reload_model(force_patch_weights=force_patch_weights):  # TODO: cleanup this model reload logic
+                    current_loaded_models.pop(loaded_model_index).model_unload(unpatch_weights=True)
+                    loaded = None
+                else:
+                    loaded.currently_used = True
+                    models_already_loaded.append(loaded)
+            if loaded is None:
+                models_to_load.append(loaded_model)
 
         models_freed: List[LoadedModel] = []
         try:
