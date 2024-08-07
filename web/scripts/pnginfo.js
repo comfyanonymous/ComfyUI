@@ -190,9 +190,10 @@ function parseVorbisComment(dataView) {
 		const comment = getString(dataView, offset, commentLength);
 		offset += commentLength;
 
-		const [key, value] = comment.split('=');
+		const ind = comment.indexOf('=')
+		const key = comment.substring(0, ind);
 
-		comments[key] = value;
+		comments[key] = comment.substring(ind+1);
 	}
 
 	return comments;
