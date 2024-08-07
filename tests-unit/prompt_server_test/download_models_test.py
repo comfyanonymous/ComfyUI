@@ -4,7 +4,7 @@ from aiohttp import ClientResponse
 import itertools
 import os 
 from unittest.mock import AsyncMock, patch, MagicMock
-from model_filemanager import download_model, validate_model_subdirectory, track_download_progress, create_model_path, check_file_exists, DownloadStatus, DownloadModelResult, DownloadStatusType
+from model_filemanager import download_model, validate_model_subdirectory, track_download_progress, create_model_path, check_file_exists, DownloadStatusType, DownloadModelStatus
 
 class AsyncIteratorMock:
     """
@@ -73,7 +73,7 @@ async def test_download_model_success():
         )
 
     # Assert the result
-    assert isinstance(result, DownloadModelResult)
+    assert isinstance(result, DownloadModelStatus)
     assert result.message == 'Successfully downloaded model.bin'
     assert result.status == 'completed'
     assert result.already_existed is False
@@ -84,13 +84,13 @@ async def test_download_model_success():
     # Check initial call
     mock_progress_callback.assert_any_call(
         'checkpoints/model.bin',
-        DownloadStatus(DownloadStatusType.PENDING, 0, "Starting download of model.bin")
+        DownloadModelStatus(DownloadStatusType.PENDING, 0, "Starting download of model.bin", False)
     )
 
     # Check final call
     mock_progress_callback.assert_any_call(
         'checkpoints/model.bin',
-        DownloadStatus(DownloadStatusType.COMPLETED, 100, "Successfully downloaded model.bin")
+        DownloadModelStatus(DownloadStatusType.COMPLETED, 100, "Successfully downloaded model.bin", False)
     )
 
     # Verify file writing
@@ -123,7 +123,7 @@ async def test_download_model_url_request_failure():
             )
 
     # Assert the expected behavior
-    assert isinstance(result, DownloadModelResult)
+    assert isinstance(result, DownloadModelStatus)
     assert result.status == 'error'
     assert result.message == 'Failed to download model.safetensors. Status code: 404'
     assert result.already_existed is False
@@ -131,18 +131,20 @@ async def test_download_model_url_request_failure():
     # Check that progress_callback was called with the correct arguments
     mock_progress_callback.assert_any_call(
         'mock_directory/model.safetensors',
-        DownloadStatus(
+        DownloadModelStatus(
             status=DownloadStatusType.PENDING,
             progress_percentage=0,
-            message='Starting download of model.safetensors'
+            message='Starting download of model.safetensors',
+            already_existed=False
         )
     )
     mock_progress_callback.assert_called_with(
         'mock_directory/model.safetensors',
-        DownloadStatus(
+        DownloadModelStatus(
             status=DownloadStatusType.ERROR,
             progress_percentage=0,
-            message='Failed to download model.safetensors. Status code: 404'
+            message='Failed to download model.safetensors. Status code: 404',
+            already_existed=False
         )
     )
 
@@ -165,7 +167,7 @@ async def test_download_model_invalid_model_subdirectory():
     )
 
     # Assert the result
-    assert isinstance(result, DownloadModelResult)
+    assert isinstance(result, DownloadModelStatus)
     assert result.message == 'Invalid model subdirectory'
     assert result.status == 'error'
     assert result.already_existed is False
@@ -202,7 +204,7 @@ async def test_check_file_exists_when_file_exists(tmp_path):
     
     mock_callback.assert_called_once_with(
         "test/existing_model.bin",
-        DownloadStatus(DownloadStatusType.COMPLETED, 100, "existing_model.bin already exists")
+        DownloadModelStatus(DownloadStatusType.COMPLETED, 100, "existing_model.bin already exists", already_existed=True)
     )
 
 @pytest.mark.asyncio
@@ -235,7 +237,7 @@ async def test_track_download_progress_no_content_length():
     # Check that progress was reported even without knowing the total size
     mock_callback.assert_any_call(
         'models/model.bin',
-        DownloadStatus(DownloadStatusType.IN_PROGRESS, 0, "Downloading model.bin")
+        DownloadModelStatus(DownloadStatusType.IN_PROGRESS, 0, "Downloading model.bin", already_existed=False)
     )
 
 @pytest.mark.asyncio
