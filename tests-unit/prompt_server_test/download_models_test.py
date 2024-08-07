@@ -4,7 +4,7 @@ from aiohttp import ClientResponse
 import itertools
 import os 
 from unittest.mock import AsyncMock, patch, MagicMock
-from model_filemanager import download_model, track_download_progress, create_model_path, check_file_exists, DownloadStatus, DownloadModelResult, DownloadStatusType
+from model_filemanager import download_model, validate_model_subdirectory, track_download_progress, create_model_path, check_file_exists, DownloadStatus, DownloadModelResult, DownloadStatusType
 
 class AsyncIteratorMock:
     """
@@ -254,3 +254,24 @@ async def test_track_download_progress_interval():
     last_call = mock_callback.call_args_list[-1]
     assert last_call[0][1].status == "completed"
     assert last_call[0][1].progress_percentage == 100
+
+def test_valid_subdirectory():
+    assert validate_model_subdirectory("valid-model123") is True
+
+def test_subdirectory_too_long():
+    assert validate_model_subdirectory("a" * 51) is False
+
+def test_subdirectory_with_double_dots():
+    assert validate_model_subdirectory("model/../unsafe") is False
+
+def test_subdirectory_with_slash():
+    assert validate_model_subdirectory("model/unsafe") is False
+
+def test_subdirectory_with_special_characters():
+    assert validate_model_subdirectory("model@unsafe") is False
+
+def test_subdirectory_with_underscore_and_dash():
+    assert validate_model_subdirectory("valid_model-name") is True
+
+def test_empty_subdirectory():
+    assert validate_model_subdirectory("") is False
