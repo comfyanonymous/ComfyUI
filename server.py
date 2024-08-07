@@ -76,8 +76,7 @@ class PromptServer():
         self.prompt_queue = None
         self.loop = loop
         self.messages = asyncio.Queue()
-        timeout = aiohttp.ClientTimeout(total=None) # no timeout
-        self.client_session = aiohttp.ClientSession(timeout=timeout)
+        self.client_session = None
         self.number = 0
 
         middlewares = [cache_control]
@@ -583,6 +582,10 @@ class PromptServer():
             await task
 
             return web.Response(status=200)
+
+    async def setup(self):
+        timeout = aiohttp.ClientTimeout(total=None) # no timeout
+        self.client_session = aiohttp.ClientSession(timeout=timeout)
 
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
