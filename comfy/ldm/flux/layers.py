@@ -188,6 +188,10 @@ class DoubleStreamBlock(nn.Module):
         # calculate the txt bloks
         txt = txt + txt_mod1.gate * self.txt_attn.proj(txt_attn)
         txt = txt + txt_mod2.gate * self.txt_mlp((1 + txt_mod2.scale) * self.txt_norm2(txt) + txt_mod2.shift)
+
+        if txt.dtype == torch.float16:
+            txt = txt.clip(-65504, 65504)
+
         return img, txt
 
 
@@ -239,7 +243,10 @@ class SingleStreamBlock(nn.Module):
         attn = attention(q, k, v, pe=pe)
         # compute activation in mlp stream, cat again and run second linear layer
         output = self.linear2(torch.cat((attn, self.mlp_act(mlp)), 2))
-        return x + mod.gate * output
+        x = x + mod.gate * output
+        if x.dtype == torch.float16:
+            x = x.clip(-65504, 65504)
+        return x
 
 
 class LastLayer(nn.Module):
