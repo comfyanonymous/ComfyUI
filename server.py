@@ -28,7 +28,7 @@ import node_helpers
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
 from model_filemanager import download_model, DownloadStatus
-
+from typing import Optional
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -76,7 +76,7 @@ class PromptServer():
         self.prompt_queue = None
         self.loop = loop
         self.messages = asyncio.Queue()
-        self.client_session = None
+        self.client_session:Optional[aiohttp.ClientSession] = None
         self.number = 0
 
         middlewares = [cache_control]
@@ -579,7 +579,12 @@ class PromptServer():
             if not url or not model_directory or not model_filename:
                 return web.json_response({"status": "error", "message": "Missing URL or folder path or filename"}, status=400)
 
-            task = asyncio.create_task(download_model(self.client_session, model_filename, url, model_directory, report_progress))
+            session = self.client_session
+            if session is None:
+                logging.error("Client session is not initialized")
+                return web.Response(status=500)
+            
+            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, report_progress))
             await task
 
             return web.Response(status=200)
@@ -726,6 +731,3 @@ class PromptServer():
                 logging.warning(traceback.format_exc())
 
         return json_data
-
-    def close_session(self):
-        self.client_session.close()
