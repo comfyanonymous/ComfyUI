@@ -82,8 +82,8 @@ export class ComfySettingsDialog extends ComfyDialog {
 
 	getSettingValue(id, defaultValue) {
 		let value = this.settingsValues[this.getId(id)];
-		if(value != null) {
-			if(this.app.storageLocation === "browser") {
+		if (value != null) {
+			if (this.app.storageLocation === "browser") {
 				try {
 					value = JSON.parse(value);
 				} catch (error) {
@@ -105,7 +105,9 @@ export class ComfySettingsDialog extends ComfyDialog {
 		}
 		this.#dispatchChange(id, value, oldValue);
 
-		await api.storeSetting(id, value);
+		if (this.app.storageLocation === "server") {
+			await api.storeSetting(id, value);
+		}
 	}
 
 	setSettingValue(id, value) {

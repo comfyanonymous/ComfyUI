@@ -13,7 +13,7 @@ default_user = "default"
 users_file = os.path.join(user_directory, "users.json")
 
 
-class UserManager():
+class UserManager:
     def __init__(self):
         global user_directory
 
@@ -21,8 +21,12 @@ class UserManager():
         if not os.path.exists(user_directory):
             os.mkdir(user_directory)
             if not args.multi_user:
-                print("****** User settings have been changed to be stored on the server instead of browser storage. ******")
-                print("****** For multi-user setups add the --multi-user CLI argument to enable multiple user profiles. ******")
+                print(
+                    "****** User settings have been changed to be stored on the server instead of browser storage. ******"
+                )
+                print(
+                    "****** For multi-user setups add the --multi-user CLI argument to enable multiple user profiles. ******"
+                )
 
         if args.multi_user:
             if os.path.isfile(users_file):
@@ -43,7 +47,9 @@ class UserManager():
 
         return user
 
-    def get_request_user_filepath(self, request, file, type="userdata", create_dir=True):
+    def get_request_user_filepath(
+        self, request, file, type="userdata", create_dir=True
+    ):
         global user_directory
 
         if type == "userdata":
@@ -75,7 +81,7 @@ class UserManager():
         name = name.strip()
         if not name:
             raise ValueError("username not provided")
-        user_id = re.sub("[^a-zA-Z0-9-_]+", '-', name)
+        user_id = re.sub("[^a-zA-Z0-9-_]+", "-", name)
         user_id = user_id + "_" + str(uuid.uuid4())
 
         self.users[user_id] = name
@@ -94,11 +100,12 @@ class UserManager():
             if args.multi_user:
                 return web.json_response({"storage": "server", "users": self.users})
             else:
-                user_dir = self.get_request_user_filepath(request, None, create_dir=False)
-                return web.json_response({
-                    "storage": "server",
-                    "migrated": os.path.exists(user_dir)
-                })
+                user_dir = self.get_request_user_filepath(
+                    request, None, create_dir=False
+                )
+                return web.json_response(
+                    {"storage": "browser", "migrated": os.path.exists(user_dir)}
+                )
 
         @routes.post("/users")
         async def post_users(request):
@@ -112,40 +119,41 @@ class UserManager():
 
         @routes.get("/userdata")
         async def listuserdata(request):
-            directory = request.rel_url.query.get('dir', '')
+            directory = request.rel_url.query.get("dir", "")
             if not directory:
                 return web.Response(status=400)
-                
+
             path = self.get_request_user_filepath(request, directory)
             if not path:
                 return web.Response(status=403)
-            
+
             if not os.path.exists(path):
                 return web.Response(status=404)
-            
-            recurse = request.rel_url.query.get('recurse', '').lower() == "true"
-            results = glob.glob(os.path.join(
-                glob.escape(path), '**/*'), recursive=recurse)
+
+            recurse = request.rel_url.query.get("recurse", "").lower() == "true"
+            results = glob.glob(
+                os.path.join(glob.escape(path), "**/*"), recursive=recurse
+            )
             results = [os.path.relpath(x, path) for x in results if os.path.isfile(x)]
-            
-            split_path = request.rel_url.query.get('split', '').lower() == "true"
+
+            split_path = request.rel_url.query.get("split", "").lower() == "true"
             if split_path:
                 results = [[x] + x.split(os.sep) for x in results]
 
             return web.json_response(results)
 
-        def get_user_data_path(request, check_exists = False, param = "file"):
+        def get_user_data_path(request, check_exists=False, param="file"):
             file = request.match_info.get(param, None)
             if not file:
                 return web.Response(status=400)
-                
+
             path = self.get_request_user_filepath(request, file)
             if not path:
                 return web.Response(status=403)
-            
+
             if check_exists and not os.path.exists(path):
                 return web.Response(status=404)
-            
+
             return path
 
         @routes.get("/userdata/{file}")
@@ -153,7 +161,7 @@ class UserManager():
             path = get_user_data_path(request, check_exists=True)
             if not isinstance(path, str):
                 return path
-            
+
             return web.FileResponse(path)
 
         @routes.post("/userdata/{file}")
@@ -161,7 +169,7 @@ class UserManager():
             path = get_user_data_path(request)
             if not isinstance(path, str):
                 return path
-            
+
             overwrite = request.query["overwrite"] != "false"
             if not overwrite and os.path.exists(path):
                 return web.Response(status=409)
@@ -170,7 +178,7 @@ class UserManager():
 
             with open(path, "wb") as f:
                 f.write(body)
-                
+
             resp = os.path.relpath(path, self.get_request_user_filepath(request, None))
             return web.json_response(resp)
 
@@ -181,7 +189,7 @@ class UserManager():
                 return path
 
             os.remove(path)
-                
+
             return web.Response(status=204)
 
         @routes.post("/userdata/{file}/move/{dest}")
@@ -189,17 +197,17 @@ class UserManager():
             source = get_user_data_path(request, check_exists=True)
             if not isinstance(source, str):
                 return source
-            
+
             dest = get_user_data_path(request, check_exists=False, param="dest")
             if not isinstance(source, str):
                 return dest
-            
+
             overwrite = request.query["overwrite"] != "false"
             if not overwrite and os.path.exists(dest):
                 return web.Response(status=409)
 
             print(f"moving '{source}' -> '{dest}'")
             shutil.move(source, dest)
-                
+
             resp = os.path.relpath(dest, self.get_request_user_filepath(request, None))
             return web.json_response(resp)
