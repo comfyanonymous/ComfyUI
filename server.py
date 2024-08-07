@@ -199,10 +199,18 @@ class PromptServer():
             upload_dir, image_upload_type = get_dir_by_type(image_upload_type)
             print(f"Upload directory: {upload_dir}, Image type: {image_upload_type}, Overwrite: {overwrite}")
 
-            if image and image.get("file"):
-                filename = image.get("filename")
-                file_content = image.get("file")
+            if image:
+                if isinstance(image, web.FileField):
+                    filename = image.filename
+                    file_content = await image.read()
+                else:
+                    filename = image.get("filename")
+                    file_content = image.get("file")
+                    if is_base64_string(file_content):
+                        file_content = base64.b64decode(file_content.split(",")[1])
+
                 print(f"Filename: {filename}")
+                print(f"File content length: {len(file_content)}")
 
                 if not filename or not file_content:
                     print("No filename or file content provided")
@@ -273,17 +281,19 @@ class PromptServer():
             content_type = request.headers.get('Content-Type')
             print(f"Content-Type: {content_type}")
 
+            post = {}
             if 'application/json' in content_type:
                 try:
                     post = await request.json()
-                    # print(f"Received JSON post data: {post}")
+                    print(f"Received JSON post data: {post}")
                 except Exception as e:
                     print(f"Error parsing JSON: {e}")
                     return web.Response(status=400, text="Invalid JSON data")
             elif 'multipart/form-data' in content_type:
                 try:
                     post = await request.post()
-                    # print(f"Received form-data post data: {post}")
+                    print(f"Received form-data post data: {post}")
+                    post = {key: post[key] for key in post.keys()}
                 except Exception as e:
                     print(f"Error parsing form-data: {e}")
                     return web.Response(status=400, text="Invalid form-data")
