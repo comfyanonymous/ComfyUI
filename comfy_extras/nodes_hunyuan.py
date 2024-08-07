@@ -29,6 +29,7 @@ class ControlNetApplyAdvancedHunYuan:
                              "image": ("IMAGE", ),
                              "vae": ("VAE", ),
                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                             "control_weight": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.001}),
                              "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
                              "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
                              }}
@@ -39,7 +40,7 @@ class ControlNetApplyAdvancedHunYuan:
 
     CATEGORY = "conditioning/controlnet"
 
-    def apply_controlnet(self, positive, negative, control_net, image, strength, start_percent, end_percent, vae=None):
+    def apply_controlnet(self, positive, negative, control_net, image, strength, control_weight, start_percent, end_percent, vae=None):
         if strength == 0:
             return (positive, negative)
 
@@ -57,6 +58,7 @@ class ControlNetApplyAdvancedHunYuan:
                     c_net = cnets[prev_cnet]
                 else:
                     c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent), vae)
+                    c_net.set_extra_arg('control_weight', control_weight)
                     
                     c_net.set_previous_controlnet(prev_cnet)
                     cnets[prev_cnet] = c_net

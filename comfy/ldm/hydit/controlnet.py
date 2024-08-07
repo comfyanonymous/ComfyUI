@@ -240,6 +240,7 @@ class HunYuanControlNet(nn.Module):
         text_embedding_mask_t5=None,
         image_meta_size=None,
         style=None,
+        control_weight=1.0,
         transformer_options=None,
         **kwarg,
     ):
@@ -335,5 +336,7 @@ class HunYuanControlNet(nn.Module):
         for layer, block in enumerate(self.blocks):
             x = block(x, c, text_states, freqs_cis_img)
             controls.append(self.after_proj_list[layer](x))  # zero linear for output
+
+        controls = [control * control_weight for control in controls]
 
         return {"output": controls}
