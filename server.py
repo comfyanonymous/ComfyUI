@@ -564,7 +564,8 @@ class PromptServer():
         @routes.post("/download")
         async def download_handler(request):
             async def report_progress(filename: str, status: DownloadStatus):
-                await self.send_json(filename, {
+                await self.send_json("download_progress", {
+                    "filename": filename,
                     "progress_percentage": status.progress_percentage,
                     "status": status.status,
                     "message": status.message
