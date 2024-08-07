@@ -270,7 +270,7 @@ class PromptServer():
                         else:
                             with open(filepath, "wb") as f:
                                 print(f"Saving raw file to: {filepath}")
-                                f.write(file_content.read())
+                                f.write(file_content)
                 return web.json_response({"name": filename, "subfolder": subfolder, "type": image_upload_type})
             else:
                 print("No image provided in the post data")
