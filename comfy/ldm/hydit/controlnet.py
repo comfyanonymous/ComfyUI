@@ -338,7 +338,7 @@ class HunYuanControlNet(nn.Module):
             controls.append(self.after_proj_list[layer](x))  # zero linear for output
 
         control_weights = [1.0 * (control_weight ** float(19 - i)) for i in range(19)]
-        assert len(control_weight) == len(
+        assert len(control_weights) == len(
             controls
         ), "control_weights and controls should have the same length"
         controls = [
