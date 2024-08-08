@@ -84,19 +84,13 @@ async def test_download_model_success():
     # Check initial call
     mock_progress_callback.assert_any_call(
         'checkpoints/model.bin',
-        DownloadModelStatus(status=DownloadStatusType.PENDING,
-                            progress_percentage= 0, 
-                            message="Starting download of model.bin",
-                            already_existed= False)
+        DownloadModelStatus(DownloadStatusType.PENDING, 0, "Starting download of model.bin", False)
     )
 
     # Check final call
     mock_progress_callback.assert_any_call(
         'checkpoints/model.bin',
-        DownloadModelStatus(status=DownloadStatusType.COMPLETED, 
-                            progress_percentage=100, 
-                            message="Successfully downloaded model.bin", 
-                            already_existed= False)
+        DownloadModelStatus(DownloadStatusType.COMPLETED, 100, "Successfully downloaded model.bin", False)
     )
 
     # Verify file writing
@@ -210,10 +204,7 @@ async def test_check_file_exists_when_file_exists(tmp_path):
     
     mock_callback.assert_called_once_with(
         "test/existing_model.bin",
-        DownloadModelStatus(status=DownloadStatusType.COMPLETED, 
-                            progress_percentage=100, 
-                            message="existing_model.bin already exists", 
-                            already_existed=True)
+        DownloadModelStatus(DownloadStatusType.COMPLETED, 100, "existing_model.bin already exists", already_existed=True)
     )
 
 @pytest.mark.asyncio
@@ -246,7 +237,7 @@ async def test_track_download_progress_no_content_length():
     # Check that progress was reported even without knowing the total size
     mock_callback.assert_any_call(
         'models/model.bin',
-        DownloadModelStatus(status=DownloadStatusType.IN_PROGRESS, progress_percentage= 0, message="Downloading model.bin", already_existed=False)
+        DownloadModelStatus(DownloadStatusType.IN_PROGRESS, 0, "Downloading model.bin", already_existed=False)
     )
 
 @pytest.mark.asyncio
