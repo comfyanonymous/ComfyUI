@@ -1,0 +1,1 @@
+from routes.internal.internal_routes import InternalRoutes
