@@ -13,6 +13,7 @@ Pillow
 scipy
 tqdm
 psutil
+pydantic~=2.8
 
 #non essential dependencies:
 kornia>=0.7.1
