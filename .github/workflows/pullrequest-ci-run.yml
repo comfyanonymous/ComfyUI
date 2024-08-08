@@ -1,6 +1,6 @@
 # This is the GitHub Workflow that drives full-GPU-enabled tests of pull requests to ComfyUI, when the 'Run-CI-Test' label is added
 # Results are reported as checkmarks on the commits, as well as onto https://ci.comfy.org/
-name: Full Comfy CI Workflow Runs
+name: Pull Request CI Workflow Runs
 on:
     pull_request:
         types: [labeled]
