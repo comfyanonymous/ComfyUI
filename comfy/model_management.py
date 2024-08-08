@@ -432,11 +432,11 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
     global vram_state
 
     inference_memory = minimum_inference_memory()
-    extra_mem = max(inference_memory, memory_required)
+    extra_mem = max(inference_memory, memory_required) + 100 * 1024 * 1024
     if minimum_memory_required is None:
         minimum_memory_required = extra_mem
     else:
-        minimum_memory_required = max(inference_memory, minimum_memory_required)
+        minimum_memory_required = max(inference_memory, minimum_memory_required) + 100 * 1024 * 1024
 
     models = set(models)
 
