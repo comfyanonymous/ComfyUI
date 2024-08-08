@@ -4,8 +4,8 @@ import torch
 from torch import nn
 from typing import Literal, Dict, Any
 import math
-import comfy.ops
-ops = comfy.ops.disable_weight_init
+import totoro.ops
+ops = totoro.ops.disable_weight_init
 
 def vae_sample(mean, scale):
         stdev = nn.functional.softplus(scale) + 1e-4

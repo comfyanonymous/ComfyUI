@@ -25,7 +25,7 @@ except ImportError:
 from torch import Tensor
 from typing import List
 
-from comfy import model_management
+from totoro import model_management
 
 def dynamic_slice(
     x: Tensor,

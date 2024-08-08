@@ -2,14 +2,14 @@ import torch
 from enum import Enum
 import logging
 
-from comfy import model_management
+from totoro import model_management
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
 from .ldm.cascade.stage_a import StageA
 from .ldm.cascade.stage_c_coder import StageC_coder
 from .ldm.audio.autoencoder import AudioOobleckVAE
 import yaml
 
-import comfy.utils
+import totoro.utils
 
 from . import clip_vision
 from . import gligen
@@ -18,27 +18,27 @@ from . import model_detection
 
 from . import sd1_clip
 from . import sdxl_clip
-import comfy.text_encoders.sd2_clip
-import comfy.text_encoders.sd3_clip
-import comfy.text_encoders.sa_t5
-import comfy.text_encoders.aura_t5
-import comfy.text_encoders.hydit
-import comfy.text_encoders.flux
+import totoro.text_encoders.sd2_clip
+import totoro.text_encoders.sd3_clip
+import totoro.text_encoders.sa_t5
+import totoro.text_encoders.aura_t5
+import totoro.text_encoders.hydit
+import totoro.text_encoders.flux
 
-import comfy.model_patcher
-import comfy.lora
-import comfy.t2i_adapter.adapter
-import comfy.supported_models_base
-import comfy.taesd.taesd
+import totoro.model_patcher
+import totoro.lora
+import totoro.t2i_adapter.adapter
+import totoro.supported_models_base
+import totoro.taesd.taesd
 
 def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     key_map = {}
     if model is not None:
-        key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
+        key_map = totoro.lora.model_lora_keys_unet(model.model, key_map)
     if clip is not None:
-        key_map = comfy.lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
+        key_map = totoro.lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
 
-    loaded = comfy.lora.load_lora(lora, key_map)
+    loaded = totoro.lora.load_lora(lora, key_map)
     if model is not None:
         new_modelpatcher = model.clone()
         k = new_modelpatcher.add_patches(loaded, strength_model)
@@ -82,7 +82,7 @@ class CLIP:
                 load_device = offload_device
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
-        self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
+        self.patcher = totoro.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         self.layer_idx = None
         logging.debug("CLIP model load device: {}, offload device: {}".format(load_device, offload_device))
 
@@ -171,12 +171,12 @@ class VAE:
                 decoder_config = encoder_config.copy()
                 decoder_config["video_kernel_size"] = [3, 1, 1]
                 decoder_config["alpha"] = 0.0
-                self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
-                                                            encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': encoder_config},
-                                                            decoder_config={'target': "comfy.ldm.modules.temporal_ae.VideoDecoder", 'params': decoder_config})
+                self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "totoro.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
+                                                            encoder_config={'target': "totoro.ldm.modules.diffusionmodules.model.Encoder", 'params': encoder_config},
+                                                            decoder_config={'target': "totoro.ldm.modules.temporal_ae.VideoDecoder", 'params': decoder_config})
             elif "taesd_decoder.1.weight" in sd:
                 self.latent_channels = sd["taesd_decoder.1.weight"].shape[1]
-                self.first_stage_model = comfy.taesd.taesd.TAESD(latent_channels=self.latent_channels)
+                self.first_stage_model = totoro.taesd.taesd.TAESD(latent_channels=self.latent_channels)
             elif "vquantizer.codebook.weight" in sd: #VQGan: stage a of stable cascade
                 self.first_stage_model = StageA()
                 self.downscale_ratio = 4
@@ -218,9 +218,9 @@ class VAE:
                 if 'quant_conv.weight' in sd:
                     self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=4)
                 else:
-                    self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
-                                                                encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': ddconfig},
-                                                                decoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Decoder", 'params': ddconfig})
+                    self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "totoro.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
+                                                                encoder_config={'target': "totoro.ldm.modules.diffusionmodules.model.Encoder", 'params': ddconfig},
+                                                                decoder_config={'target': "totoro.ldm.modules.diffusionmodules.model.Decoder", 'params': ddconfig})
             elif "decoder.layers.1.layers.0.beta" in sd:
                 self.first_stage_model = AudioOobleckVAE()
                 self.memory_used_encode = lambda shape, dtype: (1000 * shape[2]) * model_management.dtype_size(dtype)
@@ -257,7 +257,7 @@ class VAE:
         self.first_stage_model.to(self.vae_dtype)
         self.output_device = model_management.intermediate_device()
 
-        self.patcher = comfy.model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
+        self.patcher = totoro.model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
         logging.debug("VAE load device: {}, offload device: {}, dtype: {}".format(self.device, offload_device, self.vae_dtype))
 
     def vae_encode_crop_pixels(self, pixels):
@@ -270,39 +270,39 @@ class VAE:
         return pixels
 
     def decode_tiled_(self, samples, tile_x=64, tile_y=64, overlap = 16):
-        steps = samples.shape[0] * comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x, tile_y, overlap)
-        steps += samples.shape[0] * comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x // 2, tile_y * 2, overlap)
-        steps += samples.shape[0] * comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x * 2, tile_y // 2, overlap)
-        pbar = comfy.utils.ProgressBar(steps)
+        steps = samples.shape[0] * totoro.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x, tile_y, overlap)
+        steps += samples.shape[0] * totoro.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x // 2, tile_y * 2, overlap)
+        steps += samples.shape[0] * totoro.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x * 2, tile_y // 2, overlap)
+        pbar = totoro.utils.ProgressBar(steps)
 
         decode_fn = lambda a: self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).float()
         output = self.process_output(
-            (comfy.utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar) +
-            comfy.utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar) +
-             comfy.utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar))
+            (totoro.utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar) +
+            totoro.utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar) +
+             totoro.utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar))
             / 3.0)
         return output
 
     def decode_tiled_1d(self, samples, tile_x=128, overlap=32):
         decode_fn = lambda a: self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).float()
-        return comfy.utils.tiled_scale_multidim(samples, decode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=self.upscale_ratio, out_channels=self.output_channels, output_device=self.output_device)
+        return totoro.utils.tiled_scale_multidim(samples, decode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=self.upscale_ratio, out_channels=self.output_channels, output_device=self.output_device)
 
     def encode_tiled_(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
-        steps = pixel_samples.shape[0] * comfy.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x, tile_y, overlap)
-        steps += pixel_samples.shape[0] * comfy.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x // 2, tile_y * 2, overlap)
-        steps += pixel_samples.shape[0] * comfy.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x * 2, tile_y // 2, overlap)
-        pbar = comfy.utils.ProgressBar(steps)
+        steps = pixel_samples.shape[0] * totoro.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x, tile_y, overlap)
+        steps += pixel_samples.shape[0] * totoro.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x // 2, tile_y * 2, overlap)
+        steps += pixel_samples.shape[0] * totoro.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x * 2, tile_y // 2, overlap)
+        pbar = totoro.utils.ProgressBar(steps)
 
         encode_fn = lambda a: self.first_stage_model.encode((self.process_input(a)).to(self.vae_dtype).to(self.device)).float()
-        samples = comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x, tile_y, overlap, upscale_amount = (1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
-        samples += comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
-        samples += comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
+        samples = totoro.utils.tiled_scale(pixel_samples, encode_fn, tile_x, tile_y, overlap, upscale_amount = (1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
+        samples += totoro.utils.tiled_scale(pixel_samples, encode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
+        samples += totoro.utils.tiled_scale(pixel_samples, encode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
         samples /= 3.0
         return samples
 
     def encode_tiled_1d(self, samples, tile_x=128 * 2048, overlap=32 * 2048):
         encode_fn = lambda a: self.first_stage_model.encode((self.process_input(a)).to(self.vae_dtype).to(self.device)).float()
-        return comfy.utils.tiled_scale_multidim(samples, encode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=(1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device)
+        return totoro.utils.tiled_scale_multidim(samples, encode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=(1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device)
 
     def decode(self, samples_in):
         try:
@@ -373,10 +373,10 @@ class StyleModel:
 
 
 def load_style_model(ckpt_path):
-    model_data = comfy.utils.load_torch_file(ckpt_path, safe_load=True)
+    model_data = totoro.utils.load_torch_file(ckpt_path, safe_load=True)
     keys = model_data.keys()
     if "style_embedding" in keys:
-        model = comfy.t2i_adapter.adapter.StyleAdapter(width=1024, context_dim=768, num_head=8, n_layes=3, num_token=8)
+        model = totoro.t2i_adapter.adapter.StyleAdapter(width=1024, context_dim=768, num_head=8, n_layes=3, num_token=8)
     else:
         raise Exception("invalid style model {}".format(ckpt_path))
     model.load_state_dict(model_data)
@@ -393,14 +393,14 @@ class CLIPType(Enum):
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION):
     clip_data = []
     for p in ckpt_paths:
-        clip_data.append(comfy.utils.load_torch_file(p, safe_load=True))
+        clip_data.append(totoro.utils.load_torch_file(p, safe_load=True))
 
     class EmptyClass:
         pass
 
     for i in range(len(clip_data)):
         if "transformer.resblocks.0.ln_1.weight" in clip_data[i]:
-            clip_data[i] = comfy.utils.clip_text_transformers_convert(clip_data[i], "", "")
+            clip_data[i] = totoro.utils.clip_text_transformers_convert(clip_data[i], "", "")
         else:
             if "text_projection" in clip_data[i]:
                 clip_data[i]["text_projection.weight"] = clip_data[i]["text_projection"].transpose(0, 1) #old models saved with the CLIPSave node
@@ -416,30 +416,30 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
                 clip_target.clip = sdxl_clip.SDXLRefinerClipModel
                 clip_target.tokenizer = sdxl_clip.SDXLTokenizer
         elif "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data[0]:
-            clip_target.clip = comfy.text_encoders.sd2_clip.SD2ClipModel
-            clip_target.tokenizer = comfy.text_encoders.sd2_clip.SD2Tokenizer
+            clip_target.clip = totoro.text_encoders.sd2_clip.SD2ClipModel
+            clip_target.tokenizer = totoro.text_encoders.sd2_clip.SD2Tokenizer
         elif "encoder.block.23.layer.1.DenseReluDense.wi_1.weight" in clip_data[0]:
             weight = clip_data[0]["encoder.block.23.layer.1.DenseReluDense.wi_1.weight"]
             dtype_t5 = weight.dtype
             if weight.shape[-1] == 4096:
-                clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, dtype_t5=dtype_t5)
-                clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
+                clip_target.clip = totoro.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, dtype_t5=dtype_t5)
+                clip_target.tokenizer = totoro.text_encoders.sd3_clip.SD3Tokenizer
             elif weight.shape[-1] == 2048:
-                clip_target.clip = comfy.text_encoders.aura_t5.AuraT5Model
-                clip_target.tokenizer = comfy.text_encoders.aura_t5.AuraT5Tokenizer
+                clip_target.clip = totoro.text_encoders.aura_t5.AuraT5Model
+                clip_target.tokenizer = totoro.text_encoders.aura_t5.AuraT5Tokenizer
         elif "encoder.block.0.layer.0.SelfAttention.k.weight" in clip_data[0]:
-            clip_target.clip = comfy.text_encoders.sa_t5.SAT5Model
-            clip_target.tokenizer = comfy.text_encoders.sa_t5.SAT5Tokenizer
+            clip_target.clip = totoro.text_encoders.sa_t5.SAT5Model
+            clip_target.tokenizer = totoro.text_encoders.sa_t5.SAT5Tokenizer
         else:
             clip_target.clip = sd1_clip.SD1ClipModel
             clip_target.tokenizer = sd1_clip.SD1Tokenizer
     elif len(clip_data) == 2:
         if clip_type == CLIPType.SD3:
-            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=True, clip_g=True, t5=False)
-            clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
+            clip_target.clip = totoro.text_encoders.sd3_clip.sd3_clip(clip_l=True, clip_g=True, t5=False)
+            clip_target.tokenizer = totoro.text_encoders.sd3_clip.SD3Tokenizer
         elif clip_type == CLIPType.HUNYUAN_DIT:
-            clip_target.clip = comfy.text_encoders.hydit.HyditModel
-            clip_target.tokenizer = comfy.text_encoders.hydit.HyditTokenizer
+            clip_target.clip = totoro.text_encoders.hydit.HyditModel
+            clip_target.tokenizer = totoro.text_encoders.hydit.HyditTokenizer
         elif clip_type == CLIPType.FLUX:
             weight_name = "encoder.block.23.layer.1.DenseReluDense.wi_1.weight"
             weight = clip_data[0].get(weight_name, clip_data[1].get(weight_name, None))
@@ -447,14 +447,14 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
             if weight is not None:
                 dtype_t5 = weight.dtype
 
-            clip_target.clip = comfy.text_encoders.flux.flux_clip(dtype_t5=dtype_t5)
-            clip_target.tokenizer = comfy.text_encoders.flux.FluxTokenizer
+            clip_target.clip = totoro.text_encoders.flux.flux_clip(dtype_t5=dtype_t5)
+            clip_target.tokenizer = totoro.text_encoders.flux.FluxTokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer
     elif len(clip_data) == 3:
-        clip_target.clip = comfy.text_encoders.sd3_clip.SD3ClipModel
-        clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
+        clip_target.clip = totoro.text_encoders.sd3_clip.SD3ClipModel
+        clip_target.tokenizer = totoro.text_encoders.sd3_clip.SD3Tokenizer
 
     clip = CLIP(clip_target, embedding_directory=embedding_directory)
     for c in clip_data:
@@ -467,11 +467,11 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
     return clip
 
 def load_gligen(ckpt_path):
-    data = comfy.utils.load_torch_file(ckpt_path, safe_load=True)
+    data = totoro.utils.load_torch_file(ckpt_path, safe_load=True)
     model = gligen.load_gligen(data)
     if model_management.should_use_fp16():
         model = model.half()
-    return comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
+    return totoro.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
 
 def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_clip=True, embedding_directory=None, state_dict=None, config=None):
     logging.warning("Warning: The load checkpoint with config function is deprecated and will eventually be removed, please use the other one.")
@@ -487,7 +487,7 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
     if "parameterization" in model_config_params:
         if model_config_params["parameterization"] == "v":
             m = model.clone()
-            class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingDiscrete, comfy.model_sampling.V_PREDICTION):
+            class ModelSamplingAdvanced(totoro.model_sampling.ModelSamplingDiscrete, totoro.model_sampling.V_PREDICTION):
                 pass
             m.add_object_patch("model_sampling", ModelSamplingAdvanced(model.model.model_config))
             model = m
@@ -499,7 +499,7 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
     return (model, clip, vae)
 
 def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True):
-    sd = comfy.utils.load_torch_file(ckpt_path)
+    sd = totoro.utils.load_torch_file(ckpt_path)
     sd_keys = sd.keys()
     clip = None
     clipvision = None
@@ -509,8 +509,8 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     clip_target = None
 
     diffusion_model_prefix = model_detection.unet_prefix_from_state_dict(sd)
-    parameters = comfy.utils.calculate_parameters(sd, diffusion_model_prefix)
-    weight_dtype = comfy.utils.weight_dtype(sd, diffusion_model_prefix)
+    parameters = totoro.utils.calculate_parameters(sd, diffusion_model_prefix)
+    weight_dtype = totoro.utils.weight_dtype(sd, diffusion_model_prefix)
     load_device = model_management.get_torch_device()
 
     model_config = model_detection.model_config_from_unet(sd, diffusion_model_prefix)
@@ -536,7 +536,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         model.load_model_weights(sd, diffusion_model_prefix)
 
     if output_vae:
-        vae_sd = comfy.utils.state_dict_prefix_replace(sd, {k: "" for k in model_config.vae_key_prefix}, filter_keys=True)
+        vae_sd = totoro.utils.state_dict_prefix_replace(sd, {k: "" for k in model_config.vae_key_prefix}, filter_keys=True)
         vae_sd = model_config.process_vae_state_dict(vae_sd)
         vae = VAE(sd=vae_sd)
 
@@ -564,7 +564,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         logging.debug("left over keys: {}".format(left_over))
 
     if output_model:
-        model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device())
+        model_patcher = totoro.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device())
         if inital_load_device != torch.device("cpu"):
             logging.info("loaded straight to GPU")
             model_management.load_model_gpu(model_patcher)
@@ -576,11 +576,11 @@ def load_unet_state_dict(sd, dtype=None): #load unet in diffusers or regular for
 
     #Allow loading unets from checkpoint files
     diffusion_model_prefix = model_detection.unet_prefix_from_state_dict(sd)
-    temp_sd = comfy.utils.state_dict_prefix_replace(sd, {diffusion_model_prefix: ""}, filter_keys=True)
+    temp_sd = totoro.utils.state_dict_prefix_replace(sd, {diffusion_model_prefix: ""}, filter_keys=True)
     if len(temp_sd) > 0:
         sd = temp_sd
 
-    parameters = comfy.utils.calculate_parameters(sd)
+    parameters = totoro.utils.calculate_parameters(sd)
     load_device = model_management.get_torch_device()
     model_config = model_detection.model_config_from_unet(sd, "")
 
@@ -597,7 +597,7 @@ def load_unet_state_dict(sd, dtype=None): #load unet in diffusers or regular for
             if model_config is None:
                 return None
 
-            diffusers_keys = comfy.utils.unet_to_diffusers(model_config.unet_config)
+            diffusers_keys = totoro.utils.unet_to_diffusers(model_config.unet_config)
 
             new_sd = {}
             for k in diffusers_keys:
@@ -620,10 +620,10 @@ def load_unet_state_dict(sd, dtype=None): #load unet in diffusers or regular for
     left_over = sd.keys()
     if len(left_over) > 0:
         logging.info("left over keys in unet: {}".format(left_over))
-    return comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device)
+    return totoro.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device)
 
 def load_unet(unet_path, dtype=None):
-    sd = comfy.utils.load_torch_file(unet_path)
+    sd = totoro.utils.load_torch_file(unet_path)
     model = load_unet_state_dict(sd, dtype=dtype)
     if model is None:
         logging.error("ERROR UNSUPPORTED UNET {}".format(unet_path))
@@ -648,4 +648,4 @@ def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, m
         if not t.is_contiguous():
             sd[k] = t.contiguous()
 
-    comfy.utils.save_torch_file(sd, output_path, metadata=metadata)
+    totoro.utils.save_torch_file(sd, output_path, metadata=metadata)

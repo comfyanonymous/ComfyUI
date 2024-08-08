@@ -1,15 +1,15 @@
-import comfy.sd
-import comfy.utils
-import comfy.model_base
-import comfy.model_management
-import comfy.model_sampling
+import totoro.sd
+import totoro.utils
+import totoro.model_base
+import totoro.model_management
+import totoro.model_sampling
 
 import torch
 import folder_paths
 import json
 import os
 
-from comfy.cli_args import args
+from totoro.cli_args import args
 
 class ModelMergeSimple:
     @classmethod
@@ -174,16 +174,16 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
     metadata = {}
 
     enable_modelspec = True
-    if isinstance(model.model, comfy.model_base.SDXL):
-        if isinstance(model.model, comfy.model_base.SDXL_instructpix2pix):
+    if isinstance(model.model, totoro.model_base.SDXL):
+        if isinstance(model.model, totoro.model_base.SDXL_instructpix2pix):
             metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-edit"
         else:
             metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-base"
-    elif isinstance(model.model, comfy.model_base.SDXLRefiner):
+    elif isinstance(model.model, totoro.model_base.SDXLRefiner):
         metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-refiner"
-    elif isinstance(model.model, comfy.model_base.SVD_img2vid):
+    elif isinstance(model.model, totoro.model_base.SVD_img2vid):
         metadata["modelspec.architecture"] = "stable-video-diffusion-img2vid-v1"
-    elif isinstance(model.model, comfy.model_base.SD3):
+    elif isinstance(model.model, totoro.model_base.SD3):
         metadata["modelspec.architecture"] = "stable-diffusion-v3-medium" #TODO: other SD3 variants
     else:
         enable_modelspec = False
@@ -200,14 +200,14 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
 
     extra_keys = {}
     model_sampling = model.get_model_object("model_sampling")
-    if isinstance(model_sampling, comfy.model_sampling.ModelSamplingContinuousEDM):
-        if isinstance(model_sampling, comfy.model_sampling.V_PREDICTION):
+    if isinstance(model_sampling, totoro.model_sampling.ModelSamplingContinuousEDM):
+        if isinstance(model_sampling, totoro.model_sampling.V_PREDICTION):
             extra_keys["edm_vpred.sigma_max"] = torch.tensor(model_sampling.sigma_max).float()
             extra_keys["edm_vpred.sigma_min"] = torch.tensor(model_sampling.sigma_min).float()
 
-    if model.model.model_type == comfy.model_base.ModelType.EPS:
+    if model.model.model_type == totoro.model_base.ModelType.EPS:
         metadata["modelspec.predict_key"] = "epsilon"
-    elif model.model.model_type == comfy.model_base.ModelType.V_PREDICTION:
+    elif model.model.model_type == totoro.model_base.ModelType.V_PREDICTION:
         metadata["modelspec.predict_key"] = "v"
 
     if not args.disable_metadata:
@@ -219,7 +219,7 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
     output_checkpoint = f"{filename}_{counter:05}_.safetensors"
     output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
 
-    comfy.sd.save_checkpoint(output_checkpoint, model, clip, vae, clip_vision, metadata=metadata, extra_keys=extra_keys)
+    totoro.sd.save_checkpoint(output_checkpoint, model, clip, vae, clip_vision, metadata=metadata, extra_keys=extra_keys)
 
 class CheckpointSave:
     def __init__(self):
@@ -230,7 +230,7 @@ class CheckpointSave:
         return {"required": { "model": ("MODEL",),
                               "clip": ("CLIP",),
                               "vae": ("VAE",),
-                              "filename_prefix": ("STRING", {"default": "checkpoints/ComfyUI"}),},
+                              "filename_prefix": ("STRING", {"default": "checkpoints/totoroUI"}),},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},}
     RETURN_TYPES = ()
     FUNCTION = "save"
@@ -249,7 +249,7 @@ class CLIPSave:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip": ("CLIP",),
-                              "filename_prefix": ("STRING", {"default": "clip/ComfyUI"}),},
+                              "filename_prefix": ("STRING", {"default": "clip/totoroUI"}),},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},}
     RETURN_TYPES = ()
     FUNCTION = "save"
@@ -270,7 +270,7 @@ class CLIPSave:
                 for x in extra_pnginfo:
                     metadata[x] = json.dumps(extra_pnginfo[x])
 
-        comfy.model_management.load_models_gpu([clip.load_model()], force_patch_weights=True)
+        totoro.model_management.load_models_gpu([clip.load_model()], force_patch_weights=True)
         clip_sd = clip.get_sd()
 
         for prefix in ["clip_l.", "clip_g.", ""]:
@@ -294,9 +294,9 @@ class CLIPSave:
             output_checkpoint = f"{filename}_{counter:05}_.safetensors"
             output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
 
-            current_clip_sd = comfy.utils.state_dict_prefix_replace(current_clip_sd, replace_prefix)
+            current_clip_sd = totoro.utils.state_dict_prefix_replace(current_clip_sd, replace_prefix)
 
-            comfy.utils.save_torch_file(current_clip_sd, output_checkpoint, metadata=metadata)
+            totoro.utils.save_torch_file(current_clip_sd, output_checkpoint, metadata=metadata)
         return {}
 
 class VAESave:
@@ -306,7 +306,7 @@ class VAESave:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "vae": ("VAE",),
-                              "filename_prefix": ("STRING", {"default": "vae/ComfyUI_vae"}),},
+                              "filename_prefix": ("STRING", {"default": "vae/totoroUI_vae"}),},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},}
     RETURN_TYPES = ()
     FUNCTION = "save"
@@ -330,7 +330,7 @@ class VAESave:
         output_checkpoint = f"{filename}_{counter:05}_.safetensors"
         output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
 
-        comfy.utils.save_torch_file(vae.get_sd(), output_checkpoint, metadata=metadata)
+        totoro.utils.save_torch_file(vae.get_sd(), output_checkpoint, metadata=metadata)
         return {}
 
 NODE_CLASS_MAPPINGS = {

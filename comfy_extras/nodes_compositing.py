@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-import comfy.utils
+import totoro.utils
 from enum import Enum
 
 def resize_mask(mask, shape):
@@ -135,15 +135,15 @@ class PorterDuffImageComposite:
 
             if dst_alpha.shape[:2] != dst_image.shape[:2]:
                 upscale_input = dst_alpha.unsqueeze(0).permute(0, 3, 1, 2)
-                upscale_output = comfy.utils.common_upscale(upscale_input, dst_image.shape[1], dst_image.shape[0], upscale_method='bicubic', crop='center')
+                upscale_output = totoro.utils.common_upscale(upscale_input, dst_image.shape[1], dst_image.shape[0], upscale_method='bicubic', crop='center')
                 dst_alpha = upscale_output.permute(0, 2, 3, 1).squeeze(0)
             if src_image.shape != dst_image.shape:
                 upscale_input = src_image.unsqueeze(0).permute(0, 3, 1, 2)
-                upscale_output = comfy.utils.common_upscale(upscale_input, dst_image.shape[1], dst_image.shape[0], upscale_method='bicubic', crop='center')
+                upscale_output = totoro.utils.common_upscale(upscale_input, dst_image.shape[1], dst_image.shape[0], upscale_method='bicubic', crop='center')
                 src_image = upscale_output.permute(0, 2, 3, 1).squeeze(0)
             if src_alpha.shape != dst_alpha.shape:
                 upscale_input = src_alpha.unsqueeze(0).permute(0, 3, 1, 2)
-                upscale_output = comfy.utils.common_upscale(upscale_input, dst_alpha.shape[1], dst_alpha.shape[0], upscale_method='bicubic', crop='center')
+                upscale_output = totoro.utils.common_upscale(upscale_input, dst_alpha.shape[1], dst_alpha.shape[0], upscale_method='bicubic', crop='center')
                 src_alpha = upscale_output.permute(0, 2, 3, 1).squeeze(0)
 
             out_image, out_alpha = porter_duff_composite(src_image, src_alpha, dst_image, dst_alpha, PorterDuffMode[mode])

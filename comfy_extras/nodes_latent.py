@@ -1,10 +1,10 @@
-import comfy.utils
+import totoro.utils
 import torch
 
 def reshape_latent_to(target_shape, latent):
     if latent.shape[1:] != target_shape[1:]:
-        latent = comfy.utils.common_upscale(latent, target_shape[3], target_shape[2], "bilinear", "center")
-    return comfy.utils.repeat_to_batch_size(latent, target_shape[0])
+        latent = totoro.utils.common_upscale(latent, target_shape[3], target_shape[2], "bilinear", "center")
+    return totoro.utils.repeat_to_batch_size(latent, target_shape[0])
 
 
 class LatentAdd:
@@ -116,7 +116,7 @@ class LatentBatch:
         s2 = samples2["samples"]
 
         if s1.shape[1:] != s2.shape[1:]:
-            s2 = comfy.utils.common_upscale(s2, s1.shape[3], s1.shape[2], "bilinear", "center")
+            s2 = totoro.utils.common_upscale(s2, s1.shape[3], s1.shape[2], "bilinear", "center")
         s = torch.cat((s1, s2), dim=0)
         samples_out["samples"] = s
         samples_out["batch_index"] = samples1.get("batch_index", [x for x in range(0, s1.shape[0])]) + samples2.get("batch_index", [x for x in range(0, s2.shape[0])])

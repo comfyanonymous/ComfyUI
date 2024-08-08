@@ -1,12 +1,12 @@
 import torch
-import comfy.model_management
-import comfy.conds
+import totoro.model_management
+import totoro.conds
 
 def prepare_mask(noise_mask, shape, device):
     """ensures noise mask is of proper dimensions"""
     noise_mask = torch.nn.functional.interpolate(noise_mask.reshape((-1, 1, noise_mask.shape[-2], noise_mask.shape[-1])), size=(shape[2], shape[3]), mode="bilinear")
     noise_mask = torch.cat([noise_mask] * shape[1], dim=1)
-    noise_mask = comfy.utils.repeat_to_batch_size(noise_mask, shape[0])
+    noise_mask = totoro.utils.repeat_to_batch_size(noise_mask, shape[0])
     noise_mask = noise_mask.to(device)
     return noise_mask
 
@@ -23,7 +23,7 @@ def convert_cond(cond):
         temp = c[1].copy()
         model_conds = temp.get("model_conds", {})
         if c[0] is not None:
-            model_conds["c_crossattn"] = comfy.conds.CONDCrossAttn(c[0]) #TODO: remove
+            model_conds["c_crossattn"] = totoro.conds.CONDCrossAttn(c[0]) #TODO: remove
             temp["cross_attn"] = c[0]
         temp["model_conds"] = model_conds
         out.append(temp)
@@ -63,7 +63,7 @@ def prepare_sampling(model, noise_shape, conds):
     models, inference_memory = get_additional_models(conds, model.model_dtype())
     memory_required = model.memory_required([noise_shape[0] * 2] + list(noise_shape[1:])) + inference_memory
     minimum_memory_required = model.memory_required([noise_shape[0]] + list(noise_shape[1:])) + inference_memory
-    comfy.model_management.load_models_gpu([model] + models, memory_required=memory_required, minimum_memory_required=minimum_memory_required)
+    totoro.model_management.load_models_gpu([model] + models, memory_required=memory_required, minimum_memory_required=minimum_memory_required)
     real_model = model.model
 
     return real_model, conds, models

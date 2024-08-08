@@ -15,7 +15,7 @@ from .layers import (
 )
 
 from einops import rearrange, repeat
-import comfy.ldm.common_dit
+import totoro.ldm.common_dit
 
 @dataclass
 class FluxParams:
@@ -126,7 +126,7 @@ class Flux(nn.Module):
     def forward(self, x, timestep, context, y, guidance, **kwargs):
         bs, c, h, w = x.shape
         patch_size = 2
-        x = comfy.ldm.common_dit.pad_to_patch_size(x, (patch_size, patch_size))
+        x = totoro.ldm.common_dit.pad_to_patch_size(x, (patch_size, patch_size))
 
         img = rearrange(x, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=patch_size, pw=patch_size)
 

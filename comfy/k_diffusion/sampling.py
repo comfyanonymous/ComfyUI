@@ -8,7 +8,7 @@ from tqdm.auto import trange, tqdm
 
 from . import utils
 from . import deis
-import comfy.model_patcher
+import totoro.model_patcher
 
 def append_zero(x):
     return torch.cat([x, x.new_zeros([1])])
@@ -789,7 +789,7 @@ def sample_lcm(model, x, sigmas, extra_args=None, callback=None, disable=None, n
 
 @torch.no_grad()
 def sample_heunpp2(model, x, sigmas, extra_args=None, callback=None, disable=None, s_churn=0., s_tmin=0., s_tmax=float('inf'), s_noise=1.):
-    # From MIT licensed: https://github.com/Carzit/sd-webui-samplers-scheduler/
+
     extra_args = {} if extra_args is None else extra_args
     s_in = x.new_ones([x.shape[0]])
     s_end = sigmas[-1]
@@ -1007,7 +1007,7 @@ def sample_euler_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disabl
         return args["denoised"]
 
     model_options = extra_args.get("model_options", {}).copy()
-    extra_args["model_options"] = comfy.model_patcher.set_model_options_post_cfg_function(model_options, post_cfg_function, disable_cfg1_optimization=True)
+    extra_args["model_options"] = totoro.model_patcher.set_model_options_post_cfg_function(model_options, post_cfg_function, disable_cfg1_optimization=True)
 
     s_in = x.new_ones([x.shape[0]])
     for i in trange(len(sigmas) - 1, disable=disable):
@@ -1033,7 +1033,7 @@ def sample_euler_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback=No
         return args["denoised"]
 
     model_options = extra_args.get("model_options", {}).copy()
-    extra_args["model_options"] = comfy.model_patcher.set_model_options_post_cfg_function(model_options, post_cfg_function, disable_cfg1_optimization=True)
+    extra_args["model_options"] = totoro.model_patcher.set_model_options_post_cfg_function(model_options, post_cfg_function, disable_cfg1_optimization=True)
 
     s_in = x.new_ones([x.shape[0]])
     for i in trange(len(sigmas) - 1, disable=disable):

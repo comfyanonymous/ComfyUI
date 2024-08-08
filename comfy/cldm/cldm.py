@@ -15,8 +15,8 @@ from ..ldm.modules.diffusionmodules.openaimodel import UNetModel, TimestepEmbedS
 from ..ldm.util import exists
 from .control_types import UNION_CONTROLNET_TYPES
 from collections import OrderedDict
-import comfy.ops
-from comfy.ldm.modules.attention import optimized_attention
+import totoro.ops
+from totoro.ldm.modules.attention import optimized_attention
 
 class OptimizedAttention(nn.Module):
     def __init__(self, c, nhead, dropout=0.0, dtype=None, device=None, operations=None):
@@ -95,7 +95,7 @@ class ControlNet(nn.Module):
         attn_precision=None,
         union_controlnet_num_control_type=None,
         device=None,
-        operations=comfy.ops.disable_weight_init,
+        operations=totoro.ops.disable_weight_init,
         **kwargs,
     ):
         super().__init__()

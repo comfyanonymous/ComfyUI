@@ -4,11 +4,11 @@ import torch
 import json
 import logging
 
-import comfy.ops
-import comfy.model_patcher
-import comfy.model_management
-import comfy.utils
-import comfy.clip_model
+import totoro.ops
+import totoro.model_patcher
+import totoro.model_management
+import totoro.utils
+import totoro.clip_model
 
 class Output:
     def __getitem__(self, key):
@@ -35,13 +35,13 @@ class ClipVisionModel():
             config = json.load(f)
 
         self.image_size = config.get("image_size", 224)
-        self.load_device = comfy.model_management.text_encoder_device()
-        offload_device = comfy.model_management.text_encoder_offload_device()
-        self.dtype = comfy.model_management.text_encoder_dtype(self.load_device)
-        self.model = comfy.clip_model.CLIPVisionModelProjection(config, self.dtype, offload_device, comfy.ops.manual_cast)
+        self.load_device = totoro.model_management.text_encoder_device()
+        offload_device = totoro.model_management.text_encoder_offload_device()
+        self.dtype = totoro.model_management.text_encoder_dtype(self.load_device)
+        self.model = totoro.clip_model.CLIPVisionModelProjection(config, self.dtype, offload_device, totoro.ops.manual_cast)
         self.model.eval()
 
-        self.patcher = comfy.model_patcher.ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
+        self.patcher = totoro.model_patcher.ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
 
     def load_sd(self, sd):
         return self.model.load_state_dict(sd, strict=False)
@@ -50,14 +50,14 @@ class ClipVisionModel():
         return self.model.state_dict()
 
     def encode_image(self, image):
-        comfy.model_management.load_model_gpu(self.patcher)
+        totoro.model_management.load_model_gpu(self.patcher)
         pixel_values = clip_preprocess(image.to(self.load_device), size=self.image_size).float()
         out = self.model(pixel_values=pixel_values, intermediate_output=-2)
 
         outputs = Output()
-        outputs["last_hidden_state"] = out[0].to(comfy.model_management.intermediate_device())
-        outputs["image_embeds"] = out[2].to(comfy.model_management.intermediate_device())
-        outputs["penultimate_hidden_states"] = out[1].to(comfy.model_management.intermediate_device())
+        outputs["last_hidden_state"] = out[0].to(totoro.model_management.intermediate_device())
+        outputs["image_embeds"] = out[2].to(totoro.model_management.intermediate_device())
+        outputs["penultimate_hidden_states"] = out[1].to(totoro.model_management.intermediate_device())
         return outputs
 
 def convert_to_transformers(sd, prefix):

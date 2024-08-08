@@ -6,7 +6,7 @@ from einops import rearrange
 from torch import Tensor, nn
 
 from .math import attention, rope
-import comfy.ops
+import totoro.ops
 
 class EmbedND(nn.Module):
     def __init__(self, dim: int, theta: int, axes_dim: list):
@@ -69,7 +69,7 @@ class RMSNorm(torch.nn.Module):
         x_dtype = x.dtype
         x = x.float()
         rrms = torch.rsqrt(torch.mean(x**2, dim=-1, keepdim=True) + 1e-6)
-        return (x * rrms).to(dtype=x_dtype) * comfy.ops.cast_to(self.scale, dtype=x_dtype, device=x.device)
+        return (x * rrms).to(dtype=x_dtype) * totoro.ops.cast_to(self.scale, dtype=x_dtype, device=x.device)
 
 
 class QKNorm(torch.nn.Module):

@@ -4,12 +4,12 @@ from . import utils
 
 from . import sd1_clip
 from . import sdxl_clip
-import comfy.text_encoders.sd2_clip
-import comfy.text_encoders.sd3_clip
-import comfy.text_encoders.sa_t5
-import comfy.text_encoders.aura_t5
-import comfy.text_encoders.hydit
-import comfy.text_encoders.flux
+import totoro.text_encoders.sd2_clip
+import totoro.text_encoders.sd3_clip
+import totoro.text_encoders.sa_t5
+import totoro.text_encoders.aura_t5
+import totoro.text_encoders.hydit
+import totoro.text_encoders.flux
 
 from . import supported_models_base
 from . import latent_formats
@@ -104,7 +104,7 @@ class SD20(supported_models_base.BASE):
         return state_dict
 
     def clip_target(self, state_dict={}):
-        return supported_models_base.ClipTarget(comfy.text_encoders.sd2_clip.SD2Tokenizer, comfy.text_encoders.sd2_clip.SD2ClipModel)
+        return supported_models_base.ClipTarget(totoro.text_encoders.sd2_clip.SD2Tokenizer, totoro.text_encoders.sd2_clip.SD2ClipModel)
 
 class SD21UnclipL(SD20):
     unet_config = {
@@ -534,7 +534,7 @@ class SD3(supported_models_base.BASE):
             t5 = True
             dtype_t5 = state_dict[t5_key].dtype
 
-        return supported_models_base.ClipTarget(comfy.text_encoders.sd3_clip.SD3Tokenizer, comfy.text_encoders.sd3_clip.sd3_clip(clip_l=clip_l, clip_g=clip_g, t5=t5, dtype_t5=dtype_t5))
+        return supported_models_base.ClipTarget(totoro.text_encoders.sd3_clip.SD3Tokenizer, totoro.text_encoders.sd3_clip.sd3_clip(clip_l=clip_l, clip_g=clip_g, t5=t5, dtype_t5=dtype_t5))
 
 class StableAudio(supported_models_base.BASE):
     unet_config = {
@@ -565,7 +565,7 @@ class StableAudio(supported_models_base.BASE):
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
     def clip_target(self, state_dict={}):
-        return supported_models_base.ClipTarget(comfy.text_encoders.sa_t5.SAT5Tokenizer, comfy.text_encoders.sa_t5.SAT5Model)
+        return supported_models_base.ClipTarget(totoro.text_encoders.sa_t5.SAT5Tokenizer, totoro.text_encoders.sa_t5.SAT5Model)
 
 class AuraFlow(supported_models_base.BASE):
     unet_config = {
@@ -588,7 +588,7 @@ class AuraFlow(supported_models_base.BASE):
         return out
 
     def clip_target(self, state_dict={}):
-        return supported_models_base.ClipTarget(comfy.text_encoders.aura_t5.AuraT5Tokenizer, comfy.text_encoders.aura_t5.AuraT5Model)
+        return supported_models_base.ClipTarget(totoro.text_encoders.aura_t5.AuraT5Tokenizer, totoro.text_encoders.aura_t5.AuraT5Model)
 
 class HunyuanDiT(supported_models_base.BASE):
     unet_config = {
@@ -614,7 +614,7 @@ class HunyuanDiT(supported_models_base.BASE):
         return out
 
     def clip_target(self, state_dict={}):
-        return supported_models_base.ClipTarget(comfy.text_encoders.hydit.HyditTokenizer, comfy.text_encoders.hydit.HyditModel)
+        return supported_models_base.ClipTarget(totoro.text_encoders.hydit.HyditTokenizer, totoro.text_encoders.hydit.HyditModel)
 
 class HunyuanDiT1(HunyuanDiT):
     unet_config = {
@@ -656,7 +656,7 @@ class Flux(supported_models_base.BASE):
         t5_key = "{}t5xxl.transformer.encoder.final_layer_norm.weight".format(pref)
         if t5_key in state_dict:
             dtype_t5 = state_dict[t5_key].dtype
-        return supported_models_base.ClipTarget(comfy.text_encoders.flux.FluxTokenizer, comfy.text_encoders.flux.flux_clip(dtype_t5=dtype_t5))
+        return supported_models_base.ClipTarget(totoro.text_encoders.flux.FluxTokenizer, totoro.text_encoders.flux.flux_clip(dtype_t5=dtype_t5))
 
 class FluxSchnell(Flux):
     unet_config = {

@@ -1,6 +1,6 @@
-import comfy.supported_models
-import comfy.supported_models_base
-import comfy.utils
+import totoro.supported_models
+import totoro.supported_models_base
+import totoro.utils
 import math
 import logging
 import torch
@@ -273,7 +273,7 @@ def detect_unet_config(state_dict, key_prefix):
     return unet_config
 
 def model_config_from_unet_config(unet_config, state_dict=None):
-    for model_config in comfy.supported_models.models:
+    for model_config in totoro.supported_models.models:
         if model_config.matches(unet_config, state_dict):
             return model_config(unet_config)
 
@@ -286,7 +286,7 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
         return None
     model_config = model_config_from_unet_config(unet_config, state_dict)
     if model_config is None and use_base_if_no_match:
-        return comfy.supported_models_base.BASE(unet_config)
+        return totoro.supported_models_base.BASE(unet_config)
     else:
         return model_config
 
@@ -498,11 +498,11 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
     if 'transformer_blocks.0.attn.add_q_proj.weight' in state_dict: #SD3
         num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth = state_dict["pos_embed.proj.weight"].shape[0] // 64
-        sd_map = comfy.utils.mmdit_to_diffusers({"depth": depth, "num_blocks": num_blocks}, output_prefix=output_prefix)
+        sd_map = totoro.utils.mmdit_to_diffusers({"depth": depth, "num_blocks": num_blocks}, output_prefix=output_prefix)
     elif 'joint_transformer_blocks.0.attn.add_k_proj.weight' in state_dict: #AuraFlow
         num_joint = count_blocks(state_dict, 'joint_transformer_blocks.{}.')
         num_single = count_blocks(state_dict, 'single_transformer_blocks.{}.')
-        sd_map = comfy.utils.auraflow_to_diffusers({"n_double_layers": num_joint, "n_layers": num_joint + num_single}, output_prefix=output_prefix)
+        sd_map = totoro.utils.auraflow_to_diffusers({"n_double_layers": num_joint, "n_layers": num_joint + num_single}, output_prefix=output_prefix)
     else:
         return None
 

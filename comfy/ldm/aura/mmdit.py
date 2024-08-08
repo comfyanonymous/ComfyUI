@@ -7,9 +7,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from comfy.ldm.modules.attention import optimized_attention
-import comfy.ops
-import comfy.ldm.common_dit
+from totoro.ldm.modules.attention import optimized_attention
+import totoro.ops
+import totoro.ldm.common_dit
 
 def modulate(x, shift, scale):
     return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
@@ -408,7 +408,7 @@ class MMDiT(nn.Module):
 
     def patchify(self, x):
         B, C, H, W = x.size()
-        x = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
+        x = totoro.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
         x = x.view(
             B,
             C,
@@ -426,7 +426,7 @@ class MMDiT(nn.Module):
         max_dim = max(h, w)
 
         cur_dim = self.h_max
-        pos_encoding = comfy.ops.cast_to_input(self.positional_encoding.reshape(1, cur_dim, cur_dim, -1), x)
+        pos_encoding = totoro.ops.cast_to_input(self.positional_encoding.reshape(1, cur_dim, cur_dim, -1), x)
 
         if max_dim > cur_dim:
             pos_encoding = F.interpolate(pos_encoding.movedim(-1, 1), (max_dim, max_dim), mode="bilinear").movedim(1, -1)
@@ -454,7 +454,7 @@ class MMDiT(nn.Module):
         t = timestep
 
         c = self.cond_seq_linear(c_seq)  # B, T_c, D
-        c = torch.cat([comfy.ops.cast_to_input(self.register_tokens, c).repeat(c.size(0), 1, 1), c], dim=1)
+        c = torch.cat([totoro.ops.cast_to_input(self.register_tokens, c).repeat(c.size(0), 1, 1), c], dim=1)
 
         global_cond = self.t_embedder(t, x.dtype)  # B, D
 

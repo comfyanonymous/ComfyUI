@@ -1,11 +1,11 @@
 import folder_paths
-import comfy.sd
-import comfy.model_sampling
-import comfy.latent_formats
+import totoro.sd
+import totoro.model_sampling
+import totoro.latent_formats
 import nodes
 import torch
 
-class LCM(comfy.model_sampling.EPS):
+class LCM(totoro.model_sampling.EPS):
     def calculate_denoised(self, sigma, model_output, model_input):
         timestep = self.timestep(sigma).view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
         sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
@@ -19,11 +19,11 @@ class LCM(comfy.model_sampling.EPS):
 
         return c_out * x0 + c_skip * model_input
 
-class X0(comfy.model_sampling.EPS):
+class X0(totoro.model_sampling.EPS):
     def calculate_denoised(self, sigma, model_output, model_input):
         return model_output
 
-class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete):
+class ModelSamplingDiscreteDistilled(totoro.model_sampling.ModelSamplingDiscrete):
     original_timesteps = 50
 
     def __init__(self, model_config=None):
@@ -86,11 +86,11 @@ class ModelSamplingDiscrete:
     def patch(self, model, sampling, zsnr):
         m = model.clone()
 
-        sampling_base = comfy.model_sampling.ModelSamplingDiscrete
+        sampling_base = totoro.model_sampling.ModelSamplingDiscrete
         if sampling == "eps":
-            sampling_type = comfy.model_sampling.EPS
+            sampling_type = totoro.model_sampling.EPS
         elif sampling == "v_prediction":
-            sampling_type = comfy.model_sampling.V_PREDICTION
+            sampling_type = totoro.model_sampling.V_PREDICTION
         elif sampling == "lcm":
             sampling_type = LCM
             sampling_base = ModelSamplingDiscreteDistilled
@@ -122,8 +122,8 @@ class ModelSamplingStableCascade:
     def patch(self, model, shift):
         m = model.clone()
 
-        sampling_base = comfy.model_sampling.StableCascadeSampling
-        sampling_type = comfy.model_sampling.EPS
+        sampling_base = totoro.model_sampling.StableCascadeSampling
+        sampling_type = totoro.model_sampling.EPS
 
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass
@@ -148,8 +148,8 @@ class ModelSamplingSD3:
     def patch(self, model, shift, multiplier=1000):
         m = model.clone()
 
-        sampling_base = comfy.model_sampling.ModelSamplingDiscreteFlow
-        sampling_type = comfy.model_sampling.CONST
+        sampling_base = totoro.model_sampling.ModelSamplingDiscreteFlow
+        sampling_type = totoro.model_sampling.CONST
 
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass
@@ -195,8 +195,8 @@ class ModelSamplingFlux:
         b = base_shift - mm * x1
         shift = (width * height / (8 * 8 * 2 * 2)) * mm + b
 
-        sampling_base = comfy.model_sampling.ModelSamplingFlux
-        sampling_type = comfy.model_sampling.CONST
+        sampling_base = totoro.model_sampling.ModelSamplingFlux
+        sampling_type = totoro.model_sampling.CONST
 
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass
@@ -227,15 +227,15 @@ class ModelSamplingContinuousEDM:
         latent_format = None
         sigma_data = 1.0
         if sampling == "eps":
-            sampling_type = comfy.model_sampling.EPS
+            sampling_type = totoro.model_sampling.EPS
         elif sampling == "v_prediction":
-            sampling_type = comfy.model_sampling.V_PREDICTION
+            sampling_type = totoro.model_sampling.V_PREDICTION
         elif sampling == "edm_playground_v2.5":
-            sampling_type = comfy.model_sampling.EDM
+            sampling_type = totoro.model_sampling.EDM
             sigma_data = 0.5
-            latent_format = comfy.latent_formats.SDXL_Playground_2_5()
+            latent_format = totoro.latent_formats.SDXL_Playground_2_5()
 
-        class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingContinuousEDM, sampling_type):
+        class ModelSamplingAdvanced(totoro.model_sampling.ModelSamplingContinuousEDM, sampling_type):
             pass
 
         model_sampling = ModelSamplingAdvanced(model.model.model_config)
@@ -265,9 +265,9 @@ class ModelSamplingContinuousV:
         latent_format = None
         sigma_data = 1.0
         if sampling == "v_prediction":
-            sampling_type = comfy.model_sampling.V_PREDICTION
+            sampling_type = totoro.model_sampling.V_PREDICTION
 
-        class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingContinuousV, sampling_type):
+        class ModelSamplingAdvanced(totoro.model_sampling.ModelSamplingContinuousV, sampling_type):
             pass
 
         model_sampling = ModelSamplingAdvanced(model.model.model_config)

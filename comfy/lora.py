@@ -1,4 +1,4 @@
-import comfy.utils
+import totoro.utils
 import logging
 
 LORA_CLIP_MAP = {
@@ -247,7 +247,7 @@ def model_lora_keys_unet(model, key_map={}):
             key_map["lora_prior_unet_{}".format(key_lora)] = k #cascade lora: TODO put lora key prefix in the model config
             key_map["{}".format(k[:-len(".weight")])] = k #generic lora format without any weird key names
 
-    diffusers_keys = comfy.utils.unet_to_diffusers(model.model_config.unet_config)
+    diffusers_keys = totoro.utils.unet_to_diffusers(model.model_config.unet_config)
     for k in diffusers_keys:
         if k.endswith(".weight"):
             unet_key = "diffusion_model.{}".format(diffusers_keys[k])
@@ -261,8 +261,8 @@ def model_lora_keys_unet(model, key_map={}):
                     diffusers_lora_key = diffusers_lora_key[:-2]
                 key_map[diffusers_lora_key] = unet_key
 
-    if isinstance(model, comfy.model_base.SD3): #Diffusers lora SD3
-        diffusers_keys = comfy.utils.mmdit_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
+    if isinstance(model, totoro.model_base.SD3): #Diffusers lora SD3
+        diffusers_keys = totoro.utils.mmdit_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
         for k in diffusers_keys:
             if k.endswith(".weight"):
                 to = diffusers_keys[k]
@@ -275,22 +275,22 @@ def model_lora_keys_unet(model, key_map={}):
                 key_lora = "lora_transformer_{}".format(k[:-len(".weight")].replace(".", "_")) #OneTrainer lora
                 key_map[key_lora] = to
 
-    if isinstance(model, comfy.model_base.AuraFlow): #Diffusers lora AuraFlow
-        diffusers_keys = comfy.utils.auraflow_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
+    if isinstance(model, totoro.model_base.AuraFlow): #Diffusers lora AuraFlow
+        diffusers_keys = totoro.utils.auraflow_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
         for k in diffusers_keys:
             if k.endswith(".weight"):
                 to = diffusers_keys[k]
                 key_lora = "transformer.{}".format(k[:-len(".weight")]) #simpletrainer and probably regular diffusers lora format
                 key_map[key_lora] = to
 
-    if isinstance(model, comfy.model_base.HunyuanDiT):
+    if isinstance(model, totoro.model_base.HunyuanDiT):
         for k in sdk:
             if k.startswith("diffusion_model.") and k.endswith(".weight"):
                 key_lora = k[len("diffusion_model."):-len(".weight")]
                 key_map["base_model.model.{}".format(key_lora)] = k #official hunyuan lora format
 
-    if isinstance(model, comfy.model_base.Flux): #Diffusers lora Flux
-        diffusers_keys = comfy.utils.flux_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
+    if isinstance(model, totoro.model_base.Flux): #Diffusers lora Flux
+        diffusers_keys = totoro.utils.flux_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
         for k in diffusers_keys:
             if k.endswith(".weight"):
                 to = diffusers_keys[k]

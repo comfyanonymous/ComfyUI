@@ -1,6 +1,6 @@
 import os
 
-import comfy.sd
+import totoro.sd
 
 def first_file(path, filenames):
     for f in filenames:
@@ -22,15 +22,15 @@ def load_diffusers(model_path, output_vae=True, output_clip=True, embedding_dire
     if text_encoder2_path is not None:
         text_encoder_paths.append(text_encoder2_path)
 
-    unet = comfy.sd.load_unet(unet_path)
+    unet = totoro.sd.load_unet(unet_path)
 
     clip = None
     if output_clip:
-        clip = comfy.sd.load_clip(text_encoder_paths, embedding_directory=embedding_directory)
+        clip = totoro.sd.load_clip(text_encoder_paths, embedding_directory=embedding_directory)
 
     vae = None
     if output_vae:
-        sd = comfy.utils.load_torch_file(vae_path)
-        vae = comfy.sd.VAE(sd=sd)
+        sd = totoro.utils.load_torch_file(vae_path)
+        vae = totoro.sd.VAE(sd=sd)
 
     return (unet, clip, vae)

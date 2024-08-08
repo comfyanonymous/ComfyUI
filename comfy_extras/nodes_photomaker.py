@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import folder_paths
-import comfy.clip_model
-import comfy.clip_vision
-import comfy.ops
+import totoro.clip_model
+import totoro.clip_vision
+import totoro.ops
 
 # code for model from: https://github.com/TencentARC/PhotoMaker/blob/main/photomaker/model.py under Apache License Version 2.0
 VISION_CONFIG_DICT = {
@@ -19,7 +19,7 @@ VISION_CONFIG_DICT = {
 }
 
 class MLP(nn.Module):
-    def __init__(self, in_dim, out_dim, hidden_dim, use_residual=True, operations=comfy.ops):
+    def __init__(self, in_dim, out_dim, hidden_dim, use_residual=True, operations=totoro.ops):
         super().__init__()
         if use_residual:
             assert in_dim == out_dim
@@ -88,15 +88,15 @@ class FuseModule(nn.Module):
         updated_prompt_embeds = prompt_embeds.view(batch_size, seq_length, -1)
         return updated_prompt_embeds
 
-class PhotoMakerIDEncoder(comfy.clip_model.CLIPVisionModelProjection):
+class PhotoMakerIDEncoder(totoro.clip_model.CLIPVisionModelProjection):
     def __init__(self):
-        self.load_device = comfy.model_management.text_encoder_device()
-        offload_device = comfy.model_management.text_encoder_offload_device()
-        dtype = comfy.model_management.text_encoder_dtype(self.load_device)
+        self.load_device = totoro.model_management.text_encoder_device()
+        offload_device = totoro.model_management.text_encoder_offload_device()
+        dtype = totoro.model_management.text_encoder_dtype(self.load_device)
 
-        super().__init__(VISION_CONFIG_DICT, dtype, offload_device, comfy.ops.manual_cast)
-        self.visual_projection_2 = comfy.ops.manual_cast.Linear(1024, 1280, bias=False)
-        self.fuse_module = FuseModule(2048, comfy.ops.manual_cast)
+        super().__init__(VISION_CONFIG_DICT, dtype, offload_device, totoro.ops.manual_cast)
+        self.visual_projection_2 = totoro.ops.manual_cast.Linear(1024, 1280, bias=False)
+        self.fuse_module = FuseModule(2048, totoro.ops.manual_cast)
 
     def forward(self, id_pixel_values, prompt_embeds, class_tokens_mask):
         b, num_inputs, c, h, w = id_pixel_values.shape
@@ -128,7 +128,7 @@ class PhotoMakerLoader:
     def load_photomaker_model(self, photomaker_model_name):
         photomaker_model_path = folder_paths.get_full_path("photomaker", photomaker_model_name)
         photomaker_model = PhotoMakerIDEncoder()
-        data = comfy.utils.load_torch_file(photomaker_model_path, safe_load=True)
+        data = totoro.utils.load_torch_file(photomaker_model_path, safe_load=True)
         if "id_encoder" in data:
             data = data["id_encoder"]
         photomaker_model.load_state_dict(data)
@@ -151,7 +151,7 @@ class PhotoMakerEncode:
 
     def apply_photomaker(self, photomaker, image, clip, text):
         special_token = "photomaker"
-        pixel_values = comfy.clip_vision.clip_preprocess(image.to(photomaker.load_device)).float()
+        pixel_values = totoro.clip_vision.clip_preprocess(image.to(photomaker.load_device)).float()
         try:
             index = text.split(" ").index(special_token) + 1
         except ValueError:

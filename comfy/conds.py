@@ -1,6 +1,6 @@
 import torch
 import math
-import comfy.utils
+import totoro.utils
 
 
 def lcm(a, b): #TODO: eventually replace by math.lcm (added in python3.9)
@@ -14,7 +14,7 @@ class CONDRegular:
         return self.__class__(cond)
 
     def process_cond(self, batch_size, device, **kwargs):
-        return self._copy_with(comfy.utils.repeat_to_batch_size(self.cond, batch_size).to(device))
+        return self._copy_with(totoro.utils.repeat_to_batch_size(self.cond, batch_size).to(device))
 
     def can_concat(self, other):
         if self.cond.shape != other.cond.shape:
@@ -35,7 +35,7 @@ class CONDNoiseShape(CONDRegular):
             for i in range(dims):
                 data = data.narrow(i + 2, area[i + dims], area[i])
 
-        return self._copy_with(comfy.utils.repeat_to_batch_size(data, batch_size).to(device))
+        return self._copy_with(totoro.utils.repeat_to_batch_size(data, batch_size).to(device))
 
 
 class CONDCrossAttn(CONDRegular):

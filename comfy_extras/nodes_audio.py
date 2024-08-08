@@ -1,6 +1,6 @@
 import torchaudio
 import torch
-import comfy.model_management
+import totoro.model_management
 import folder_paths
 import os
 import io
@@ -8,11 +8,11 @@ import json
 import struct
 import random
 import hashlib
-from comfy.cli_args import args
+from totoro.cli_args import args
 
 class EmptyLatentAudio:
     def __init__(self):
-        self.device = comfy.model_management.intermediate_device()
+        self.device = totoro.model_management.intermediate_device()
 
     @classmethod
     def INPUT_TYPES(s):
@@ -62,7 +62,7 @@ class VAEDecodeAudio:
 
 
 def create_vorbis_comment_block(comment_dict, last_block):
-    vendor_string = b'ComfyUI'
+    vendor_string = b'totoroUI'
     vendor_length = len(vendor_string)
 
     comments = []
@@ -124,7 +124,7 @@ class SaveAudio:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "audio": ("AUDIO", ),
-                              "filename_prefix": ("STRING", {"default": "audio/ComfyUI"})},
+                              "filename_prefix": ("STRING", {"default": "audio/totoroUI"})},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -135,7 +135,7 @@ class SaveAudio:
 
     CATEGORY = "audio"
 
-    def save_audio(self, audio, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+    def save_audio(self, audio, filename_prefix="totoroUI", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
         results = list()

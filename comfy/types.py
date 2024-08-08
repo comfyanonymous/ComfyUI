@@ -3,7 +3,7 @@ from typing import Callable, Protocol, TypedDict, Optional, List
 
 
 class UnetApplyFunction(Protocol):
-    """Function signature protocol on comfy.model_base.BaseModel.apply_model"""
+    """Function signature protocol on totoro.model_base.BaseModel.apply_model"""
 
     def __call__(self, x: torch.Tensor, t: torch.Tensor, **kwargs) -> torch.Tensor:
         pass

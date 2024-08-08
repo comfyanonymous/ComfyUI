@@ -1,4 +1,4 @@
-from comfy.cldm.control_types import UNION_CONTROLNET_TYPES
+from totoro.cldm.control_types import UNION_CONTROLNET_TYPES
 
 class SetUnionControlNetType:
     @classmethod

@@ -1,6 +1,6 @@
 # code adapted from: https://github.com/Stability-AI/stable-audio-tools
 
-from comfy.ldm.modules.attention import optimized_attention
+from totoro.ldm.modules.attention import optimized_attention
 import typing as tp
 
 import torch
@@ -9,7 +9,7 @@ from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 import math
-import comfy.ops
+import totoro.ops
 
 class FourierFeatures(nn.Module):
     def __init__(self, in_features, out_features, std=1., dtype=None, device=None):
@@ -19,7 +19,7 @@ class FourierFeatures(nn.Module):
             [out_features // 2, in_features], dtype=dtype, device=device))
 
     def forward(self, input):
-        f = 2 * math.pi * input @ comfy.ops.cast_to_input(self.weight.T, input)
+        f = 2 * math.pi * input @ totoro.ops.cast_to_input(self.weight.T, input)
         return torch.cat([f.cos(), f.sin()], dim=-1)
 
 # norms
@@ -40,8 +40,8 @@ class LayerNorm(nn.Module):
     def forward(self, x):
         beta = self.beta
         if beta is not None:
-            beta = comfy.ops.cast_to_input(beta, x)
-        return F.layer_norm(x, x.shape[-1:], weight=comfy.ops.cast_to_input(self.gamma, x), bias=beta)
+            beta = totoro.ops.cast_to_input(beta, x)
+        return F.layer_norm(x, x.shape[-1:], weight=totoro.ops.cast_to_input(self.gamma, x), bias=beta)
 
 class GLU(nn.Module):
     def __init__(
@@ -164,14 +164,14 @@ class RotaryEmbedding(nn.Module):
 
         t = t / self.interpolation_factor
 
-        freqs = torch.einsum('i , j -> i j', t, comfy.ops.cast_to_input(self.inv_freq, t))
+        freqs = torch.einsum('i , j -> i j', t, totoro.ops.cast_to_input(self.inv_freq, t))
         freqs = torch.cat((freqs, freqs), dim = -1)
 
         if self.scale is None:
             return freqs, 1.
 
         power = (torch.arange(seq_len, device = device) - (seq_len // 2)) / self.scale_base
-        scale = comfy.ops.cast_to_input(self.scale, t) ** rearrange(power, 'n -> n 1')
+        scale = totoro.ops.cast_to_input(self.scale, t) ** rearrange(power, 'n -> n 1')
         scale = torch.cat((scale, scale), dim = -1)
 
         return freqs, scale

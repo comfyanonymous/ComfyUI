@@ -1,6 +1,6 @@
 import torch
-from comfy.ldm.modules.attention import optimized_attention_for_device
-import comfy.ops
+from totoro.ldm.modules.attention import optimized_attention_for_device
+import totoro.ops
 
 class BertAttention(torch.nn.Module):
     def __init__(self, embed_dim, heads, dtype, device, operations):
@@ -95,11 +95,11 @@ class BertEmbeddings(torch.nn.Module):
 
     def forward(self, input_tokens, token_type_ids=None, dtype=None):
         x = self.word_embeddings(input_tokens, out_dtype=dtype)
-        x += comfy.ops.cast_to_input(self.position_embeddings.weight[:x.shape[1]], x)
+        x += totoro.ops.cast_to_input(self.position_embeddings.weight[:x.shape[1]], x)
         if token_type_ids is not None:
             x += self.token_type_embeddings(token_type_ids, out_dtype=x.dtype)
         else:
-            x += comfy.ops.cast_to_input(self.token_type_embeddings.weight[0], x)
+            x += totoro.ops.cast_to_input(self.token_type_embeddings.weight[0], x)
         x = self.LayerNorm(x)
         return x
 

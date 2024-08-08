@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from typing import Tuple, Union, Optional
-from comfy.ldm.modules.attention import optimized_attention
+from totoro.ldm.modules.attention import optimized_attention
 
 
 def reshape_for_broadcast(freqs_cis: Union[torch.Tensor, Tuple[torch.Tensor]], x: torch.Tensor, head_first=False):

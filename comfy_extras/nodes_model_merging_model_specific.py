@@ -1,6 +1,6 @@
-import comfy_extras.nodes_model_merging
+import totoro_extras.nodes_model_merging
 
-class ModelMergeSD1(comfy_extras.nodes_model_merging.ModelMergeBlocks):
+class ModelMergeSD1(totoro_extras.nodes_model_merging.ModelMergeBlocks):
     CATEGORY = "advanced/model_merging/model_specific"
     @classmethod
     def INPUT_TYPES(s):
@@ -26,7 +26,7 @@ class ModelMergeSD1(comfy_extras.nodes_model_merging.ModelMergeBlocks):
         return {"required": arg_dict}
 
 
-class ModelMergeSDXL(comfy_extras.nodes_model_merging.ModelMergeBlocks):
+class ModelMergeSDXL(totoro_extras.nodes_model_merging.ModelMergeBlocks):
     CATEGORY = "advanced/model_merging/model_specific"
 
     @classmethod
@@ -52,7 +52,7 @@ class ModelMergeSDXL(comfy_extras.nodes_model_merging.ModelMergeBlocks):
 
         return {"required": arg_dict}
 
-class ModelMergeSD3_2B(comfy_extras.nodes_model_merging.ModelMergeBlocks):
+class ModelMergeSD3_2B(totoro_extras.nodes_model_merging.ModelMergeBlocks):
     CATEGORY = "advanced/model_merging/model_specific"
 
     @classmethod
@@ -75,7 +75,7 @@ class ModelMergeSD3_2B(comfy_extras.nodes_model_merging.ModelMergeBlocks):
 
         return {"required": arg_dict}
 
-class ModelMergeFlux1(comfy_extras.nodes_model_merging.ModelMergeBlocks):
+class ModelMergeFlux1(totoro_extras.nodes_model_merging.ModelMergeBlocks):
     CATEGORY = "advanced/model_merging/model_specific"
 
     @classmethod

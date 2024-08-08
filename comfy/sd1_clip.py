@@ -1,12 +1,12 @@
 import os
 
 from transformers import CLIPTokenizer
-import comfy.ops
+import totoro.ops
 import torch
 import traceback
 import zipfile
 from . import model_management
-import comfy.clip_model
+import totoro.clip_model
 import json
 import logging
 import numbers
@@ -82,7 +82,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         "hidden"
     ]
     def __init__(self, version="openai/clip-vit-large-patch14", device="cpu", max_length=77,
-                 freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, dtype=None, model_class=comfy.clip_model.CLIPTextModel,
+                 freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, dtype=None, model_class=totoro.clip_model.CLIPTextModel,
                  special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=True, enable_attention_masks=False, zero_out_masked=False,
                  return_projected_pooled=True, return_attention_masks=False):  # clip-vit-base-patch32
         super().__init__()
@@ -94,7 +94,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         with open(textmodel_json_config) as f:
             config = json.load(f)
 
-        self.operations = comfy.ops.manual_cast
+        self.operations = totoro.ops.manual_cast
         self.transformer = model_class(config, dtype, device, self.operations)
         self.num_layers = self.transformer.num_layers
 

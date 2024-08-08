@@ -2,11 +2,11 @@ import torch
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from comfy.ldm.modules.distributions.distributions import DiagonalGaussianDistribution
+from totoro.ldm.modules.distributions.distributions import DiagonalGaussianDistribution
 
-from comfy.ldm.util import instantiate_from_config
-from comfy.ldm.modules.ema import LitEma
-import comfy.ops
+from totoro.ldm.util import instantiate_from_config
+from totoro.ldm.modules.ema import LitEma
+import totoro.ops
 
 class DiagonalGaussianRegularizer(torch.nn.Module):
     def __init__(self, sample: bool = True):
@@ -151,21 +151,21 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
         ddconfig = kwargs.pop("ddconfig")
         super().__init__(
             encoder_config={
-                "target": "comfy.ldm.modules.diffusionmodules.model.Encoder",
+                "target": "totoro.ldm.modules.diffusionmodules.model.Encoder",
                 "params": ddconfig,
             },
             decoder_config={
-                "target": "comfy.ldm.modules.diffusionmodules.model.Decoder",
+                "target": "totoro.ldm.modules.diffusionmodules.model.Decoder",
                 "params": ddconfig,
             },
             **kwargs,
         )
-        self.quant_conv = comfy.ops.disable_weight_init.Conv2d(
+        self.quant_conv = totoro.ops.disable_weight_init.Conv2d(
             (1 + ddconfig["double_z"]) * ddconfig["z_channels"],
             (1 + ddconfig["double_z"]) * embed_dim,
             1,
         )
-        self.post_quant_conv = comfy.ops.disable_weight_init.Conv2d(embed_dim, ddconfig["z_channels"], 1)
+        self.post_quant_conv = totoro.ops.disable_weight_init.Conv2d(embed_dim, ddconfig["z_channels"], 1)
         self.embed_dim = embed_dim
 
     def get_autoencoder_params(self) -> list:
@@ -219,7 +219,7 @@ class AutoencoderKL(AutoencodingEngineLegacy):
         super().__init__(
             regularizer_config={
                 "target": (
-                    "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"
+                    "totoro.ldm.models.autoencoder.DiagonalGaussianRegularizer"
                 )
             },
             **kwargs,

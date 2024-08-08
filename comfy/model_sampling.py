@@ -1,5 +1,5 @@
 import torch
-from comfy.ldm.modules.diffusionmodules.util import make_beta_schedule
+from totoro.ldm.modules.diffusionmodules.util import make_beta_schedule
 import math
 
 class EPS:

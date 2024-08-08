@@ -1,8 +1,8 @@
 import torch
 from typing import Dict, Optional
-import comfy.ldm.modules.diffusionmodules.mmdit
+import totoro.ldm.modules.diffusionmodules.mmdit
 
-class ControlNet(comfy.ldm.modules.diffusionmodules.mmdit.MMDiT):
+class ControlNet(totoro.ldm.modules.diffusionmodules.mmdit.MMDiT):
     def __init__(
         self,
         num_blocks = None,
@@ -17,7 +17,7 @@ class ControlNet(comfy.ldm.modules.diffusionmodules.mmdit.MMDiT):
         for _ in range(len(self.joint_blocks)):
             self.controlnet_blocks.append(operations.Linear(self.hidden_size, self.hidden_size, device=device, dtype=dtype))
 
-        self.pos_embed_input = comfy.ldm.modules.diffusionmodules.mmdit.PatchEmbed(
+        self.pos_embed_input = totoro.ldm.modules.diffusionmodules.mmdit.PatchEmbed(
             None,
             self.patch_size,
             self.in_channels,

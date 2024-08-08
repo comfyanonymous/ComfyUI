@@ -15,7 +15,7 @@ import torch.nn as nn
 import numpy as np
 from einops import repeat, rearrange
 
-from comfy.ldm.util import instantiate_from_config
+from totoro.ldm.util import instantiate_from_config
 
 class AlphaBlender(nn.Module):
     strategies = ["learned", "fixed", "learned_with_images"]

@@ -1,4 +1,4 @@
-from comfy import sd1_clip
+from totoro import sd1_clip
 import os
 
 class SD2ClipHModel(sd1_clip.SDClipModel):

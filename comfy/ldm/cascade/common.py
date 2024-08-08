@@ -1,5 +1,5 @@
 """
-    This file is part of ComfyUI.
+    This file is part of totoroUI.
     Copyright (C) 2024 Stability AI
 
     This program is free software: you can redistribute it and/or modify
@@ -18,8 +18,8 @@
 
 import torch
 import torch.nn as nn
-from comfy.ldm.modules.attention import optimized_attention
-import comfy.ops
+from totoro.ldm.modules.attention import optimized_attention
+import totoro.ops
 
 class OptimizedAttention(nn.Module):
     def __init__(self, c, nhead, dropout=0.0, dtype=None, device=None, operations=None):
@@ -77,7 +77,7 @@ class GlobalResponseNorm(nn.Module):
     def forward(self, x):
         Gx = torch.norm(x, p=2, dim=(1, 2), keepdim=True)
         Nx = Gx / (Gx.mean(dim=-1, keepdim=True) + 1e-6)
-        return comfy.ops.cast_to_input(self.gamma, x) * (x * Nx) + comfy.ops.cast_to_input(self.beta, x) + x
+        return totoro.ops.cast_to_input(self.gamma, x) * (x * Nx) + totoro.ops.cast_to_input(self.beta, x) + x
 
 
 class ResBlock(nn.Module):

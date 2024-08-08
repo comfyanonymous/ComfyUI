@@ -6,9 +6,9 @@ import numpy as np
 from typing import Optional, Any
 import logging
 
-from comfy import model_management
-import comfy.ops
-ops = comfy.ops.disable_weight_init
+from totoro import model_management
+import totoro.ops
+ops = totoro.ops.disable_weight_init
 
 if model_management.xformers_enabled_vae():
     import xformers

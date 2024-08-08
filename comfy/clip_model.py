@@ -1,6 +1,6 @@
 import torch
-from comfy.ldm.modules.attention import optimized_attention_for_device
-import comfy.ops
+from totoro.ldm.modules.attention import optimized_attention_for_device
+import totoro.ops
 
 class CLIPAttention(torch.nn.Module):
     def __init__(self, embed_dim, heads, dtype, device, operations):
@@ -78,7 +78,7 @@ class CLIPEmbeddings(torch.nn.Module):
         self.position_embedding = operations.Embedding(num_positions, embed_dim, dtype=dtype, device=device)
 
     def forward(self, input_tokens, dtype=torch.float32):
-        return self.token_embedding(input_tokens, out_dtype=dtype) + comfy.ops.cast_to(self.position_embedding.weight, dtype=dtype, device=input_tokens.device)
+        return self.token_embedding(input_tokens, out_dtype=dtype) + totoro.ops.cast_to(self.position_embedding.weight, dtype=dtype, device=input_tokens.device)
 
 
 class CLIPTextModel_(torch.nn.Module):
@@ -159,7 +159,7 @@ class CLIPVisionEmbeddings(torch.nn.Module):
 
     def forward(self, pixel_values):
         embeds = self.patch_embedding(pixel_values).flatten(2).transpose(1, 2)
-        return torch.cat([comfy.ops.cast_to_input(self.class_embedding, embeds).expand(pixel_values.shape[0], 1, -1), embeds], dim=1) + comfy.ops.cast_to_input(self.position_embedding.weight, embeds)
+        return torch.cat([totoro.ops.cast_to_input(self.class_embedding, embeds).expand(pixel_values.shape[0], 1, -1), embeds], dim=1) + totoro.ops.cast_to_input(self.position_embedding.weight, embeds)
 
 
 class CLIPVision(torch.nn.Module):
