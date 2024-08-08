@@ -180,7 +180,9 @@ async def handle_download_error(e: Exception,
 
 def validate_model_subdirectory(model_subdirectory: str) -> bool:
     """
-    Validate that the model subdirectory is safe.
+    Validate that the model subdirectory is safe to install into. 
+    Must not contain relative paths, nested paths or special characters
+    other than underscores and hyphens.
 
     Args:
         model_subdirectory (str): The subdirectory for the specific model type.
