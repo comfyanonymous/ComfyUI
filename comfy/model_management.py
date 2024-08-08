@@ -413,7 +413,7 @@ def free_memory(memory_required, device, keep_loaded=[]):
                 break
             memory_to_free = memory_required - free_mem
         logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
-        if current_loaded_models[i].model_unload(memory_to_free, free_mem):
+        if current_loaded_models[i].model_unload(memory_to_free):
             unloaded_model.append(i)
 
     for i in sorted(unloaded_model, reverse=True):
