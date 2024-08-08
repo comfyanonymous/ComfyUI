@@ -8,6 +8,14 @@ LORA_CLIP_MAP = {
     "self_attn.q_proj": "self_attn_q_proj",
     "self_attn.v_proj": "self_attn_v_proj",
     "self_attn.out_proj": "self_attn_out_proj",
+    "attention.output.dense": "attention_output_dense",
+    "attention.self.key": "attention_self_key", 
+    "attention.self.query": "attention_self_query",
+    "attention.self.value": "attention_self_value",
+    "intermediate.dense": "intermediate_dense",
+    "output.dense": "output_dense",
+
+
 }
 
 
@@ -16,14 +24,6 @@ def load_lora(lora, to_load):
     patch_dict = {}
     loaded_keys = set()
     for x in to_load:
-        #import json
-        #with open('/apdcephfs_cq8/share_1367250/xuhuaren/kaiyuan/fork/ComfyUI/result_lora.json', 'w') as fp:
-        #    dict_keys_list = list(lora.keys())
-        #    json.dump(dict_keys_list, fp)
-        #import pdb
-        # dpdb.set_trace() 
-          
-       
 
         alpha_name = "{}.alpha".format(x)
         alpha = None
@@ -77,8 +77,7 @@ def load_lora(lora, to_load):
             patch_dict[to_load[x]] = ("lora", (lora[A_name], lora[B_name], alpha, mid, dora_scale))
             loaded_keys.add(A_name)
             loaded_keys.add(B_name)
-            #import pdb
-            #pdb.set_trace()
+      
 
 
         ######## loha
@@ -195,6 +194,7 @@ def load_lora(lora, to_load):
 
 def model_lora_keys_clip(model, key_map={}):
     sdk = model.state_dict().keys()
+  
 
     text_model_lora_key = "lora_te_text_model_encoder_layers_{}_{}"
     clip_l_present = False
@@ -234,6 +234,25 @@ def model_lora_keys_clip(model, key_map={}):
                     lora_key = "lora_prior_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #cascade lora: TODO put lora key prefix in the model config
                     key_map[lora_key] = k
 
+
+    text_model_lora_key = "lora_te1_encoder_layer_{}_{}"
+
+    clip_l_present = False
+    for bb in range(24): #TODO: clean up
+        for cc in LORA_CLIP_MAP:
+      
+            k = "encoder.layer.{}.{}.weight".format(bb, cc)
+            #if bb == 0 and cc == "attention.output.dense":
+            #    import pdb
+            #    pdb.set_trace()
+            if k in sdk:
+                lora_key = text_model_lora_key.format(bb, LORA_CLIP_MAP[cc])
+                key_map[lora_key] = k
+            
+
+
+
+
     for k in sdk: #OneTrainer SD3 lora
         if k.startswith("t5xxl.transformer.") and k.endswith(".weight"):
             l_key = k[len("t5xxl.transformer."):-len(".weight")]
@@ -261,7 +280,6 @@ def model_lora_keys_unet(model, key_map={}):
             key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
             key_map["lora_unet_{}".format(key_lora)] = k
             key_map["lora_prior_unet_{}".format(key_lora)] = k #cascade lora: TODO put lora key prefix in the model config
-            key_map["{}".format(k[:-len(".weight")])] = k #generic lora format without any weird key names
 
     diffusers_keys = comfy.utils.unet_to_diffusers(model.model_config.unet_config)
     for k in diffusers_keys:
@@ -289,28 +307,6 @@ def model_lora_keys_unet(model, key_map={}):
                 key_map[key_lora] = to
 
                 key_lora = "lora_transformer_{}".format(k[:-len(".weight")].replace(".", "_")) #OneTrainer lora
-                key_map[key_lora] = to
-
-    if isinstance(model, comfy.model_base.AuraFlow): #Diffusers lora AuraFlow
-        diffusers_keys = comfy.utils.auraflow_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
-        for k in diffusers_keys:
-            if k.endswith(".weight"):
-                to = diffusers_keys[k]
-                key_lora = "transformer.{}".format(k[:-len(".weight")]) #simpletrainer and probably regular diffusers lora format
-                key_map[key_lora] = to
-
-    if isinstance(model, comfy.model_base.HunyuanDiT):
-        for k in sdk:
-            if k.startswith("diffusion_model.") and k.endswith(".weight"):
-                key_lora = k[len("diffusion_model."):-len(".weight")]
-                key_map["base_model.model.{}".format(key_lora)] = k #official hunyuan lora format
-
-    if isinstance(model, comfy.model_base.Flux): #Diffusers lora Flux
-        diffusers_keys = comfy.utils.flux_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
-        for k in diffusers_keys:
-            if k.endswith(".weight"):
-                to = diffusers_keys[k]
-                key_lora = "transformer.{}".format(k[:-len(".weight")]) #simpletrainer and probably regular diffusers flux lora format
                 key_map[key_lora] = to
 
     return key_map
