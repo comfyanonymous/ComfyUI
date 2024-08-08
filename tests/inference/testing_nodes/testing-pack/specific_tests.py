@@ -221,6 +221,31 @@ class TestCustomValidation4:
 
         return True
 
+class TestCustomValidation5:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "input1": ("FLOAT", {"min": 0.0, "max": 1.0}),
+                "input2": ("FLOAT", {"min": 0.0, "max": 1.0}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "custom_validation5"
+
+    CATEGORY = "Testing/Nodes"
+
+    def custom_validation5(self, input1, input2):
+        value = input1 * input2
+        return (torch.ones([1, 512, 512, 3]) * value,)
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, **kwargs):
+        if kwargs['input2'] == 7.0:
+            return "7s are not allowed. I've never liked 7s."
+        return True
+
 class TestDynamicDependencyCycle:
     @classmethod
     def INPUT_TYPES(cls):
@@ -291,6 +316,7 @@ TEST_NODE_CLASS_MAPPINGS = {
     "TestCustomValidation2": TestCustomValidation2,
     "TestCustomValidation3": TestCustomValidation3,
     "TestCustomValidation4": TestCustomValidation4,
+    "TestCustomValidation5": TestCustomValidation5,
     "TestDynamicDependencyCycle": TestDynamicDependencyCycle,
     "TestMixedExpansionReturns": TestMixedExpansionReturns,
 }
@@ -303,6 +329,7 @@ TEST_NODE_DISPLAY_NAME_MAPPINGS = {
     "TestCustomValidation2": "Custom Validation 2",
     "TestCustomValidation3": "Custom Validation 3",
     "TestCustomValidation4": "Custom Validation 4",
+    "TestCustomValidation5": "Custom Validation 5",
     "TestDynamicDependencyCycle": "Dynamic Dependency Cycle",
     "TestMixedExpansionReturns": "Mixed Expansion Returns",
 }

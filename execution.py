@@ -530,8 +530,11 @@ def validate_inputs(prompt, item, validated):
     valid = True
 
     validate_function_inputs = []
+    validate_has_kwargs = False
     if hasattr(obj_class, "VALIDATE_INPUTS"):
-        validate_function_inputs = inspect.getfullargspec(obj_class.VALIDATE_INPUTS).args
+        argspec = inspect.getfullargspec(obj_class.VALIDATE_INPUTS)
+        validate_function_inputs = argspec.args
+        validate_has_kwargs = argspec.varkw is not None
     received_types = {}
 
     for x in valid_inputs:
@@ -641,7 +644,7 @@ def validate_inputs(prompt, item, validated):
                 errors.append(error)
                 continue
 
-            if x not in validate_function_inputs:
+            if x not in validate_function_inputs and not validate_has_kwargs:
                 if "min" in extra_info and val < extra_info["min"]:
                     error = {
                         "type": "value_smaller_than_min",
@@ -695,11 +698,11 @@ def validate_inputs(prompt, item, validated):
                         errors.append(error)
                         continue
 
-    if len(validate_function_inputs) > 0:
+    if len(validate_function_inputs) > 0 or validate_has_kwargs:
         input_data_all, _ = get_input_data(inputs, obj_class, unique_id)
         input_filtered = {}
         for x in input_data_all:
-            if x in validate_function_inputs:
+            if x in validate_function_inputs or validate_has_kwargs:
                 input_filtered[x] = input_data_all[x]
         if 'input_types' in validate_function_inputs:
             input_filtered['input_types'] = [received_types]

@@ -312,6 +312,22 @@ class TestExecution:
         else:
             client.run(g)
 
+    @pytest.mark.parametrize("test_value1, test_value2, expect_error", [
+        (0.0, 0.5, False),
+        (0.0, 5.0, False),
+        (0.0, 7.0, True)
+    ])
+    def test_validation_error_kwargs(self, test_value1, test_value2, expect_error, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        validation5 = g.node("TestCustomValidation5", input1=test_value1, input2=test_value2)
+        g.node("SaveImage", images=validation5.out(0))
+
+        if expect_error:
+            with pytest.raises(urllib.error.HTTPError):
+                client.run(g)
+        else:
+            client.run(g)
+
     def test_cycle_error(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
