@@ -7,6 +7,7 @@ import io
 import json
 import struct
 import random
+import hashlib
 from comfy.cli_args import args
 
 class EmptyLatentAudio:
@@ -147,7 +148,7 @@ class SaveAudio:
                 for x in extra_pnginfo:
                     metadata[x] = json.dumps(extra_pnginfo[x])
 
-        for (batch_number, waveform) in enumerate(audio["waveform"]):
+        for (batch_number, waveform) in enumerate(audio["waveform"].cpu()):
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.flac"
 

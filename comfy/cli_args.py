@@ -1,6 +1,9 @@
 import argparse
 import enum
+import os
+from typing import Optional
 import comfy.options
+
 
 class EnumAction(argparse.Action):
     """
@@ -109,6 +112,7 @@ vram_group.add_argument("--lowvram", action="store_true", help="Split the unet i
 vram_group.add_argument("--novram", action="store_true", help="When lowvram isn't enough.")
 vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for everything (slow).")
 
+parser.add_argument("--default-hashing-function", type=str, choices=['md5', 'sha1', 'sha256', 'sha512'], default='sha256', help="Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.")
 
 parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
 parser.add_argument("--deterministic", action="store_true", help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")
@@ -124,6 +128,38 @@ parser.add_argument("--multi-user", action="store_true", help="Enables per-user 
 
 parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
 
+# The default built-in provider hosted under web/
+DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
+
+parser.add_argument(
+    "--front-end-version",
+    type=str,
+    default=DEFAULT_VERSION_STRING,
+    help="""
+    Specifies the version of the frontend to be used. This command needs internet connectivity to query and
+    download available frontend implementations from GitHub releases.
+
+    The version string should be in the format of:
+    [repoOwner]/[repoName]@[version]
+    where version is one of: "latest" or a valid version number (e.g. "1.0.0")
+    """,
+)
+
+def is_valid_directory(path: Optional[str]) -> Optional[str]:
+    """Validate if the given path is a directory."""
+    if path is None:
+        return None
+
+    if not os.path.isdir(path):
+        raise argparse.ArgumentTypeError(f"{path} is not a valid directory.")
+    return path
+
+parser.add_argument(
+    "--front-end-root",
+    type=is_valid_directory,
+    default=None,
+    help="The local filesystem path to the directory where the frontend is located. Overrides --front-end-version.",
+)
 
 if comfy.options.args_parsing:
     args = parser.parse_args()
