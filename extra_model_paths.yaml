@@ -13,5 +13,5 @@ comfyui:
     models/ip_adapter_faceid/lora
   hypernetworks: embeddings
   ipadapter: |
-    models/ip_adapter_faceid/models
+    models/ip_adapter_faceid
     models/ip_adapter
