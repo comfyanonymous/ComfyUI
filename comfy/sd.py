@@ -537,20 +537,18 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     if output_model:
         model_patcher = model_cache.get_item(ckpt_path, 'model')
         inital_load_device = model_management.unet_inital_load_device(parameters, unet_dtype)
-
+        offload_device = model_management.unet_offload_device()
         if model_patcher is None:
-            offload_device = model_management.unet_offload_device()
             model = model_config.get_model(sd, "model.diffusion_model.", device=inital_load_device)
             model.load_model_weights(sd, "model.diffusion_model.")
-            model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device, current_device=inital_load_device)
+            model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device,
+                                                             offload_device=offload_device)
+            model = model_config.get_model(sd, diffusion_model_prefix, device=inital_load_device)
+            model.load_model_weights(sd, diffusion_model_prefix)
 
         if inital_load_device != torch.device("cpu"):
             logging.info("loaded straight to GPU")
             model_management.load_model_gpu(model_patcher)
-
-        offload_device = model_management.unet_offload_device()
-        model = model_config.get_model(sd, diffusion_model_prefix, device=inital_load_device)
-        model.load_model_weights(sd, diffusion_model_prefix)
 
 
     if output_vae:
