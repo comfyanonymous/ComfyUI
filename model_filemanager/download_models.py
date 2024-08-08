@@ -4,7 +4,7 @@ import traceback
 import logging
 from folder_paths import models_dir
 import re
-from typing import Callable, Any, Optional, Awaitable, Tuple
+from typing import Callable, Any, Optional, Awaitable, Tuple, Dict
 from enum import Enum
 import time
 from dataclasses import dataclass
@@ -27,12 +27,21 @@ class DownloadModelStatus():
         self.progress_percentage = progress_percentage
         self.message = message
         self.already_existed = already_existed
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "status": self.status,
+            "progress_percentage": self.progress_percentage,
+            "message": self.message,
+            "already_existed": self.already_existed
+        }
 
 async def download_model(model_download_request: Callable[[str], Awaitable[aiohttp.ClientResponse]],
                          model_name: str,  
                          model_url: str, 
                          model_sub_directory: str,
-                         progress_callback: Callable[[str, DownloadModelStatus], Awaitable[Any]]) -> DownloadModelStatus:
+                         progress_callback: Callable[[str, DownloadModelStatus], Awaitable[Any]],
+                         progress_interval: float = 1.0) -> DownloadModelStatus:
     """
     Download a model file from a given URL into the models directory.
 
@@ -77,7 +86,7 @@ async def download_model(model_download_request: Callable[[str], Awaitable[aioht
             await progress_callback(relative_path, status)
             return DownloadModelStatus(DownloadStatusType.ERROR, 0, error_message, False)
 
-        return await track_download_progress(response, file_path, model_name, progress_callback, relative_path)
+        return await track_download_progress(response, file_path, model_name, progress_callback, relative_path, progress_interval)
 
     except Exception as e:
         logging.error(f"Error in downloading model: {e}")

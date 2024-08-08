@@ -27,7 +27,7 @@ import comfy.model_management
 import node_helpers
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
-from model_filemanager import download_model, DownloadStatus
+from model_filemanager import download_model, DownloadModelStatus
 from typing import Optional
 
 class BinaryEventTypes:
@@ -563,18 +563,14 @@ class PromptServer():
         
         @routes.post("/models/download")
         async def download_handler(request):
-            async def report_progress(filename: str, status: DownloadStatus):
-                await self.send_json("download_progress", {
-                    "filename": filename,
-                    "progress_percentage": status.progress_percentage,
-                    "status": status.status,
-                    "message": status.message
-                })
+            async def report_progress(filename: str, status: DownloadModelStatus):
+                await self.send_json("download_progress", status.to_dict())
 
             data = await request.json()
             url = data.get('url')
             model_directory = data.get('model_directory')
             model_filename = data.get('model_filename')
+            progress_interval = data.get('progress_interval', 1.0) # In seconds, how often to report download progress.
 
             if not url or not model_directory or not model_filename:
                 return web.json_response({"status": "error", "message": "Missing URL or folder path or filename"}, status=400)
@@ -584,10 +580,10 @@ class PromptServer():
                 logging.error("Client session is not initialized")
                 return web.Response(status=500)
             
-            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, report_progress))
+            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, report_progress, progress_interval))
             await task
 
-            return web.Response(status=200)
+            return web.json_response(task.result().to_dict())
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
