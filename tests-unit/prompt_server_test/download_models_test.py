@@ -4,7 +4,7 @@ from aiohttp import ClientResponse
 import itertools
 import os 
 from unittest.mock import AsyncMock, patch, MagicMock
-from model_filemanager import download_model, validate_model_subdirectory, track_download_progress, create_model_path, check_file_exists, DownloadStatusType, DownloadModelStatus
+from model_filemanager import download_model, validate_model_subdirectory, track_download_progress, create_model_path, check_file_exists, DownloadStatusType, DownloadModelStatus, validate_filename
 
 class AsyncIteratorMock:
     """
@@ -299,3 +299,25 @@ def test_subdirectory_with_underscore_and_dash():
 
 def test_empty_subdirectory():
     assert validate_model_subdirectory("") is False
+
+@pytest.mark.parametrize("filename, expected", [
+    ("valid_model.safetensors", True),
+    ("valid_model.sft", True),
+    ("another-valid_model.ckpt", True),
+    ("valid model.safetensors", True), # Test with space
+    ("UPPERCASE_MODEL.SAFETENSORS", True),
+    ("model_with.multiple.dots.pt", True),
+    ("", False),  # Empty string
+    (None, False),  # None value
+    ("../../../etc/passwd", False),  # Path traversal attempt
+    ("/etc/passwd", False),  # Absolute path
+    ("\\windows\\system32\\config\\sam", False),  # Windows path
+    (".hidden_file.pt", False),  # Hidden file
+    ("invalid<char>.ckpt", False),  # Invalid character
+    ("invalid?.ckpt", False),  # Another invalid character
+    ("very" * 100 + ".safetensors", False),  # Too long filename
+    ("\nmodel_with_newline.pt", False),  # Newline character
+    ("model_with_emoji😊.pt", False),  # Emoji in filename
+])
+def test_validate_filename(filename, expected):
+    assert validate_filename(filename) == expected

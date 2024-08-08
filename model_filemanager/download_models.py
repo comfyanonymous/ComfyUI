@@ -71,6 +71,14 @@ async def download_model(model_download_request: Callable[[str], Awaitable[aioht
             False
         )
 
+    if not validate_filename(model_name):
+        return DownloadModelStatus(
+            DownloadStatusType.ERROR, 
+            0,
+            "Invalid model name", 
+            False
+        )
+
     file_path, relative_path = create_model_path(model_name, model_sub_directory, models_dir)
     existing_file = await check_file_exists(file_path, model_name, progress_callback, relative_path)
     if existing_file:
@@ -99,6 +107,14 @@ def create_model_path(model_name: str, model_directory: str, models_base_dir: st
     full_model_dir = os.path.join(models_base_dir, model_directory)
     os.makedirs(full_model_dir, exist_ok=True)
     file_path = os.path.join(full_model_dir, model_name)
+
+    # Ensure the resulting path is still within the base directory
+    abs_file_path = os.path.abspath(file_path)
+    abs_base_dir = os.path.abspath(str(models_base_dir))
+    if os.path.commonprefix([abs_file_path, abs_base_dir]) != abs_base_dir:
+        raise Exception(f"Invalid model directory: {model_directory}/{model_name}")
+
+
     relative_path = '/'.join([model_directory, model_name])
     return file_path, relative_path
 
@@ -184,6 +200,38 @@ def validate_model_subdirectory(model_subdirectory: str) -> bool:
         return False
 
     if not re.match(r'^[a-zA-Z0-9_-]+$', model_subdirectory):
+        return False
+
+    return True
+
+def validate_filename(filename):
+    """
+    Validate a filename to ensure it's safe and doesn't contain any path traversal attempts.
+    
+    Args:
+    filename (str): The filename to validate
+
+    Returns:
+    bool: True if the filename is valid, False otherwise
+    """
+    # Check if the filename is empty, None, or just whitespace
+    if not filename or not filename.strip():
+        return False
+
+    # Check for any directory traversal attempts or invalid characters
+    if any(char in filename for char in ['..', '/', '\\', '\n', '\r', '\t', '\0']):
+        return False
+
+    # Check if the filename starts with a dot (hidden file)
+    if filename.startswith('.'):
+        return False
+
+    # Use a whitelist of allowed characters
+    if not re.match(r'^[a-zA-Z0-9_\-. ]+$', filename):
+        return False
+
+    # Ensure the filename isn't too long
+    if len(filename) > 255:
         return False
 
     return True
