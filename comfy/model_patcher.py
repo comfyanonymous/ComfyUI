@@ -356,7 +356,6 @@ class ModelPatcher:
         return self.model
 
     def lowvram_load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False):
-        logging.info("loading in lowvram mode {}".format(lowvram_model_memory/(1024 * 1024)))
         mem_counter = 0
         patch_counter = 0
         lowvram_counter = 0
@@ -404,8 +403,10 @@ class ModelPatcher:
                     logging.debug("lowvram: loaded module regularly {} {}".format(n, m))
 
         if lowvram_counter > 0:
+            logging.info("loaded in lowvram mode {}".format(lowvram_model_memory / (1024 * 1024)))
             self.model.model_lowvram = True
         else:
+            logging.info("loaded completely {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024)))
             self.model.model_lowvram = False
         self.model.lowvram_patch_counter += patch_counter
         self.model.device = device_to
