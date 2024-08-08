@@ -1,13 +1,15 @@
+from __future__ import annotations
 import aiohttp
 import os
 import traceback
 import logging
 from folder_paths import models_dir
 import re
-from typing import Callable, Any, Optional, Awaitable, Tuple, Dict
+from typing import Callable, Any, Optional, Awaitable, Dict
 from enum import Enum
 import time
 from dataclasses import dataclass
+
 
 class DownloadStatusType(Enum):
     PENDING = "pending"
@@ -93,7 +95,7 @@ async def download_model(model_download_request: Callable[[str], Awaitable[aioht
         return await handle_download_error(e, model_name, progress_callback, relative_path)
     
 
-def create_model_path(model_name: str, model_directory: str, models_base_dir: str) -> Tuple[str, str]:
+def create_model_path(model_name: str, model_directory: str, models_base_dir: str) -> tuple[str, str]:
     full_model_dir = os.path.join(models_base_dir, model_directory)
     os.makedirs(full_model_dir, exist_ok=True)
     file_path = os.path.join(full_model_dir, model_name)
