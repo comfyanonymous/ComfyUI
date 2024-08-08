@@ -466,15 +466,19 @@ class PromptExecutor:
                 cache.set_prompt(dynamic_prompt, prompt.keys(), is_changed_cache)
                 cache.clean_unused()
 
-            current_outputs = self.caches.outputs.all_node_ids()
+            cached_nodes = []
+            for node_id in prompt:
+                if self.caches.outputs.get(node_id) is not None:
+                    cached_nodes.append(node_id)
 
             comfy.model_management.cleanup_models(keep_clone_weights_loaded=True)
             self.add_message("execution_cached",
-                          { "nodes": list(current_outputs) , "prompt_id": prompt_id},
+                          { "nodes": cached_nodes, "prompt_id": prompt_id},
                           broadcast=False)
             pending_subgraph_results = {}
             executed = set()
             execution_list = ExecutionList(dynamic_prompt, self.caches.outputs)
+            current_outputs = self.caches.outputs.all_node_ids()
             for node_id in list(execute_outputs):
                 execution_list.add_node(node_id)
 
