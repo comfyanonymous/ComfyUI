@@ -112,6 +112,12 @@ vram_group.add_argument("--lowvram", action="store_true", help="Split the unet i
 vram_group.add_argument("--novram", action="store_true", help="When lowvram isn't enough.")
 vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for everything (slow).")
 
+class CpuBf16Mode(enum.Enum):
+    Auto = "auto"
+    Yes = "yes"
+    No = "no"
+
+parser.add_argument("--use-cpu-bf16", type=CpuBf16Mode, default=CpuBf16Mode.Auto, help="When CPU mode is enabled use bf16 instructions to improve performance.", action=EnumAction)
 parser.add_argument("--default-hashing-function", type=str, choices=['md5', 'sha1', 'sha256', 'sha512'], default='sha256', help="Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.")
 
 parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")

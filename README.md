@@ -165,6 +165,10 @@ You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS ve
 
 ```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
 
+#### CPUs with AVX-512 BFloat16 support
+
+If you have a CPU with AVX-512 BFloat16 instruction set support, you can increase performance of KSampler node and decrease memory usage by approximately 50% by running `python main.py --cpu --bf16-vae --bf16-unet`.
+
 # Running
 
 ```python main.py```

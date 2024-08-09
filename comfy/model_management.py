@@ -19,7 +19,7 @@
 import psutil
 import logging
 from enum import Enum
-from comfy.cli_args import args
+from comfy.cli_args import args, CpuBf16Mode
 import torch
 import sys
 import platform
@@ -45,6 +45,7 @@ cpu_state = CPUState.GPU
 total_vram = 0
 
 lowvram_available = True
+ipex_available = False
 xpu_available = False
 
 if args.deterministic:
@@ -88,6 +89,21 @@ def is_intel_xpu():
         if xpu_available:
             return True
     return False
+
+def use_cpu_bf16():
+    if args.use_cpu_bf16 == CpuBf16Mode.No or cpu_state != CPUState.CPU:
+        return False
+    if args.use_cpu_bf16 == CpuBf16Mode.Yes:
+        return True
+
+    try:
+        from cpuinfo import get_cpu_info
+    except:
+        logging.warning('py-cpuinfo is not installed, rerun "pip install -r requirements.txt"')
+        return False
+
+    cpu_info = get_cpu_info()
+    return 'avx512_bf16' in cpu_info['flags']
 
 def get_torch_device():
     global directml_enabled
@@ -201,10 +217,10 @@ try:
 except:
     pass
 
-if is_intel_xpu():
+if is_intel_xpu() or use_cpu_bf16():
     VAE_DTYPES = [torch.bfloat16] + VAE_DTYPES
 
-if args.cpu_vae:
+if args.cpu_vae and not use_cpu_bf16():
     VAE_DTYPES = [torch.float32]
 
 
@@ -980,9 +996,8 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     return True
 
 def should_use_bf16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
-    if device is not None:
-        if is_device_cpu(device): #TODO ? bf16 works on CPU but is extremely slow
-            return False
+    if cpu_state == CPUState.CPU or device is not None and is_device_cpu(device):
+        return use_cpu_bf16()
 
     if device is not None:
         if is_device_mps(device):
