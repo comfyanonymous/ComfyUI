@@ -128,6 +128,9 @@ parser.add_argument("--multi-user", action="store_true", help="Enables per-user 
 
 parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
 
+parser.add_argument("--type-conformance", type=str, choices=['all', 'images', 'error', 'none'], default='none', help="Level of type conformance for input/output values between nodes. 'all/images' will attempt to convert all or only image values to the expected type, 'error' will raise an error if the types do not match.")
+
+
 # The default built-in provider hosted under web/
 DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
 
