@@ -890,13 +890,16 @@ class CLIPVisionLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), ),
+                             "device": (["GPU", "CPU"], ),
                              }}
     RETURN_TYPES = ("CLIP_VISION",)
     FUNCTION = "load_clip"
 
     CATEGORY = "loaders"
 
-    def load_clip(self, clip_name):
+    def load_clip(self, clip_name, device = "GPU"):
+        if device == "CPU":
+           comfy.clip_vision.ClipVisionModel.load_device = torch.device("cpu")
         clip_path = folder_paths.get_full_path("clip_vision", clip_name)
         clip_vision = comfy.clip_vision.load(clip_path)
         return (clip_vision,)
