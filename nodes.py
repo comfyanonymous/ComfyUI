@@ -508,15 +508,20 @@ class CheckpointLoaderSimple:
     def INPUT_TYPES(s):
         return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
                              }}
-    RETURN_TYPES = ("MODEL", "CLIP", "VAE")
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE", "STRING")
+    RETURN_NAMES = ("MODEL", "CLIP", "VAE", "CKPT_NAME")
     FUNCTION = "load_checkpoint"
 
     CATEGORY = "loaders"
 
     def load_checkpoint(self, ckpt_name):
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
-        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
-        return out[:3]
+        out = comfy.sd.load_checkpoint_guess_config(
+            ckpt_path,
+            output_vae=True,
+            output_clip=True,
+            embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return out[:3] + (ckpt_name,)
 
 class DiffusersLoader:
     @classmethod
@@ -1077,7 +1082,7 @@ class LatentFromBatch:
         else:
             s["batch_index"] = samples["batch_index"][batch_index:batch_index + length]
         return (s,)
-    
+
 class RepeatLatentBatch:
     @classmethod
     def INPUT_TYPES(s):
@@ -1092,7 +1097,7 @@ class RepeatLatentBatch:
     def repeat(self, samples, amount):
         s = samples.copy()
         s_in = samples["samples"]
-        
+
         s["samples"] = s_in.repeat((amount, 1,1,1))
         if "noise_mask" in samples and samples["noise_mask"].shape[0] > 1:
             masks = samples["noise_mask"]
@@ -1424,7 +1429,7 @@ class SaveImage:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": 
+        return {"required":
                     {"images": ("IMAGE", ),
                      "filename_prefix": ("STRING", {"default": "ComfyUI"})},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
