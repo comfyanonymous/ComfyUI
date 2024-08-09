@@ -396,9 +396,10 @@ class ModelPatcher:
                 if hasattr(m, "weight"):
                     mem_counter += comfy.model_management.module_size(m)
                     param = list(m.parameters())
-                    weight = param[0]
-                    if weight.device == device_to:
-                        continue
+                    if len(param) > 0:
+                        weight = param[0]
+                        if weight.device == device_to:
+                            continue
 
                     self.patch_weight_to_device(weight_key) #TODO: speed this up without OOM
                     self.patch_weight_to_device(bias_key)
