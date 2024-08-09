@@ -11,7 +11,7 @@ function intersect(a, b) {
 	else return null;
 }
 
-function getClipPath(node, element) {
+function getClipPath(node, element, canvasRect) {
 	const selectedNode = Object.values(app.canvas.selected_nodes)[0];
 	if (selectedNode && selectedNode !== node) {
 		const elRect = element.getBoundingClientRect();
@@ -20,7 +20,7 @@ function getClipPath(node, element) {
 
 		const bounding = selectedNode.getBounding();
 		const intersection = intersect(
-			{ x: elRect.x / scale, y: elRect.y / scale, width: elRect.width / scale, height: elRect.height / scale },
+			{ x: (elRect.x / scale) - canvasRect.left, y: (elRect.y / scale) - canvasRect.top, width: elRect.width / scale, height: elRect.height / scale },
 			{
 				x: selectedNode.pos[0] + app.canvas.ds.offset[0] - MARGIN,
 				y: selectedNode.pos[1] + app.canvas.ds.offset[1] - LiteGraph.NODE_TITLE_HEIGHT - MARGIN,
@@ -33,9 +33,8 @@ function getClipPath(node, element) {
 			return "";
 		}
 
-		const widgetRect = element.getBoundingClientRect();
-		const clipX = elRect.left + intersection[0] - widgetRect.x / scale + "px";
-		const clipY = elRect.top + intersection[1] - widgetRect.y / scale + "px";
+		const clipX = canvasRect.left + intersection[0] - elRect.x / scale + "px";
+		const clipY = canvasRect.top + intersection[1] - elRect.y / scale + "px";
 		const clipWidth = intersection[2] + "px";
 		const clipHeight = intersection[3] + "px";
 		const path = `polygon(0% 0%, 0% 100%, ${clipX} 100%, ${clipX} ${clipY}, calc(${clipX} + ${clipWidth}) ${clipY}, calc(${clipX} + ${clipWidth}) calc(${clipY} + ${clipHeight}), ${clipX} calc(${clipY} + ${clipHeight}), ${clipX} 100%, 100% 100%, 100% 0%)`;
@@ -272,7 +271,7 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 			});
 
 			if (enableDomClipping) {
-				element.style.clipPath = getClipPath(node, element);
+				element.style.clipPath = getClipPath(node, element, elRect);
 				element.style.willChange = "clip-path";
 			}
 
