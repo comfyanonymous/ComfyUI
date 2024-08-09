@@ -183,15 +183,34 @@ class PreviewAudio(SaveAudio):
                 }
 
 class LoadAudio:
-    SUPPORTED_FORMATS = ('.wav', '.mp3', '.ogg', '.flac', '.aiff', '.aif')
+    SUPPORTED_FORMATS = None
+
+    @classmethod
+    def get_supported_formats(s):
+        if s.SUPPORTED_FORMATS is None:
+            supported = set()
+            available_backends = torchaudio.list_audio_backends()
+            backend_formats = {
+                "soundfile": ['.aiff', '.au', '.avr', '.caf', '.flac', '.htk', '.svx', '.mat4', '.mat5', '.mpc2k', '.mp3', '.ogg', '.paf', '.pvf', '.raw', '.rf64', '.sd2', '.sds', '.ircam', '.voc', '.w64', '.wav', '.nist', '.wavex', '.wve', '.xi'],
+                "sox": ['.8svx', '.aif', '.aifc', '.aiff', '.aiffc', '.al', '.amb', '.amr-nb', '.amr-wb', '.anb', '.au', '.avr', '.awb', '.caf', '.cdda', '.cdr', '.cvs', '.cvsd', '.cvu', '.dat', '.dvms', '.f32', '.f4', '.f64', '.f8', '.fap', '.flac', '.fssd', '.gsm', '.gsrt', '.hcom', '.htk', '.ima', '.ircam', '.la', '.lpc', '.lpc10', '.lu', '.mat', '.mat4', '.mat5', '.maud', '.nist', '.ogg', '.paf', '.prc', '.pvf', '.raw', '.s1', '.s16', '.s2', '.s24', '.s3', '.s32', '.s4', '.s8', '.sb', '.sd2', '.sds', '.sf', '.sl', '.sln', '.smp', '.snd', '.sndfile', '.sndr', '.sndt', '.sou', '.sox', '.sph', '.sw', '.txw', '.u1', '.u16', '.u2', '.u24', '.u3', '.u32', '.u4', '.u8', '.ub', '.ul', '.uw', '.vms', '.voc', '.vorbis', '.vox', '.w64', '.wav', '.wavpcm', '.wv', '.wve', '.xa', '.xi'],
+                "ffmpeg": ['.3dostr', '.4xm', '.aa', '.aac', '.aax', '.ace', '.acm', '.act', '.adf', '.adp', '.ads', '.aea', '.afc', '.aix', '.alias_pix', '.amrnb', '.amrwb', '.anm', '.apac', '.apc', '.ape', '.aqtitle', '.argo_brp', '.asf_o', '.av1', '.avr', '.avs', '.bethsoftvid', '.bfi', '.bfstm', '.bin', '.bink', '.binka', '.bitpacked', '.bmp_pipe', '.bmv', '.boa', '.bonk', '.brender_pix', '.brstm', '.c93', '.cdg', '.cdxl', '.cine', '.concat', '.cri_pipe', '.dcstr', '.dds_pipe', '.derf', '.dfa', '.dhav', '.dpx_pipe', '.dsf', '.dsicin', '.dss', '.dtshd', '.dvbsub', '.dvbtxt', '.dxa', '.ea', '.ea_cdata', '.epaf', '.exr_pipe', '.flic', '.frm', '.fsb', '.fwse', '.g729', '.gdv', '.gem_pipe', '.genh', '.gif_pipe', '.hca', '.hcom', '.hdr_pipe', '.hnm', '.idcin', '.idf', '.iec61883', '.iff', '.ifv', '.imf', '.ingenient', '.ipmovie', '.ipu', '.iss', '.iv8', '.ivr', '.j2k_pipe', '.jack', '.jpeg_pipe', '.jpegls_pipe', '.jpegxl_pipe', '.jv', '.kmsgrab', '.kux', '.laf', '.lavfi', '.libcdio', '.libdc1394', '.libgme', '.libopenmpt', '.live_flv', '.lmlm4', '.loas', '.luodat', '.lvf', '.lxf', '.matroska', '.webm', '.mca', '.mcc', '.mgsts', '.mjpeg_2000', '.mlv', '.mm', '.mods', '.moflex', '.mov', '.mp4', '.m4a', '.3gp', '.3g2', '.mj2', '.mpc', '.mpc8', '.mpegtsraw', '.mpegvideo', '.mpl2', '.mpsub', '.msf', '.msnwctcp', '.msp', '.mtaf', '.mtv', '.musx', '.mv', '.mvi', '.mxg', '.nc', '.nistsphere', '.nsp', '.nsv', '.nuv', '.openal', '.paf', '.pam_pipe', '.pbm_pipe', '.pcx_pipe', '.pfm_pipe', '.pgm_pipe', '.pgmyuv_pipe', '.pgx_pipe', '.phm_pipe', '.photocd_pipe', '.pictor_pipe', '.pjs', '.pmp', '.png_pipe', '.pp_bnk', '.ppm_pipe', '.psd_pipe', '.psxstr', '.pva', '.pvf', '.qcp', '.qdraw_pipe', '.qoi_pipe', '.r3d', '.realtext', '.redspark', '.rka', '.rl2', '.rpl', '.rsd', '.s337m', '.sami', '.sbg', '.scd', '.sdns', '.sdp', '.sdr2', '.sds', '.sdx', '.ser', '.sga', '.sgi_pipe', '.shn', '.siff', '.simbiosis_imx', '.sln', '.smk', '.smush', '.sol', '.stl', '.subviewer', '.subviewer1', '.sunrast_pipe', '.svag', '.svg_pipe', '.svs', '.tak', '.tedcaptions', '.thp', '.tiertexseq', '.tiff_pipe', '.tmv', '.tty', '.txd', '.ty', '.v210', '.v210x', '.vag', '.vbn_pipe', '.vividas', '.vivo', '.vmd', '.vobsub', '.vpk', '.vplayer', '.vqf', '.wady', '.wavarc', '.wc3movie', '.webp_pipe', '.wsd', '.wsvqa', '.wve', '.x11grab', '.xa', '.xbin', '.xbm_pipe', '.xmd', '.xmv', '.xpm_pipe', '.xvag', '.xwd_pipe', '.xwma', '.yop'],
+            }
+
+            for backend, formats in backend_formats.items():
+                if backend in available_backends:
+                    supported.update(formats)
+
+            s.SUPPORTED_FORMATS = tuple(supported)
+        return s.SUPPORTED_FORMATS
 
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
+        supported_formats = s.get_supported_formats()
         files = [
             f for f in os.listdir(input_dir)
             if (os.path.isfile(os.path.join(input_dir, f))
-                and f.endswith(LoadAudio.SUPPORTED_FORMATS)
+                and f.endswith(supported_formats)
             )
         ]
         return {"required": {"audio": (sorted(files), {"audio_upload": True})}}
