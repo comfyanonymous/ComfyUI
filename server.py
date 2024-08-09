@@ -561,7 +561,9 @@ class PromptServer():
 
             return web.Response(status=200)
         
-        @routes.post("/models/download")
+        # Internal route. Should not be depended upon and is subject to change at any time.
+        # TODO(robinhuang): Move to internal route table class once we refactor PromptServer to pass around Websocket.
+        @routes.post("/internal/models/download")
         async def download_handler(request):
             async def report_progress(filename: str, status: DownloadModelStatus):
                 await self.send_json("download_progress", status.to_dict())
