@@ -261,6 +261,7 @@ if __name__ == "__main__":
         call_on_start = startup_server
 
     try:
+        loop.run_until_complete(server.setup())
         loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
     except KeyboardInterrupt:
         logging.info("\nStopped server")
