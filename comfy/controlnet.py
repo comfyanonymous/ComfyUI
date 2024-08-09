@@ -173,7 +173,7 @@ class ControlBase:
 
 
 class ControlNet(ControlBase):
-    def __init__(self, control_model=None, global_average_pooling=False, compression_ratio=8, latent_format=None, device=None, load_device=None, manual_cast_dtype=None, extra_conds=[], strength_type=StrengthType.CONSTANT):
+    def __init__(self, control_model=None, global_average_pooling=False, compression_ratio=8, latent_format=None, device=None, load_device=None, manual_cast_dtype=None, extra_conds=["y"], strength_type=StrengthType.CONSTANT):
         super().__init__(device)
         self.control_model = control_model
         self.load_device = load_device
