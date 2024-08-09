@@ -91,6 +91,8 @@ class HunYuanDiTBlock(nn.Module):
         # Long Skip Connection
         if self.skip_linear is not None:
             cat = torch.cat([x, skip], dim=-1)
+            if cat.dtype != x.dtype:
+                cat = cat.to(x.dtype)
             cat = self.skip_norm(cat)
             x = self.skip_linear(cat)
 
@@ -362,6 +364,8 @@ class HunYuanDiT(nn.Module):
         c = t + self.extra_embedder(extra_vec)  # [B, D]
 
         controls = None
+        if control:
+            controls = control.get("output", None)
         # ========================= Forward pass through HunYuanDiT blocks =========================
         skips = []
         for layer, block in enumerate(self.blocks):
