@@ -393,9 +393,9 @@ class ModelPatcher:
                     if m.comfy_cast_weights:
                         wipe_lowvram_weight(m)
 
-                param = list(m.parameters())
-                if len(param) > 0:
+                if hasattr(m, "weight"):
                     mem_counter += comfy.model_management.module_size(m)
+                    param = list(m.parameters())
                     weight = param[0]
                     if weight.device == device_to:
                         continue
