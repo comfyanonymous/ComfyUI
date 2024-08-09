@@ -1713,9 +1713,10 @@ export class ComfyApp {
 				for (const o in nodeData["output"]) {
 					let output = nodeData["output"][o];
 					if(output instanceof Array) output = "COMBO";
+					const outputTooltip = nodeData["output_tooltips"]?.[o];
 					const outputName = nodeData["output_name"][o] || output;
 					const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
-					this.addOutput(outputName, output, { shape: outputShape });
+					this.addOutput(outputName, output, { shape: outputShape, tooltip: outputTooltip });
 				}
 
 				const s = this.computeSize();
