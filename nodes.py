@@ -9,6 +9,7 @@ import math
 import time
 import random
 import logging
+import enum
 
 from PIL import Image, ImageOps, ImageSequence, ImageFile
 from PIL.PngImagePlugin import PngInfo
@@ -43,6 +44,12 @@ def interrupt_processing(value=True):
     comfy.model_management.interrupt_current_processing(value)
 
 MAX_RESOLUTION=16384
+
+class AnyType(str):
+  def __ne__(self, __value: object) -> bool:
+    return False
+
+any_type = AnyType("*")
 
 class CLIPTextEncode:
     @classmethod
@@ -1768,6 +1775,30 @@ class ImagePadForOutpaint:
         return (new_image, mask)
 
 
+class GraphControlSignal(enum.Enum):
+    SKIP = 0
+    CONTINUE = 1
+
+class GraphControl:
+    ALL_VALUES = [signal.name for signal in GraphControlSignal]
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "anything": (any_type, ),
+            "boolean": ("BOOLEAN", {"default": True}),
+            "true_signal": (s.ALL_VALUES, {"default": GraphControlSignal.CONTINUE.name}),
+            "false_signal": (s.ALL_VALUES, {"default": GraphControlSignal.SKIP.name}),
+        }}
+    RETURN_TYPES = (any_type, "GraphControlSignal", "BOOLEAN")
+    RETURN_NAMES = ("anything", "signal", "boolean")
+    FUNCTION = "main"
+
+    CATEGORY = "graph"
+
+    def main(self, anything, boolean, true_signal, false_signal):
+        signal = GraphControlSignal[true_signal if boolean else false_signal]
+        return (anything, signal, boolean)
+
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
     "CheckpointLoaderSimple": CheckpointLoaderSimple,
@@ -1835,6 +1866,7 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningZeroOut": ConditioningZeroOut,
     "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
     "LoraLoaderModelOnly": LoraLoaderModelOnly,
+    "GraphControl": GraphControl,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
