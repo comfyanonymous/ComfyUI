@@ -9,6 +9,7 @@ import math
 import time
 import random
 import logging
+from pathlib import Path
 
 from PIL import Image, ImageOps, ImageSequence, ImageFile
 from PIL.PngImagePlugin import PngInfo
@@ -1482,8 +1483,9 @@ class PreviewImage(SaveImage):
 class LoadImage:
     @classmethod
     def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        input_dir = Path(folder_paths.get_input_directory())
+        pillow_formats = {ext.lower() for ext in Image.registered_extensions().keys()}
+        files = sorted([f.name for f in input_dir.iterdir() if f.is_file() and f.suffix.lower() in pillow_formats])
         return {"required":
                     {"image": (sorted(files), {"image_upload": True})},
                 }
