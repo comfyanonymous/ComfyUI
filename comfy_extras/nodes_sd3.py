@@ -100,3 +100,8 @@ NODE_CLASS_MAPPINGS = {
     "CLIPTextEncodeSD3": CLIPTextEncodeSD3,
     "ControlNetApplySD3": ControlNetApplySD3,
 }
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    # Sampling
+    "ControlNetApplySD3": "ControlNetApply SD3 and HunyuanDiT",
+}
