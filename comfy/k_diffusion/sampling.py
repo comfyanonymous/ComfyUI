@@ -778,7 +778,7 @@ def sample_lcm(model, x, sigmas, extra_args=None, callback=None, disable=None, n
     for i in trange(len(sigmas) - 1, disable=disable):
         denoised = model(x, sigmas[i] * s_in, **extra_args)
         if callback is not None:
-            callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+            callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised.clone()})
 
         x = denoised
         if sigmas[i + 1] > 0:
