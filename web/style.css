@@ -166,6 +166,7 @@ body {
 	padding: 10px;
 	border-radius: 0 8px 8px 8px;
 	box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4);
+	max-height: 95vh;
 }
 
 .comfy-menu-header {
@@ -282,11 +283,14 @@ span.drag-handle::after {
 	margin-bottom: 10px;
 	border-color: var(--border-color);
 	border-style: solid;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	overflow-y: hidden;
 }
 
 .comfy-list-items {
-	overflow-y: scroll;
-	max-height: 100px;
+	overflow-y: auto;
 	min-height: 25px;
 	background-color: var(--comfy-input-bg);
 	padding: 5px;
@@ -356,6 +360,7 @@ button.comfy-queue-btn {
 		left: auto !important;
 		right: 0 !important;
 		border-radius: 0;
+        max-height: 100vh !important;
 	}
 
 	.comfy-menu span.drag-handle {
