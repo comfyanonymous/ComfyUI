@@ -29,7 +29,7 @@ from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
 from model_filemanager import download_model, DownloadModelStatus
 from typing import Optional
-from routes import InternalRoutes
+from api_server.routes.internal.internal_routes import InternalRoutes
 
 
 class BinaryEventTypes:
