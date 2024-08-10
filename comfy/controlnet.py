@@ -322,6 +322,7 @@ class ControlLora(ControlNet):
         ControlBase.__init__(self, device)
         self.control_weights = control_weights
         self.global_average_pooling = global_average_pooling
+        self.extra_conds += ["y"]
 
     def pre_run(self, model, percent_to_timestep_function):
         super().pre_run(model, percent_to_timestep_function)
