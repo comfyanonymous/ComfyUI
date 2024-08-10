@@ -102,7 +102,7 @@ class ModelPatcher:
         self.size = size
         self.model = model
         if not hasattr(self.model, 'device'):
-            logging.info("Model doesn't have a device attribute.")
+            logging.debug("Model doesn't have a device attribute.")
             self.model.device = offload_device
         elif self.model.device is None:
             self.model.device = offload_device
