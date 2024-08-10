@@ -32,6 +32,12 @@ async def test_list_files_valid_directory(aiohttp_client_factory, internal_route
     assert len(data['files']) == 2
     assert data['files'] == mock_file_list
 
+    # Check other valid directories
+    resp = await client.get('/files?directory=user')
+    assert resp.status == 200
+    resp = await client.get('/files?directory=output')
+    assert resp.status == 200
+
 @pytest.mark.asyncio
 async def test_list_files_invalid_directory(aiohttp_client_factory, internal_routes):
     internal_routes.file_service.list_files = MagicMock(side_effect=ValueError("Invalid directory key"))
