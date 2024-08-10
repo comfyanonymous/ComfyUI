@@ -1,6 +1,6 @@
 import os
-from typing import List, Union, TypedDict, Literal, TypeGuard
-
+from typing import List, Union, TypedDict, Literal
+from typing_extensions import TypeGuard
 class FileInfo(TypedDict):
     name: str
     path: str
