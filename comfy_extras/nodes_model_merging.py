@@ -264,6 +264,7 @@ class CLIPSave:
 
         metadata = {}
         if not args.disable_metadata:
+            metadata["format"] = "pt"
             metadata["prompt"] = prompt_info
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:

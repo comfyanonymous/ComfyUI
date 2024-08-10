@@ -188,6 +188,11 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             "current_inputs": input_data_formatted,
             "current_outputs": output_data_formatted
         }
+
+        if isinstance(ex, comfy.model_management.OOM_EXCEPTION):
+            logging.error("Got an OOM, unloading all loaded models.")
+            comfy.model_management.unload_all_models()
+
         return (False, error_details, ex)
 
     executed.add(unique_id)

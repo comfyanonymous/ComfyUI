@@ -1,3 +1,22 @@
+"""
+    This file is part of ComfyUI.
+    Copyright (C) 2024 Comfy
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
+
 import torch
 import math
 import struct
@@ -431,6 +450,12 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
             key_map["{}to_q.{}".format(k, end)] = (qkv, (0, 0, hidden_size))
             key_map["{}to_k.{}".format(k, end)] = (qkv, (0, hidden_size, hidden_size))
             key_map["{}to_v.{}".format(k, end)] = (qkv, (0, hidden_size * 2, hidden_size))
+
+            k = "{}.attn.".format(prefix_from)
+            qkv = "{}.txt_attn.qkv.{}".format(prefix_to, end)
+            key_map["{}add_q_proj.{}".format(k, end)] = (qkv, (0, 0, hidden_size))
+            key_map["{}add_k_proj.{}".format(k, end)] = (qkv, (0, hidden_size, hidden_size))
+            key_map["{}add_v_proj.{}".format(k, end)] = (qkv, (0, hidden_size * 2, hidden_size))
 
         block_map = {"attn.to_out.0.weight": "img_attn.proj.weight",
                      "attn.to_out.0.bias": "img_attn.proj.bias",
