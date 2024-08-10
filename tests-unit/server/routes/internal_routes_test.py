@@ -8,7 +8,6 @@ from folder_paths import models_dir, user_directory, output_directory
 
 @pytest.fixture
 def internal_routes():
-    print("Creating InternalRoutes instance")
     return InternalRoutes()
 
 @pytest.fixture
@@ -81,12 +80,7 @@ def test_get_app_reuse(internal_routes):
 
 @pytest.mark.asyncio
 async def test_routes_added_to_app(aiohttp_client_factory, internal_routes):
-    print("Starting test_routes_added_to_app")
-
-    # Create the client
     client = await aiohttp_client_factory()
-    
-    print("Attempting to send GET request to /files")
     try:
         resp = await client.get('/files')
         print(f"Response received: status {resp.status}")
@@ -94,12 +88,7 @@ async def test_routes_added_to_app(aiohttp_client_factory, internal_routes):
         print(f"Exception occurred during GET request: {e}")
         raise
 
-    # We're not checking the response content here, just that the route exists
-    # and returns a response (even if it's an error response)
-    print(f"Asserting response status is not 404")
     assert resp.status != 404, "Route /files does not exist"
-
-    print("Test completed successfully")
 
 @pytest.mark.asyncio
 async def test_file_service_initialization():
