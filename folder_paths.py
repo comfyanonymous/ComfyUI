@@ -134,6 +134,7 @@ def add_model_folder_path(folder_name: str, full_folder_path: str) -> None:
         folder_names_and_paths[folder_name] = ([full_folder_path], set())
 
 def get_folder_paths(folder_name: str) -> list[str]:
+    global folder_names_and_paths
     return folder_names_and_paths[folder_name][0][:]
 
 def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) -> tuple[list[str], dict[str, float]]:
