@@ -29,6 +29,7 @@ def test_list_files_valid_directory(file_service, mock_file_system_ops):
     mock_file_system_ops.walk_directory.assert_called_once_with("/path/to/models")
 
 def test_list_files_invalid_directory(file_service):
+    # Does not support walking directories outside of the allowed directories
     with pytest.raises(ValueError, match="Invalid directory key"):
         file_service.list_files("invalid_key")
 
