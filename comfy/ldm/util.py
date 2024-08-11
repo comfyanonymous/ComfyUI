@@ -44,16 +44,6 @@ def isimage(x):
     return (len(x.shape) == 4) and (x.shape[1] == 3 or x.shape[1] == 1)
 
 
-def exists(x):
-    return x is not None
-
-
-def default(val, d):
-    if exists(val):
-        return val
-    return d() if isfunction(d) else d
-
-
 def mean_flat(tensor):
     """
     https://github.com/openai/guided-diffusion/blob/27c20a8fab9cb472df5d6bdd6c8d11c8f430b924/guided_diffusion/nn.py#L86

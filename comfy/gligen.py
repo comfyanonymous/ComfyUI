@@ -5,19 +5,6 @@ from inspect import isfunction
 import comfy.ops
 ops = comfy.ops.manual_cast
 
-def exists(val):
-    return val is not None
-
-
-def uniq(arr):
-    return{el: True for el in arr}.keys()
-
-
-def default(val, d):
-    if exists(val):
-        return val
-    return d() if isfunction(d) else d
-
 
 # feedforward
 class GEGLU(nn.Module):
@@ -34,7 +21,8 @@ class FeedForward(nn.Module):
     def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.):
         super().__init__()
         inner_dim = int(dim * mult)
-        dim_out = default(dim_out, dim)
+        if not dim_out:
+            dim_out = dim() if isfunction(dim) else dim
         project_in = nn.Sequential(
             ops.Linear(dim, inner_dim),
             nn.GELU()

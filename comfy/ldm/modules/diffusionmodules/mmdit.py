@@ -11,10 +11,6 @@ from .util import timestep_embedding
 import comfy.ops
 import comfy.ldm.common_dit
 
-def default(x, y):
-    if x is not None:
-        return x
-    return y
 
 class Mlp(nn.Module):
     """ MLP as used in Vision Transformer, MLP-Mixer and related networks
@@ -733,14 +729,14 @@ class MMDiT(nn.Module):
         self.learn_sigma = learn_sigma
         self.in_channels = in_channels
         default_out_channels = in_channels * 2 if learn_sigma else in_channels
-        self.out_channels = default(out_channels, default_out_channels)
+        self.out_channels = default_out_channels if out_channels is None else out_channels
         self.patch_size = patch_size
         self.pos_embed_scaling_factor = pos_embed_scaling_factor
         self.pos_embed_offset = pos_embed_offset
         self.pos_embed_max_size = pos_embed_max_size
 
-        # hidden_size = default(hidden_size, 64 * depth)
-        # num_heads = default(num_heads, hidden_size // 64)
+        # hidden_size = 64 * depth if hidden_size is None else hidden_size
+        # num_heads = hidden_size // 64 if num_heads is None else num_heads
 
         # apply magic --> this defines a head_size of 64
         self.hidden_size = 64 * depth
@@ -882,7 +878,7 @@ class MMDiT(nn.Module):
             context = torch.cat(
                 (
                     repeat(self.register, "1 ... -> b ...", b=x.shape[0]),
-                    default(context, torch.Tensor([]).type_as(x)),
+                    torch.Tensor([]).type_as(x) is context is None else context,
                 ),
                 1,
             )
@@ -952,4 +948,3 @@ class OpenAISignatureMMDITWrapper(MMDiT):
         **kwargs,
     ) -> torch.Tensor:
         return super().forward(x, timesteps, context=context, y=y, control=control)
-

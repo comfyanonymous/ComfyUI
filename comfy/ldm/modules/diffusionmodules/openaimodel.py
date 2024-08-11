@@ -13,8 +13,7 @@ from .util import (
     timestep_embedding,
     AlphaBlender,
 )
-from ..attention import SpatialTransformer, SpatialVideoTransformer, default
-from comfy.ldm.util import exists
+from ..attention import SpatialTransformer, SpatialVideoTransformer
 import comfy.ops
 ops = comfy.ops.disable_weight_init
 
@@ -301,11 +300,11 @@ class VideoResBlock(ResBlock):
         )
 
         self.time_stack = ResBlock(
-            default(out_channels, channels),
+            channels if out_channels is None else out_channels,
             emb_channels,
             dropout=dropout,
             dims=3,
-            out_channels=default(out_channels, channels),
+            out_channels=channels if out_channels is None else out_channels,
             use_scale_shift_norm=False,
             use_conv=False,
             up=False,
@@ -642,12 +641,12 @@ class UNetModel(nn.Module):
                     if legacy:
                         #num_heads = 1
                         dim_head = ch // num_heads if use_spatial_transformer else num_head_channels
-                    if exists(disable_self_attentions):
+                    if disable_self_attentions is not None:
                         disabled_sa = disable_self_attentions[level]
                     else:
                         disabled_sa = False
 
-                    if not exists(num_attention_blocks) or nr < num_attention_blocks[level]:
+                    if not num_attention_blocks is None or nr < num_attention_blocks[level]:
                         layers.append(get_attention_layer(
                                 ch, num_heads, dim_head, depth=num_transformers, context_dim=context_dim,
                                 disable_self_attn=disabled_sa, use_checkpoint=use_checkpoint)
@@ -768,12 +767,12 @@ class UNetModel(nn.Module):
                     if legacy:
                         #num_heads = 1
                         dim_head = ch // num_heads if use_spatial_transformer else num_head_channels
-                    if exists(disable_self_attentions):
+                    if disable_self_attentions is not None:
                         disabled_sa = disable_self_attentions[level]
                     else:
                         disabled_sa = False
 
-                    if not exists(num_attention_blocks) or i < num_attention_blocks[level]:
+                    if num_attention_blocks is None or i < num_attention_blocks[level]:
                         layers.append(
                             get_attention_layer(
                                 ch, num_heads, dim_head, depth=num_transformers, context_dim=context_dim,
