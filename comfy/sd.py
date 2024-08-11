@@ -500,9 +500,12 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
 
 def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True):
     sd = comfy.utils.load_torch_file(ckpt_path)
-    return load_state_dict_guess_config(sd, ckpt_path, output_vae, output_clip, output_clipvision, embedding_directory, output_model)
+    out = load_state_dict_guess_config(sd, output_vae, output_clip, output_clipvision, embedding_directory, output_model)
+    if out is None:
+        raise RuntimeError("ERROR: Could not detect model type of: {}".format(ckpt_path))
+    return out
 
-def load_state_dict_guess_config(sd, ckpt_path="<memory>", output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True):
+def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True):
     clip = None
     clipvision = None
     vae = None
@@ -516,7 +519,7 @@ def load_state_dict_guess_config(sd, ckpt_path="<memory>", output_vae=True, outp
 
     model_config = model_detection.model_config_from_unet(sd, diffusion_model_prefix)
     if model_config is None:
-        raise RuntimeError("ERROR: Could not detect model type of: {}".format(ckpt_path))
+        return None
 
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
     if weight_dtype is not None:
