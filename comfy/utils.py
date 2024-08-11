@@ -474,6 +474,10 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
                         "ff_context.net.0.proj.bias": "txt_mlp.0.bias",
                         "ff_context.net.2.weight": "txt_mlp.2.weight",
                         "ff_context.net.2.bias": "txt_mlp.2.bias",
+                        "attn.norm_q.weight": "img_attn.norm.query_norm.scale",
+                        "attn.norm_k.weight": "img_attn.norm.key_norm.scale",
+                        "attn.norm_added_q.weight": "txt_attn.norm.query_norm.scale",
+                        "attn.norm_added_k.weight": "txt_attn.norm.key_norm.scale",
                     }
 
         for k in block_map:
@@ -496,6 +500,8 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
                         "norm.linear.bias": "modulation.lin.bias",
                         "proj_out.weight": "linear2.weight",
                         "proj_out.bias": "linear2.bias",
+                        "attn.norm_q.weight": "norm.query_norm.scale",
+                        "attn.norm_k.weight": "norm.key_norm.scale",
                     }
 
         for k in block_map:
@@ -514,18 +520,14 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
         ("txt_in.weight", "context_embedder.weight"),
         ("vector_in.in_layer.bias", "time_text_embed.text_embedder.linear_1.bias"),
         ("vector_in.in_layer.weight", "time_text_embed.text_embedder.linear_1.weight"),
-        ("vector_in.out_layer.bias", "time_text_embed.timestep_embedder.linear_2.bias"),
+        ("vector_in.out_layer.bias", "time_text_embed.text_embedder.linear_2.bias"),
         ("vector_in.out_layer.weight", "time_text_embed.text_embedder.linear_2.weight"),
         ("guidance_in.in_layer.bias", "time_text_embed.guidance_embedder.linear_1.bias"),
         ("guidance_in.in_layer.weight", "time_text_embed.guidance_embedder.linear_1.weight"),
-        ("guidance_in.out_layer.bias", "time_text_embed.guidance_embedder.linear_1.bias"),
+        ("guidance_in.out_layer.bias", "time_text_embed.guidance_embedder.linear_2.bias"),
         ("guidance_in.out_layer.weight", "time_text_embed.guidance_embedder.linear_2.weight"),
         ("final_layer.adaLN_modulation.1.bias", "norm_out.linear.bias", swap_scale_shift),
         ("final_layer.adaLN_modulation.1.weight", "norm_out.linear.weight", swap_scale_shift),
-
-        # TODO: the values of these weights are different in Diffusers
-        ("guidance_in.out_layer.bias", "time_text_embed.guidance_embedder.linear_2.bias"),
-        ("vector_in.out_layer.bias", "time_text_embed.text_embedder.linear_2.bias"),
     }
 
     for k in MAP_BASIC:
