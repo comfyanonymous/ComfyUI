@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import comfy.options
 comfy.options.enable_args_parsing()
 
@@ -8,8 +10,8 @@ import time
 from comfy.cli_args import args
 
 
-def execute_prestartup_script():
-    def execute_script(script_path):
+def execute_prestartup_script() -> None:
+    def execute_script(script_path: str) -> bool:
         module_name = os.path.splitext(script_path)[0]
         try:
             spec = importlib.util.spec_from_file_location(module_name, script_path)
@@ -80,16 +82,21 @@ if args.windows_standalone_build:
     except:
         pass
 
-import comfy.utils
 import yaml
+from collections.abc import Callable
 
-import execution
-import server
-from server import BinaryEventTypes
-import nodes
+from PIL.Image import Image
+
 import comfy.model_management
+import comfy.utils
+import execution
+from execution import PromptQueue
+import nodes
+import server
+from server import BinaryEventTypes, PromptServer
 
-def cuda_malloc_warning():
+
+def cuda_malloc_warning() -> None:
     device = comfy.model_management.get_torch_device()
     device_name = comfy.model_management.get_torch_device_name(device)
     cuda_malloc_warning = False
@@ -100,7 +107,7 @@ def cuda_malloc_warning():
         if cuda_malloc_warning:
             logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
-def prompt_worker(q, server):
+def prompt_worker(q: PromptQueue, server: PromptServer) -> None:
     e = execution.PromptExecutor(server)
     last_gc_collect = 0
     need_gc = False
@@ -115,7 +122,7 @@ def prompt_worker(q, server):
         if queue_item is not None:
             item, item_id = queue_item
             execution_start_time = time.perf_counter()
-            prompt_id = item[1]
+            prompt_id: str = item[1]
             server.last_prompt_id = prompt_id
 
             e.execute(item[2], prompt_id, item[3], item[4])
@@ -155,12 +162,12 @@ def prompt_worker(q, server):
                 last_gc_collect = current_time
                 need_gc = False
 
-async def run(server, address='', port=8188, verbose=True, call_on_start=None):
+async def run(server: PromptServer, address='', port=8188, verbose=True, call_on_start: Callable[[str, str, int], None] | None=None) -> None:
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
 
 
-def hijack_progress(server):
-    def hook(value, total, preview_image):
+def hijack_progress(server: PromptServer) -> None:
+    def hook(value: int, total: int, preview_image: tuple[str, Image, int] | None) -> None:
         comfy.model_management.throw_exception_if_processing_interrupted()
         progress = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
 
@@ -170,13 +177,13 @@ def hijack_progress(server):
     comfy.utils.set_progress_bar_global_hook(hook)
 
 
-def cleanup_temp():
+def cleanup_temp() -> None:
     temp_dir = folder_paths.get_temp_directory()
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def load_extra_path_config(yaml_path):
+def load_extra_path_config(yaml_path: str) -> None:
     with open(yaml_path, 'r') as stream:
         config = yaml.safe_load(stream)
     for c in config:
@@ -251,9 +258,9 @@ if __name__ == "__main__":
     if args.quick_test_for_ci:
         exit(0)
 
-    call_on_start = None
+    call_on_start: Callable[[str, str, int], None] | None = None
     if args.auto_launch:
-        def startup_server(scheme, address, port):
+        def startup_server(scheme: str, address: str, port: int) -> None:
             import webbrowser
             if os.name == 'nt' and address == '0.0.0.0':
                 address = '127.0.0.1'
