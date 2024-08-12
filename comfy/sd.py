@@ -455,7 +455,7 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
         clip_target.clip = comfy.text_encoders.sd3_clip.SD3ClipModel
         clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
 
-    clip = CLIP(clip_target, embedding_directory=embedding_directory, state_dicts=clip_data)
+    clip = CLIP(clip_target, embedding_directory=embedding_directory)
     for c in clip_data:
         m, u = clip.load_sd(c)
         if len(m) > 0:
