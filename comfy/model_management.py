@@ -684,6 +684,17 @@ def text_encoder_device():
     else:
         return torch.device("cpu")
 
+def text_encoder_initial_device(load_device, offload_device, model_size=0):
+    if load_device == offload_device or model_size <= 1024 * 1024 * 1024:
+        return offload_device
+
+    mem_l = get_free_memory(load_device)
+    mem_o = get_free_memory(offload_device)
+    if mem_l > (mem_o * 0.5) and model_size * 1.2 < mem_l:
+        return load_device
+    else:
+        return offload_device
+
 def text_encoder_dtype(device=None):
     if args.fp8_e4m3fn_text_enc:
         return torch.float8_e4m3fn
