@@ -669,6 +669,8 @@ class ModelPatcher:
         return memory_freed
 
     def partially_load(self, device_to, extra_memory=0):
+        self.unpatch_model(unpatch_weights=False)
+        self.patch_model(patch_weights=False)
         full_load = False
         if self.model.model_lowvram == False:
             return 0
