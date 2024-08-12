@@ -79,6 +79,9 @@ class CLIP:
         for dt in self.cond_stage_model.dtypes:
             if not model_management.supports_cast(load_device, dt):
                 load_device = offload_device
+                if params['device'] != offload_device:
+                    self.cond_stage_model.to(offload_device)
+                    logging.warning("Had to shift TE back.")
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
