@@ -156,7 +156,7 @@ if cpu_state != CPUState.CPU:
     if total_ram < 6 * (1024 * 1024 * 1024) :
         set_vram_to = VRAMState.LOW_VRAM
         lowvram_available = True
-    if total_ram > 12 * (1024 * 1024 * 1024) :
+    if total_ram > 48 * (1024 * 1024 * 1024) :
         vram_state = VRAMState.HIGH_VRAM
 
 try:
@@ -592,7 +592,7 @@ def dtype_size(dtype):
     return dtype_size
 
 def unet_offload_device():
-    if vram_state == VRAMState.HIGH_VRAM:
+    if vram_state == VRAMState.HIGH_VRAM or total_ram < total_vram:
         return get_torch_device()
     else:
         return torch.device("cpu")
