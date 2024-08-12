@@ -82,6 +82,8 @@ class CLIP:
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
+        if params['device'] == load_device:
+            model_management.load_model_gpu(self.patcher)
         self.layer_idx = None
         logging.debug("CLIP model load device: {}, offload device: {}, current: {}".format(load_device, offload_device, params['device']))
 
@@ -455,7 +457,11 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
         clip_target.clip = comfy.text_encoders.sd3_clip.SD3ClipModel
         clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
 
-    clip = CLIP(clip_target, embedding_directory=embedding_directory)
+    parameters = 0
+    for c in clip_data:
+        parameters += comfy.utils.calculate_parameters(c)
+
+    clip = CLIP(clip_target, embedding_directory=embedding_directory, parameters=parameters)
     for c in clip_data:
         m, u = clip.load_sd(c)
         if len(m) > 0:
