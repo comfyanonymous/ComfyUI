@@ -81,6 +81,10 @@ except:
 if args.cpu:
     cpu_state = CPUState.CPU
 
+def is_nvidia():
+    global cpu_state
+    return cpu_state == CPUState.GPU and torch.cuda.is_available()
+
 def is_intel_xpu():
     global cpu_state
     global xpu_available
@@ -88,6 +92,10 @@ def is_intel_xpu():
         if xpu_available:
             return True
     return False
+
+if args.cpu or (not is_nvidia() and not is_intel_xpu()):
+    cpu_state = CPUState.CPU
+
 
 def get_torch_device():
     global directml_enabled
@@ -107,11 +115,12 @@ def get_torch_device():
 
 def get_total_memory(dev=None, torch_total_too=False):
     global directml_enabled
+    global total_ram
     if dev is None:
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_total = psutil.virtual_memory().total
+        mem_total = total_ram
         mem_total_torch = mem_total
     else:
         if directml_enabled:
@@ -134,9 +143,21 @@ def get_total_memory(dev=None, torch_total_too=False):
     else:
         return mem_total
 
-total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
-total_ram = psutil.virtual_memory().total / (1024 * 1024)
-logging.info("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))
+total_ram = psutil.virtual_memory().total
+total_vram = get_total_memory(get_torch_device())
+logging.info(
+    "Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(
+        total_vram / (1024 * 1024),
+        total_ram / (1024 * 1024)
+    )
+)
+
+if cpu_state != CPUState.CPU:
+    if total_ram < 6 * (1024 * 1024 * 1024) :
+        set_vram_to = VRAMState.LOW_VRAM
+        lowvram_available = True
+    if total_ram > 12 * (1024 * 1024 * 1024) :
+        vram_state = VRAMState.HIGH_VRAM
 
 try:
     logging.info("pytorch version: {}".format(torch.version.__version__))
@@ -172,13 +193,6 @@ else:
             pass
     except:
         XFORMERS_IS_AVAILABLE = False
-
-def is_nvidia():
-    global cpu_state
-    if cpu_state == CPUState.GPU:
-        if torch.version.cuda:
-            return True
-    return False
 
 ENABLE_PYTORCH_ATTENTION = False
 if args.use_pytorch_cross_attention:
