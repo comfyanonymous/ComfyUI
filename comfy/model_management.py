@@ -688,6 +688,9 @@ def text_encoder_initial_device(load_device, offload_device, model_size=0):
     if load_device == offload_device or model_size <= 1024 * 1024 * 1024:
         return offload_device
 
+    if is_device_mps(load_device):
+        return offload_device
+
     mem_l = get_free_memory(load_device)
     mem_o = get_free_memory(offload_device)
     if mem_l > (mem_o * 0.5) and model_size * 1.2 < mem_l:
