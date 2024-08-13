@@ -64,8 +64,8 @@ class ControlNetFlux(Flux):
         img = img + controlnet_cond
         vec = self.time_in(timestep_embedding(timesteps, 256))
         if self.params.guidance_embed:
-            vec = vec + self.guidance_in(timestep_embedding(guidance, 256))
-        vec = vec + self.vector_in(y)
+            vec.add_(self.guidance_in(timestep_embedding(guidance, 256)))
+        vec.add_(self.vector_in(y))
         txt = self.txt_in(txt)
 
         ids = torch.cat((txt_ids, img_ids), dim=1)
