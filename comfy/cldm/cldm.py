@@ -12,7 +12,6 @@ from ..ldm.modules.diffusionmodules.util import (
 
 from ..ldm.modules.attention import SpatialTransformer
 from ..ldm.modules.diffusionmodules.openaimodel import UNetModel, TimestepEmbedSequential, ResBlock, Downsample
-from ..ldm.util import exists
 from .control_types import UNION_CONTROLNET_TYPES
 from collections import OrderedDict
 import comfy.ops
@@ -234,12 +233,12 @@ class ControlNet(nn.Module):
                     if legacy:
                         #num_heads = 1
                         dim_head = ch // num_heads if use_spatial_transformer else num_head_channels
-                    if exists(disable_self_attentions):
+                    if disable_self_attentions is not None:
                         disabled_sa = disable_self_attentions[level]
                     else:
                         disabled_sa = False
 
-                    if not exists(num_attention_blocks) or nr < num_attention_blocks[level]:
+                    if num_attention_blocks is not None or nr < num_attention_blocks[level]:
                         layers.append(
                             SpatialTransformer(
                                 ch, num_heads, dim_head, depth=num_transformers, context_dim=context_dim,
@@ -434,4 +433,3 @@ class ControlNet(nn.Module):
         out_middle.append(self.middle_block_out(h, emb, context))
 
         return {"middle": out_middle, "output": out_output}
-
