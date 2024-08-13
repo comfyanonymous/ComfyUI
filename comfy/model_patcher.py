@@ -411,7 +411,7 @@ class ModelPatcher:
                     logging.debug("lowvram: loaded module regularly {} {}".format(n, m))
 
         if lowvram_counter > 0:
-            logging.info("loaded partially {} {}".format(lowvram_model_memory / (1024 * 1024), patch_counter))
+            logging.info("loaded partially {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), patch_counter))
             self.model.model_lowvram = True
         else:
             logging.info("loaded completely {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024)))

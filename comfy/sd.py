@@ -86,7 +86,7 @@ class CLIP:
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         if params['device'] == load_device:
-            model_management.load_model_gpu(self.patcher)
+            model_management.load_models_gpu([self.patcher], force_full_load=True)
         self.layer_idx = None
         logging.debug("CLIP model load device: {}, offload device: {}, current: {}".format(load_device, offload_device, params['device']))
 
@@ -585,7 +585,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
         model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device())
         if inital_load_device != torch.device("cpu"):
             logging.info("loaded straight to GPU")
-            model_management.load_model_gpu(model_patcher)
+            model_management.load_models_gpu([model_patcher], force_full_load=True)
 
     return (model_patcher, clip, vae, clipvision)
 
