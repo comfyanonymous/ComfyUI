@@ -438,11 +438,11 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
     global vram_state
 
     inference_memory = minimum_inference_memory()
-    extra_mem = max(inference_memory, memory_required) + 100 * 1024 * 1024
+    extra_mem = max(inference_memory, memory_required + 300 * 1024 * 1024)
     if minimum_memory_required is None:
         minimum_memory_required = extra_mem
     else:
-        minimum_memory_required = max(inference_memory, minimum_memory_required) + 100 * 1024 * 1024
+        minimum_memory_required = max(inference_memory, minimum_memory_required + 300 * 1024 * 1024)
 
     models = set(models)
 
@@ -683,6 +683,20 @@ def text_encoder_device():
             return torch.device("cpu")
     else:
         return torch.device("cpu")
+
+def text_encoder_initial_device(load_device, offload_device, model_size=0):
+    if load_device == offload_device or model_size <= 1024 * 1024 * 1024:
+        return offload_device
+
+    if is_device_mps(load_device):
+        return offload_device
+
+    mem_l = get_free_memory(load_device)
+    mem_o = get_free_memory(offload_device)
+    if mem_l > (mem_o * 0.5) and model_size * 1.2 < mem_l:
+        return load_device
+    else:
+        return offload_device
 
 def text_encoder_dtype(device=None):
     if args.fp8_e4m3fn_text_enc:
