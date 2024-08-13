@@ -434,7 +434,7 @@ def free_memory(memory_required, device, keep_loaded=[]):
                 soft_empty_cache()
     return unloaded_models
 
-def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None):
+def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
     global vram_state
 
     inference_memory = minimum_inference_memory()
@@ -513,7 +513,7 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
         else:
             vram_set_state = vram_state
         lowvram_model_memory = 0
-        if lowvram_available and (vram_set_state == VRAMState.LOW_VRAM or vram_set_state == VRAMState.NORMAL_VRAM):
+        if lowvram_available and (vram_set_state == VRAMState.LOW_VRAM or vram_set_state == VRAMState.NORMAL_VRAM) and not force_full_load:
             model_size = loaded_model.model_memory_required(torch_dev)
             current_free_mem = get_free_memory(torch_dev)
             lowvram_model_memory = max(64 * (1024 * 1024), (current_free_mem - minimum_memory_required), min(current_free_mem * 0.4, current_free_mem - minimum_inference_memory()))
