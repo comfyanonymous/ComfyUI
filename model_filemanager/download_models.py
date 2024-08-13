@@ -204,7 +204,7 @@ def validate_model_subdirectory(model_subdirectory: str) -> bool:
 
     return True
 
-def validate_filename(filename):
+def validate_filename(filename: str)-> bool:
     """
     Validate a filename to ensure it's safe and doesn't contain any path traversal attempts.
     
@@ -214,6 +214,9 @@ def validate_filename(filename):
     Returns:
     bool: True if the filename is valid, False otherwise
     """
+    if not filename.lower().endswith(('.sft', '.safetensors')):
+        return False
+
     # Check if the filename is empty, None, or just whitespace
     if not filename or not filename.strip():
         return False
