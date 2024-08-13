@@ -62,7 +62,7 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
 
 
 class CLIP:
-    def __init__(self, target=None, embedding_directory=None, no_init=False, tokenizer_data={}):
+    def __init__(self, target=None, embedding_directory=None, no_init=False, tokenizer_data={}, parameters=0):
         if no_init:
             return
         params = target.params.copy()
@@ -71,20 +71,24 @@ class CLIP:
 
         load_device = model_management.text_encoder_device()
         offload_device = model_management.text_encoder_offload_device()
-        params['device'] = offload_device
         dtype = model_management.text_encoder_dtype(load_device)
         params['dtype'] = dtype
-
+        params['device'] = model_management.text_encoder_initial_device(load_device, offload_device, parameters * model_management.dtype_size(dtype))
         self.cond_stage_model = clip(**(params))
 
         for dt in self.cond_stage_model.dtypes:
             if not model_management.supports_cast(load_device, dt):
                 load_device = offload_device
+                if params['device'] != offload_device:
+                    self.cond_stage_model.to(offload_device)
+                    logging.warning("Had to shift TE back.")
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
+        if params['device'] == load_device:
+            model_management.load_models_gpu([self.patcher], force_full_load=True)
         self.layer_idx = None
-        logging.debug("CLIP model load device: {}, offload device: {}".format(load_device, offload_device))
+        logging.debug("CLIP model load device: {}, offload device: {}, current: {}".format(load_device, offload_device, params['device']))
 
     def clone(self):
         n = CLIP(no_init=True)
@@ -456,7 +460,11 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
         clip_target.clip = comfy.text_encoders.sd3_clip.SD3ClipModel
         clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
 
-    clip = CLIP(clip_target, embedding_directory=embedding_directory)
+    parameters = 0
+    for c in clip_data:
+        parameters += comfy.utils.calculate_parameters(c)
+
+    clip = CLIP(clip_target, embedding_directory=embedding_directory, parameters=parameters)
     for c in clip_data:
         m, u = clip.load_sd(c)
         if len(m) > 0:
@@ -554,7 +562,8 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
         if clip_target is not None:
             clip_sd = model_config.process_clip_state_dict(sd)
             if len(clip_sd) > 0:
-                clip = CLIP(clip_target, embedding_directory=embedding_directory, tokenizer_data=clip_sd)
+                parameters = comfy.utils.calculate_parameters(clip_sd)
+                clip = CLIP(clip_target, embedding_directory=embedding_directory, tokenizer_data=clip_sd, parameters=parameters)
                 m, u = clip.load_sd(clip_sd, full_model=True)
                 if len(m) > 0:
                     m_filter = list(filter(lambda a: ".logit_scale" not in a and ".transformer.text_projection.weight" not in a, m))
@@ -576,12 +585,13 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
         model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device())
         if inital_load_device != torch.device("cpu"):
             logging.info("loaded straight to GPU")
-            model_management.load_model_gpu(model_patcher)
+            model_management.load_models_gpu([model_patcher], force_full_load=True)
 
     return (model_patcher, clip, vae, clipvision)
 
 
-def load_unet_state_dict(sd, dtype=None): #load unet in diffusers or regular format
+def load_diffusion_model_state_dict(sd, model_options={}): #load unet in diffusers or regular format
+    dtype = model_options.get("dtype", None)
 
     #Allow loading unets from checkpoint files
     diffusion_model_prefix = model_detection.unet_prefix_from_state_dict(sd)
@@ -623,6 +633,7 @@ def load_unet_state_dict(sd, dtype=None): #load unet in diffusers or regular for
 
     manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
+    model_config.custom_operations = model_options.get("custom_operations", None)
     model = model_config.get_model(new_sd, "")
     model = model.to(offload_device)
     model.load_model_weights(new_sd, "")
@@ -631,13 +642,22 @@ def load_unet_state_dict(sd, dtype=None): #load unet in diffusers or regular for
         logging.info("left over keys in unet: {}".format(left_over))
     return comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device)
 
-def load_unet(unet_path, dtype=None):
+
+def load_diffusion_model(unet_path, model_options={}):
     sd = comfy.utils.load_torch_file(unet_path)
-    model = load_unet_state_dict(sd, dtype=dtype)
+    model = load_diffusion_model_state_dict(sd, model_options=model_options)
     if model is None:
         logging.error("ERROR UNSUPPORTED UNET {}".format(unet_path))
         raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
     return model
+
+def load_unet(unet_path, dtype=None):
+    print("WARNING: the load_unet function has been deprecated and will be removed please switch to: load_diffusion_model")
+    return load_diffusion_model(unet_path, model_options={"dtype": dtype})
+
+def load_unet_state_dict(sd, dtype=None):
+    print("WARNING: the load_unet_state_dict function has been deprecated and will be removed please switch to: load_diffusion_model_state_dict")
+    return load_diffusion_model_state_dict(sd, model_options={"dtype": dtype})
 
 def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, metadata=None, extra_keys={}):
     clip_sd = None
