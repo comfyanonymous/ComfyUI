@@ -402,7 +402,7 @@ KNOWN_APPROX_VAES: Final[KnownDownloadables] = KnownDownloadables([
 KNOWN_VAES: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("stabilityai/sdxl-vae", "sdxl_vae.safetensors"),
     HuggingFile("stabilityai/sd-vae-ft-mse-original", "vae-ft-mse-840000-ema-pruned.safetensors"),
-    HuggingFile("black-forest-labs/FLUX.1-schnell", "ae.sft"),
+    HuggingFile("black-forest-labs/FLUX.1-schnell", "ae.safetensors"),
 ], folder_name="vae")
 
 KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
@@ -414,8 +414,8 @@ KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
 
 KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("ByteDance/Hyper-SD", "Hyper-SDXL-1step-Unet-Comfyui.fp16.safetensors"),
-    HuggingFile("black-forest-labs/FLUX.1-schnell", "flux1-schnell.sft"),
-    HuggingFile("black-forest-labs/FLUX.1-dev", "flux1-dev.sft"),
+    HuggingFile("black-forest-labs/FLUX.1-schnell", "flux1-schnell.safetensors"),
+    HuggingFile("black-forest-labs/FLUX.1-dev", "flux1-dev.safetensors"),
 ], folder_name="unet")
 
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
