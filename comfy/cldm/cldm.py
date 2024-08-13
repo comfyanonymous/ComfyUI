@@ -238,7 +238,7 @@ class ControlNet(nn.Module):
                     else:
                         disabled_sa = False
 
-                    if num_attention_blocks is not None or nr < num_attention_blocks[level]:
+                    if num_attention_blocks is None or nr < num_attention_blocks[level]:
                         layers.append(
                             SpatialTransformer(
                                 ch, num_heads, dim_head, depth=num_transformers, context_dim=context_dim,
