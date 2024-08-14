@@ -2,7 +2,6 @@ import os
 import importlib.util
 from comfy.cli_args import args
 import subprocess
-import logging
 
 #Can't use pytorch to get the GPU names because the cuda malloc has to be set before the first import.
 def get_gpu_names():
@@ -64,7 +63,7 @@ def cuda_malloc_supported():
     return True
 
 
-if args.cuda_malloc:
+if not args.cuda_malloc:
     try:
         version = ""
         torch_spec = importlib.util.find_spec("torch")
@@ -75,11 +74,8 @@ if args.cuda_malloc:
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
                 version = module.__version__
-        supported = False
         if int(version[0]) >= 2: #enable by default for torch version 2.0 and up
-            supported = cuda_malloc_supported()
-        if not supported:
-            logging.warning("WARNING: cuda malloc enabled but not supported.")
+            args.cuda_malloc = cuda_malloc_supported()
     except:
         pass
 
