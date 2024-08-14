@@ -1,3 +1,5 @@
+import copy
+
 import torch
 from transformers import T5TokenizerFast
 
@@ -21,7 +23,9 @@ class T5XXLTokenizer(sd1_clip.SDTokenizer):
 
 
 class FluxTokenizer:
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = dict()
         self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory)
         self.t5xxl = T5XXLTokenizer(embedding_directory=embedding_directory)
 
@@ -36,6 +40,9 @@ class FluxTokenizer:
 
     def state_dict(self):
         return {}
+
+    def clone(self):
+        return copy.copy(self)
 
 
 class FluxClipModel(torch.nn.Module):

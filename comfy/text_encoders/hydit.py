@@ -59,6 +59,9 @@ class HyditTokenizer:
     def state_dict(self):
         return {"mt5xl.spiece_model": self.mt5xl.state_dict()["spiece_model"]}
 
+    def clone(self):
+        return copy.copy(self)
+
 
 class HyditModel(torch.nn.Module):
     def __init__(self, device="cpu", dtype=None):

@@ -1,3 +1,5 @@
+import copy
+
 import sentencepiece
 import torch
 
@@ -36,3 +38,7 @@ class SPieceTokenizer:
 
     def serialize_model(self):
         return torch.ByteTensor(list(self.tokenizer.serialized_model_proto()))
+
+    def clone(self):
+        return copy.copy(self)
+

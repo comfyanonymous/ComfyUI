@@ -1,3 +1,4 @@
+import copy
 import logging
 
 import torch
@@ -24,7 +25,9 @@ class T5XXLTokenizer(sd1_clip.SDTokenizer):
 
 
 class SD3Tokenizer:
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = dict()
         self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory)
         self.clip_g = sdxl_clip.SDXLClipGTokenizer(embedding_directory=embedding_directory)
         self.t5xxl = T5XXLTokenizer(embedding_directory=embedding_directory)
@@ -41,6 +44,9 @@ class SD3Tokenizer:
 
     def state_dict(self):
         return dict()
+
+    def clone(self):
+        return copy.copy(self)
 
 
 class SD3ClipModel(torch.nn.Module):
