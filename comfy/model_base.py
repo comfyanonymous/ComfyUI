@@ -1,7 +1,26 @@
-import logging
-from enum import Enum
+"""
+    This file is part of ComfyUI.
+    Copyright (C) 2024 Comfy
 
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
+import logging
 import math
+from enum import Enum
+from typing import TypeVar, Type
+
 import torch
 
 from . import conds
@@ -11,15 +30,16 @@ from . import ops
 from . import utils
 from .ldm.audio.dit import AudioDiffusionTransformer
 from .ldm.audio.embedders import NumberConditioner
+from .ldm.aura.mmdit import MMDiT as AuraMMDiT
 from .ldm.cascade.stage_b import StageB
 from .ldm.cascade.stage_c import StageC
+from .ldm.flux import model as flux_model
+from .ldm.hydit.models import HunYuanDiT
 from .ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
 from .ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
 from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
-from .ldm.aura.mmdit import MMDiT as AuraMMDiT
-from .ldm.hydit.models import HunYuanDiT
-from .ldm.flux import model as flux_model
+
 
 class ModelType(Enum):
     EPS = 1
@@ -68,26 +88,33 @@ def model_sampling(model_config, model_type):
     return ModelSampling(model_config)
 
 
+TModule = TypeVar('TModule', bound=torch.nn.Module)
+
+
 class BaseModel(torch.nn.Module):
-    def __init__(self, model_config, model_type=ModelType.EPS, device=None, unet_model=UNetModel):
+    def __init__(self, model_config, model_type=ModelType.EPS, device: torch.device = None, unet_model: Type[TModule] = UNetModel):
         super().__init__()
 
         unet_config = model_config.unet_config
         self.latent_format = model_config.latent_format
         self.model_config = model_config
         self.manual_cast_dtype = model_config.manual_cast_dtype
+        self.device: torch.device = device
 
         if not unet_config.get("disable_unet_model_creation", False):
-            if self.manual_cast_dtype is not None:
-                operations = ops.manual_cast
+            if model_config.custom_operations is None:
+                if self.manual_cast_dtype is not None:
+                    operations = ops.manual_cast
+                else:
+                    operations = ops.disable_weight_init
             else:
-                operations = ops.disable_weight_init
+                operations = model_config.custom_operations
             self.diffusion_model = unet_model(**unet_config, device=device, operations=operations)
             if model_management.force_channels_last():
                 # todo: ???
                 self.diffusion_model.to(memory_format=torch.channels_last)
                 logging.debug("using channels last mode for diffusion model")
-            logging.info("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
+            logging.debug("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
 
@@ -96,7 +123,7 @@ class BaseModel(torch.nn.Module):
             self.adm_channels = 0
 
         self.concat_keys = ()
-        logging.info("model_type {}".format(model_type.name))
+        logging.debug("model_type {}".format(model_type.name))
         logging.debug("adm {}".format(self.adm_channels))
         self.memory_usage_factor = model_config.memory_usage_factor
 
@@ -669,6 +696,7 @@ class StableAudio1(BaseModel):
                 sd["{}{}".format(k, l)] = s[l]
         return sd
 
+
 class HunyuanDiT(BaseModel):
     def __init__(self, model_config, model_type=ModelType.V_PREDICTION, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=HunYuanDiT)
@@ -700,6 +728,7 @@ class HunyuanDiT(BaseModel):
 
         out['image_meta_size'] = conds.CONDRegular(torch.FloatTensor([[height, width, target_height, target_width, 0, 0]]))
         return out
+
 
 class Flux(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):

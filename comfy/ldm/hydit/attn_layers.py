@@ -47,7 +47,7 @@ def reshape_for_broadcast(freqs_cis: Union[torch.Tensor, Tuple[torch.Tensor]], x
 
 
 def rotate_half(x):
-    x_real, x_imag = x.float().reshape(*x.shape[:-1], -1, 2).unbind(-1)  # [B, S, H, D//2]
+    x_real, x_imag = x.reshape(*x.shape[:-1], -1, 2).unbind(-1)  # [B, S, H, D//2]
     return torch.stack([-x_imag, x_real], dim=-1).flatten(3)
 
 
@@ -78,10 +78,9 @@ def apply_rotary_emb(
     xk_out = None
     if isinstance(freqs_cis, tuple):
         cos, sin = reshape_for_broadcast(freqs_cis, xq, head_first)    # [S, D]
-        cos, sin = cos.to(xq.device), sin.to(xq.device)
-        xq_out = (xq.float() * cos + rotate_half(xq.float()) * sin).type_as(xq)
+        xq_out = (xq * cos + rotate_half(xq) * sin)
         if xk is not None:
-            xk_out = (xk.float() * cos + rotate_half(xk.float()) * sin).type_as(xk)
+            xk_out = (xk * cos + rotate_half(xk) * sin)
     else:
         xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))  # [B, S, H, D//2]
         freqs_cis = reshape_for_broadcast(freqs_cis, xq_, head_first).to(xq.device)   # [S, D//2] --> [1, S, 1, D//2]

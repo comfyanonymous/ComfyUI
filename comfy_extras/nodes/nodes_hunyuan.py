@@ -19,6 +19,7 @@ class CLIPTextEncodeHunyuanDiT:
         cond = output.pop("cond")
         return ([[cond, output]], )
 
+
 NODE_CLASS_MAPPINGS = {
     "CLIPTextEncodeHunyuanDiT": CLIPTextEncodeHunyuanDiT,
 }

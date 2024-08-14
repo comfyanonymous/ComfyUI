@@ -571,7 +571,7 @@ def _get_cache_hits(cache_dirs: Sequence[str], local_dirs: Sequence[str], repo_i
             # fix path representation
             local_files = set(f.replace("\\", "/") for f in local_files)
             # remove .huggingface
-            local_files = set(f for f in local_files if not f.startswith(f"{repo_id}/.huggingface"))
+            local_files = set(f for f in local_files if not f.startswith(f"{repo_id}/.huggingface") and not f.startswith(f"{repo_id}/.cache"))
             # local_files.issubsetof(repo_files)
             if len(local_files) > 0 and local_files.issubset(repo_files):
                 local_dirs_snapshots.append(str(local_path))

@@ -77,18 +77,8 @@ class TransformersManagedModel(ModelManageable):
 
         return self.model.config.to_dict()
 
-    @property
     def lowvram_patch_counter(self):
         return 0
-
-    @lowvram_patch_counter.setter
-    def lowvram_patch_counter(self, value: int):
-        warnings.warn("Not supported")
-        pass
-
-    load_device: torch.device
-    offload_device: torch.device
-    model: PreTrainedModel
 
     @property
     def current_device(self) -> torch.device:
@@ -127,12 +117,10 @@ class TransformersManagedModel(ModelManageable):
         warnings.warn("Transformers models do not currently support adapters like LoRAs")
         return self.model.to(device=device_to)
 
-    def patch_model(self, device_to: torch.device, patch_weights: bool) -> torch.nn.Module:
-        warnings.warn("Transformers models do not currently support adapters like LoRAs")
+    def patch_model(self, device_to: torch.device | None = None, patch_weights: bool = True) -> torch.nn.Module:
         return self.model.to(device=device_to)
 
-    def unpatch_model(self, offload_device: torch.device, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
-        warnings.warn("Transformers models do not currently support adapters like LoRAs")
+    def unpatch_model(self, offload_device: torch.device | None = None, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
         return self.model.to(device=offload_device)
 
     def patch_processor(self, processor: Any, overwrite_tokenizer: bool = False) -> TransformersManagedModel:
@@ -177,7 +165,7 @@ class TransformersManagedModel(ModelManageable):
                 self.processor.to(device=self.load_device)
 
             assert "<image>" in prompt.lower(), "You must specify a &lt;image&gt; token inside the prompt for it to be substituted correctly by a HuggingFace processor"
-            batch_feature: BatchFeature = self.processor([prompt], images=images, padding=True, return_tensors="pt")
+            batch_feature: BatchFeature = self.processor([prompt], images=images.unbind(), padding=True, return_tensors="pt")
             if hasattr(self.processor, "to"):
                 self.processor.to(device=self.offload_device)
             assert "input_ids" in batch_feature

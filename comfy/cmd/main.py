@@ -55,7 +55,7 @@ def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
-            logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
+            logging.debug("Prompt executed in {:.2f} seconds".format(execution_time))
 
         flags = q.get_flags()
         free_memory = flags.get("free_memory", False)

@@ -411,17 +411,17 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
 optimized_attention = attention_basic
 
 if model_management.xformers_enabled():
-    logging.info("Using xformers cross attention")
+    logging.debug("Using xformers cross attention")
     optimized_attention = attention_xformers
 elif model_management.pytorch_attention_enabled():
-    logging.info("Using pytorch cross attention")
+    logging.debug("Using pytorch cross attention")
     optimized_attention = attention_pytorch
 else:
     if args.use_split_cross_attention:
-        logging.info("Using split optimization for cross attention")
+        logging.debug("Using split optimization for cross attention")
         optimized_attention = attention_split
     else:
-        logging.info("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
+        logging.debug("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
         optimized_attention = attention_sub_quad
 
 optimized_attention_masked = optimized_attention

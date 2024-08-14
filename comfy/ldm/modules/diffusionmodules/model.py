@@ -268,13 +268,13 @@ class AttnBlock(nn.Module):
                                         padding=0)
 
         if model_management.xformers_enabled_vae():
-            logging.info("Using xformers attention in VAE")
+            logging.debug("Using xformers attention in VAE")
             self.optimized_attention = xformers_attention
         elif model_management.pytorch_attention_enabled():
-            logging.info("Using pytorch attention in VAE")
+            logging.debug("Using pytorch attention in VAE")
             self.optimized_attention = pytorch_attention
         else:
-            logging.info("Using split attention in VAE")
+            logging.debug("Using split attention in VAE")
             self.optimized_attention = normal_attention
 
     def forward(self, x):

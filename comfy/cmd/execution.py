@@ -10,7 +10,6 @@ import time
 import traceback
 import typing
 from os import PathLike
-from pathlib import PurePath
 from typing import List, Optional, Tuple
 
 import lazy_object_proxy
@@ -34,9 +33,11 @@ from ..nodes.package_typing import ExportedNodes, InputTypeSpec, FloatSpecOption
 # ideally this would be passed in from main, but the way this is authored, we can't easily pass nodes down to the
 # various functions that are declared here. It should have been a context in the first place.
 nodes: ExportedNodes = lazy_object_proxy.Proxy(import_all_nodes_in_workspace)
-from comfy.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
-from comfy.graph_utils import is_link, GraphBuilder
-from comfy.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID
+
+# order matters
+from ..graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
+from ..graph_utils import is_link, GraphBuilder
+from ..caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID
 
 
 class IsChangedCache:
@@ -446,6 +447,11 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             "traceback": traceback.format_tb(tb),
             "current_inputs": input_data_formatted
         }
+
+        if isinstance(ex, model_management.OOM_EXCEPTION):
+            logging.error("Got an OOM, unloading all loaded models.")
+            model_management.unload_all_models()
+
         return RecursiveExecutionTuple(ExecutionResult.FAILURE, error_details, ex)
 
     executed.add(unique_id)

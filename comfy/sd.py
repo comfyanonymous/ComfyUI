@@ -20,21 +20,19 @@ from . import model_sampling
 from . import sd1_clip
 from . import sdxl_clip
 from . import utils
-from .model_management import load_models_gpu
-
-from .text_encoders import sd2_clip
-from .text_encoders import sd3_clip
-from .text_encoders import hydit
-from .text_encoders import sa_t5
-from .text_encoders import aura_t5
-from .text_encoders import flux
-
 from .ldm.audio.autoencoder import AudioOobleckVAE
 from .ldm.cascade.stage_a import StageA
 from .ldm.cascade.stage_c_coder import StageC_coder
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
+from .model_management import load_models_gpu
 from .t2i_adapter import adapter
 from .taesd import taesd
+from .text_encoders import aura_t5
+from .text_encoders import flux
+from .text_encoders import hydit
+from .text_encoders import sa_t5
+from .text_encoders import sd2_clip
+from .text_encoders import sd3_clip
 
 
 def load_lora_for_models(model, clip, _lora, strength_model, strength_clip):
@@ -68,7 +66,7 @@ def load_lora_for_models(model, clip, _lora, strength_model, strength_clip):
 
 
 class CLIP:
-    def __init__(self, target: CLIPTarget=None, embedding_directory=None, no_init=False, textmodel_json_config=None, tokenizer_data: dict | None=None):
+    def __init__(self, target: CLIPTarget = None, embedding_directory=None, no_init=False, textmodel_json_config=None, tokenizer_data: dict | None = None, parameters=0):
         if tokenizer_data is None:
             tokenizer_data = dict()
         if no_init:
@@ -79,9 +77,9 @@ class CLIP:
 
         load_device = model_management.text_encoder_device()
         offload_device = model_management.text_encoder_offload_device()
-        params['device'] = offload_device
         dtype = model_management.text_encoder_dtype(load_device)
         params['dtype'] = dtype
+        params['device'] = model_management.text_encoder_initial_device(load_device, offload_device, parameters * model_management.dtype_size(dtype))
         if "textmodel_json_config" not in params and textmodel_json_config is not None:
             params['textmodel_json_config'] = textmodel_json_config
 
@@ -90,11 +88,16 @@ class CLIP:
         for dt in self.cond_stage_model.dtypes:
             if not model_management.supports_cast(load_device, dt):
                 load_device = offload_device
+                if params['device'] != offload_device:
+                    self.cond_stage_model.to(offload_device)
+                    logging.warning("Had to shift TE back.")
 
         self.tokenizer: "sd1_clip.SD1Tokenizer" = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
+        if params['device'] == load_device:
+            model_management.load_models_gpu([self.patcher], force_full_load=True)
         self.layer_idx = None
-        logging.debug("CLIP model load device: {}, offload device: {}".format(load_device, offload_device))
+        logging.debug("CLIP model load device: {}, offload device: {}, current: {}".format(load_device, offload_device, params['device']))
 
     def clone(self):
         n = CLIP(no_init=True)
@@ -476,7 +479,11 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
         clip_target.clip = sd3_clip.SD3ClipModel
         clip_target.tokenizer = sd3_clip.SD3Tokenizer
 
-    clip = CLIP(clip_target, embedding_directory=embedding_directory, textmodel_json_config=textmodel_json_config)
+    parameters = 0
+    for c in clip_data:
+        parameters += utils.calculate_parameters(c)
+
+    clip = CLIP(clip_target, embedding_directory=embedding_directory, textmodel_json_config=textmodel_json_config, parameters=parameters)
     for c in clip_data:
         m, u = clip.load_sd(c)
         if len(m) > 0:
@@ -523,15 +530,21 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
     return (model, clip, vae)
 
 
-def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True):
+def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options={}):
     sd = utils.load_torch_file(ckpt_path)
-    sd_keys = sd.keys()
+    out = load_state_dict_guess_config(sd, output_vae, output_clip, output_clipvision, embedding_directory, output_model, model_options, ckpt_path=ckpt_path)
+    if out is None:
+        raise RuntimeError("Could not detect model type of: {}".format(ckpt_path))
+    return out
+
+
+def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options={}, ckpt_path: str | None = None):
     clip = None
     clipvision = None
     vae = None
     model = None
     _model_patcher = None
-    clip_target = None
+    inital_load_device = None
 
     diffusion_model_prefix = model_detection.unet_prefix_from_state_dict(sd)
     parameters = utils.calculate_parameters(sd, diffusion_model_prefix)
@@ -540,13 +553,18 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
 
     model_config = model_detection.model_config_from_unet(sd, diffusion_model_prefix)
     if model_config is None:
-        raise RuntimeError("ERROR: Could not detect model type of: {}".format(ckpt_path))
+        return None
 
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
     if weight_dtype is not None:
         unet_weight_dtype.append(weight_dtype)
 
-    unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=unet_weight_dtype)
+    model_config.custom_operations = model_options.get("custom_operations", None)
+    unet_dtype = model_options.get("weight_dtype", None)
+
+    if unet_dtype is None:
+        unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=unet_weight_dtype)
+
     manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
 
@@ -570,7 +588,8 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         if clip_target is not None:
             clip_sd = model_config.process_clip_state_dict(sd)
             if len(clip_sd) > 0:
-                clip = CLIP(clip_target, embedding_directory=embedding_directory, tokenizer_data=clip_sd)
+                parameters = utils.calculate_parameters(clip_sd)
+                clip = CLIP(clip_target, embedding_directory=embedding_directory, tokenizer_data=clip_sd, parameters=parameters)
                 m, u = clip.load_sd(clip_sd, full_model=True)
                 if len(m) > 0:
                     m_filter = list(filter(lambda a: ".logit_scale" not in a and ".transformer.text_projection.weight" not in a, m))
@@ -589,14 +608,17 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         logging.debug("left over keys: {}".format(left_over))
 
     if output_model:
-        _model_patcher = model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device(), current_device=inital_load_device, ckpt_name=os.path.basename(ckpt_path))
+        _model_patcher = model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device(), ckpt_name=os.path.basename(ckpt_path))
         if inital_load_device != torch.device("cpu"):
-            load_models_gpu([_model_patcher])
+            model_management.load_models_gpu([_model_patcher], force_full_load=True)
 
     return (_model_patcher, clip, vae, clipvision)
 
 
-def load_unet_state_dict(sd, dtype=None):  # load unet in diffusers or regular format
+def load_diffusion_model_state_dict(sd, model_options: dict = None):  # load unet in diffusers or regular format
+    if model_options is None:
+        model_options = {}
+    dtype = model_options.get("dtype", None)
 
     # Allow loading unets from checkpoint files
     diffusion_model_prefix = model_detection.unet_prefix_from_state_dict(sd)
@@ -638,6 +660,7 @@ def load_unet_state_dict(sd, dtype=None):  # load unet in diffusers or regular f
 
     manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
+    model_config.custom_operations = model_options.get("custom_operations", None)
     model = model_config.get_model(new_sd, "")
     model = model.to(offload_device)
     model.load_model_weights(new_sd, "")
@@ -647,13 +670,25 @@ def load_unet_state_dict(sd, dtype=None):  # load unet in diffusers or regular f
     return model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device)
 
 
-def load_unet(unet_path, dtype=None):
+def load_diffusion_model(unet_path, model_options: dict = None):
+    if model_options is None:
+        model_options = {}
     sd = utils.load_torch_file(unet_path)
-    model = load_unet_state_dict(sd, dtype=dtype)
+    model = load_diffusion_model_state_dict(sd, model_options=model_options)
     if model is None:
         logging.error("ERROR UNSUPPORTED UNET {}".format(unet_path))
         raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
     return model
+
+
+def load_unet(unet_path, dtype=None):
+    print("WARNING: the load_unet function has been deprecated and will be removed please switch to: load_diffusion_model")
+    return load_diffusion_model(unet_path, model_options={"dtype": dtype})
+
+
+def load_unet_state_dict(sd, dtype=None):
+    print("WARNING: the load_unet_state_dict function has been deprecated and will be removed please switch to: load_diffusion_model_state_dict")
+    return load_diffusion_model_state_dict(sd, model_options={"dtype": dtype})
 
 
 def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, metadata=None, extra_keys={}):

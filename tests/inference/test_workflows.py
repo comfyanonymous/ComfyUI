@@ -39,12 +39,17 @@ async def test_workflow(workflow_name: str, workflow_file: Traversable, has_gpu:
     workflow = json.loads(workflow_file.read_text())
 
     prompt = Prompt.validate(workflow)
-    # todo: add all the models we want to test a bit more elegantly
+    # todo: add all the models we want to test a bit m2ore elegantly
     outputs = await client.queue_prompt(prompt)
 
     if any(v.class_type == "SaveImage" for v in prompt.values()):
         save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveImage")
         assert outputs[save_image_node_id]["images"][0]["abs_path"] is not None
     elif any(v.class_type == "SaveAudio" for v in prompt.values()):
-        save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveAudio")
-        assert outputs[save_image_node_id]["audio"][0]["filename"] is not None
+        save_audio_node_id = next(key for key in prompt if prompt[key].class_type == "SaveAudio")
+        assert outputs[save_audio_node_id]["audio"][0]["filename"] is not None
+    elif any(v.class_type == "PreviewString" for v in prompt.values()):
+        save_image_node_id = next(key for key in prompt if prompt[key].class_type == "PreviewString")
+        output_str = outputs[save_image_node_id]["string"][0]
+        assert output_str is not None
+        assert len(output_str) > 0

@@ -11,9 +11,10 @@ from typing import Any, Dict, Optional, List, Callable, Union
 import torch
 from transformers import AutoTokenizer, PreTrainedModel, LogitsProcessor, TextStreamer, \
     PreTrainedTokenizerBase, LogitsProcessorList, PretrainedConfig, AutoProcessor, BatchFeature, ProcessorMixin, \
-    LlavaNextForConditionalGeneration, LlavaNextProcessor, AutoModel
+    LlavaNextForConditionalGeneration, LlavaNextProcessor, AutoModel, AutoModelForCausalLM
 from typing_extensions import TypedDict
 
+from comfy import model_management
 from comfy.language.chat_templates import KNOWN_CHAT_TEMPLATES
 from comfy.language.language_types import ProcessorResult
 from comfy.language.transformers_model_management import TransformersManagedModel
@@ -28,9 +29,9 @@ _AUTO_CHAT_TEMPLATE = "default"
 try:
     from llava import model
 
-    logging.info("Additional LLaVA models are now supported")
+    logging.debug("Additional LLaVA models are now supported")
 except ImportError as exc:
-    logging.info(f"Install LLavA with `pip install git+https://github.com/AppMana/appmana-comfyui-llava` for additional LLaVA support")
+    logging.debug(f"Install LLavA with `pip install git+https://github.com/AppMana/appmana-comfyui-llava` for additional LLaVA support")
 
 # aka kwargs type
 _GENERATION_KWARGS_TYPE = Dict[str, Any]
@@ -129,7 +130,7 @@ class TransformersGenerationConfig(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "model": ("MODEL",)
+                "model": ("MODEL", {})
             }
         }
 
@@ -247,13 +248,22 @@ class TransformersLoader(CustomNode):
                 **hub_kwargs
             }
 
-            try:
-                model = AutoModel.from_pretrained(**from_pretrained_kwargs)
-            except Exception as exc_info:
-                # not yet supported by automodel
-                model = LlavaNextForConditionalGeneration.from_pretrained(**from_pretrained_kwargs)
+            # try:
+            #     import flash_attn
+            #     from_pretrained_kwargs["attn_implementation"] = "flash_attention_2"
+            # except ImportError:
+            #     logging.debug("install flash_attn for improved performance using language nodes")
 
             config_dict, _ = PretrainedConfig.get_config_dict(ckpt_name, trust_remote_code=True, **hub_kwargs)
+
+            if config_dict["model_type"] == "llava_next":
+                model = LlavaNextForConditionalGeneration.from_pretrained(**from_pretrained_kwargs)
+            else:
+                try:
+                    model = AutoModel.from_pretrained(**from_pretrained_kwargs)
+                except Exception:
+                    model = AutoModelForCausalLM.from_pretrained(**from_pretrained_kwargs)
+
             try:
                 try:
                     processor = AutoProcessor.from_pretrained(**from_pretrained_kwargs)
@@ -264,6 +274,10 @@ class TransformersLoader(CustomNode):
             if not isinstance(processor, ProcessorMixin):
                 processor = None
             tokenizer = getattr(processor, "tokenizer") if processor is not None and hasattr(processor, "tokenizer") else AutoTokenizer.from_pretrained(ckpt_name, **hub_kwargs)
+
+        if model_management.xformers_enabled() and hasattr(model, "enable_xformers_memory_efficient_attention"):
+            model.enable_xformers_memory_efficient_attention()
+            logging.debug("enabled xformers memory efficient attention")
 
         model_managed = TransformersManagedModel(
             repo_id=ckpt_name,

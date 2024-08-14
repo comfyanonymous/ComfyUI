@@ -16,7 +16,7 @@ except ImportError:
 from typing import Tuple, Sequence, TypeVar, Callable
 
 import torch
-from transformers import CLIPTokenizer, PreTrainedTokenizerBase, SpecialTokensMixin
+from transformers import CLIPTokenizer, PreTrainedTokenizerBase
 
 from . import clip_model
 from . import model_management
@@ -66,7 +66,7 @@ class ClipTokenWeightEncoder:
 
         output = []
         for k in range(0, sections):
-            z = out[k:k+1]
+            z = out[k:k + 1]
             if has_weights:
                 z_empty = out[-1]
                 for i in range(len(z)):
@@ -111,7 +111,6 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         assert layer in self.LAYERS
 
         config = get_path_as_dict(textmodel_json_config, "sd1_clip_config.json", package=__package__)
-
 
         self.operations = ops.manual_cast
         self.transformer = model_class(config, dtype, device, self.operations)
@@ -389,6 +388,18 @@ def expand_directory_list(directories):
     return list(dirs)
 
 
+def bundled_embed(embed, prefix, suffix):  # bundled embedding in lora format
+    i = 0
+    out_list = []
+    for k in embed:
+        if k.startswith(prefix) and k.endswith(suffix):
+            out_list.append(embed[k])
+    if len(out_list) == 0:
+        return None
+
+    return torch.cat(out_list, dim=0)
+
+
 def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=None):
     if isinstance(embedding_directory, str):
         embedding_directory = [embedding_directory]
@@ -455,8 +466,12 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
         elif embed_key is not None and embed_key in embed:
             embed_out = embed[embed_key]
         else:
-            values = embed.values()
-            embed_out = next(iter(values))
+            embed_out = bundled_embed(embed, 'bundle_emb.', '.string_to_param.*')
+            if embed_out is None:
+                embed_out = bundled_embed(embed, 'bundle_emb.', '.{}'.format(embed_key))
+            if embed_out is None:
+                values = embed.values()
+                embed_out = next(iter(values))
     return embed_out
 
 
@@ -631,6 +646,7 @@ class SDTokenizer:
     def state_dict(self):
         return {}
 
+
 SD1TokenizerT = TypeVar("SD1TokenizerT", bound="SD1Tokenizer")
 
 
@@ -663,6 +679,7 @@ class SD1Tokenizer:
 
     def state_dict(self):
         return {}
+
 
 class SD1ClipModel(torch.nn.Module):
     def __init__(self, device="cpu", dtype=None, clip_name="l", clip_model=SDClipModel, textmodel_json_config=None, name=None, **kwargs):

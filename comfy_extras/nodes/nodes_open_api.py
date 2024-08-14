@@ -161,7 +161,7 @@ class BooleanRequestParameter(CustomNode):
             }
         }
 
-    RETURN_TYPES = ("STRING",)
+    RETURN_TYPES = ("BOOLEAN",)
     FUNCTION = "execute"
     CATEGORY = "api/openapi"
 

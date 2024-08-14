@@ -16,7 +16,7 @@ try:
     from spandrel import MAIN_REGISTRY
 
     MAIN_REGISTRY.add(*EXTRA_REGISTRY)
-    logging.info("Successfully imported spandrel_extra_arches: support for non commercial upscale models.")
+    logging.debug("Successfully imported spandrel_extra_arches: support for non commercial upscale models.")
 except:
     pass
 
@@ -26,20 +26,16 @@ class UpscaleModelManageable(ModelManageable):
         self.ckpt_name = ckpt_name
         self.model_descriptor = model_descriptor
         self.model = model_descriptor.model
-        self.load_device = model_management.unet_offload_device()
+        self.load_device = model_management.get_torch_device()
         self.offload_device = model_management.unet_offload_device()
-        self._current_device = self.offload_device
-        self._lowvram_patch_counter = 0
-
-        # Private properties for image sizes and channels
-        self._input_size = (1, 512, 512)  # Default input size (batch, height, width)
+        self._input_size = (1, 512, 512)
         self._input_channels = model_descriptor.input_channels
         self._output_channels = model_descriptor.output_channels
         self.tile = 512
 
     @property
     def current_device(self) -> torch.device:
-        return self._current_device
+        return self.model_descriptor.device
 
     @property
     def input_size(self) -> tuple[int, int, int]:
@@ -65,21 +61,14 @@ class UpscaleModelManageable(ModelManageable):
     def is_clone(self, other: Any) -> bool:
         return isinstance(other, UpscaleModelManageable) and self.model is other.model
 
-    def clone_has_same_weights(self, clone: torch.nn.Module) -> bool:
+    def clone_has_same_weights(self, clone) -> bool:
         return self.is_clone(clone)
 
     def model_size(self) -> int:
-        # Calculate the size of the model parameters
         model_params_size = sum(p.numel() * p.element_size() for p in self.model.parameters())
-
-        # Get the byte size of the model's dtype
         dtype_size = torch.finfo(self.model_dtype()).bits // 8
-
-        # Calculate the memory required for input and output images
         input_size = self._input_size[0] * min(self.tile, self._input_size[1]) * min(self.tile, self._input_size[2]) * self._input_channels * dtype_size
         output_size = self.output_size[0] * self.output_size[1] * self.output_size[2] * self._output_channels * dtype_size
-
-        # Add some extra memory for processing
         extra_memory = (input_size + output_size) * 2  # This is an estimate, adjust as needed
 
         return model_params_size + input_size + output_size + extra_memory
@@ -95,29 +84,15 @@ class UpscaleModelManageable(ModelManageable):
 
     def patch_model_lowvram(self, device_to: torch.device, lowvram_model_memory: int, force_patch_weights: Optional[bool] = False) -> torch.nn.Module:
         self.model.to(device=device_to)
-        self._current_device = device_to
-        self._lowvram_patch_counter += 1
         return self.model
 
-    def patch_model(self, device_to: torch.device, patch_weights: bool) -> torch.nn.Module:
-        if patch_weights:
-            self.model.to(device=device_to)
-            self._current_device = device_to
+    def patch_model(self, device_to: torch.device | None = None, patch_weights: bool = True) -> torch.nn.Module:
+        self.model.to(device=device_to)
         return self.model
 
-    def unpatch_model(self, offload_device: torch.device, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
-        if unpatch_weights:
-            self.model.to(device=offload_device)
-            self._current_device = offload_device
+    def unpatch_model(self, offload_device: torch.device | None = None, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
+        self.model.to(device=offload_device)
         return self.model
-
-    @property
-    def lowvram_patch_counter(self) -> int:
-        return self._lowvram_patch_counter
-
-    @lowvram_patch_counter.setter
-    def lowvram_patch_counter(self, value: int):
-        self._lowvram_patch_counter = value
 
     def __str__(self):
         if self.ckpt_name is not None:

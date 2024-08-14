@@ -1,0 +1,60 @@
+{
+  "1": {
+    "inputs": {
+      "ckpt_name": "microsoft/Phi-3-mini-4k-instruct",
+      "subfolder": ""
+    },
+    "class_type": "TransformersLoader",
+    "_meta": {
+      "title": "TransformersLoader"
+    }
+  },
+  "3": {
+    "inputs": {
+      "max_new_tokens": 512,
+      "repetition_penalty": 0,
+      "seed": 2514389986,
+      "use_cache": true,
+      "__tokens": "The question \"What comes after apple?\" can be interpreted in a few ways. If we're discussing the alphabetical sequence, the letter that comes after 'A' (for apple) is 'B'. If we're discussing a sequence of fruits, it could be any fruit that follows apple in a particular list or context. For example, in a list of fruits, banana might come after apple.<|end|>",
+      "model": [
+        "1",
+        0
+      ],
+      "tokens": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "TransformersGenerate",
+    "_meta": {
+      "title": "TransformersGenerate"
+    }
+  },
+  "4": {
+    "inputs": {
+      "prompt": "What comes after apple?",
+      "chat_template": "phi-3",
+      "model": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "OneShotInstructTokenize",
+    "_meta": {
+      "title": "OneShotInstructTokenize"
+    }
+  },
+  "5": {
+    "inputs": {
+      "value": [
+        "3",
+        0
+      ],
+      "output": "The question \"What comes after apple?\" can be interpreted in a few ways. If we're discussing the alphabetical sequence, the letter that comes after 'A' (for apple) is 'B'. If we're discussing a sequence of fruits, it could be any fruit that follows apple in a particular list or context. For example, in a list of fruits, banana might come after apple."
+    },
+    "class_type": "PreviewString",
+    "_meta": {
+      "title": "PreviewString"
+    }
+  }
+}

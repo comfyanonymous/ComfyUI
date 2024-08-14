@@ -1,0 +1,91 @@
+{
+  "1": {
+    "inputs": {
+      "ckpt_name": "llava-hf/llava-v1.6-mistral-7b-hf",
+      "subfolder": ""
+    },
+    "class_type": "TransformersLoader",
+    "_meta": {
+      "title": "TransformersLoader"
+    }
+  },
+  "3": {
+    "inputs": {
+      "max_new_tokens": 512,
+      "repetition_penalty": 0,
+      "seed": 2013744903,
+      "use_cache": true,
+      "__tokens": "\n\nThis is a black and white sketch of a woman. The image is stylized and does not provide enough detail to identify the specific person being depicted. It appears to be a portrait with a focus on the facial features and the hair, which is styled in a way that suggests it might be from a historical or classical period. The style of the drawing is reminiscent of the works of artists who specialize in portraiture, such as those from the Renaissance or the 19th century. </s>",
+      "model": [
+        "1",
+        0
+      ],
+      "tokens": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "TransformersGenerate",
+    "_meta": {
+      "title": "TransformersGenerate"
+    }
+  },
+  "4": {
+    "inputs": {
+      "prompt": "Who is this?",
+      "chat_template": "llava-v1.6-mistral-7b-hf",
+      "model": [
+        "1",
+        0
+      ],
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "OneShotInstructTokenize",
+    "_meta": {
+      "title": "OneShotInstructTokenize"
+    }
+  },
+  "5": {
+    "inputs": {
+      "value": [
+        "3",
+        0
+      ],
+      "output": "\n\nThis is a black and white sketch of a woman. The image is stylized and does not provide enough detail to identify the specific person being depicted. It appears to be a portrait with a focus on the facial features and the hair, which is styled in a way that suggests it might be from a historical or classical period. The style of the drawing is reminiscent of the works of artists who specialize in portraiture, such as those from the Renaissance or the 19th century. "
+    },
+    "class_type": "PreviewString",
+    "_meta": {
+      "title": "PreviewString"
+    }
+  },
+  "6": {
+    "inputs": {
+      "value": "https://upload.wikimedia.org/wikipedia/commons/5/5a/Gibson_Girl.png",
+      "name": "",
+      "title": "",
+      "description": "",
+      "__required": true
+    },
+    "class_type": "ImageRequestParameter",
+    "_meta": {
+      "title": "ImageRequestParameter"
+    }
+  },
+  "8": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "megapixels": 1,
+      "image": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "ImageScaleToTotalPixels"
+    }
+  }
+}

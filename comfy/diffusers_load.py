@@ -28,7 +28,7 @@ def load_diffusers(model_path, output_vae=True, output_clip=True, embedding_dire
 
     unet = None
     if unet_path is not None:
-        unet = sd.load_unet(unet_path)
+        unet = sd.load_diffusion_model(unet_path)
 
     clip = None
     textmodel_json_config1 = first_file(os.path.join(model_path, "text_encoder"), ["config.json"])

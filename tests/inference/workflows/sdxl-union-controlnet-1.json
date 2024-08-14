@@ -1,0 +1,302 @@
+{
+  "1": {
+    "inputs": {
+      "ckpt_name": "sd_xl_base_1.0.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "2": {
+    "inputs": {
+      "strength": 0.5,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "3",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "control_net": [
+        "28",
+        0
+      ],
+      "image": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet (Advanced)"
+    }
+  },
+  "3": {
+    "inputs": {
+      "text": [
+        "26",
+        0
+      ],
+      "clip": [
+        "1",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "5": {
+    "inputs": {
+      "add_noise": [
+        "23",
+        0
+      ],
+      "noise_seed": [
+        "20",
+        0
+      ],
+      "cfg": [
+        "19",
+        0
+      ],
+      "model": [
+        "1",
+        0
+      ],
+      "positive": [
+        "2",
+        0
+      ],
+      "negative": [
+        "2",
+        1
+      ],
+      "sampler": [
+        "24",
+        0
+      ],
+      "sigmas": [
+        "11",
+        0
+      ],
+      "latent_image": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "1",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "9": {
+    "inputs": {
+      "low_threshold": 0.4,
+      "high_threshold": 0.8,
+      "image": [
+        "18",
+        0
+      ]
+    },
+    "class_type": "Canny",
+    "_meta": {
+      "title": "Canny"
+    }
+  },
+  "11": {
+    "inputs": {
+      "model_type": "SDXL",
+      "steps": 25,
+      "denoise": 1
+    },
+    "class_type": "AlignYourStepsScheduler",
+    "_meta": {
+      "title": "AlignYourStepsScheduler"
+    }
+  },
+  "12": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "14": {
+    "inputs": {
+      "samples": [
+        "5",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "15": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "17": {
+    "inputs": {
+      "value": "https://upload.wikimedia.org/wikipedia/commons/5/5a/Gibson_Girl.png",
+      "name": "",
+      "title": "",
+      "description": "",
+      "__required": true
+    },
+    "class_type": "ImageRequestParameter",
+    "_meta": {
+      "title": "ImageRequestParameter"
+    }
+  },
+  "18": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "megapixels": 1,
+      "image": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "ImageScaleToTotalPixels"
+    }
+  },
+  "19": {
+    "inputs": {
+      "value": 8,
+      "name": "cfg",
+      "title": "",
+      "description": "",
+      "__required": true
+    },
+    "class_type": "FloatRequestParameter",
+    "_meta": {
+      "title": "FloatRequestParameter"
+    }
+  },
+  "20": {
+    "inputs": {
+      "value": 0,
+      "name": "seed",
+      "title": "",
+      "description": "",
+      "__required": true
+    },
+    "class_type": "IntRequestParameter",
+    "_meta": {
+      "title": "IntRequestParameter"
+    }
+  },
+  "23": {
+    "inputs": {
+      "value": true,
+      "name": "add_noise",
+      "title": "",
+      "description": "",
+      "__required": true
+    },
+    "class_type": "BooleanRequestParameter",
+    "_meta": {
+      "title": "BooleanRequestParameter"
+    }
+  },
+  "24": {
+    "inputs": {
+      "sampler_name": [
+        "25",
+        0
+      ]
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "25": {
+    "inputs": {
+      "value": "euler",
+      "name": "sampler_name",
+      "title": "",
+      "description": "",
+      "__required": true
+    },
+    "class_type": "StringEnumRequestParameter",
+    "_meta": {
+      "title": "StringEnumRequestParameter"
+    }
+  },
+  "26": {
+    "inputs": {
+      "value": "a girl with blue hair",
+      "name": "",
+      "title": "",
+      "description": "",
+      "__required": true
+    },
+    "class_type": "StringRequestParameter",
+    "_meta": {
+      "title": "StringRequestParameter"
+    }
+  },
+  "27": {
+    "inputs": {
+      "control_net_name": "xinsir-controlnet-union-sdxl-1.0-promax.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "28": {
+    "inputs": {
+      "type": "canny/lineart/anime_lineart/mlsd",
+      "control_net": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "SetUnionControlNetType",
+    "_meta": {
+      "title": "SetUnionControlNetType"
+    }
+  }
+}

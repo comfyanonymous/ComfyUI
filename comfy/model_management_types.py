@@ -1,8 +1,23 @@
 from __future__ import annotations
 
-from typing import Protocol, Optional, Any
+import dataclasses
+from typing import Protocol, Optional, TypeVar, runtime_checkable
 
 import torch
+import torch.nn
+
+ModelManageableT = TypeVar('ModelManageableT', bound='ModelManageable')
+
+
+@runtime_checkable
+class DeviceSettable(Protocol):
+    @property
+    def device(self) -> torch.device:
+        ...
+
+    @device.setter
+    def device(self, value: torch.device):
+        ...
 
 
 class ModelManageable(Protocol):
@@ -22,32 +37,92 @@ class ModelManageable(Protocol):
 
     @property
     def current_device(self) -> torch.device:
-        ...
+        return next(self.model.parameters()).device
 
-    def is_clone(self, other: Any) -> bool:
-        ...
+    def is_clone(self, other: ModelManageableT) -> bool:
+        return other.model is self.model
 
-    def clone_has_same_weights(self, clone: torch.nn.Module) -> bool:
-        ...
+    def clone_has_same_weights(self, clone: ModelManageableT) -> bool:
+        return clone.model is self.model
 
     def model_size(self) -> int:
-        ...
+        from .model_management import module_size
+        return module_size(self.model)
 
     def model_patches_to(self, arg: torch.device | torch.dtype):
-        ...
+        pass
 
     def model_dtype(self) -> torch.dtype:
-        ...
+        return next(self.model.parameters()).dtype
 
     def patch_model_lowvram(self, device_to: torch.device, lowvram_model_memory: int, force_patch_weights: Optional[bool] = False) -> torch.nn.Module:
+        self.patch_model(device_to=device_to, patch_weights=False)
+        return self.model
+
+    def patch_model(self, device_to: torch.device | None = None, patch_weights: bool = True) -> torch.nn.Module:
+        """
+        Loads the model to the device
+        :param device_to: the device to move the model weights to
+        :param patch_weights: True if the patch's weights should also be moved
+        :return:
+        """
         ...
 
-    def patch_model(self, device_to: torch.device, patch_weights: bool) -> torch.nn.Module:
+    def unpatch_model(self, offload_device: torch.device | None = None, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
+        """
+        Unloads the model by moving it to the offload device
+        :param offload_device:
+        :param unpatch_weights:
+        :return:
+        """
         ...
 
-    def unpatch_model(self, offload_device: torch.device, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
-        ...
+    def lowvram_patch_counter(self) -> int:
+        return 0
+
+    def partially_load(self, device_to: torch.device, extra_memory=0) -> int:
+        self.patch_model(device_to=device_to)
+        return self.model_size()
+
+    def partially_unload(self, device_to: torch.device, extra_memory=0) -> int:
+        self.unpatch_model(device_to)
+        return self.model_size()
+
+    def memory_required(self, input_shape) -> int:
+        from comfy.model_base import BaseModel
+
+        if isinstance(self.model, BaseModel):
+            return self.model.memory_required(input_shape=input_shape)
+        else:
+            # todo: why isn't this true?
+            return self.model_size()
+
+    def loaded_size(self) -> int:
+        if self.current_loaded_device() == self.load_device:
+            return self.model_size()
+        return 0
+
+    def current_loaded_device(self) -> torch.device:
+        return self.current_device
+
+
+@dataclasses.dataclass
+class MemoryMeasurements:
+    model: torch.nn.Module | DeviceSettable
+    model_loaded_weight_memory: int = 0
+    lowvram_patch_counter: int = 0
+    model_lowvram: bool = False
+    _device: torch.device | None = None
 
     @property
-    def lowvram_patch_counter(self) -> int:
-        ...
+    def device(self) -> torch.device:
+        if isinstance(self.model, DeviceSettable):
+            return self.model.device
+        else:
+            return self._device
+
+    @device.setter
+    def device(self, value: torch.device):
+        if isinstance(self.model, DeviceSettable):
+            self.model.device = value
+        self._device = value

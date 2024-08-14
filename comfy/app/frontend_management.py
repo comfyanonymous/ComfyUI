@@ -14,9 +14,9 @@ from typing import TypedDict
 import requests
 from typing_extensions import NotRequired
 
-from comfy.cli_args import DEFAULT_VERSION_STRING
-from comfy.cmd.folder_paths import add_model_folder_path
-from comfy.component_model.files import get_package_as_path
+from ..cli_args import DEFAULT_VERSION_STRING
+from ..cmd.folder_paths import add_model_folder_path
+from ..component_model.files import get_package_as_path
 
 REQUEST_TIMEOUT = 10  # seconds
 

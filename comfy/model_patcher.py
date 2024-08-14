@@ -1,3 +1,21 @@
+"""
+    This file is part of ComfyUI.
+    Copyright (C) 2024 Comfy
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+import collections
 import copy
 import inspect
 import logging
@@ -5,10 +23,12 @@ import uuid
 from typing import Optional
 
 import torch
+import torch.nn
 
 from . import model_management
 from . import utils
-from .model_management_types import ModelManageable
+from .model_base import BaseModel
+from .model_management_types import ModelManageable, MemoryMeasurements
 from .types import UnetWrapperFunction
 
 
@@ -69,10 +89,27 @@ def set_model_options_pre_cfg_function(model_options, pre_cfg_function, disable_
     return model_options
 
 
+def wipe_lowvram_weight(m):
+    if hasattr(m, "prev_comfy_cast_weights"):
+        m.comfy_cast_weights = m.prev_comfy_cast_weights
+        del m.prev_comfy_cast_weights
+    m.weight_function = None
+    m.bias_function = None
+
+
+class LowVramPatch:
+    def __init__(self, key, model_patcher):
+        self.key = key
+        self.model_patcher = model_patcher
+
+    def __call__(self, weight):
+        return self.model_patcher.calculate_weight(self.model_patcher.patches[self.key], weight, self.key)
+
+
 class ModelPatcher(ModelManageable):
-    def __init__(self, model, load_device, offload_device, size=0, current_device=None, weight_inplace_update=False, ckpt_name: Optional[str] = None):
+    def __init__(self, model: torch.nn.Module, load_device: torch.device, offload_device: torch.device, size=0, weight_inplace_update=False, ckpt_name: Optional[str] = None):
         self.size = size
-        self.model = model
+        self.model: torch.nn.Module = model
         self.patches = {}
         self.backup = {}
         self.object_patches = {}
@@ -81,25 +118,21 @@ class ModelPatcher(ModelManageable):
         self.model_size()
         self.load_device = load_device
         self.offload_device = offload_device
-        self._current_device: torch.device
-        if current_device is None:
-            self._current_device = self.offload_device
-        else:
-            self._current_device = current_device
-
         self.weight_inplace_update = weight_inplace_update
-        self.model_lowvram = False
         self.patches_uuid = uuid.uuid4()
         self.ckpt_name = ckpt_name
-        self._lowvram_patch_counter = 0
+        self._memory_measurements = MemoryMeasurements(self.model)
 
     @property
-    def lowvram_patch_counter(self):
-        return self._lowvram_patch_counter
+    def model_device(self) -> torch.device:
+        return self._memory_measurements.device
 
-    @lowvram_patch_counter.setter
-    def lowvram_patch_counter(self, value: int):
-        self._lowvram_patch_counter = value
+    @model_device.setter
+    def model_device(self, value: torch.device):
+        self._memory_measurements.device = value
+
+    def lowvram_patch_counter(self):
+        return self._memory_measurements.lowvram_patch_counter
 
     def model_size(self):
         if self.size > 0:
@@ -107,8 +140,12 @@ class ModelPatcher(ModelManageable):
         self.size = model_management.module_size(self.model)
         return self.size
 
+    def loaded_size(self):
+        return self._memory_measurements.model_loaded_weight_memory
+
     def clone(self):
-        n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size, self._current_device, weight_inplace_update=self.weight_inplace_update)
+        n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size, weight_inplace_update=self.weight_inplace_update)
+        n._memory_measurements = self._memory_measurements
         n.ckpt_name = self.ckpt_name
         n.patches = {}
         for k in self.patches:
@@ -122,11 +159,9 @@ class ModelPatcher(ModelManageable):
         return n
 
     def is_clone(self, other):
-        if hasattr(other, 'model') and self.model is other.model:
-            return True
-        return False
+        return hasattr(other, 'model') and self.model is other.model
 
-    def clone_has_same_weights(self, clone):
+    def clone_has_same_weights(self, clone: "ModelPatcher"):
         if not self.is_clone(clone):
             return False
 
@@ -139,7 +174,8 @@ class ModelPatcher(ModelManageable):
             else:
                 return True
 
-    def memory_required(self, input_shape):
+    def memory_required(self, input_shape) -> int:
+        assert isinstance(self.model, BaseModel)
         return self.model.memory_required(input_shape=input_shape)
 
     def set_model_sampler_cfg_function(self, sampler_cfg_function, disable_cfg1_optimization=False):
@@ -281,16 +317,16 @@ class ModelPatcher(ModelManageable):
                     sd.pop(k)
         return sd
 
-    def patch_weight_to_device(self, key, device_to=None):
+    def patch_weight_to_device(self, key, device_to=None, inplace_update=False):
         if key not in self.patches:
             return
 
         weight = utils.get_attr(self.model, key)
 
-        inplace_update = self.weight_inplace_update
+        inplace_update = self.weight_inplace_update or inplace_update
 
         if key not in self.backup:
-            self.backup[key] = weight.to(device=self.offload_device, copy=inplace_update)
+            self.backup[key] = collections.namedtuple('Dimension', ['weight', 'inplace_update'])(weight.to(device=self.offload_device, copy=inplace_update), inplace_update)
 
         if device_to is not None:
             temp_weight = model_management.cast_to_device(weight, device_to, torch.float32, copy=True)
@@ -319,31 +355,25 @@ class ModelPatcher(ModelManageable):
 
             if device_to is not None:
                 self.model.to(device_to)
-                self._current_device = device_to
+                self.model_device = device_to
+                self._memory_measurements.model_loaded_weight_memory = self.model_size()
 
         return self.model
 
-    def patch_model_lowvram(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False):
-        self.patch_model(device_to, patch_weights=False)
-
-        logging.info("loading in lowvram mode {}".format(lowvram_model_memory / (1024 * 1024)))
-
-        class LowVramPatch:
-            def __init__(self, key, model_patcher):
-                self.key = key
-                self.model_patcher = model_patcher
-
-            def __call__(self, weight):
-                return self.model_patcher.calculate_weight(self.model_patcher.patches[self.key], weight, self.key)
-
+    def lowvram_load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
         mem_counter = 0
         patch_counter = 0
+        lowvram_counter = 0
         for n, m in self.model.named_modules():
             lowvram_weight = False
-            if hasattr(m, "comfy_cast_weights"):
+
+            if not full_load and hasattr(m, "comfy_cast_weights"):
                 module_mem = model_management.module_size(m)
                 if mem_counter + module_mem >= lowvram_model_memory:
                     lowvram_weight = True
+                    lowvram_counter += 1
+                    if m.comfy_cast_weights:
+                        continue
 
             weight_key = "{}.weight".format(n)
             bias_key = "{}.bias".format(n)
@@ -365,15 +395,39 @@ class ModelPatcher(ModelManageable):
                 m.prev_comfy_cast_weights = m.comfy_cast_weights
                 m.comfy_cast_weights = True
             else:
+                if hasattr(m, "comfy_cast_weights"):
+                    if m.comfy_cast_weights:
+                        wipe_lowvram_weight(m)
+
                 if hasattr(m, "weight"):
-                    self.patch_weight_to_device(weight_key, device_to)
-                    self.patch_weight_to_device(bias_key, device_to)
-                    m.to(device_to)
                     mem_counter += model_management.module_size(m)
+                    param = list(m.parameters())
+                    if len(param) > 0:
+                        weight = param[0]
+                        if weight.device == device_to:
+                            continue
+
+                    weight_to = None
+                    if full_load:  # TODO
+                        weight_to = device_to
+                    self.patch_weight_to_device(weight_key, device_to=weight_to)  # TODO: speed this up without OOM
+                    self.patch_weight_to_device(bias_key, device_to=weight_to)
+                    m.to(device_to)
                     logging.debug("lowvram: loaded module regularly {} {}".format(n, m))
 
-        self.model_lowvram = True
-        self.lowvram_patch_counter = patch_counter
+        if lowvram_counter > 0:
+            logging.info("loaded partially {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), patch_counter))
+            self._memory_measurements.model_lowvram = True
+        else:
+            logging.info("loaded completely {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024)))
+            self._memory_measurements.model_lowvram = False
+        self._memory_measurements.lowvram_patch_counter += patch_counter
+        self._memory_measurements.model_loaded_weight_memory = mem_counter
+        self.model_device = device_to
+
+    def patch_model_lowvram(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False):
+        self.patch_model(device_to, patch_weights=False)
+        self.lowvram_load(device_to, lowvram_model_memory=lowvram_model_memory, force_patch_weights=force_patch_weights)
         return self.model
 
     def calculate_weight(self, patches, weight, key):
@@ -548,31 +602,28 @@ class ModelPatcher(ModelManageable):
 
     def unpatch_model(self, device_to=None, unpatch_weights=True):
         if unpatch_weights:
-            if self.model_lowvram:
+            if self._memory_measurements.model_lowvram:
                 for m in self.model.modules():
-                    if hasattr(m, "prev_comfy_cast_weights"):
-                        m.comfy_cast_weights = m.prev_comfy_cast_weights
-                        del m.prev_comfy_cast_weights
-                    m.weight_function = None
-                    m.bias_function = None
+                    wipe_lowvram_weight(m)
 
-                self.model_lowvram = False
-                self.lowvram_patch_counter = 0
+                self._memory_measurements.model_lowvram = False
+                self._memory_measurements.lowvram_patch_counter = 0
 
             keys = list(self.backup.keys())
 
-            if self.weight_inplace_update:
-                for k in keys:
-                    utils.copy_to_param(self.model, k, self.backup[k])
-            else:
-                for k in keys:
-                    utils.set_attr_param(self.model, k, self.backup[k])
+            for k in keys:
+                bk = self.backup[k]
+                if bk.inplace_update:
+                    utils.copy_to_param(self.model, k, bk.weight)
+                else:
+                    utils.set_attr_param(self.model, k, bk.weight)
 
             self.backup.clear()
 
             if device_to is not None:
                 self.model.to(device_to)
-                self._current_device = value = device_to
+                self.model_device = device_to
+            self._memory_measurements.model_loaded_weight_memory = 0
 
         keys = list(self.object_patches_backup.keys())
         for k in keys:
@@ -580,9 +631,66 @@ class ModelPatcher(ModelManageable):
 
         self.object_patches_backup.clear()
 
+    def partially_unload(self, device_to, memory_to_free=0):
+        memory_freed = 0
+        patch_counter = 0
+
+        for n, m in list(self.model.named_modules())[::-1]:
+            if memory_to_free < memory_freed:
+                break
+
+            shift_lowvram = False
+            if hasattr(m, "comfy_cast_weights"):
+                module_mem = model_management.module_size(m)
+                weight_key = "{}.weight".format(n)
+                bias_key = "{}.bias".format(n)
+
+                if m.weight is not None and m.weight.device != device_to:
+                    for key in [weight_key, bias_key]:
+                        bk = self.backup.get(key, None)
+                        if bk is not None:
+                            if bk.inplace_update:
+                                utils.copy_to_param(self.model, key, bk.weight)
+                            else:
+                                utils.set_attr_param(self.model, key, bk.weight)
+                            self.backup.pop(key)
+
+                    m.to(device_to)
+                    if weight_key in self.patches:
+                        m.weight_function = LowVramPatch(weight_key, self)
+                        patch_counter += 1
+                    if bias_key in self.patches:
+                        m.bias_function = LowVramPatch(bias_key, self)
+                        patch_counter += 1
+
+                    m.prev_comfy_cast_weights = m.comfy_cast_weights
+                    m.comfy_cast_weights = True
+                    memory_freed += module_mem
+                    logging.debug("freed {}".format(n))
+
+        self._memory_measurements.model_lowvram = True
+        self._memory_measurements.lowvram_patch_counter += patch_counter
+        self._memory_measurements.model_loaded_weight_memory -= memory_freed
+        return memory_freed
+
+    def partially_load(self, device_to, extra_memory=0):
+        self.unpatch_model(unpatch_weights=False)
+        self.patch_model(patch_weights=False)
+        full_load = False
+        if not self._memory_measurements.model_lowvram:
+            return 0
+        if self._memory_measurements.model_loaded_weight_memory + extra_memory > self.model_size():
+            full_load = True
+        current_used = self._memory_measurements.model_loaded_weight_memory
+        self.lowvram_load(device_to, lowvram_model_memory=current_used + extra_memory, full_load=full_load)
+        return self._memory_measurements.model_loaded_weight_memory - current_used
+
+    def current_loaded_device(self):
+        return self.model_device
+
     @property
     def current_device(self) -> torch.device:
-        return self._current_device
+        return self.current_loaded_device()
 
     def __str__(self):
         if self.ckpt_name is not None:

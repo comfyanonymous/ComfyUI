@@ -91,7 +91,7 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
 
     if print_import_times and len(timings) > 0 or any(not success for (_, _, success, _) in timings):
         for (duration, module_name, success, new_nodes) in sorted(timings):
-            logging.info(f"{duration:6.1f} seconds{'' if success else ' (IMPORT FAILED)'}, {module_name} ({len(new_nodes)} nodes loaded)")
+            logging.log(logging.DEBUG if success else logging.ERROR, f"{duration:6.1f} seconds{'' if success else ' (IMPORT FAILED)'}, {module_name} ({len(new_nodes)} nodes loaded)")
     if raise_on_failure and len(exceptions) > 0:
         try:
             raise ExceptionGroup("Node import failed", exceptions)

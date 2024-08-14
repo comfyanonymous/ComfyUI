@@ -177,3 +177,4 @@ cython_debug/
 /user/
 *.log
 web_custom_versions/
+.DS_Store

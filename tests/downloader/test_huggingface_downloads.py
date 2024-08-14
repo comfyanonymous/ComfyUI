@@ -46,7 +46,7 @@ saved_model/**/* filter=lfs diff=lfs merge=lfs -text
 
 
 @pytest.mark.asyncio
-def test_known_repos(tmp_path_factory):
+async def test_known_repos(tmp_path_factory):
     prev_hub_cache = os.getenv("HF_HUB_CACHE")
     os.environ["HF_HUB_CACHE"] = str(tmp_path_factory.mktemp("huggingface_root_cache"))
 
