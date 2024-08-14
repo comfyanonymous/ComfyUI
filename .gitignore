@@ -1,3 +1,4 @@
+.comfyui.rc
 __pycache__/
 *.py[cod]
 /output/
