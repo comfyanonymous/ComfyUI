@@ -51,8 +51,8 @@ parser.add_argument("--auto-launch", action="store_true", help="Automatically la
 parser.add_argument("--disable-auto-launch", action="store_true", help="Disable auto launching the browser.")
 parser.add_argument("--cuda-device", type=int, default=None, metavar="DEVICE_ID", help="Set the id of the cuda device this instance will use.")
 cm_group = parser.add_mutually_exclusive_group()
-cm_group.add_argument("--cuda-malloc", action="store_true", help="Enable cudaMallocAsync (enabled by default for torch 2.0 and up).")
-cm_group.add_argument("--disable-cuda-malloc", action="store_true", help="Disable cudaMallocAsync.")
+cm_group.add_argument("--cuda-malloc", action="store_true", help="Enable cudaMallocAsync.")
+cm_group.add_argument("--disable-cuda-malloc", action="store_true", help="Disable cudaMallocAsync (The current default).")
 
 
 fp_group = parser.add_mutually_exclusive_group()
