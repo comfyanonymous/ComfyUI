@@ -60,7 +60,8 @@ def cuda_malloc_supported():
             for b in blacklist:
                 if b in x:
                     return False
-    return True
+    return False
+#We don't need malloc at all with amd gpu's. So disabling all together.
 
 
 if not args.cuda_malloc:
