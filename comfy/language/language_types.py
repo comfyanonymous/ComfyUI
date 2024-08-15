@@ -20,5 +20,5 @@ class ProcessorResult(TypedDict):
     pixel_values: NotRequired[torch.Tensor]
 
     images: NotRequired[torch.Tensor]
-    inputs: BatchEncoding
+    inputs: NotRequired[BatchEncoding]
     image_sizes: NotRequired[torch.Tensor]

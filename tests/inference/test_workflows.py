@@ -36,7 +36,7 @@ async def test_workflow(workflow_name: str, workflow_file: Traversable, has_gpu:
         except (ImportError, ModuleNotFoundError):
             pytest.skip("requires torchaudio")
 
-    workflow = json.loads(workflow_file.read_text())
+    workflow = json.loads(workflow_file.read_text(encoding="utf8"))
 
     prompt = Prompt.validate(workflow)
     # todo: add all the models we want to test a bit m2ore elegantly

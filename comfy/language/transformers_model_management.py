@@ -135,14 +135,14 @@ class TransformersManagedModel(ModelManageable):
         if processor is not None and hasattr(processor, "image_processor") and hasattr(processor.image_processor, "do_rescale"):
             processor.image_processor.do_rescale = False
 
-    def tokenize(self, prompt: str, images: List[torch.Tensor] | torch.Tensor, chat_template: str) -> ProcessorResult:
+    def tokenize(self, prompt: str, images: List[torch.Tensor] | torch.Tensor, chat_template: str | None = None) -> ProcessorResult:
         tokenizer = self.tokenizer
         assert tokenizer is not None
         assert hasattr(tokenizer, "decode")
 
         # try to retrieve a matching chat template
         chat_template = chat_template or tokenizer.chat_template if hasattr(tokenizer, "chat_template") else None
-        if chat_template is None:
+        if chat_template is None and self.config_dict is not None and "_name_or_path" in self.config_dict:
             candidate_chat_templates = [(name, template) for name, template in KNOWN_CHAT_TEMPLATES.items() if name in self.config_dict["_name_or_path"] or name in self.model.name_or_path]
             if len(candidate_chat_templates) > 0:
                 filename, chat_template = candidate_chat_templates[0]

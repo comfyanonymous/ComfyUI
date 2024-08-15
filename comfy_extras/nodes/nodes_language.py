@@ -10,8 +10,14 @@ from typing import Any, Dict, Optional, List, Callable, Union
 
 import torch
 from transformers import AutoTokenizer, PreTrainedModel, LogitsProcessor, TextStreamer, \
-    PreTrainedTokenizerBase, LogitsProcessorList, PretrainedConfig, AutoProcessor, BatchFeature, ProcessorMixin, \
-    LlavaNextForConditionalGeneration, LlavaNextProcessor, AutoModel, AutoModelForCausalLM
+    PreTrainedTokenizerBase, PretrainedConfig, AutoProcessor, BatchFeature, AutoModel, AutoModelForCausalLM, \
+    AutoModelForSeq2SeqLM
+from transformers.models.auto.modeling_auto import MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES, \
+    MODEL_FOR_CAUSAL_LM_MAPPING_NAMES, MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES, AutoModelForVision2Seq
+from transformers.models.m2m_100.tokenization_m2m_100 import \
+    FAIRSEQ_LANGUAGE_CODES as tokenization_m2m_100_FAIRSEQ_LANGUAGE_CODES
+from transformers.models.nllb.tokenization_nllb import \
+    FAIRSEQ_LANGUAGE_CODES as tokenization_nllb_FAIRSEQ_LANGUAGE_CODES
 from typing_extensions import TypedDict
 
 from comfy import model_management
@@ -27,7 +33,7 @@ _AUTO_CHAT_TEMPLATE = "default"
 
 # add llava support
 try:
-    from llava import model
+    from llava import model as _llava_model_side_effects
 
     logging.debug("Additional LLaVA models are now supported")
 except ImportError as exc:
@@ -241,39 +247,70 @@ class TransformersLoader(CustomNode):
         with comfy_tqdm():
             from_pretrained_kwargs = {
                 "pretrained_model_name_or_path": ckpt_name,
-                "torch_dtype": unet_dtype(),
-                "device_map": get_torch_device_name(unet_offload_device()),
-                "low_cpu_mem_usage": True,
                 "trust_remote_code": True,
                 **hub_kwargs
             }
 
-            # try:
-            #     import flash_attn
-            #     from_pretrained_kwargs["attn_implementation"] = "flash_attention_2"
-            # except ImportError:
-            #     logging.debug("install flash_attn for improved performance using language nodes")
+            # if flash attention exists, use it
 
-            config_dict, _ = PretrainedConfig.get_config_dict(ckpt_name, trust_remote_code=True, **hub_kwargs)
-
-            if config_dict["model_type"] == "llava_next":
-                model = LlavaNextForConditionalGeneration.from_pretrained(**from_pretrained_kwargs)
-            else:
-                try:
-                    model = AutoModel.from_pretrained(**from_pretrained_kwargs)
-                except Exception:
-                    model = AutoModelForCausalLM.from_pretrained(**from_pretrained_kwargs)
-
+            # compute bitsandbytes configuration
             try:
+                import bitsandbytes
+            except ImportError:
+                pass
+
+            config_dict, _ = PretrainedConfig.get_config_dict(ckpt_name, **hub_kwargs)
+            model_type = config_dict["model_type"]
+            # language models prefer to use bfloat16 over float16
+            kwargs_to_try = ({"torch_dtype": unet_dtype(supported_dtypes=(torch.bfloat16, torch.float16, torch.float32)),
+                              "low_cpu_mem_usage": True,
+                              "device_map": str(unet_offload_device()), }, {})
+
+            # if we have flash-attn installed, try to use it
+            try:
+                import flash_attn
+                attn_override_kwargs = {
+                    "attn_implementation": "flash_attention_2",
+                    **kwargs_to_try[0]
+                }
+                kwargs_to_try = (attn_override_kwargs, *kwargs_to_try)
+                logging.debug(f"while loading model {ckpt_name}, flash_attn was installed, so the flash_attention_2 implementation will be tried")
+            except ImportError:
+                pass
+            for i, props in enumerate(kwargs_to_try):
                 try:
-                    processor = AutoProcessor.from_pretrained(**from_pretrained_kwargs)
-                except:
-                    processor = LlavaNextProcessor.from_pretrained(**from_pretrained_kwargs)
-            except:
-                processor = None
-            if not isinstance(processor, ProcessorMixin):
-                processor = None
-            tokenizer = getattr(processor, "tokenizer") if processor is not None and hasattr(processor, "tokenizer") else AutoTokenizer.from_pretrained(ckpt_name, **hub_kwargs)
+                    if model_type in MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES:
+                        model = AutoModelForVision2Seq.from_pretrained(**from_pretrained_kwargs, **props)
+                    elif model_type in MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
+                        model = AutoModelForSeq2SeqLM.from_pretrained(**from_pretrained_kwargs, **props)
+                    elif model_type in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
+                        model = AutoModelForCausalLM.from_pretrained(**from_pretrained_kwargs, **props)
+                    else:
+                        model = AutoModel.from_pretrained(**from_pretrained_kwargs, **props)
+                    if model is not None:
+                        break
+                except Exception as exc_info:
+                    if i == len(kwargs_to_try) - 1:
+                        raise exc_info
+                    else:
+                        logging.warning(f"tried to import transformers model {ckpt_name} but got exception when trying additional import args {props}", exc_info=exc_info)
+
+            for i, props in enumerate(kwargs_to_try):
+                try:
+                    try:
+                        processor = AutoProcessor.from_pretrained(**from_pretrained_kwargs, **props)
+                    except:
+                        processor = None
+                    if isinstance(processor, PreTrainedTokenizerBase):
+                        tokenizer = processor
+                        processor = None
+                    else:
+                        tokenizer = getattr(processor, "tokenizer") if processor is not None and hasattr(processor, "tokenizer") else AutoTokenizer.from_pretrained(ckpt_name, **hub_kwargs, **props)
+                    if tokenizer is not None or processor is not None:
+                        break
+                except Exception as exc_info:
+                    if i == len(kwargs_to_try) - 1:
+                        raise exc_info
 
         if model_management.xformers_enabled() and hasattr(model, "enable_xformers_memory_efficient_attention"):
             model.enable_xformers_memory_efficient_attention()
@@ -287,6 +324,108 @@ class TransformersLoader(CustomNode):
             processor=processor
         )
         return model_managed,
+
+
+class TransformersTokenize(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "prompt": ("STRING", {"default": "", "multiline": True}),
+            },
+        }
+
+    CATEGORY = "language"
+    RETURN_TYPES = (TOKENS_TYPE_NAME,)
+    FUNCTION = "execute"
+
+    def execute(self, model: TransformersManagedModel, prompt: str) -> ValidatedNodeResult:
+        return model.tokenize(prompt, [], None),
+
+
+class TransformersM2M100LanguageCodes(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "lang_id": (tokenization_m2m_100_FAIRSEQ_LANGUAGE_CODES["m2m100"], {"default": "en"}),
+            },
+        }
+
+    CATEGORY = "language"
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "execute"
+
+    def execute(self, lang_id: str) -> ValidatedNodeResult:
+        return lang_id,
+
+
+class TransformersFlores200LanguageCodes(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "lang_id": (tokenization_nllb_FAIRSEQ_LANGUAGE_CODES, {"default": "eng_Latn"}),
+            },
+        }
+
+    CATEGORY = "language"
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "execute"
+
+    def execute(self, lang_id: str) -> ValidatedNodeResult:
+        return lang_id,
+
+
+class TransformersTranslationTokenize(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "prompt": ("STRING", {"default": "", "multiline": True}),
+                "src_lang": ("STRING", {}),
+                "tgt_lang": ("STRING", {}),
+            },
+        }
+
+    CATEGORY = "language"
+    RETURN_TYPES = (TOKENS_TYPE_NAME,)
+    FUNCTION = "execute"
+
+    def execute(self, model: TransformersManagedModel, prompt: str, src_lang: str, tgt_lang: str) -> ValidatedNodeResult:
+        tokenizer = model.tokenizer
+
+        if hasattr(tokenizer, "src_lang"):
+            prev_src_lang = tokenizer.src_lang
+        else:
+            prev_src_lang = None
+        if hasattr(tokenizer, "tgt_lang"):
+            prev_tgt_lang = tokenizer.tgt_lang
+        else:
+            prev_tgt_lang = None
+
+        try:
+            if hasattr(tokenizer, "_build_translation_inputs"):
+                encoded = tokenizer._build_translation_inputs(
+                    prompt, return_tensors="pt", src_lang=src_lang, tgt_lang=tgt_lang
+                )
+            else:
+                tokenizer.src_lang = src_lang
+                tokenizer.tgt_lang = tgt_lang
+
+                encoded = tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
+            encoded["input_ids"] = encoded["input_ids"].to(device=model.load_device)
+            encoded["attention_mask"] = encoded["attention_mask"].to(device=model.load_device)
+            encoded["src_lang"] = src_lang
+            encoded["tgt_lang"] = tgt_lang
+            return encoded,
+        finally:
+            if prev_src_lang is not None:
+                tokenizer.src_lang = prev_src_lang
+            if prev_tgt_lang is not None:
+                tokenizer.tgt_lang = prev_tgt_lang
 
 
 class OneShotInstructTokenize(CustomNode):
@@ -352,6 +491,7 @@ class TransformersGenerate(CustomNode):
                 **kwargs
                 ):
         tokens = copy.copy(tokens)
+        tokens_original = copy.copy(tokens)
         sampler = sampler or {}
         generate_kwargs = copy.copy(sampler)
         load_models_gpu([model])
@@ -363,6 +503,16 @@ class TransformersGenerate(CustomNode):
         prepare_signature = inspect.signature(transformers_model.prepare_inputs_for_generation).parameters
         to_delete = set(reduce(operator.sub, map(lambda x: x.keys(), [tokens, generate_signature, prepare_signature])))
         gen_sig_keys = generate_signature.keys()
+        if "tgt_lang" in tokens:
+            to_delete.add("tgt_lang")
+            to_delete.add("src_lang")
+            to_delete.discard("input_ids")
+            if "forced_bos_token_id" in tokens:
+                to_delete.discard("forced_bos_token_id")
+            elif hasattr(tokenizer, "convert_tokens_to_ids"):
+                generate_kwargs["forced_bos_token_id"] = tokenizer.convert_tokens_to_ids(tokens["tgt_lang"])
+            else:
+                logging.warning(f"tokenizer {tokenizer} unexpected for translation task")
         if "input_ids" in tokens and "inputs" in tokens:
             if "input_ids" in gen_sig_keys:
                 to_delete.add("inputs")
@@ -370,14 +520,19 @@ class TransformersGenerate(CustomNode):
                 to_delete.add("input_ids")
         for unused_kwarg in to_delete:
             tokens.pop(unused_kwarg)
-            logging.info(f"{transformers_model.name_or_path}.generate does not accept {unused_kwarg}, removing")
+            logging.debug(f"{transformers_model.name_or_path}.generate does not accept {unused_kwarg}, removing")
 
         # images should be moved to model
         for key in ("images", "pixel_values"):
             if key in tokens:
                 tokens[key] = tokens[key].to(device=model.current_device, dtype=model.model_dtype())
+
+        # sets up inputs
         inputs = tokens
-        progress_logits_processor = _ProgressLogitsProcessor(model)
+
+        # used to determine if text streaming is supported
+        num_beams = generate_kwargs.get("num_beams", transformers_model.generation_config.num_beams)
+
         progress_bar: ProgressBar
         with comfy_progress(total=max_new_tokens) as progress_bar:
             # todo: deal with batches correctly, don't assume batch size 1
@@ -388,34 +543,38 @@ class TransformersGenerate(CustomNode):
                 nonlocal token_count
                 nonlocal progress_bar
 
-                # todo: this has to be more mathematically sensible
-                eos_token_probability = progress_logits_processor.eos_probability
                 token_count += 1
-                value = max(eos_token_probability * max_new_tokens, token_count)
                 preview = TransformerStreamedProgress(next_token=next_token)
-                progress_bar.update_absolute(value, total=max_new_tokens, preview_image_or_output=preview)
+                progress_bar.update_absolute(token_count, total=max_new_tokens, preview_image_or_output=preview)
 
             text_streamer = _ProgressTextStreamer(on_finalized_text, tokenizer, True)
 
             with seed_for_block(seed):
+                if hasattr(inputs, "encodings") and inputs.encodings is not None and all(hasattr(encoding, "attention_mask") for encoding in inputs.encodings) and "attention_mask" in inputs:
+                    inputs.pop("attention_mask")
                 output_ids = transformers_model.generate(
                     **inputs,
-                    logits_processor=LogitsProcessorList([progress_logits_processor]),
-                    streamer=text_streamer,
+                    streamer=text_streamer if num_beams <= 1 else None,
                     max_new_tokens=max_new_tokens,
                     repetition_penalty=repetition_penalty if repetition_penalty != 0 else None,
                     **generate_kwargs
                 )
 
-                if transformers_model.config.is_encoder_decoder:
-                    start_position = 1
-                else:
+                if not transformers_model.config.is_encoder_decoder:
                     start_position = inputs["input_ids" if "input_ids" in inputs else "inputs"].shape[1]
-                output_ids = output_ids[:, start_position:]
+                    output_ids = output_ids[:, start_position:]
 
+        if hasattr(tokenizer, "src_lang") and "src_lang" in tokens_original:
+            prev_src_lang = tokenizer.src_lang
+            tokenizer.src_lang = tokens_original["src_lang"]
+        else:
+            prev_src_lang = None
         # todo: is this redundant consider I'm decoding in the on_finalized_text block?
-        outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
-
+        try:
+            outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+        finally:
+            if prev_src_lang is not None:
+                tokenizer.src_lang = prev_src_lang
         # gpu-loaded stuff like images can now be unloaded
         if hasattr(tokens, "to"):
             del tokens
@@ -459,6 +618,10 @@ for cls in (
         TransformersImageProcessorLoader,
         TransformersGenerate,
         OneShotInstructTokenize,
+        TransformersM2M100LanguageCodes,
+        TransformersTokenize,
+        TransformersFlores200LanguageCodes,
+        TransformersTranslationTokenize,
         PreviewString,
 ):
     NODE_CLASS_MAPPINGS[cls.__name__] = cls

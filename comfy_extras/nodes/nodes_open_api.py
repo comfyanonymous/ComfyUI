@@ -187,7 +187,7 @@ class HashImage(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "images": ("IMAGE",),
+                "images": ("IMAGE", {}),
             }
         }
 
@@ -270,7 +270,7 @@ class DevNullUris(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "images": ("IMAGE",),
+                "images": ("IMAGE", {}),
             }
         }
 
@@ -332,8 +332,8 @@ class UriFormat(CustomNode):
                 "output_dir_format_name": ("STRING", {"default": "output"}),
             },
             "optional": {
-                "images": ("IMAGE",),
-                "image_hashes": ("IMAGE_HASHES",),
+                "images": ("IMAGE", {}),
+                "image_hashes": ("IMAGE_HASHES", {}),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -394,7 +394,7 @@ class ImageExifMerge(CustomNode):
         return {
             "required": {},
             "optional": {
-                f"value{i}": ("EXIF",) for i in range(5)
+                f"value{i}": ("EXIF", {}) for i in range(5)
             }
         }
 
@@ -421,7 +421,7 @@ class ImageExifCreationDateAndBatchNumber(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "images": ("IMAGE",),
+                "images": ("IMAGE", {}),
             }
         }
 
@@ -446,7 +446,7 @@ class ImageExif(ImageExifBase, CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "images": ("IMAGE",),
+                "images": ("IMAGE", {}),
             },
             "optional": {
                 **_common_image_metadatas
@@ -463,7 +463,7 @@ class ImageExifUncommon(ImageExifBase, CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "images": ("IMAGE",),
+                "images": ("IMAGE", {}),
             },
             "optional": {
                 **_common_image_metadatas,
@@ -509,9 +509,9 @@ class SaveImagesResponse(CustomNode):
                 "pil_save_format": ("STRING", {"default": "png"}),
             },
             "optional": {
-                "exif": ("EXIF",),
-                "metadata_uris": ("URIS",),
-                "local_uris": ("URIS",),
+                "exif": ("EXIF", {}),
+                "metadata_uris": ("URIS", {}),
+                "local_uris": ("URIS", {}),
                 **_open_api_common_schema,
             },
             "hidden": {

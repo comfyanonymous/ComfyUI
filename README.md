@@ -130,6 +130,10 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
    pip install xformers==0.0.26.post1
    pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
    ```
+   For improved performance when using the language models on Windows, CUDA 12.1 and PyTorch 2.3.0, add:
+   ```shell
+   pip install flash-attn @ https://github.com/AppMana/appmana-comfyui-nodes-extramodels/releases/download/v0.0.0-flash_attn/flash_attn-2.5.9.post1-cp311-cp311-win_amd64.whl
+   ```
    Flash Attention as implemented in PyTorch is not functional on any version of Windows. ComfyUI will always run with "memory efficient attention" in practice on this platform. This is distinct from the `flash-attn` package. <br />
    **Advanced**: If you are running in Google Collab or another environment which has already installed `torch` for you, disable build isolation, and the package will recognize your currently installed torch.
     ```shell
@@ -290,6 +294,8 @@ ComfyUI LTS supports text and multi-modal LLM models from the `transformers` eco
 ![llava_example_01.gif](docs/assets/llava_example_01.gif)
 
 In this example, LLAVA-NEXT (LLAVA 1.6) is prompted to describe an image.
+
+You can try the [LLAVA-NEXT](tests/inference/workflows/llava-0.json), [Phi-3](tests/inference/workflows/phi-3-0.json), and two [translation](tests/inference/workflows/translation-0.json) [workflows](tests/inference/workflows/translation-1.json).
 
 # Video Workflows
 

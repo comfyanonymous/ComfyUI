@@ -1,0 +1,85 @@
+{
+  "1": {
+    "inputs": {
+      "ckpt_name": "facebook/nllb-200-distilled-1.3B",
+      "subfolder": ""
+    },
+    "class_type": "TransformersLoader",
+    "_meta": {
+      "title": "TransformersLoader"
+    }
+  },
+  "2": {
+    "inputs": {
+      "max_new_tokens": 512,
+      "repetition_penalty": 1,
+      "seed": 1811645458,
+      "use_cache": true,
+      "__tokens": "spa_Latn ¡Hola ahí, David!</s>",
+      "model": [
+        "1",
+        0
+      ],
+      "tokens": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "TransformersGenerate",
+    "_meta": {
+      "title": "TransformersGenerate"
+    }
+  },
+  "5": {
+    "inputs": {
+      "value": [
+        "2",
+        0
+      ],
+      "output": "¡Hola ahí, David!"
+    },
+    "class_type": "PreviewString",
+    "_meta": {
+      "title": "PreviewString"
+    }
+  },
+  "9": {
+    "inputs": {
+      "prompt": "Hello there, David!",
+      "src_lang": [
+        "12",
+        0
+      ],
+      "tgt_lang": [
+        "13",
+        0
+      ],
+      "model": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "TransformersTranslationTokenize",
+    "_meta": {
+      "title": "TransformersTranslationTokenize"
+    }
+  },
+  "12": {
+    "inputs": {
+      "lang_id": "eng_Latn"
+    },
+    "class_type": "TransformersFlores200LanguageCodes",
+    "_meta": {
+      "title": "TransformersFlores200LanguageCodes"
+    }
+  },
+  "13": {
+    "inputs": {
+      "lang_id": "spa_Latn"
+    },
+    "class_type": "TransformersFlores200LanguageCodes",
+    "_meta": {
+      "title": "TransformersFlores200LanguageCodes"
+    }
+  }
+}

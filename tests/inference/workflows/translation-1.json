@@ -1,0 +1,100 @@
+{
+  "1": {
+    "inputs": {
+      "ckpt_name": [
+        "14",
+        0
+      ],
+      "subfolder": ""
+    },
+    "class_type": "TransformersLoader",
+    "_meta": {
+      "title": "TransformersLoader"
+    }
+  },
+  "2": {
+    "inputs": {
+      "max_new_tokens": 512,
+      "repetition_penalty": 1,
+      "seed": 3541256804,
+      "use_cache": true,
+      "model": [
+        "1",
+        0
+      ],
+      "tokens": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "TransformersGenerate",
+    "_meta": {
+      "title": "TransformersGenerate"
+    }
+  },
+  "5": {
+    "inputs": {
+      "value": [
+        "2",
+        0
+      ],
+      "output": "en. I'm an AI."
+    },
+    "class_type": "PreviewString",
+    "_meta": {
+      "title": "PreviewString"
+    }
+  },
+  "9": {
+    "inputs": {
+      "prompt": "こんにちは。私はAIです。",
+      "src_lang": [
+        "15",
+        0
+      ],
+      "tgt_lang": [
+        "16",
+        0
+      ],
+      "model": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "TransformersTranslationTokenize",
+    "_meta": {
+      "title": "TransformersTranslationTokenize"
+    }
+  },
+  "14": {
+    "inputs": {
+      "value": "Mitsua/elan-mt-bt-ja-en",
+      "name": "",
+      "title": "",
+      "description": "",
+      "__required": true
+    },
+    "class_type": "StringEnumRequestParameter",
+    "_meta": {
+      "title": "StringEnumRequestParameter"
+    }
+  },
+  "15": {
+    "inputs": {
+      "lang_id": "ja"
+    },
+    "class_type": "TransformersM2M100LanguageCodes",
+    "_meta": {
+      "title": "TransformersM2M100LanguageCodes"
+    }
+  },
+  "16": {
+    "inputs": {
+      "lang_id": "en"
+    },
+    "class_type": "TransformersM2M100LanguageCodes",
+    "_meta": {
+      "title": "TransformersM2M100LanguageCodes"
+    }
+  }
+}
