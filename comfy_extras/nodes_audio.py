@@ -6,6 +6,8 @@ import os
 import io
 import json
 import struct
+import random
+import hashlib
 from comfy.cli_args import args
 
 class EmptyLatentAudio:
@@ -14,15 +16,16 @@ class EmptyLatentAudio:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {}}
+        return {"required": {"seconds": ("FLOAT", {"default": 47.6, "min": 1.0, "max": 1000.0, "step": 0.1})}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
 
-    CATEGORY = "_for_testing/audio"
+    CATEGORY = "latent/audio"
 
-    def generate(self):
+    def generate(self, seconds):
         batch_size = 1
-        latent = torch.zeros([batch_size, 64, 1024], device=self.device)
+        length = round((seconds * 44100 / 2048) / 2) * 2
+        latent = torch.zeros([batch_size, 64, length], device=self.device)
         return ({"samples":latent, "type": "audio"}, )
 
 class VAEEncodeAudio:
@@ -32,7 +35,7 @@ class VAEEncodeAudio:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
-    CATEGORY = "_for_testing/audio"
+    CATEGORY = "latent/audio"
 
     def encode(self, vae, audio):
         sample_rate = audio["sample_rate"]
@@ -51,7 +54,7 @@ class VAEDecodeAudio:
     RETURN_TYPES = ("AUDIO",)
     FUNCTION = "decode"
 
-    CATEGORY = "_for_testing/audio"
+    CATEGORY = "latent/audio"
 
     def decode(self, vae, samples):
         audio = vae.decode(samples["samples"]).movedim(-1, 1)
@@ -117,7 +120,6 @@ class SaveAudio:
         self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
         self.prefix_append = ""
-        self.compress_level = 4
 
     @classmethod
     def INPUT_TYPES(s):
@@ -131,7 +133,7 @@ class SaveAudio:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "_for_testing/audio"
+    CATEGORY = "audio"
 
     def save_audio(self, audio, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
@@ -146,7 +148,7 @@ class SaveAudio:
                 for x in extra_pnginfo:
                     metadata[x] = json.dumps(extra_pnginfo[x])
 
-        for (batch_number, waveform) in enumerate(audio["waveform"]):
+        for (batch_number, waveform) in enumerate(audio["waveform"].cpu()):
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.flac"
 
@@ -167,6 +169,19 @@ class SaveAudio:
 
         return { "ui": { "audio": results } }
 
+class PreviewAudio(SaveAudio):
+    def __init__(self):
+        self.output_dir = folder_paths.get_temp_directory()
+        self.type = "temp"
+        self.prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"audio": ("AUDIO", ), },
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+                }
+
 class LoadAudio:
     SUPPORTED_FORMATS = ('.wav', '.mp3', '.ogg', '.flac', '.aiff', '.aif')
 
@@ -181,7 +196,7 @@ class LoadAudio:
         ]
         return {"required": {"audio": (sorted(files), {"audio_upload": True})}}
 
-    CATEGORY = "_for_testing/audio"
+    CATEGORY = "audio"
 
     RETURN_TYPES = ("AUDIO", )
     FUNCTION = "load"
@@ -189,7 +204,6 @@ class LoadAudio:
     def load(self, audio):
         audio_path = folder_paths.get_annotated_filepath(audio)
         waveform, sample_rate = torchaudio.load(audio_path)
-        multiplier = 1.0
         audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
         return (audio, )
 
@@ -213,4 +227,5 @@ NODE_CLASS_MAPPINGS = {
     "VAEDecodeAudio": VAEDecodeAudio,
     "SaveAudio": SaveAudio,
     "LoadAudio": LoadAudio,
+    "PreviewAudio": PreviewAudio,
 }

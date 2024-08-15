@@ -41,7 +41,9 @@ def detect_unet_config(state_dict, key_prefix):
         unet_config["in_channels"] = state_dict['{}x_embedder.proj.weight'.format(key_prefix)].shape[1]
         patch_size = state_dict['{}x_embedder.proj.weight'.format(key_prefix)].shape[2]
         unet_config["patch_size"] = patch_size
-        unet_config["out_channels"] = state_dict['{}final_layer.linear.weight'.format(key_prefix)].shape[0] // (patch_size * patch_size)
+        final_layer = '{}final_layer.linear.weight'.format(key_prefix)
+        if final_layer in state_dict:
+            unet_config["out_channels"] = state_dict[final_layer].shape[0] // (patch_size * patch_size)
 
         unet_config["depth"] = state_dict['{}x_embedder.proj.weight'.format(key_prefix)].shape[0] // 64
         unet_config["input_size"] = None
@@ -102,6 +104,49 @@ def detect_unet_config(state_dict, key_prefix):
         unet_config = {}
         unet_config["audio_model"] = "dit1.0"
         return unet_config
+
+    if '{}double_layers.0.attn.w1q.weight'.format(key_prefix) in state_dict_keys: #aura flow dit
+        unet_config = {}
+        unet_config["max_seq"] = state_dict['{}positional_encoding'.format(key_prefix)].shape[1]
+        unet_config["cond_seq_dim"] = state_dict['{}cond_seq_linear.weight'.format(key_prefix)].shape[1]
+        double_layers = count_blocks(state_dict_keys, '{}double_layers.'.format(key_prefix) + '{}.')
+        single_layers = count_blocks(state_dict_keys, '{}single_layers.'.format(key_prefix) + '{}.')
+        unet_config["n_double_layers"] = double_layers
+        unet_config["n_layers"] = double_layers + single_layers
+        return unet_config
+
+    if '{}mlp_t5.0.weight'.format(key_prefix) in state_dict_keys: #Hunyuan DiT
+        unet_config = {}
+        unet_config["image_model"] = "hydit"
+        unet_config["depth"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
+        unet_config["hidden_size"] = state_dict['{}x_embedder.proj.weight'.format(key_prefix)].shape[0]
+        if unet_config["hidden_size"] == 1408 and unet_config["depth"] == 40: #DiT-g/2
+            unet_config["mlp_ratio"] = 4.3637
+        if state_dict['{}extra_embedder.0.weight'.format(key_prefix)].shape[1] == 3968:
+            unet_config["size_cond"] = True
+            unet_config["use_style_cond"] = True
+            unet_config["image_model"] = "hydit1"
+        return unet_config
+
+    if '{}double_blocks.0.img_attn.norm.key_norm.scale'.format(key_prefix) in state_dict_keys: #Flux
+        dit_config = {}
+        dit_config["image_model"] = "flux"
+        dit_config["in_channels"] = 16
+        dit_config["vec_in_dim"] = 768
+        dit_config["context_in_dim"] = 4096
+        dit_config["hidden_size"] = 3072
+        dit_config["mlp_ratio"] = 4.0
+        dit_config["num_heads"] = 24
+        dit_config["depth"] = count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.')
+        dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
+        dit_config["axes_dim"] = [16, 56, 56]
+        dit_config["theta"] = 10000
+        dit_config["qkv_bias"] = True
+        dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
+        return dit_config
+
+    if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
+        return None
 
     unet_config = {
         "use_checkpoint": False,
@@ -237,6 +282,8 @@ def model_config_from_unet_config(unet_config, state_dict=None):
 
 def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False):
     unet_config = detect_unet_config(state_dict, unet_key_prefix)
+    if unet_config is None:
+        return None
     model_config = model_config_from_unet_config(unet_config, state_dict)
     if model_config is None and use_base_if_no_match:
         return comfy.supported_models_base.BASE(unet_config)
@@ -244,11 +291,22 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
         return model_config
 
 def unet_prefix_from_state_dict(state_dict):
-    if "model.model.postprocess_conv.weight" in state_dict: #audio models
-        unet_key_prefix = "model.model."
+    candidates = ["model.diffusion_model.", #ldm/sgm models
+                  "model.model.", #audio models
+                  ]
+    counts = {k: 0 for k in candidates}
+    for k in state_dict:
+        for c in candidates:
+            if k.startswith(c):
+                counts[c] += 1
+                break
+
+    top = max(counts, key=counts.get)
+    if counts[top] > 5:
+        return top
     else:
-        unet_key_prefix = "model.diffusion_model."
-    return unet_key_prefix
+        return "model." #aura flow and others
+
 
 def convert_config(unet_config):
     new_config = unet_config.copy()
@@ -435,36 +493,55 @@ def model_config_from_diffusers_unet(state_dict):
     return None
 
 def convert_diffusers_mmdit(state_dict, output_prefix=""):
-    depth = count_blocks(state_dict, 'transformer_blocks.{}.')
-    if depth > 0:
-        out_sd = {}
-        sd_map = comfy.utils.mmdit_to_diffusers({"depth": depth}, output_prefix=output_prefix)
-        for k in sd_map:
-            weight = state_dict.get(k, None)
-            if weight is not None:
-                t = sd_map[k]
+    out_sd = {}
 
-                if not isinstance(t, str):
-                    if len(t) > 2:
-                        fun = t[2]
-                    else:
-                        fun = lambda a: a
-                    offset = t[1]
-                    if offset is not None:
-                        old_weight = out_sd.get(t[0], None)
-                        if old_weight is None:
-                            old_weight = torch.empty_like(weight)
-                            old_weight = old_weight.repeat([3] + [1] * (len(old_weight.shape) - 1))
+    if 'transformer_blocks.0.attn.norm_added_k.weight' in state_dict: #Flux
+        depth = count_blocks(state_dict, 'transformer_blocks.{}.')
+        depth_single_blocks = count_blocks(state_dict, 'single_transformer_blocks.{}.')
+        hidden_size = state_dict["x_embedder.bias"].shape[0]
+        sd_map = comfy.utils.flux_to_diffusers({"depth": depth, "depth_single_blocks": depth_single_blocks, "hidden_size": hidden_size}, output_prefix=output_prefix)
+    elif 'transformer_blocks.0.attn.add_q_proj.weight' in state_dict: #SD3
+        num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
+        depth = state_dict["pos_embed.proj.weight"].shape[0] // 64
+        sd_map = comfy.utils.mmdit_to_diffusers({"depth": depth, "num_blocks": num_blocks}, output_prefix=output_prefix)
+    elif 'joint_transformer_blocks.0.attn.add_k_proj.weight' in state_dict: #AuraFlow
+        num_joint = count_blocks(state_dict, 'joint_transformer_blocks.{}.')
+        num_single = count_blocks(state_dict, 'single_transformer_blocks.{}.')
+        sd_map = comfy.utils.auraflow_to_diffusers({"n_double_layers": num_joint, "n_layers": num_joint + num_single}, output_prefix=output_prefix)
+    else:
+        return None
 
-                        w = old_weight.narrow(offset[0], offset[1], offset[2])
-                    else:
-                        old_weight = weight
-                        w = weight
-                    w[:] = fun(weight)
-                    t = t[0]
-                    out_sd[t] = old_weight
+    for k in sd_map:
+        weight = state_dict.get(k, None)
+        if weight is not None:
+            t = sd_map[k]
+
+            if not isinstance(t, str):
+                if len(t) > 2:
+                    fun = t[2]
                 else:
-                    out_sd[t] = weight
-                state_dict.pop(k)
+                    fun = lambda a: a
+                offset = t[1]
+                if offset is not None:
+                    old_weight = out_sd.get(t[0], None)
+                    if old_weight is None:
+                        old_weight = torch.empty_like(weight)
+                    if old_weight.shape[offset[0]] < offset[1] + offset[2]:
+                        exp = list(weight.shape)
+                        exp[offset[0]] = offset[1] + offset[2]
+                        new = torch.empty(exp, device=weight.device, dtype=weight.dtype)
+                        new[:old_weight.shape[0]] = old_weight
+                        old_weight = new
+
+                    w = old_weight.narrow(offset[0], offset[1], offset[2])
+                else:
+                    old_weight = weight
+                    w = weight
+                w[:] = fun(weight)
+                t = t[0]
+                out_sd[t] = old_weight
+            else:
+                out_sd[t] = weight
+            state_dict.pop(k)
 
     return out_sd

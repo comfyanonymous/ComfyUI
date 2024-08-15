@@ -7,6 +7,9 @@ import torch
 import torch.nn as nn
 from .. import attention
 from einops import rearrange, repeat
+from .util import timestep_embedding
+import comfy.ops
+import comfy.ldm.common_dit
 
 def default(x, y):
     if x is not None:
@@ -68,12 +71,14 @@ class PatchEmbed(nn.Module):
             bias: bool = True,
             strict_img_size: bool = True,
             dynamic_img_pad: bool = True,
+            padding_mode='circular',
             dtype=None,
             device=None,
             operations=None,
     ):
         super().__init__()
         self.patch_size = (patch_size, patch_size)
+        self.padding_mode = padding_mode
         if img_size is not None:
             self.img_size = (img_size, img_size)
             self.grid_size = tuple([s // p for s, p in zip(self.img_size, self.patch_size)])
@@ -107,9 +112,7 @@ class PatchEmbed(nn.Module):
         #             f"Input width ({W}) should be divisible by patch size ({self.patch_size[1]})."
         #         )
         if self.dynamic_img_pad:
-            pad_h = (self.patch_size[0] - H % self.patch_size[0]) % self.patch_size[0]
-            pad_w = (self.patch_size[1] - W % self.patch_size[1]) % self.patch_size[1]
-            x = torch.nn.functional.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
+            x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size, padding_mode=self.padding_mode)
         x = self.proj(x)
         if self.flatten:
             x = x.flatten(2).transpose(1, 2)  # NCHW -> NLC
@@ -230,34 +233,8 @@ class TimestepEmbedder(nn.Module):
         )
         self.frequency_embedding_size = frequency_embedding_size
 
-    @staticmethod
-    def timestep_embedding(t, dim, max_period=10000):
-        """
-        Create sinusoidal timestep embeddings.
-        :param t: a 1-D Tensor of N indices, one per batch element.
-                          These may be fractional.
-        :param dim: the dimension of the output.
-        :param max_period: controls the minimum frequency of the embeddings.
-        :return: an (N, D) Tensor of positional embeddings.
-        """
-        half = dim // 2
-        freqs = torch.exp(
-            -math.log(max_period)
-            * torch.arange(start=0, end=half, dtype=torch.float32, device=t.device)
-            / half
-        )
-        args = t[:, None].float() * freqs[None]
-        embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
-        if dim % 2:
-            embedding = torch.cat(
-                [embedding, torch.zeros_like(embedding[:, :1])], dim=-1
-            )
-        if torch.is_floating_point(t):
-            embedding = embedding.to(dtype=t.dtype)
-        return embedding
-
     def forward(self, t, dtype, **kwargs):
-        t_freq = self.timestep_embedding(t, self.frequency_embedding_size).to(dtype)
+        t_freq = timestep_embedding(t, self.frequency_embedding_size).to(dtype)
         t_emb = self.mlp(t_freq)
         return t_emb
 
@@ -745,6 +722,8 @@ class MMDiT(nn.Module):
         qkv_bias: bool = True,
         context_processor_layers = None,
         context_size = 4096,
+        num_blocks = None,
+        final_layer = True,
         dtype = None, #TODO
         device = None,
         operations = None,
@@ -766,7 +745,10 @@ class MMDiT(nn.Module):
         # apply magic --> this defines a head_size of 64
         self.hidden_size = 64 * depth
         num_heads = depth
+        if num_blocks is None:
+            num_blocks = depth
 
+        self.depth = depth
         self.num_heads = num_heads
 
         self.x_embedder = PatchEmbed(
@@ -821,7 +803,7 @@ class MMDiT(nn.Module):
                     mlp_ratio=mlp_ratio,
                     qkv_bias=qkv_bias,
                     attn_mode=attn_mode,
-                    pre_only=i == depth - 1,
+                    pre_only=(i == num_blocks - 1) and final_layer,
                     rmsnorm=rmsnorm,
                     scale_mod_only=scale_mod_only,
                     swiglu=swiglu,
@@ -830,11 +812,12 @@ class MMDiT(nn.Module):
                     device=device,
                     operations=operations
                 )
-                for i in range(depth)
+                for i in range(num_blocks)
             ]
         )
 
-        self.final_layer = FinalLayer(self.hidden_size, patch_size, self.out_channels, dtype=dtype, device=device, operations=operations)
+        if final_layer:
+            self.final_layer = FinalLayer(self.hidden_size, patch_size, self.out_channels, dtype=dtype, device=device, operations=operations)
 
         if compile_core:
             assert False
@@ -893,6 +876,7 @@ class MMDiT(nn.Module):
         x: torch.Tensor,
         c_mod: torch.Tensor,
         context: Optional[torch.Tensor] = None,
+        control = None,
     ) -> torch.Tensor:
         if self.register_length > 0:
             context = torch.cat(
@@ -905,13 +889,20 @@ class MMDiT(nn.Module):
 
         # context is B, L', D
         # x is B, L, D
-        for block in self.joint_blocks:
-            context, x = block(
+        blocks = len(self.joint_blocks)
+        for i in range(blocks):
+            context, x = self.joint_blocks[i](
                 context,
                 x,
                 c=c_mod,
                 use_checkpoint=self.use_checkpoint,
             )
+            if control is not None:
+                control_o = control.get("output")
+                if i < len(control_o):
+                    add = control_o[i]
+                    if add is not None:
+                        x += add
 
         x = self.final_layer(x, c_mod)  # (N, T, patch_size ** 2 * out_channels)
         return x
@@ -922,6 +913,7 @@ class MMDiT(nn.Module):
         t: torch.Tensor,
         y: Optional[torch.Tensor] = None,
         context: Optional[torch.Tensor] = None,
+        control = None,
     ) -> torch.Tensor:
         """
         Forward pass of DiT.
@@ -934,7 +926,7 @@ class MMDiT(nn.Module):
             context = self.context_processor(context)
 
         hw = x.shape[-2:]
-        x = self.x_embedder(x) + self.cropped_pos_embed(hw, device=x.device).to(dtype=x.dtype, device=x.device)
+        x = self.x_embedder(x) + comfy.ops.cast_to_input(self.cropped_pos_embed(hw, device=x.device), x)
         c = self.t_embedder(t, dtype=x.dtype)  # (N, D)
         if y is not None and self.y_embedder is not None:
             y = self.y_embedder(y)  # (N, D)
@@ -943,7 +935,7 @@ class MMDiT(nn.Module):
         if context is not None:
             context = self.context_embedder(context)
 
-        x = self.forward_core_with_concat(x, c, context)
+        x = self.forward_core_with_concat(x, c, context, control)
 
         x = self.unpatchify(x, hw=hw)  # (N, out_channels, H, W)
         return x[:,:,:hw[-2],:hw[-1]]
@@ -956,7 +948,8 @@ class OpenAISignatureMMDITWrapper(MMDiT):
         timesteps: torch.Tensor,
         context: Optional[torch.Tensor] = None,
         y: Optional[torch.Tensor] = None,
+        control = None,
         **kwargs,
     ) -> torch.Tensor:
-        return super().forward(x, timesteps, context=context, y=y)
+        return super().forward(x, timesteps, context=context, y=y, control=control)
 

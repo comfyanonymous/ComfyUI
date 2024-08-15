@@ -358,7 +358,7 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_resh
             disabled_xformers = True
 
     if disabled_xformers:
-        return attention_pytorch(q, k, v, heads, mask)
+        return attention_pytorch(q, k, v, heads, mask, skip_reshape=skip_reshape)
 
     if skip_reshape:
          q, k, v = map(

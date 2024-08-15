@@ -19,7 +19,7 @@ on:
         description: 'python patch version'
         required: true
         type: string
-        default: "3"
+        default: "4"
 #  push:
 #    branches:
 #      - master
@@ -32,11 +32,11 @@ jobs:
         pull-requests: "read"
     runs-on: windows-latest
     steps:
-        - uses: actions/checkout@v3
+        - uses: actions/checkout@v4
           with:
             fetch-depth: 0
             persist-credentials: false
-        - uses: actions/setup-python@v4
+        - uses: actions/setup-python@v5
           with:
             python-version: 3.${{ inputs.python_minor }}.${{ inputs.python_patch }}
         - shell: bash
@@ -49,13 +49,13 @@ jobs:
             echo 'import site' >> ./python3${{ inputs.python_minor }}._pth
             curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
             ./python.exe get-pip.py
-            python -m pip wheel torch torchvision torchaudio mpmath==1.3.0 numpy==1.26.4 --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2 -w ../temp_wheel_dir
+            python -m pip wheel torch torchvision torchaudio --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2 -w ../temp_wheel_dir
             ls ../temp_wheel_dir
             ./python.exe -s -m pip install --pre ../temp_wheel_dir/*
             sed -i '1i../ComfyUI' ./python3${{ inputs.python_minor }}._pth
             cd ..
 
-            git clone https://github.com/comfyanonymous/taesd
+            git clone --depth 1 https://github.com/comfyanonymous/taesd
             cp taesd/*.pth ./ComfyUI_copy/models/vae_approx/
 
             mkdir ComfyUI_windows_portable_nightly_pytorch
@@ -73,7 +73,7 @@ jobs:
             pause" > ./update/update_comfyui_and_python_dependencies.bat
             cd ..
 
-            "C:\Program Files\7-Zip\7z.exe" a -t7z -m0=lzma -mx=8 -mfb=64 -md=32m -ms=on -mf=BCJ2 ComfyUI_windows_portable_nightly_pytorch.7z ComfyUI_windows_portable_nightly_pytorch
+            "C:\Program Files\7-Zip\7z.exe" a -t7z -m0=lzma2 -mx=8 -mfb=64 -md=32m -ms=on -mf=BCJ2 ComfyUI_windows_portable_nightly_pytorch.7z ComfyUI_windows_portable_nightly_pytorch
             mv ComfyUI_windows_portable_nightly_pytorch.7z ComfyUI/ComfyUI_windows_portable_nvidia_or_cpu_nightly_pytorch.7z
 
             cd ComfyUI_windows_portable_nightly_pytorch

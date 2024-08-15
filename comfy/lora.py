@@ -1,3 +1,21 @@
+"""
+    This file is part of ComfyUI.
+    Copyright (C) 2024 Comfy
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 import comfy.utils
 import logging
 
@@ -218,11 +236,17 @@ def model_lora_keys_clip(model, key_map={}):
                     lora_key = "lora_prior_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #cascade lora: TODO put lora key prefix in the model config
                     key_map[lora_key] = k
 
-    for k in sdk: #OneTrainer SD3 lora
-        if k.startswith("t5xxl.transformer.") and k.endswith(".weight"):
-            l_key = k[len("t5xxl.transformer."):-len(".weight")]
-            lora_key = "lora_te3_{}".format(l_key.replace(".", "_"))
-            key_map[lora_key] = k
+    for k in sdk:
+        if k.endswith(".weight"):
+            if k.startswith("t5xxl.transformer."):#OneTrainer SD3 lora
+                l_key = k[len("t5xxl.transformer."):-len(".weight")]
+                lora_key = "lora_te3_{}".format(l_key.replace(".", "_"))
+                key_map[lora_key] = k
+            elif k.startswith("hydit_clip.transformer.bert."): #HunyuanDiT Lora
+                l_key = k[len("hydit_clip.transformer.bert."):-len(".weight")]
+                lora_key = "lora_te1_{}".format(l_key.replace(".", "_"))
+                key_map[lora_key] = k
+
 
     k = "clip_g.transformer.text_projection.weight"
     if k in sdk:
@@ -245,6 +269,7 @@ def model_lora_keys_unet(model, key_map={}):
             key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
             key_map["lora_unet_{}".format(key_lora)] = k
             key_map["lora_prior_unet_{}".format(key_lora)] = k #cascade lora: TODO put lora key prefix in the model config
+            key_map["{}".format(k[:-len(".weight")])] = k #generic lora format without any weird key names
 
     diffusers_keys = comfy.utils.unet_to_diffusers(model.model_config.unet_config)
     for k in diffusers_keys:
@@ -272,6 +297,28 @@ def model_lora_keys_unet(model, key_map={}):
                 key_map[key_lora] = to
 
                 key_lora = "lora_transformer_{}".format(k[:-len(".weight")].replace(".", "_")) #OneTrainer lora
+                key_map[key_lora] = to
+
+    if isinstance(model, comfy.model_base.AuraFlow): #Diffusers lora AuraFlow
+        diffusers_keys = comfy.utils.auraflow_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
+        for k in diffusers_keys:
+            if k.endswith(".weight"):
+                to = diffusers_keys[k]
+                key_lora = "transformer.{}".format(k[:-len(".weight")]) #simpletrainer and probably regular diffusers lora format
+                key_map[key_lora] = to
+
+    if isinstance(model, comfy.model_base.HunyuanDiT):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"):
+                key_lora = k[len("diffusion_model."):-len(".weight")]
+                key_map["base_model.model.{}".format(key_lora)] = k #official hunyuan lora format
+
+    if isinstance(model, comfy.model_base.Flux): #Diffusers lora Flux
+        diffusers_keys = comfy.utils.flux_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
+        for k in diffusers_keys:
+            if k.endswith(".weight"):
+                to = diffusers_keys[k]
+                key_lora = "transformer.{}".format(k[:-len(".weight")]) #simpletrainer and probably regular diffusers flux lora format
                 key_map[key_lora] = to
 
     return key_map

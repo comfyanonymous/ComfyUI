@@ -27,8 +27,8 @@ class EmptySD3LatentImage:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "width": ("INT", {"default": 1024, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 8}),
-                              "height": ("INT", {"default": 1024, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 8}),
+        return {"required": { "width": ("INT", {"default": 1024, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
+                              "height": ("INT", {"default": 1024, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
                               "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
@@ -80,8 +80,28 @@ class CLIPTextEncodeSD3:
         return ([[cond, {"pooled_output": pooled}]], )
 
 
+class ControlNetApplySD3(nodes.ControlNetApplyAdvanced):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"positive": ("CONDITIONING", ),
+                             "negative": ("CONDITIONING", ),
+                             "control_net": ("CONTROL_NET", ),
+                             "vae": ("VAE", ),
+                             "image": ("IMAGE", ),
+                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                             "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
+                             }}
+    CATEGORY = "conditioning/controlnet"
+
 NODE_CLASS_MAPPINGS = {
     "TripleCLIPLoader": TripleCLIPLoader,
     "EmptySD3LatentImage": EmptySD3LatentImage,
     "CLIPTextEncodeSD3": CLIPTextEncodeSD3,
+    "ControlNetApplySD3": ControlNetApplySD3,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    # Sampling
+    "ControlNetApplySD3": "ControlNetApply SD3 and HunyuanDiT",
 }
