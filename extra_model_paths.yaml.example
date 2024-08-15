@@ -30,10 +30,17 @@ a111:
 #     clip_vision: models/clip_vision/
 #     configs: models/configs/
 #     controlnet: models/controlnet/
+#     diffusers: models/diffusers/
 #     embeddings: models/embeddings/
+#     gligen: models/gligen/
+#     hypernetworks: models/hypernetworks/
 #     loras: models/loras/
+#     photomaker: models/photomaker/
+#     style_models: models/style_models/
+#     unet: models/unet/
 #     upscale_models: models/upscale_models/
 #     vae: models/vae/
+#     vae_approx: models/vae_approx/
 
 #other_ui:
 #    base_path: path/to/ui
