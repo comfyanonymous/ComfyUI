@@ -3,6 +3,9 @@
 * Windows only version of comfyui which uses ZLUDA to get better performance with AMD GPUs.
 
 <h2>## What's New ?</h2>
+
+*** BIG UPDATE. Things got broken, had to reset the fork, to get back and update successfully , on the comfyui-zluda directory run these one after another : ``` git fetch --all ``` (enter) ``` git reset --hard origin/master ``` (enter) now you can run start.bat , it will update to the latest version. And also after this a reboot of windows might be needed if the generation time seems to be low. After reboot speed returns to normal.
+
 * Regarding keeping the app up to date, don't use the update function from the manager, instead use git pull which we are doing on every start if start.bat is used. (APP ALREADY DOES IT EVERYTIME YOU OPEN IT , IF YOU ARE USING START.BAT, SO THIS WAY IT IS ALWAYS UP-TO-DATE WITH WHATEVER IS ON MY GITHUB PAGE)  Only use comfy manager to update the extensions  ( MANAGER - CUSTOM NODES MANAGER - SET FILTER TO INSTALLED - CLICK CHECK UPDATE ON THE BOTTOM OF THE WINDOW) otherwise it breaks the basic installation, and in that case run install.bat once again.
 ---
 
