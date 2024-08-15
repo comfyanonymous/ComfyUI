@@ -1,10 +1,4 @@
-# This is a temporary action during frontend TS migration.
-# This file should be removed after TS migration is completed.
-# The browser test is here to ensure TS repo is working the same way as the
-# current JS code.
-# If you are adding UI feature, please sync your changes to the TS repo:
-# huchenlei/ComfyUI_frontend and update test expectation files accordingly.
-name: Playwright Browser Tests CI
+name: Test server launches without errors
 
 on:
   push:
@@ -21,15 +15,6 @@ jobs:
       with:
         repository: "comfyanonymous/ComfyUI"
         path: "ComfyUI"
-    - name: Checkout ComfyUI_frontend
-      uses: actions/checkout@v4
-      with:
-        repository: "huchenlei/ComfyUI_frontend"
-        path: "ComfyUI_frontend"
-        ref: "fcc54d803e5b6a9b08a462a1d94899318c96dcbb"
-    - uses: actions/setup-node@v3
-      with:
-        node-version: lts/*
     - uses: actions/setup-python@v4
       with:
         python-version: '3.8'
@@ -45,16 +30,6 @@ jobs:
         python main.py --cpu 2>&1 | tee console_output.log &
         wait-for-it --service 127.0.0.1:8188 -t 600
       working-directory: ComfyUI
-    - name: Install ComfyUI_frontend dependencies
-      run: |
-        npm ci
-      working-directory: ComfyUI_frontend
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-      working-directory: ComfyUI_frontend
-    - name: Run Playwright tests
-      run: npx playwright test
-      working-directory: ComfyUI_frontend
     - name: Check for unhandled exceptions in server log
       run: |
         if grep -qE "Exception|Error" console_output.log; then
@@ -62,12 +37,6 @@ jobs:
           exit 1
         fi
       working-directory: ComfyUI
-    - uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: playwright-report
-        path: ComfyUI_frontend/playwright-report/
-        retention-days: 30
     - uses: actions/upload-artifact@v4
       if: always()
       with:

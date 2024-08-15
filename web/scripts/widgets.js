@@ -75,6 +75,7 @@ export function addValueControlWidgets(node, targetWidget, defaultValue = "rando
 			serialize: false, // Don't include this in prompt.
 		}
 	);
+	valueControl.tooltip = "Allows the linked widget to be changed automatically, for example randomizing the noise seed.";
 	valueControl[IS_CONTROL_WIDGET] = true;
 	updateControlWidgetLabel(valueControl);
 	widgets.push(valueControl);
@@ -95,6 +96,7 @@ export function addValueControlWidgets(node, targetWidget, defaultValue = "rando
 			}
 		);
 		updateControlWidgetLabel(comboFilter);
+		comboFilter.tooltip = "Allows for filtering the list of values when changing the value via the control generate mode. Allows for RegEx matches in the format /abc/ to only filter to values containing 'abc'."
 
 		widgets.push(comboFilter);
 	}
