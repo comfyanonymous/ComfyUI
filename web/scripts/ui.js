@@ -239,7 +239,11 @@ class ComfyList {
 								onclick: async () => {
 									await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow, true, false);
 									if (item.outputs) {
-										app.nodeOutputs = item.outputs;
+										app.nodeOutputs = {};
+										for (const [key, value] of Object.entries(item.outputs)) {
+											const realKey = item?.meta?.[key]?.display_node ?? key;
+											app.nodeOutputs[realKey] = value;
+										}
 									}
 								},
 							}),

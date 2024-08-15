@@ -107,8 +107,9 @@ def cuda_malloc_warning() -> None:
         if cuda_malloc_warning:
             logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
+
 def prompt_worker(q: PromptQueue, server: PromptServer) -> None:
-    e = execution.PromptExecutor(server)
+    e = execution.PromptExecutor(server, lru_size=args.cache_lru)
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -128,7 +129,7 @@ def prompt_worker(q: PromptQueue, server: PromptServer) -> None:
             e.execute(item[2], prompt_id, item[3], item[4])
             need_gc = True
             q.task_done(item_id,
-                        e.outputs_ui,
+                        e.history_result,
                         status=execution.PromptQueue.ExecutionStatus(
                             status_str='success' if e.success else 'error',
                             completed=e.success,
