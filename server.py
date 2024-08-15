@@ -1,7 +1,13 @@
+from __future__ import annotations
+
 import os
 import sys
 import asyncio
 import traceback
+from asyncio import AbstractEventLoop
+from collections.abc import Callable
+from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 import nodes
 import folder_paths
@@ -12,9 +18,14 @@ import json
 import glob
 import struct
 import ssl
-from PIL import Image, ImageOps
+import hashlib
+import PIL
+from PIL import ImageOps
+from PIL.Image import Image
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
+from aiohttp.typedefs import Handler, Middleware
+from multidict import MultiDictProxy
 
 import aiohttp
 from aiohttp import web
@@ -30,26 +41,41 @@ from app.user_manager import UserManager
 from model_filemanager import download_model, DownloadModelStatus
 from typing import Optional
 
-class BinaryEventTypes:
+if TYPE_CHECKING:
+    from execution import PromptQueue
+
+class BinaryEventTypes(Enum):
     PREVIEW_IMAGE = 1
     UNENCODED_PREVIEW_IMAGE = 2
 
-async def send_socket_catch_exception(function, message):
+class DirType(Enum):
+    input = 0
+    temp = 1
+    output = 2
+
+    @staticmethod
+    def from_str(name: str | None) -> DirType | None:
+        if name is None:
+            return None
+
+        return DirType[name]
+
+async def send_socket_catch_exception(function: Callable[[Any], Any], message: Any) -> None:
     try:
         await function(message)
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError) as err:
         logging.warning("send error: {}".format(err))
 
 @web.middleware
-async def cache_control(request: web.Request, handler):
-    response: web.Response = await handler(request)
+async def cache_control(request: web.Request, handler: Handler) -> web.StreamResponse:
+    response = await handler(request)
     if request.path.endswith('.js') or request.path.endswith('.css'):
         response.headers.setdefault('Cache-Control', 'no-cache')
     return response
 
-def create_cors_middleware(allowed_origin: str):
+def create_cors_middleware(allowed_origin: str) -> Middleware:
     @web.middleware
-    async def cors_middleware(request: web.Request, handler):
+    async def cors_middleware(request: web.Request, handler: Handler) -> web.Response:
         if request.method == "OPTIONS":
             # Pre-flight request. Reply successfully:
             response = web.Response()
@@ -65,7 +91,7 @@ def create_cors_middleware(allowed_origin: str):
     return cors_middleware
 
 class PromptServer():
-    def __init__(self, loop):
+    def __init__(self, loop: AbstractEventLoop):
         PromptServer.instance = self
 
         mimetypes.init()
@@ -73,20 +99,20 @@ class PromptServer():
 
         self.user_manager = UserManager()
         self.supports = ["custom_nodes_from_web"]
-        self.prompt_queue = None
+        self.prompt_queue: PromptQueue | None = None
         self.loop = loop
         self.messages = asyncio.Queue()
         self.client_session:Optional[aiohttp.ClientSession] = None
         self.number = 0
 
-        middlewares = [cache_control]
+        middlewares: list[Middleware] = [cache_control]
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
-        self.sockets = dict()
-        self.web_root = (
+        self.sockets: dict[str, web.WebSocketResponse] = dict()
+        self.web_root: str = (
             FrontendManager.init_frontend(args.front_end_version)
             if args.front_end_root is None
             else args.front_end_root
@@ -95,12 +121,13 @@ class PromptServer():
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None
-        self.client_id = None
+        self.client_id: str | None = None
+        self.last_prompt_id: str | None = None
 
         self.on_prompt_handlers = []
 
         @routes.get('/ws')
-        async def websocket_handler(request):
+        async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
             ws = web.WebSocketResponse()
             await ws.prepare(request)
             sid = request.rel_url.query.get('clientId', '')
@@ -127,7 +154,7 @@ class PromptServer():
             return ws
 
         @routes.get("/")
-        async def get_root(request):
+        async def get_root(request: web.Request) -> web.FileResponse:
             response = web.FileResponse(os.path.join(self.web_root, "index.html"))
             response.headers['Cache-Control'] = 'no-cache'
             response.headers["Pragma"] = "no-cache"
@@ -135,12 +162,12 @@ class PromptServer():
             return response
 
         @routes.get("/embeddings")
-        def get_embeddings(self):
+        def get_embeddings(request: web.Request) -> web.Response:
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
 
         @routes.get("/extensions")
-        async def get_extensions(request):
+        async def get_extensions(request: web.Request) -> web.Response:
             files = glob.glob(os.path.join(
                 glob.escape(self.web_root), 'extensions/**/*.js'), recursive=True)
 
@@ -153,20 +180,22 @@ class PromptServer():
 
             return web.json_response(extensions)
 
-        def get_dir_by_type(dir_type):
+        def get_dir_by_type(dir_type: DirType | None) -> tuple[str, DirType]:
             if dir_type is None:
-                dir_type = "input"
+                dir_type = DirType.input
 
-            if dir_type == "input":
+            if dir_type == DirType.input:
                 type_dir = folder_paths.get_input_directory()
-            elif dir_type == "temp":
+            elif dir_type == DirType.temp:
                 type_dir = folder_paths.get_temp_directory()
-            elif dir_type == "output":
+            elif dir_type == DirType.output:
                 type_dir = folder_paths.get_output_directory()
+            else:
+                raise ValueError("Unknown dir type")
 
             return type_dir, dir_type
 
-        def compare_image_hash(filepath, image):
+        def compare_image_hash(filepath: str, image: web.FileField) -> bool:
             hasher = node_helpers.hasher()
             
             # function to compare hashes of two images to see if it already exists, fix to #3465
@@ -181,12 +210,14 @@ class PromptServer():
                 return a.hexdigest() == b.hexdigest()
             return False
 
-        def image_upload(post, image_save_function=None):
+        def image_upload(
+                post: MultiDictProxy[str | bytes | web.FileField],
+                image_save_function: Callable[[web.FileField, MultiDictProxy[str | bytes | web.FileField], str], web.Response] | None=None) -> web.Response:
             image = post.get("image")
             overwrite = post.get("overwrite")
             image_is_duplicate = False
 
-            image_upload_type = post.get("type")
+            image_upload_type = DirType.from_str(post.get("type"))
             upload_dir, image_upload_type = get_dir_by_type(image_upload_type)
 
             if image and image.file:
@@ -225,21 +256,21 @@ class PromptServer():
                         with open(filepath, "wb") as f:
                             f.write(image.file.read())
 
-                return web.json_response({"name" : filename, "subfolder": subfolder, "type": image_upload_type})
+                return web.json_response({"name" : filename, "subfolder": subfolder, "type": image_upload_type.name})
             else:
                 return web.Response(status=400)
 
         @routes.post("/upload/image")
-        async def upload_image(request):
+        async def upload_image(request: web.Request) -> web.Response:
             post = await request.post()
             return image_upload(post)
 
 
         @routes.post("/upload/mask")
-        async def upload_mask(request):
+        async def upload_mask(request: web.Request) -> web.Response:
             post = await request.post()
 
-            def image_save_function(image, post, filepath):
+            def image_save_function(image: web.FileField, post: MultiDictProxy[str | bytes | web.FileField], filepath: str) -> web.Response:
                 original_ref = json.loads(post.get("original_ref"))
                 filename, output_dir = folder_paths.annotated_filepath(original_ref['filename'])
 
@@ -263,13 +294,13 @@ class PromptServer():
                 file = os.path.join(output_dir, filename)
 
                 if os.path.isfile(file):
-                    with Image.open(file) as original_pil:
+                    with PIL.Image.open(file) as original_pil:
                         metadata = PngInfo()
                         if hasattr(original_pil,'text'):
                             for key in original_pil.text:
                                 metadata.add_text(key, original_pil.text[key])
                         original_pil = original_pil.convert('RGBA')
-                        mask_pil = Image.open(image.file).convert('RGBA')
+                        mask_pil = PIL.Image.open(image.file).convert('RGBA')
 
                         # alpha copy
                         new_alpha = mask_pil.getchannel('A')
@@ -279,7 +310,7 @@ class PromptServer():
             return image_upload(post, image_save_function)
 
         @routes.get("/view")
-        async def view_image(request):
+        async def view_image(request: web.Request) -> web.StreamResponse:
             if "filename" in request.rel_url.query:
                 filename = request.rel_url.query["filename"]
                 filename,output_dir = folder_paths.annotated_filepath(filename)
@@ -306,7 +337,7 @@ class PromptServer():
 
                 if os.path.isfile(file):
                     if 'preview' in request.rel_url.query:
-                        with Image.open(file) as img:
+                        with PIL.Image.open(file) as img:
                             preview_info = request.rel_url.query['preview'].split(';')
                             image_format = preview_info[0]
                             if image_format not in ['webp', 'jpeg'] or 'a' in request.rel_url.query.get('channel', ''):
@@ -331,10 +362,10 @@ class PromptServer():
                         channel = request.rel_url.query["channel"]
 
                     if channel == 'rgb':
-                        with Image.open(file) as img:
+                        with PIL.Image.open(file) as img:
                             if img.mode == "RGBA":
                                 r, g, b, a = img.split()
-                                new_img = Image.merge('RGB', (r, g, b))
+                                new_img = PIL.Image.merge('RGB', (r, g, b))
                             else:
                                 new_img = img.convert("RGB")
 
@@ -346,14 +377,14 @@ class PromptServer():
                                                 headers={"Content-Disposition": f"filename=\"{filename}\""})
 
                     elif channel == 'a':
-                        with Image.open(file) as img:
+                        with PIL.Image.open(file) as img:
                             if img.mode == "RGBA":
                                 _, _, _, a = img.split()
                             else:
-                                a = Image.new('L', img.size, 255)
+                                a = PIL.Image.new('L', img.size, 255)
 
                             # alpha img
-                            alpha_img = Image.new('RGBA', img.size)
+                            alpha_img = PIL.Image.new('RGBA', img.size)
                             alpha_img.putalpha(a)
                             alpha_buffer = BytesIO()
                             alpha_img.save(alpha_buffer, format='PNG')
@@ -367,8 +398,8 @@ class PromptServer():
             return web.Response(status=404)
 
         @routes.get("/view_metadata/{folder_name}")
-        async def view_metadata(request):
-            folder_name = request.match_info.get("folder_name", None)
+        async def view_metadata(request: web.Request) -> web.Response:
+            folder_name: str | None = request.match_info.get("folder_name", None)
             if folder_name is None:
                 return web.Response(status=404)
             if not "filename" in request.rel_url.query:
@@ -390,7 +421,7 @@ class PromptServer():
             return web.json_response(dt["__metadata__"])
 
         @routes.get("/system_stats")
-        async def get_queue(request):
+        async def get_queue(request: web.Request) -> web.Response:
             device = comfy.model_management.get_torch_device()
             device_name = comfy.model_management.get_torch_device_name(device)
             vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
@@ -416,7 +447,7 @@ class PromptServer():
             return web.json_response(system_stats)
 
         @routes.get("/prompt")
-        async def get_prompt(request):
+        async def get_prompt(request: web.Request) -> web.Response:
             return web.json_response(self.get_queue_info())
 
         def node_info(node_class):
@@ -444,7 +475,7 @@ class PromptServer():
             return info
 
         @routes.get("/object_info")
-        async def get_object_info(request):
+        async def get_object_info(request: web.Request) -> web.Response:
             out = {}
             for x in nodes.NODE_CLASS_MAPPINGS:
                 try:
@@ -455,7 +486,7 @@ class PromptServer():
             return web.json_response(out)
 
         @routes.get("/object_info/{node_class}")
-        async def get_object_info_node(request):
+        async def get_object_info_node(request: web.Request) -> web.Response:
             node_class = request.match_info.get("node_class", None)
             out = {}
             if (node_class is not None) and (node_class in nodes.NODE_CLASS_MAPPINGS):
@@ -463,19 +494,19 @@ class PromptServer():
             return web.json_response(out)
 
         @routes.get("/history")
-        async def get_history(request):
+        async def get_history(request: web.Request) -> web.Response:
             max_items = request.rel_url.query.get("max_items", None)
             if max_items is not None:
                 max_items = int(max_items)
             return web.json_response(self.prompt_queue.get_history(max_items=max_items))
 
         @routes.get("/history/{prompt_id}")
-        async def get_history(request):
+        async def get_history(request: web.Request) -> web.Response:
             prompt_id = request.match_info.get("prompt_id", None)
             return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
 
         @routes.get("/queue")
-        async def get_queue(request):
+        async def get_queue(request: web.Request) -> web.Response:
             queue_info = {}
             current_queue = self.prompt_queue.get_current_queue()
             queue_info['queue_running'] = current_queue[0]
@@ -483,7 +514,7 @@ class PromptServer():
             return web.json_response(queue_info)
 
         @routes.post("/prompt")
-        async def post_prompt(request):
+        async def post_prompt(request: web.Request) -> web.Response:
             logging.info("got prompt")
             resp_code = 200
             out_string = ""
@@ -522,7 +553,7 @@ class PromptServer():
                 return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
 
         @routes.post("/queue")
-        async def post_queue(request):
+        async def post_queue(request: web.Request) -> web.Response:
             json_data =  await request.json()
             if "clear" in json_data:
                 if json_data["clear"]:
@@ -536,12 +567,12 @@ class PromptServer():
             return web.Response(status=200)
 
         @routes.post("/interrupt")
-        async def post_interrupt(request):
+        async def post_interrupt(request: web.Request) -> web.Response:
             nodes.interrupt_processing()
             return web.Response(status=200)
 
         @routes.post("/free")
-        async def post_free(request):
+        async def post_free(request: web.Request) -> web.Response:
             json_data = await request.json()
             unload_models = json_data.get("unload_models", False)
             free_memory = json_data.get("free_memory", False)
@@ -552,7 +583,7 @@ class PromptServer():
             return web.Response(status=200)
 
         @routes.post("/history")
-        async def post_history(request):
+        async def post_history(request: web.Request) -> web.Response:
             json_data =  await request.json()
             if "clear" in json_data:
                 if json_data["clear"]:
@@ -584,7 +615,7 @@ class PromptServer():
             if session is None:
                 logging.error("Client session is not initialized")
                 return web.Response(status=500)
-            
+
             task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, report_progress, progress_interval))
             await task
 
@@ -594,7 +625,7 @@ class PromptServer():
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
         self.client_session = aiohttp.ClientSession(timeout=timeout)
 
-    def add_routes(self):
+    def add_routes(self) -> None:
         self.user_manager.add_routes(self.routes)
 
         # Prefix every route with /api for easier matching for delegation.
@@ -620,14 +651,14 @@ class PromptServer():
             web.static('/', self.web_root),
         ])
 
-    def get_queue_info(self):
+    def get_queue_info(self) -> dict[str, any]:
         prompt_info = {}
         exec_info = {}
         exec_info['queue_remaining'] = self.prompt_queue.get_tasks_remaining()
         prompt_info['exec_info'] = exec_info
         return prompt_info
 
-    async def send(self, event, data, sid=None):
+    async def send(self, event: BinaryEventTypes | str, data: tuple[str, Image, int] | bytes | bytearray | dict, sid: str | None=None):
         if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
             await self.send_image(data, sid=sid)
         elif isinstance(data, (bytes, bytearray)):
@@ -635,24 +666,24 @@ class PromptServer():
         else:
             await self.send_json(event, data, sid)
 
-    def encode_bytes(self, event, data):
-        if not isinstance(event, int):
-            raise RuntimeError(f"Binary event types must be integers, got {event}")
+    def encode_bytes(self, event: BinaryEventTypes, data: bytes | bytearray):
+        if not isinstance(event, BinaryEventTypes):
+            raise RuntimeError(f"Binary event types must be BinaryEventTypes, got {event}")
 
         packed = struct.pack(">I", event)
         message = bytearray(packed)
         message.extend(data)
         return message
 
-    async def send_image(self, image_data, sid=None):
-        image_type = image_data[0]
-        image = image_data[1]
-        max_size = image_data[2]
+    async def send_image(self, image_data: tuple[str, Image, int] | None, sid: str | None=None) -> None:
+        image_type: str = image_data[0]
+        image: Image = image_data[1]
+        max_size: int = image_data[2]
         if max_size is not None:
-            if hasattr(Image, 'Resampling'):
-                resampling = Image.Resampling.BILINEAR
+            if hasattr(PIL.Image, 'Resampling'):
+                resampling = PIL.Image.Resampling.BILINEAR
             else:
-                resampling = Image.ANTIALIAS
+                resampling = PIL.Image.ANTIALIAS
 
             image = ImageOps.contain(image, (max_size, max_size), resampling)
         type_num = 1
@@ -668,7 +699,7 @@ class PromptServer():
         preview_bytes = bytesIO.getvalue()
         await self.send_bytes(BinaryEventTypes.PREVIEW_IMAGE, preview_bytes, sid=sid)
 
-    async def send_bytes(self, event, data, sid=None):
+    async def send_bytes(self, event: BinaryEventTypes, data: bytes | bytearray, sid: str | None=None) -> None:
         message = self.encode_bytes(event, data)
 
         if sid is None:
@@ -678,7 +709,7 @@ class PromptServer():
         elif sid in self.sockets:
             await send_socket_catch_exception(self.sockets[sid].send_bytes, message)
 
-    async def send_json(self, event, data, sid=None):
+    async def send_json(self, event, data: dict, sid: str | None=None) -> None:
         message = {"type": event, "data": data}
 
         if sid is None:
@@ -688,19 +719,19 @@ class PromptServer():
         elif sid in self.sockets:
             await send_socket_catch_exception(self.sockets[sid].send_json, message)
 
-    def send_sync(self, event, data, sid=None):
+    def send_sync(self, event: BinaryEventTypes | str, data: tuple[str, Image, int] | bytes | bytearray | dict, sid: str | None=None) -> None:
         self.loop.call_soon_threadsafe(
             self.messages.put_nowait, (event, data, sid))
 
-    def queue_updated(self):
+    def queue_updated(self) -> None:
         self.send_sync("status", { "status": self.get_queue_info() })
 
-    async def publish_loop(self):
+    async def publish_loop(self) -> None:
         while True:
             msg = await self.messages.get()
             await self.send(*msg)
 
-    async def start(self, address, port, verbose=True, call_on_start=None):
+    async def start(self, address: str, port: int, verbose=True, call_on_start: Callable[[str, str, int], None] | None=None):
         runner = web.AppRunner(self.app, access_log=None)
         await runner.setup()
         ssl_ctx = None
