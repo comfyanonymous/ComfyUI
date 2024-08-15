@@ -1,6 +1,6 @@
 import nodes
 
-from comfy.graph_utils import is_link
+from comfy_execution.graph_utils import is_link
 
 class DependencyCycleError(Exception):
     pass

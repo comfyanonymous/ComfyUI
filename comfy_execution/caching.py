@@ -1,10 +1,10 @@
 import itertools
 from typing import Sequence, Mapping
-from comfy.graph import DynamicPrompt
+from comfy_execution.graph import DynamicPrompt
 
 import nodes
 
-from comfy.graph_utils import is_link
+from comfy_execution.graph_utils import is_link
 
 class CacheKeySet:
     def __init__(self, dynprompt, node_ids, is_changed_cache):
