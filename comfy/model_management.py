@@ -296,7 +296,7 @@ class LoadedModel:
 
     def model_memory_required(self, device):
         if device == self.model.current_loaded_device():
-            return 0
+            return self.model_offloaded_memory()
         else:
             return self.model_memory()
 
@@ -308,15 +308,21 @@ class LoadedModel:
 
         load_weights = not self.weights_loaded
 
-        try:
-            if lowvram_model_memory > 0 and load_weights:
-                self.real_model = self.model.patch_model_lowvram(device_to=patch_model_to, lowvram_model_memory=lowvram_model_memory, force_patch_weights=force_patch_weights)
-            else:
-                self.real_model = self.model.patch_model(device_to=patch_model_to, patch_weights=load_weights)
-        except Exception as e:
-            self.model.unpatch_model(self.model.offload_device)
-            self.model_unload()
-            raise e
+        if self.model.loaded_size() > 0:
+            use_more_vram = lowvram_model_memory
+            if use_more_vram == 0:
+                use_more_vram = 1e32
+            self.model_use_more_vram(use_more_vram)
+        else:
+            try:
+                if lowvram_model_memory > 0 and load_weights:
+                    self.real_model = self.model.patch_model_lowvram(device_to=patch_model_to, lowvram_model_memory=lowvram_model_memory, force_patch_weights=force_patch_weights)
+                else:
+                    self.real_model = self.model.patch_model(device_to=patch_model_to, patch_weights=load_weights)
+            except Exception as e:
+                self.model.unpatch_model(self.model.offload_device)
+                self.model_unload()
+                raise e
 
         if is_intel_xpu() and not args.disable_ipex_optimize:
             self.real_model = ipex.optimize(self.real_model.eval(), graph_mode=True, concat_linear=True)
@@ -332,8 +338,9 @@ class LoadedModel:
     def model_unload(self, memory_to_free=None, unpatch_weights=True):
         if memory_to_free is not None:
             if memory_to_free < self.model.loaded_size():
-                self.model.partially_unload(self.model.offload_device, memory_to_free)
-                return False
+                freed = self.model.partially_unload(self.model.offload_device, memory_to_free)
+                if freed >= memory_to_free:
+                    return False
         self.model.unpatch_model(self.model.offload_device, unpatch_weights=unpatch_weights)
         self.model.model_patches_to(self.model.offload_device)
         self.weights_loaded = self.weights_loaded and not unpatch_weights
@@ -428,15 +435,15 @@ def free_memory(memory_required, device, keep_loaded=[]):
                 soft_empty_cache()
     return unloaded_models
 
-def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None):
+def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
     global vram_state
 
     inference_memory = minimum_inference_memory()
-    extra_mem = max(inference_memory, memory_required) + 100 * 1024 * 1024
+    extra_mem = max(inference_memory, memory_required + 300 * 1024 * 1024)
     if minimum_memory_required is None:
         minimum_memory_required = extra_mem
     else:
-        minimum_memory_required = max(inference_memory, minimum_memory_required) + 100 * 1024 * 1024
+        minimum_memory_required = max(inference_memory, minimum_memory_required + 300 * 1024 * 1024)
 
     models = set(models)
 
@@ -484,17 +491,20 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
 
     total_memory_required = {}
     for loaded_model in models_to_load:
-        if unload_model_clones(loaded_model.model, unload_weights_only=True, force_unload=False) == True:#unload clones where the weights are different
-            total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
+        unload_model_clones(loaded_model.model, unload_weights_only=True, force_unload=False) #unload clones where the weights are different
+        total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
 
-    for device in total_memory_required:
-        if device != torch.device("cpu"):
-            free_memory(total_memory_required[device] * 1.3 + extra_mem, device, models_already_loaded)
+    for loaded_model in models_already_loaded:
+        total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
 
     for loaded_model in models_to_load:
         weights_unloaded = unload_model_clones(loaded_model.model, unload_weights_only=False, force_unload=False) #unload the rest of the clones where the weights can stay loaded
         if weights_unloaded is not None:
             loaded_model.weights_loaded = not weights_unloaded
+
+    for device in total_memory_required:
+        if device != torch.device("cpu"):
+            free_memory(total_memory_required[device] * 1.1 + extra_mem, device, models_already_loaded)
 
     for loaded_model in models_to_load:
         model = loaded_model.model
@@ -504,7 +514,7 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
         else:
             vram_set_state = vram_state
         lowvram_model_memory = 0
-        if lowvram_available and (vram_set_state == VRAMState.LOW_VRAM or vram_set_state == VRAMState.NORMAL_VRAM):
+        if lowvram_available and (vram_set_state == VRAMState.LOW_VRAM or vram_set_state == VRAMState.NORMAL_VRAM) and not force_full_load:
             model_size = loaded_model.model_memory_required(torch_dev)
             current_free_mem = get_free_memory(torch_dev)
             lowvram_model_memory = max(64 * (1024 * 1024), (current_free_mem - minimum_memory_required), min(current_free_mem * 0.4, current_free_mem - minimum_inference_memory()))
@@ -674,6 +684,20 @@ def text_encoder_device():
             return torch.device("cpu")
     else:
         return torch.device("cpu")
+
+def text_encoder_initial_device(load_device, offload_device, model_size=0):
+    if load_device == offload_device or model_size <= 1024 * 1024 * 1024:
+        return offload_device
+
+    if is_device_mps(load_device):
+        return offload_device
+
+    mem_l = get_free_memory(load_device)
+    mem_o = get_free_memory(offload_device)
+    if mem_l > (mem_o * 0.5) and model_size * 1.2 < mem_l:
+        return load_device
+    else:
+        return offload_device
 
 def text_encoder_dtype(device=None):
     if args.fp8_e4m3fn_text_enc:
