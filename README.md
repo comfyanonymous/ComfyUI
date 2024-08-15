@@ -7,7 +7,7 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 
 - To run, just type `comfyui` in your command line and press enter.
 - [Installable](#installing) via `pip`: `pip install git+https://github.com/hiddenswitch/ComfyUI.git`.
-- [Large Language Models]() with multi-modal support included.
+- [Large Language Models](#large-language-models) with multi-modal support included.
 - [Automatic model downloading](#model-downloading) to save you disk space and time.
 - [Distributed](#distributed-multi-process-and-multi-gpu-comfy) with support for multiple GPUs, multiple backends and frontends, including in containers, using RabbitMQ.
 - [Installable custom nodes](#custom-nodes) via `pip`, including LTS support for forked nodes from the community.
@@ -167,6 +167,12 @@ On Windows, you will need to open PowerShell and activate your virtual environme
 ```powershell
 & .\venv\Scripts\activate.ps1
 comfyui
+```
+
+Upgrades are delivered frequently and automatically. To force one immediately, run pip upgrade like so:
+
+```shell
+pip install --no-build-isolation --no-deps --upgrade git+https://github.com/hiddenswitch/ComfyUI.git
 ```
 
 **Advanced: Using `uv`**:
