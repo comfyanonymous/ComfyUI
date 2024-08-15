@@ -1,6 +1,6 @@
 import torch
 from .tools import VariantSupport
-from comfy.graph_utils import GraphBuilder
+from comfy_execution.graph_utils import GraphBuilder
 
 class TestLazyMixImages:
     @classmethod

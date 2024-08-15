@@ -13,10 +13,9 @@ import torch
 import nodes
 
 import comfy.model_management
-import comfy.graph_utils
-from comfy.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
-from comfy.graph_utils import is_link, GraphBuilder
-from comfy.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID
+from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
+from comfy_execution.graph_utils import is_link, GraphBuilder
+from comfy_execution.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID
 from comfy.cli_args import args
 
 class ExecutionResult(Enum):
