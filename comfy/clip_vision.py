@@ -36,6 +36,8 @@ class ClipVisionModel():
 
         self.image_size = config.get("image_size", 224)
         self.load_device = comfy.model_management.text_encoder_device()
+        # Force CPU for clip vision to work on IPEX
+        self.load_device = 'cpu' 
         offload_device = comfy.model_management.text_encoder_offload_device()
         self.dtype = comfy.model_management.text_encoder_dtype(self.load_device)
         self.model = comfy.clip_model.CLIPVisionModelProjection(config, self.dtype, offload_device, comfy.ops.manual_cast)
