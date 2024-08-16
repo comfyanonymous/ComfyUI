@@ -137,6 +137,30 @@ Install the dependencies by opening your terminal inside the ComfyUI folder and:
 
 After this you should have everything installed and can proceed to running ComfyUI.
 
+### One-Click Installing and Runing on Nvidia Jetson by [Seeed Studio's Jetson Examples](https://github.com/Seeed-Projects/jetson-examples)
+
+
+#### **Installation via PyPI (Recommended)** 🐍
+1. Install the package:
+    ```sh
+    pip install jetson-examples
+    ```
+
+2. Restart your reComputer:
+    ```sh
+    sudo reboot
+    ```
+
+3. Run ComfyUI with one command:
+    ```sh
+    reComputer run comfyui
+    ```
+- **Input Dir**: Mount the input directory in Docker to the host directory `~/ComfyUI/input`.
+- **Output Dir**: Mount the output directory in Docker to the host directory `~/ComfyUI/output`.
+
+- **Models Dir**: Mount the models directory in Docker to the host directory `~/ComfyUI/models`.
+
+
 ### Others:
 
 #### Intel GPUs
