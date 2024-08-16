@@ -68,6 +68,8 @@ try:
     import intel_extension_for_pytorch as ipex
     if torch.xpu.is_available():
         xpu_available = True
+        from ipex_hijacks import hijacks
+        hijacks.ipex_hijacks()
 except:
     pass
 

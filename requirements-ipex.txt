@@ -1,0 +1,13 @@
+torch @ https://github.com/Nuullll/intel-extension-for-pytorch/releases/download/v2.1.10%2Bxpu/torch-2.1.0a0+cxx11.abi-cp310-cp310-win_amd64.whl
+torchsde
+torchvision @ https://github.com/Nuullll/intel-extension-for-pytorch/releases/download/v2.1.10%2Bxpu/torchvision-0.16.0a0+cxx11.abi-cp310-cp310-win_amd64.whl
+einops
+transformers>=4.25.1
+safetensors>=0.3.0
+aiohttp
+pyyaml
+Pillow
+scipy
+tqdm
+psutil
+intel_extension_for_pytorch @ https://github.com/Nuullll/intel-extension-for-pytorch/releases/download/v2.1.10%2Bxpu/intel_extension_for_pytorch-2.1.10+xpu-cp310-cp310-win_amd64.whl
