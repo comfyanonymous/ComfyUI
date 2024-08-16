@@ -61,7 +61,9 @@ def prepare_sampling(model, noise_shape, conds):
     device = model.load_device
     real_model = None
     models, inference_memory = get_additional_models(conds, model.model_dtype())
-    comfy.model_management.load_models_gpu([model] + models, model.memory_required([noise_shape[0] * 2] + list(noise_shape[1:])) + inference_memory)
+    memory_required = model.memory_required([noise_shape[0] * 2] + list(noise_shape[1:])) + inference_memory
+    minimum_memory_required = model.memory_required([noise_shape[0]] + list(noise_shape[1:])) + inference_memory
+    comfy.model_management.load_models_gpu([model] + models, memory_required=memory_required, minimum_memory_required=minimum_memory_required)
     real_model = model.model
 
     return real_model, conds, models

@@ -3,8 +3,13 @@ from . import model_base
 from . import utils
 
 from . import sd1_clip
-from . import sd2_clip
 from . import sdxl_clip
+import comfy.text_encoders.sd2_clip
+import comfy.text_encoders.sd3_clip
+import comfy.text_encoders.sa_t5
+import comfy.text_encoders.aura_t5
+import comfy.text_encoders.hydit
+import comfy.text_encoders.flux
 
 from . import supported_models_base
 from . import latent_formats
@@ -26,6 +31,7 @@ class SD15(supported_models_base.BASE):
     }
 
     latent_format = latent_formats.SD15
+    memory_usage_factor = 1.0
 
     def process_clip_state_dict(self, state_dict):
         k = list(state_dict.keys())
@@ -53,7 +59,7 @@ class SD15(supported_models_base.BASE):
         replace_prefix = {"clip_l.": "cond_stage_model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
-    def clip_target(self):
+    def clip_target(self, state_dict={}):
         return supported_models_base.ClipTarget(sd1_clip.SD1Tokenizer, sd1_clip.SD1ClipModel)
 
 class SD20(supported_models_base.BASE):
@@ -65,7 +71,14 @@ class SD20(supported_models_base.BASE):
         "use_temporal_attention": False,
     }
 
+    unet_extra_config = {
+        "num_heads": -1,
+        "num_head_channels": 64,
+        "attn_precision": torch.float32,
+    }
+
     latent_format = latent_formats.SD15
+    memory_usage_factor = 1.0
 
     def model_type(self, state_dict, prefix=""):
         if self.unet_config["in_channels"] == 4: #SD2.0 inpainting models are not v prediction
@@ -90,8 +103,8 @@ class SD20(supported_models_base.BASE):
         state_dict = diffusers_convert.convert_text_enc_state_dict_v20(state_dict)
         return state_dict
 
-    def clip_target(self):
-        return supported_models_base.ClipTarget(sd2_clip.SD2Tokenizer, sd2_clip.SD2ClipModel)
+    def clip_target(self, state_dict={}):
+        return supported_models_base.ClipTarget(comfy.text_encoders.sd2_clip.SD2Tokenizer, comfy.text_encoders.sd2_clip.SD2ClipModel)
 
 class SD21UnclipL(SD20):
     unet_config = {
@@ -129,6 +142,7 @@ class SDXLRefiner(supported_models_base.BASE):
     }
 
     latent_format = latent_formats.SDXL
+    memory_usage_factor = 1.0
 
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.SDXLRefiner(self, device=device)
@@ -152,7 +166,7 @@ class SDXLRefiner(supported_models_base.BASE):
         state_dict_g = utils.state_dict_prefix_replace(state_dict_g, replace_prefix)
         return state_dict_g
 
-    def clip_target(self):
+    def clip_target(self, state_dict={}):
         return supported_models_base.ClipTarget(sdxl_clip.SDXLTokenizer, sdxl_clip.SDXLRefinerClipModel)
 
 class SDXL(supported_models_base.BASE):
@@ -166,6 +180,8 @@ class SDXL(supported_models_base.BASE):
     }
 
     latent_format = latent_formats.SDXL
+
+    memory_usage_factor = 0.7
 
     def model_type(self, state_dict, prefix=""):
         if 'edm_mean' in state_dict and 'edm_std' in state_dict: #Playground V2.5
@@ -221,7 +237,7 @@ class SDXL(supported_models_base.BASE):
         state_dict_g = utils.state_dict_prefix_replace(state_dict_g, replace_prefix)
         return state_dict_g
 
-    def clip_target(self):
+    def clip_target(self, state_dict={}):
         return supported_models_base.ClipTarget(sdxl_clip.SDXLTokenizer, sdxl_clip.SDXLClipModel)
 
 class SSD1B(SDXL):
@@ -276,6 +292,12 @@ class SVD_img2vid(supported_models_base.BASE):
         "use_temporal_resblock": True
     }
 
+    unet_extra_config = {
+        "num_heads": -1,
+        "num_head_channels": 64,
+        "attn_precision": torch.float32,
+    }
+
     clip_vision_prefix = "conditioner.embedders.0.open_clip.model.visual."
 
     latent_format = latent_formats.SD15
@@ -286,7 +308,7 @@ class SVD_img2vid(supported_models_base.BASE):
         out = model_base.SVD_img2vid(self, device=device)
         return out
 
-    def clip_target(self):
+    def clip_target(self, state_dict={}):
         return None
 
 class SV3D_u(SVD_img2vid):
@@ -352,7 +374,7 @@ class Stable_Zero123(supported_models_base.BASE):
         out = model_base.Stable_Zero123(self, device=device, cc_projection_weight=state_dict["cc_projection.weight"], cc_projection_bias=state_dict["cc_projection.bias"])
         return out
 
-    def clip_target(self):
+    def clip_target(self, state_dict={}):
         return None
 
 class SD_X4Upscaler(SD20):
@@ -426,7 +448,7 @@ class Stable_Cascade_C(supported_models_base.BASE):
         out = model_base.StableCascade_C(self, device=device)
         return out
 
-    def clip_target(self):
+    def clip_target(self, state_dict={}):
         return supported_models_base.ClipTarget(sdxl_clip.StableCascadeTokenizer, sdxl_clip.StableCascadeClipModel)
 
 class Stable_Cascade_B(Stable_Cascade_C):
@@ -476,6 +498,182 @@ class SDXL_instructpix2pix(SDXL):
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.SDXL_instructpix2pix(self, model_type=self.model_type(state_dict, prefix), device=device)
 
-models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p]
+class SD3(supported_models_base.BASE):
+    unet_config = {
+        "in_channels": 16,
+        "pos_embed_scaling_factor": None,
+    }
+
+    sampling_settings = {
+        "shift": 3.0,
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.SD3
+
+    memory_usage_factor = 1.2
+
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.SD3(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        clip_l = False
+        clip_g = False
+        t5 = False
+        dtype_t5 = None
+        pref = self.text_encoder_key_prefix[0]
+        if "{}clip_l.transformer.text_model.final_layer_norm.weight".format(pref) in state_dict:
+            clip_l = True
+        if "{}clip_g.transformer.text_model.final_layer_norm.weight".format(pref) in state_dict:
+            clip_g = True
+        t5_key = "{}t5xxl.transformer.encoder.final_layer_norm.weight".format(pref)
+        if t5_key in state_dict:
+            t5 = True
+            dtype_t5 = state_dict[t5_key].dtype
+
+        return supported_models_base.ClipTarget(comfy.text_encoders.sd3_clip.SD3Tokenizer, comfy.text_encoders.sd3_clip.sd3_clip(clip_l=clip_l, clip_g=clip_g, t5=t5, dtype_t5=dtype_t5))
+
+class StableAudio(supported_models_base.BASE):
+    unet_config = {
+        "audio_model": "dit1.0",
+    }
+
+    sampling_settings = {"sigma_max": 500.0, "sigma_min": 0.03}
+
+    unet_extra_config = {}
+    latent_format = latent_formats.StableAudio1
+
+    text_encoder_key_prefix = ["text_encoders."]
+    vae_key_prefix = ["pretransform.model."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        seconds_start_sd = utils.state_dict_prefix_replace(state_dict, {"conditioner.conditioners.seconds_start.": ""}, filter_keys=True)
+        seconds_total_sd = utils.state_dict_prefix_replace(state_dict, {"conditioner.conditioners.seconds_total.": ""}, filter_keys=True)
+        return model_base.StableAudio1(self, seconds_start_embedder_weights=seconds_start_sd, seconds_total_embedder_weights=seconds_total_sd, device=device)
+
+    def process_unet_state_dict(self, state_dict):
+        for k in list(state_dict.keys()):
+            if k.endswith(".cross_attend_norm.beta") or k.endswith(".ff_norm.beta") or k.endswith(".pre_norm.beta"): #These weights are all zero
+                state_dict.pop(k)
+        return state_dict
+
+    def process_unet_state_dict_for_saving(self, state_dict):
+        replace_prefix = {"": "model.model."}
+        return utils.state_dict_prefix_replace(state_dict, replace_prefix)
+
+    def clip_target(self, state_dict={}):
+        return supported_models_base.ClipTarget(comfy.text_encoders.sa_t5.SAT5Tokenizer, comfy.text_encoders.sa_t5.SAT5Model)
+
+class AuraFlow(supported_models_base.BASE):
+    unet_config = {
+        "cond_seq_dim": 2048,
+    }
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 1.73,
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.SDXL
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.AuraFlow(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        return supported_models_base.ClipTarget(comfy.text_encoders.aura_t5.AuraT5Tokenizer, comfy.text_encoders.aura_t5.AuraT5Model)
+
+class HunyuanDiT(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "hydit",
+    }
+
+    unet_extra_config = {
+        "attn_precision": torch.float32,
+    }
+
+    sampling_settings = {
+        "linear_start": 0.00085,
+        "linear_end": 0.018,
+    }
+
+    latent_format = latent_formats.SDXL
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.HunyuanDiT(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        return supported_models_base.ClipTarget(comfy.text_encoders.hydit.HyditTokenizer, comfy.text_encoders.hydit.HyditModel)
+
+class HunyuanDiT1(HunyuanDiT):
+    unet_config = {
+        "image_model": "hydit1",
+    }
+
+    unet_extra_config = {}
+
+    sampling_settings = {
+        "linear_start" : 0.00085,
+        "linear_end" : 0.03,
+    }
+
+class Flux(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "flux",
+        "guidance_embed": True,
+    }
+
+    sampling_settings = {
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.Flux
+
+    memory_usage_factor = 2.8
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.Flux(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        t5_key = "{}t5xxl.transformer.encoder.final_layer_norm.weight".format(pref)
+        if t5_key in state_dict:
+            dtype_t5 = state_dict[t5_key].dtype
+        return supported_models_base.ClipTarget(comfy.text_encoders.flux.FluxTokenizer, comfy.text_encoders.flux.flux_clip(dtype_t5=dtype_t5))
+
+class FluxSchnell(Flux):
+    unet_config = {
+        "image_model": "flux",
+        "guidance_embed": False,
+    }
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 1.0,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.Flux(self, model_type=model_base.ModelType.FLOW, device=device)
+        return out
+
+
+models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, HunyuanDiT, HunyuanDiT1, Flux, FluxSchnell]
 
 models += [SVD_img2vid]

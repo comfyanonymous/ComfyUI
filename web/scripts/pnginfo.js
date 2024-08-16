@@ -49,7 +49,7 @@ export function getPngMetadata(file) {
 
 function parseExifData(exifData) {
 	// Check for the correct TIFF header (0x4949 for little-endian or 0x4D4D for big-endian)
-	const isLittleEndian = new Uint16Array(exifData.slice(0, 2))[0] === 0x4949;
+	const isLittleEndian = String.fromCharCode(...exifData.slice(0, 2)) === "II";
 
 	// Function to read 16-bit and 32-bit integers from binary data
 	function readInt(offset, isLittleEndian, length) {
@@ -134,6 +134,7 @@ export function getWebpMetadata(file) {
 						let index = value.indexOf(':');
 						txt_chunks[value.slice(0, index)] = value.slice(index + 1);
 					}
+					break;
 				}
 
 				offset += 8 + chunk_length;
@@ -160,6 +161,79 @@ export function getLatentMetadata(file) {
 
 		var slice = file.slice(0, 1024 * 1024 * 4);
 		reader.readAsArrayBuffer(slice);
+	});
+}
+
+
+function getString(dataView, offset, length) {
+	let string = '';
+	for (let i = 0; i < length; i++) {
+		string += String.fromCharCode(dataView.getUint8(offset + i));
+	}
+	return string;
+}
+
+// Function to parse the Vorbis Comment block
+function parseVorbisComment(dataView) {
+	let offset = 0;
+	const vendorLength = dataView.getUint32(offset, true);
+	offset += 4;
+	const vendorString = getString(dataView, offset, vendorLength);
+	offset += vendorLength;
+
+	const userCommentListLength = dataView.getUint32(offset, true);
+	offset += 4;
+	const comments = {};
+	for (let i = 0; i < userCommentListLength; i++) {
+		const commentLength = dataView.getUint32(offset, true);
+		offset += 4;
+		const comment = getString(dataView, offset, commentLength);
+		offset += commentLength;
+
+		const ind = comment.indexOf('=')
+		const key = comment.substring(0, ind);
+
+		comments[key] = comment.substring(ind+1);
+	}
+
+	return comments;
+}
+
+// Function to read a FLAC file and parse Vorbis comments
+export function getFlacMetadata(file) {
+	return new Promise((r) => {
+		const reader = new FileReader();
+		reader.onload = function(event) {
+			const arrayBuffer = event.target.result;
+			const dataView = new DataView(arrayBuffer);
+
+			// Verify the FLAC signature
+			const signature = String.fromCharCode(...new Uint8Array(arrayBuffer, 0, 4));
+			if (signature !== 'fLaC') {
+				console.error('Not a valid FLAC file');
+				return;
+			}
+
+			// Parse metadata blocks
+			let offset = 4;
+			let vorbisComment = null;
+			while (offset < dataView.byteLength) {
+				const isLastBlock = dataView.getUint8(offset) & 0x80;
+				const blockType = dataView.getUint8(offset) & 0x7F;
+				const blockSize = dataView.getUint32(offset, false) & 0xFFFFFF;
+				offset += 4;
+
+				if (blockType === 4) { // Vorbis Comment block type
+					vorbisComment = parseVorbisComment(new DataView(arrayBuffer, offset, blockSize));
+				}
+
+				offset += blockSize;
+				if (isLastBlock) break;
+			}
+
+			r(vorbisComment);
+		};
+		reader.readAsArrayBuffer(file);
 	});
 }
 
