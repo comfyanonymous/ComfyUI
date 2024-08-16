@@ -20,3 +20,5 @@ venv/
 *.log
 /huggingface/
 web_custom_versions/
+.DS_Store
+
