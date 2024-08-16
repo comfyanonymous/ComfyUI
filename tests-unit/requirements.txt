@@ -1,3 +1,0 @@
-pytest>=7.8.0
-pytest-aiohttp
-pytest-asyncio
