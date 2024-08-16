@@ -162,6 +162,7 @@ class Flux(SD3):
             [-0.0005, -0.0530, -0.0020],
             [-0.1273, -0.0932, -0.0680]
         ]
+        self.taesd_decoder_name = "taef1_decoder"
 
     def process_in(self, latent):
         return (latent - self.shift_factor) * self.scale_factor
