@@ -49,9 +49,10 @@ class IsChangedCache:
 
         input_data_all, _ = get_input_data(node["inputs"], class_def, node_id, self.outputs_cache)
         try:
-            is_changed = map_node_over_list(class_def, input_data_all, "IS_CHANGED")
+            is_changed = _map_node_over_list(class_def, input_data_all, "IS_CHANGED")
             node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
-        except:
+        except Exception as e:
+            logging.warning("WARNING: {}".format(e))
             node["is_changed"] = float("NaN")
         finally:
             self.is_changed[node_id] = node["is_changed"]
@@ -126,7 +127,9 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
                 input_data_all[x] = [unique_id]
     return input_data_all, missing_keys
 
-def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execution_block_cb=None, pre_execute_cb=None):
+map_node_over_list = None #Don't hook this please
+
+def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execution_block_cb=None, pre_execute_cb=None):
     # check if node wants the lists
     input_is_list = getattr(obj, "INPUT_IS_LIST", False)
 
@@ -185,7 +188,7 @@ def get_output_data(obj, input_data_all, execution_block_cb=None, pre_execute_cb
     results = []
     uis = []
     subgraph_results = []
-    return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb)
+    return_values = _map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb)
     has_subgraph = False
     for i in range(len(return_values)):
         r = return_values[i]
@@ -280,7 +283,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                 caches.objects.set(unique_id, obj)
 
             if hasattr(obj, "check_lazy_status"):
-                required_inputs = map_node_over_list(obj, input_data_all, "check_lazy_status", allow_interrupt=True)
+                required_inputs = _map_node_over_list(obj, input_data_all, "check_lazy_status", allow_interrupt=True)
                 required_inputs = set(sum([r for r in required_inputs if isinstance(r,list)], []))
                 required_inputs = [x for x in required_inputs if isinstance(x,str) and (
                     x not in input_data_all or x in missing_keys
@@ -711,7 +714,7 @@ def validate_inputs(prompt, item, validated):
             input_filtered['input_types'] = [received_types]
 
         #ret = obj_class.VALIDATE_INPUTS(**input_filtered)
-        ret = map_node_over_list(obj_class, input_filtered, "VALIDATE_INPUTS")
+        ret = _map_node_over_list(obj_class, input_filtered, "VALIDATE_INPUTS")
         for x in input_filtered:
             for i, r in enumerate(ret):
                 if r is not True and not isinstance(r, ExecutionBlocker):
