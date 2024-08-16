@@ -77,6 +77,10 @@ try:
 except:
     xpu_available = xpu_available or (hasattr(torch, "xpu") and torch.xpu.is_available())
 
+if xpu_available:
+    from ipex_hijacks import hijacks
+    hijacks.ipex_hijacks()
+
 try:
     if torch.backends.mps.is_available():
         cpu_state = CPUState.MPS
