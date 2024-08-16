@@ -9,13 +9,16 @@ def is_link(obj):
         return False
     return True
 
-# The GraphBuilder is just a utility class that outputs graphs in the form expected by the ComfyUI back-end
+
 class GraphBuilder:
+    """
+    The GraphBuilder is just a utility class that outputs graphs in the form expected by the ComfyUI back-end
+    """
     _default_prefix_root = ""
     _default_prefix_call_index = 0
     _default_prefix_graph_index = 0
 
-    def __init__(self, prefix = None):
+    def __init__(self, prefix=None):
         if prefix is None:
             self.prefix = GraphBuilder.alloc_prefix()
         else:
@@ -24,7 +27,7 @@ class GraphBuilder:
         self.id_gen = 1
 
     @classmethod
-    def set_default_prefix(cls, prefix_root, call_index, graph_index = 0):
+    def set_default_prefix(cls, prefix_root, call_index, graph_index=0):
         cls._default_prefix_root = prefix_root
         cls._default_prefix_call_index = call_index
         cls._default_prefix_graph_index = graph_index
@@ -80,6 +83,7 @@ class GraphBuilder:
         id = self.prefix + id
         del self.nodes[id]
 
+
 class Node:
     def __init__(self, id, class_type, inputs):
         self.id = id
@@ -112,13 +116,14 @@ class Node:
             serialized["override_display_id"] = self.override_display_id
         return serialized
 
+
 def add_graph_prefix(graph, outputs, prefix):
     # Change the node IDs and any internal links
     new_graph = {}
     for node_id, node_info in graph.items():
         # Make sure the added nodes have unique IDs
         new_node_id = prefix + node_id
-        new_node = { "class_type": node_info["class_type"], "inputs": {} }
+        new_node = {"class_type": node_info["class_type"], "inputs": {}}
         for input_name, input_value in node_info.get("inputs", {}).items():
             if is_link(input_value):
                 new_node["inputs"][input_name] = [prefix + input_value[0], input_value[1]]
@@ -136,4 +141,3 @@ def add_graph_prefix(graph, outputs, prefix):
             new_outputs.append(output)
 
     return new_graph, tuple(new_outputs)
-

@@ -1,10 +1,10 @@
 import itertools
 from typing import Sequence, Mapping
-from comfy_execution.graph import DynamicPrompt
 
-import nodes
+from .cmd.execution import nodes
+from .graph import DynamicPrompt
+from .graph_utils import is_link
 
-from comfy_execution.graph_utils import is_link
 
 class CacheKeySet:
     def __init__(self, dynprompt, node_ids, is_changed_cache):
@@ -29,9 +29,11 @@ class CacheKeySet:
     def get_subcache_key(self, node_id):
         return self.subcache_keys.get(node_id, None)
 
+
 class Unhashable:
     def __init__(self):
         self.value = float("NaN")
+
 
 def to_hashable(obj):
     # So that we don't infinitely recurse since frozenset and tuples
@@ -46,6 +48,7 @@ def to_hashable(obj):
         # TODO - Support other objects like tensors?
         return Unhashable()
 
+
 class CacheKeySetID(CacheKeySet):
     def __init__(self, dynprompt, node_ids, is_changed_cache):
         super().__init__(dynprompt, node_ids, is_changed_cache)
@@ -59,6 +62,7 @@ class CacheKeySetID(CacheKeySet):
             node = self.dynprompt.get_node(node_id)
             self.keys[node_id] = (node_id, node["class_type"])
             self.subcache_keys[node_id] = (node_id, node["class_type"])
+
 
 class CacheKeySetInputSignature(CacheKeySet):
     def __init__(self, dynprompt, node_ids, is_changed_cache):
@@ -98,7 +102,7 @@ class CacheKeySetInputSignature(CacheKeySet):
             if is_link(inputs[key]):
                 (ancestor_id, ancestor_socket) = inputs[key]
                 ancestor_index = ancestor_order_mapping[ancestor_id]
-                signature.append((key,("ANCESTOR", ancestor_index, ancestor_socket)))
+                signature.append((key, ("ANCESTOR", ancestor_index, ancestor_socket)))
             else:
                 signature.append((key, inputs[key]))
         return signature
@@ -121,6 +125,7 @@ class CacheKeySetInputSignature(CacheKeySet):
                     ancestors.append(ancestor_id)
                     order_mapping[ancestor_id] = len(ancestors) - 1
                     self.get_ordered_ancestry_internal(dynprompt, ancestor_id, ancestors, order_mapping)
+
 
 class BasicCache:
     def __init__(self, key_class):
@@ -207,6 +212,7 @@ class BasicCache:
             result.append({"subcache_key": key, "subcache": self.subcaches[key].recursive_debug_dump()})
         return result
 
+
 class HierarchicalCache(BasicCache):
     def __init__(self, key_class):
         super().__init__(key_class)
@@ -244,6 +250,7 @@ class HierarchicalCache(BasicCache):
         cache = self._get_cache_for(node_id)
         assert cache is not None
         return cache._ensure_subcache(node_id, children_ids)
+
 
 class LRUCache(BasicCache):
     def __init__(self, key_class, max_size=100):
@@ -296,4 +303,3 @@ class LRUCache(BasicCache):
             self._mark_used(child_id)
             self.children[cache_key].append(self.cache_key_set.get_data_key(child_id))
         return self
-
