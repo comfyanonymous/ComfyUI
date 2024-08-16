@@ -25,7 +25,7 @@ from aiohttp import web
 from can_ada import URL, parse as urlparse  # pylint: disable=no-name-in-module
 from typing_extensions import NamedTuple
 
-from model_filemanager import download_model, DownloadModelStatus
+from ..model_filemanager import download_model, DownloadModelStatus
 from .latent_preview_image_encoding import encode_preview_image
 from .. import interruption
 from .. import model_management
