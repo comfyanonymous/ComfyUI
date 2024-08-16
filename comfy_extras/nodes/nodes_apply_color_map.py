@@ -70,7 +70,7 @@ class ImageApplyColorMap(CustomNode):
                 cv2_colormap = getattr(cv2, colormap)
                 colored_image = cv2.applyColorMap(normalized_depth_uint8, cv2_colormap)  # pylint: disable=no-member
             colored_image_rgb = cv2.cvtColor(colored_image, cv2.COLOR_BGR2RGB)  # pylint: disable=no-member
-            rgb_tensor = torch.tensor(colored_image_rgb) * 1.0 / 255.0
+            rgb_tensor = torch.tensor(colored_image_rgb).float() * 1.0 / 255.0
             colored_images.append(rgb_tensor)
 
         return torch.stack(colored_images),

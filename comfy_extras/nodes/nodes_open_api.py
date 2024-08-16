@@ -197,7 +197,7 @@ class HashImage(CustomNode):
 
     def execute(self, images: Sequence[Tensor]) -> ValidatedNodeResult:
         def process_image(image: Tensor) -> str:
-            image_as_numpy_array: np.ndarray = 255. * image.cpu().numpy()
+            image_as_numpy_array: np.ndarray = 255. * image.float().cpu().numpy()
             image_as_numpy_array = np.ascontiguousarray(np.clip(image_as_numpy_array, 0, 255).astype(np.uint8))
             data = image_as_numpy_array.data
             try:

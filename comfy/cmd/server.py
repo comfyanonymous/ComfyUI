@@ -172,14 +172,12 @@ class PromptServer(ExecutorToClientProgress):
 
         @routes.get("/extensions")
         async def get_extensions(request):
-            files = glob.glob(os.path.join(
-                glob.escape(self.web_root), 'extensions/**/*.js'), recursive=True)
+            files = glob.glob(os.path.join(glob.escape(self.web_root), 'extensions/**/*.js'), recursive=True)
             extensions = list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files))
 
             for name, dir in self.nodes.EXTENSION_WEB_DIRS.items():
                 files = glob.glob(os.path.join(glob.escape(dir), '**/*.js'), recursive=True)
-                extensions.extend(list(map(lambda f: "/extensions/" + quote(
-                    name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
+                extensions.extend(list(map(lambda f: "/extensions/" + quote(name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
 
             return web.json_response(extensions)
 
@@ -444,8 +442,9 @@ class PromptServer(ExecutorToClientProgress):
             info = {}
             info['input'] = obj_class.INPUT_TYPES()
             info['input_order'] = {key: list(value.keys()) for (key, value) in obj_class.INPUT_TYPES().items()}
-            info['output'] = obj_class.RETURN_TYPES
-            info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(obj_class.RETURN_TYPES)
+            _return_types = ["STRING" if isinstance(rt, list) and rt == [] else rt for rt in obj_class.RETURN_TYPES]
+            info['output'] = _return_types
+            info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(_return_types)
             info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
             info['name'] = node_class
             info['display_name'] = self.nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in self.nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class

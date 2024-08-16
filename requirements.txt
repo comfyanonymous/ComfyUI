@@ -62,3 +62,4 @@ networkx>=2.6.3
 joblib
 jaxtyping
 spandrel_extra_arches
+ml_dtypes

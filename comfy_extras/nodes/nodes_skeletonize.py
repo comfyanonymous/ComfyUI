@@ -31,7 +31,7 @@ class SkeletonizeThin:
 
         results = []
         for img in binary:
-            img_np = img.squeeze().cpu().numpy()
+            img_np = img.squeeze().float().cpu().numpy()
 
             if use_skeletonize:
                 result = skeletonize(img_np)

@@ -24,6 +24,7 @@ from .. import model_management
 from ..cli_args import args
 
 from ..cmd import folder_paths, latent_preview
+from ..component_model.tensor_types import RGBImage
 from ..execution_context import current_execution_context
 from ..images import open_image
 from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES, get_huggingface_repo_list, KNOWN_CLIP_MODELS, KNOWN_UNET_MODELS
@@ -718,8 +719,8 @@ class VAELoader:
             sd_["vae_scale"] = torch.tensor(1.5305)
             sd_["vae_shift"] = torch.tensor(0.0609)
         elif name == "taef1":
-            sd["vae_scale"] = torch.tensor(0.3611)
-            sd["vae_shift"] = torch.tensor(0.1159)
+            sd_["vae_scale"] = torch.tensor(0.3611)
+            sd_["vae_shift"] = torch.tensor(0.1159)
         return sd_
 
     @classmethod
@@ -1492,8 +1493,9 @@ class SaveImage:
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
+        image: RGBImage
         for (batch_number, image) in enumerate(images):
-            i = 255. * image.cpu().numpy()
+            i = 255. * image.float().cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             metadata = None
             if not args.disable_metadata:

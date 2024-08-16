@@ -397,6 +397,8 @@ KNOWN_DIFF_CONTROLNETS: Final[KnownDownloadables] = KnownDownloadables([
 KNOWN_APPROX_VAES: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("madebyollin/taesd", "taesd_decoder.safetensors"),
     HuggingFile("madebyollin/taesdxl", "taesdxl_decoder.safetensors"),
+    HuggingFile("madebyollin/taef1", "diffusion_pytorch_model.safetensors", save_with_filename="taef1_decoder.safetensors"),
+    HuggingFile("madebyollin/taesd3", "diffusion_pytorch_model.safetensors", save_with_filename="taesd3_decoder.safetensors"),
 ], folder_name="vae_approx")
 
 KNOWN_VAES: Final[KnownDownloadables] = KnownDownloadables([

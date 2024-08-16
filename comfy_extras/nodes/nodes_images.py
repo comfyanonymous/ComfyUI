@@ -101,7 +101,7 @@ class SaveAnimatedWEBP:
         results = list()
         pil_images = []
         for image in images:
-            i = 255. * image.cpu().numpy()
+            i = 255. * image.float().cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             pil_images.append(img)
 
@@ -162,7 +162,7 @@ class SaveAnimatedPNG:
         results = list()
         pil_images = []
         for image in images:
-            i = 255. * image.cpu().numpy()
+            i = 255. * image.float().cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             pil_images.append(img)
 

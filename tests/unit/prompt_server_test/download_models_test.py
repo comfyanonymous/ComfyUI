@@ -1,16 +1,21 @@
-import pytest
-import aiohttp
-from aiohttp import ClientResponse
 import itertools
-import os 
+import os
 from unittest.mock import AsyncMock, patch, MagicMock
-from model_filemanager import download_model, validate_model_subdirectory, track_download_progress, create_model_path, check_file_exists, DownloadStatusType, DownloadModelStatus, validate_filename
+
+import aiohttp
+import pytest
+from aiohttp import ClientResponse
+
+from comfy.model_filemanager import download_model, validate_model_subdirectory, track_download_progress, \
+    create_model_path, check_file_exists, DownloadStatusType, DownloadModelStatus, validate_filename
+
 
 class AsyncIteratorMock:
     """
     A mock class that simulates an asynchronous iterator.
     This is used to mimic the behavior of aiohttp's content iterator.
     """
+
     def __init__(self, seq):
         # Convert the input sequence into an iterator
         self.iter = iter(seq)
@@ -27,11 +32,13 @@ class AsyncIteratorMock:
             # This is the asynchronous equivalent of StopIteration
             raise StopAsyncIteration
 
+
 class ContentMock:
     """
     A mock class that simulates the content attribute of an aiohttp ClientResponse.
     This class provides the iter_chunked method which returns an async iterator of chunks.
     """
+
     def __init__(self, chunks):
         # Store the chunks that will be returned by the iterator
         self.chunks = chunks
@@ -40,6 +47,7 @@ class ContentMock:
         # This method mimics aiohttp's content.iter_chunked()
         # For simplicity in testing, we ignore chunk_size and just return our predefined chunks
         return AsyncIteratorMock(self.chunks)
+
 
 @pytest.mark.asyncio
 async def test_download_model_success():
@@ -59,10 +67,10 @@ async def test_download_model_success():
     mock_open.return_value.__enter__.return_value = mock_file
     time_values = itertools.count(0, 0.1)
 
-    with patch('model_filemanager.create_model_path', return_value=('models/checkpoints/model.sft', 'checkpoints/model.sft')), \
-         patch('model_filemanager.check_file_exists', return_value=None), \
-         patch('builtins.open', mock_open), \
-         patch('time.time', side_effect=time_values):  # Simulate time passing
+    with patch('comfy.model_filemanager.create_model_path', return_value=('models/checkpoints/model.sft', 'checkpoints/model.sft')), \
+            patch('comfy.model_filemanager.check_file_exists', return_value=None), \
+            patch('builtins.open', mock_open), \
+            patch('time.time', side_effect=time_values):  # Simulate time passing
 
         result = await download_model(
             mock_make_request,
@@ -80,7 +88,7 @@ async def test_download_model_success():
 
     # Check progress callback calls
     assert mock_progress_callback.call_count >= 3  # At least start, one progress update, and completion
-    
+
     # Check initial call
     mock_progress_callback.assert_any_call(
         'checkpoints/model.sft',
@@ -101,6 +109,7 @@ async def test_download_model_success():
     # Verify request was made
     mock_make_request.assert_called_once_with('http://example.com/model.sft')
 
+
 @pytest.mark.asyncio
 async def test_download_model_url_request_failure():
     # Mock dependencies
@@ -110,9 +119,9 @@ async def test_download_model_url_request_failure():
     mock_progress_callback = AsyncMock()
 
     # Mock the create_model_path function
-    with patch('model_filemanager.create_model_path', return_value=('/mock/path/model.safetensors', 'mock/path/model.safetensors')):
+    with patch('comfy.model_filemanager.create_model_path', return_value=('/mock/path/model.safetensors', 'mock/path/model.safetensors')):
         # Mock the check_file_exists function to return None (file doesn't exist)
-        with patch('model_filemanager.check_file_exists', return_value=None):
+        with patch('comfy.model_filemanager.check_file_exists', return_value=None):
             # Call the function
             result = await download_model(
                 mock_get,
@@ -151,13 +160,12 @@ async def test_download_model_url_request_failure():
     # Verify that the get method was called with the correct URL
     mock_get.assert_called_once_with('http://example.com/model.safetensors')
 
+
 @pytest.mark.asyncio
 async def test_download_model_invalid_model_subdirectory():
-    
     mock_make_request = AsyncMock()
     mock_progress_callback = AsyncMock()
 
-    
     result = await download_model(
         mock_make_request,
         'model.sft',
@@ -177,12 +185,12 @@ async def test_download_model_invalid_model_subdirectory():
 def test_create_model_path(tmp_path, monkeypatch):
     mock_models_dir = tmp_path / "models"
     monkeypatch.setattr('folder_paths.models_dir', str(mock_models_dir))
-    
+
     model_name = "test_model.sft"
     model_directory = "test_dir"
-    
+
     file_path, relative_path = create_model_path(model_name, model_directory, mock_models_dir)
-    
+
     assert file_path == str(mock_models_dir / model_directory / model_name)
     assert relative_path == f"{model_directory}/{model_name}"
     assert os.path.exists(os.path.dirname(file_path))
@@ -192,31 +200,33 @@ def test_create_model_path(tmp_path, monkeypatch):
 async def test_check_file_exists_when_file_exists(tmp_path):
     file_path = tmp_path / "existing_model.sft"
     file_path.touch()  # Create an empty file
-    
+
     mock_callback = AsyncMock()
-    
+
     result = await check_file_exists(str(file_path), "existing_model.sft", mock_callback, "test/existing_model.sft")
-    
+
     assert result is not None
     assert result.status == "completed"
     assert result.message == "existing_model.sft already exists"
     assert result.already_existed is True
-    
+
     mock_callback.assert_called_once_with(
         "test/existing_model.sft",
         DownloadModelStatus(DownloadStatusType.COMPLETED, 100, "existing_model.sft already exists", already_existed=True)
     )
 
+
 @pytest.mark.asyncio
 async def test_check_file_exists_when_file_does_not_exist(tmp_path):
     file_path = tmp_path / "non_existing_model.sft"
-    
+
     mock_callback = AsyncMock()
-    
+
     result = await check_file_exists(str(file_path), "non_existing_model.sft", mock_callback, "test/non_existing_model.sft")
-    
+
     assert result is None
     mock_callback.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_track_download_progress_no_content_length():
@@ -240,6 +250,7 @@ async def test_track_download_progress_no_content_length():
         DownloadModelStatus(DownloadStatusType.IN_PROGRESS, 0, "Downloading model.sft", already_existed=False)
     )
 
+
 @pytest.mark.asyncio
 async def test_track_download_progress_interval():
     mock_response = AsyncMock(spec=aiohttp.ClientResponse)
@@ -254,7 +265,7 @@ async def test_track_download_progress_interval():
     mock_time.side_effect = [i * 0.5 for i in range(30)]  # This should be enough for 10 chunks
 
     with patch('builtins.open', mock_open), \
-         patch('time.time', mock_time):
+            patch('time.time', mock_time):
         await track_download_progress(
             mock_response, '/mock/path/model.sft', 'model.sft',
             mock_callback, 'models/model.sft', interval=1.0
@@ -279,31 +290,39 @@ async def test_track_download_progress_interval():
     assert last_call[0][1].status == "completed"
     assert last_call[0][1].progress_percentage == 100
 
+
 def test_valid_subdirectory():
     assert validate_model_subdirectory("valid-model123") is True
+
 
 def test_subdirectory_too_long():
     assert validate_model_subdirectory("a" * 51) is False
 
+
 def test_subdirectory_with_double_dots():
     assert validate_model_subdirectory("model/../unsafe") is False
+
 
 def test_subdirectory_with_slash():
     assert validate_model_subdirectory("model/unsafe") is False
 
+
 def test_subdirectory_with_special_characters():
     assert validate_model_subdirectory("model@unsafe") is False
+
 
 def test_subdirectory_with_underscore_and_dash():
     assert validate_model_subdirectory("valid_model-name") is True
 
+
 def test_empty_subdirectory():
     assert validate_model_subdirectory("") is False
+
 
 @pytest.mark.parametrize("filename, expected", [
     ("valid_model.safetensors", True),
     ("valid_model.sft", True),
-    ("valid model.safetensors", True), # Test with space
+    ("valid model.safetensors", True),  # Test with space
     ("UPPERCASE_MODEL.SAFETENSORS", True),
     ("model_with.multiple.dots.pt", False),
     ("", False),  # Empty string
