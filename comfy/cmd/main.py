@@ -212,6 +212,7 @@ async def main():
     server.address = args.listen
     server.port = args.port
     try:
+        await server.setup()
         await run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server,
                   call_on_start=call_on_start)
     except (asyncio.CancelledError, KeyboardInterrupt):

@@ -473,7 +473,7 @@ class PromptExecutor:
         self.caches = CacheSet(self.lru_size)
         self.status_messages = []
 
-    def add_message(self, event, data, broadcast: bool):
+    def add_message(self, event, data: dict, broadcast: bool):
         data = {
             **data,
             # todo: use a real time library
@@ -544,15 +544,19 @@ class PromptExecutor:
                 cache.set_prompt(dynamic_prompt, prompt.keys(), is_changed_cache)
                 cache.clean_unused()
 
-            current_outputs = self.caches.outputs.all_node_ids()
+            cached_nodes = []
+            for node_id in prompt:
+                if self.caches.outputs.get(node_id) is not None:
+                    cached_nodes.append(node_id)
 
             model_management.cleanup_models(keep_clone_weights_loaded=True)
             self.add_message("execution_cached",
-                             {"nodes": list(current_outputs), "prompt_id": prompt_id},
+                             { "nodes": cached_nodes, "prompt_id": prompt_id},
                              broadcast=False)
             pending_subgraph_results = {}
             executed = set()
             execution_list = ExecutionList(dynamic_prompt, self.caches.outputs)
+            current_outputs = self.caches.outputs.all_node_ids()
             for node_id in list(execute_outputs):
                 execution_list.add_node(node_id)
 
@@ -570,6 +574,9 @@ class PromptExecutor:
                     execution_list.unstage_node_execution()
                 else:  # result == ExecutionResult.SUCCESS:
                     execution_list.complete_node_execution()
+            else:
+                # Only execute when the while-loop ends without break
+                self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
 
             ui_outputs = {}
             meta_outputs = {}
@@ -615,8 +622,11 @@ def validate_inputs(prompt, item, validated: typing.Dict[str, ValidateInputsTupl
     val = None
 
     validate_function_inputs = []
+    validate_has_kwargs = False
     if hasattr(obj_class, "VALIDATE_INPUTS"):
-        validate_function_inputs = inspect.getfullargspec(obj_class.VALIDATE_INPUTS).args
+        argspec = inspect.getfullargspec(obj_class.VALIDATE_INPUTS)
+        validate_function_inputs = argspec.args
+        validate_has_kwargs = argspec.varkw is not None
     received_types = {}
 
     for x in valid_inputs:
@@ -787,11 +797,11 @@ def validate_inputs(prompt, item, validated: typing.Dict[str, ValidateInputsTupl
                         errors.append(error)
                         continue
 
-    if len(validate_function_inputs) > 0:
+    if len(validate_function_inputs) > 0 or validate_has_kwargs:
         input_data_all, _ = get_input_data(inputs, obj_class, unique_id)
         input_filtered = {}
         for x in input_data_all:
-            if x in validate_function_inputs:
+            if x in validate_function_inputs or validate_has_kwargs:
                 input_filtered[x] = input_data_all[x]
         if 'input_types' in validate_function_inputs:
             input_filtered['input_types'] = [received_types]

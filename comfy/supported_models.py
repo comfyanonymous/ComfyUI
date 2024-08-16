@@ -181,7 +181,7 @@ class SDXL(supported_models_base.BASE):
 
     latent_format = latent_formats.SDXL
 
-    memory_usage_factor = 0.7
+    memory_usage_factor = 0.8
 
     def model_type(self, state_dict, prefix=""):
         if 'edm_mean' in state_dict and 'edm_std' in state_dict: #Playground V2.5

@@ -38,11 +38,18 @@ from ..utils import comfy_tqdm
 class CLIPTextEncode:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"text": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", )}}
+        return {
+            "required": {
+                "text": ("STRING", {"multiline": True, "dynamicPrompts": True, "tooltip": "The text to be encoded."}),
+                "clip": ("CLIP", {"tooltip": "The CLIP model used for encoding the text."})
+            }
+        }
     RETURN_TYPES = ("CONDITIONING",)
+    OUTPUT_TOOLTIPS = ("A conditioning containing the embedded text used to guide the diffusion model.",)
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
+    DESCRIPTION = "Encodes a text prompt using a CLIP model into an embedding that can be used to guide the diffusion model towards generating specific images."
 
     def encode(self, clip, text):
         tokens = clip.tokenize(text)
@@ -251,11 +258,18 @@ class ConditioningSetTimestepRange:
 class VAEDecode:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT", ), "vae": ("VAE", )}}
+        return {
+            "required": {
+                "samples": ("LATENT", {"tooltip": "The latent to be decoded."}),
+                "vae": ("VAE", {"tooltip": "The VAE model used for decoding the latent."})
+            }
+        }
     RETURN_TYPES = ("IMAGE",)
+    OUTPUT_TOOLTIPS = ("The decoded image.",)
     FUNCTION = "decode"
 
     CATEGORY = "latent"
+    DESCRIPTION = "Decodes latent images back into pixel space images."
 
     def decode(self, vae, samples):
         return (vae.decode(samples["samples"]), )
@@ -497,12 +511,19 @@ class CheckpointLoader:
 class CheckpointLoaderSimple:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "ckpt_name": (get_filename_list_with_downloadable("checkpoints", KNOWN_CHECKPOINTS),),
-                             }}
+        return {
+            "required": {
+                "ckpt_name": (get_filename_list_with_downloadable("checkpoints", KNOWN_CHECKPOINTS),{"tooltip": "The name of the checkpoint (model) to load."}),
+            }
+        }
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
+    OUTPUT_TOOLTIPS = ("The model used for denoising latents.",
+                       "The CLIP model used for encoding text prompts.",
+                       "The VAE model used for encoding and decoding images to and from latent space.")
     FUNCTION = "load_checkpoint"
 
     CATEGORY = "loaders"
+    DESCRIPTION = "Loads a diffusion model checkpoint, diffusion models are used to denoise latents."
 
     def load_checkpoint(self, ckpt_name):
         ckpt_path = get_or_download("checkpoints", ckpt_name, KNOWN_CHECKPOINTS)
@@ -579,16 +600,22 @@ class LoraLoader:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "clip": ("CLIP", ),
-                              "lora_name": (get_filename_list_with_downloadable("loras", KNOWN_LORAS),),
-                              "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01}),
-                              "strength_clip": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01}),
-                              }}
+        return {
+            "required": {
+                "model": ("MODEL", {"tooltip": "The diffusion model the LoRA will be applied to."}),
+                "clip": ("CLIP", {"tooltip": "The CLIP model the LoRA will be applied to."}),
+                "lora_name": (get_filename_list_with_downloadable("loras", KNOWN_LORAS),{"tooltip": "The name of the LoRA."}),
+                "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the diffusion model. This value can be negative."}),
+                "strength_clip": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the CLIP model. This value can be negative."}),
+            }
+        }
+
     RETURN_TYPES = ("MODEL", "CLIP")
+    OUTPUT_TOOLTIPS = ("The modified diffusion model.", "The modified CLIP model.")
     FUNCTION = "load_lora"
 
     CATEGORY = "loaders"
+    DESCRIPTION = "LoRAs are used to modify diffusion and CLIP models, altering the way in which latents are denoised such as applying styles. Multiple LoRA nodes can be linked together."
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
         if strength_model == 0 and strength_clip == 0:
@@ -635,6 +662,8 @@ class VAELoader:
         sd1_taesd_dec = False
         sd3_taesd_enc = False
         sd3_taesd_dec = False
+        f1_taesd_enc = False
+        f1_taesd_dec = False
 
         for v in approx_vaes:
             if v.startswith("taesd_decoder."):
@@ -649,12 +678,18 @@ class VAELoader:
                 sd3_taesd_dec = True
             elif v.startswith("taesd3_encoder."):
                 sd3_taesd_enc = True
+            elif v.startswith("taef1_encoder."):
+                f1_taesd_dec = True
+            elif v.startswith("taef1_decoder."):
+                f1_taesd_enc = True
         if sd1_taesd_dec and sd1_taesd_enc:
             vaes.append("taesd")
         if sdxl_taesd_dec and sdxl_taesd_enc:
             vaes.append("taesdxl")
         if sd3_taesd_dec and sd3_taesd_enc:
             vaes.append("taesd3")
+        if f1_taesd_dec and f1_taesd_enc:
+            vaes.append("taef1")
         return vaes
 
     @staticmethod
@@ -682,6 +717,9 @@ class VAELoader:
         elif name == "taesd3":
             sd_["vae_scale"] = torch.tensor(1.5305)
             sd_["vae_shift"] = torch.tensor(0.0609)
+        elif name == "taef1":
+            sd["vae_scale"] = torch.tensor(0.3611)
+            sd["vae_shift"] = torch.tensor(0.1159)
         return sd_
 
     @classmethod
@@ -694,7 +732,7 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
-        if vae_name in ["taesd", "taesdxl", "taesd3"]:
+        if vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
             sd_ = self.load_taesd(vae_name)
         else:
             vae_path = get_or_download("vae", vae_name, KNOWN_VAES)
@@ -1033,13 +1071,19 @@ class EmptyLatentImage:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "width": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
-                              "height": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
-                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
+        return {
+            "required": {
+                "width": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8, "tooltip": "The width of the latent images in pixels."}),
+                "height": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8, "tooltip": "The height of the latent images in pixels."}),
+                "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "tooltip": "The number of latent images in the batch."})
+            }
+        }
     RETURN_TYPES = ("LATENT",)
+    OUTPUT_TOOLTIPS = ("The empty latent image batch.",)
     FUNCTION = "generate"
 
     CATEGORY = "latent"
+    DESCRIPTION = "Create a new batch of empty latent images to be denoised via sampling."
 
     def generate(self, width, height, batch_size=1):
         latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=self.device)
@@ -1359,24 +1403,27 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
 class KSampler:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required":
-                    {"model": ("MODEL",),
-                    "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                    "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
-                    "sampler_name": (samplers.KSampler.SAMPLERS, ),
-                    "scheduler": (samplers.KSampler.SCHEDULERS, ),
-                    "positive": ("CONDITIONING", ),
-                    "negative": ("CONDITIONING", ),
-                    "latent_image": ("LATENT", ),
-                    "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                     }
-                }
+        return {
+            "required": {
+                "model": ("MODEL", {"tooltip": "The model used for denoising the input latent."}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The random seed used for creating the noise."}),
+                "steps": ("INT", {"default": 20, "min": 1, "max": 10000, "tooltip": "The number of steps used in the denoising process."}),
+                "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01, "tooltip": "The Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality."}),
+                "sampler_name": (samplers.KSampler.SAMPLERS, {"tooltip": "The algorithm used when sampling, this can affect the quality, speed, and style of the generated output."}),
+                "scheduler": (samplers.KSampler.SCHEDULERS, {"tooltip": "The scheduler controls how noise is gradually removed to form the image."}),
+                "positive": ("CONDITIONING", {"tooltip": "The conditioning describing the attributes you want to include in the image."}),
+                "negative": ("CONDITIONING", {"tooltip": "The conditioning describing the attributes you want to exclude from the image."}),
+                "latent_image": ("LATENT", {"tooltip": "The latent image to denoise."}),
+                "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "The amount of denoising applied, lower values will maintain the structure of the initial image allowing for image to image sampling."}),
+            }
+        }
 
     RETURN_TYPES = ("LATENT",)
+    OUTPUT_TOOLTIPS = ("The denoised latent.",)
     FUNCTION = "sample"
 
     CATEGORY = "sampling"
+    DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image."
 
     def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0):
         return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise)
@@ -1424,11 +1471,14 @@ class SaveImage:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required":
-                    {"images": ("IMAGE", ),
-                     "filename_prefix": ("STRING", {"default": "ComfyUI"})},
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
-                }
+        return {"required":{
+                "images": ("IMAGE", {"tooltip": "The images to save."}),
+                "filename_prefix": ("STRING", {"default": "ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."})
+            },
+            "hidden": {
+                "prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"
+            },
+        }
 
     RETURN_TYPES = ()
     FUNCTION = "save_images"
@@ -1436,6 +1486,7 @@ class SaveImage:
     OUTPUT_NODE = True
 
     CATEGORY = "image"
+    DESCRIPTION = "Saves the input images to your ComfyUI output directory."
 
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append

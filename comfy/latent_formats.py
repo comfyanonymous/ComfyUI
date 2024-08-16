@@ -141,6 +141,7 @@ class StableAudio1(LatentFormat):
     latent_channels = 64
 
 class Flux(SD3):
+    latent_channels = 16
     def __init__(self):
         self.scale_factor = 0.3611
         self.shift_factor = 0.1159
@@ -162,6 +163,7 @@ class Flux(SD3):
             [-0.0005, -0.0530, -0.0020],
             [-0.1273, -0.0932, -0.0680]
         ]
+        self.taesd_decoder_name = "taef1_decoder"
 
     def process_in(self, latent):
         return (latent - self.shift_factor) * self.scale_factor

@@ -9,7 +9,8 @@ from pytest import fixture
 
 from comfy.cli_args import default_configuration
 from comfy.client.embedded_comfy_client import EmbeddedComfyClient
-from comfy.component_model.executor_types import SendSyncEvent, SendSyncData, ExecutingMessage, ExecutionErrorMessage, DependencyCycleError
+from comfy.component_model.executor_types import SendSyncEvent, SendSyncData, ExecutingMessage, ExecutionErrorMessage, \
+    DependencyCycleError
 from comfy.distributed.server_stub import ServerStub
 from comfy.graph_utils import GraphBuilder, Node
 from comfy.nodes.package_typing import ExportedNodes
@@ -372,3 +373,20 @@ class TestExecution:
         images2 = result.get_images(output2)
         assert len(images1) == 1, "Should have 1 image"
         assert len(images2) == 1, "Should have 1 image"
+
+    async def test_mixed_lazy_results(self, client: Client, builder: GraphBuilder):
+        g = builder
+        val_list = g.node("TestMakeListNode", value1=0.0, value2=0.5, value3=1.0)
+        mask = g.node("StubMask", value=val_list.out(0), height=512, width=512, batch_size=1)
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        input2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+        mix = g.node("TestLazyMixImages", image1=input1.out(0), image2=input2.out(0), mask=mask.out(0))
+        rebatch = g.node("RebatchImages", images=mix.out(0), batch_size=3)
+        output = g.node("SaveImage", images=rebatch.out(0))
+
+        result = await client.run(g)
+        images = result.get_images(output)
+        assert len(images) == 3, "Should have 3 image"
+        assert numpy.array(images[0]).min() == 0 and numpy.array(images[0]).max() == 0, "First image should be 0.0"
+        assert numpy.array(images[1]).min() == 127 and numpy.array(images[1]).max() == 127, "Second image should be 0.5"
+        assert numpy.array(images[2]).min() == 255 and numpy.array(images[2]).max() == 255, "Third image should be 1.0"
