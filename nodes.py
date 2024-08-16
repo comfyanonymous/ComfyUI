@@ -721,7 +721,6 @@ class VAELoader:
             sd["vae_scale"] = torch.tensor(1.5305)
             sd["vae_shift"] = torch.tensor(0.0609)
         elif name == "taef1":
-            # TODO: check these numbers
             sd["vae_scale"] = torch.tensor(1.5305)
             sd["vae_shift"] = torch.tensor(0.0609)
         return sd
