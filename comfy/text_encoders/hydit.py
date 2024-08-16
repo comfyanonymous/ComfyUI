@@ -1,3 +1,5 @@
+import copy
+
 import torch
 from transformers import BertTokenizer
 

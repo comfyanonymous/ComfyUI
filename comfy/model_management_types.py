@@ -89,7 +89,7 @@ class ModelManageable(Protocol):
         return self.model_size()
 
     def memory_required(self, input_shape) -> int:
-        from comfy.model_base import BaseModel
+        from .model_base import BaseModel
 
         if isinstance(self.model, BaseModel):
             return self.model.memory_required(input_shape=input_shape)

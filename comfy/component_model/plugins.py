@@ -5,7 +5,7 @@ class _RoutesWrapper:
     def _decorator_factory(self, method):
         def decorator(path):
             def wrapper(func):
-                from comfy.cmd.server import PromptServer
+                from ..cmd.server import PromptServer
                 if PromptServer.instance is not None:
                     getattr(PromptServer.instance.routes, method)(path)(func)
                 self.routes.append((method, path, func))

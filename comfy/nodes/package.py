@@ -103,7 +103,7 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
 @tracer.start_as_current_span("Import All Nodes In Workspace")
 def import_all_nodes_in_workspace(vanilla_custom_nodes=True, raise_on_failure=False) -> ExportedNodes:
     # now actually import the nodes, to improve control of node loading order
-    from comfy_extras import nodes as comfy_extras_nodes
+    from comfy_extras import nodes as comfy_extras_nodes  # pylint: disable=absolute-import-used
     from ..cli_args import args
     from . import base_nodes
     from .vanilla_node_importing import mitigated_import_of_vanilla_custom_nodes
