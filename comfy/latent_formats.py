@@ -141,6 +141,7 @@ class StableAudio1(LatentFormat):
     latent_channels = 64
 
 class Flux(SD3):
+    latent_channels = 16
     def __init__(self):
         self.scale_factor = 0.3611
         self.shift_factor = 0.1159

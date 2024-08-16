@@ -48,11 +48,9 @@ class TAESD(nn.Module):
     latent_magnitude = 3
     latent_shift = 0.5
 
-    def __init__(self, encoder_path=None, decoder_path=None, latent_channels=None):
+    def __init__(self, encoder_path=None, decoder_path=None, latent_channels=4):
         """Initialize pretrained TAESD on the given device from the given checkpoints."""
         super().__init__()
-        if latent_channels is None:
-            latent_channels = self.guess_latent_channels(str(encoder_path))
         self.taesd_encoder = Encoder(latent_channels=latent_channels)
         self.taesd_decoder = Decoder(latent_channels=latent_channels)
         self.vae_scale = torch.nn.Parameter(torch.tensor(1.0))
@@ -61,14 +59,6 @@ class TAESD(nn.Module):
             self.taesd_encoder.load_state_dict(comfy.utils.load_torch_file(encoder_path, safe_load=True))
         if decoder_path is not None:
             self.taesd_decoder.load_state_dict(comfy.utils.load_torch_file(decoder_path, safe_load=True))
-
-    def guess_latent_channels(self, encoder_path):
-        """guess latent channel count based on encoder filename"""
-        if "taef1" in encoder_path:
-            return 16
-        if "taesd3" in encoder_path:
-            return 16
-        return 4
 
     @staticmethod
     def scale_latents(x):
