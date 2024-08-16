@@ -134,6 +134,7 @@ def add_model_folder_path(folder_name, full_folder_path):
         folder_names_and_paths[folder_name] = ([full_folder_path], set())
 
 def get_folder_paths(folder_name):
+    print(folder_names_and_paths[folder_name][0][:])
     return folder_names_and_paths[folder_name][0][:]
 
 def recursive_search(directory, excluded_dir_names=None):
@@ -191,8 +192,11 @@ def get_full_path(folder_name, filename):
 
 def get_filename_list_(folder_name):
     global folder_names_and_paths
+    print("global path")
+    print(folder_names_and_paths)
     output_list = set()
     folders = folder_names_and_paths[folder_name]
+    print(f"folders path :\n {folders}")
     output_folders = {}
     for x in folders[0]:
         files, folders_all = recursive_search(x, excluded_dir_names=[".git"])

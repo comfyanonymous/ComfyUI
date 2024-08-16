@@ -3,16 +3,18 @@ comfyui:
   checkpoints: models/checkpoints/
   clip: models/clip/
   clip_vision: models/clip_vision/
-  configs: models/configs/
+  configs: models/checkpoints/
   controlnet: models/controlnet/
   embeddings: models/embeddings/
   upscale_models: models/upscale_models/
   vae: models/vae/
   loras: |
-    models/lora
-    models/ip_adapter_faceid/lora
-  hypernetworks: embeddings
+    models/lora/
+    models/ip_adapter_faceid/lora/
+  hypernetworks: embeddings/
   ipadapter: |
-    models/ip_adapter_faceid/models
-    models/ip_adapter
+    models/ip_adapter_faceid/models/
+    models/ip_adapter/
   insightface: models/insightface/
+
+

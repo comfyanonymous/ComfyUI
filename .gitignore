@@ -18,4 +18,5 @@ venv/
 /tests-ui/data/object_info.json
 /user/
 *.log
+/huggingface/
 web_custom_versions/
