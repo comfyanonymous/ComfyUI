@@ -119,14 +119,30 @@ class Flux(nn.Module):
 
             if control is not None: #Controlnet
                 control_o = control.get("output")
-                if i < len(control_o):
-                    add = control_o[i]
-                    if add is not None:
-                        img += add
+                if isinstance(control_o[0], list):
+                    # InstantX format: [double_block_residuals, single_block_residuals]
+                    double_block_residuals, single_block_residuals = control_o
+                    interval_control = int(torch.ceil(torch.tensor(len(self.double_blocks) / len(double_block_residuals))))
+                    index = i // interval_control
+                    img += double_block_residuals[index]
+                else:
+                    # XLabs format: list of tensors
+                    if i < len(control_o):
+                        add = control_o[i]
+                        if add is not None:
+                            img += add
 
         img = torch.cat((txt, img), 1)
-        for block in self.single_blocks:
-            img = block(img, vec=vec, pe=pe)
+        for i in range(len(self.single_blocks)):
+            img = self.single_blocks[i](img, vec=vec, pe=pe)
+            if control is not None: #Controlnet
+                control_o = control.get("output")
+                if isinstance(control_o[0], list): # InstantX format
+                    double_block_residuals, single_block_residuals = control_o
+                    interval_control = int(torch.ceil(torch.tensor(len(self.single_blocks) / len(single_block_residuals))))
+                    index = i // interval_control
+                    img[:, txt.shape[1] :, ...] += single_block_residuals[index]        
+
         img = img[:, txt.shape[1] :, ...]
 
         img = self.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
