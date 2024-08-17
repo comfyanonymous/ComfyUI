@@ -33,33 +33,6 @@ class FluxParams:
     qkv_bias: bool
     guidance_embed: bool
 
-def apply_control(control, block_type, blocks, i, img, txt=None):
-    if control is None:
-        return img
-
-    control_o = control.get("output")
-    if not isinstance(control_o, list) or not control_o:
-        return img
-
-    is_instant_x = control_o[0].dim() == 4
-
-    if is_instant_x: 
-        # InstantX format: both single and double block residuals
-        residuals = control_o[1] if block_type == 'single' else control_o[0]
-        interval = int(np.ceil(len(blocks) / len(residuals)))
-        index = i // interval
-        if block_type == 'single':
-            img[:, txt.shape[1]:, ...] += residuals[index]
-        else:
-            img += residuals[index]
-    elif block_type == 'double' and i < len(control_o): 
-        # XLabs format: double block residuals only
-        add = control_o[i]
-        if add is not None:
-            img += add
-
-    return img
-
 class Flux(nn.Module):
     """
     Transformer model for flow matching on sequences.
@@ -133,9 +106,9 @@ class Flux(nn.Module):
         if self.params.guidance_embed:
             if guidance is None:
                 raise ValueError("Didn't get guidance strength for guidance distilled model.")
-            vec = vec + self.guidance_in(timestep_embedding(guidance, 256).to(img.dtype))
+            vec.add_(self.guidance_in(timestep_embedding(guidance, 256).to(img.dtype)))
 
-        vec = vec + self.vector_in(y)
+        vec.add_(self.vector_in(y))
         txt = self.txt_in(txt)
 
         ids = torch.cat((txt_ids, img_ids), dim=1)
@@ -143,13 +116,25 @@ class Flux(nn.Module):
 
         for i, block in enumerate(self.double_blocks):
            img, txt = block(img=img, txt=txt, vec=vec, pe=pe)
-           img = apply_control(control, 'double', self.double_blocks, i, img)
+
+           if control is not None: # Controlnet
+               control_i = control.get("input")
+               if i < len(control_i):
+                   add = control_i[i]
+                   if add is not None:
+                       img += add
 
         img = torch.cat((txt, img), 1)
 
         for i, block in enumerate(self.single_blocks):
             img = block(img, vec=vec, pe=pe)
-            img = apply_control(control, 'single', self.single_blocks, i, img, txt)
+
+            if control is not None: # Controlnet
+                control_o = control.get("output")
+                if i < len(control_o):
+                    add = control_o[i]
+                    if add is not None:
+                        img[:, txt.shape[1] :, ...] += add
 
         img = img[:, txt.shape[1] :, ...]
 
