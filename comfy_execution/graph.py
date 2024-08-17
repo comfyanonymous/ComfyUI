@@ -202,8 +202,14 @@ class ExecutionList(TopologicalSort):
                 if is_output(blocked_node_id):
                     return node_id
 
-        #Do we want to look deeper?
+        #This should handle the VAELoader -> VAEDecode -> preview case
+        for node_id in node_list:
+            for blocked_node_id in self.blocking[node_id]:
+                for blocked_node_id1 in self.blocking[blocked_node_id]:
+                    if is_output(blocked_node_id1):
+                        return node_id
 
+        #TODO: this function should be improved
         return node_list[0]
 
     def unstage_node_execution(self):
