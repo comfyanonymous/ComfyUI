@@ -4,9 +4,9 @@ import comfy.text_encoders.t5
 import os
 
 class PT5XlModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None):
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, model_options={}):
         textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "t5_pile_config_xl.json")
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 2, "pad": 1}, model_class=comfy.text_encoders.t5.T5, enable_attention_masks=True, zero_out_masked=True)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 2, "pad": 1}, model_class=comfy.text_encoders.t5.T5, enable_attention_masks=True, zero_out_masked=True, model_options=model_options)
 
 class PT5XlTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
@@ -18,5 +18,5 @@ class AuraT5Tokenizer(sd1_clip.SD1Tokenizer):
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, clip_name="pile_t5xl", tokenizer=PT5XlTokenizer)
 
 class AuraT5Model(sd1_clip.SD1ClipModel):
-    def __init__(self, device="cpu", dtype=None, **kwargs):
-        super().__init__(device=device, dtype=dtype, name="pile_t5xl", clip_model=PT5XlModel, **kwargs)
+    def __init__(self, device="cpu", dtype=None, model_options={}, **kwargs):
+        super().__init__(device=device, dtype=dtype, model_options=model_options, name="pile_t5xl", clip_model=PT5XlModel, **kwargs)
