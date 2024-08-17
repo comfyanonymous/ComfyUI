@@ -15,6 +15,7 @@ from .layers import (
 )
 
 from einops import rearrange, repeat
+import numpy as np
 import comfy.ldm.common_dit
 
 @dataclass
@@ -32,6 +33,32 @@ class FluxParams:
     qkv_bias: bool
     guidance_embed: bool
 
+def apply_control(control, block_type, blocks, i, img, txt=None):
+    if control is None:
+        return img
+
+    control_o = control.get("output")
+    if not isinstance(control_o, list) or not control_o:
+        return img
+
+    is_instant_x = control_o[0].dim() == 4
+
+    if is_instant_x: 
+        # InstantX format: both single and double block residuals
+        residuals = control_o[1] if block_type == 'single' else control_o[0]
+        interval = int(np.ceil(len(blocks) / len(residuals)))
+        index = i // interval
+        if block_type == 'single':
+            img[:, txt.shape[1]:, ...] += residuals[index]
+        else:
+            img += residuals[index]
+    elif block_type == 'double' and i < len(control_o): 
+        # XLabs format: double block residuals only
+        add = control_o[i]
+        if add is not None:
+            img += add
+
+    return img
 
 class Flux(nn.Module):
     """
@@ -106,42 +133,23 @@ class Flux(nn.Module):
         if self.params.guidance_embed:
             if guidance is None:
                 raise ValueError("Didn't get guidance strength for guidance distilled model.")
-            vec = vec + self.guidance_in(timestep_embedding(guidance, 256).to(img.dtype))
+            vec.add_(self.guidance_in(timestep_embedding(guidance, 256).to(img.dtype)))
 
-        vec = vec + self.vector_in(y)
+        vec.add_(self.vector_in(y))
         txt = self.txt_in(txt)
 
         ids = torch.cat((txt_ids, img_ids), dim=1)
         pe = self.pe_embedder(ids)
 
-        for i in range(len(self.double_blocks)):
-            img, txt = self.double_blocks[i](img=img, txt=txt, vec=vec, pe=pe)
-
-            if control is not None: #Controlnet
-                control_o = control.get("output")
-                if isinstance(control_o[0], list):
-                    # InstantX format: [double_block_residuals, single_block_residuals]
-                    double_block_residuals, single_block_residuals = control_o
-                    interval_control = int(torch.ceil(torch.tensor(len(self.double_blocks) / len(double_block_residuals))))
-                    index = i // interval_control
-                    img += double_block_residuals[index]
-                else:
-                    # XLabs format: list of tensors
-                    if i < len(control_o):
-                        add = control_o[i]
-                        if add is not None:
-                            img += add
+        for i, block in enumerate(self.double_blocks):
+           img, txt = block(img=img, txt=txt, vec=vec, pe=pe)
+           img = apply_control(control, 'double', self.double_blocks, i, img)
 
         img = torch.cat((txt, img), 1)
-        for i in range(len(self.single_blocks)):
-            img = self.single_blocks[i](img, vec=vec, pe=pe)
-            if control is not None: #Controlnet
-                control_o = control.get("output")
-                if isinstance(control_o[0], list): # InstantX format
-                    double_block_residuals, single_block_residuals = control_o
-                    interval_control = int(torch.ceil(torch.tensor(len(self.single_blocks) / len(single_block_residuals))))
-                    index = i // interval_control
-                    img[:, txt.shape[1] :, ...] += single_block_residuals[index]        
+
+        for i, block in enumerate(self.single_blocks):
+            img = block(img, vec=vec, pe=pe)
+            img = apply_control(control, 'single', self.single_blocks, i, img, txt)
 
         img = img[:, txt.shape[1] :, ...]
 
