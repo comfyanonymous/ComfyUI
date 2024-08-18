@@ -21,8 +21,9 @@ import comfy.model_management
 
 
 def cast_to(weight, dtype=None, device=None, non_blocking=False):
-    non_blocking = False
-    return weight.to(device=device, dtype=dtype, non_blocking=non_blocking)
+    r = torch.empty_like(weight, dtype=dtype, device=device)
+    r.copy_(weight, non_blocking=non_blocking)
+    return r
 
 def cast_to_input(weight, input, non_blocking=False):
     return cast_to(weight, input.dtype, input.device, non_blocking=non_blocking)
