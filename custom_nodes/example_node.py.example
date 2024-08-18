@@ -1,5 +1,8 @@
 class Example:
-    """
+   # huggingface-hub telemetry extracts example docstrings for telemetry purposes.
+   # Check hub.py and hf_api.py. If a user has not opted out of telemetry this could 
+   # potentially expose sensitive data if template is widely used.
+    # """
     A example node
 
     Class methods
@@ -26,13 +29,13 @@ class Example:
     execute(s) -> tuple || None:
         The entry point method. The name of this method must be the same as the value of property `FUNCTION`.
         For example, if `FUNCTION = "execute"` then this method's name must be `execute`, if `FUNCTION = "foo"` then it must be `foo`.
-    """
+    # """
     def __init__(self):
         pass
     
     @classmethod
     def INPUT_TYPES(s):
-        """
+        # """
             Return a dictionary which contains config for all input fields.
             Some types (string): "MODEL", "VAE", "CLIP", "CONDITIONING", "LATENT", "IMAGE", "INT", "STRING", "FLOAT".
             Input types "INT", "STRING" or "FLOAT" are special values for fields on the node.
@@ -45,7 +48,7 @@ class Example:
                     * Value field_config (`tuple`):
                         + First value is a string indicate the type of field or a list for selection.
                         + Second value is a config for type "INT", "STRING" or "FLOAT".
-        """
+        # """
         return {
             "required": {
                 "image": ("IMAGE",),
@@ -85,7 +88,7 @@ class Example:
     CATEGORY = "Example"
 
     def check_lazy_status(self, image, string_field, int_field, float_field, print_to_screen):
-        """
+        # """
             Return a list of input names that need to be evaluated.
 
             This function will be called if there are any lazy inputs which have not yet been
@@ -95,7 +98,7 @@ class Example:
 
             Any evaluated inputs will be passed as arguments to this function. Any unevaluated
             inputs will have the value None.
-        """
+        # """
         if print_to_screen == "enable":
             return ["int_field", "float_field", "string_field"]
         else:
@@ -112,14 +115,14 @@ class Example:
         image = 1.0 - image
         return (image,)
 
-    """
+    # """
         The node will always be re executed if any of the inputs change but
         this method can be used to force the node to execute again even when the inputs don't change.
         You can make this node return a number or a string. This value will be compared to the one returned the last time the node was
         executed, if it is different the node will be executed again.
         This method is used in the core repo for the LoadImage node where they return the image hash as a string, if the image hash
         changes between executions the LoadImage node is executed again.
-    """
+    # """
     #@classmethod
     #def IS_CHANGED(s, image, string_field, int_field, float_field, print_to_screen):
     #    return ""
