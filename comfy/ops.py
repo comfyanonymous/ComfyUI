@@ -21,7 +21,7 @@ import comfy.model_management
 
 
 def cast_to(weight, dtype=None, device=None, non_blocking=False):
-    if weight.device == device:
+    if weight.dtype == torch.float32:
         non_blocking = False
     return weight.to(device=device, dtype=dtype, non_blocking=non_blocking)
 
