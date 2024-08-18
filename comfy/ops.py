@@ -34,7 +34,7 @@ def cast_bias_weight(s, input=None, dtype=None, device=None):
             device = input.device
 
     bias = None
-    non_blocking = comfy.model_management.device_should_use_non_blocking(device)
+    non_blocking = comfy.model_management.device_supports_non_blocking(device)
     if s.bias is not None:
         bias = cast_to(s.bias, dtype, device, non_blocking=non_blocking)
         if s.bias_function is not None:
