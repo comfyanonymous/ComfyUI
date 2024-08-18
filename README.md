@@ -254,7 +254,7 @@ This approach allows you to easily switch between the stable weekly release and 
 
 If you need to use the legacy frontend for any reason, you can access it using the following command line argument:
 
-```powershell
+```
 --front-end-version Comfy-Org/ComfyUI_legacy_frontend@latest
 ```
 
