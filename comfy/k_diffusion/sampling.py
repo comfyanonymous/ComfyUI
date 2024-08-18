@@ -9,6 +9,7 @@ from tqdm.auto import trange, tqdm
 from . import utils
 from . import deis
 import comfy.model_patcher
+import comfy.model_sampling
 
 def append_zero(x):
     return torch.cat([x, x.new_zeros([1])])
@@ -509,6 +510,9 @@ def sample_dpm_adaptive(model, x, sigma_min, sigma_max, extra_args=None, callbac
 
 @torch.no_grad()
 def sample_dpmpp_2s_ancestral(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
+    if isinstance(model.inner_model.inner_model.model_sampling, comfy.model_sampling.CONST):
+        return sample_dpmpp_2s_ancestral_RF(model, x, sigmas, extra_args, callback, disable, eta, s_noise, noise_sampler)
+
     """Ancestral sampling with DPM-Solver++(2S) second-order steps."""
     extra_args = {} if extra_args is None else extra_args
     noise_sampler = default_noise_sampler(x) if noise_sampler is None else noise_sampler
