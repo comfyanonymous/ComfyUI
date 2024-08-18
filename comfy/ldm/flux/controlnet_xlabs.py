@@ -82,7 +82,7 @@ class ControlNetFlux(Flux):
             block_res_sample = controlnet_block(block_res_sample)
             controlnet_block_res_samples = controlnet_block_res_samples + (block_res_sample,)
 
-        return {"output": (controlnet_block_res_samples * 10)[:19]}
+        return {"input": (controlnet_block_res_samples * 10)[:19]}
 
     def forward(self, x, timesteps, context, y, guidance=None, hint=None, **kwargs):
         hint = hint * 2.0 - 1.0
