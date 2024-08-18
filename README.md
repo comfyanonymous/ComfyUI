@@ -48,6 +48,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 |------------------------------------|--------------------------------------------------------------------------------------------------------------------|
 | Ctrl + Enter                       | Queue up current graph for generation                                                                              |
 | Ctrl + Shift + Enter               | Queue up current graph as first for generation                                                                     |
+| Ctrl + Alt + Enter                 | Cancel current generation                                                                                          |
 | Ctrl + Z/Ctrl + Y                  | Undo/Redo                                                                                                          |
 | Ctrl + S                           | Save workflow                                                                                                      |
 | Ctrl + O                           | Load workflow                                                                                                      |
@@ -70,6 +71,8 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | H                                  | Toggle visibility of history                                                                                       |
 | R                                  | Refresh graph                                                                                                      |
 | Double-Click LMB                   | Open node quick search palette                                                                                     |
+| Shift + Drag                       | Move multiple wires at once                                                                                        |
+| Ctrl + Alt + LMB                   | Disconnect all wires from clicked slot                                                                             |
 
 Ctrl can also be replaced with Cmd instead for macOS users
 
