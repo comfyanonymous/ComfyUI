@@ -21,6 +21,8 @@ import comfy.model_management
 
 
 def cast_to(weight, dtype=None, device=None, non_blocking=False):
+    if weight.device == device:
+        non_blocking = False
     return weight.to(device=device, dtype=dtype, non_blocking=non_blocking)
 
 def cast_to_input(weight, input, non_blocking=False):
