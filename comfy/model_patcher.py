@@ -96,7 +96,7 @@ class LowVramPatch:
         self.key = key
         self.model_patcher = model_patcher
     def __call__(self, weight):
-        return self.model_patcher.calculate_weight(self.model_patcher.patches[self.key], weight, self.key)
+        return self.model_patcher.calculate_weight(self.model_patcher.patches[self.key], weight, self.key, intermediate_dtype=weight.dtype)
 
 
 class ModelPatcher:
