@@ -219,6 +219,47 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 
 See also: [https://www.comfy.org/](https://www.comfy.org/)
 
+## Frontend Development
+
+As of August 15, 2024, we have transitioned to a new frontend, which is now hosted in a separate repository: [ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend). This repository now hosts the compiled JS (from TS/Vue) under the `web/` directory.
+
+### Reporting Issues and Requesting Features
+
+For any bugs, issues, or feature requests related to the frontend, please use the [ComfyUI Frontend repository](https://github.com/Comfy-Org/ComfyUI_frontend). This will help us manage and address frontend-specific concerns more efficiently.
+
+### Using the Latest Frontend
+
+The new frontend is now the default for ComfyUI. However, please note:
+
+1. The frontend in the main ComfyUI repository is updated weekly.
+2. Daily releases are available in the separate frontend repository.
+
+To use the most up-to-date frontend version:
+
+1. For the latest daily release, launch ComfyUI with this command line argument:
+
+   ```
+   --front-end-version Comfy-Org/ComfyUI_frontend@latest
+   ```
+
+2. For a specific version, replace `latest` with the desired version number:
+
+   ```
+   --front-end-version Comfy-Org/ComfyUI_frontend@1.2.2
+   ```
+
+This approach allows you to easily switch between the stable weekly release and the cutting-edge daily updates, or even specific versions for testing purposes.
+
+### Accessing the Legacy Frontend
+
+If you need to use the legacy frontend for any reason, you can access it using the following command line argument:
+
+```
+--front-end-version Comfy-Org/ComfyUI_legacy_frontend@latest
+```
+
+This will use a snapshot of the legacy frontend preserved in the [ComfyUI Legacy Frontend repository](https://github.com/Comfy-Org/ComfyUI_legacy_frontend).
+
 # QA
 
 ### Which GPU should I buy for this?
