@@ -315,10 +315,7 @@ class LoadedModel:
             self.model_use_more_vram(use_more_vram)
         else:
             try:
-                if lowvram_model_memory > 0 and load_weights:
-                    self.real_model = self.model.patch_model_lowvram(device_to=patch_model_to, lowvram_model_memory=lowvram_model_memory, force_patch_weights=force_patch_weights)
-                else:
-                    self.real_model = self.model.patch_model(device_to=patch_model_to, patch_weights=load_weights)
+                self.real_model = self.model.patch_model(device_to=patch_model_to, lowvram_model_memory=lowvram_model_memory, load_weights=load_weights, force_patch_weights=force_patch_weights)
             except Exception as e:
                 self.model.unpatch_model(self.model.offload_device)
                 self.model_unload()
