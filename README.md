@@ -2,6 +2,18 @@ ComfyUI
 =======
 The most powerful and modular stable diffusion GUI and backend.
 -----------
+
+[![Website][website-shield]][website-url]
+[![Matrix][matrix-shield]][matrix-url]
+[![Discord][discord-shield]][discord-url]
+
+[matrix-shield]: https://img.shields.io/badge/Matrix-000000?style=flat&logo=matrix&logoColor=white
+[matrix-url]: https://app.element.io/#/room/%23comfyui_space%3Amatrix.org
+[website-shield]: https://img.shields.io/badge/ComfyOrg-4285F4?style=flat
+[website-url]: https://www.comfy.org/
+[discord-shield]: https://img.shields.io/discord/1218270712402415686?style=flat&logo=discord&logoColor=white&label=Discord
+[discord-url]: https://www.comfy.org/discord
+
 ![ComfyUI Screenshot](comfyui_screenshot.png)
 
 This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
