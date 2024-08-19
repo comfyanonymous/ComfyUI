@@ -403,7 +403,10 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
     clip_data = []
     for p in ckpt_paths:
         clip_data.append(comfy.utils.load_torch_file(p, safe_load=True))
+    return load_text_encoder_state_dicts(clip_data, embedding_directory=embedding_directory, clip_type=clip_type, model_options=model_options)
 
+def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
+    clip_data = state_dicts
     class EmptyClass:
         pass
 
