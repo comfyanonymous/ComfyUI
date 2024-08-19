@@ -5,7 +5,7 @@
 
 
 [![Website][website-shield]][website-url]
-[![Discord][discord-shield]][discord-url]
+[![Dynamic JSON Badge][discord-shield]][discord-url]
 [![Matrix][matrix-shield]][matrix-url]
 <br>
 [![][github-release-shield]][github-release-link]
@@ -17,7 +17,7 @@
 [matrix-url]: https://app.element.io/#/room/%23comfyui_space%3Amatrix.org
 [website-shield]: https://img.shields.io/badge/ComfyOrg-4285F4?style=flat
 [website-url]: https://www.comfy.org/
-[discord-shield]: https://img.shields.io/discord/1218270712402415686?style=flat&logo=discord&logoColor=white&label=Discord
+[discord-shield]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2Fcomfyorg%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&logo=discord&logoColor=white&label=Discord&color=green&suffix=%20total
 [discord-url]: https://www.comfy.org/discord
 
 [github-release-shield]: https://img.shields.io/github/v/release/comfyanonymous/ComfyUI?style=flat&sort=semver
