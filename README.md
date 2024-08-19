@@ -5,8 +5,8 @@
 
 
 [![Website][website-shield]][website-url]
-[![Matrix][matrix-shield]][matrix-url]
 [![Discord][discord-shield]][discord-url]
+[![Matrix][matrix-shield]][matrix-url]
 <br>
 [![][github-release-shield]][github-release-link]
 [![][github-release-date-shield]][github-release-link]
