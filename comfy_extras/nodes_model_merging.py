@@ -365,3 +365,7 @@ NODE_CLASS_MAPPINGS = {
     "VAESave": VAESave,
     "ModelSave": ModelSave,
 }
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "CheckpointSave": "Save Checkpoint",
+}
