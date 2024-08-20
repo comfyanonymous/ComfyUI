@@ -21,7 +21,9 @@ import comfy.model_management
 
 
 def cast_to(weight, dtype=None, device=None, non_blocking=False):
-    return weight.to(device=device, dtype=dtype, non_blocking=non_blocking)
+    r = torch.empty_like(weight, dtype=dtype, device=device)
+    r.copy_(weight, non_blocking=non_blocking)
+    return r
 
 def cast_to_input(weight, input, non_blocking=False):
     return cast_to(weight, input.dtype, input.device, non_blocking=non_blocking)
@@ -34,7 +36,7 @@ def cast_bias_weight(s, input=None, dtype=None, device=None):
             device = input.device
 
     bias = None
-    non_blocking = comfy.model_management.device_should_use_non_blocking(device)
+    non_blocking = comfy.model_management.device_supports_non_blocking(device)
     if s.bias is not None:
         bias = cast_to(s.bias, dtype, device, non_blocking=non_blocking)
         if s.bias_function is not None:

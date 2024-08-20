@@ -84,7 +84,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     def __init__(self, version="openai/clip-vit-large-patch14", device="cpu", max_length=77,
                  freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, dtype=None, model_class=comfy.clip_model.CLIPTextModel,
                  special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=True, enable_attention_masks=False, zero_out_masked=False,
-                 return_projected_pooled=True, return_attention_masks=False):  # clip-vit-base-patch32
+                 return_projected_pooled=True, return_attention_masks=False, model_options={}):  # clip-vit-base-patch32
         super().__init__()
         assert layer in self.LAYERS
 
@@ -94,7 +94,11 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         with open(textmodel_json_config) as f:
             config = json.load(f)
 
-        self.operations = comfy.ops.manual_cast
+        operations = model_options.get("custom_operations", None)
+        if operations is None:
+            operations = comfy.ops.manual_cast
+
+        self.operations = operations
         self.transformer = model_class(config, dtype, device, self.operations)
         self.num_layers = self.transformer.num_layers
 
@@ -313,6 +317,17 @@ def expand_directory_list(directories):
             dirs.add(root)
     return list(dirs)
 
+def bundled_embed(embed, prefix, suffix): #bundled embedding in lora format
+    i = 0
+    out_list = []
+    for k in embed:
+        if k.startswith(prefix) and k.endswith(suffix):
+            out_list.append(embed[k])
+    if len(out_list) == 0:
+        return None
+
+    return torch.cat(out_list, dim=0)
+
 def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=None):
     if isinstance(embedding_directory, str):
         embedding_directory = [embedding_directory]
@@ -379,8 +394,12 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
         elif embed_key is not None and embed_key in embed:
             embed_out = embed[embed_key]
         else:
-            values = embed.values()
-            embed_out = next(iter(values))
+            embed_out = bundled_embed(embed, 'bundle_emb.', '.string_to_param.*')
+            if embed_out is None:
+                embed_out = bundled_embed(embed, 'bundle_emb.', '.{}'.format(embed_key))
+            if embed_out is None:
+                values = embed.values()
+                embed_out = next(iter(values))
     return embed_out
 
 class SDTokenizer:
@@ -538,7 +557,7 @@ class SD1Tokenizer:
         return {}
 
 class SD1ClipModel(torch.nn.Module):
-    def __init__(self, device="cpu", dtype=None, clip_name="l", clip_model=SDClipModel, name=None, **kwargs):
+    def __init__(self, device="cpu", dtype=None, model_options={}, clip_name="l", clip_model=SDClipModel, name=None, **kwargs):
         super().__init__()
 
         if name is not None:
@@ -548,7 +567,7 @@ class SD1ClipModel(torch.nn.Module):
             self.clip_name = clip_name
             self.clip = "clip_{}".format(self.clip_name)
 
-        setattr(self, self.clip, clip_model(device=device, dtype=dtype, **kwargs))
+        setattr(self, self.clip, clip_model(device=device, dtype=dtype, model_options=model_options, **kwargs))
 
         self.dtypes = set()
         if dtype is not None:

@@ -333,6 +333,25 @@ class VAESave:
         comfy.utils.save_torch_file(vae.get_sd(), output_checkpoint, metadata=metadata)
         return {}
 
+class ModelSave:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "filename_prefix": ("STRING", {"default": "diffusion_models/ComfyUI"}),},
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},}
+    RETURN_TYPES = ()
+    FUNCTION = "save"
+    OUTPUT_NODE = True
+
+    CATEGORY = "advanced/model_merging"
+
+    def save(self, model, filename_prefix, prompt=None, extra_pnginfo=None):
+        save_checkpoint(model, filename_prefix=filename_prefix, output_dir=self.output_dir, prompt=prompt, extra_pnginfo=extra_pnginfo)
+        return {}
+
 NODE_CLASS_MAPPINGS = {
     "ModelMergeSimple": ModelMergeSimple,
     "ModelMergeBlocks": ModelMergeBlocks,
@@ -344,4 +363,9 @@ NODE_CLASS_MAPPINGS = {
     "CLIPMergeAdd": CLIPAdd,
     "CLIPSave": CLIPSave,
     "VAESave": VAESave,
+    "ModelSave": ModelSave,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "CheckpointSave": "Save Checkpoint",
 }
