@@ -431,7 +431,6 @@ class PromptServer():
             info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
             info['description'] = obj_class.DESCRIPTION if hasattr(obj_class,'DESCRIPTION') else ''
             info['python_module'] = getattr(obj_class, "RELATIVE_PYTHON_MODULE", "nodes")
-            info['deprecated'] = getattr(obj_class, "DEPRECATED", False)
             info['category'] = 'sd'
             if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
                 info['output_node'] = True
@@ -443,6 +442,9 @@ class PromptServer():
 
             if hasattr(obj_class, 'OUTPUT_TOOLTIPS'):
                 info['output_tooltips'] = obj_class.OUTPUT_TOOLTIPS
+
+            if getattr(obj_class, "DEPRECATED", False):
+                info['deprecated'] = True
             return info
 
         @routes.get("/object_info")
