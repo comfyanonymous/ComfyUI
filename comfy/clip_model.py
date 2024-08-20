@@ -88,10 +88,11 @@ class CLIPTextModel_(torch.nn.Module):
         heads = config_dict["num_attention_heads"]
         intermediate_size = config_dict["intermediate_size"]
         intermediate_activation = config_dict["hidden_act"]
+        num_positions = config_dict["max_position_embeddings"]
         self.eos_token_id = config_dict["eos_token_id"]
 
         super().__init__()
-        self.embeddings = CLIPEmbeddings(embed_dim, dtype=dtype, device=device, operations=operations)
+        self.embeddings = CLIPEmbeddings(embed_dim, num_positions=num_positions, dtype=dtype, device=device, operations=operations)
         self.encoder = CLIPEncoder(num_layers, embed_dim, heads, intermediate_size, intermediate_activation, dtype, device, operations)
         self.final_layer_norm = operations.LayerNorm(embed_dim, dtype=dtype, device=device)
 
