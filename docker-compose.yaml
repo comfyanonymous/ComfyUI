@@ -1,0 +1,27 @@
+services:
+  comfy-ui:
+    build:
+      context: ./
+      # AMD Users uncomment:
+      dockerfile: ./AMD.Dockerfile
+      # NVIDIA Users uncomment:
+      #dockerfile: ./NVIDIA.Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ./models/checkpoints:/ComfyUI/models/checkpoints
+      - ./models/vae:/ComfyUI/models/vae
+      - ./models/unet:/ComfyUI/models/unet
+      - ./models/clip:/ComfyUI/models/clip
+      - $OUTPUTDIRECTORY:ComfyUI/output
+    ports:
+      - 8188:8188
+    devices:
+      - "/dev/dri:/dev/dri"
+      ## For AMD GPU
+      - "/dev/kfd:/dev/kfd"
+    healthcheck:
+      test: curl --fail http://localhost:8188/ || exit 
+      interval: 40s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
