@@ -123,7 +123,6 @@ class CLIPTextModel(torch.nn.Module):
         self.text_model = CLIPTextModel_(config_dict, dtype, device, operations)
         embed_dim = config_dict["hidden_size"]
         self.text_projection = operations.Linear(embed_dim, embed_dim, bias=False, dtype=dtype, device=device)
-        self.text_projection.weight.copy_(torch.eye(embed_dim))
         self.dtype = dtype
 
     def get_input_embeddings(self):
