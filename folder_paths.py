@@ -17,7 +17,7 @@ folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".y
 folder_names_and_paths["loras"] = ([os.path.join(models_dir, "loras")], supported_pt_extensions)
 folder_names_and_paths["vae"] = ([os.path.join(models_dir, "vae")], supported_pt_extensions)
 folder_names_and_paths["clip"] = ([os.path.join(models_dir, "clip")], supported_pt_extensions)
-folder_names_and_paths["unet"] = ([os.path.join(models_dir, "unet")], supported_pt_extensions)
+folder_names_and_paths["diffusion_models"] = ([os.path.join(models_dir, "unet"), os.path.join(models_dir, "diffusion_models")], supported_pt_extensions)
 folder_names_and_paths["clip_vision"] = ([os.path.join(models_dir, "clip_vision")], supported_pt_extensions)
 folder_names_and_paths["style_models"] = ([os.path.join(models_dir, "style_models")], supported_pt_extensions)
 folder_names_and_paths["embeddings"] = ([os.path.join(models_dir, "embeddings")], supported_pt_extensions)
@@ -43,6 +43,10 @@ input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "inp
 user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user")
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
+
+def map_legacy(folder_name: str) -> str:
+    legacy = {"unet": "diffusion_models"}
+    return legacy.get(folder_name, folder_name)
 
 if not os.path.exists(input_directory):
     try:
@@ -128,12 +132,14 @@ def exists_annotated_filepath(name) -> bool:
 
 def add_model_folder_path(folder_name: str, full_folder_path: str) -> None:
     global folder_names_and_paths
+    folder_name = map_legacy(folder_name)
     if folder_name in folder_names_and_paths:
         folder_names_and_paths[folder_name][0].append(full_folder_path)
     else:
         folder_names_and_paths[folder_name] = ([full_folder_path], set())
 
 def get_folder_paths(folder_name: str) -> list[str]:
+    folder_name = map_legacy(folder_name)
     return folder_names_and_paths[folder_name][0][:]
 
 def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) -> tuple[list[str], dict[str, float]]:
@@ -180,6 +186,7 @@ def filter_files_extensions(files: Collection[str], extensions: Collection[str])
 
 def get_full_path(folder_name: str, filename: str) -> str | None:
     global folder_names_and_paths
+    folder_name = map_legacy(folder_name)
     if folder_name not in folder_names_and_paths:
         return None
     folders = folder_names_and_paths[folder_name]
@@ -194,6 +201,7 @@ def get_full_path(folder_name: str, filename: str) -> str | None:
     return None
 
 def get_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], float]:
+    folder_name = map_legacy(folder_name)
     global folder_names_and_paths
     output_list = set()
     folders = folder_names_and_paths[folder_name]
@@ -208,6 +216,7 @@ def get_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], f
 def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], float] | None:
     global filename_list_cache
     global folder_names_and_paths
+    folder_name = map_legacy(folder_name)
     if folder_name not in filename_list_cache:
         return None
     out = filename_list_cache[folder_name]
@@ -227,6 +236,7 @@ def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float]
     return out
 
 def get_filename_list(folder_name: str) -> list[str]:
+    folder_name = map_legacy(folder_name)
     out = cached_filename_list_(folder_name)
     if out is None:
         out = get_filename_list_(folder_name)

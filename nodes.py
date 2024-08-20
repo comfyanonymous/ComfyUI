@@ -665,6 +665,8 @@ class VAELoader:
         sd1_taesd_dec = False
         sd3_taesd_enc = False
         sd3_taesd_dec = False
+        f1_taesd_enc = False
+        f1_taesd_dec = False
 
         for v in approx_vaes:
             if v.startswith("taesd_decoder."):
@@ -679,12 +681,18 @@ class VAELoader:
                 sd3_taesd_dec = True
             elif v.startswith("taesd3_encoder."):
                 sd3_taesd_enc = True
+            elif v.startswith("taef1_encoder."):
+                f1_taesd_dec = True
+            elif v.startswith("taef1_decoder."):
+                f1_taesd_enc = True
         if sd1_taesd_dec and sd1_taesd_enc:
             vaes.append("taesd")
         if sdxl_taesd_dec and sdxl_taesd_enc:
             vaes.append("taesdxl")
         if sd3_taesd_dec and sd3_taesd_enc:
             vaes.append("taesd3")
+        if f1_taesd_dec and f1_taesd_enc:
+            vaes.append("taef1")
         return vaes
 
     @staticmethod
@@ -712,6 +720,9 @@ class VAELoader:
         elif name == "taesd3":
             sd["vae_scale"] = torch.tensor(1.5305)
             sd["vae_shift"] = torch.tensor(0.0609)
+        elif name == "taef1":
+            sd["vae_scale"] = torch.tensor(0.3611)
+            sd["vae_shift"] = torch.tensor(0.1159)
         return sd
 
     @classmethod
@@ -724,7 +735,7 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
-        if vae_name in ["taesd", "taesdxl", "taesd3"]:
+        if vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
             sd = self.load_taesd(vae_name)
         else:
             vae_path = folder_paths.get_full_path("vae", vae_name)
@@ -844,7 +855,7 @@ class ControlNetApplyAdvanced:
 class UNETLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "unet_name": (folder_paths.get_filename_list("unet"), ),
+        return {"required": { "unet_name": (folder_paths.get_filename_list("diffusion_models"), ),
                               "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e5m2"],)
                              }}
     RETURN_TYPES = ("MODEL",)
@@ -859,7 +870,7 @@ class UNETLoader:
         elif weight_dtype == "fp8_e5m2":
             model_options["dtype"] = torch.float8_e5m2
 
-        unet_path = folder_paths.get_full_path("unet", unet_name)
+        unet_path = folder_paths.get_full_path("diffusion_models", unet_name)
         model = comfy.sd.load_diffusion_model(unet_path, model_options=model_options)
         return (model,)
 

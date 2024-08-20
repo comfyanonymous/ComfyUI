@@ -315,10 +315,7 @@ class LoadedModel:
             self.model_use_more_vram(use_more_vram)
         else:
             try:
-                if lowvram_model_memory > 0 and load_weights:
-                    self.real_model = self.model.patch_model_lowvram(device_to=patch_model_to, lowvram_model_memory=lowvram_model_memory, force_patch_weights=force_patch_weights)
-                else:
-                    self.real_model = self.model.patch_model(device_to=patch_model_to, patch_weights=load_weights)
+                self.real_model = self.model.patch_model(device_to=patch_model_to, lowvram_model_memory=lowvram_model_memory, load_weights=load_weights, force_patch_weights=force_patch_weights)
             except Exception as e:
                 self.model.unpatch_model(self.model.offload_device)
                 self.model_unload()
@@ -369,6 +366,17 @@ def offloaded_memory(loaded_models, device):
 
 def minimum_inference_memory():
     return (1024 * 1024 * 1024) * 1.2
+
+EXTRA_RESERVED_VRAM = 200 * 1024 * 1024
+if any(platform.win32_ver()):
+    EXTRA_RESERVED_VRAM = 400 * 1024 * 1024 #Windows is higher because of the shared vram issue
+
+if args.reserve_vram is not None:
+    EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
+    logging.debug("Reserving {}MB vram for other applications.".format(EXTRA_RESERVED_VRAM / (1024 * 1024)))
+
+def extra_reserved_memory():
+    return EXTRA_RESERVED_VRAM
 
 def unload_model_clones(model, unload_weights_only=True, force_unload=True):
     to_unload = []
@@ -439,11 +447,11 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
     global vram_state
 
     inference_memory = minimum_inference_memory()
-    extra_mem = max(inference_memory, memory_required + 300 * 1024 * 1024)
+    extra_mem = max(inference_memory, memory_required + extra_reserved_memory())
     if minimum_memory_required is None:
         minimum_memory_required = extra_mem
     else:
-        minimum_memory_required = max(inference_memory, minimum_memory_required + 300 * 1024 * 1024)
+        minimum_memory_required = max(inference_memory, minimum_memory_required + extra_reserved_memory())
 
     models = set(models)
 
