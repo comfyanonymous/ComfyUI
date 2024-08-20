@@ -46,6 +46,7 @@ class Latent2RGBPreviewer(LatentPreviewer):
 
 
 def get_previewer(device, latent_format):
+    return None
     previewer = None
     method = args.preview_method
     if method != LatentPreviewMethod.NoPreviews:

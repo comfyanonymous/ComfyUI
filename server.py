@@ -655,18 +655,18 @@ class PromptServer():
             await send_socket_catch_exception(self.sockets[sid].send_json, message)
 
     def send_sync(self, event, data, sid=None):
-        # if hasattr(self, "last_prompt_id") is not True:
-        #     logging.warning("server has not attr last_prompt_id")
-        #     return
-        # prompt_id = self.last_prompt_id
-        # key = "comfy_response_" + prompt_id
-        # message = {
-        #     "type": event,
-        #     "data": data,
-        # }
-        # res = self.redis_op.zadd_with_expire(key, json.dumps(message), int(time.time()), 120)
-        # if not res:
-        #     logging.warning(f"Failed to send {event}")
+        if hasattr(self, "last_prompt_id") is not True:
+            logging.warning("server has not attr last_prompt_id")
+            return
+        prompt_id = self.last_prompt_id
+        key = "comfy_response_" + prompt_id
+        message = {
+            "type": event,
+            "data": data,
+        }
+        res = self.redis_op.zadd_with_expire(key, json.dumps(message), int(time.time()), 120)
+        if not res:
+            logging.warning(f"Failed to send {event}")
         self.loop.call_soon_threadsafe(
             self.messages.put_nowait, (event, data, sid))
 
