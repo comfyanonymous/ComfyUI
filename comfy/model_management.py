@@ -1048,6 +1048,16 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
 
     return False
 
+def supports_fp8_compute(device=None):
+    props = torch.cuda.get_device_properties(device)
+    if props.major >= 9:
+        return True
+    if props.major < 8:
+        return False
+    if props.minor < 9:
+        return False
+    return True
+
 def soft_empty_cache(force=False):
     global cpu_state
     if cpu_state == CPUState.MPS:
