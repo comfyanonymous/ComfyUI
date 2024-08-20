@@ -445,6 +445,8 @@ class PromptServer():
 
             if getattr(obj_class, "DEPRECATED", False):
                 info['deprecated'] = True
+            if getattr(obj_class, "EXPERIMENTAL", False):
+                info['experimental'] = True
             return info
 
         @routes.get("/object_info")
