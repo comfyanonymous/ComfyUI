@@ -318,7 +318,7 @@ def model_lora_keys_unet(model, key_map={}):
         for k in diffusers_keys:
             if k.endswith(".weight"):
                 to = diffusers_keys[k]
-                key_lora = "transformer.{}".format(k[:-len(".weight")]) #simpletrainer and probably regular diffusers flux lora format
-                key_map[key_lora] = to
+                key_map["transformer.{}".format(k[:-len(".weight")])] = to #simpletrainer and probably regular diffusers flux lora format
+                key_map["lycoris_{}".format(k[:-len(".weight")].replace(".", "_"))] = to #simpletrainer lycoris
 
     return key_map
