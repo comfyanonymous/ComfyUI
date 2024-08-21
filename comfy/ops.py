@@ -250,7 +250,6 @@ def fp8_linear(self, input):
         return None
 
     if len(input.shape) == 3:
-        out = torch.empty((input.shape[0], input.shape[1], self.weight.shape[0]), device=input.device, dtype=input.dtype)
         inn = input.view(-1, input.shape[2]).to(dtype)
         non_blocking = comfy.model_management.device_supports_non_blocking(input.device)
         w = cast_to(self.weight, device=input.device, non_blocking=non_blocking).t()

@@ -369,7 +369,7 @@ def minimum_inference_memory():
 
 EXTRA_RESERVED_VRAM = 200 * 1024 * 1024
 if any(platform.win32_ver()):
-    EXTRA_RESERVED_VRAM = 400 * 1024 * 1024 #Windows is higher because of the shared vram issue
+    EXTRA_RESERVED_VRAM = 500 * 1024 * 1024 #Windows is higher because of the shared vram issue
 
 if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
