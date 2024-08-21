@@ -1,8 +1,35 @@
-ComfyUI
-=======
-The most powerful and modular stable diffusion GUI and backend.
------------
+<div align="center">
+
+# ComfyUI
+**The most powerful and modular stable diffusion GUI and backend.**
+
+
+[![Website][website-shield]][website-url]
+[![Dynamic JSON Badge][discord-shield]][discord-url]
+[![Matrix][matrix-shield]][matrix-url]
+<br>
+[![][github-release-shield]][github-release-link]
+[![][github-release-date-shield]][github-release-link]
+[![][github-downloads-shield]][github-downloads-link]
+[![][github-downloads-latest-shield]][github-downloads-link]
+
+[matrix-shield]: https://img.shields.io/badge/Matrix-000000?style=flat&logo=matrix&logoColor=white
+[matrix-url]: https://app.element.io/#/room/%23comfyui_space%3Amatrix.org
+[website-shield]: https://img.shields.io/badge/ComfyOrg-4285F4?style=flat
+[website-url]: https://www.comfy.org/
+<!-- Workaround to display total user from https://github.com/badges/shields/issues/4500#issuecomment-2060079995 -->
+[discord-shield]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2Fcomfyorg%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&logo=discord&logoColor=white&label=Discord&color=green&suffix=%20total
+[discord-url]: https://www.comfy.org/discord
+
+[github-release-shield]: https://img.shields.io/github/v/release/comfyanonymous/ComfyUI?style=flat&sort=semver
+[github-release-link]: https://github.com/comfyanonymous/ComfyUI/releases
+[github-release-date-shield]: https://img.shields.io/github/release-date/comfyanonymous/ComfyUI?style=flat
+[github-downloads-shield]: https://img.shields.io/github/downloads/comfyanonymous/ComfyUI/total?style=flat
+[github-downloads-latest-shield]: https://img.shields.io/github/downloads/comfyanonymous/ComfyUI/latest/total?style=flat&label=downloads%40latest
+[github-downloads-link]: https://github.com/comfyanonymous/ComfyUI/releases
+
 ![ComfyUI Screenshot](comfyui_screenshot.png)
+</div>
 
 This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
 ### [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
@@ -48,6 +75,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 |------------------------------------|--------------------------------------------------------------------------------------------------------------------|
 | Ctrl + Enter                       | Queue up current graph for generation                                                                              |
 | Ctrl + Shift + Enter               | Queue up current graph as first for generation                                                                     |
+| Ctrl + Alt + Enter                 | Cancel current generation                                                                                          |
 | Ctrl + Z/Ctrl + Y                  | Undo/Redo                                                                                                          |
 | Ctrl + S                           | Save workflow                                                                                                      |
 | Ctrl + O                           | Load workflow                                                                                                      |
@@ -70,6 +98,8 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | H                                  | Toggle visibility of history                                                                                       |
 | R                                  | Refresh graph                                                                                                      |
 | Double-Click LMB                   | Open node quick search palette                                                                                     |
+| Shift + Drag                       | Move multiple wires at once                                                                                        |
+| Ctrl + Alt + LMB                   | Disconnect all wires from clicked slot                                                                             |
 
 Ctrl can also be replaced with Cmd instead for macOS users
 
@@ -215,6 +245,47 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 [Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
 
 See also: [https://www.comfy.org/](https://www.comfy.org/)
+
+## Frontend Development
+
+As of August 15, 2024, we have transitioned to a new frontend, which is now hosted in a separate repository: [ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend). This repository now hosts the compiled JS (from TS/Vue) under the `web/` directory.
+
+### Reporting Issues and Requesting Features
+
+For any bugs, issues, or feature requests related to the frontend, please use the [ComfyUI Frontend repository](https://github.com/Comfy-Org/ComfyUI_frontend). This will help us manage and address frontend-specific concerns more efficiently.
+
+### Using the Latest Frontend
+
+The new frontend is now the default for ComfyUI. However, please note:
+
+1. The frontend in the main ComfyUI repository is updated weekly.
+2. Daily releases are available in the separate frontend repository.
+
+To use the most up-to-date frontend version:
+
+1. For the latest daily release, launch ComfyUI with this command line argument:
+
+   ```
+   --front-end-version Comfy-Org/ComfyUI_frontend@latest
+   ```
+
+2. For a specific version, replace `latest` with the desired version number:
+
+   ```
+   --front-end-version Comfy-Org/ComfyUI_frontend@1.2.2
+   ```
+
+This approach allows you to easily switch between the stable weekly release and the cutting-edge daily updates, or even specific versions for testing purposes.
+
+### Accessing the Legacy Frontend
+
+If you need to use the legacy frontend for any reason, you can access it using the following command line argument:
+
+```
+--front-end-version Comfy-Org/ComfyUI_legacy_frontend@latest
+```
+
+This will use a snapshot of the legacy frontend preserved in the [ComfyUI Legacy Frontend repository](https://github.com/Comfy-Org/ComfyUI_legacy_frontend).
 
 # QA
 
