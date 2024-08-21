@@ -148,7 +148,7 @@ class PromptServer():
             if not folder in folder_paths.folder_names_and_paths:
                 return web.Response(status=404)
             files = folder_paths.get_filename_list(folder)
-            return web.json_response(list(map(lambda a: os.path.splitext(a)[0], files)))
+            return web.json_response(files)
 
         @routes.get("/extensions")
         async def get_extensions(request):
