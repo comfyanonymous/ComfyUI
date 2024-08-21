@@ -643,7 +643,7 @@ class LoraLoaderModelOnly(LoraLoader):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "lora_name": (folder_paths.get_filename_list("loras"), ),
+                              "lora_name": (get_filename_list_with_downloadable("loras"), ),
                               "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01}),
                               }}
     RETURN_TYPES = ("MODEL",)
@@ -901,8 +901,8 @@ class CLIPLoader:
 class DualCLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name1": (folder_paths.get_filename_list("clip"),), "clip_name2": (
-        folder_paths.get_filename_list("clip"),),
+        return {"required": { "clip_name1": (get_filename_list_with_downloadable("clip"),), "clip_name2": (
+            get_filename_list_with_downloadable("clip"),),
                               "type": (["sdxl", "sd3", "flux"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
@@ -911,8 +911,8 @@ class DualCLIPLoader:
     CATEGORY = "advanced/loaders"
 
     def load_clip(self, clip_name1, clip_name2, type):
-        clip_path1 = folder_paths.get_full_path("clip", clip_name1)
-        clip_path2 = folder_paths.get_full_path("clip", clip_name2)
+        clip_path1 = get_or_download("clip", clip_name1)
+        clip_path2 = get_or_download("clip", clip_name2)
         if type == "sdxl":
             clip_type = sd.CLIPType.STABLE_DIFFUSION
         elif type == "sd3":
@@ -958,7 +958,7 @@ class CLIPVisionEncode:
 class StyleModelLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "style_model_name": (folder_paths.get_filename_list("style_models"),)}}
+        return {"required": { "style_model_name": (get_filename_list_with_downloadable("style_models"),)}}
 
     RETURN_TYPES = ("STYLE_MODEL",)
     FUNCTION = "load_style_model"
@@ -966,7 +966,7 @@ class StyleModelLoader:
     CATEGORY = "loaders"
 
     def load_style_model(self, style_model_name):
-        style_model_path = folder_paths.get_full_path("style_models", style_model_name)
+        style_model_path = get_or_download("style_models", style_model_name)
         style_model = sd.load_style_model(style_model_path)
         return (style_model,)
 

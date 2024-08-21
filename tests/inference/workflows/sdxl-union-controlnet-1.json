@@ -160,19 +160,6 @@
       "title": "VAE Decode"
     }
   },
-  "15": {
-    "inputs": {
-      "filename_prefix": "ComfyUI",
-      "images": [
-        "14",
-        0
-      ]
-    },
-    "class_type": "SaveImage",
-    "_meta": {
-      "title": "Save Image"
-    }
-  },
   "17": {
     "inputs": {
       "value": "https://upload.wikimedia.org/wikipedia/commons/5/5a/Gibson_Girl.png",
@@ -297,6 +284,92 @@
     "class_type": "SetUnionControlNetType",
     "_meta": {
       "title": "SetUnionControlNetType"
+    }
+  },
+  "29": {
+    "inputs": {
+      "pil_save_format": "png",
+      "name": "",
+      "title": "",
+      "description": "",
+      "__required": true,
+      "images": [
+        "14",
+        0
+      ],
+      "uris": [
+        "30",
+        0
+      ],
+      "exif": [
+        "32",
+        0
+      ]
+    },
+    "class_type": "SaveImagesResponse",
+    "_meta": {
+      "title": "SaveImagesResponse"
+    }
+  },
+  "30": {
+    "inputs": {
+      "prefix": "ComfyUI_",
+      "suffix": "_.png",
+      "images": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "LegacyOutputURIs",
+    "_meta": {
+      "title": "LegacyOutputURIs"
+    }
+  },
+  "31": {
+    "inputs": {
+      "CreationDate": "",
+      "Title": "Test Title",
+      "Description": "Test Description",
+      "Artist": "Artist",
+      "ImageNumber": "",
+      "Rating": "",
+      "UserComment": "Test Comment",
+      "images": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "ImageExif",
+    "_meta": {
+      "title": "ImageExif"
+    }
+  },
+  "32": {
+    "inputs": {
+      "value0": [
+        "31",
+        0
+      ],
+      "value1": [
+        "33",
+        0
+      ]
+    },
+    "class_type": "ImageExifMerge",
+    "_meta": {
+      "title": "ImageExifMerge"
+    }
+  },
+  "33": {
+    "inputs": {
+      "images": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "ImageExifCreationDateAndBatchNumber",
+    "_meta": {
+      "title": "ImageExifCreationDateAndBatchNumber"
     }
   }
 }

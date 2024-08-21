@@ -161,7 +161,7 @@ class Quantize:
         result.add_(tiled_matrix[:result.shape[0],:result.shape[1]]).clamp_(0, 255)
         result = result.to(dtype=torch.uint8)
 
-        im = Image.fromarray(result.cpu().numpy())
+        im = Image.fromarray(result.float().cpu().numpy())
         im = im.quantize(palette=pal_im, dither=Image.Dither.NONE)
         return im
 

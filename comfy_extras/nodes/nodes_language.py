@@ -294,6 +294,8 @@ class TransformersLoader(CustomNode):
                         raise exc_info
                     else:
                         logging.warning(f"tried to import transformers model {ckpt_name} but got exception when trying additional import args {props}", exc_info=exc_info)
+                finally:
+                    torch.set_default_dtype(torch.float32)
 
             for i, props in enumerate(kwargs_to_try):
                 try:
@@ -311,6 +313,8 @@ class TransformersLoader(CustomNode):
                 except Exception as exc_info:
                     if i == len(kwargs_to_try) - 1:
                         raise exc_info
+                finally:
+                    torch.set_default_dtype(torch.float32)
 
         if model_management.xformers_enabled() and hasattr(model, "enable_xformers_memory_efficient_attention"):
             model.enable_xformers_memory_efficient_attention()

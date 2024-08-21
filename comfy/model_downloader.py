@@ -424,10 +424,10 @@ KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
 
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     # todo: is this correct?
-    HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/t5xxl_fp16.safetensors", save_with_filename="t5xxl_fp16.safetensors"),
-    HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/t5xxl_fp8_e4m3fn.safetensors", save_with_filename="t5xxl_fp8_e4m3fn.safetensors"),
-    HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/clip_g.safetensors", save_with_filename="clip_g.safetensors"),
-    HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/clip_l.safetensors", save_with_filename="clip_l.safetensors"),
+    HuggingFile("comfyanonymous/flux_text_encoders", "t5xxl_fp16.safetensors"),
+    HuggingFile("comfyanonymous/flux_text_encoders", "t5xxl_fp8_e4m3fn.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/clip_g.safetensors"),
+    HuggingFile("comfyanonymous/flux_text_encoders", "clip_l.safetensors", save_with_filename="clip_l.safetensors"),
     # uses names from https://comfyanonymous.github.io/ComfyUI_examples/audio/
     HuggingFile("google-t5/t5-base", "model.safetensors", save_with_filename="t5_base.safetensors"),
 ], folder_name="clip")

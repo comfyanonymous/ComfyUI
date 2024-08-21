@@ -562,7 +562,7 @@ class SaveImagesResponse(CustomNode):
 
         exif_inst: ExifContainer
         for batch_number, (image, uri, metadata_uri, local_uri, exif_inst) in enumerate(zip(images, uris, metadata_uris, local_uris, exif)):
-            image_as_numpy_array: np.ndarray = 255. * image.cpu().numpy()
+            image_as_numpy_array: np.ndarray = 255. * image.float().cpu().numpy()
             image_as_numpy_array = np.ascontiguousarray(np.clip(image_as_numpy_array, 0, 255).astype(np.uint8))
             image_as_pil: PIL.Image = Image.fromarray(image_as_numpy_array)
 
