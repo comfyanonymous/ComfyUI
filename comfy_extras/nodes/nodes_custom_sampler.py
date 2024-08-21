@@ -8,6 +8,7 @@ from comfy.cmd import latent_preview
 import torch
 from comfy import utils
 from comfy import node_helpers
+from comfy.samplers import KSAMPLER
 
 
 class BasicScheduler:
@@ -597,7 +598,7 @@ class SamplerCustomAdvanced:
 
     CATEGORY = "sampling/custom_sampling"
 
-    def sample(self, noise, guider, sampler, sigmas, latent_image):
+    def sample(self, noise, guider: comfy.samplers.CFGGuider, sampler: KSAMPLER, sigmas, latent_image):
         latent = latent_image
         latent_image = latent["samples"]
         latent = latent.copy()
