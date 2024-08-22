@@ -450,7 +450,7 @@ class PromptExecutor:
                 "current_outputs": list(current_outputs),
             }
             self.add_message("execution_error", mes, broadcast=False)
-        
+
     def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
         nodes.interrupt_processing(False)
 
@@ -494,6 +494,7 @@ class PromptExecutor:
                 result, error, ex = execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results)
                 if result == ExecutionResult.FAILURE:
                     self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
+                    self.success = False
                     break
                 elif result == ExecutionResult.PENDING:
                     execution_list.unstage_node_execution()
