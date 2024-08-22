@@ -575,7 +575,9 @@ def loaded_models(only_currently_used=False):
 def cleanup_models(keep_clone_weights_loaded=False):
     to_delete = []
     for i in range(len(current_loaded_models)):
-        if sys.getrefcount(current_loaded_models[i].model) <= 2:
+        #TODO: very fragile function needs improvement
+        num_refs = sys.getrefcount(current_loaded_models[i].model) - current_loaded_models[i].model.lowvram_patch_counter()
+        if num_refs <= 2:
             if not keep_clone_weights_loaded:
                 to_delete = [i] + to_delete
             #TODO: find a less fragile way to do this.
@@ -898,7 +900,8 @@ def pytorch_attention_flash_attention():
 def force_upcast_attention_dtype():
     upcast = args.force_upcast_attention
     try:
-        if platform.mac_ver()[0] in ['14.5']: #black image bug on OSX Sonoma 14.5
+        macos_version = tuple(int(n) for n in platform.mac_ver()[0].split("."))
+        if (14, 5) <= macos_version < (14, 7):  # black image bug on recent versions of MacOS
             upcast = True
     except:
         pass
