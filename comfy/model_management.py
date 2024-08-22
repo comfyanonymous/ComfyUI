@@ -576,7 +576,7 @@ def cleanup_models(keep_clone_weights_loaded=False):
     to_delete = []
     for i in range(len(current_loaded_models)):
         #TODO: very fragile function needs improvement
-        num_refs = sys.getrefcount(current_loaded_models[i].model) - current_loaded_models[i].model.lowvram_patch_counter()
+        num_refs = sys.getrefcount(current_loaded_models[i].model)
         if num_refs <= 2:
             if not keep_clone_weights_loaded:
                 to_delete = [i] + to_delete
