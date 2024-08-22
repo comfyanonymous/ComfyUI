@@ -17,6 +17,8 @@
 """
 
 import comfy.utils
+import comfy.model_management
+import comfy.model_base
 import logging
 import torch
 
