@@ -588,6 +588,9 @@ class ModelPatcher:
                         weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
                 except Exception as e:
                     logging.error("ERROR {} {} {}".format(patch_type, key, e))
+
+            elif patch_type == "patch_function":
+                weight = v(p, weight, key)
             else:
                 logging.warning("patch type not recognized {} {}".format(patch_type, key))
 
