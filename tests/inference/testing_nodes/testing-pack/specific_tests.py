@@ -95,6 +95,31 @@ class TestCustomIsChanged:
         else:
             return False
 
+class TestIsChangedWithConstants:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "value": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "custom_is_changed"
+
+    CATEGORY = "Testing/Nodes"
+
+    def custom_is_changed(self, image, value):
+        return (image * value,)
+    
+    @classmethod
+    def IS_CHANGED(cls, image, value):
+        if image is None:
+            return value
+        else:
+            return image.mean().item() * value
+
 class TestCustomValidation1:
     @classmethod
     def INPUT_TYPES(cls):
@@ -312,6 +337,7 @@ TEST_NODE_CLASS_MAPPINGS = {
     "TestLazyMixImages": TestLazyMixImages,
     "TestVariadicAverage": TestVariadicAverage,
     "TestCustomIsChanged": TestCustomIsChanged,
+    "TestIsChangedWithConstants": TestIsChangedWithConstants,
     "TestCustomValidation1": TestCustomValidation1,
     "TestCustomValidation2": TestCustomValidation2,
     "TestCustomValidation3": TestCustomValidation3,
@@ -325,6 +351,7 @@ TEST_NODE_DISPLAY_NAME_MAPPINGS = {
     "TestLazyMixImages": "Lazy Mix Images",
     "TestVariadicAverage": "Variadic Average",
     "TestCustomIsChanged": "Custom IsChanged",
+    "TestIsChangedWithConstants": "IsChanged With Constants",
     "TestCustomValidation1": "Custom Validation 1",
     "TestCustomValidation2": "Custom Validation 2",
     "TestCustomValidation3": "Custom Validation 3",
