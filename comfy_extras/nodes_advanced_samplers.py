@@ -82,7 +82,6 @@ def sample_euler_pp(model, x, sigmas, extra_args=None, callback=None, disable=No
         x = x + d * dt
     return x
 
-
 class SamplerEulerCFGpp:
     @classmethod
     def INPUT_TYPES(s):
@@ -102,11 +101,61 @@ class SamplerEulerCFGpp:
             sampler = comfy.samplers.ksampler("euler_cfg_pp")
         return (sampler, )
 
+@torch.no_grad()
+def sample_heun_pp(model, x, sigmas, extra_args=None, callback=None, disable=None):
+    extra_args = {} if extra_args is None else extra_args
+
+    temp = [0]
+    def post_cfg_function(args):
+        temp[0] = args["uncond_denoised"]
+        return args["denoised"]
+
+    model_options = extra_args.get("model_options", {}).copy()
+    extra_args["model_options"] = comfy.model_patcher.set_model_options_post_cfg_function(model_options, post_cfg_function, disable_cfg1_optimization=True)
+
+    s_in = x.new_ones([x.shape[0]])
+    for i in trange(len(sigmas) - 1, disable=disable):
+        sigma_hat = sigmas[i]
+        denoised = model(x, sigma_hat * s_in, **extra_args)
+        d = to_d(x - denoised + temp[0], sigmas[i], denoised)
+        if callback is not None:
+            callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigma_hat, 'denoised': denoised})
+        dt = sigmas[i + 1] - sigma_hat
+        if sigmas[i + 1] == 0:
+            # Euler method
+            x = x + d * dt
+        else:
+            # Heun's method
+            x_2 = x + d * dt
+            denoised_2 = model(x_2, sigmas[i + 1] * s_in, **extra_args)
+            d_2 = to_d(x_2, sigmas[i + 1], denoised_2)
+            d_prime = (d + d_2) / 2
+            x = x + d_prime * dt
+    return x
+
+class SamplerHeunCFGpp:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {}
+               }
+    RETURN_TYPES = ("SAMPLER",)
+    # CATEGORY = "sampling/custom_sampling/samplers"
+    CATEGORY = "_for_testing"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self):
+        sampler = comfy.samplers.KSAMPLER(sample_heun_pp)
+        return (sampler, )
+
 NODE_CLASS_MAPPINGS = {
     "SamplerLCMUpscale": SamplerLCMUpscale,
     "SamplerEulerCFGpp": SamplerEulerCFGpp,
+    "SamplerHeunCFGpp": SamplerHeunCFGpp,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SamplerEulerCFGpp": "SamplerEulerCFG++",
+    "SamplerHeunCFGpp": "SamplerHeunCFG++",
 }
