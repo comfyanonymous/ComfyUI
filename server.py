@@ -32,6 +32,7 @@ from app.user_manager import UserManager
 from model_filemanager import download_model, DownloadModelStatus
 from typing import Optional
 from api_server.routes.internal.internal_routes import InternalRoutes
+from comfy_execution.graph import DynamicPrompt, DynamicNodeDefinitionCache, node_class_info
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -525,43 +526,13 @@ class PromptServer():
         async def get_prompt(request):
             return web.json_response(self.get_queue_info())
 
-        def node_info(node_class):
-            obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
-            info = {}
-            info['input'] = obj_class.INPUT_TYPES()
-            info['input_order'] = {key: list(value.keys()) for (key, value) in obj_class.INPUT_TYPES().items()}
-            info['output'] = obj_class.RETURN_TYPES
-            info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(obj_class.RETURN_TYPES)
-            info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
-            info['name'] = node_class
-            info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
-            info['description'] = obj_class.DESCRIPTION if hasattr(obj_class,'DESCRIPTION') else ''
-            info['python_module'] = getattr(obj_class, "RELATIVE_PYTHON_MODULE", "nodes")
-            info['category'] = 'sd'
-            if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
-                info['output_node'] = True
-            else:
-                info['output_node'] = False
-
-            if hasattr(obj_class, 'CATEGORY'):
-                info['category'] = obj_class.CATEGORY
-
-            if hasattr(obj_class, 'OUTPUT_TOOLTIPS'):
-                info['output_tooltips'] = obj_class.OUTPUT_TOOLTIPS
-
-            if getattr(obj_class, "DEPRECATED", False):
-                info['deprecated'] = True
-            if getattr(obj_class, "EXPERIMENTAL", False):
-                info['experimental'] = True
-            return info
-
         @routes.get("/object_info")
         async def get_object_info(request):
             with folder_paths.cache_helper:
                 out = {}
                 for x in nodes.NODE_CLASS_MAPPINGS:
                     try:
-                        out[x] = node_info(x)
+                        out[x] = node_class_info(x)
                     except Exception as e:
                         logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
                         logging.error(traceback.format_exc())
@@ -572,7 +543,7 @@ class PromptServer():
             node_class = request.match_info.get("node_class", None)
             out = {}
             if (node_class is not None) and (node_class in nodes.NODE_CLASS_MAPPINGS):
-                out[node_class] = node_info(node_class)
+                out[node_class] = node_class_info(node_class)
             return web.json_response(out)
 
         @routes.get("/history")
@@ -594,6 +565,18 @@ class PromptServer():
             queue_info['queue_running'] = current_queue[0]
             queue_info['queue_pending'] = current_queue[1]
             return web.json_response(queue_info)
+
+        @routes.post("/resolve_dynamic_types")
+        async def resolve_dynamic_types(request):
+            json_data = await request.json()
+            if 'prompt' not in json_data:
+                return web.json_response({"error": "no prompt"}, status=400)
+            prompt = json_data['prompt']
+            dynprompt = DynamicPrompt(prompt)
+            definitions = DynamicNodeDefinitionCache(dynprompt)
+            updated = definitions.resolve_dynamic_definitions(dynprompt.all_node_ids())
+            return web.json_response(updated)
+
 
         @routes.post("/prompt")
         async def post_prompt(request):
