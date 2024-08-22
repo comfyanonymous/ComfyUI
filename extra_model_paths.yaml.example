@@ -34,6 +34,7 @@ a111:
 #     loras: models/loras/
 #     upscale_models: models/upscale_models/
 #     vae: models/vae/
+#     unet: models/unet/
 
 #other_ui:
 #    base_path: path/to/ui
