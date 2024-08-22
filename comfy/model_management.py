@@ -884,7 +884,8 @@ def pytorch_attention_flash_attention():
 def force_upcast_attention_dtype():
     upcast = args.force_upcast_attention
     try:
-        if platform.mac_ver()[0] in ['14.5']: #black image bug on OSX Sonoma 14.5
+        macos_version = tuple(int(n) for n in platform.mac_ver()[0].split("."))
+        if (14, 5) <= macos_version < (14, 7):  # black image bug on recent versions of MacOS
             upcast = True
     except:
         pass
