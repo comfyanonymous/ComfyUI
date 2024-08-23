@@ -44,11 +44,14 @@ cpu_state = CPUState.GPU
 
 total_vram = 0
 
-torch_version = torch.version.__version__
+xpu_available = False
+try:
+    torch_version = torch.version.__version__
+    xpu_available = (int(torch_version[0]) < 2 or (int(torch_version[0]) == 2 and int(torch_version[2]) <= 4)) and torch.xpu.is_available()
+except:
+    pass
 
 lowvram_available = True
-xpu_available = int(torch_version[0]) < 2 or (int(torch_version[0]) == 2 and int(torch_version[2]) <= 4)
-
 if args.deterministic:
     logging.info("Using deterministic algorithms for pytorch")
     torch.use_deterministic_algorithms(True, warn_only=True)
