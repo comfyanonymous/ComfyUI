@@ -327,6 +327,26 @@ def model_lora_keys_unet(model, key_map={}):
     return key_map
 
 
+def weight_decompose(dora_scale, weight, lora_diff, alpha, strength, intermediate_dtype):
+    dora_scale = comfy.model_management.cast_to_device(dora_scale, weight.device, intermediate_dtype)
+    lora_diff *= alpha
+    weight_calc = weight + lora_diff.type(weight.dtype)
+    weight_norm = (
+        weight_calc.transpose(0, 1)
+        .reshape(weight_calc.shape[1], -1)
+        .norm(dim=1, keepdim=True)
+        .reshape(weight_calc.shape[1], *[1] * (weight_calc.dim() - 1))
+        .transpose(0, 1)
+    )
+
+    weight_calc *= (dora_scale / weight_norm).type(weight.dtype)
+    if strength != 1.0:
+        weight_calc -= weight
+        weight += strength * (weight_calc)
+    else:
+        weight[:] = weight_calc
+    return weight
+
 def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
     for p in patches:
         strength = p[0]
