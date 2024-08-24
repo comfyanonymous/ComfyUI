@@ -357,6 +357,25 @@ class TestExecution:
             assert 'prompt_id' in e.args[0], f"Did not get back a proper error message: {e}"
             assert e.args[0]['node_id'] == generator.id, "Error should have been on the generator node"
 
+    def test_missing_node_error(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        input2 = g.node("StubImage", id="removeme", content="WHITE", height=512, width=512, batch_size=1)
+        input3 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+        mask = g.node("StubMask", value=0.5, height=512, width=512, batch_size=1)
+        mix1 = g.node("TestLazyMixImages", image1=input1.out(0), image2=input2.out(0), mask=mask.out(0))
+        mix2 = g.node("TestLazyMixImages", image1=input1.out(0), image2=input3.out(0), mask=mask.out(0))
+        # We have multiple outputs. The first is invalid, but the second is valid
+        g.node("SaveImage", images=mix1.out(0))
+        g.node("SaveImage", images=mix2.out(0))
+        g.remove_node("removeme")
+        
+        client.run(g)
+
+        # Add back in the missing node to make sure the error doesn't break the server
+        input2 = g.node("StubImage", id="removeme", content="WHITE", height=512, width=512, batch_size=1)
+        client.run(g)
+
     def test_custom_is_changed(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         # Creating the nodes in this specific order previously caused a bug
@@ -450,8 +469,8 @@ class TestExecution:
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
 
-        output1 = g.node("PreviewImage", images=input1.out(0))
-        output2 = g.node("PreviewImage", images=input1.out(0))
+        output1 = g.node("SaveImage", images=input1.out(0))
+        output2 = g.node("SaveImage", images=input1.out(0))
 
         result = client.run(g)
         images1 = result.get_images(output1)
