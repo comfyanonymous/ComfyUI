@@ -309,15 +309,3 @@ def pick_operations(weight_dtype, compute_dtype, load_device=None):
         if comfy.model_management.supports_fp8_compute(load_device):
             return fp8_ops
     return manual_cast
-
-def fp8_quantize(weight, qdtype=torch.float8_e4m3fn):
-    device = weight.device
-    finfo = torch.finfo(qdtype)
-    scale = finfo.max / weight.abs().max().clamp(min=1e-12)
-
-    qweight = (weight * scale).clamp(min=finfo.min, max=finfo.max)
-    # Return both float8 data and the inverse scale (as float),
-    # as both required as inputs to torch._scaled_mm
-    qweight = qweight.to(qdtype)
-    scale = scale.float().reciprocal()
-    return qweight, scale
