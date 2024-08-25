@@ -10,7 +10,7 @@ sentencepiece
 peft>=0.10.0
 torchinfo
 safetensors>=0.4.2
-bitsandbytes
+bitsandbytes>=0.43.0 ;platform_system == 'Linux' or platform_system == 'Windows'
 aiohttp>=3.8.4
 accelerate>=0.25.0
 pyyaml>=6.0
