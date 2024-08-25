@@ -650,7 +650,8 @@ def load_diffusion_model_state_dict(sd, model_options={}): #load unet in diffuse
     model_config.custom_operations = model_options.get("custom_operations", None)
     model = model_config.get_model(new_sd, "")
     model = model.to(offload_device)
-    quantize_model(model, new_sd)
+    from bizyairenhancer import sd_quantize_model
+    sd_quantize_model(model, new_sd)
     model.load_model_weights(new_sd, "")
     left_over = sd.keys()
     if len(left_over) > 0:
@@ -696,36 +697,3 @@ def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, m
             sd[k] = t.contiguous()
 
     comfy.utils.save_torch_file(sd, output_path, metadata=metadata)
-
-def quantize_model(model: torch.nn.Module, new_state_dict):
-    for name, module in model.diffusion_model.named_modules():
-        if not isinstance(module, torch.nn.Linear):
-            continue
-        if not (name.startswith("double_blocks") or name.startswith("single_blocks")):
-            print(name)
-            continue
-        weight = new_state_dict[f"{name}.weight"]
-        # if module.bias is not None:
-        #     module.bias.data = module.bias.data.to(torch.bfloat16)
-        qweight, scale = fp8_quantize(weight)
-        module.weight.data = module.weight.data.to(torch.float8_e4m3fn)
-        module.weight.data.copy_(qweight.data)
-        module.register_buffer("scale", scale)
-        new_state_dict.pop(f"{name}.weight")
-
-
-def fp8_quantize(weight, qdtype=torch.float8_e4m3fn):
-    device = weight.device
-    # weight, scale = quant_weights(weight, torch.int8, False)
-    finfo = torch.finfo(qdtype)
-    # Calculate the scale as dtype max divided by absmax
-    scale = finfo.max / weight.abs().max().clamp(min=1e-12)
-    # scale and clamp the tensor to bring it to
-    # the representative range of float8 data type
-    # (as default cast is unsaturated)
-    qweight = (weight * scale).clamp(min=finfo.min, max=finfo.max)
-    # Return both float8 data and the inverse scale (as float),
-    # as both required as inputs to torch._scaled_mm
-    qweight = qweight.to(qdtype)
-    scale = scale.float().reciprocal()
-    return qweight, scale
