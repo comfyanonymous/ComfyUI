@@ -180,7 +180,8 @@ class ControlNet(ControlBase):
         self.load_device = load_device
         if control_model is not None:
             self.control_model_wrapped = model_patcher.ModelPatcher(self.control_model, load_device=load_device, offload_device=model_management.unet_offload_device())
-            self.control_model_wrapped.ckpt_name = os.path.basename(ckpt_name)
+            if ckpt_name is not None:
+                self.control_model_wrapped.ckpt_name = os.path.basename(ckpt_name)
         self.compression_ratio = compression_ratio
         self.global_average_pooling = global_average_pooling
         self.model_sampling_current = None
