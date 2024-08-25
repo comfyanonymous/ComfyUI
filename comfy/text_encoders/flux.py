@@ -13,7 +13,7 @@ class T5XXLModel(sd1_clip.SDClipModel):
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "t5_tokenizer")
-        super().__init__(tokenizer_path, pad_with_end=False, embedding_size=4096, embedding_key='t5xxl', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=256)
+        super().__init__(tokenizer_path, pad_with_end=False, embedding_size=4096, embedding_key='t5xxl', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=768)
 
 
 class FluxTokenizer:
@@ -62,6 +62,7 @@ class FluxClipModel(torch.nn.Module):
         if "text_model.encoder.layers.1.mlp.fc1.weight" in sd:
             return self.clip_l.load_sd(sd)
         else:
+            quantize_model(self.t5xxl.transformer, sd)
             return self.t5xxl.load_sd(sd)
 
 def flux_clip(dtype_t5=None):
@@ -69,3 +70,30 @@ def flux_clip(dtype_t5=None):
         def __init__(self, device="cpu", dtype=None, model_options={}):
             super().__init__(dtype_t5=dtype_t5, device=device, dtype=dtype, model_options=model_options)
     return FluxClipModel_
+    
+def quantize_model(model: torch.nn.Module, new_state_dict):
+    for name, module in model.named_modules():
+        device = next(module.parameters()).device
+        if not isinstance(module, torch.nn.Linear):
+            continue
+        weight = new_state_dict[f"{name}.weight"].to(device)
+        if module.bias is not None:
+            module.bias.data = module.bias.data.to(torch.float16).to(device)
+        qweight, scale = fp8_quantize(weight)
+        module.weight.data = module.weight.data.to(torch.float8_e4m3fn)
+        module.weight.data.copy_(qweight.data)
+        module.register_buffer("scale", scale.to(device))
+        new_state_dict.pop(f"{name}.weight")
+
+
+def fp8_quantize(weight, qdtype=torch.float8_e4m3fn):
+    device = weight.device
+    finfo = torch.finfo(qdtype)
+
+    scale = finfo.max / weight.abs().max().clamp(min=1e-12)
+
+    qweight = (weight * scale).clamp(min=finfo.min, max=finfo.max)
+
+    qweight = qweight.to(qdtype)
+    scale = scale.float().reciprocal()
+    return qweight, scale
