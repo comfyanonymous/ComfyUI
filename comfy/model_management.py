@@ -691,6 +691,8 @@ def text_encoder_offload_device():
         return torch.device("cpu")
 
 def text_encoder_device():
+    if "," in args.cuda_device:
+        return torch.device("cuda", 1)
     if args.gpu_only:
         return get_torch_device()
     elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:

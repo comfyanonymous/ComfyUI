@@ -223,6 +223,8 @@ class disable_weight_init:
         else:
             raise ValueError(f"unsupported dimensions: {dims}")
 
+from bizyairenhancer import bizyair_enhancer_hijack
+bizyair_enhancer_hijack(disable_weight_init)
 
 class manual_cast(disable_weight_init):
     class Linear(disable_weight_init.Linear):
