@@ -1,7 +1,7 @@
 FROM python:3.12.5-bookworm
 
 RUN pip install jinja2 numpy
-RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.0
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 #RUN pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 RUN apt update -y
 RUN apt install -y git
