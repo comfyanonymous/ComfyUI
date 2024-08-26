@@ -1,6 +1,7 @@
 pytest
 pytest-asyncio
 pytest-mock
+pytest-aiohttp
 websocket-client==1.6.1
 PyInstaller
 testcontainers

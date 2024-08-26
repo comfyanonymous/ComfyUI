@@ -98,7 +98,7 @@ async def test_routes_added_to_app(aiohttp_client_factory, internal_routes):
 
 @pytest.mark.asyncio
 async def test_file_service_initialization():
-    with patch('api_server.routes.internal.internal_routes.FileService') as MockFileService:
+    with patch('comfy.api_server.routes.internal.internal_routes.FileService') as MockFileService:
         # Create a mock instance
         mock_file_service_instance = MagicMock(spec=FileService)
         MockFileService.return_value = mock_file_service_instance

@@ -131,9 +131,13 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
    pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
    ```
    
-   For improved performance when using the language models on Windows, CUDA 12.1 and PyTorch 2.3.0, add:
+   For improved performance when using the language models on Windows, Python 3.11, CUDA 12.1 and PyTorch 2.4.0, add:
    ```shell
-   pip install flash-attn @ https://github.com/AppMana/appmana-comfyui-nodes-extramodels/releases/download/v0.0.0-flash_attn/flash_attn-2.5.9.post1-cp311-cp311-win_amd64.whl
+   pip install https://github.com/AppMana/appmana-comfyui-nodes-extramodels/releases/download/v0.0.0-flash_attn/flash_attn-2.6.3-cp311-cp311-win_amd64.whl
+   ```
+   To enable `torchaudio` support on Windows, install it directly:
+   ```shell
+   pip install torchaudio==2.4.0+cu121 --index-url https://download.pytorch.org/whl/cu121
    ```
    Flash Attention as implemented in PyTorch is not functional on any version of Windows. ComfyUI will always run with "memory efficient attention" in practice on this platform. This is distinct from the `flash-attn` package. <br />
    **Advanced**: If you are running in Google Collab or another environment which has already installed `torch` for you, disable build isolation, and the package will recognize your currently installed torch.
