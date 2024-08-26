@@ -28,6 +28,10 @@
 [github-downloads-latest-shield]: https://img.shields.io/github/downloads/comfyanonymous/ComfyUI/latest/total?style=flat&label=downloads%40latest
 [github-downloads-link]: https://github.com/comfyanonymous/ComfyUI/releases
 
+<p align="center">
+<a href="https://trendshift.io/repositories/1099" target="_blank"><img src="https://trendshift.io/api/badge/repositories/1099" alt="comfyanonymous%2FComfyUI | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+</p>
+
 ![ComfyUI Screenshot](comfyui_screenshot.png)
 </div>
 
