@@ -61,7 +61,8 @@ class IsChangedCache:
             self.is_changed[node_id] = node["is_changed"]
             return self.is_changed[node_id]
 
-        input_data_all, _ = get_input_data(node["inputs"], class_def, node_id, self.outputs_cache)
+        # Intentionally do not use cached outputs here. We only want constants in IS_CHANGED
+        input_data_all, _ = get_input_data(node["inputs"], class_def, node_id, None)
         try:
             is_changed = map_node_over_list(class_def, input_data_all, "IS_CHANGED")
             node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
@@ -567,6 +568,7 @@ class PromptExecutor:
                     break
 
                 result, error, ex = execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results)
+                self.success = result != ExecutionResult.FAILURE
                 if result == ExecutionResult.FAILURE:
                     self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
                     break

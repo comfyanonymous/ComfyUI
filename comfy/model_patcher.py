@@ -25,32 +25,12 @@ from typing import Optional
 import torch
 import torch.nn
 
-from . import model_management
+from . import model_management, lora
 from . import utils
+from .float import stochastic_rounding
 from .model_base import BaseModel
 from .model_management_types import ModelManageable, MemoryMeasurements
 from .types import UnetWrapperFunction
-
-
-def weight_decompose(dora_scale, weight, lora_diff, alpha, strength):
-    dora_scale = model_management.cast_to_device(dora_scale, weight.device, torch.float32)
-    lora_diff *= alpha
-    weight_calc = weight + lora_diff.type(weight.dtype)
-    weight_norm = (
-        weight_calc.transpose(0, 1)
-        .reshape(weight_calc.shape[1], -1)
-        .norm(dim=1, keepdim=True)
-        .reshape(weight_calc.shape[1], *[1] * (weight_calc.dim() - 1))
-        .transpose(0, 1)
-    )
-
-    weight_calc *= (dora_scale / weight_norm).type(weight.dtype)
-    if strength != 1.0:
-        weight_calc -= weight
-        weight += strength * (weight_calc)
-    else:
-        weight[:] = weight_calc
-    return weight
 
 
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
@@ -98,12 +78,12 @@ def wipe_lowvram_weight(m):
 
 
 class LowVramPatch:
-    def __init__(self, key, model_patcher):
+    def __init__(self, key, patches):
         self.key = key
-        self.model_patcher = model_patcher
+        self.patches = patches
 
     def __call__(self, weight):
-        return self.model_patcher.calculate_weight(self.model_patcher.patches[self.key], weight, self.key)
+        return lora.calculate_weight(self.patches[self.key], weight, self.key, intermediate_dtype=weight.dtype)
 
 
 class ModelPatcher(ModelManageable):
@@ -332,38 +312,18 @@ class ModelPatcher(ModelManageable):
             temp_weight = model_management.cast_to_device(weight, device_to, torch.float32, copy=True)
         else:
             temp_weight = weight.to(torch.float32, copy=True)
-        out_weight = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
+        out_weight = lora.calculate_weight(self.patches[key], temp_weight, key)
+        out_weight = stochastic_rounding(out_weight, weight.dtype)
         if inplace_update:
             utils.copy_to_param(self.model, key, out_weight)
         else:
             utils.set_attr_param(self.model, key, out_weight)
 
-    def patch_model(self, device_to=None, patch_weights=True):
-        for k in self.object_patches:
-            old = utils.set_attr(self.model, k, self.object_patches[k])
-            if k not in self.object_patches_backup:
-                self.object_patches_backup[k] = old
-
-        if patch_weights:
-            model_sd = self.model_state_dict()
-            for key in self.patches:
-                if key not in model_sd:
-                    logging.warning("could not patch. key doesn't exist in model: {}".format(key))
-                    continue
-
-                self.patch_weight_to_device(key, device_to)
-
-            if device_to is not None:
-                self.model.to(device_to)
-                self.model_device = device_to
-                self._memory_measurements.model_loaded_weight_memory = self.model_size()
-
-        return self.model
-
-    def lowvram_load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
+    def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
         mem_counter = 0
         patch_counter = 0
         lowvram_counter = 0
+        load_completely = []
         for n, m in self.model.named_modules():
             lowvram_weight = False
 
@@ -372,7 +332,7 @@ class ModelPatcher(ModelManageable):
                 if mem_counter + module_mem >= lowvram_model_memory:
                     lowvram_weight = True
                     lowvram_counter += 1
-                    if m.comfy_cast_weights:
+                    if hasattr(m, "prev_comfy_cast_weights"):  # Already lowvramed
                         continue
 
             weight_key = "{}.weight".format(n)
@@ -383,13 +343,13 @@ class ModelPatcher(ModelManageable):
                     if force_patch_weights:
                         self.patch_weight_to_device(weight_key)
                     else:
-                        m.weight_function = LowVramPatch(weight_key, self)
+                        m.weight_function = LowVramPatch(weight_key, self.patches)
                         patch_counter += 1
                 if bias_key in self.patches:
                     if force_patch_weights:
                         self.patch_weight_to_device(bias_key)
                     else:
-                        m.bias_function = LowVramPatch(bias_key, self)
+                        m.bias_function = LowVramPatch(bias_key, self.patches)
                         patch_counter += 1
 
                 m.prev_comfy_cast_weights = m.comfy_cast_weights
@@ -400,205 +360,57 @@ class ModelPatcher(ModelManageable):
                         wipe_lowvram_weight(m)
 
                 if hasattr(m, "weight"):
-                    mem_counter += model_management.module_size(m)
-                    param = list(m.parameters())
-                    if len(param) > 0:
-                        weight = param[0]
-                        if weight.device == device_to:
-                            continue
+                    mem_used = model_management.module_size(m)
+                    mem_counter += mem_used
+                    load_completely.append((mem_used, n, m))
 
-                    weight_to = None
-                    if full_load:  # TODO
-                        weight_to = device_to
-                    self.patch_weight_to_device(weight_key, device_to=weight_to)  # TODO: speed this up without OOM
-                    self.patch_weight_to_device(bias_key, device_to=weight_to)
-                    m.to(device_to)
-                    logging.debug("lowvram: loaded module regularly {} {}".format(n, m))
+        load_completely.sort(reverse=True)
+        for x in load_completely:
+            n = x[1]
+            m = x[2]
+            weight_key = "{}.weight".format(n)
+            bias_key = "{}.bias".format(n)
+            if hasattr(m, "comfy_patched_weights"):
+                if m.comfy_patched_weights == True:
+                    continue
+
+            self.patch_weight_to_device(weight_key, device_to=device_to)
+            self.patch_weight_to_device(bias_key, device_to=device_to)
+            logging.debug("lowvram: loaded module regularly {} {}".format(n, m))
+            m.comfy_patched_weights = True
+
+        for x in load_completely:
+            x[2].to(device_to)
 
         if lowvram_counter > 0:
             logging.debug("loaded partially {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), patch_counter))
             self._memory_measurements.model_lowvram = True
         else:
-            logging.debug("loaded completely {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024)))
+            logging.info("loaded completely {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
             self._memory_measurements.model_lowvram = False
+            if full_load:
+                self.model.to(device_to)
+                mem_counter = self.model_size()
+
         self._memory_measurements.lowvram_patch_counter += patch_counter
-        self._memory_measurements.model_loaded_weight_memory = mem_counter
+
         self.model_device = device_to
+        self._memory_measurements.model_loaded_weight_memory = mem_counter
 
-    def patch_model_lowvram(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False):
-        self.patch_model(device_to, patch_weights=False)
-        self.lowvram_load(device_to, lowvram_model_memory=lowvram_model_memory, force_patch_weights=force_patch_weights)
+    def patch_model(self, device_to=None, lowvram_model_memory=0, load_weights=True, force_patch_weights=False):
+        for k in self.object_patches:
+            old = utils.set_attr(self.model, k, self.object_patches[k])
+            if k not in self.object_patches_backup:
+                self.object_patches_backup[k] = old
+
+        if lowvram_model_memory == 0:
+            full_load = True
+        else:
+            full_load = False
+
+        if load_weights:
+            self.load(device_to, lowvram_model_memory=lowvram_model_memory, force_patch_weights=force_patch_weights, full_load=full_load)
         return self.model
-
-    def calculate_weight(self, patches, weight, key):
-        for p in patches:
-            strength = p[0]
-            v = p[1]
-            strength_model = p[2]
-            offset = p[3]
-            function = p[4]
-            if function is None:
-                function = lambda a: a
-
-            old_weight = None
-            if offset is not None:
-                old_weight = weight
-                weight = weight.narrow(offset[0], offset[1], offset[2])
-
-            if strength_model != 1.0:
-                weight *= strength_model
-
-            if isinstance(v, list):
-                v = (self.calculate_weight(v[1:], v[0].clone(), key),)
-
-            patch_type = "diff"
-            if len(v) == 2:
-                patch_type = v[0]
-                v = v[1]
-            elif len(v) != 1:
-                logging.warning("patch {} not recognized: {}".format(key, v))
-                continue
-
-            if patch_type == "diff":
-                w1 = v[0]
-                if strength != 0.0:
-                    if w1.shape != weight.shape:
-                        logging.warning("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
-                    else:
-                        weight += function(strength * model_management.cast_to_device(w1, weight.device, weight.dtype))
-            elif patch_type == "lora":  # lora/locon
-                mat1 = model_management.cast_to_device(v[0], weight.device, torch.float32)
-                mat2 = model_management.cast_to_device(v[1], weight.device, torch.float32)
-                dora_scale = v[4]
-                if v[2] is not None:
-                    alpha = v[2] / mat2.shape[0]
-                else:
-                    alpha = 1.0
-
-                if v[3] is not None:
-                    # locon mid weights, hopefully the math is fine because I didn't properly test it
-                    mat3 = model_management.cast_to_device(v[3], weight.device, torch.float32)
-                    final_shape = [mat2.shape[1], mat2.shape[0], mat3.shape[2], mat3.shape[3]]
-                    mat2 = torch.mm(mat2.transpose(0, 1).flatten(start_dim=1), mat3.transpose(0, 1).flatten(start_dim=1)).reshape(final_shape).transpose(0, 1)
-                try:
-                    lora_diff = torch.mm(mat1.flatten(start_dim=1), mat2.flatten(start_dim=1)).reshape(weight.shape)
-                    if dora_scale is not None:
-                        weight = function(weight_decompose(dora_scale, weight, lora_diff, alpha, strength))
-                    else:
-                        weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
-                except Exception as e:
-                    logging.error("ERROR {} {} {}".format(patch_type, key, e))
-            elif patch_type == "lokr":
-                w1 = v[0]
-                w2 = v[1]
-                w1_a = v[3]
-                w1_b = v[4]
-                w2_a = v[5]
-                w2_b = v[6]
-                t2 = v[7]
-                dora_scale = v[8]
-                dim = None
-
-                if w1 is None:
-                    dim = w1_b.shape[0]
-                    w1 = torch.mm(model_management.cast_to_device(w1_a, weight.device, torch.float32),
-                                  model_management.cast_to_device(w1_b, weight.device, torch.float32))
-                else:
-                    w1 = model_management.cast_to_device(w1, weight.device, torch.float32)
-
-                if w2 is None:
-                    dim = w2_b.shape[0]
-                    if t2 is None:
-                        w2 = torch.mm(model_management.cast_to_device(w2_a, weight.device, torch.float32),
-                                      model_management.cast_to_device(w2_b, weight.device, torch.float32))
-                    else:
-                        w2 = torch.einsum('i j k l, j r, i p -> p r k l',
-                                          model_management.cast_to_device(t2, weight.device, torch.float32),
-                                          model_management.cast_to_device(w2_b, weight.device, torch.float32),
-                                          model_management.cast_to_device(w2_a, weight.device, torch.float32))
-                else:
-                    w2 = model_management.cast_to_device(w2, weight.device, torch.float32)
-
-                if len(w2.shape) == 4:
-                    w1 = w1.unsqueeze(2).unsqueeze(2)
-                if v[2] is not None and dim is not None:
-                    alpha = v[2] / dim
-                else:
-                    alpha = 1.0
-
-                try:
-                    lora_diff = torch.kron(w1, w2).reshape(weight.shape)
-                    if dora_scale is not None:
-                        weight = function(weight_decompose(dora_scale, weight, lora_diff, alpha, strength))
-                    else:
-                        weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
-                except Exception as e:
-                    logging.error("ERROR {} {} {}".format(patch_type, key, e))
-            elif patch_type == "loha":
-                w1a = v[0]
-                w1b = v[1]
-                if v[2] is not None:
-                    alpha = v[2] / w1b.shape[0]
-                else:
-                    alpha = 1.0
-
-                w2a = v[3]
-                w2b = v[4]
-                dora_scale = v[7]
-                if v[5] is not None:  # cp decomposition
-                    t1 = v[5]
-                    t2 = v[6]
-                    m1 = torch.einsum('i j k l, j r, i p -> p r k l',
-                                      model_management.cast_to_device(t1, weight.device, torch.float32),
-                                      model_management.cast_to_device(w1b, weight.device, torch.float32),
-                                      model_management.cast_to_device(w1a, weight.device, torch.float32))
-
-                    m2 = torch.einsum('i j k l, j r, i p -> p r k l',
-                                      model_management.cast_to_device(t2, weight.device, torch.float32),
-                                      model_management.cast_to_device(w2b, weight.device, torch.float32),
-                                      model_management.cast_to_device(w2a, weight.device, torch.float32))
-                else:
-                    m1 = torch.mm(model_management.cast_to_device(w1a, weight.device, torch.float32),
-                                  model_management.cast_to_device(w1b, weight.device, torch.float32))
-                    m2 = torch.mm(model_management.cast_to_device(w2a, weight.device, torch.float32),
-                                  model_management.cast_to_device(w2b, weight.device, torch.float32))
-
-                try:
-                    lora_diff = (m1 * m2).reshape(weight.shape)
-                    if dora_scale is not None:
-                        weight = function(weight_decompose(dora_scale, weight, lora_diff, alpha, strength))
-                    else:
-                        weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
-                except Exception as e:
-                    logging.error("ERROR {} {} {}".format(patch_type, key, e))
-            elif patch_type == "glora":
-                if v[4] is not None:
-                    alpha = v[4] / v[0].shape[0]
-                else:
-                    alpha = 1.0
-
-                dora_scale = v[5]
-
-                a1 = model_management.cast_to_device(v[0].flatten(start_dim=1), weight.device, torch.float32)
-                a2 = model_management.cast_to_device(v[1].flatten(start_dim=1), weight.device, torch.float32)
-                b1 = model_management.cast_to_device(v[2].flatten(start_dim=1), weight.device, torch.float32)
-                b2 = model_management.cast_to_device(v[3].flatten(start_dim=1), weight.device, torch.float32)
-
-                try:
-                    lora_diff = (torch.mm(b2, b1) + torch.mm(torch.mm(weight.flatten(start_dim=1), a2), a1)).reshape(weight.shape)
-                    if dora_scale is not None:
-                        weight = function(weight_decompose(dora_scale, weight, lora_diff, alpha, strength))
-                    else:
-                        weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
-                except Exception as e:
-                    logging.error("ERROR {} {} {}".format(patch_type, key, e))
-            else:
-                logging.warning("patch type not recognized {} {}".format(patch_type, key))
-
-            if old_weight is not None:
-                weight = old_weight
-
-        return weight
 
     def unpatch_model(self, device_to=None, unpatch_weights=True):
         if unpatch_weights:
@@ -625,6 +437,10 @@ class ModelPatcher(ModelManageable):
                 self.model_device = device_to
             self._memory_measurements.model_loaded_weight_memory = 0
 
+            for m in self.model.modules():
+                if hasattr(m, "comfy_patched_weights"):
+                    del m.comfy_patched_weights
+
         keys = list(self.object_patches_backup.keys())
         for k in keys:
             utils.set_attr(self.model, k, self.object_patches_backup[k])
@@ -634,39 +450,47 @@ class ModelPatcher(ModelManageable):
     def partially_unload(self, device_to, memory_to_free=0):
         memory_freed = 0
         patch_counter = 0
+        unload_list = []
 
-        for n, m in list(self.model.named_modules())[::-1]:
-            if memory_to_free < memory_freed:
-                break
-
+        for n, m in self.model.named_modules():
             shift_lowvram = False
             if hasattr(m, "comfy_cast_weights"):
                 module_mem = model_management.module_size(m)
-                weight_key = "{}.weight".format(n)
-                bias_key = "{}.bias".format(n)
+                unload_list.append((module_mem, n, m))
 
-                if m.weight is not None and m.weight.device != device_to:
-                    for key in [weight_key, bias_key]:
-                        bk = self.backup.get(key, None)
-                        if bk is not None:
-                            if bk.inplace_update:
-                                utils.copy_to_param(self.model, key, bk.weight)
-                            else:
-                                utils.set_attr_param(self.model, key, bk.weight)
-                            self.backup.pop(key)
+        unload_list.sort()
+        for unload in unload_list:
+            if memory_to_free < memory_freed:
+                break
+            module_mem = unload[0]
+            n = unload[1]
+            m = unload[2]
+            weight_key = "{}.weight".format(n)
+            bias_key = "{}.bias".format(n)
 
-                    m.to(device_to)
-                    if weight_key in self.patches:
-                        m.weight_function = LowVramPatch(weight_key, self)
-                        patch_counter += 1
-                    if bias_key in self.patches:
-                        m.bias_function = LowVramPatch(bias_key, self)
-                        patch_counter += 1
+            if hasattr(m, "comfy_patched_weights") and m.comfy_patched_weights == True:
+                for key in [weight_key, bias_key]:
+                    bk = self.backup.get(key, None)
+                    if bk is not None:
+                        if bk.inplace_update:
+                            utils.copy_to_param(self.model, key, bk.weight)
+                        else:
+                            utils.set_attr_param(self.model, key, bk.weight)
+                        self.backup.pop(key)
 
-                    m.prev_comfy_cast_weights = m.comfy_cast_weights
-                    m.comfy_cast_weights = True
-                    memory_freed += module_mem
-                    logging.debug("freed {}".format(n))
+                m.to(device_to)
+                if weight_key in self.patches:
+                    m.weight_function = LowVramPatch(weight_key, self.patches)
+                    patch_counter += 1
+                if bias_key in self.patches:
+                    m.bias_function = LowVramPatch(bias_key, self.patches)
+                    patch_counter += 1
+
+                m.prev_comfy_cast_weights = m.comfy_cast_weights
+                m.comfy_cast_weights = True
+                m.comfy_patched_weights = False
+                memory_freed += module_mem
+                logging.debug("freed {}".format(n))
 
         self._memory_measurements.model_lowvram = True
         self._memory_measurements.lowvram_patch_counter += patch_counter
@@ -675,14 +499,14 @@ class ModelPatcher(ModelManageable):
 
     def partially_load(self, device_to, extra_memory=0):
         self.unpatch_model(unpatch_weights=False)
-        self.patch_model(patch_weights=False)
+        self.patch_model(load_weights=False)
         full_load = False
         if not self._memory_measurements.model_lowvram:
             return 0
         if self._memory_measurements.model_loaded_weight_memory + extra_memory > self.model_size():
             full_load = True
         current_used = self._memory_measurements.model_loaded_weight_memory
-        self.lowvram_load(device_to, lowvram_model_memory=current_used + extra_memory, full_load=full_load)
+        self.load(device_to, lowvram_model_memory=current_used + extra_memory, full_load=full_load)
         return self._memory_measurements.model_loaded_weight_memory - current_used
 
     def current_loaded_device(self):
@@ -697,3 +521,7 @@ class ModelPatcher(ModelManageable):
             return f"<ModelPatcher for {self.ckpt_name} ({self.model.__class__.__name__})>"
         else:
             return f"<ModelPatcher for {self.model.__class__.__name__}>"
+
+    def calculate_weight(self, patches, weight, key, intermediate_dtype=torch.float32):
+        print("WARNING the ModelPatcher.calculate_weight function is deprecated, please use: comfy.lora.calculate_weight instead")
+        return lora.calculate_weight(patches, weight, key, intermediate_dtype=intermediate_dtype)

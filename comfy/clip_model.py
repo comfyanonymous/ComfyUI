@@ -89,10 +89,11 @@ class CLIPTextModel_(torch.nn.Module):
         intermediate_size = config_dict["intermediate_size"]
         intermediate_activation = config_dict["hidden_act"]
         vocab_size = config_dict["vocab_size"]
+        num_positions = config_dict["max_position_embeddings"]
         self.eos_token_id = config_dict["eos_token_id"]
 
         super().__init__()
-        self.embeddings = CLIPEmbeddings(embed_dim, vocab_size=vocab_size, dtype=dtype, device=device, operations=operations)
+        self.embeddings = CLIPEmbeddings(embed_dim, vocab_size=vocab_size, num_positions=num_positions, dtype=dtype, device=device, operations=operations)
         self.encoder = CLIPEncoder(num_layers, embed_dim, heads, intermediate_size, intermediate_activation, dtype, device, operations)
         self.final_layer_norm = operations.LayerNorm(embed_dim, dtype=dtype, device=device)
 
@@ -124,7 +125,6 @@ class CLIPTextModel(torch.nn.Module):
         self.text_model = CLIPTextModel_(config_dict, dtype, device, operations)
         embed_dim = config_dict["hidden_size"]
         self.text_projection = operations.Linear(embed_dim, embed_dim, bias=False, dtype=dtype, device=device)
-        self.text_projection.weight.copy_(torch.eye(embed_dim))
         self.dtype = dtype
 
     def get_input_embeddings(self):

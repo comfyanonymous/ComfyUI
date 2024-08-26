@@ -654,6 +654,7 @@ class Flux(supported_models_base.BASE):
     def clip_target(self, state_dict={}):
         pref = self.text_encoder_key_prefix[0]
         t5_key = "{}t5xxl.transformer.encoder.final_layer_norm.weight".format(pref)
+        dtype_t5 = None
         if t5_key in state_dict:
             dtype_t5 = state_dict[t5_key].dtype
         else:

@@ -6,9 +6,11 @@ from ..component_model import files
 
 
 class T5BaseModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, textmodel_json_config=None):
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, model_options=None, textmodel_json_config=None):
+        if model_options is None:
+            model_options = dict()
         textmodel_json_config = files.get_path_as_dict(textmodel_json_config, "t5_config_base.json", package=__package__)
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5, enable_attention_masks=True, zero_out_masked=True)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5, model_options=model_options, enable_attention_masks=True, zero_out_masked=True)
 
 
 class T5BaseTokenizer(sd1_clip.SDTokenizer):
@@ -25,5 +27,5 @@ class SAT5Tokenizer(sd1_clip.SD1Tokenizer):
 
 
 class SAT5Model(sd1_clip.SD1ClipModel):
-    def __init__(self, device="cpu", dtype=None, **kwargs):
-        super().__init__(device=device, dtype=dtype, name="t5base", clip_model=T5BaseModel, **kwargs)
+    def __init__(self, device="cpu", dtype=None, model_options={}, **kwargs):
+        super().__init__(device=device, dtype=dtype, model_options=model_options, name="t5base", clip_model=T5BaseModel, **kwargs)

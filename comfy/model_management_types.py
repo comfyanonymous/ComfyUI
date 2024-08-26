@@ -60,12 +60,6 @@ class ModelManageable(Protocol):
         return self.model
 
     def patch_model(self, device_to: torch.device | None = None, patch_weights: bool = True) -> torch.nn.Module:
-        """
-        Loads the model to the device
-        :param device_to: the device to move the model weights to
-        :param patch_weights: True if the patch's weights should also be moved
-        :return:
-        """
         ...
 
     def unpatch_model(self, offload_device: torch.device | None = None, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:

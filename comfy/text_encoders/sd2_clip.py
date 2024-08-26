@@ -4,13 +4,13 @@ from ..component_model.files import get_path_as_dict
 
 
 class SD2ClipHModel(sd1_clip.SDClipModel):
-    def __init__(self, arch="ViT-H-14", device="cpu", max_length=77, freeze=True, layer="penultimate", layer_idx=None, dtype=None, textmodel_json_config=None):
+    def __init__(self, arch="ViT-H-14", device="cpu", max_length=77, freeze=True, layer="penultimate", layer_idx=None, dtype=None, textmodel_json_config=None, model_options={}):
         if layer == "penultimate":
             layer = "hidden"
             layer_idx = -2
 
         textmodel_json_config = get_path_as_dict(textmodel_json_config, "sd2_clip_config.json", package=__package__)
-        super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"start": 49406, "end": 49407, "pad": 0})
+        super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"start": 49406, "end": 49407, "pad": 0}, return_projected_pooled=True, model_options=model_options)
 
 
 class SD2ClipHTokenizer(sd1_clip.SDTokenizer):
@@ -26,5 +26,5 @@ class SD2Tokenizer(sd1_clip.SD1Tokenizer):
 
 
 class SD2ClipModel(sd1_clip.SD1ClipModel):
-    def __init__(self, device="cpu", dtype=None, textmodel_json_config=None, **kwargs):
-        super().__init__(device=device, dtype=dtype, clip_name="h", clip_model=SD2ClipHModel, textmodel_json_config=textmodel_json_config, **kwargs)
+    def __init__(self, device="cpu", dtype=None, textmodel_json_config=None, model_options={}, **kwargs):
+        super().__init__(device=device, dtype=dtype, clip_name="h", clip_model=SD2ClipHModel, model_options=model_options, textmodel_json_config=textmodel_json_config, **kwargs)

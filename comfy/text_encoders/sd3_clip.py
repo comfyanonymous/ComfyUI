@@ -11,9 +11,9 @@ from ..component_model import files
 
 
 class T5XXLModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, textmodel_json_config=None):
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, textmodel_json_config=None, model_options={}):
         textmodel_json_config = files.get_path_as_dict(textmodel_json_config, "t5_config_xxl.json", package=__package__)
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5, model_options=model_options)
 
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
@@ -21,7 +21,7 @@ class T5XXLTokenizer(sd1_clip.SDTokenizer):
         if tokenizer_data is None:
             tokenizer_data = dict()
         tokenizer_path = files.get_package_as_path("comfy.text_encoders.t5_tokenizer")
-        super().__init__(tokenizer_path, pad_with_end=False, embedding_size=4096, embedding_key='t5xxl', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=77)
+        super().__init__(tokenizer_path, embedding_directory=embedding_directory, pad_with_end=False, embedding_size=4096, embedding_key='t5xxl', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=77)
 
 
 class SD3Tokenizer:
@@ -50,24 +50,24 @@ class SD3Tokenizer:
 
 
 class SD3ClipModel(torch.nn.Module):
-    def __init__(self, clip_l=True, clip_g=True, t5=True, dtype_t5=None, device="cpu", dtype=None):
+    def __init__(self, clip_l=True, clip_g=True, t5=True, dtype_t5=None, device="cpu", dtype=None, model_options={}):
         super().__init__()
         self.dtypes = set()
         if clip_l:
-            self.clip_l = sd1_clip.SDClipModel(layer="hidden", layer_idx=-2, device=device, dtype=dtype, layer_norm_hidden_state=False, return_projected_pooled=False)
+            self.clip_l = sd1_clip.SDClipModel(layer="hidden", layer_idx=-2, device=device, dtype=dtype, layer_norm_hidden_state=False, return_projected_pooled=False, model_options=model_options)
             self.dtypes.add(dtype)
         else:
             self.clip_l = None
 
         if clip_g:
-            self.clip_g = sdxl_clip.SDXLClipG(device=device, dtype=dtype)
+            self.clip_g = sdxl_clip.SDXLClipG(device=device, dtype=dtype, model_options=model_options)
             self.dtypes.add(dtype)
         else:
             self.clip_g = None
 
         if t5:
             dtype_t5 = model_management.pick_weight_dtype(dtype_t5, dtype, device)
-            self.t5xxl = T5XXLModel(device=device, dtype=dtype_t5)
+            self.t5xxl = T5XXLModel(device=device, dtype=dtype_t5, model_options=model_options)
             self.dtypes.add(dtype_t5)
         else:
             self.t5xxl = None
@@ -145,7 +145,6 @@ class SD3ClipModel(torch.nn.Module):
 
 def sd3_clip(clip_l=True, clip_g=True, t5=True, dtype_t5=None):
     class SD3ClipModel_(SD3ClipModel):
-        def __init__(self, device="cpu", dtype=None):
-            super().__init__(clip_l=clip_l, clip_g=clip_g, t5=t5, dtype_t5=dtype_t5, device=device, dtype=dtype)
-
+        def __init__(self, device="cpu", dtype=None, model_options={}):
+            super().__init__(clip_l=clip_l, clip_g=clip_g, t5=t5, dtype_t5=dtype_t5, device=device, dtype=dtype, model_options=model_options)
     return SD3ClipModel_

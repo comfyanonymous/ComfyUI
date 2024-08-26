@@ -11,7 +11,9 @@ from ..component_model.files import get_path_as_dict, get_package_as_path
 
 
 class HyditBertModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, textmodel_json_config=None):
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, model_options=None, textmodel_json_config=None):
+        if model_options is None:
+            model_options = dict()
         textmodel_json_config = get_path_as_dict(textmodel_json_config, "hydit_clip.json", package=__package__)
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"start": 101, "end": 102, "pad": 0}, model_class=BertModel, enable_attention_masks=True, return_attention_masks=True)
 
@@ -23,7 +25,9 @@ class HyditBertTokenizer(sd1_clip.SDTokenizer):
 
 
 class MT5XLModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, textmodel_json_config=None):
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, model_options=None, textmodel_json_config=None):
+        if model_options is None:
+            model_options = dict()
         textmodel_json_config = get_path_as_dict(textmodel_json_config, "mt5_config_xl.json", package=__package__)
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5, enable_attention_masks=True, return_attention_masks=True)
 
@@ -66,10 +70,12 @@ class HyditTokenizer:
 
 
 class HyditModel(torch.nn.Module):
-    def __init__(self, device="cpu", dtype=None):
+    def __init__(self, device="cpu", dtype=None, model_options=None):
         super().__init__()
-        self.hydit_clip = HyditBertModel(dtype=dtype)
-        self.mt5xl = MT5XLModel(dtype=dtype)
+        if model_options is None:
+            model_options = dict()
+        self.hydit_clip = HyditBertModel(dtype=dtype, model_options=model_options)
+        self.mt5xl = MT5XLModel(dtype=dtype, model_options=model_options)
 
         self.dtypes = set()
         if dtype is not None:

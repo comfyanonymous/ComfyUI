@@ -103,10 +103,7 @@ class BaseModel(torch.nn.Module):
 
         if not unet_config.get("disable_unet_model_creation", False):
             if model_config.custom_operations is None:
-                if self.manual_cast_dtype is not None:
-                    operations = ops.manual_cast
-                else:
-                    operations = ops.disable_weight_init
+                operations = ops.pick_operations(unet_config.get("dtype", None), self.manual_cast_dtype)
             else:
                 operations = model_config.custom_operations
             self.diffusion_model = unet_model(**unet_config, device=device, operations=operations)

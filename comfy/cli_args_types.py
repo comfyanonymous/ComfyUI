@@ -81,6 +81,8 @@ class Configuration(dict):
         lowvram (bool): Reduce UNet's VRAM usage.
         novram (bool): Minimize VRAM usage.
         cpu (bool): Use CPU for processing.
+        fast (bool): Enable some untested and potentially quality deteriorating optimizations
+        reserve_vram (Optional[float]): Set the amount of vram in GB you want to reserve for use by your OS/other software. By default some amount is reserved depending on your OS
         disable_smart_memory (bool): Disable smart memory management.
         deterministic (bool): Use deterministic algorithms where possible.
         dont_print_server (bool): Suppress server output.
@@ -157,6 +159,8 @@ class Configuration(dict):
         self.lowvram: bool = False
         self.novram: bool = False
         self.cpu: bool = False
+        self.fast: bool = False
+        self.reserve_vram: Optional[float] = None
         self.disable_smart_memory: bool = False
         self.deterministic: bool = False
         self.dont_print_server: bool = False

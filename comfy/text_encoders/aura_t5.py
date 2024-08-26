@@ -6,7 +6,9 @@ from ..text_encoders import t5
 from ..component_model.files import get_path_as_dict
 
 class PT5XlModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, textmodel_json_config=None):
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, model_options=None, textmodel_json_config=None):
+        if model_options is None:
+            model_options = dict()
         textmodel_json_config = get_path_as_dict(textmodel_json_config, "t5_pile_config_xl.json", package=__package__)
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 2, "pad": 1}, model_class=t5.T5, enable_attention_masks=True, zero_out_masked=True)
 
@@ -25,5 +27,5 @@ class AuraT5Tokenizer(sd1_clip.SD1Tokenizer):
 
 
 class AuraT5Model(sd1_clip.SD1ClipModel):
-    def __init__(self, device="cpu", dtype=None, **kwargs):
-        super().__init__(device=device, dtype=dtype, name="pile_t5xl", clip_model=PT5XlModel, **kwargs)
+    def __init__(self, device="cpu", dtype=None, model_options={}, **kwargs):
+        super().__init__(device=device, dtype=dtype, model_options=model_options, name="pile_t5xl", clip_model=PT5XlModel, **kwargs)

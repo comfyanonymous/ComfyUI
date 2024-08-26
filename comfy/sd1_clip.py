@@ -94,7 +94,6 @@ class ClipTokenWeightEncoder:
 
 
 class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
-    """Uses the CLIP transformer encoder for text (from huggingface)"""
     LAYERS = [
         "last",
         "pooled",
@@ -104,7 +103,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     def __init__(self, version="openai/clip-vit-large-patch14", device="cpu", max_length=77,
                  freeze=True, layer="last", layer_idx=None, textmodel_json_config: str | dict | None = None, dtype=None, model_class=clip_model.CLIPTextModel,
                  special_tokens=None, layer_norm_hidden_state=True, enable_attention_masks=False, zero_out_masked=False,
-                 return_projected_pooled=True, return_attention_masks=False):  # clip-vit-base-patch32
+                 return_projected_pooled=True, return_attention_masks=False, model_options={}):  # clip-vit-base-patch32
         super().__init__()
         if special_tokens is None:
             special_tokens = {"start": 49406, "end": 49407, "pad": 49407}
@@ -112,7 +111,11 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
 
         config = get_path_as_dict(textmodel_json_config, "sd1_clip_config.json", package=__package__)
 
-        self.operations = ops.manual_cast
+        operations = model_options.get("custom_operations", None)
+        if operations is None:
+            operations = ops.manual_cast
+
+        self.operations = operations
         self.transformer = model_class(config, dtype, device, self.operations)
         self.num_layers = self.transformer.num_layers
 
@@ -680,9 +683,12 @@ class SD1Tokenizer:
     def state_dict(self):
         return {}
 
+class SD1CheckpointClipModel(SDClipModel):
+    def __init__(self, device="cpu", dtype=None, model_options={}, textmodel_json_config=None):
+        super().__init__(device=device, return_projected_pooled=False, dtype=dtype, model_options=model_options, textmodel_json_config=textmodel_json_config)
 
 class SD1ClipModel(torch.nn.Module):
-    def __init__(self, device="cpu", dtype=None, clip_name="l", clip_model=SDClipModel, textmodel_json_config=None, name=None, **kwargs):
+    def __init__(self, device="cpu", dtype=None, model_options={}, clip_name="l", clip_model=SD1CheckpointClipModel, textmodel_json_config=None, name=None, **kwargs):
         super().__init__()
 
         if name is not None:
@@ -692,7 +698,7 @@ class SD1ClipModel(torch.nn.Module):
             self.clip_name = clip_name
             self.clip = "clip_{}".format(self.clip_name)
 
-        setattr(self, self.clip, clip_model(device=device, dtype=dtype, textmodel_json_config=textmodel_json_config, **kwargs))
+        setattr(self, self.clip, clip_model(device=device, dtype=dtype, model_options=model_options, textmodel_json_config=textmodel_json_config, **kwargs))
 
         self.dtypes = set()
         if dtype is not None:

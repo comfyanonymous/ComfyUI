@@ -361,19 +361,6 @@ class TestExecution:
         for i in range(3):
             assert numpy.array(images_literal[i]).min() == 255 and numpy.array(images_literal[i]).max() == 255, "All images should be white"
 
-    async def test_output_reuse(self, client: Client, builder: GraphBuilder):
-        g = builder
-        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
-
-        output1 = g.node("PreviewImage", images=input1.out(0))
-        output2 = g.node("PreviewImage", images=input1.out(0))
-
-        result = await client.run(g)
-        images1 = result.get_images(output1)
-        images2 = result.get_images(output2)
-        assert len(images1) == 1, "Should have 1 image"
-        assert len(images2) == 1, "Should have 1 image"
-
     async def test_mixed_lazy_results(self, client: Client, builder: GraphBuilder):
         g = builder
         val_list = g.node("TestMakeListNode", value1=0.0, value2=0.5, value3=1.0)
@@ -390,3 +377,55 @@ class TestExecution:
         assert numpy.array(images[0]).min() == 0 and numpy.array(images[0]).max() == 0, "First image should be 0.0"
         assert numpy.array(images[1]).min() == 127 and numpy.array(images[1]).max() == 127, "Second image should be 0.5"
         assert numpy.array(images[2]).min() == 255 and numpy.array(images[2]).max() == 255, "Third image should be 1.0"
+
+    async def test_missing_node_error(self, client: Client, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        input2 = g.node("StubImage", id="removeme", content="WHITE", height=512, width=512, batch_size=1)
+        input3 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+        mask = g.node("StubMask", value=0.5, height=512, width=512, batch_size=1)
+        mix1 = g.node("TestLazyMixImages", image1=input1.out(0), image2=input2.out(0), mask=mask.out(0))
+        mix2 = g.node("TestLazyMixImages", image1=input1.out(0), image2=input3.out(0), mask=mask.out(0))
+        # We have multiple outputs. The first is invalid, but the second is valid
+        g.node("SaveImage", images=mix1.out(0))
+        g.node("SaveImage", images=mix2.out(0))
+        g.remove_node("removeme")
+
+        await client.run(g)
+
+        # Add back in the missing node to make sure the error doesn't break the server
+        input2 = g.node("StubImage", id="removeme", content="WHITE", height=512, width=512, batch_size=1)
+        await client.run(g)
+
+    async def test_output_reuse(self, client: Client, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+
+        output1 = g.node("SaveImage", images=input1.out(0))
+        output2 = g.node("SaveImage", images=input1.out(0))
+
+        result = await client.run(g)
+        images1 = result.get_images(output1)
+        images2 = result.get_images(output2)
+        assert len(images1) == 1, "Should have 1 image"
+        assert len(images2) == 1, "Should have 1 image"
+
+
+    # This tests that only constant outputs are used in the call to `IS_CHANGED`
+    async def test_is_changed_with_outputs(self, client: Client, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubConstantImage", value=0.5, height=512, width=512, batch_size=1)
+        test_node = g.node("TestIsChangedWithConstants", image=input1.out(0), value=0.5)
+
+        output = g.node("PreviewImage", images=test_node.out(0))
+
+        result = await client.run(g)
+        images = result.get_images(output)
+        assert len(images) == 1, "Should have 1 image"
+        assert numpy.array(images[0]).min() == 63 and numpy.array(images[0]).max() == 63, "Image should have value 0.25"
+
+        result = await client.run(g)
+        images = result.get_images(output)
+        assert len(images) == 1, "Should have 1 image"
+        assert numpy.array(images[0]).min() == 63 and numpy.array(images[0]).max() == 63, "Image should have value 0.25"
+        assert not result.did_run(test_node), "The execution should have been cached"
