@@ -424,6 +424,8 @@ KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("ByteDance/Hyper-SD", "Hyper-SDXL-1step-Unet-Comfyui.fp16.safetensors"),
     HuggingFile("black-forest-labs/FLUX.1-schnell", "flux1-schnell.safetensors"),
     HuggingFile("black-forest-labs/FLUX.1-dev", "flux1-dev.safetensors"),
+    HuggingFile("Kijai/flux-fp8", "flux1-dev-fp8.safetensors"),
+    HuggingFile("Kijai/flux-fp8", "flux1-schnell-fp8.safetensors"),
 ], folder_name="diffusion_models")
 
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([

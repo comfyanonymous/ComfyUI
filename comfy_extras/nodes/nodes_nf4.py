@@ -61,6 +61,8 @@ def copy_quant_state(state: QuantState, device: torch.device = None) -> QuantSta
 
 class ForgeParams4bit(Params4bit):
     def to(self, *args, **kwargs):
+        if 'copy' in kwargs:
+            kwargs.pop('copy')
         device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(*args, **kwargs)
         if device is not None and device.type == "cuda" and not self.bnb_quantized:
             return self._quantize(device)
@@ -179,7 +181,7 @@ class CheckpointLoaderNF4:
 
     def load_checkpoint(self, ckpt_name):
         if not has_bitsandbytes:
-            raise BitsAndBytesNotFoundError(f"Because your platform is {platform.platform()}, bitsandbytes is not installed, so this cannot be executed")
+            raise BitsAndBytesNotFoundError(f"bitsandbytes is not installed, so {CheckpointLoaderNF4.__name__} cannot be executed")
         ckpt_path = get_or_download("checkpoints", ckpt_name)
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=get_folder_paths("embeddings"), model_options={"custom_operations": OPS})
         return out[:3]

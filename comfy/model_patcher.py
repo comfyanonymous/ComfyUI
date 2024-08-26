@@ -386,7 +386,7 @@ class ModelPatcher(ModelManageable):
             logging.debug("loaded partially {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), patch_counter))
             self._memory_measurements.model_lowvram = True
         else:
-            logging.info("loaded completely {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
+            logging.debug("loaded completely {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
             self._memory_measurements.model_lowvram = False
             if full_load:
                 self.model.to(device_to)
