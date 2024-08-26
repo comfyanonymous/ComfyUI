@@ -1,10 +1,9 @@
-import comfy.sd
-import torch
 import bitsandbytes as bnb
-import comfy.ops
-
+import torch
 from bitsandbytes.nn.modules import Params4bit, QuantState
 
+import comfy.ops
+import comfy.sd
 from comfy.cmd.folder_paths import get_folder_paths
 from comfy.model_downloader import get_filename_list_with_downloadable, get_or_download
 
@@ -150,8 +149,7 @@ class OPS(comfy.ops.manual_cast):
                 self.weight = self.weight.to(layer_original_device)
                 return out
             else:
-                weight, bias = comfy.ops.cast_bias_weight(self, x)
-                return functional_linear_4bits(x, weight, bias)
+                raise ValueError("should not be reached")
 
 
 class CheckpointLoaderNF4:

@@ -124,12 +124,13 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
    ```shell
    pip install git+https://github.com/hiddenswitch/ComfyUI.git
    ```
-   **Recommended**: Currently, `torch 2.3.0` is the last version that `xformers` is compatible with. On Windows, install it first, along with `xformers`, for maximum compatibility and the best performance without advanced techniques in ComfyUI:
+   **Recommended**: Currently, `torch 2.4.0` is the last version that `xformers` is compatible with. On Windows, install it first, along with `xformers`, for maximum compatibility and the best performance without advanced techniques in ComfyUI:
    ```shell
-   pip install torch==2.3.0+cu121 torchvision --index-url https://download.pytorch.org/whl/cu121
-   pip install xformers==0.0.26.post1
+   pip install torch==2.4.0+cu121 torchvision --index-url https://download.pytorch.org/whl/cu121
+   pip install xformers==0.0.27.post2
    pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
    ```
+   
    For improved performance when using the language models on Windows, CUDA 12.1 and PyTorch 2.3.0, add:
    ```shell
    pip install flash-attn @ https://github.com/AppMana/appmana-comfyui-nodes-extramodels/releases/download/v0.0.0-flash_attn/flash_attn-2.5.9.post1-cp311-cp311-win_amd64.whl
