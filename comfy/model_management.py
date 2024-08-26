@@ -44,9 +44,14 @@ cpu_state = CPUState.GPU
 
 total_vram = 0
 
-lowvram_available = True
 xpu_available = False
+try:
+    torch_version = torch.version.__version__
+    xpu_available = (int(torch_version[0]) < 2 or (int(torch_version[0]) == 2 and int(torch_version[2]) <= 4)) and torch.xpu.is_available()
+except:
+    pass
 
+lowvram_available = True
 if args.deterministic:
     logging.info("Using deterministic algorithms for pytorch")
     torch.use_deterministic_algorithms(True, warn_only=True)
@@ -66,10 +71,10 @@ if args.directml is not None:
 
 try:
     import intel_extension_for_pytorch as ipex
-    if torch.xpu.is_available():
-        xpu_available = True
+    _ = torch.xpu.device_count()
+    xpu_available = torch.xpu.is_available()
 except:
-    pass
+    xpu_available = xpu_available or (hasattr(torch, "xpu") and torch.xpu.is_available())
 
 try:
     if torch.backends.mps.is_available():
@@ -189,7 +194,6 @@ VAE_DTYPES = [torch.float32]
 
 try:
     if is_nvidia():
-        torch_version = torch.version.__version__
         if int(torch_version[0]) >= 2:
             if ENABLE_PYTORCH_ATTENTION == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
                 ENABLE_PYTORCH_ATTENTION = True
@@ -321,8 +325,9 @@ class LoadedModel:
                 self.model_unload()
                 raise e
 
-        if is_intel_xpu() and not args.disable_ipex_optimize:
-            self.real_model = ipex.optimize(self.real_model.eval(), graph_mode=True, concat_linear=True)
+        if is_intel_xpu() and not args.disable_ipex_optimize and self.real_model is not None:
+            with torch.no_grad():
+                self.real_model = ipex.optimize(self.real_model.eval(), inplace=True, graph_mode=True, concat_linear=True)
 
         self.weights_loaded = True
         return self.real_model
@@ -369,7 +374,7 @@ def minimum_inference_memory():
 
 EXTRA_RESERVED_VRAM = 200 * 1024 * 1024
 if any(platform.win32_ver()):
-    EXTRA_RESERVED_VRAM = 400 * 1024 * 1024 #Windows is higher because of the shared vram issue
+    EXTRA_RESERVED_VRAM = 500 * 1024 * 1024 #Windows is higher because of the shared vram issue
 
 if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
@@ -561,7 +566,9 @@ def loaded_models(only_currently_used=False):
 def cleanup_models(keep_clone_weights_loaded=False):
     to_delete = []
     for i in range(len(current_loaded_models)):
-        if sys.getrefcount(current_loaded_models[i].model) <= 2:
+        #TODO: very fragile function needs improvement
+        num_refs = sys.getrefcount(current_loaded_models[i].model)
+        if num_refs <= 2:
             if not keep_clone_weights_loaded:
                 to_delete = [i] + to_delete
             #TODO: find a less fragile way to do this.
@@ -668,6 +675,7 @@ def unet_manual_cast(weight_dtype, inference_device, supported_dtypes=[torch.flo
     if bf16_supported and weight_dtype == torch.bfloat16:
         return None
 
+    fp16_supported = should_use_fp16(inference_device, prioritize_performance=True)
     for dt in supported_dtypes:
         if dt == torch.float16 and fp16_supported:
             return torch.float16
@@ -883,7 +891,8 @@ def pytorch_attention_flash_attention():
 def force_upcast_attention_dtype():
     upcast = args.force_upcast_attention
     try:
-        if platform.mac_ver()[0] in ['14.5']: #black image bug on OSX Sonoma 14.5
+        macos_version = tuple(int(n) for n in platform.mac_ver()[0].split("."))
+        if (14, 5) <= macos_version < (14, 7):  # black image bug on recent versions of MacOS
             upcast = True
     except:
         pass
@@ -979,23 +988,20 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     if torch.version.hip:
         return True
 
-    props = torch.cuda.get_device_properties("cuda")
+    props = torch.cuda.get_device_properties(device)
     if props.major >= 8:
         return True
 
     if props.major < 6:
         return False
 
-    fp16_works = False
-    #FP16 is confirmed working on a 1080 (GP104) but it's a bit slower than FP32 so it should only be enabled
-    #when the model doesn't actually fit on the card
-    #TODO: actually test if GP106 and others have the same type of behavior
+    #FP16 is confirmed working on a 1080 (GP104) and on latest pytorch actually seems faster than fp32
     nvidia_10_series = ["1080", "1070", "titan x", "p3000", "p3200", "p4000", "p4200", "p5000", "p5200", "p6000", "1060", "1050", "p40", "p100", "p6", "p4"]
     for x in nvidia_10_series:
         if x in props.name.lower():
-            fp16_works = True
+            return True
 
-    if fp16_works or manual_cast:
+    if manual_cast:
         free_model_memory = maximum_vram_for_weights(device)
         if (not prioritize_performance) or model_params * 4 > free_model_memory:
             return True
@@ -1035,7 +1041,7 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
     if is_intel_xpu():
         return True
 
-    props = torch.cuda.get_device_properties("cuda")
+    props = torch.cuda.get_device_properties(device)
     if props.major >= 8:
         return True
 
@@ -1047,6 +1053,16 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
             return True
 
     return False
+
+def supports_fp8_compute(device=None):
+    props = torch.cuda.get_device_properties(device)
+    if props.major >= 9:
+        return True
+    if props.major < 8:
+        return False
+    if props.minor < 9:
+        return False
+    return True
 
 def soft_empty_cache(force=False):
     global cpu_state
