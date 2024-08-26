@@ -8,6 +8,8 @@ from comfy.api.components.schema.prompt import Prompt
 from comfy.client.embedded_comfy_client import EmbeddedComfyClient
 from comfy.model_downloader import add_known_models, KNOWN_LORAS
 from comfy.model_downloader_types import CivitFile
+from comfy_extras.nodes.nodes_audio import TorchAudioNotFoundError
+from comfy_extras.nodes.nodes_nf4 import BitsAndBytesNotFoundError
 from . import workflows
 
 
@@ -30,17 +32,16 @@ async def test_workflow(workflow_name: str, workflow_file: Traversable, has_gpu:
     if not has_gpu:
         pytest.skip("requires gpu")
 
-    if "audio" in workflow_name:
-        try:
-            import torchaudio
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("requires torchaudio")
-
     workflow = json.loads(workflow_file.read_text(encoding="utf8"))
 
     prompt = Prompt.validate(workflow)
     # todo: add all the models we want to test a bit m2ore elegantly
-    outputs = await client.queue_prompt(prompt)
+    try:
+        outputs = await client.queue_prompt(prompt)
+    except BitsAndBytesNotFoundError:
+        pytest.skip("requires bitsandbytes")
+    except TorchAudioNotFoundError:
+        pytest.skip("requires torchaudio")
 
     if any(v.class_type == "SaveImage" for v in prompt.values()):
         save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveImage")

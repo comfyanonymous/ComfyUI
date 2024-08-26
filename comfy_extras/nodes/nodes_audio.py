@@ -1,15 +1,20 @@
 import hashlib
-
-import torch
-import comfy.model_management
-from comfy.cmd import folder_paths
-import os
 import io
 import json
-import struct
+import os
 import random
-import hashlib
+import struct
+
+import torch
+
+import comfy.model_management
 from comfy.cli_args import args
+from comfy.cmd import folder_paths
+
+
+class TorchAudioNotFoundError(ModuleNotFoundError):
+    pass
+
 
 class EmptyLatentAudio:
     def __init__(self):
@@ -18,6 +23,7 @@ class EmptyLatentAudio:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"seconds": ("FLOAT", {"default": 47.6, "min": 1.0, "max": 1000.0, "step": 0.1})}}
+
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
 
@@ -27,12 +33,14 @@ class EmptyLatentAudio:
         batch_size = 1
         length = round((seconds * 44100 / 2048) / 2) * 2
         latent = torch.zeros([batch_size, 64, length], device=self.device)
-        return ({"samples":latent, "type": "audio"}, )
+        return ({"samples": latent, "type": "audio"},)
+
 
 class VAEEncodeAudio:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "audio": ("AUDIO", ), "vae": ("VAE", )}}
+        return {"required": {"audio": ("AUDIO",), "vae": ("VAE",)}}
+
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
@@ -41,18 +49,23 @@ class VAEEncodeAudio:
     def encode(self, vae, audio):
         sample_rate = audio["sample_rate"]
         if 44100 != sample_rate:
-            import torchaudio  # pylint: disable=import-error
+            try:
+                import torchaudio  # pylint: disable=import-error
+            except ImportError as exc_info:
+                raise TorchAudioNotFoundError()
             waveform = torchaudio.functional.resample(audio["waveform"], sample_rate, 44100)
         else:
             waveform = audio["waveform"]
 
         t = vae.encode(waveform.movedim(1, -1))
-        return ({"samples":t}, )
+        return ({"samples": t},)
+
 
 class VAEDecodeAudio:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT", ), "vae": ("VAE", )}}
+        return {"required": {"samples": ("LATENT",), "vae": ("VAE",)}}
+
     RETURN_TYPES = ("AUDIO",)
     FUNCTION = "decode"
 
@@ -60,7 +73,7 @@ class VAEDecodeAudio:
 
     def decode(self, vae, samples):
         audio = vae.decode(samples["samples"]).movedim(-1, 1)
-        return ({"waveform": audio, "sample_rate": 44100}, )
+        return ({"waveform": audio, "sample_rate": 44100},)
 
 
 def create_vorbis_comment_block(comment_dict, last_block):
@@ -83,6 +96,7 @@ def create_vorbis_comment_block(comment_dict, last_block):
     comment_block = id + struct.pack('>I', len(comment_data))[1:] + comment_data
 
     return comment_block
+
 
 def insert_or_replace_vorbis_comment(flac_io, comment_dict):
     if len(comment_dict) == 0:
@@ -125,8 +139,8 @@ class SaveAudio:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "audio": ("AUDIO", ),
-                              "filename_prefix": ("STRING", {"default": "audio/ComfyUI"})},
+        return {"required": {"audio": ("AUDIO",),
+                             "filename_prefix": ("STRING", {"default": "audio/ComfyUI"})},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -138,7 +152,10 @@ class SaveAudio:
     CATEGORY = "audio"
 
     def save_audio(self, audio, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
-        import torchaudio  # pylint: disable=import-error
+        try:
+            import torchaudio  # pylint: disable=import-error
+        except ImportError as exc_info:
+            raise TorchAudioNotFoundError()
 
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
@@ -171,7 +188,8 @@ class SaveAudio:
             })
             counter += 1
 
-        return { "ui": { "audio": results } }
+        return {"ui": {"audio": results}}
+
 
 class PreviewAudio(SaveAudio):
     def __init__(self):
@@ -182,9 +200,10 @@ class PreviewAudio(SaveAudio):
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"audio": ("AUDIO", ), },
+                    {"audio": ("AUDIO",), },
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
+
 
 class LoadAudio:
     SUPPORTED_FORMATS = ('.wav', '.mp3', '.ogg', '.flac', '.aiff', '.aif')
@@ -196,22 +215,25 @@ class LoadAudio:
             f for f in os.listdir(input_dir)
             if (os.path.isfile(os.path.join(input_dir, f))
                 and f.endswith(LoadAudio.SUPPORTED_FORMATS)
-            )
+                )
         ]
         return {"required": {"audio": (sorted(files), {"audio_upload": True})}}
 
     CATEGORY = "audio"
 
-    RETURN_TYPES = ("AUDIO", )
+    RETURN_TYPES = ("AUDIO",)
     FUNCTION = "load"
 
     def load(self, audio):
-        import torchaudio  # pylint: disable=import-error
+        try:
+            import torchaudio  # pylint: disable=import-error
+        except ImportError as exc_info:
+            raise TorchAudioNotFoundError()
 
         audio_path = folder_paths.get_annotated_filepath(audio)
         waveform, sample_rate = torchaudio.load(audio_path)
         audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
-        return (audio, )
+        return (audio,)
 
     @classmethod
     def IS_CHANGED(s, audio):
@@ -226,6 +248,7 @@ class LoadAudio:
         if not folder_paths.exists_annotated_filepath(audio):
             return "Invalid audio file: {}".format(audio)
         return True
+
 
 NODE_CLASS_MAPPINGS = {
     "EmptyLatentAudio": EmptyLatentAudio,

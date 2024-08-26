@@ -1,11 +1,25 @@
-import bitsandbytes as bnb
-import torch
-from bitsandbytes.nn.modules import Params4bit, QuantState
+import platform
 
+try:
+    import bitsandbytes as bnb
+    from bitsandbytes.nn.modules import Params4bit, QuantState
+
+    has_bitsandbytes = True
+except (ImportError, ModuleNotFoundError):
+    bnb = {}
+    Params4bit = {}
+    QuantState = {}
+    has_bitsandbytes = False
+
+import torch
 import comfy.ops
 import comfy.sd
 from comfy.cmd.folder_paths import get_folder_paths
 from comfy.model_downloader import get_filename_list_with_downloadable, get_or_download
+
+
+class BitsAndBytesNotFoundError(ModuleNotFoundError):
+    pass
 
 
 def functional_linear_4bits(x, weight, bias):
@@ -164,6 +178,8 @@ class CheckpointLoaderNF4:
     CATEGORY = "loaders"
 
     def load_checkpoint(self, ckpt_name):
+        if not has_bitsandbytes:
+            raise BitsAndBytesNotFoundError(f"Because your platform is {platform.platform()}, bitsandbytes is not installed, so this cannot be executed")
         ckpt_path = get_or_download("checkpoints", ckpt_name)
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=get_folder_paths("embeddings"), model_options={"custom_operations": OPS})
         return out[:3]

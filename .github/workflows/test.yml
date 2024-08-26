@@ -74,6 +74,9 @@ jobs:
       - name: Run tests
         run: |
           export HSA_OVERRIDE_GFX_VERSION=11.0.0
+          export PYTORCH_HIP_ALLOC_CONF=expandable_segments:True
+          export NUMBA_THREADING_LAYER=omp
+          export AMD_SERIALIZE_KERNEL=1
           pytest -v tests/unit
       - name: Lint for errors
         run: |
