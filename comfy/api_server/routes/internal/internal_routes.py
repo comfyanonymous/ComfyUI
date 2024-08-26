@@ -1,7 +1,7 @@
 from aiohttp import web
 from typing import Optional
-from folder_paths import models_dir, user_directory, output_directory
-from api_server.services.file_service import FileService
+from ....cmd.folder_paths import models_dir, user_directory, output_directory
+from ...services.file_service import FileService
 
 class InternalRoutes:
     '''

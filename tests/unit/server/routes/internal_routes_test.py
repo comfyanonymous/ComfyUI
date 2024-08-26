@@ -1,9 +1,9 @@
 import pytest
 from aiohttp import web
 from unittest.mock import MagicMock, patch
-from api_server.routes.internal.internal_routes import InternalRoutes
-from api_server.services.file_service import FileService
-from folder_paths import models_dir, user_directory, output_directory
+from comfy.api_server.routes.internal.internal_routes import InternalRoutes
+from comfy.api_server.services.file_service import FileService
+from comfy.cmd.folder_paths import models_dir, user_directory, output_directory
 
 
 @pytest.fixture

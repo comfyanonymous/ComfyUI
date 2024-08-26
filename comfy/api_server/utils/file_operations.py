@@ -1,21 +1,28 @@
 import os
 from typing import List, Union, TypedDict, Literal
+
 from typing_extensions import TypeGuard
+
+
 class FileInfo(TypedDict):
     name: str
     path: str
     type: Literal["file"]
     size: int
 
+
 class DirectoryInfo(TypedDict):
     name: str
     path: str
     type: Literal["directory"]
 
+
 FileSystemItem = Union[FileInfo, DirectoryInfo]
+
 
 def is_file_info(item: FileSystemItem) -> TypeGuard[FileInfo]:
     return item["type"] == "file"
+
 
 class FileSystemOperations:
     @staticmethod

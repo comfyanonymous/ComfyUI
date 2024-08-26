@@ -1,5 +1,5 @@
 from typing import Dict, List, Optional
-from api_server.utils.file_operations import FileSystemOperations, FileSystemItem
+from ..utils.file_operations import FileSystemOperations, FileSystemItem
 
 class FileService:
     def __init__(self, allowed_directories: Dict[str, str], file_system_ops: Optional[FileSystemOperations] = None):
