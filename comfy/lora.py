@@ -365,6 +365,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
         if isinstance(v, list):
             v = (calculate_weight(v[1:], v[0].clone(), key, intermediate_dtype=intermediate_dtype), )
 
+        patch_type = ""
         if len(v) == 1:
             patch_type = "diff"
         elif len(v) == 2:
