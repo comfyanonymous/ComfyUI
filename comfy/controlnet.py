@@ -16,29 +16,31 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-
-import torch
-from enum import Enum
+import logging
 import math
 import os
-import logging
+from enum import Enum
 
-from . import utils
-from . import model_management
+import torch
+
+from . import latent_formats
 from . import model_detection
+from . import model_management
 from . import model_patcher
 from . import ops
-from . import latent_formats
-
+from . import utils
 from .cldm import cldm, mmdit
-from .t2i_adapter import adapter
 from .ldm import hydit, flux
 from .ldm.cascade import controlnet as cascade_controlnet
+from .ldm.flux.controlnet_instantx import InstantXControlNetFlux
+from .ldm.flux.controlnet_instantx_format2 import InstantXControlNetFluxFormat2
+from .ldm.flux.weight_dtypes import FLUX_WEIGHT_DTYPES
+from .t2i_adapter import adapter
 
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
     current_batch_size = tensor.shape[0]
-    #print(current_batch_size, target_batch_size)
+    # print(current_batch_size, target_batch_size)
     if current_batch_size == 1:
         return tensor
 
@@ -54,9 +56,11 @@ def broadcast_image_to(tensor, target_batch_size, batched_number):
     else:
         return torch.cat([tensor] * batched_number, dim=0)
 
+
 class StrengthType(Enum):
     CONSTANT = 1
     LINEAR_UP = 2
+
 
 class ControlBase:
     def __init__(self, device=None):
@@ -129,7 +133,7 @@ class ControlBase:
         return 0
 
     def control_merge(self, control, control_prev, output_dtype):
-        out = {'input':[], 'middle':[], 'output': []}
+        out = {'input': [], 'middle': [], 'output': []}
 
         for key in control:
             control_output = control[key]
@@ -140,7 +144,7 @@ class ControlBase:
                     if self.global_average_pooling:
                         x = torch.mean(x, dim=(2, 3), keepdim=True).repeat(1, 1, x.shape[2], x.shape[3])
 
-                    if x not in applied_to: #memory saving strategy, allow shared tensors and only apply strength to shared tensors once
+                    if x not in applied_to:  # memory saving strategy, allow shared tensors and only apply strength to shared tensors once
                         applied_to.add(x)
                         if self.strength_type == StrengthType.CONSTANT:
                             x *= self.strength
@@ -166,7 +170,7 @@ class ControlBase:
                             if o[i].shape[0] < prev_val.shape[0]:
                                 o[i] = prev_val + o[i]
                             else:
-                                o[i] = prev_val + o[i] #TODO: change back to inplace add if shared tensors stop being an issue
+                                o[i] = prev_val + o[i]  # TODO: change back to inplace add if shared tensors stop being an issue
         return out
 
     def set_extra_arg(self, argument, value=None):
@@ -258,10 +262,11 @@ class ControlNet(ControlBase):
         self.model_sampling_current = None
         super().cleanup()
 
+
 class ControlLoraOps:
     class Linear(torch.nn.Module, ops.CastWeightBiasOp):
         def __init__(self, in_features: int, out_features: int, bias: bool = True,
-                    device=None, dtype=None) -> None:
+                     device=None, dtype=None) -> None:
             factory_kwargs = {'device': device, 'dtype': dtype}
             super().__init__()
             self.in_features = in_features
@@ -280,18 +285,18 @@ class ControlLoraOps:
 
     class Conv2d(torch.nn.Module, ops.CastWeightBiasOp):
         def __init__(
-            self,
-            in_channels,
-            out_channels,
-            kernel_size,
-            stride=1,
-            padding=0,
-            dilation=1,
-            groups=1,
-            bias=True,
-            padding_mode='zeros',
-            device=None,
-            dtype=None
+                self,
+                in_channels,
+                out_channels,
+                kernel_size,
+                stride=1,
+                padding=0,
+                dilation=1,
+                groups=1,
+                bias=True,
+                padding_mode='zeros',
+                device=None,
+                dtype=None
         ):
             super().__init__()
             self.in_channels = in_channels
@@ -309,7 +314,6 @@ class ControlLoraOps:
             self.bias = None
             self.up = None
             self.down = None
-
 
         def forward(self, input):
             weight, bias = ops.cast_bias_weight(self, input)
@@ -339,6 +343,7 @@ class ControlLora(ControlNet):
         else:
             class control_lora_ops(ControlLoraOps, ops.manual_cast):
                 pass
+
             dtype = self.manual_cast_dtype
 
         controlnet_config["operations"] = control_lora_ops
@@ -377,6 +382,7 @@ class ControlLora(ControlNet):
     def inference_memory_requirements(self, dtype):
         return utils.calculate_parameters(self.control_weights) * model_management.dtype_size(dtype) + ControlBase.inference_memory_requirements(self, dtype)
 
+
 def controlnet_config(sd):
     model_config = model_detection.model_config_from_unet(sd, "", True)
 
@@ -394,6 +400,7 @@ def controlnet_config(sd):
     offload_device = model_management.unet_offload_device()
     return model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device
 
+
 def controlnet_load_state_dict(control_model, sd):
     missing, unexpected = control_model.load_state_dict(sd, strict=False)
 
@@ -403,6 +410,7 @@ def controlnet_load_state_dict(control_model, sd):
     if len(unexpected) > 0:
         logging.debug("unexpected controlnet keys: {}".format(unexpected))
     return control_model
+
 
 def load_controlnet_mmdit(sd):
     new_sd = model_detection.convert_diffusers_mmdit(sd, "")
@@ -415,7 +423,7 @@ def load_controlnet_mmdit(sd):
     control_model = controlnet_load_state_dict(control_model, new_sd)
 
     latent_format = latent_formats.SD3()
-    latent_format.shift_factor = 0 #SD3 controlnet weirdness
+    latent_format.shift_factor = 0  # SD3 controlnet weirdness
     control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype)
     return control
 
@@ -431,6 +439,62 @@ def load_controlnet_hunyuandit(controlnet_data):
     control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds, strength_type=StrengthType.CONSTANT)
     return control
 
+
+def load_controlnet_flux_instantx(sd, controlnet_class, weight_dtype, full_path):
+    keys_to_keep = [
+        "controlnet_",
+        "single_transformer_blocks",
+        "transformer_blocks"
+    ]
+    preserved_keys = {k: v.cpu() for k, v in sd.items() if any(k.startswith(key) for key in keys_to_keep)}
+
+    new_sd = model_detection.convert_diffusers_mmdit(sd, "")
+
+    keys_to_discard = [
+        "double_blocks",
+        "single_blocks"
+    ]
+    new_sd = {k: v for k, v in new_sd.items() if not any(k.startswith(discard_key) for discard_key in keys_to_discard)}
+    new_sd.update(preserved_keys)
+
+    config = {
+        "image_model": "flux",
+        "axes_dim": [16, 56, 56],
+        "in_channels": 16,
+        "depth": 5,
+        "depth_single_blocks": 10,
+        "context_in_dim": 4096,
+        "num_heads": 24,
+        "guidance_embed": True,
+        "hidden_size": 3072,
+        "mlp_ratio": 4.0,
+        "theta": 10000,
+        "qkv_bias": True,
+        "vec_in_dim": 768
+    }
+
+    device = model_management.get_torch_device()
+
+    if weight_dtype == "fp8_e4m3fn":
+        dtype = torch.float8_e4m3fn
+        operations = ops.manual_cast
+    elif weight_dtype == "fp8_e5m2":
+        dtype = torch.float8_e5m2
+        operations = ops.manual_cast
+    else:
+        dtype = torch.bfloat16
+        operations = ops.disable_weight_init
+
+    control_model = controlnet_class(operations=operations, device=device, dtype=dtype, **config)
+    control_model = controlnet_load_state_dict(control_model, new_sd)
+    extra_conds = ['y', 'guidance', 'control_type']
+    latent_format = latent_formats.SD3()
+    # TODO check manual cast dtype
+    control = ControlNet(control_model, compression_ratio=1, load_device=device, manual_cast_dtype=torch.bfloat16,
+                         extra_conds=extra_conds, latent_format=latent_format, ckpt_name=full_path)
+    return control
+
+
 def load_controlnet_flux_xlabs(sd):
     model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(sd)
     control_model = flux.controlnet_xlabs.ControlNetFlux(operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
@@ -440,9 +504,13 @@ def load_controlnet_flux_xlabs(sd):
     return control
 
 
-def load_controlnet(ckpt_path, model=None):
+def load_controlnet(ckpt_path, model=None, weight_dtype=FLUX_WEIGHT_DTYPES[0]):
     controlnet_data = utils.load_torch_file(ckpt_path, safe_load=True)
-    if 'after_proj_list.18.bias' in controlnet_data.keys(): #Hunyuan DiT
+    if "controlnet_mode_embedder.weight" in controlnet_data:
+        return load_controlnet_flux_instantx(controlnet_data, InstantXControlNetFluxFormat2, weight_dtype, ckpt_path)
+    if "controlnet_mode_embedder.fc.weight" in controlnet_data:
+        return load_controlnet_flux_instantx(controlnet_data, InstantXControlNetFlux, weight_dtype, ckpt_path)
+    if 'after_proj_list.18.bias' in controlnet_data.keys():  # Hunyuan DiT
         return load_controlnet_hunyuandit(controlnet_data)
     if "lora_controlnet" in controlnet_data:
         return ControlLora(controlnet_data)
@@ -450,7 +518,7 @@ def load_controlnet(ckpt_path, model=None):
     controlnet_config = None
     supported_inference_dtypes = None
 
-    if "controlnet_cond_embedding.conv_in.weight" in controlnet_data: #diffusers format
+    if "controlnet_cond_embedding.conv_in.weight" in controlnet_data:  # diffusers format
         controlnet_config = model_detection.unet_config_from_diffusers_unet(controlnet_data)
         diffusers_keys = utils.unet_to_diffusers(controlnet_config)
         diffusers_keys["controlnet_mid_block.weight"] = "middle_block_out.0.weight"
@@ -490,7 +558,7 @@ def load_controlnet(ckpt_path, model=None):
             if k in controlnet_data:
                 new_sd[diffusers_keys[k]] = controlnet_data.pop(k)
 
-        if "control_add_embedding.linear_1.bias" in controlnet_data: #Union Controlnet
+        if "control_add_embedding.linear_1.bias" in controlnet_data:  # Union Controlnet
             controlnet_config["union_controlnet_num_control_type"] = controlnet_data["task_embedding"].shape[0]
             for k in list(controlnet_data.keys()):
                 new_k = k.replace('.attn.in_proj_', '.attn.in_proj.')
@@ -500,7 +568,7 @@ def load_controlnet(ckpt_path, model=None):
         if len(leftover_keys) > 0:
             logging.warning("leftover keys: {}".format(leftover_keys))
         controlnet_data = new_sd
-    elif "controlnet_blocks.0.weight" in controlnet_data: #SD3 diffusers format
+    elif "controlnet_blocks.0.weight" in controlnet_data:  # SD3 diffusers format
         if "double_blocks.0.img_attn.norm.key_norm.scale" in controlnet_data:
             return load_controlnet_flux_xlabs(controlnet_data)
         else:
@@ -558,6 +626,7 @@ def load_controlnet(ckpt_path, model=None):
 
         class WeightsLoader(torch.nn.Module):
             pass
+
         w = WeightsLoader()
         w.control_model = control_model
         missing, unexpected = w.load_state_dict(controlnet_data, strict=False)
@@ -572,11 +641,12 @@ def load_controlnet(ckpt_path, model=None):
 
     global_average_pooling = False
     filename = os.path.splitext(ckpt_path)[0]
-    if filename.endswith("_shuffle") or filename.endswith("_shuffle_fp16"): #TODO: smarter way of enabling global_average_pooling
+    if filename.endswith("_shuffle") or filename.endswith("_shuffle_fp16"):  # TODO: smarter way of enabling global_average_pooling
         global_average_pooling = True
 
     control = ControlNet(control_model, global_average_pooling=global_average_pooling, load_device=load_device, manual_cast_dtype=manual_cast_dtype, ckpt_name=filename)
     return control
+
 
 class T2IAdapter(ControlBase):
     def __init__(self, t2i_model, channels_in, compression_ratio, upscale_algorithm, device=None):
@@ -633,13 +703,14 @@ class T2IAdapter(ControlBase):
         self.copy_to(c)
         return c
 
+
 def load_t2i_adapter(t2i_data):
     compression_ratio = 8
     upscale_algorithm = 'nearest-exact'
 
     if 'adapter' in t2i_data:
         t2i_data = t2i_data['adapter']
-    if 'adapter.body.0.resnets.0.block1.weight' in t2i_data: #diffusers format
+    if 'adapter.body.0.resnets.0.block1.weight' in t2i_data:  # diffusers format
         prefix_replace = {}
         for i in range(4):
             for j in range(2):
@@ -663,7 +734,7 @@ def load_t2i_adapter(t2i_data):
         xl = False
         if cin == 256 or cin == 768:
             xl = True
-        model_ad = adapter.Adapter(cin=cin, channels=[channel, channel*2, channel*4, channel*4][:4], nums_rb=2, ksize=ksize, sk=True, use_conv=use_conv, xl=xl)
+        model_ad = adapter.Adapter(cin=cin, channels=[channel, channel * 2, channel * 4, channel * 4][:4], nums_rb=2, ksize=ksize, sk=True, use_conv=use_conv, xl=xl)
     elif "backbone.0.0.weight" in keys:
         model_ad = cascade_controlnet.ControlNet(c_in=t2i_data['backbone.0.0.weight'].shape[1], proj_blocks=[0, 4, 8, 12, 51, 55, 59, 63])
         compression_ratio = 32

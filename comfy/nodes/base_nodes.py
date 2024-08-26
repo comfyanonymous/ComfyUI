@@ -27,6 +27,7 @@ from ..cmd import folder_paths, latent_preview
 from ..component_model.tensor_types import RGBImage
 from ..execution_context import current_execution_context
 from ..images import open_image
+from ..ldm.flux.weight_dtypes import FLUX_WEIGHT_DTYPES
 from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES, get_huggingface_repo_list, KNOWN_CLIP_MODELS, KNOWN_UNET_MODELS
 from ..nodes.common import MAX_RESOLUTION
 from .. import controlnet
@@ -756,6 +757,27 @@ class ControlNetLoader:
         controlnet_ = controlnet.load_controlnet(controlnet_path)
         return (controlnet_,)
 
+
+class ControlNetLoaderWeights:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "control_net_name": (get_filename_list_with_downloadable("controlnet", KNOWN_CONTROLNETS),),
+                "weight_dtype": (FLUX_WEIGHT_DTYPES,)
+            }
+        }
+
+    RETURN_TYPES = ("CONTROL_NET",)
+    FUNCTION = "load_controlnet"
+
+    CATEGORY = "loaders"
+
+    def load_controlnet(self, control_net_name, weight_dtype):
+        controlnet_path = get_or_download("controlnet", control_net_name, KNOWN_CONTROLNETS)
+        controlnet_ = controlnet.load_controlnet(controlnet_path, weight_dtype=weight_dtype)
+        return (controlnet_,)
+
 class DiffControlNetLoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -854,7 +876,7 @@ class UNETLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "unet_name": (get_filename_list_with_downloadable("diffusion_models", KNOWN_UNET_MODELS),),
-                              "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e5m2"],)
+                              "weight_dtype": (FLUX_WEIGHT_DTYPES,)
                              }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "load_unet"
@@ -1882,6 +1904,7 @@ NODE_CLASS_MAPPINGS = {
     "ControlNetApply": ControlNetApply,
     "ControlNetApplyAdvanced": ControlNetApplyAdvanced,
     "ControlNetLoader": ControlNetLoader,
+    "ControlNetLoaderWeights": ControlNetLoaderWeights,
     "DiffControlNetLoader": DiffControlNetLoader,
     "StyleModelLoader": StyleModelLoader,
     "CLIPVisionLoader": CLIPVisionLoader,
@@ -1914,6 +1937,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoraLoader": "Load LoRA",
     "CLIPLoader": "Load CLIP",
     "ControlNetLoader": "Load ControlNet Model",
+    "ControlNetLoaderWeights": "Load ControlNet Model (Weights)",
     "DiffControlNetLoader": "Load ControlNet Model (diff)",
     "StyleModelLoader": "Load Style Model",
     "CLIPVisionLoader": "Load CLIP Vision",

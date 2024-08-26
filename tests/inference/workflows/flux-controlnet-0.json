@@ -1,0 +1,314 @@
+{
+  "1": {
+    "inputs": {
+      "noise": [
+        "2",
+        0
+      ],
+      "guider": [
+        "3",
+        0
+      ],
+      "sampler": [
+        "6",
+        0
+      ],
+      "sigmas": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "2": {
+    "inputs": {
+      "noise_seed": 868192789249410
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "3": {
+    "inputs": {
+      "model": [
+        "12",
+        0
+      ],
+      "conditioning": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "BasicGuider"
+    }
+  },
+  "4": {
+    "inputs": {
+      "guidance": 4,
+      "conditioning": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "FluxGuidance",
+    "_meta": {
+      "title": "FluxGuidance"
+    }
+  },
+  "6": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "7": {
+    "inputs": {
+      "scheduler": "ddim_uniform",
+      "steps": 10,
+      "denoise": 1,
+      "model": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "9": {
+    "inputs": {
+      "width": [
+        "27",
+        4
+      ],
+      "height": [
+        "27",
+        5
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "10": {
+    "inputs": {
+      "samples": [
+        "1",
+        0
+      ],
+      "vae": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "11": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "12": {
+    "inputs": {
+      "unet_name": "flux1-dev.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "13": {
+    "inputs": {
+      "text": "A photo of a girl.",
+      "clip": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "15": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "t5xxl_fp16.safetensors",
+      "type": "flux"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "DualCLIPLoader"
+    }
+  },
+  "16": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "17": {
+    "inputs": {
+      "strength": 0.6,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "4",
+        0
+      ],
+      "negative": [
+        "21",
+        0
+      ],
+      "control_net": [
+        "24",
+        0
+      ],
+      "vae": [
+        "11",
+        0
+      ],
+      "image": [
+        "25",
+        0
+      ]
+    },
+    "class_type": "ControlNetApplySD3",
+    "_meta": {
+      "title": "ControlNetApply SD3 and HunyuanDiT"
+    }
+  },
+  "19": {
+    "inputs": {
+      "value": "https://upload.wikimedia.org/wikipedia/commons/5/5a/Gibson_Girl.png",
+      "name": "",
+      "title": "",
+      "description": "",
+      "__required": true
+    },
+    "class_type": "ImageRequestParameter",
+    "_meta": {
+      "title": "ImageRequestParameter"
+    }
+  },
+  "21": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "24": {
+    "inputs": {
+      "type": "canny (InstantX)",
+      "control_net": [
+        "28",
+        0
+      ]
+    },
+    "class_type": "SetUnionControlNetType",
+    "_meta": {
+      "title": "SetUnionControlNetType"
+    }
+  },
+  "25": {
+    "inputs": {
+      "low_threshold": 0.4,
+      "high_threshold": 0.8,
+      "image": [
+        "31",
+        0
+      ]
+    },
+    "class_type": "Canny",
+    "_meta": {
+      "title": "Canny"
+    }
+  },
+  "26": {
+    "inputs": {
+      "images": [
+        "25",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "27": {
+    "inputs": {
+      "image": [
+        "25",
+        0
+      ]
+    },
+    "class_type": "Image Size to Number",
+    "_meta": {
+      "title": "Image Size to Number"
+    }
+  },
+  "28": {
+    "inputs": {
+      "control_net_name": "shakker-labs-flux.1-dev-controlnet-union-pro.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "ControlNetLoaderWeights",
+    "_meta": {
+      "title": "Load ControlNet Model (Weights)"
+    }
+  },
+  "31": {
+    "inputs": {
+      "image_gen_width": 1024,
+      "image_gen_height": 1024,
+      "resize_mode": "Crop and Resize",
+      "hint_image": [
+        "19",
+        0
+      ]
+    },
+    "class_type": "HintImageEnchance",
+    "_meta": {
+      "title": "Enchance And Resize Hint Images"
+    }
+  }
+}

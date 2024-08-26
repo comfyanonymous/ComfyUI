@@ -40,6 +40,7 @@ class Flux(nn.Module):
 
     def __init__(self, image_model=None, final_layer=True, dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
+        self.device = device
         self.dtype = dtype
         params = FluxParams(**kwargs)
         self.params = params

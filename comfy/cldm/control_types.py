@@ -7,4 +7,11 @@ UNION_CONTROLNET_TYPES = {
     "segment": 5,
     "tile": 6,
     "repaint": 7,
+    "canny (InstantX)": 0,
+    "tile (InstantX)": 1,
+    "depth (InstantX)": 2,
+    "blur (InstantX)": 3,
+    "pose (InstantX)": 4,
+    "gray (InstantX)": 5,
+    "lq (InstantX)": 6
 }
