@@ -1,12 +1,17 @@
 import comfy.options
 comfy.options.enable_args_parsing()
 
+# Intercept logs for error reporting
+import sys
+from app.log_interceptor import LogInterceptor
+sys.stdout = LogInterceptor(sys.stdout)
+sys.stderr = LogInterceptor(sys.stderr)
+
 import os
 import importlib.util
 import folder_paths
 import time
 from comfy.cli_args import args
-
 
 def execute_prestartup_script():
     def execute_script(script_path):
