@@ -586,7 +586,9 @@ class PromptServer():
         @routes.post("/internal/models/download")
         async def download_handler(request):
             async def report_progress(filename: str, status: DownloadModelStatus):
-                await self.send_json("download_progress", status.to_dict())
+                payload = status.to_dict()
+                payload['download_path'] = filename
+                await self.send_json("download_progress", payload)
 
             data = await request.json()
             url = data.get('url')
