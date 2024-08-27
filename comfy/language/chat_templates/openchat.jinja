@@ -1,0 +1,19 @@
+{% if messages[0]['role'] == 'system' %}
+    {% set system_message = messages[0]['content'] | trim + '<|end_of_turn|>' %}
+    {% set messages = messages[1:] %}
+{% else %}
+    {% set system_message = '' %}
+{% endif %}
+
+{{ bos_token + system_message }}
+{% for message in messages %}
+    {% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}
+        {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
+    {% endif %}
+
+    {{ 'GPT4 Correct ' + message['role'] | capitalize + ': ' + message['content'] + '<|end_of_turn|>' }}
+{% endfor %}
+
+{% if add_generation_prompt %}
+    {{ 'GPT4 Correct Assistant:' }}
+{% endif %}

@@ -1,0 +1,6 @@
+{
+    "chat_template": "chat_templates/saiga.jinja",
+    "stop_str": null,
+    "stop_token_ids": [2],
+    "system_prompt": "Ты — Сайга, русскоязычный автоматический ассистент. Ты разговариваешь с людьми и помогаешь им."
+}

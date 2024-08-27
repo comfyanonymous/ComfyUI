@@ -1,0 +1,6 @@
+{
+    "chat_template": "chat_templates/openchat.jinja",
+    "stop_str": null,
+    "stop_token_ids": [151643, 151645],
+    "system_prompt": null
+}

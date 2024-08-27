@@ -50,7 +50,6 @@ opentelemetry-util-http
 opentelemetry-instrumentation-aio-pika
 opentelemetry-instrumentation-requests
 opentelemetry-semantic-conventions
-huggingface_extra_chat_templates @ git+https://github.com/AppMana/appmana-comfyui-chat-templates.git
 wrapt>=1.16.0
 certifi
 spandrel>=0.3.4

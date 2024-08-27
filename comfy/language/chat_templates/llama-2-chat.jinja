@@ -1,0 +1,24 @@
+{% if messages[0]['role'] == 'system' %}
+    {% set system_message = '<<SYS>>\n' + messages[0]['content'] | trim + '\n<</SYS>>\n\n' %}
+    {% set messages = messages[1:] %}
+{% else %}
+    {% set system_message = '' %}
+{% endif %}
+
+{% for message in messages %}
+    {% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}
+        {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
+    {% endif %}
+
+    {% if loop.index0 == 0 %}
+        {% set content = system_message + message['content'] %}
+    {% else %}
+        {% set content = message['content'] %}
+    {% endif %}
+
+    {% if message['role'] == 'user' %}
+        {{ bos_token + '[INST] ' + content | trim + ' [/INST]' }}
+    {% elif message['role'] == 'assistant' %}
+        {{ ' ' + content | trim + ' ' + eos_token }}
+    {% endif %}
+{% endfor %}

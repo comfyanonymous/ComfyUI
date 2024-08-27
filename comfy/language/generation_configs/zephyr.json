@@ -1,0 +1,6 @@
+{
+    "chat_template": "chat_templates/zephyr.jinja",
+    "stop_str": null,
+    "stop_token_ids": [2],
+    "system_prompt": null
+}

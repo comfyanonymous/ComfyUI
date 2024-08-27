@@ -1,0 +1,6 @@
+{
+    "chat_template": "chat_templates/gemma-it.jinja",
+    "stop_str": null,
+    "stop_token_ids": [1, 107],
+    "system_prompt": null
+}

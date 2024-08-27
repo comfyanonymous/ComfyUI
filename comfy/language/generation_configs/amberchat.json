@@ -1,0 +1,6 @@
+{
+    "chat_template": "chat_templates/amberchat.jinja",
+    "stop_str": "\n###Human",
+    "stop_token_ids": [2],
+    "system_prompt": null
+}

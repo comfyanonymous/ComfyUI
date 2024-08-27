@@ -11,7 +11,7 @@ KNOWN_CHAT_TEMPLATES = {}
 def _update_known_chat_templates():
     try:
         _chat_templates: Traversable
-        with files("huggingface_extra_chat_templates") / "chat_templates" as _chat_templates:
+        with files(__package__) / "chat_templates" as _chat_templates:
             _extra_jinja_templates = {Path(traversable.name).stem: traversable.read_text().replace('    ', '').replace('\n', '') for traversable in _chat_templates.iterdir() if traversable.is_file()}
             KNOWN_CHAT_TEMPLATES.update(_extra_jinja_templates)
     except ImportError as exc:

@@ -1,0 +1,20 @@
+{% if messages[0]['role'] == 'system' %}
+    {% set system_message = messages[0]['content'] %}
+    {% set messages = messages[1:] %}
+{% else %}
+    {% set system_message = '' %}
+{% endif %}
+
+{{ system_message | trim }}
+{% for message in messages %}
+    {% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}
+        {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
+    {% endif %}
+
+    {% set content = message['content'].replace('\r\n', '\n').replace('\n\n', '\n') %}
+    {{ '\n\n' + message['role'] | capitalize + ': ' + content | trim }}
+{% endfor %}
+
+{% if add_generation_prompt %}
+    {{ '\n\nAssistant:' }}
+{% endif %}
