@@ -405,6 +405,8 @@ def unload_model_clones(model, unload_weights_only=True, force_unload=True):
     if not force_unload:
         if unload_weights_only and unload_weight == False:
             return None
+    else:
+        unload_weight = True
 
     for i in to_unload:
         logging.debug("unload clone {} {}".format(i, unload_weight))
