@@ -330,9 +330,25 @@ def token_weights(string, current_weight):
 	>>> current_weight = 1.0
 	[('foo', 1.0)]
 	
+	>>> string = "foo ((((lol (cat:666) attack:100)))) baz"
+	>>> current_weight = 1.0
+	[('foo ', 1.0), ('lol ', 100.0), ('cat', 666.0), (' attack', 100.0), (' baz', 1.0)]
+	
+	>>> string = "foo ((((lol (cat:666) attack):100))) baz"
+	>>> current_weight = 1.0
+	[('foo ', 1.0), ('lol ', 110.0), ('cat', 666.0), (' attack', 110.0), (' baz', 1.0)]
+	
 	Notes
 	-----
-	All encapsulation will multiply a weight by 1.1 unless a weight is defined.
+	See issue #4610 for more detail. One thing to note is that the default of 1.1 is multiplied
+	when there is no weight defined on the *interior* of the group instead of the exterior. This
+	behavior can be seen in the last two examples (thank you @jart for making these). In the first
+	example, the weight of 100 is defined inside the same parentheses grouping as both 'lol' and
+	'attack'. There is no parentheses between the defined weight and the tokens, so there is no
+	multiplication of the weight by 1.1. In the second example, the weight is outside the parentheses
+	grouping, so the weights inside the grouping are first given a modifier of 1.1, then given a
+	modifier of 100.
+	
 	"""
     a = parse_parentheses(string)
     out = []
