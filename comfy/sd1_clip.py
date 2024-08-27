@@ -237,7 +237,7 @@ def parse_parentheses(string):
 	
 	Parameters
 	----------
-	string : string
+	string : str
 		The string to be split into its top nested groups.
 	
 	Returns
@@ -286,7 +286,7 @@ def token_weights(string, current_weight):
 	
 	Parameters
 	----------
-	string : string
+	string : str
 		The input of tokens to calculate requested weights for
 	current_weight : float
 		The current weight of all tokens
@@ -329,6 +329,10 @@ def token_weights(string, current_weight):
 	>>> string = "((foo:1.0):0.0)"
 	>>> current_weight = 1.0
 	[('foo', 1.0)]
+	
+	Notes
+	-----
+	All encapsulation will multiply a weight by 1.1 unless a weight is defined.
 	"""
     a = parse_parentheses(string)
     out = []
@@ -356,12 +360,12 @@ def escape_important(text):
 	
 	Parameters
 	----------
-	text : string
+	text : str
 		The string to have its important parentheses replaced
 	
 	Returns
 	-------
-	text : string
+	text : str
 		The input string, with important parentheses replaced
 	
 	Examples
@@ -379,16 +383,16 @@ def escape_important(text):
 
 def unescape_important(text):
 	"""
-	Replaces escape characters made via escape_important with parentheses
+	Replace escape characters made via escape_important with parentheses
 	
 	Parameters
 	----------
-	text : string
+	text : str
 		The string to have its escape characters replaced
 	
 	Returns
 	-------
-	text : string
+	text : str
 		The input string, with escape characters replaced
 	
 	Examples
@@ -424,6 +428,19 @@ def safe_load_embed_zip(embed_path):
                 return out
 
 def expand_directory_list(directories):
+	"""
+	For all directories in a list, list all subdirectories beneath them
+	
+	Parameters
+	----------
+	directories : list
+		The list of directories to search for subdirectories with
+	
+	Returns
+	-------
+	dirs : list
+		A list of all subdirectories found underneath the given directories
+	"""
     dirs = set()
     for x in directories:
         dirs.add(x)
