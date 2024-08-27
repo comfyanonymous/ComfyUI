@@ -351,11 +351,55 @@ def token_weights(string, current_weight):
     return out
 
 def escape_important(text):
+	"""
+	Replace parentheses marked via backslashes with escape characters
+	
+	Parameters
+	----------
+	text : string
+		The string to have its important parentheses replaced
+	
+	Returns
+	-------
+	text : string
+		The input string, with important parentheses replaced
+	
+	Examples
+	--------
+	>>> text = "\\(foo\\)(bar)"
+	"\0\2foo\0\1(bar)"
+	
+	See Also
+	--------
+	unescape_important : Replace escape characters with parentheses
+	"""
     text = text.replace("\\)", "\0\1")
     text = text.replace("\\(", "\0\2")
     return text
 
 def unescape_important(text):
+	"""
+	Replaces escape characters made via escape_important with parentheses
+	
+	Parameters
+	----------
+	text : string
+		The string to have its escape characters replaced
+	
+	Returns
+	-------
+	text : string
+		The input string, with escape characters replaced
+	
+	Examples
+	--------
+	>>> text = "\0\2foo\0\1(bar)"
+	"(foo)(bar)"
+	
+	See Also
+	--------
+	escape_important: makes strings with the escape characters this function uses
+	"""
     text = text.replace("\0\1", ")")
     text = text.replace("\0\2", "(")
     return text
