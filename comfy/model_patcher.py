@@ -30,6 +30,18 @@ import comfy.model_management
 import comfy.lora
 from comfy.types import UnetWrapperFunction
 
+def string_to_seed(data):
+    crc = 0xFFFFFFFF
+    for byte in data:
+        if isinstance(byte, str):
+            byte = ord(byte)
+        crc ^= byte
+        for _ in range(8):
+            if crc & 1:
+                crc = (crc >> 1) ^ 0xEDB88320
+            else:
+                crc >>= 1
+    return crc ^ 0xFFFFFFFF
 
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
     to = model_options["transformer_options"].copy()
@@ -309,7 +321,7 @@ class ModelPatcher:
         else:
             temp_weight = weight.to(torch.float32, copy=True)
         out_weight = comfy.lora.calculate_weight(self.patches[key], temp_weight, key)
-        out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype)
+        out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=string_to_seed(key))
         if inplace_update:
             comfy.utils.copy_to_param(self.model, key, out_weight)
         else:
@@ -319,12 +331,21 @@ class ModelPatcher:
         mem_counter = 0
         patch_counter = 0
         lowvram_counter = 0
-        load_completely = []
+        loading = []
         for n, m in self.model.named_modules():
+            if hasattr(m, "comfy_cast_weights") or hasattr(m, "weight"):
+                loading.append((comfy.model_management.module_size(m), n, m))
+
+        load_completely = []
+        loading.sort(reverse=True)
+        for x in loading:
+            n = x[1]
+            m = x[2]
+            module_mem = x[0]
+
             lowvram_weight = False
 
             if not full_load and hasattr(m, "comfy_cast_weights"):
-                module_mem = comfy.model_management.module_size(m)
                 if mem_counter + module_mem >= lowvram_model_memory:
                     lowvram_weight = True
                     lowvram_counter += 1
@@ -356,9 +377,8 @@ class ModelPatcher:
                         wipe_lowvram_weight(m)
 
                 if hasattr(m, "weight"):
-                    mem_used = comfy.model_management.module_size(m)
-                    mem_counter += mem_used
-                    load_completely.append((mem_used, n, m))
+                    mem_counter += module_mem
+                    load_completely.append((module_mem, n, m))
 
         load_completely.sort(reverse=True)
         for x in load_completely:
