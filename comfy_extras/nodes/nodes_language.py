@@ -627,6 +627,7 @@ class SaveString(CustomNode):
     CATEGORY = "language"
     FUNCTION = "execute"
     OUTPUT_NODE = True
+    RETURN_TYPES = ()
 
     def get_save_path(self, filename_prefix) -> SaveImagePathResponse:
         return folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory(), 0, 0)
