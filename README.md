@@ -130,7 +130,7 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
    pip install xformers==0.0.27.post2
    pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
    ```
-   
+
    For improved performance when using the language models on Windows, Python 3.11, CUDA 12.1 and PyTorch 2.4.0, add:
    ```shell
    pip install https://github.com/AppMana/appmana-comfyui-nodes-extramodels/releases/download/v0.0.0-flash_attn/flash_attn-2.6.3-cp311-cp311-win_amd64.whl
@@ -242,7 +242,7 @@ ComfyUI LTS supports downloading models on demand. Its list of known models incl
 
 Known models will be downloaded from Hugging Face or CivitAI. Hugging Face has a thoughtful approach to file downloading and organization. This means you do not have to toil about having one, or many, files, or worry about where to put them.
 
-On Windows platforms, symbolic links should be enabled to minimize the amount of space used: Enable Developer Mode in the Windows Settings, then reboot your computer. This way, Hugging Face can download models into a common place for all your apps, and place small "link" files that ComfyUI and others can read instead of whole copies of models. 
+On Windows platforms, symbolic links should be enabled to minimize the amount of space used: Enable Developer Mode in the Windows Settings, then reboot your computer. This way, Hugging Face can download models into a common place for all your apps, and place small "link" files that ComfyUI and others can read instead of whole copies of models.
 
 To disable model downloading, start with the command line argument `--disable-known-models`: `comfyui --disable-known-models`. However, this will generally only increase your toil for no return.
 
@@ -300,13 +300,23 @@ apt install -y git build-essential clang python3-dev python3-venv
 
 # Large Language Models
 
-ComfyUI LTS supports text and multi-modal LLM models from the `transformers` ecosystem. This means all the LLaMA family models, LLAVA-NEXT, Phi-3, etc. are supported out-of-the-box with no configuration necessary. 
+ComfyUI LTS supports text and multi-modal LLM models from the `transformers` ecosystem. This means all the LLaMA family models, LLAVA-NEXT, Phi-3, etc. are supported out-of-the-box with no configuration necessary.
 
 ![llava_example_01.gif](docs/assets/llava_example_01.gif)
 
 In this example, LLAVA-NEXT (LLAVA 1.6) is prompted to describe an image.
 
 You can try the [LLAVA-NEXT](tests/inference/workflows/llava-0.json), [Phi-3](tests/inference/workflows/phi-3-0.json), and two [translation](tests/inference/workflows/translation-0.json) [workflows](tests/inference/workflows/translation-1.json).
+
+# SVG Conversion and String Saving
+
+ComfyUI LTS supports powerful SVG conversion capabilities using vtracer and Skia, along with enhanced string saving functionality. This allows for seamless conversion between raster images and SVG format, as well as flexible string saving options.
+
+![SVG Conversion Example](docs/assets/svg_01.png)
+
+In this example, a raster image is converted to SVG, potentially modified, and then converted back to a raster image. The resulting image and SVG code can be saved.
+
+You can try the [SVG Conversion Workflow](tests/inference/workflows/svg-0.json) to explore these features.
 
 # Video Workflows
 
@@ -855,6 +865,7 @@ curl -X POST "http://localhost:8188/api/v1/prompts" \
 ```
 
 **Python**:
+
 ```python
 import requests
 
@@ -882,32 +893,32 @@ response = requests.post(url, json=payload, headers=headers)
 
 ```javascript
 async function generateImage() {
-  const prompt = "a man walking on the beach";
-  const workflow = {
-    "4": {
-      "inputs": {
-        "ckpt_name": "sd_xl_base_1.0.safetensors"
-      },
-      "class_type": "CheckpointLoaderSimple"
-    },
-    // ... (include the rest of the workflow)
-  };
+    const prompt = "a man walking on the beach";
+    const workflow = {
+        "4": {
+            "inputs": {
+                "ckpt_name": "sd_xl_base_1.0.safetensors"
+            },
+            "class_type": "CheckpointLoaderSimple"
+        },
+        // ... (include the rest of the workflow)
+    };
 
-  const response = await fetch('http://localhost:8188/api/v1/prompts', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'image/png'
-    },
-    body: JSON.stringify({ prompt: workflow })
-  });
-  
-  const blob = await response.blob();
-  const imageUrl = URL.createObjectURL(blob);
-  const img = document.createElement('img');
-  // load image into the DOM
-  img.src = imageUrl;
-  document.body.appendChild(img);
+    const response = await fetch('http://localhost:8188/api/v1/prompts', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'image/png'
+        },
+        body: JSON.stringify({prompt: workflow})
+    });
+
+    const blob = await response.blob();
+    const imageUrl = URL.createObjectURL(blob);
+    const img = document.createElement('img');
+    // load image into the DOM
+    img.src = imageUrl;
+    document.body.appendChild(img);
 }
 
 generateImage().catch(console.error);
