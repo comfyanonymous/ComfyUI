@@ -51,7 +51,7 @@ async def test_known_repos(tmp_path_factory):
     os.environ["HF_HUB_CACHE"] = str(tmp_path_factory.mktemp("huggingface_root_cache"))
 
     from comfy.cmd import folder_paths
-    from comfy.cmd.folder_paths import FolderPathsTuple
+    from comfy.component_model.folder_path_types import FolderPathsTuple
     from comfy.model_downloader import get_huggingface_repo_list, \
         get_or_download_huggingface_repo, _get_cache_hits, _delete_repo_from_huggingface_cache
     from comfy.model_downloader import KNOWN_HUGGINGFACE_MODEL_REPOS

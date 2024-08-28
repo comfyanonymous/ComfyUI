@@ -21,6 +21,8 @@ from transformers.models.nllb.tokenization_nllb import \
 from typing_extensions import TypedDict
 
 from comfy import model_management
+from comfy.cmd import folder_paths
+from comfy.component_model.folder_path_types import SaveImagePathResponse
 from comfy.language.chat_templates import KNOWN_CHAT_TEMPLATES
 from comfy.language.language_types import ProcessorResult
 from comfy.language.transformers_model_management import TransformersManagedModel
@@ -609,6 +611,38 @@ class PreviewString(CustomNode):
         return {"ui": {"string": [value]}}
 
 
+class SaveString(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "value": ("STRING", {"forceInput": True}),
+                "filename_prefix": ("STRING", {"default": "ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."})
+            },
+            "optional": {
+                "extension": ("STRING", {"default": ".json"})
+            }
+        }
+
+    CATEGORY = "language"
+    FUNCTION = "execute"
+    OUTPUT_NODE = True
+
+    def get_save_path(self, filename_prefix) -> SaveImagePathResponse:
+        return folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory(), 0, 0)
+
+    def execute(self, value: str | list[str], filename_prefix: str, extension: str = ".json"):
+        full_output_folder, filename, counter, subfolder, filename_prefix = self.get_save_path(filename_prefix)
+        if isinstance(value, str):
+            value = [value]
+
+        for i, value_i in enumerate(value):
+            # roughly matches the behavior of save image, but does not support batch numbers
+            with open(os.path.join(full_output_folder, f"{filename}_{counter:05d}_{extension}" if len(value) == 1 else f"{filename}_{counter:05d}_{i:02d}_{extension}"), "wt+") as f:
+                f.write(value_i)
+        return {"ui": {"string": value}}
+
+
 NODE_CLASS_MAPPINGS = {}
 for cls in (
         TransformerTopKSampler,
@@ -627,5 +661,6 @@ for cls in (
         TransformersFlores200LanguageCodes,
         TransformersTranslationTokenize,
         PreviewString,
+        SaveString,
 ):
     NODE_CLASS_MAPPINGS[cls.__name__] = cls

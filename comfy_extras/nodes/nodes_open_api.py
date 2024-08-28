@@ -649,8 +649,6 @@ class SaveImagesResponse(CustomNode):
         if "ui" in ui_images_result and "images" in ui_images_result["ui"]:
             ui_images_result["result"] = (ui_images_result["ui"]["images"],)
 
-        print(ui_images_result)
-
         return ui_images_result
 
     def subfolder_of(self, local_uri, output_directory):

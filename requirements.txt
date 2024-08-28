@@ -63,3 +63,5 @@ jaxtyping
 spandrel_extra_arches
 ml_dtypes
 diffusers>=0.30.1
+vtracer
+CairoSVG

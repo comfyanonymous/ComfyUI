@@ -1,10 +1,17 @@
+from enum import Enum
+
 import numpy as np
 import torch
+from skimage import exposure
+
 import comfy.utils
-from enum import Enum
+from comfy.component_model.tensor_types import RGBImageBatch, ImageBatch
+from comfy.nodes.package_typing import CustomNode
+
 
 def resize_mask(mask, shape):
     return torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(shape[0], shape[1]), mode="bilinear").squeeze(1)
+
 
 class PorterDuffMode(Enum):
     ADD = 0
@@ -69,7 +76,7 @@ def porter_duff_composite(src_image: torch.Tensor, src_alpha: torch.Tensor, dst_
     elif mode == PorterDuffMode.OVERLAY:
         out_alpha = src_alpha + dst_alpha - src_alpha * dst_alpha
         out_image = torch.where(2 * dst_image < dst_alpha, 2 * src_image * dst_image,
-            src_alpha * dst_alpha - 2 * (dst_alpha - src_image) * (src_alpha - dst_image))
+                                src_alpha * dst_alpha - 2 * (dst_alpha - src_image) * (src_alpha - dst_image))
     elif mode == PorterDuffMode.SCREEN:
         out_alpha = src_alpha + dst_alpha - src_alpha * dst_alpha
         out_image = src_image + dst_image - src_image * dst_image
@@ -128,7 +135,7 @@ class PorterDuffImageComposite:
             src_image = source[i]
             dst_image = destination[i]
 
-            assert src_image.shape[2] == dst_image.shape[2] # inputs need to have same number of channels
+            assert src_image.shape[2] == dst_image.shape[2]  # inputs need to have same number of channels
 
             src_alpha = source_alpha[i].unsqueeze(2)
             dst_alpha = destination_alpha[i].unsqueeze(2)
@@ -159,9 +166,9 @@ class SplitImageWithAlpha:
     @classmethod
     def INPUT_TYPES(s):
         return {
-                "required": {
-                    "image": ("IMAGE",),
-                }
+            "required": {
+                "image": ("IMAGE",),
+            }
         }
 
     CATEGORY = "mask/compositing"
@@ -169,8 +176,8 @@ class SplitImageWithAlpha:
     FUNCTION = "split_image_with_alpha"
 
     def split_image_with_alpha(self, image: torch.Tensor):
-        out_images = [i[:,:,:3] for i in image]
-        out_alphas = [i[:,:,3] if i.shape[2] > 3 else torch.ones_like(i[:,:,0]) for i in image]
+        out_images = [i[:, :, :3] for i in image]
+        out_alphas = [i[:, :, 3] if i.shape[2] > 3 else torch.ones_like(i[:, :, 0]) for i in image]
         result = (torch.stack(out_images), 1.0 - torch.stack(out_alphas))
         return result
 
@@ -179,10 +186,10 @@ class JoinImageWithAlpha:
     @classmethod
     def INPUT_TYPES(s):
         return {
-                "required": {
-                    "image": ("IMAGE",),
-                    "alpha": ("MASK",),
-                }
+            "required": {
+                "image": ("IMAGE",),
+                "alpha": ("MASK",),
+            }
         }
 
     CATEGORY = "mask/compositing"
@@ -195,18 +202,123 @@ class JoinImageWithAlpha:
 
         alpha = 1.0 - resize_mask(alpha, image.shape[1:])
         for i in range(batch_size):
-           out_images.append(torch.cat((image[i][:,:,:3], alpha[i].unsqueeze(2)), dim=2))
+            out_images.append(torch.cat((image[i][:, :, :3], alpha[i].unsqueeze(2)), dim=2))
 
         result = (torch.stack(out_images),)
         return result
+
+
+class Flatten(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "images": ("IMAGE",),
+                "background_color": ("STRING", {"default": "#FFFFFF"})
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "convert_rgba_to_rgb"
+
+    CATEGORY = "image/postprocessing"
+
+    def convert_rgba_to_rgb(self, images: ImageBatch, background_color) -> tuple[RGBImageBatch]:
+        bg_color = torch.tensor(self.hex_to_rgb(background_color), dtype=torch.float32) / 255.0
+        rgb = images[..., :3]
+        alpha = images[..., 3:4]
+        bg = bg_color.view(1, 1, 1, 3).expand(rgb.shape)
+        blended = alpha * rgb + (1 - alpha) * bg
+
+        return (blended,)
+
+    @staticmethod
+    def hex_to_rgb(hex_color):
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+
+
+class EnhanceContrast(CustomNode):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "method": (["Histogram Equalization", "Adaptive Equalization", "Contrast Stretching"],),
+                "clip_limit": ("FLOAT", {"default": 0.03, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "lower_percentile": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 100.0, "step": 0.1}),
+                "upper_percentile": ("FLOAT", {"default": 98.0, "min": 0.0, "max": 100.0, "step": 0.1}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "enhance_contrast"
+
+    CATEGORY = "image/adjustments"
+
+    def enhance_contrast(self, image: torch.Tensor, method: str, clip_limit: float, lower_percentile: float, upper_percentile: float) -> tuple[RGBImageBatch]:
+        assert image.dim() == 4 and image.shape[-1] == 3, "Input must be a batch of RGB images"
+
+        image = image.cpu()
+
+        processed_images = []
+        for img in image:
+            img_np = img.numpy()
+
+            if method == "Histogram Equalization":
+                enhanced = exposure.equalize_hist(img_np)
+            elif method == "Adaptive Equalization":
+                enhanced = exposure.equalize_adapthist(img_np, clip_limit=clip_limit)
+            elif method == "Contrast Stretching":
+                p_low, p_high = np.percentile(img_np, (lower_percentile, upper_percentile))
+                enhanced = exposure.rescale_intensity(img_np, in_range=(p_low, p_high))
+            else:
+                raise ValueError(f"Unknown method: {method}")
+
+            processed_images.append(torch.from_numpy(enhanced.astype(np.float32)))
+
+        result = torch.stack(processed_images)
+
+        return (result,)
+
+
+class Posterize(CustomNode):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "levels": ("INT", {
+                    "default": 4,
+                    "min": 2,
+                    "max": 256,
+                    "step": 1
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "posterize"
+
+    CATEGORY = "image/adjustments"
+
+    def posterize(self, image: RGBImageBatch, levels: int) -> tuple[RGBImageBatch]:
+        assert image.dim() == 4 and image.shape[-1] == 3, "Input must be a batch of RGB images"
+        image = image.cpu()
+        scale = (levels - 1) / 255.0
+        quantized = torch.round(image * 255.0 * scale) / scale / 255.0
+        posterized = torch.clamp(quantized, 0, 1)
+        return (posterized,)
 
 
 NODE_CLASS_MAPPINGS = {
     "PorterDuffImageComposite": PorterDuffImageComposite,
     "SplitImageWithAlpha": SplitImageWithAlpha,
     "JoinImageWithAlpha": JoinImageWithAlpha,
+    "EnhanceContrast": EnhanceContrast,
+    "Posterize": Posterize,
+    "Flatten": Flatten
 }
-
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "PorterDuffImageComposite": "Porter-Duff Image Composite",
