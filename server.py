@@ -42,6 +42,21 @@ async def send_socket_catch_exception(function, message):
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError) as err:
         logging.warning("send error: {}".format(err))
 
+def get_comfyui_version():
+    comfyui_version = "unknown"
+    try:
+        import pygit2
+        repo_path = os.path.dirname(os.path.realpath(__file__))
+        repo = pygit2.Repository(repo_path)
+        comfyui_version = repo.describe(describe_strategy=pygit2.GIT_DESCRIBE_TAGS)
+    except Exception:
+        try:
+            import subprocess
+            comfyui_version = subprocess.check_output(["git", "describe", "--tags"], cwd=repo_path)
+        except Exception:
+            pass
+    return comfyui_version.strip()
+
 @web.middleware
 async def cache_control(request: web.Request, handler):
     response: web.Response = await handler(request)
@@ -407,24 +422,10 @@ class PromptServer():
             vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
 
-            comfyui_version = "unknown"
-            try:
-                import pygit2
-                repo_path = os.path.dirname(os.path.realpath(__file__))
-                repo = pygit2.Repository(repo_path)
-                comfyui_version = repo.describe(describe_strategy=pygit2.GIT_DESCRIBE_TAGS)
-            except Exception:
-                try:
-                    import subprocess
-                    comfyui_version = subprocess.check_output(["git", "describe", "--tags"], cwd=repo_path)
-                except Exception:
-                    pass
-
-
             system_stats = {
                 "system": {
                     "os": os.name,
-                    "comfyui_version": comfyui_version.strip(),
+                    "comfyui_version": get_comfyui_version(),
                     "python_version": sys.version,
                     "pytorch_version": torch.version.__version__,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
