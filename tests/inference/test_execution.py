@@ -95,17 +95,16 @@ class ComfyClient:
                     pass # Probably want to store this off for testing
 
         history = self.get_history(prompt_id)[prompt_id]
-        for o in history['outputs']:
-            for node_id in history['outputs']:
-                node_output = history['outputs'][node_id]
-                result.outputs[node_id] = node_output
-                if 'images' in node_output:
-                    images_output = []
-                    for image in node_output['images']:
-                        image_data = self.get_image(image['filename'], image['subfolder'], image['type'])
-                        image_obj = Image.open(BytesIO(image_data))
-                        images_output.append(image_obj)
-                    node_output['image_objects'] = images_output
+        for node_id in history['outputs']:
+            node_output = history['outputs'][node_id]
+            result.outputs[node_id] = node_output
+            images_output = []
+            if 'images' in node_output:
+                for image in node_output['images']:
+                    image_data = self.get_image(image['filename'], image['subfolder'], image['type'])
+                    image_obj = Image.open(BytesIO(image_data))
+                    images_output.append(image_obj)
+                node_output['image_objects'] = images_output
 
         return result
 
