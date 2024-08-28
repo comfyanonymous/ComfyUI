@@ -2,14 +2,14 @@ import torch
 from PIL import Image
 import struct
 import numpy as np
-from comfy.cli_args import args, LatentPreviewMethod
+from comfy.cli_args import args, LatentPreviewMethod, LatentPreviewSize
 from comfy.taesd.taesd import TAESD
 import comfy.model_management
 import folder_paths
 import comfy.utils
 import logging
 
-MAX_PREVIEW_RESOLUTION = 512
+MAX_PREVIEW_RESOLUTION = args.preview_size
 
 def preview_to_image(latent_image):
         latents_ubyte = (((latent_image + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
