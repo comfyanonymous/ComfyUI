@@ -113,8 +113,8 @@ class SVGToImage(CustomNode):
             try:
                 cleaned_svg = self.clean_svg_string(svg_string)
 
-                stream = skia.MemoryStream(cleaned_svg.encode('utf-8'), True)
-                svg_dom = skia.SVGDOM.MakeFromStream(stream)
+                stream = skia.MemoryStream(cleaned_svg.encode('utf-8'), True)  # pylint: disable=c-extension-no-member
+                svg_dom = skia.SVGDOM.MakeFromStream(stream)  # pylint: disable=c-extension-no-member
 
                 if svg_dom is None:
                     raise ValueError(f"Failed to parse SVG content for image {i}")
@@ -125,9 +125,9 @@ class SVGToImage(CustomNode):
                 width = int(svg_width * scale)
                 height = int(svg_height * scale)
 
-                surface = skia.Surface(width, height)
+                surface = skia.Surface(width, height)  # pylint: disable=c-extension-no-member
                 with surface as canvas:
-                    canvas.clear(skia.ColorTRANSPARENT)
+                    canvas.clear(skia.ColorTRANSPARENT)  # pylint: disable=c-extension-no-member
 
                     canvas.scale(scale, scale)
                     svg_dom.render(canvas)
@@ -153,7 +153,6 @@ class SVGToImage(CustomNode):
         if not raster_images:
             raise ValueError("No valid images were generated from the input SVGs")
 
-        # Stack all images into a single batch
         batch = torch.stack(raster_images)
 
         return (batch,)

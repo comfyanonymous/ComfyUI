@@ -15,7 +15,7 @@ supported_pt_extensions = _supported_pt_extensions
 
 # todo: this should be initialized elsewhere
 if 'main.py' in sys.argv:
-    base_path = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../.."))
+    base_path = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../.."))  # pylint: disable=used-before-assignment
 elif args.cwd is not None:
     if not os.path.exists(args.cwd):
         try:
