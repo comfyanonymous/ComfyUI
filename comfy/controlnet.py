@@ -30,8 +30,9 @@ from . import model_patcher
 from . import ops
 from . import utils
 from .cldm import cldm, mmdit
-from .ldm import hydit, flux
+from .ldm import hydit
 from .ldm.cascade import controlnet as cascade_controlnet
+from .ldm.flux import controlnet_xlabs
 from .ldm.flux.controlnet_instantx import InstantXControlNetFlux
 from .ldm.flux.controlnet_instantx_format2 import InstantXControlNetFluxFormat2
 from .ldm.flux.weight_dtypes import FLUX_WEIGHT_DTYPES
@@ -497,7 +498,7 @@ def load_controlnet_flux_instantx(sd, controlnet_class, weight_dtype, full_path)
 
 def load_controlnet_flux_xlabs(sd):
     model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(sd)
-    control_model = flux.controlnet_xlabs.ControlNetFlux(operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
+    control_model = controlnet_xlabs.ControlNetFlux(operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
     control_model = controlnet_load_state_dict(control_model, sd)
     extra_conds = ['y', 'guidance']
     control = ControlNet(control_model, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
