@@ -34,7 +34,7 @@ import comfy.t2i_adapter.adapter
 import comfy.ldm.cascade.controlnet
 import comfy.cldm.mmdit
 import comfy.ldm.hydit.controlnet
-import comfy.ldm.flux.controlnet_xlabs
+import comfy.ldm.flux.controlnet
 
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
@@ -433,12 +433,25 @@ def load_controlnet_hunyuandit(controlnet_data):
 
 def load_controlnet_flux_xlabs(sd):
     model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(sd)
-    control_model = comfy.ldm.flux.controlnet_xlabs.ControlNetFlux(operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
+    control_model = comfy.ldm.flux.controlnet.ControlNetFlux(operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
     control_model = controlnet_load_state_dict(control_model, sd)
     extra_conds = ['y', 'guidance']
     control = ControlNet(control_model, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
     return control
 
+def load_controlnet_flux_instantx(sd):
+    new_sd = comfy.model_detection.convert_diffusers_mmdit(sd, "")
+    model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(new_sd)
+    for k in sd:
+        new_sd[k] = sd[k]
+
+    control_model = comfy.ldm.flux.controlnet.ControlNetFlux(latent_input=True, operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
+    control_model = controlnet_load_state_dict(control_model, new_sd)
+
+    latent_format = comfy.latent_formats.Flux()
+    extra_conds = ['y', 'guidance']
+    control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
+    return control
 
 def load_controlnet(ckpt_path, model=None):
     controlnet_data = comfy.utils.load_torch_file(ckpt_path, safe_load=True)
@@ -504,8 +517,10 @@ def load_controlnet(ckpt_path, model=None):
     elif "controlnet_blocks.0.weight" in controlnet_data: #SD3 diffusers format
         if "double_blocks.0.img_attn.norm.key_norm.scale" in controlnet_data:
             return load_controlnet_flux_xlabs(controlnet_data)
-        else:
+        elif "pos_embed_input.proj.weight" in controlnet_data:
             return load_controlnet_mmdit(controlnet_data)
+        elif "controlnet_x_embedder.weight" in controlnet_data:
+            return load_controlnet_flux_instantx(controlnet_data)
 
     pth_key = 'control_model.zero_convs.0.0.weight'
     pth = False
