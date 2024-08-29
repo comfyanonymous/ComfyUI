@@ -15,12 +15,15 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+from __future__ import annotations
 
 import logging
+
 import torch
-from . import utils
+
 from . import model_base
 from . import model_management
+from . import utils
 
 LORA_CLIP_MAP = {
     "mlp.fc1": "mlp_fc1",
@@ -71,7 +74,7 @@ def load_lora(lora, to_load):
             B_name = "{}.lora.down.weight".format(x)
         elif transformers_lora in lora.keys():
             A_name = transformers_lora
-            B_name ="{}.lora_linear_layer.down.weight".format(x)
+            B_name = "{}.lora_linear_layer.down.weight".format(x)
 
         if A_name is not None:
             mid = None
@@ -81,7 +84,6 @@ def load_lora(lora, to_load):
             patch_dict[to_load[x]] = ("lora", (lora[A_name], lora[B_name], alpha, mid, dora_scale))
             loaded_keys.add(A_name)
             loaded_keys.add(B_name)
-
 
         ######## loha
         hada_w1_a_name = "{}.hada_w1_a".format(x)
@@ -104,7 +106,6 @@ def load_lora(lora, to_load):
             loaded_keys.add(hada_w1_b_name)
             loaded_keys.add(hada_w2_a_name)
             loaded_keys.add(hada_w2_b_name)
-
 
         ######## lokr
         lokr_w1_name = "{}.lokr_w1".format(x)
@@ -153,7 +154,7 @@ def load_lora(lora, to_load):
         if (lokr_w1 is not None) or (lokr_w2 is not None) or (lokr_w1_a is not None) or (lokr_w2_a is not None):
             patch_dict[to_load[x]] = ("lokr", (lokr_w1, lokr_w2, alpha, lokr_w1_a, lokr_w1_b, lokr_w2_a, lokr_w2_b, lokr_t2, dora_scale))
 
-        #glora
+        # glora
         a1_name = "{}.a1.weight".format(x)
         a2_name = "{}.a2.weight".format(x)
         b1_name = "{}.b1.weight".format(x)
@@ -195,12 +196,13 @@ def load_lora(lora, to_load):
 
     return patch_dict
 
+
 def model_lora_keys_clip(model, key_map={}):
     sdk = model.state_dict().keys()
 
     text_model_lora_key = "lora_te_text_model_encoder_layers_{}_{}"
     clip_l_present = False
-    for b in range(32): #TODO: clean up
+    for b in range(32):  # TODO: clean up
         for c in LORA_CLIP_MAP:
             k = "clip_h.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
             if k in sdk:
@@ -208,57 +210,57 @@ def model_lora_keys_clip(model, key_map={}):
                 key_map[lora_key] = k
                 lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c])
                 key_map[lora_key] = k
-                lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
+                lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c)  # diffusers lora
                 key_map[lora_key] = k
 
             k = "clip_l.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
             if k in sdk:
                 lora_key = text_model_lora_key.format(b, LORA_CLIP_MAP[c])
                 key_map[lora_key] = k
-                lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
+                lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c])  # SDXL base
                 key_map[lora_key] = k
                 clip_l_present = True
-                lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
+                lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c)  # diffusers lora
                 key_map[lora_key] = k
 
             k = "clip_g.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
             if k in sdk:
                 if clip_l_present:
-                    lora_key = "lora_te2_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
+                    lora_key = "lora_te2_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c])  # SDXL base
                     key_map[lora_key] = k
-                    lora_key = "text_encoder_2.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
+                    lora_key = "text_encoder_2.text_model.encoder.layers.{}.{}".format(b, c)  # diffusers lora
                     key_map[lora_key] = k
                 else:
-                    lora_key = "lora_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #TODO: test if this is correct for SDXL-Refiner
+                    lora_key = "lora_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c])  # TODO: test if this is correct for SDXL-Refiner
                     key_map[lora_key] = k
-                    lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
+                    lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c)  # diffusers lora
                     key_map[lora_key] = k
-                    lora_key = "lora_prior_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #cascade lora: TODO put lora key prefix in the model config
+                    lora_key = "lora_prior_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c])  # cascade lora: TODO put lora key prefix in the model config
                     key_map[lora_key] = k
 
     for k in sdk:
         if k.endswith(".weight"):
-            if k.startswith("t5xxl.transformer."):#OneTrainer SD3 lora
+            if k.startswith("t5xxl.transformer."):  # OneTrainer SD3 lora
                 l_key = k[len("t5xxl.transformer."):-len(".weight")]
                 lora_key = "lora_te3_{}".format(l_key.replace(".", "_"))
                 key_map[lora_key] = k
-            elif k.startswith("hydit_clip.transformer.bert."): #HunyuanDiT Lora
+            elif k.startswith("hydit_clip.transformer.bert."):  # HunyuanDiT Lora
                 l_key = k[len("hydit_clip.transformer.bert."):-len(".weight")]
                 lora_key = "lora_te1_{}".format(l_key.replace(".", "_"))
                 key_map[lora_key] = k
 
-
     k = "clip_g.transformer.text_projection.weight"
     if k in sdk:
-        key_map["lora_prior_te_text_projection"] = k #cascade lora?
+        key_map["lora_prior_te_text_projection"] = k  # cascade lora?
         # key_map["text_encoder.text_projection"] = k #TODO: check if other lora have the text_projection too
-        key_map["lora_te2_text_projection"] = k #OneTrainer SD3 lora
+        key_map["lora_te2_text_projection"] = k  # OneTrainer SD3 lora
 
     k = "clip_l.transformer.text_projection.weight"
     if k in sdk:
-        key_map["lora_te1_text_projection"] = k #OneTrainer SD3 lora, not necessary but omits warning
+        key_map["lora_te1_text_projection"] = k  # OneTrainer SD3 lora, not necessary but omits warning
 
     return key_map
+
 
 def model_lora_keys_unet(model, key_map={}):
     sd = model.state_dict()
@@ -268,8 +270,8 @@ def model_lora_keys_unet(model, key_map={}):
         if k.startswith("diffusion_model.") and k.endswith(".weight"):
             key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
             key_map["lora_unet_{}".format(key_lora)] = k
-            key_map["lora_prior_unet_{}".format(key_lora)] = k #cascade lora: TODO put lora key prefix in the model config
-            key_map["{}".format(k[:-len(".weight")])] = k #generic lora format without any weird key names
+            key_map["lora_prior_unet_{}".format(key_lora)] = k  # cascade lora: TODO put lora key prefix in the model config
+            key_map["{}".format(k[:-len(".weight")])] = k  # generic lora format without any weird key names
 
     diffusers_keys = utils.unet_to_diffusers(model.model_config.unet_config)
     for k in diffusers_keys:
@@ -285,41 +287,41 @@ def model_lora_keys_unet(model, key_map={}):
                     diffusers_lora_key = diffusers_lora_key[:-2]
                 key_map[diffusers_lora_key] = unet_key
 
-    if isinstance(model, model_base.SD3): #Diffusers lora SD3
+    if isinstance(model, model_base.SD3):  # Diffusers lora SD3
         diffusers_keys = utils.mmdit_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
         for k in diffusers_keys:
             if k.endswith(".weight"):
                 to = diffusers_keys[k]
-                key_lora = "transformer.{}".format(k[:-len(".weight")]) #regular diffusers sd3 lora format
+                key_lora = "transformer.{}".format(k[:-len(".weight")])  # regular diffusers sd3 lora format
                 key_map[key_lora] = to
 
-                key_lora = "base_model.model.{}".format(k[:-len(".weight")]) #format for flash-sd3 lora and others?
+                key_lora = "base_model.model.{}".format(k[:-len(".weight")])  # format for flash-sd3 lora and others?
                 key_map[key_lora] = to
 
-                key_lora = "lora_transformer_{}".format(k[:-len(".weight")].replace(".", "_")) #OneTrainer lora
+                key_lora = "lora_transformer_{}".format(k[:-len(".weight")].replace(".", "_"))  # OneTrainer lora
                 key_map[key_lora] = to
 
-    if isinstance(model, model_base.AuraFlow): #Diffusers lora AuraFlow
+    if isinstance(model, model_base.AuraFlow):  # Diffusers lora AuraFlow
         diffusers_keys = utils.auraflow_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
         for k in diffusers_keys:
             if k.endswith(".weight"):
                 to = diffusers_keys[k]
-                key_lora = "transformer.{}".format(k[:-len(".weight")]) #simpletrainer and probably regular diffusers lora format
+                key_lora = "transformer.{}".format(k[:-len(".weight")])  # simpletrainer and probably regular diffusers lora format
                 key_map[key_lora] = to
 
     if isinstance(model, model_base.HunyuanDiT):
         for k in sdk:
             if k.startswith("diffusion_model.") and k.endswith(".weight"):
                 key_lora = k[len("diffusion_model."):-len(".weight")]
-                key_map["base_model.model.{}".format(key_lora)] = k #official hunyuan lora format
+                key_map["base_model.model.{}".format(key_lora)] = k  # official hunyuan lora format
 
-    if isinstance(model, model_base.Flux): #Diffusers lora Flux
+    if isinstance(model, model_base.Flux):  # Diffusers lora Flux
         diffusers_keys = utils.flux_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
         for k in diffusers_keys:
             if k.endswith(".weight"):
                 to = diffusers_keys[k]
-                key_map["transformer.{}".format(k[:-len(".weight")])] = to #simpletrainer and probably regular diffusers flux lora format
-                key_map["lycoris_{}".format(k[:-len(".weight")].replace(".", "_"))] = to #simpletrainer lycoris
+                key_map["transformer.{}".format(k[:-len(".weight")])] = to  # simpletrainer and probably regular diffusers flux lora format
+                key_map["lycoris_{}".format(k[:-len(".weight")].replace(".", "_"))] = to  # simpletrainer lycoris
 
     return key_map
 
@@ -344,6 +346,41 @@ def weight_decompose(dora_scale, weight, lora_diff, alpha, strength, intermediat
         weight[:] = weight_calc
     return weight
 
+
+def pad_tensor_to_shape(tensor: torch.Tensor, new_shape: list[int]) -> torch.Tensor:
+    """
+    Pad a tensor to a new shape with zeros.
+
+    Args:
+        tensor (torch.Tensor): The original tensor to be padded.
+        new_shape (List[int]): The desired shape of the padded tensor.
+
+    Returns:
+        torch.Tensor: A new tensor padded with zeros to the specified shape.
+
+    Note:
+        If the new shape is smaller than the original tensor in any dimension,
+        the original tensor will be truncated in that dimension.
+    """
+    if any([new_shape[i] < tensor.shape[i] for i in range(len(new_shape))]):
+        raise ValueError("The new shape must be larger than the original tensor in all dimensions")
+
+    if len(new_shape) != len(tensor.shape):
+        raise ValueError("The new shape must have the same number of dimensions as the original tensor")
+
+    # Create a new tensor filled with zeros
+    padded_tensor = torch.zeros(new_shape, dtype=tensor.dtype, device=tensor.device)
+
+    # Create slicing tuples for both tensors
+    orig_slices = tuple(slice(0, dim) for dim in tensor.shape)
+    new_slices = tuple(slice(0, dim) for dim in tensor.shape)
+
+    # Copy the original tensor into the new tensor
+    padded_tensor[new_slices] = tensor[orig_slices]
+
+    return padded_tensor
+
+
 def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
     for p in patches:
         strength = p[0]
@@ -363,7 +400,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
             weight *= strength_model
 
         if isinstance(v, list):
-            v = (calculate_weight(v[1:], v[0].clone(), key, intermediate_dtype=intermediate_dtype), )
+            v = (calculate_weight(v[1:], v[0].clone(), key, intermediate_dtype=intermediate_dtype),)
 
         patch_type = ""
         if len(v) == 1:
@@ -373,13 +410,19 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
             v = v[1]
 
         if patch_type == "diff":
-            w1 = v[0]
+            diff: torch.Tensor = v[0]
+            # An extra flag to pad the weight if the diff's shape is larger than the weight
+            do_pad_weight = len(v) > 1 and v[1]['pad_weight']
+            if do_pad_weight and diff.shape != weight.shape:
+                logging.info("Pad weight {} from {} to shape: {}".format(key, weight.shape, diff.shape))
+                weight = pad_tensor_to_shape(weight, diff.shape)
+
             if strength != 0.0:
-                if w1.shape != weight.shape:
-                    logging.warning("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
+                if diff.shape != weight.shape:
+                    logging.warning("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, diff.shape, weight.shape))
                 else:
-                    weight += function(strength * model_management.cast_to_device(w1, weight.device, weight.dtype))
-        elif patch_type == "lora": #lora/locon
+                    weight += function(strength * model_management.cast_to_device(diff, weight.device, weight.dtype))
+        elif patch_type == "lora":  # lora/locon
             mat1 = model_management.cast_to_device(v[0], weight.device, intermediate_dtype)
             mat2 = model_management.cast_to_device(v[1], weight.device, intermediate_dtype)
             dora_scale = v[4]
@@ -389,7 +432,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
                 alpha = 1.0
 
             if v[3] is not None:
-                #locon mid weights, hopefully the math is fine because I didn't properly test it
+                # locon mid weights, hopefully the math is fine because I didn't properly test it
                 mat3 = model_management.cast_to_device(v[3], weight.device, intermediate_dtype)
                 final_shape = [mat2.shape[1], mat2.shape[0], mat3.shape[2], mat3.shape[3]]
                 mat2 = torch.mm(mat2.transpose(0, 1).flatten(start_dim=1), mat3.transpose(0, 1).flatten(start_dim=1)).reshape(final_shape).transpose(0, 1)
@@ -415,7 +458,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
             if w1 is None:
                 dim = w1_b.shape[0]
                 w1 = torch.mm(model_management.cast_to_device(w1_a, weight.device, intermediate_dtype),
-                                model_management.cast_to_device(w1_b, weight.device, intermediate_dtype))
+                              model_management.cast_to_device(w1_b, weight.device, intermediate_dtype))
             else:
                 w1 = model_management.cast_to_device(w1, weight.device, intermediate_dtype)
 
@@ -423,12 +466,12 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
                 dim = w2_b.shape[0]
                 if t2 is None:
                     w2 = torch.mm(model_management.cast_to_device(w2_a, weight.device, intermediate_dtype),
-                                    model_management.cast_to_device(w2_b, weight.device, intermediate_dtype))
+                                  model_management.cast_to_device(w2_b, weight.device, intermediate_dtype))
                 else:
                     w2 = torch.einsum('i j k l, j r, i p -> p r k l',
-                                        model_management.cast_to_device(t2, weight.device, intermediate_dtype),
-                                        model_management.cast_to_device(w2_b, weight.device, intermediate_dtype),
-                                        model_management.cast_to_device(w2_a, weight.device, intermediate_dtype))
+                                      model_management.cast_to_device(t2, weight.device, intermediate_dtype),
+                                      model_management.cast_to_device(w2_b, weight.device, intermediate_dtype),
+                                      model_management.cast_to_device(w2_a, weight.device, intermediate_dtype))
             else:
                 w2 = model_management.cast_to_device(w2, weight.device, intermediate_dtype)
 
@@ -458,23 +501,23 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
             w2a = v[3]
             w2b = v[4]
             dora_scale = v[7]
-            if v[5] is not None: #cp decomposition
+            if v[5] is not None:  # cp decomposition
                 t1 = v[5]
                 t2 = v[6]
                 m1 = torch.einsum('i j k l, j r, i p -> p r k l',
-                                    model_management.cast_to_device(t1, weight.device, intermediate_dtype),
-                                    model_management.cast_to_device(w1b, weight.device, intermediate_dtype),
-                                    model_management.cast_to_device(w1a, weight.device, intermediate_dtype))
+                                  model_management.cast_to_device(t1, weight.device, intermediate_dtype),
+                                  model_management.cast_to_device(w1b, weight.device, intermediate_dtype),
+                                  model_management.cast_to_device(w1a, weight.device, intermediate_dtype))
 
                 m2 = torch.einsum('i j k l, j r, i p -> p r k l',
-                                    model_management.cast_to_device(t2, weight.device, intermediate_dtype),
-                                    model_management.cast_to_device(w2b, weight.device, intermediate_dtype),
-                                    model_management.cast_to_device(w2a, weight.device, intermediate_dtype))
+                                  model_management.cast_to_device(t2, weight.device, intermediate_dtype),
+                                  model_management.cast_to_device(w2b, weight.device, intermediate_dtype),
+                                  model_management.cast_to_device(w2a, weight.device, intermediate_dtype))
             else:
                 m1 = torch.mm(model_management.cast_to_device(w1a, weight.device, intermediate_dtype),
-                                model_management.cast_to_device(w1b, weight.device, intermediate_dtype))
+                              model_management.cast_to_device(w1b, weight.device, intermediate_dtype))
                 m2 = torch.mm(model_management.cast_to_device(w2a, weight.device, intermediate_dtype),
-                                model_management.cast_to_device(w2b, weight.device, intermediate_dtype))
+                              model_management.cast_to_device(w2b, weight.device, intermediate_dtype))
 
             try:
                 lora_diff = (m1 * m2).reshape(weight.shape)

@@ -32,7 +32,7 @@ from . import utils
 from .cldm import cldm, mmdit
 from .ldm import hydit
 from .ldm.cascade import controlnet as cascade_controlnet
-from .ldm.flux import controlnet_xlabs
+from .ldm.flux import controlnet as controlnet_flux
 from .ldm.flux.controlnet_instantx import InstantXControlNetFlux
 from .ldm.flux.controlnet_instantx_format2 import InstantXControlNetFluxFormat2
 from .ldm.flux.weight_dtypes import FLUX_WEIGHT_DTYPES
@@ -152,7 +152,7 @@ class ControlBase:
                         elif self.strength_type == StrengthType.LINEAR_UP:
                             x *= (self.strength ** float(len(control_output) - i))
 
-                    if x.dtype != output_dtype:
+                    if output_dtype is not None and x.dtype != output_dtype:
                         x = x.to(output_dtype)
 
                 out[key].append(x)
@@ -211,7 +211,6 @@ class ControlNet(ControlBase):
         if self.manual_cast_dtype is not None:
             dtype = self.manual_cast_dtype
 
-        output_dtype = x_noisy.dtype
         if self.cond_hint is None or x_noisy.shape[2] * self.compression_ratio != self.cond_hint.shape[2] or x_noisy.shape[3] * self.compression_ratio != self.cond_hint.shape[3]:
             if self.cond_hint is not None:
                 del self.cond_hint
@@ -241,7 +240,7 @@ class ControlNet(ControlBase):
         x_noisy = self.model_sampling_current.calculate_input(t, x_noisy)
 
         control = self.control_model(x=x_noisy.to(dtype), hint=self.cond_hint, timesteps=timestep.to(dtype), context=context.to(dtype), **extra)
-        return self.control_merge(control, control_prev, output_dtype)
+        return self.control_merge(control, control_prev, output_dtype=None)
 
     def copy(self):
         c = ControlNet(None, global_average_pooling=self.global_average_pooling, load_device=self.load_device, manual_cast_dtype=self.manual_cast_dtype)
@@ -441,7 +440,7 @@ def load_controlnet_hunyuandit(controlnet_data):
     return control
 
 
-def load_controlnet_flux_instantx(sd, controlnet_class, weight_dtype, full_path):
+def load_controlnet_flux_instantx_union(sd, controlnet_class, weight_dtype, full_path):
     keys_to_keep = [
         "controlnet_",
         "single_transformer_blocks",
@@ -498,19 +497,32 @@ def load_controlnet_flux_instantx(sd, controlnet_class, weight_dtype, full_path)
 
 def load_controlnet_flux_xlabs(sd):
     model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(sd)
-    control_model = controlnet_xlabs.ControlNetFlux(operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
+    control_model = controlnet_flux.ControlNetFlux(operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
     control_model = controlnet_load_state_dict(control_model, sd)
     extra_conds = ['y', 'guidance']
     control = ControlNet(control_model, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
     return control
 
+def load_controlnet_flux_instantx(sd):
+    new_sd = model_detection.convert_diffusers_mmdit(sd, "")
+    model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(new_sd)
+    for k in sd:
+        new_sd[k] = sd[k]
+
+    control_model = controlnet_flux.ControlNetFlux(latent_input=True, operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
+    control_model = controlnet_load_state_dict(control_model, new_sd)
+
+    latent_format = latent_formats.Flux()
+    extra_conds = ['y', 'guidance']
+    control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
+    return control
 
 def load_controlnet(ckpt_path, model=None, weight_dtype=FLUX_WEIGHT_DTYPES[0]):
     controlnet_data = utils.load_torch_file(ckpt_path, safe_load=True)
     if "controlnet_mode_embedder.weight" in controlnet_data:
-        return load_controlnet_flux_instantx(controlnet_data, InstantXControlNetFluxFormat2, weight_dtype, ckpt_path)
+        return load_controlnet_flux_instantx_union(controlnet_data, InstantXControlNetFluxFormat2, weight_dtype, ckpt_path)
     if "controlnet_mode_embedder.fc.weight" in controlnet_data:
-        return load_controlnet_flux_instantx(controlnet_data, InstantXControlNetFlux, weight_dtype, ckpt_path)
+        return load_controlnet_flux_instantx_union(controlnet_data, InstantXControlNetFlux, weight_dtype, ckpt_path)
     if 'after_proj_list.18.bias' in controlnet_data.keys():  # Hunyuan DiT
         return load_controlnet_hunyuandit(controlnet_data)
     if "lora_controlnet" in controlnet_data:
@@ -572,8 +584,10 @@ def load_controlnet(ckpt_path, model=None, weight_dtype=FLUX_WEIGHT_DTYPES[0]):
     elif "controlnet_blocks.0.weight" in controlnet_data:  # SD3 diffusers format
         if "double_blocks.0.img_attn.norm.key_norm.scale" in controlnet_data:
             return load_controlnet_flux_xlabs(controlnet_data)
-        else:
+        elif "pos_embed_input.proj.weight" in controlnet_data:
             return load_controlnet_mmdit(controlnet_data)
+        elif "controlnet_x_embedder.weight" in controlnet_data:
+            return load_controlnet_flux_instantx(controlnet_data)
 
     pth_key = 'control_model.zero_convs.0.0.weight'
     pth = False

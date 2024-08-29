@@ -5,7 +5,7 @@ import torch
 from torch import Tensor, nn
 
 from .math import attention, rope
-from ... import ops
+from ..common_dit import rms_norm
 
 
 class EmbedND(nn.Module):
@@ -63,10 +63,7 @@ class RMSNorm(torch.nn.Module):
         self.scale = nn.Parameter(torch.empty((dim), dtype=dtype, device=device))
 
     def forward(self, x: Tensor):
-        x_dtype = x.dtype
-        x = x.float()
-        rrms = torch.rsqrt(torch.mean(x**2, dim=-1, keepdim=True) + 1e-6)
-        return (x * rrms).to(dtype=x_dtype) * ops.cast_to(self.scale, dtype=x_dtype, device=x.device)
+        return rms_norm(x, self.scale, 1e-6)
 
 
 class QKNorm(torch.nn.Module):
