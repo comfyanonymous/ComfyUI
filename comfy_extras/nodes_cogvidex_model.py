@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 import torch
 import folder_paths
 import comfy.model_management as mm
@@ -7,16 +7,289 @@ from comfy.utils import ProgressBar
 from diffusers.schedulers import CogVideoXDDIMScheduler, CogVideoXDPMScheduler
 from diffusers.models import AutoencoderKLCogVideoX, CogVideoXTransformer3DModel
 from diffusers import CogVideoXPipeline
-from datetime import datetime, timedelta
+from diffusers.pipelines.cogvideo.pipeline_cogvideox import retrieve_timesteps, get_resize_crop_region_for_grid, get_3d_rotary_pos_embed
+from diffusers.utils.torch_utils import randn_tensor
+from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 
 from diffusers.image_processor import VaeImageProcessor
 from transformers.models.t5.modeling_t5 import T5EncoderModel
 from transformers.models.t5.tokenization_t5 import T5Tokenizer
-
+import math
+from tqdm.auto import tqdm
+import inspect
 import logging
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+def get_timesteps(
+    cogvideo_pipeline: CogVideoXPipeline,
+    num_inference_steps, strength, device):
+    # get the original timestep using init_timestep
+    init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
+
+    t_start = max(num_inference_steps - init_timestep, 0)
+    timesteps = cogvideo_pipeline.scheduler.timesteps[t_start * cogvideo_pipeline.scheduler.order :]
+    if hasattr(cogvideo_pipeline.scheduler, "set_begin_index"):
+        cogvideo_pipeline.scheduler.set_begin_index(t_start * cogvideo_pipeline.scheduler.order)
+
+    return timesteps.to(device), num_inference_steps - t_start
+
+
+def _prepare_rotary_positional_embeddings(
+    cogvideo_pipeline: CogVideoXPipeline,
+    height: int,
+    width: int,
+    num_frames: int,
+    device: torch.device,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    grid_height = height // (cogvideo_pipeline.vae_scale_factor_spatial * cogvideo_pipeline.transformer.config.patch_size)
+    grid_width = width // (cogvideo_pipeline.vae_scale_factor_spatial * cogvideo_pipeline.transformer.config.patch_size)
+    base_size_width = 720 // (cogvideo_pipeline.vae_scale_factor_spatial * cogvideo_pipeline.transformer.config.patch_size)
+    base_size_height = 480 // (cogvideo_pipeline.vae_scale_factor_spatial * cogvideo_pipeline.transformer.config.patch_size)
+
+    grid_crops_coords = get_resize_crop_region_for_grid(
+        (grid_height, grid_width), base_size_width, base_size_height
+    )
+    freqs_cos, freqs_sin = get_3d_rotary_pos_embed(
+        embed_dim=cogvideo_pipeline.transformer.config.attention_head_dim,
+        crops_coords=grid_crops_coords,
+        grid_size=(grid_height, grid_width),
+        temporal_size=num_frames,
+        use_real=True,
+    )
+
+    freqs_cos = freqs_cos.to(device=device)
+    freqs_sin = freqs_sin.to(device=device)
+    return freqs_cos, freqs_sin
+
+
+# Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_extra_step_kwargs
+def prepare_extra_step_kwargs(
+    cogvideo_pipeline: CogVideoXPipeline,
+    generator, eta
+):
+    # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
+    # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
+    # eta corresponds to η in DDIM paper: https://arxiv.org/abs/2010.02502
+    # and should be between [0, 1]
+
+    accepts_eta = "eta" in set(inspect.signature(cogvideo_pipeline.scheduler.step).parameters.keys())
+    extra_step_kwargs = {}
+    if accepts_eta:
+        extra_step_kwargs["eta"] = eta
+
+    # check if the scheduler accepts generator
+    accepts_generator = "generator" in set(inspect.signature(cogvideo_pipeline.scheduler.step).parameters.keys())
+    if accepts_generator:
+        extra_step_kwargs["generator"] = generator
+    return extra_step_kwargs
+
+
+def prepare_latents(
+    cogvideo_pipeline: CogVideoXPipeline,
+    batch_size, num_channels_latents, num_frames, height, width, dtype, device, generator, latents=None
+):
+    shape = (
+            batch_size,
+            (num_frames - 1) // cogvideo_pipeline.vae_scale_factor_temporal + 1,
+            num_channels_latents,
+            height // cogvideo_pipeline.vae_scale_factor_spatial,
+            width // cogvideo_pipeline.vae_scale_factor_spatial,
+        )
+    if isinstance(generator, list) and len(generator) != batch_size:
+        raise ValueError(
+            f"You have passed a list of generators of length {len(generator)}, but requested an effective batch"
+            f" size of {batch_size}. Make sure the batch size matches the length of the generators."
+        )
+
+    if latents is None:
+        latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
+    else:
+        latents = latents.to(device)
+
+    # scale the initial noise by the standard deviation required by the scheduler
+    latents = latents * cogvideo_pipeline.scheduler.init_noise_sigma
+    return latents
  
+@torch.no_grad()
+def cogvideox_sampler(
+    cogvideo_pipeline: CogVideoXPipeline,
+    height: int = 480,
+    width: int = 720,
+    num_frames: int = 49,
+    num_inference_steps: int = 50,
+    timesteps: Optional[List[int]] = None,
+    guidance_scale: float = 6, 
+    use_dynamic_cfg: bool = False,
+    num_videos_per_prompt: int = 1,
+    eta: float = 0.0,
+    generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
+    latents: Optional[torch.FloatTensor] = None,
+    prompt_embeds: Optional[torch.FloatTensor] = None,
+    negative_prompt_embeds: Optional[torch.FloatTensor] = None, 
+    device = torch.device("cuda"),
+):
+    """
+    Function invoked when calling the pipeline for generation.
+
+    Args:
+        height (`int`, *optional*, defaults to self.unet.config.sample_size * self.vae_scale_factor):
+            The height in pixels of the generated image. This is set to 1024 by default for the best results.
+        width (`int`, *optional*, defaults to self.unet.config.sample_size * self.vae_scale_factor):
+            The width in pixels of the generated image. This is set to 1024 by default for the best results.
+        num_frames (`int`, defaults to `49`):
+            Number of frames to generate. Must be divisible by self.vae_scale_factor_temporal. Generated video will
+            contain 1 extra frame because CogVideoX is conditioned with (num_seconds * fps + 1) frames where
+            num_seconds is 6 and fps is 4. However, since videos can be saved at any fps, the only condition that
+            needs to be satisfied is that of divisibility mentioned above.
+        num_inference_steps (`int`, *optional*, defaults to 50):
+            The number of denoising steps. More denoising steps usually lead to a higher quality image at the
+            expense of slower inference.
+        timesteps (`List[int]`, *optional*):
+            Custom timesteps to use for the denoising process with schedulers which support a `timesteps` argument
+            in their `set_timesteps` method. If not defined, the default behavior when `num_inference_steps` is
+            passed will be used. Must be in descending order.
+        guidance_scale (`float`, *optional*, defaults to 7.0):
+            Guidance scale as defined in [Classifier-Free Diffusion Guidance](https://arxiv.org/abs/2207.12598).
+            `guidance_scale` is defined as `w` of equation 2. of [Imagen
+            Paper](https://arxiv.org/pdf/2205.11487.pdf). Guidance scale is enabled by setting `guidance_scale >
+            1`. Higher guidance scale encourages to generate images that are closely linked to the text `prompt`,
+            usually at the expense of lower image quality.
+        num_videos_per_prompt (`int`, *optional*, defaults to 1):
+            The number of videos to generate per prompt.
+        generator (`torch.Generator` or `List[torch.Generator]`, *optional*):
+            One or a list of [torch generator(s)](https://pytorch.org/docs/stable/generated/torch.Generator.html)
+            to make generation deterministic.
+        latents (`torch.FloatTensor`, *optional*):
+            Pre-generated noisy latents, sampled from a Gaussian distribution, to be used as inputs for image
+            generation. Can be used to tweak the same generation with different prompts. If not provided, a latents
+            tensor will ge generated by sampling using the supplied random `generator`.
+        prompt_embeds (`torch.FloatTensor`, *optional*):
+            Pre-generated text embeddings. Can be used to easily tweak text inputs, *e.g.* prompt weighting. If not
+            provided, text embeddings will be generated from `prompt` input argument.
+        negative_prompt_embeds (`torch.FloatTensor`, *optional*):
+            Pre-generated negative text embeddings. Can be used to easily tweak text inputs, *e.g.* prompt
+            weighting. If not provided, negative_prompt_embeds will be generated from `negative_prompt` input
+            argument.
+    """
+    if num_frames > 49:
+        raise ValueError(
+            "The number of frames must be less than 49 for now due to static positional embeddings. This will be updated in the future to remove this limitation."
+        )
+
+    height = height or cogvideo_pipeline.transformer.config.sample_size * cogvideo_pipeline.vae_scale_factor_spatial
+    width = width or cogvideo_pipeline.transformer.config.sample_size * cogvideo_pipeline.vae_scale_factor_spatial
+    num_videos_per_prompt = 1
+
+    cogvideo_pipeline._guidance_scale = guidance_scale
+    cogvideo_pipeline._interrupt = False
+
+    # 2. Default call parameters
+    
+    batch_size = prompt_embeds.shape[0]
+
+    # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
+    # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
+    # corresponds to doing no classifier free guidance.
+    do_classifier_free_guidance = guidance_scale > 1.0
+
+    if do_classifier_free_guidance:
+        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
+    prompt_embeds = prompt_embeds.to(cogvideo_pipeline.transformer.dtype)
+
+    # 4. Prepare timesteps
+    timesteps, num_inference_steps = retrieve_timesteps(cogvideo_pipeline.scheduler, num_inference_steps, device, timesteps)
+    cogvideo_pipeline._num_timesteps = len(timesteps)
+
+    # 5. Prepare latents.
+    latent_channels = cogvideo_pipeline.transformer.config.in_channels
+    latents = prepare_latents(
+        cogvideo_pipeline,
+        batch_size * num_videos_per_prompt,
+        latent_channels,
+        num_frames,
+        height,
+        width,
+        prompt_embeds.dtype,
+        device,
+        generator,
+        latents,
+    )
+    latents = latents.to(cogvideo_pipeline.transformer.dtype)
+
+    # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
+    extra_step_kwargs = prepare_extra_step_kwargs(cogvideo_pipeline, generator, eta)
+
+    # 7. Create rotary embeds if required
+    image_rotary_emb = (
+        _prepare_rotary_positional_embeddings(cogvideo_pipeline, height, width, latents.size(1), device)
+        if cogvideo_pipeline.transformer.config.use_rotary_positional_embeddings
+        else None
+    )
+
+    # 8. Denoising loop
+    num_warmup_steps = max(len(timesteps) - num_inference_steps * cogvideo_pipeline.scheduler.order, 0)
+
+    comfy_pbar = ProgressBar(num_inference_steps)
+    with tqdm(total=num_inference_steps) as progress_bar:
+        # for DPM-solver++
+        old_pred_original_sample = None
+        for i, t in enumerate(timesteps):
+            if cogvideo_pipeline.interrupt:
+                continue
+
+            latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
+            latent_model_input = cogvideo_pipeline.scheduler.scale_model_input(latent_model_input, t)
+
+            # broadcast to batch dimension in a way that's compatible with ONNX/Core ML
+            timestep = t.expand(latent_model_input.shape[0])
+
+            # predict noise model_output
+            noise_pred = cogvideo_pipeline.transformer(
+                hidden_states=latent_model_input,
+                encoder_hidden_states=prompt_embeds,
+                timestep=timestep,
+                image_rotary_emb=image_rotary_emb,
+                return_dict=False,
+            )[0]
+            noise_pred = noise_pred.float()
+
+            # perform guidance
+            if use_dynamic_cfg:
+                cogvideo_pipeline._guidance_scale = 1 + guidance_scale * (
+                    (1 - math.cos(math.pi * ((num_inference_steps - t.item()) / num_inference_steps) ** 5.0)) / 2
+                )
+            if do_classifier_free_guidance:
+                noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                noise_pred = noise_pred_uncond + cogvideo_pipeline.guidance_scale * (noise_pred_text - noise_pred_uncond)
+
+            # compute the previous noisy sample x_t -> x_t-1
+            if not isinstance(cogvideo_pipeline.scheduler, CogVideoXDPMScheduler):
+                latents = cogvideo_pipeline.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
+            else:
+                latents, old_pred_original_sample = cogvideo_pipeline.scheduler.step(
+                    noise_pred,
+                    old_pred_original_sample,
+                    t,
+                    timesteps[i - 1] if i > 0 else None,
+                    latents,
+                    **extra_step_kwargs,
+                    return_dict=False,
+                )
+            latents = latents.to(prompt_embeds.dtype) 
+
+            if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % cogvideo_pipeline.scheduler.order == 0):
+                progress_bar.update()
+                comfy_pbar.update(1)
+
+    # Offload all models
+    cogvideo_pipeline.maybe_free_model_hooks()
+
+    return latents
+
+
 
 class CogVideoModelLoader:
     @classmethod
@@ -39,6 +312,7 @@ class CogVideoModelLoader:
     RETURN_NAMES = ("cogvideo_pipe",)
     FUNCTION = "cogvideo_loader"
     CATEGORY = "loaders"
+    DESCRIPTION = """CogVideoX model loader"""
 
     def cogvideo_loader(self, base_path): 
         precision = "bf16"
@@ -60,8 +334,44 @@ class CogVideoModelLoader:
         }
         # TODO execution.py:get_output_data output parse to dict error, so will't return dict here but return tuple 
         return (pipeline,)
+
+
+class CogVideoSchedulerLoader:
+    @classmethod
+    def INPUT_TYPES(s):   
+ 
+        cog_videox_base = folder_paths.get_folder_paths("cog_videox")
+        model_paths = []
+        for path_ in cog_videox_base:
+            if path_ is None:
+                continue 
+            for x in os.listdir(path_):
+                model_paths.append(os.path.join(path_, x))
+        return {
+            "required": { 
+                "base_path": (model_paths,),
+                "scheduler": (["DDIM", "DPM"], {"tooltip": "5B likes DPM, but it doesn't support temporal tiling"}),
+            },
+        }
+ 
+    RETURN_TYPES = ("COGVIDEOSCHEDULER",)
+    RETURN_NAMES = ("scheduler",)
+    FUNCTION = "cogvideo_scheduler_loader"
+    CATEGORY = "loaders"
+    DESCRIPTION = """CogVideoX scheduler loader"""
+
+
+    def cogvideo_scheduler_loader(self, base_path, scheduler):  
+        pipe_scheduler = None
+        if scheduler == "DDIM":
+            pipe_scheduler = CogVideoXDDIMScheduler.from_pretrained(base_path, subfolder="scheduler")
+        elif scheduler == "DPM":
+            pipe_scheduler = CogVideoXDPMScheduler.from_pretrained(base_path, subfolder="scheduler")
+        else:
+            raise ValueError(f"Invalid scheduler {scheduler}")
+        
+        return (pipe_scheduler,)
   
-     
 
 class CogVideoPipeExtra:
     @classmethod
@@ -72,10 +382,11 @@ class CogVideoPipeExtra:
             },
         }
  
-    RETURN_TYPES = ("T5_TOKENIZER", "TEXT_ENCODER", "VAE3D","3DTRANSFORMER", "SCHEDULER", "DTYPE")
-    RETURN_NAMES = ("t5_tokenizer", "text_encoder", "vae3d", "transformer","scheduler" "dtype")
+    RETURN_TYPES = ("T5_TOKENIZER", "TEXT_ENCODER", "VAE3D","3DTRANSFORMER", "COGVIDEOSCHEDULER", "DTYPE",)
+    RETURN_NAMES = ("t5_tokenizer", "text_encoder", "vae3d", "transformer","scheduler" "dtype",)
     FUNCTION = "extra"
     CATEGORY = "loaders"
+    DESCRIPTION = """CogVideoX pipeline extra loader, return t5_tokenizer, text_encoder, vae3d, transformer, scheduler, dtype"""
  
     def extra(self, pipeline): 
         t5_tokenizer = pipeline["pipe"].tokenizer
@@ -105,6 +416,7 @@ class CogVideoEncodePrompt:
     RETURN_NAMES = ("positive", "negative")
     FUNCTION = "process"
     CATEGORY = "latent"
+    DESCRIPTION = """VideoEncode prompt, eg: Also use clip to convert CONDITIONING"""
 
 
     def _get_t5_prompt_embeds(
@@ -268,6 +580,7 @@ class CogVideoImageEncodeSampler:
     RETURN_NAMES = ("samples",)
     FUNCTION = "encode"
     CATEGORY = "latent"
+    DESCRIPTION = """3DVAE image Encode to latent"""
 
     def encode(self, vae3d, image):
         device = mm.get_torch_device()
@@ -305,7 +618,6 @@ class CogVideoImageEncodeSampler:
 
         # Concatenate all the chunks along the temporal dimension
         final_latents = torch.cat(latents_list, dim=1)
-        print("final latents: ", final_latents.shape)
         
         vae3d.to(offload_device)
         
@@ -322,90 +634,68 @@ class CogVideoSampler:
                 "negative": ("CONDITIONING", ),
                 "height": ("INT", {"default": 480, "min": 128, "max": 2048, "step": 8}),
                 "width": ("INT", {"default": 720, "min": 128, "max": 2048, "step": 8}),
-                "num_frames": ("INT", {"default": 49, "min": 16, "max": 1024, "step": 1}),
                 "steps": ("INT", {"default": 50, "min": 1}),
                 "cfg": ("FLOAT", {"default": 6.0, "min": 0.0, "max": 30.0, "step": 0.01}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                "scheduler": (["DDIM", "DPM"], {"tooltip": "5B likes DPM, but it doesn't support temporal tiling"}),
-                "t_tile_length": ("INT", {"default": 16, "min": 2, "max": 128, "step": 1, "tooltip": "Length of temporal tiling, use same alue as num_frames to disable, disabled automatically for DPM"}),
-                "t_tile_overlap": ("INT", {"default": 8, "min": 2, "max": 128, "step": 1, "tooltip": "Overlap of temporal tiling"}),
             },
             "optional": {
                 "samples": ("LATENT", ),
-                "denoise_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "scheduler": ("COGVIDEOSCHEDULER", ), 
             }
         }
 
-    RETURN_TYPES = ("COGVIDEOPIPE", "LATENT",)
-    RETURN_NAMES = ("cogvideo_pipe", "samples",)
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("samples",)
     FUNCTION = "process"
-    CATEGORY = "CogVideoWrapper"
+    CATEGORY = "sampler"
+    DESCRIPTION = """CogVideoX sampler"""
 
-    def process(self, pipeline, positive, negative, steps, cfg, seed, height, width, num_frames, scheduler, t_tile_length, t_tile_overlap, samples=None, denoise_strength=1.0):
+    def process(self, pipeline, positive, negative, steps, cfg, seed, height, width, samples=None, scheduler=None):
         mm.soft_empty_cache()
-
-        assert t_tile_length > t_tile_overlap, "t_tile_length must be greater than t_tile_overlap"
-        assert t_tile_length <= num_frames, "t_tile_length must be equal or less than num_frames"
-        t_tile_length = t_tile_length // 4
-        t_tile_overlap = t_tile_overlap // 4
-
+ 
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device()
         pipe = pipeline["pipe"]
-        dtype = pipeline["dtype"]
-        base_path = pipeline["base_path"]
-        
+        dtype = pipeline["dtype"] 
         pipe.transformer.to(device)
         generator = torch.Generator(device=device).manual_seed(seed)
-
-        if scheduler == "DDIM":
-            pipe.scheduler = CogVideoXDDIMScheduler.from_pretrained(base_path, subfolder="scheduler")
-        elif scheduler == "DPM":
-            pipe.scheduler = CogVideoXDPMScheduler.from_pretrained(base_path, subfolder="scheduler")
+        if scheduler is not None:
+            pipe.scheduler = scheduler
+ 
         with torch.autocast(mm.get_autocast_device(device)):
-            latents = pipeline["pipe"](
+            latents = cogvideox_sampler(
+                pipe,
                 num_inference_steps=steps,
                 height = height,
                 width = width,
-                num_frames = num_frames,
-                t_tile_length = t_tile_length,
-                t_tile_overlap = t_tile_overlap,
                 guidance_scale=cfg,
                 latents=samples["samples"] if samples is not None else None,
-                denoise_strength=denoise_strength,
                 prompt_embeds=positive.to(dtype).to(device),
                 negative_prompt_embeds=negative.to(dtype).to(device),
                 generator=generator,
                 device=device
             )
         pipe.transformer.to(offload_device)
-        mm.soft_empty_cache()
-        print(latents.shape)
+        mm.soft_empty_cache() 
 
-        return (pipeline, {"samples": latents})
+        return ({"samples": latents}, )
     
 class CogVideoSamplerDecodeImages:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
             "vae3d": ("VAE3D",),
-            "samples": ("LATENT", ),
-            "enable_vae_tiling": ("BOOLEAN", {"default": False}),
+            "samples": ("LATENT", ), 
             },
-            "optional": {
-            "tile_sample_min_height": ("INT", {"default": 96, "min": 16, "max": 2048, "step": 8}),
-            "tile_sample_min_width": ("INT", {"default": 96, "min": 16, "max": 2048, "step": 8}),
-            "tile_overlap_factor_height": ("FLOAT", {"default": 0.083, "min": 0.0, "max": 1.0, "step": 0.001}),
-            "tile_overlap_factor_width": ("FLOAT", {"default": 0.083, "min": 0.0, "max": 1.0, "step": 0.001}),
-            }
         }
 
     RETURN_TYPES = ("BARCHIMAGE",)
     RETURN_NAMES = ("b_images",)
     FUNCTION = "decode"
     CATEGORY = "latent"
+    DESCRIPTION = """CogVideoX sampler 3DVAE decode images"""
 
-    def decode(self, vae3d, samples, enable_vae_tiling, tile_sample_min_height, tile_sample_min_width, tile_overlap_factor_height, tile_overlap_factor_width):
+    def decode(self, vae3d, samples):
         """
             vae3d: VAE3D
             samples: dict of samples,  torch.Tensor  # B, T_chunk, C, H, W
@@ -414,13 +704,7 @@ class CogVideoSamplerDecodeImages:
         offload_device = mm.unet_offload_device()
         latents = samples["samples"] 
         vae3d.to(device)
-        if enable_vae_tiling:
-            vae3d.enable_tiling(
-                tile_sample_min_height=tile_sample_min_height,
-                tile_sample_min_width=tile_sample_min_width,
-                tile_overlap_factor_height=tile_overlap_factor_height,
-                tile_overlap_factor_width=tile_overlap_factor_width,
-            )
+    
         latents = latents.to(vae3d.dtype)
         latents = latents.permute(0, 2, 1, 3, 4)  # [batch_size, num_channels, num_frames, height, width]
         latents = 1 / vae3d.config.scaling_factor * latents
@@ -458,7 +742,7 @@ class CogVideoProcessor:
     RETURN_TYPES = ("IMAGE","INT", "INT", "INT", "INT", "INT",)
     RETURN_NAMES = ("image", "width", "height", "count", "batch_index", "batch_size",)
     FUNCTION = "process"
-    CATEGORY = "video"
+    CATEGORY = "latent"
 
     DESCRIPTION = """Converts CogVideo tensor, pt image to np image or plt image,
 and returns the width, height, count, batch_index, and batch_size.
@@ -491,6 +775,7 @@ and returns the width, height, count, batch_index, and batch_size.
 
 NODE_CLASS_MAPPINGS = {
     "CogVideoModelLoader": CogVideoModelLoader,
+    "CogVideoSchedulerLoader": CogVideoSchedulerLoader,
     "CogVideoPipeExtra": CogVideoPipeExtra,
     "CogVideoEncodePrompt": CogVideoEncodePrompt,
     "CogVideoSampler": CogVideoSampler,
@@ -500,6 +785,7 @@ NODE_CLASS_MAPPINGS = {
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "CogVideoModelLoader": "CogVideo ModelLoader",
+    "CogVideoSchedulerLoader": "CogVideo SchedulerLoader",
     "CogVideoPipeExtra": "CogVideo PipeExtra",
     "CogVideoEncodePrompt": "CogVideo EncodePrompt",
     "CogVideoSampler": "CogVideo Sampler",
