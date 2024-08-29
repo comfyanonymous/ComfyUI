@@ -23,20 +23,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def get_timesteps(
-    cogvideo_pipeline: CogVideoXPipeline,
-    num_inference_steps, strength, device):
-    # get the original timestep using init_timestep
-    init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
-
-    t_start = max(num_inference_steps - init_timestep, 0)
-    timesteps = cogvideo_pipeline.scheduler.timesteps[t_start * cogvideo_pipeline.scheduler.order :]
-    if hasattr(cogvideo_pipeline.scheduler, "set_begin_index"):
-        cogvideo_pipeline.scheduler.set_begin_index(t_start * cogvideo_pipeline.scheduler.order)
-
-    return timesteps.to(device), num_inference_steps - t_start
-
-
 def _prepare_rotary_positional_embeddings(
     cogvideo_pipeline: CogVideoXPipeline,
     height: int,
