@@ -12,6 +12,7 @@ import json
 import glob
 import struct
 import ssl
+import hashlib
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
@@ -31,6 +32,7 @@ from model_filemanager import download_model, DownloadModelStatus
 from typing import Optional
 from api_server.routes.internal.internal_routes import InternalRoutes
 
+from model_mng.model_hash import ModelHash
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -81,6 +83,7 @@ class PromptServer():
         self.messages = asyncio.Queue()
         self.client_session:Optional[aiohttp.ClientSession] = None
         self.number = 0
+        self.model_hash = ModelHash()
 
         middlewares = [cache_control]
         if args.enable_cors_header:
@@ -629,6 +632,8 @@ class PromptServer():
             if isinstance(route, web.RouteDef):
                 api_routes.route(route.method, "/api" + route.path)(route.handler, **route.kwargs)
         self.app.add_routes(api_routes)
+        self.model_hash.add_routes(self.routes)
+
         self.app.add_routes(self.routes)
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
