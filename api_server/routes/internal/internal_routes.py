@@ -2,7 +2,7 @@ from aiohttp import web
 from typing import Optional
 from folder_paths import models_dir, user_directory, output_directory
 from api_server.services.file_service import FileService
-from app.log_interceptor import logs
+import app.logger
 
 class InternalRoutes:
     '''
@@ -34,13 +34,7 @@ class InternalRoutes:
 
         @self.routes.get('/logs')
         async def get_logs(request):
-            return web.json_response([
-                {
-                    'timestamp': dt.isoformat(),
-                    'message': message
-                }
-                for dt, message in logs
-            ])
+            return web.json_response(app.logger.get_logs())
 
     def get_app(self):
         if self._app is None:

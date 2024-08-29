@@ -1,11 +1,8 @@
 import comfy.options
 comfy.options.enable_args_parsing()
 
-# Intercept logs for error reporting
-import sys
-from app.log_interceptor import LogInterceptor
-sys.stdout = LogInterceptor(sys.stdout)
-sys.stderr = LogInterceptor(sys.stderr)
+from app.logger import setup_logger
+setup_logger()
 
 import os
 import importlib.util
