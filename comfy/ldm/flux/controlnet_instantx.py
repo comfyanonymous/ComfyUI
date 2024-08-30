@@ -11,9 +11,9 @@ from diffusers.utils.import_utils import is_torch_version
 from einops import rearrange, repeat
 from torch import Tensor, nn
 
-import comfy.ldm.common_dit
-from comfy.ldm.flux.layers import (timestep_embedding)
-from comfy.ldm.flux.model import Flux
+from ...ldm import common_dit
+from .layers import timestep_embedding
+from .model import Flux
 
 if is_torch_version(">=", "2.1.0"):
     LayerNorm = nn.LayerNorm
@@ -285,7 +285,7 @@ class InstantXControlNetFlux(Flux):
     def forward(self, x, timesteps, context, y, guidance=None, hint=None, control_type=None, **kwargs):
         bs, c, h, w = x.shape
         patch_size = 2
-        x = comfy.ldm.common_dit.pad_to_patch_size(x, (patch_size, patch_size))
+        x = common_dit.pad_to_patch_size(x, (patch_size, patch_size))
 
         height_control_image, width_control_image = hint.shape[2:]
         num_channels_latents = self.in_channels // 4

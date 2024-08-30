@@ -10,7 +10,7 @@ from .layers import (DoubleStreamBlock, EmbedND, LastLayer,
                                  timestep_embedding)
 
 from .model import Flux
-import comfy.ldm.common_dit
+from .. import common_dit
 
 
 class ControlNetFlux(Flux):
@@ -119,13 +119,13 @@ class ControlNetFlux(Flux):
     def forward(self, x, timesteps, context, y, guidance=None, hint=None, **kwargs):
         patch_size = 2
         if self.latent_input:
-            hint = comfy.ldm.common_dit.pad_to_patch_size(hint, (patch_size, patch_size))
+            hint = common_dit.pad_to_patch_size(hint, (patch_size, patch_size))
             hint = rearrange(hint, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=patch_size, pw=patch_size)
         else:
             hint = hint * 2.0 - 1.0
 
         bs, c, h, w = x.shape
-        x = comfy.ldm.common_dit.pad_to_patch_size(x, (patch_size, patch_size))
+        x = common_dit.pad_to_patch_size(x, (patch_size, patch_size))
 
         img = rearrange(x, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=patch_size, pw=patch_size)
 

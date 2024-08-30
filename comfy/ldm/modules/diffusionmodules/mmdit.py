@@ -357,7 +357,7 @@ class RMSNorm(torch.nn.Module):
             self.register_parameter("weight", None)
 
     def forward(self, x):
-        return comfy.ldm.common_dit.rms_norm(x, self.weight, self.eps)
+        return common_dit.rms_norm(x, self.weight, self.eps)
 
 
 
