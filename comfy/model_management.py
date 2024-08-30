@@ -45,6 +45,7 @@ cpu_state = CPUState.GPU
 total_vram = 0
 
 xpu_available = False
+torch_version = ""
 try:
     torch_version = torch.version.__version__
     xpu_available = (int(torch_version[0]) < 2 or (int(torch_version[0]) == 2 and int(torch_version[2]) <= 4)) and torch.xpu.is_available()

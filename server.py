@@ -30,7 +30,6 @@ from app.user_manager import UserManager
 from model_filemanager import download_model, DownloadModelStatus
 from typing import Optional
 from api_server.routes.internal.internal_routes import InternalRoutes
-import torch
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -52,7 +51,7 @@ def get_comfyui_version():
     except Exception:
         try:
             import subprocess
-            comfyui_version = subprocess.check_output(["git", "describe", "--tags"], cwd=repo_path)
+            comfyui_version = subprocess.check_output(["git", "describe", "--tags"], cwd=repo_path).decode('utf-8')
         except Exception as e:
             logging.warning(f"Failed to get ComfyUI version: {e}")
     return comfyui_version.strip()
@@ -427,7 +426,7 @@ class PromptServer():
                     "os": os.name,
                     "comfyui_version": get_comfyui_version(),
                     "python_version": sys.version,
-                    "pytorch_version": torch.version.__version__,
+                    "pytorch_version": comfy.model_management.torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
                     "argv": sys.argv
                 },
