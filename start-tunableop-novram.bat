@@ -14,7 +14,7 @@ echo *** When you are done , please exit with CTRL-C on cmd window to make sure 
 echo.
 set PYTORCH_TUNABLEOP_ENABLED=1
 set PYTORCH_TUNABLEOP_VERBOSE=1
-python main.py --fast --novram
-
+set PYTORCH_TUNABLEOP_HIPBLASLT_ENABLED=0
 echo.
+
 .\zluda\zluda.exe -- %PYTHON% main.py %COMMANDLINE_ARGS%
