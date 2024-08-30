@@ -44,13 +44,13 @@ cpu_state = CPUState.GPU
 
 total_vram = 0
 
-xpu_available = False    #We don't have xpu with zluda , so disabling all together.
+xpu_available = False
 torch_version = ""
- try:
-     torch_version = torch.version.__version__
-     xpu_available = (int(torch_version[0]) < 2 or (int(torch_version[0]) == 2 and int(torch_version[2]) <= 4)) and torch.xpu.is_available()
- except:
-     pass
+try:
+    torch_version = torch.version.__version__
+    xpu_available = (int(torch_version[0]) < 2 or (int(torch_version[0]) == 2 and int(torch_version[2]) <= 4)) and torch.xpu.is_available()
+except:
+    pass
 
 lowvram_available = True
 if args.deterministic:
@@ -270,24 +270,26 @@ def get_torch_device_name(device):
         return "CUDA {}: {}".format(device, torch.cuda.get_device_name(device))
 
 try:
-    torch_device_name = get_torch_device_name(get_torch_device())
-
-    if "[ZLUDA]" in torch_device_name:
-        print("***----------------------ZLUDA--------------------------***")
-        print("  ::  ZLUDA detected, disabling non-supported functions.")
-
-        if torch.backends.cudnn.enabled:
-            torch.backends.cudnn.enabled = False
-            print("  ::  cuDNN , flash_sdp , mem_efficient_sdp disabled")
-
-        torch.backends.cuda.enable_flash_sdp(False)
-        torch.backends.cuda.enable_math_sdp(True)
-        torch.backends.cuda.enable_mem_efficient_sdp(False)
-        print("***-----------------------------------------------------***")
-
-    print("Device:", torch_device_name)
+    logging.info("Device: {}".format(get_torch_device_name(get_torch_device())))
 except:
-    print("Could not pick default device.") 
+    logging.warning("Could not pick default device.")
+
+                                      
+                                                                            
+                                                                         
+
+                                        
+                                                
+                                                                         
+
+                                                   
+                                                 
+                                                           
+                                                                            
+
+                                       
+       
+                                            
 
 current_loaded_models = []
 
