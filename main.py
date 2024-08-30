@@ -1,14 +1,16 @@
 import comfy.options
 comfy.options.enable_args_parsing()
 
-from app.logger import setup_logger
-setup_logger()
-
 import os
 import importlib.util
 import folder_paths
 import time
 from comfy.cli_args import args
+from app.logger import setup_logger
+
+
+setup_logger(verbose=args.verbose)
+
 
 def execute_prestartup_script():
     def execute_script(script_path):
