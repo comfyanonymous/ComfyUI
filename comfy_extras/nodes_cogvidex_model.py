@@ -556,10 +556,18 @@ class CogVideoEncodePrompt:
 class CogVideoImageEncodeSampler:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {
-            "vae3d": ("VAE3D",),
-            "image": ("IMAGE", ),
+        return {
+            "required": {
+                "vae3d": ("VAE3D",),
+                "image": ("IMAGE", ),
+                "enable_vae_tiling": ("BOOLEAN", {"default": False}),
             },
+            "optional": {
+                "tile_sample_min_height": ("INT", {"default": 96, "min": 16, "max": 2048, "step": 8}),
+                "tile_sample_min_width": ("INT", {"default": 96, "min": 16, "max": 2048, "step": 8}),
+                "tile_overlap_factor_height": ("FLOAT", {"default": 0.083, "min": 0.0, "max": 1.0, "step": 0.001}),
+                "tile_overlap_factor_width": ("FLOAT", {"default": 0.083, "min": 0.0, "max": 1.0, "step": 0.001}),
+            }
         }
 
     RETURN_TYPES = ("LATENT",)
@@ -568,12 +576,21 @@ class CogVideoImageEncodeSampler:
     CATEGORY = "latent"
     DESCRIPTION = """3DVAE image Encode to latent"""
 
-    def encode(self, vae3d, image):
+    def encode(self, vae3d, image, enable_vae_tiling, tile_sample_min_height, tile_sample_min_width, tile_overlap_factor_height, tile_overlap_factor_width):
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device()
         generator = torch.Generator(device=device).manual_seed(0)
         vae3d.to(device)
-  
+        if enable_vae_tiling:
+            vae3d.enable_tiling(
+                tile_sample_min_height=tile_sample_min_height,
+                tile_sample_min_width=tile_sample_min_width,
+                tile_overlap_factor_height=tile_overlap_factor_height,
+                tile_overlap_factor_width=tile_overlap_factor_width,
+            )
+        else:
+            vae3d.disable_tiling()
+    
         input_image = image.clone() * 2.0 - 1.0
         input_image = input_image.to(vae3d.dtype).to(device)
         input_image = input_image.unsqueeze(0).permute(0, 4, 1, 2, 3) # B, C, T, H, W
@@ -669,10 +686,18 @@ class CogVideoSampler:
 class CogVideoSamplerDecodeImages:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {
-            "vae3d": ("VAE3D",),
-            "samples": ("LATENT", ), 
+        return {
+            "required": {
+                "vae3d": ("VAE3D",),
+                "samples": ("LATENT", ),
+                "enable_vae_tiling": ("BOOLEAN", {"default": False}),
             },
+            "optional": {
+                "tile_sample_min_height": ("INT", {"default": 96, "min": 16, "max": 2048, "step": 8}),
+                "tile_sample_min_width": ("INT", {"default": 96, "min": 16, "max": 2048, "step": 8}),
+                "tile_overlap_factor_height": ("FLOAT", {"default": 0.083, "min": 0.0, "max": 1.0, "step": 0.001}),
+                "tile_overlap_factor_width": ("FLOAT", {"default": 0.083, "min": 0.0, "max": 1.0, "step": 0.001}),
+            }
         }
 
     RETURN_TYPES = ("BARCHIMAGE",)
@@ -681,7 +706,7 @@ class CogVideoSamplerDecodeImages:
     CATEGORY = "latent"
     DESCRIPTION = """CogVideoX sampler 3DVAE decode images"""
 
-    def decode(self, vae3d, samples):
+    def decode(self, vae3d, samples, enable_vae_tiling, tile_sample_min_height, tile_sample_min_width, tile_overlap_factor_height, tile_overlap_factor_width):
         """
             vae3d: VAE3D
             samples: dict of samples,  torch.Tensor  # B, T_chunk, C, H, W
@@ -690,7 +715,16 @@ class CogVideoSamplerDecodeImages:
         offload_device = mm.unet_offload_device()
         latents = samples["samples"] 
         vae3d.to(device)
-    
+        if enable_vae_tiling:
+            vae3d.enable_tiling(
+                tile_sample_min_height=tile_sample_min_height,
+                tile_sample_min_width=tile_sample_min_width,
+                tile_overlap_factor_height=tile_overlap_factor_height,
+                tile_overlap_factor_width=tile_overlap_factor_width,
+            )
+        else:
+            vae3d.disable_tiling()
+            
         latents = latents.to(vae3d.dtype)
         latents = latents.permute(0, 2, 1, 3, 4)  # [batch_size, num_channels, num_frames, height, width]
         latents = 1 / vae3d.config.scaling_factor * latents
