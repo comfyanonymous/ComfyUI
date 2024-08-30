@@ -6,6 +6,10 @@ import importlib.util
 import folder_paths
 import time
 from comfy.cli_args import args
+from app.logger import setup_logger
+
+
+setup_logger(verbose=args.verbose)
 
 
 def execute_prestartup_script():
