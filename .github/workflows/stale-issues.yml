@@ -14,7 +14,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          stale-issue-message: 'This issue is being marked stale because it has not had any activity for 30 days. Reply below within 7 days if it should be left open.'
+          stale-issue-message: 'This issue is being marked stale because it has not had any activity for 30 days. Reply below within 7 days if your issue still isn't solved, and it will be left open. Otherwise, the issue will be closed automatically.'
           days-before-stale: 30
           days-before-close: 7
           stale-issue-label: 'Stale'
