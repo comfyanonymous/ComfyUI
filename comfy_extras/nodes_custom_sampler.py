@@ -111,6 +111,25 @@ class SDTurboScheduler:
         sigmas = torch.cat([sigmas, sigmas.new_zeros([1])])
         return (sigmas, )
 
+class BetaSamplingScheduler:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"model": ("MODEL",),
+                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
+                     "alpha": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 50.0, "step":0.01, "round": False}),
+                     "beta": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 50.0, "step":0.01, "round": False}),
+                      }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "sampling/custom_sampling/schedulers"
+
+    FUNCTION = "get_sigmas"
+
+    def get_sigmas(self, model, steps, alpha, beta):
+        sigmas = comfy.samplers.beta_scheduler(model.get_model_object("model_sampling"), steps, alpha=alpha, beta=beta)
+        return (sigmas, )
+
 class VPScheduler:
     @classmethod
     def INPUT_TYPES(s):
@@ -276,6 +295,23 @@ class SamplerDPMPP_SDE:
         sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "r": r})
         return (sampler, )
 
+class SamplerDPMPP_2S_Ancestral:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                      }
+               }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, eta, s_noise):
+        sampler = comfy.samplers.ksampler("dpmpp_2s_ancestral", {"eta": eta, "s_noise": s_noise})
+        return (sampler, )
+
 class SamplerEulerAncestral:
     @classmethod
     def INPUT_TYPES(s):
@@ -291,6 +327,25 @@ class SamplerEulerAncestral:
 
     def get_sampler(self, eta, s_noise):
         sampler = comfy.samplers.ksampler("euler_ancestral", {"eta": eta, "s_noise": s_noise})
+        return (sampler, )
+
+class SamplerEulerAncestralCFGPP:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step":0.01, "round": False}),
+                "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step":0.01, "round": False}),
+            }}
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, eta, s_noise):
+        sampler = comfy.samplers.ksampler(
+            "euler_ancestral_cfg_pp",
+            {"eta": eta, "s_noise": s_noise})
         return (sampler, )
 
 class SamplerLMS:
@@ -619,13 +674,16 @@ NODE_CLASS_MAPPINGS = {
     "ExponentialScheduler": ExponentialScheduler,
     "PolyexponentialScheduler": PolyexponentialScheduler,
     "VPScheduler": VPScheduler,
+    "BetaSamplingScheduler": BetaSamplingScheduler,
     "SDTurboScheduler": SDTurboScheduler,
     "KSamplerSelect": KSamplerSelect,
     "SamplerEulerAncestral": SamplerEulerAncestral,
+    "SamplerEulerAncestralCFGPP": SamplerEulerAncestralCFGPP,
     "SamplerLMS": SamplerLMS,
     "SamplerDPMPP_3M_SDE": SamplerDPMPP_3M_SDE,
     "SamplerDPMPP_2M_SDE": SamplerDPMPP_2M_SDE,
     "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
+    "SamplerDPMPP_2S_Ancestral": SamplerDPMPP_2S_Ancestral,
     "SamplerDPMAdaptative": SamplerDPMAdaptative,
     "SplitSigmas": SplitSigmas,
     "SplitSigmasDenoise": SplitSigmasDenoise,
@@ -638,4 +696,8 @@ NODE_CLASS_MAPPINGS = {
     "DisableNoise": DisableNoise,
     "AddNoise": AddNoise,
     "SamplerCustomAdvanced": SamplerCustomAdvanced,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "SamplerEulerAncestralCFGPP": "SamplerEulerAncestralCFG++",
 }
