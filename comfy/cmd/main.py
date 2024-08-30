@@ -6,6 +6,8 @@ import os
 import shutil
 import threading
 import time
+from pathlib import Path
+from typing import Optional
 
 from .extra_model_paths import load_extra_path_config
 # main_pre must be the earliest import since it suppresses some spurious warnings
@@ -107,7 +109,16 @@ def cuda_malloc_warning():
                 "\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
-async def main():
+async def main(from_script_dir: Optional[Path] = None):
+    """
+    Runs ComfyUI's frontend and backend like upstream.
+    :param from_script_dir: when set to a path, assumes that you are running ComfyUI's legacy main.py entrypoint at the root of the git repository located at the path
+    """
+    if not from_script_dir:
+        os_getcwd = os.getcwd()
+    else:
+        os_getcwd = str(from_script_dir)
+
     if args.temp_directory:
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
         logging.debug(f"Setting temp directory to: {temp_dir}")
@@ -116,7 +127,7 @@ async def main():
 
     # configure extra model paths earlier
     try:
-        extra_model_paths_config_path = os.path.join(os.getcwd(), "extra_model_paths.yaml")
+        extra_model_paths_config_path = os.path.join(os_getcwd, "extra_model_paths.yaml")
         if os.path.isfile(extra_model_paths_config_path):
             load_extra_path_config(extra_model_paths_config_path)
     except NameError:

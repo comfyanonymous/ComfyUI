@@ -2,31 +2,25 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 import time
-from typing import Optional, List
+from typing import Optional, List, Final
 
-from ..cli_args import args
+from .folder_paths_pre import get_base_path
 from ..component_model.files import get_package_as_path
 from ..component_model.folder_path_types import FolderPathsTuple, FolderNames, SaveImagePathResponse
 from ..component_model.folder_path_types import supported_pt_extensions as _supported_pt_extensions
+from ..component_model.module_property import module_property
 
-supported_pt_extensions = _supported_pt_extensions
+supported_pt_extensions: Final[frozenset[str]] = _supported_pt_extensions
 
-# todo: this should be initialized elsewhere
-if 'main.py' in sys.argv:
-    base_path = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../.."))  # pylint: disable=used-before-assignment
-elif args.cwd is not None:
-    if not os.path.exists(args.cwd):
-        try:
-            os.makedirs(args.cwd, exist_ok=True)
-        except:
-            logging.error("Failed to create custom working directory")
-    # wrap the path to prevent slashedness from glitching out common path checks
-    base_path = os.path.realpath(args.cwd)
-else:
-    base_path = os.getcwd()
-models_dir = os.path.join(base_path, "models")
+
+# todo: this needs to be wrapped in a context and configurable
+@module_property
+def _base_path():
+    return get_base_path()
+
+
+models_dir = os.path.join(get_base_path(), "models")
 folder_names_and_paths = FolderNames(models_dir)
 folder_names_and_paths["checkpoints"] = FolderPathsTuple("checkpoints", [os.path.join(models_dir, "checkpoints")], set(supported_pt_extensions))
 folder_names_and_paths["configs"] = FolderPathsTuple("configs", [os.path.join(models_dir, "configs"), get_package_as_path("comfy.configs")], {".yaml"})
@@ -42,17 +36,17 @@ folder_names_and_paths["vae_approx"] = FolderPathsTuple("vae_approx", [os.path.j
 folder_names_and_paths["controlnet"] = FolderPathsTuple("controlnet", [os.path.join(models_dir, "controlnet"), os.path.join(models_dir, "t2i_adapter")], set(supported_pt_extensions))
 folder_names_and_paths["gligen"] = FolderPathsTuple("gligen", [os.path.join(models_dir, "gligen")], set(supported_pt_extensions))
 folder_names_and_paths["upscale_models"] = FolderPathsTuple("upscale_models", [os.path.join(models_dir, "upscale_models")], set(supported_pt_extensions))
-folder_names_and_paths["custom_nodes"] = FolderPathsTuple("custom_nodes", [os.path.join(base_path, "custom_nodes")], set())
+folder_names_and_paths["custom_nodes"] = FolderPathsTuple("custom_nodes", [os.path.join(get_base_path(), "custom_nodes")], set())
 folder_names_and_paths["hypernetworks"] = FolderPathsTuple("hypernetworks", [os.path.join(models_dir, "hypernetworks")], set(supported_pt_extensions))
 folder_names_and_paths["photomaker"] = FolderPathsTuple("photomaker", [os.path.join(models_dir, "photomaker")], set(supported_pt_extensions))
 folder_names_and_paths["classifiers"] = FolderPathsTuple("classifiers", [os.path.join(models_dir, "classifiers")], {""})
 folder_names_and_paths["huggingface"] = FolderPathsTuple("huggingface", [os.path.join(models_dir, "huggingface")], {""})
 folder_names_and_paths["huggingface_cache"] = FolderPathsTuple("huggingface_cache", [os.path.join(models_dir, "huggingface_cache")], {""})
 
-output_directory = os.path.join(base_path, "output")
-temp_directory = os.path.join(base_path, "temp")
-input_directory = os.path.join(base_path, "input")
-user_directory = os.path.join(base_path, "user")
+output_directory = os.path.join(get_base_path(), "output")
+temp_directory = os.path.join(get_base_path(), "temp")
+input_directory = os.path.join(get_base_path(), "input")
+user_directory = os.path.join(get_base_path(), "user")
 
 _filename_list_cache = {}
 
