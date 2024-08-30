@@ -23,6 +23,20 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
+def get_timesteps(
+    cogvideo_pipeline: CogVideoXPipeline,
+    num_inference_steps, strength, device):
+    # get the original timestep using init_timestep
+    init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
+
+    t_start = max(num_inference_steps - init_timestep, 0)
+    timesteps = cogvideo_pipeline.scheduler.timesteps[t_start * cogvideo_pipeline.scheduler.order :]
+    if hasattr(cogvideo_pipeline.scheduler, "set_begin_index"):
+        cogvideo_pipeline.scheduler.set_begin_index(t_start * cogvideo_pipeline.scheduler.order)
+
+    return timesteps.to(device), num_inference_steps - t_start
+
+
 def _prepare_rotary_positional_embeddings(
     cogvideo_pipeline: CogVideoXPipeline,
     height: int,
@@ -109,6 +123,7 @@ def cogvideox_sampler(
     timesteps: Optional[List[int]] = None,
     guidance_scale: float = 6, 
     use_dynamic_cfg: bool = False,
+    denoise_strength: float = 1.0,
     num_videos_per_prompt: int = 1,
     eta: float = 0.0,
     generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
@@ -143,6 +158,12 @@ def cogvideox_sampler(
             Paper](https://arxiv.org/pdf/2205.11487.pdf). Guidance scale is enabled by setting `guidance_scale >
             1`. Higher guidance scale encourages to generate images that are closely linked to the text `prompt`,
             usually at the expense of lower image quality.
+        denoise_strength (`float`, *optional*, defaults to 1.0): This parameter ranges from 0.1 to 1.0 and
+            controls the fidelity and diversity of the generated images. denoise_strength is typically used 
+            in models like diffusion models or similar generative models. It influences the balance between preserving image
+            details and achieving diversity during the generation process. A higher denoise strength means the image will
+            be closer to real images from the training data, while a lower denoise strength may retain more noise,
+            leading to more abstract or creative results
         num_videos_per_prompt (`int`, *optional*, defaults to 1):
             The number of videos to generate per prompt.
         generator (`torch.Generator` or `List[torch.Generator]`, *optional*):
@@ -203,6 +224,15 @@ def cogvideox_sampler(
         generator,
         latents,
     )
+ 
+
+    timesteps, num_inference_steps = get_timesteps(cogvideo_pipeline, num_inference_steps, denoise_strength, device)
+    latent_timestep = timesteps[:1]
+    
+    noise_latents = randn_tensor(latents.shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
+     
+    latents = cogvideo_pipeline.scheduler.add_noise(latents, noise_latents, latent_timestep)
+
     latents = latents.to(cogvideo_pipeline.transformer.dtype)
 
     # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
@@ -638,7 +668,9 @@ class CogVideoSampler:
                 "height": ("INT", {"default": 480, "min": 128, "max": 2048, "step": 8}),
                 "width": ("INT", {"default": 720, "min": 128, "max": 2048, "step": 8}),
                 "steps": ("INT", {"default": 50, "min": 1}),
+                "num_frames": ("INT", {"default": 49, "min": 8, "max": 49}),
                 "cfg": ("FLOAT", {"default": 6.0, "min": 0.0, "max": 30.0, "step": 0.01}),
+                "denoise_strength": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 1.0, "step": 0.01}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             },
             "optional": {
@@ -653,7 +685,7 @@ class CogVideoSampler:
     CATEGORY = "sampler"
     DESCRIPTION = """CogVideoX sampler"""
 
-    def process(self, pipeline, positive, negative, steps, cfg, seed, height, width, samples=None, scheduler=None):
+    def process(self, pipeline, positive, negative, steps, num_frames, cfg, denoise_strength, seed, height, width, samples=None, scheduler=None):
         mm.soft_empty_cache()
  
         device = mm.get_torch_device()
@@ -671,7 +703,9 @@ class CogVideoSampler:
                 num_inference_steps=steps,
                 height = height,
                 width = width,
+                num_frames=(num_frames-1), # frames - 1 step zero frame start
                 guidance_scale=cfg,
+                denoise_strength=denoise_strength,
                 latents=samples["samples"] if samples is not None else None,
                 prompt_embeds=positive.to(dtype).to(device),
                 negative_prompt_embeds=negative.to(dtype).to(device),
@@ -724,7 +758,7 @@ class CogVideoSamplerDecodeImages:
             )
         else:
             vae3d.disable_tiling()
-            
+
         latents = latents.to(vae3d.dtype)
         latents = latents.permute(0, 2, 1, 3, 4)  # [batch_size, num_channels, num_frames, height, width]
         latents = 1 / vae3d.config.scaling_factor * latents
