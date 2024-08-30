@@ -1544,8 +1544,11 @@ class LoadImage:
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
-    def load_image(self, image):
-        image_path = folder_paths.get_annotated_filepath(image)
+    def load_image(self, image, abs_path=False):
+        if not abs_path:
+            image_path = folder_paths.get_annotated_filepath(image)
+        else:
+            image_path = image
         
         img = node_helpers.pillow(Image.open, image_path)
         
