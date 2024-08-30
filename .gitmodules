@@ -1,0 +1,6 @@
+[submodule "ComfyUI-Manager"]
+	path = ComfyUI-Manager
+	url = https://github.com/ltdrdata/ComfyUI-Manager
+[submodule "ComfyUI-to-Python-Extension"]
+	path = ComfyUI-to-Python-Extension
+	url = https://github.com/Alschain/ComfyUI-to-Python-Extension
