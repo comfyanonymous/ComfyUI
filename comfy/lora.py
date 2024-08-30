@@ -540,7 +540,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
             b2 = comfy.model_management.cast_to_device(v[3].flatten(start_dim=1), weight.device, intermediate_dtype)
 
             try:
-                lora_diff = (torch.mm(b2, b1) + torch.mm(torch.mm(weight.flatten(start_dim=1), a2), a1)).reshape(weight.shape)
+                lora_diff = (torch.mm(b2, b1) + torch.mm(torch.mm(weight.flatten(start_dim=1).to(dtype=intermediate_dtype), a2), a1)).reshape(weight.shape)
                 if dora_scale is not None:
                     weight = function(weight_decompose(dora_scale, weight, lora_diff, alpha, strength, intermediate_dtype))
                 else:
