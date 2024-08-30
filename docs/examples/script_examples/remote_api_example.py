@@ -42,7 +42,7 @@ _PROMPT_FROM_WEB_UI = {
     "4": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {
-            "ckpt_name": "v1-5-pruned-emaonly.ckpt"
+            "ckpt_name": "v1-5-pruned-emaonly.safetensors"
         }
     },
     "5": {
