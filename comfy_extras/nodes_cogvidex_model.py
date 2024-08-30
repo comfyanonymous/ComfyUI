@@ -87,6 +87,7 @@ def prepare_extra_step_kwargs(
     return extra_step_kwargs
 
 
+
 def prepare_latents(
     cogvideo_pipeline: CogVideoXPipeline,
     batch_size, num_channels_latents, num_frames, height, width, dtype, device, generator, latents=None
@@ -211,6 +212,7 @@ def cogvideox_sampler(
     cogvideo_pipeline._num_timesteps = len(timesteps)
 
     # 5. Prepare latents.
+    current_frames = latents.shape[1] if latents is not None else (num_frames - 1) // cogvideo_pipeline.vae_scale_factor_temporal + 1
     latent_channels = cogvideo_pipeline.transformer.config.in_channels
     latents = prepare_latents(
         cogvideo_pipeline,
@@ -229,10 +231,24 @@ def cogvideox_sampler(
     timesteps, num_inference_steps = get_timesteps(cogvideo_pipeline, num_inference_steps, denoise_strength, device)
     latent_timestep = timesteps[:1]
     
-    noise_latents = randn_tensor(latents.shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
-     
+    # images to video latents
+    # Check if the number of frames needed matches the current frames
+    frames_shape = (
+        batch_size,
+        (num_frames - 1) // cogvideo_pipeline.vae_scale_factor_temporal + 1,
+        latent_channels,
+        height // cogvideo_pipeline.vae_scale_factor_spatial,
+        width // cogvideo_pipeline.vae_scale_factor_spatial,
+    )
+    noise_latents = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
+    frames_needed = frames_shape[1]
+    if frames_needed > current_frames:
+        repeat_factor = frames_needed - current_frames
+        additional_frame = torch.randn((latents.size(0), repeat_factor, latents.size(2), latents.size(3), latents.size(4)), dtype=latents.dtype, device=latents.device)
+        latents = torch.cat((latents, additional_frame), dim=1)
+    elif frames_needed < current_frames:
+        latents = latents[:, :frames_needed, :, :, :]
     latents = cogvideo_pipeline.scheduler.add_noise(latents, noise_latents, latent_timestep)
-
     latents = latents.to(cogvideo_pipeline.transformer.dtype)
 
     # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
