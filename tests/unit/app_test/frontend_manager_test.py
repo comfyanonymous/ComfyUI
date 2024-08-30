@@ -87,15 +87,15 @@ def test_init_frontend_invalid_provider():
 
 @pytest.fixture
 def mock_os_functions():
-    with patch('app.frontend_management.os.makedirs') as mock_makedirs, \
-         patch('app.frontend_management.os.listdir') as mock_listdir, \
-         patch('app.frontend_management.os.rmdir') as mock_rmdir:
+    with patch('comfy.app.frontend_management.os.makedirs') as mock_makedirs, \
+         patch('comfy.app.frontend_management.os.listdir') as mock_listdir, \
+         patch('comfy.app.frontend_management.os.rmdir') as mock_rmdir:
         mock_listdir.return_value = []  # Simulate empty directory
         yield mock_makedirs, mock_listdir, mock_rmdir
 
 @pytest.fixture
 def mock_download():
-    with patch('app.frontend_management.download_release_asset_zip') as mock:
+    with patch('comfy.app.frontend_management.download_release_asset_zip') as mock:
         mock.side_effect = Exception("Download failed")  # Simulate download failure
         yield mock
 
