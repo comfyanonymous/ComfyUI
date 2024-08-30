@@ -92,7 +92,7 @@ class LatentPreviewMethod(enum.Enum):
 
 parser.add_argument("--preview-method", type=LatentPreviewMethod, default=LatentPreviewMethod.NoPreviews, help="Default preview method for sampler nodes.", action=EnumAction)
 
-parser.add_argument("--preview-size", type=int, default=512, help="Default preview size for sampler nodes.")
+parser.add_argument("--preview-size", type=int, default=512, help="Sets the maximum preview size for sampler nodes.")
 
 cache_group = parser.add_mutually_exclusive_group()
 cache_group.add_argument("--cache-classic", action="store_true", help="Use the old style (aggressive) caching.")
