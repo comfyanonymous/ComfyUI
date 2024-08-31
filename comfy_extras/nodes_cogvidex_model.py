@@ -108,6 +108,8 @@ def prepare_latents(
     if latents is None:
         latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
     else:
+        if latents.shape != shape:
+                raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {shape}")
         latents = latents.to(device)
 
     # scale the initial noise by the standard deviation required by the scheduler
@@ -132,6 +134,9 @@ def cogvideox_sampler(
     prompt_embeds: Optional[torch.FloatTensor] = None,
     negative_prompt_embeds: Optional[torch.FloatTensor] = None, 
     device = torch.device("cuda"),
+    noise_rectification_period: Optional[list] = None,
+    noise_rectification_weight_start_omega = 1.0,
+    noise_rectification_weight_end_omega = 0.5,
 ):
     """
     Function invoked when calling the pipeline for generation.
@@ -181,6 +186,8 @@ def cogvideox_sampler(
             Pre-generated negative text embeddings. Can be used to easily tweak text inputs, *e.g.* prompt
             weighting. If not provided, negative_prompt_embeds will be generated from `negative_prompt` input
             argument.
+        noise_rectification_period (`List[int]`, *optional*): https://arxiv.org/pdf/2403.02827
+        
     """
     if num_frames > 49:
         raise ValueError(
@@ -240,15 +247,21 @@ def cogvideox_sampler(
         height // cogvideo_pipeline.vae_scale_factor_spatial,
         width // cogvideo_pipeline.vae_scale_factor_spatial,
     )
-    noise_latents = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
+ 
     frames_needed = frames_shape[1]
+    
+    # https://arxiv.org/pdf/2403.02827 Our method first adds noise to the input image and keep the added noise for latter rectification.
+    noise = latents.clone()
+    init_latents = None
+    video_length = (num_frames - 1) // cogvideo_pipeline.vae_scale_factor_temporal + 1
     if frames_needed > current_frames:
-        repeat_factor = frames_needed - current_frames
-        additional_frame = torch.randn((latents.size(0), repeat_factor, latents.size(2), latents.size(3), latents.size(4)), dtype=latents.dtype, device=latents.device)
-        latents = torch.cat((latents, additional_frame), dim=1)
+        # images lanets frame is index 0 ，get the noise latents 
+        init_latents = latents[:, 0, :, :, :, :]
     elif frames_needed < current_frames:
         latents = latents[:, :frames_needed, :, :, :]
-    latents = cogvideo_pipeline.scheduler.add_noise(latents, noise_latents, latent_timestep)
+    
+    if init_latents is not None:
+        latents = cogvideo_pipeline.scheduler.add_noise(init_latents, noise, latent_timestep)
     latents = latents.to(cogvideo_pipeline.transformer.dtype)
 
     # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
@@ -296,6 +309,20 @@ def cogvideox_sampler(
             if do_classifier_free_guidance:
                 noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                 noise_pred = noise_pred_uncond + cogvideo_pipeline.guidance_scale * (noise_pred_text - noise_pred_uncond)
+            # [The core code of our method.]
+            # https://arxiv.org/pdf/2403.02827 our method rectifies the predicted noise with the GT noise to realize image-to-video.
+            if noise_rectification_period is not None:
+                assert len(noise_rectification_period) == 2
+                noise_rectification_weight = torch.cat([torch.linspace(noise_rectification_weight_start_omega, noise_rectification_weight_end_omega, video_length//2), 
+                                                        torch.linspace(noise_rectification_weight_end_omega, noise_rectification_weight_end_omega, video_length//2)])
+                noise_rectification_weight = noise_rectification_weight.view(1, video_length, 1, 1, 1)
+                noise_rectification_weight = noise_rectification_weight.to(latent_model_input.dtype).to(latent_model_input.device)
+
+                if i >= len(timesteps) * noise_rectification_period[0] and i < len(timesteps) * noise_rectification_period[1]:
+                    delta_frames = noise - noise_pred
+                    delta_noise_adjust = noise_rectification_weight * (delta_frames[:,:,[0],:,:].repeat((1, video_length, 1, 1, 1))) + \
+                                        (1 - noise_rectification_weight) * delta_frames
+                    noise_pred = noise_pred + delta_noise_adjust
 
             # compute the previous noisy sample x_t -> x_t-1
             if not isinstance(cogvideo_pipeline.scheduler, CogVideoXDPMScheduler):
