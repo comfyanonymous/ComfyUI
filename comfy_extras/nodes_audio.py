@@ -123,7 +123,8 @@ class SaveAudio:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "audio": ("AUDIO", ),
-                              "filename_prefix": ("STRING", {"default": "audio/ComfyUI"})},
+                              "filename_prefix": ("STRING", {"default": "audio/ComfyUI"}),
+                              "file_format": (["wav", "flac"],{"default": "flac"})},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -134,7 +135,7 @@ class SaveAudio:
 
     CATEGORY = "audio"
 
-    def save_audio(self, audio, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+    def save_audio(self, audio, filename_prefix="ComfyUI", file_format="flac", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
         results = list()
@@ -149,12 +150,13 @@ class SaveAudio:
 
         for (batch_number, waveform) in enumerate(audio["waveform"].cpu()):
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
-            file = f"{filename_with_batch_num}_{counter:05}_.flac"
+            file = f"{filename_with_batch_num}_{counter:05}_.{file_format}"
 
             buff = io.BytesIO()
-            torchaudio.save(buff, waveform, audio["sample_rate"], format="FLAC")
+            torchaudio.save(buff, waveform, audio["sample_rate"], format=file_format)
 
-            buff = insert_or_replace_vorbis_comment(buff, metadata)
+            if (file_format == "flac"):
+                buff = insert_or_replace_vorbis_comment(buff, metadata)
 
             with open(os.path.join(full_output_folder, file), 'wb') as f:
                 f.write(buff.getbuffer())
