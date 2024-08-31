@@ -64414,7 +64414,7 @@ if (__INTLIFY_PROD_DEVTOOLS__) {
   setDevToolsHook(target.__INTLIFY_DEVTOOLS_GLOBAL_HOOK__);
 }
 if (false) ;
-const GITHUB_API_URL = "https://api.github.com/search/issues";
+const GITHUB_API_URL = "";
 const _sfc_main$t = /* @__PURE__ */ defineComponent({
   __name: "FindIssueButton",
   props: {
@@ -64610,12 +64610,6 @@ ${workflowText}
               repoOwner,
               repoName
             }, null, 8, ["errorMessage"]),
-            createVNode(unref(script$J), {
-              label: _ctx.$t("openNewIssue"),
-              icon: "pi pi-github",
-              onClick: openNewGithubIssue,
-              class: "p-button-secondary"
-            }, null, 8, ["label"]),
             reportOpen.value ? (openBlock(), createBlock(unref(script$J), {
               key: 0,
               label: _ctx.$t("copyToClipboard"),
