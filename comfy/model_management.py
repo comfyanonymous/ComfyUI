@@ -370,12 +370,9 @@ def offloaded_memory(loaded_models, device):
             offloaded_mem += m.model_offloaded_memory()
     return offloaded_mem
 
-def minimum_inference_memory():
-    return (1024 * 1024 * 1024) * 1.2
-
-EXTRA_RESERVED_VRAM = 200 * 1024 * 1024
+EXTRA_RESERVED_VRAM = 400 * 1024 * 1024
 if any(platform.win32_ver()):
-    EXTRA_RESERVED_VRAM = 500 * 1024 * 1024 #Windows is higher because of the shared vram issue
+    EXTRA_RESERVED_VRAM = 600 * 1024 * 1024 #Windows is higher because of the shared vram issue
 
 if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
@@ -383,6 +380,9 @@ if args.reserve_vram is not None:
 
 def extra_reserved_memory():
     return EXTRA_RESERVED_VRAM
+
+def minimum_inference_memory():
+    return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
 
 def unload_model_clones(model, unload_weights_only=True, force_unload=True):
     to_unload = []
