@@ -95,17 +95,16 @@ class ComfyClient:
                     pass # Probably want to store this off for testing
 
         history = self.get_history(prompt_id)[prompt_id]
-        for o in history['outputs']:
-            for node_id in history['outputs']:
-                node_output = history['outputs'][node_id]
-                result.outputs[node_id] = node_output
-                if 'images' in node_output:
-                    images_output = []
-                    for image in node_output['images']:
-                        image_data = self.get_image(image['filename'], image['subfolder'], image['type'])
-                        image_obj = Image.open(BytesIO(image_data))
-                        images_output.append(image_obj)
-                    node_output['image_objects'] = images_output
+        for node_id in history['outputs']:
+            node_output = history['outputs'][node_id]
+            result.outputs[node_id] = node_output
+            images_output = []
+            if 'images' in node_output:
+                for image in node_output['images']:
+                    image_data = self.get_image(image['filename'], image['subfolder'], image['type'])
+                    image_obj = Image.open(BytesIO(image_data))
+                    images_output.append(image_obj)
+                node_output['image_objects'] = images_output
 
         return result
 
@@ -357,6 +356,25 @@ class TestExecution:
             assert 'prompt_id' in e.args[0], f"Did not get back a proper error message: {e}"
             assert e.args[0]['node_id'] == generator.id, "Error should have been on the generator node"
 
+    def test_missing_node_error(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        input2 = g.node("StubImage", id="removeme", content="WHITE", height=512, width=512, batch_size=1)
+        input3 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+        mask = g.node("StubMask", value=0.5, height=512, width=512, batch_size=1)
+        mix1 = g.node("TestLazyMixImages", image1=input1.out(0), image2=input2.out(0), mask=mask.out(0))
+        mix2 = g.node("TestLazyMixImages", image1=input1.out(0), image2=input3.out(0), mask=mask.out(0))
+        # We have multiple outputs. The first is invalid, but the second is valid
+        g.node("SaveImage", images=mix1.out(0))
+        g.node("SaveImage", images=mix2.out(0))
+        g.remove_node("removeme")
+        
+        client.run(g)
+
+        # Add back in the missing node to make sure the error doesn't break the server
+        input2 = g.node("StubImage", id="removeme", content="WHITE", height=512, width=512, batch_size=1)
+        client.run(g)
+
     def test_custom_is_changed(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         # Creating the nodes in this specific order previously caused a bug
@@ -450,8 +468,8 @@ class TestExecution:
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
 
-        output1 = g.node("PreviewImage", images=input1.out(0))
-        output2 = g.node("PreviewImage", images=input1.out(0))
+        output1 = g.node("SaveImage", images=input1.out(0))
+        output2 = g.node("SaveImage", images=input1.out(0))
 
         result = client.run(g)
         images1 = result.get_images(output1)
@@ -459,3 +477,22 @@ class TestExecution:
         assert len(images1) == 1, "Should have 1 image"
         assert len(images2) == 1, "Should have 1 image"
 
+
+    # This tests that only constant outputs are used in the call to `IS_CHANGED`
+    def test_is_changed_with_outputs(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubConstantImage", value=0.5, height=512, width=512, batch_size=1)
+        test_node = g.node("TestIsChangedWithConstants", image=input1.out(0), value=0.5)
+
+        output = g.node("PreviewImage", images=test_node.out(0))
+
+        result = client.run(g)
+        images = result.get_images(output)
+        assert len(images) == 1, "Should have 1 image"
+        assert numpy.array(images[0]).min() == 63 and numpy.array(images[0]).max() == 63, "Image should have value 0.25"
+
+        result = client.run(g)
+        images = result.get_images(output)
+        assert len(images) == 1, "Should have 1 image"
+        assert numpy.array(images[0]).min() == 63 and numpy.array(images[0]).max() == 63, "Image should have value 0.25"
+        assert not result.did_run(test_node), "The execution should have been cached"

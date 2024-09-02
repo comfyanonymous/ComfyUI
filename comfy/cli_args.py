@@ -123,6 +123,7 @@ parser.add_argument("--default-hashing-function", type=str, choices=['md5', 'sha
 
 parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
 parser.add_argument("--deterministic", action="store_true", help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")
+parser.add_argument("--fast", action="store_true", help="Enable some untested and potentially quality deteriorating optimizations.")
 
 parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
 parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
@@ -178,10 +179,3 @@ if args.windows_standalone_build:
 
 if args.disable_auto_launch:
     args.auto_launch = False
-
-import logging
-logging_level = logging.INFO
-if args.verbose:
-    logging_level = logging.DEBUG
-
-logging.basicConfig(format="%(message)s", level=logging_level)

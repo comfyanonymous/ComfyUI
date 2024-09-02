@@ -528,6 +528,8 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
         ("guidance_in.out_layer.weight", "time_text_embed.guidance_embedder.linear_2.weight"),
         ("final_layer.adaLN_modulation.1.bias", "norm_out.linear.bias", swap_scale_shift),
         ("final_layer.adaLN_modulation.1.weight", "norm_out.linear.weight", swap_scale_shift),
+        ("pos_embed_input.bias", "controlnet_x_embedder.bias"),
+        ("pos_embed_input.weight", "controlnet_x_embedder.weight"),
     }
 
     for k in MAP_BASIC:
