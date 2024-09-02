@@ -1474,7 +1474,8 @@ class SaveImage:
         return {
             "required": {
                 "images": ("IMAGE", {"tooltip": "The images to save."}),
-                "filename_prefix": ("STRING", {"default": "ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."})
+                "filename_prefix": ("STRING", {"default": "ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."}),
+                "output_dir": ("STRING", {"default": "%USERPROFILE%\Documents\ComfyUIOutput", "tooltip": "A folder you want to save the images to instead"})
             },
             "hidden": {
                 "prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"
@@ -1493,6 +1494,12 @@ class SaveImage:
         # ===========================
         if not output_dir:
             output_dir = self.output_dir
+
+        output_dir = os.path.expandvars(output_dir)
+        if not os.path.isdir(output_dir):
+            logging.error(f"Output directory: {output_dir} does not exist")
+            raise FileNotFoundError(f"Output directory: {output_dir} does not exist")
+            return { "ui": { "images": () } }
         # ===========================
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, output_dir, images[0].shape[1], images[0].shape[0])
