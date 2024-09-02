@@ -4,6 +4,7 @@ import re
 import uuid
 import glob
 import shutil
+import urllib
 from aiohttp import web
 from comfy.cli_args import args
 from folder_paths import user_directory
@@ -139,6 +140,9 @@ class UserManager():
             if not file:
                 return web.Response(status=400)
                 
+            # Decode URL-encoded file path
+            file = urllib.parse.unquote(file);
+            
             path = self.get_request_user_filepath(request, file)
             if not path:
                 return web.Response(status=403)
