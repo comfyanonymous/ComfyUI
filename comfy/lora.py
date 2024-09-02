@@ -324,6 +324,7 @@ def model_lora_keys_unet(model, key_map={}):
                 to = diffusers_keys[k]
                 key_map["transformer.{}".format(k[:-len(".weight")])] = to #simpletrainer and probably regular diffusers flux lora format
                 key_map["lycoris_{}".format(k[:-len(".weight")].replace(".", "_"))] = to #simpletrainer lycoris
+                key_map["lora_transformer_{}".format(k[:-len(".weight")].replace(".", "_"))] = to #onetrainer
 
     return key_map
 
