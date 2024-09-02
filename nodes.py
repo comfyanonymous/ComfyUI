@@ -1475,7 +1475,7 @@ class SaveImage:
             "required": {
                 "images": ("IMAGE", {"tooltip": "The images to save."}),
                 "filename_prefix": ("STRING", {"default": "ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."}),
-                "output_dir": ("STRING", {"default": "%USERPROFILE%\Documents\ComfyUIOutput", "tooltip": "A folder you want to save the images to instead"})
+                "output_dir": ("STRING", {"default": "None", "tooltip": "A folder you want to save the images to instead"})
             },
             "hidden": {
                 "prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"
@@ -1492,10 +1492,23 @@ class SaveImage:
 
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None, output_dir=None):
         # ===========================
-        if not output_dir:
+        if not output_dir or output_dir == "None":
             output_dir = self.output_dir
 
         output_dir = os.path.expandvars(output_dir)
+
+        if output_dir.startswith("Z:\\"):
+            output_dir = output_dir.replace("Z:\\", "\\\\192.168.0.3\\Work\\", 1)
+        elif output_dir.startswith("A:\\"):
+            output_dir = output_dir.replace("A:\\", "\\\\192.168.1.1\\Assets\\", 1)
+        elif output_dir.startswith("Y:\\"):
+            output_dir = output_dir.replace("Y:\\", "\\\\pixstor.r42.pri\\frames\\", 1)
+
+        print("====================================")
+        print(f"output_dir is {output_dir}")
+        print("====================================")
+
+        # os.startfile(output_dir)
         if not os.path.isdir(output_dir):
             logging.error(f"Output directory: {output_dir} does not exist")
             raise FileNotFoundError(f"Output directory: {output_dir} does not exist")
