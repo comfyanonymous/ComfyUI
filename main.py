@@ -8,6 +8,9 @@ import time
 from comfy.cli_args import args
 from app.logger import setup_logger
 
+pid = str(os.getpid())
+with open("/tmp/ComfyUI.pid", "w") as f:
+    f.write(pid)
 
 setup_logger(verbose=args.verbose)
 
