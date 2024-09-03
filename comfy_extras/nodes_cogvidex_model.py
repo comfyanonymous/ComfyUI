@@ -36,6 +36,69 @@ def get_timesteps(
     return timesteps.to(device), num_inference_steps - t_start
 
 
+def _vae3d_encode(vae3d, input_image, generator: torch.Generator):
+    device = mm.get_torch_device()
+    offload_device = mm.unet_offload_device()
+    vae3d.to(device)
+    if generator is None:
+        generator = torch.Generator(device=input_image.device).manual_seed(0)
+
+    B, C, T, H, W = input_image.shape # Shape: [batch_size, num_channels, num_frames, height, width]
+    chunk_size = 16
+    latents_list = []
+    # Loop through the temporal dimension in chunks of 16
+    for i in range(0, T, chunk_size):
+        # Get the chunk of 16 frames (or remaining frames if less than 16 are left)
+        end_index = min(i + chunk_size, T)
+        image_chunk = input_image[:, :, i:end_index, :, :]  # Shape: [B, C, chunk_size, H, W]
+
+        # Encode the chunk of images
+        latents = vae3d.encode(image_chunk) # Shape: [B, chunk_size, T_num_channels, H, W]
+
+        sample_mode = "sample"
+        if hasattr(latents, "latent_dist") and sample_mode == "sample":
+            latents = latents.latent_dist.sample(generator)
+        elif hasattr(latents, "latent_dist") and sample_mode == "argmax":
+            latents = latents.latent_dist.mode()
+        elif hasattr(latents, "latents"):
+            latents = latents.latents
+
+        latents = vae3d.config.scaling_factor * latents
+        latents = latents.permute(0, 2, 1, 3, 4)  # B, T_chunk, C, H, W
+        latents_list.append(latents)
+
+    vae3d._clear_fake_context_parallel_cache()
+
+    # Concatenate all the chunks along the temporal dimension
+    final_latents = torch.cat(latents_list, dim=1)
+
+    vae3d.to(offload_device)
+    return final_latents
+
+
+def _vae3d_decode(vae3d, latents):
+    
+    device = mm.get_torch_device()
+    offload_device = mm.unet_offload_device()
+    vae3d.to(device)
+    latents = latents.to(vae3d.dtype)
+    latents = latents.permute(0, 2, 1, 3, 4)  # to Shape: [B, T_num_channels, chunk_size, H, W]
+    latents = 1 / vae3d.config.scaling_factor * latents
+
+    frames = vae3d.decode(latents).sample # B, C, F, H, W
+
+    batch_size = frames.shape[0]
+    outputs = []
+    for batch_idx in range(batch_size):
+        pt_image = frames[batch_idx].permute(1, 0, 2, 3)  # (to [num_frames, num_channels, w, h])
+
+        outputs.append(torch.stack(
+            [VaeImageProcessor.denormalize(pt_image[i]) for i in range(pt_image.shape[0])]
+        ))
+
+    vae3d.to(offload_device)
+    return torch.stack(outputs)
+
 def _prepare_rotary_positional_embeddings(
     cogvideo_pipeline: CogVideoXPipeline,
     height: int,
@@ -253,19 +316,29 @@ def cogvideox_sampler(
     noise = latents.clone()
     video_length = frames_shape[1]
     if video_length > current_frames:
-        # images lanets frame is index 0 ，get the noise latents 
-        init_latents = latents[:, 0:1, :, :, :] 
+        # images lanets frame is index 0 ，get the noise latents  
+        first_latents = latents[:, :current_frames, :, :, :] 
         repeat_factor = video_length - current_frames
-        additional_frame = torch.randn((latents.size(0), repeat_factor, latents.size(2), latents.size(3), latents.size(4)), dtype=latents.dtype, device=latents.device)
-        latents = torch.cat((latents, additional_frame), dim=1)
+        
+        latest_latents = latents[:, current_frames-2:, :, :, :] # to [B, T_num_channels, chunk_size, H, W]
+
+        output_frames = _vae3d_decode(cogvideo_pipeline.vae, latest_latents) # to [num_frames, num_channels, w, h]
+        end_frames = output_frames[:, output_frames.shape[1] - 1:, :, :, :]
+        repeated_end_frames = end_frames.repeat(1, repeat_factor  * cogvideo_pipeline.vae_scale_factor_temporal, 1, 1, 1)
+        input_image = repeated_end_frames.permute(0, 2, 1, 3, 4) # to [batch_size, num_channels, num_frames, height, width]
+        additional_frame = _vae3d_encode(cogvideo_pipeline.vae, input_image, generator)
+ 
+        init_latents = torch.cat((first_latents, additional_frame), dim=1)
+        
+        noise = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
     elif video_length < current_frames: 
         init_latents = latents[:, :video_length, :, :, :]
-        latents = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
+        noise = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
     else:
         init_latents = latents
-        latents = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
+        noise = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
 
-    latents = cogvideo_pipeline.scheduler.add_noise(init_latents, latents, latent_timestep)
+    latents = cogvideo_pipeline.scheduler.add_noise(init_latents, noise, latent_timestep)
     latents = latents.to(cogvideo_pipeline.transformer.dtype)
 
     # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
@@ -706,34 +779,9 @@ class CogVideoImageEncodeSampler:
     
         input_image = image.clone() * 2.0 - 1.0
         input_image = input_image.to(vae3d.dtype).to(device)
-        input_image = input_image.unsqueeze(0).permute(0, 4, 1, 2, 3) # B, C, T, H, W
+        input_image = input_image.unsqueeze(0).permute(0, 4, 1, 2, 3) # B, F, T, H, W
         B, C, T, H, W = input_image.shape
-        chunk_size = 16
-        latents_list = []
-        # Loop through the temporal dimension in chunks of 16
-        for i in range(0, T, chunk_size):
-            # Get the chunk of 16 frames (or remaining frames if less than 16 are left)
-            end_index = min(i + chunk_size, T)
-            image_chunk = input_image[:, :, i:end_index, :, :]  # Shape: [B, C, chunk_size, H, W]
-
-            # Encode the chunk of images
-            latents = vae3d.encode(image_chunk)
-
-            sample_mode = "sample"
-            if hasattr(latents, "latent_dist") and sample_mode == "sample":
-                latents = latents.latent_dist.sample(generator)
-            elif hasattr(latents, "latent_dist") and sample_mode == "argmax":
-                latents = latents.latent_dist.mode()
-            elif hasattr(latents, "latents"):
-                latents = latents.latents
-
-            latents = vae3d.config.scaling_factor * latents
-            latents = latents.permute(0, 2, 1, 3, 4)  # B, T_chunk, C, H, W
-            latents_list.append(latents)
-        vae3d._clear_fake_context_parallel_cache()
-
-        # Concatenate all the chunks along the temporal dimension
-        final_latents = torch.cat(latents_list, dim=1)
+        final_latents = _vae3d_encode(vae3d=vae3d, input_image=input_image, generator=generator)
         
         vae3d.to(offload_device)
         
@@ -842,25 +890,11 @@ class CogVideoSamplerDecodeImages:
         else:
             vae3d.disable_tiling()
 
-        latents = latents.to(vae3d.dtype)
-        latents = latents.permute(0, 2, 1, 3, 4)  # [batch_size, num_channels, num_frames, height, width]
-        latents = 1 / vae3d.config.scaling_factor * latents
-
-        frames = vae3d.decode(latents).sample # B, C, F, H, W
+        outputs = _vae3d_decode(vae3d=vae3d, latents=latents)
         vae3d.to(offload_device)
         mm.soft_empty_cache()
          
-        batch_size = frames.shape[0]
-        outputs = []
-        for batch_idx in range(batch_size):
-            pt_image = frames[batch_idx].permute(1, 0, 2, 3)  # (to [f, c, w, h])
-
-            outputs.append(torch.stack(
-                [VaeImageProcessor.denormalize(pt_image[i]) for i in range(pt_image.shape[0])]
-            ))
-            
-
-        return (torch.stack(outputs),)
+        return (outputs,)
 
 
 
