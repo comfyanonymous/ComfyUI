@@ -61,6 +61,7 @@ cpu_state = CPUState.GPU
 total_vram = 0
 
 xpu_available = False
+torch_version = ""
 try:
     torch_version = torch.version.__version__
     xpu_available = (int(torch_version[0]) < 2 or (int(torch_version[0]) == 2 and int(torch_version[2]) <= 4)) and torch.xpu.is_available()
@@ -419,13 +420,11 @@ def offloaded_memory(loaded_models, device):
     return offloaded_mem
 
 
-def minimum_inference_memory():
-    return (1024 * 1024 * 1024) * 1.2
+WINDOWS = any(platform.win32_ver())
 
-
-EXTRA_RESERVED_VRAM = 200 * 1024 * 1024
-if any(platform.win32_ver()):
-    EXTRA_RESERVED_VRAM = 500 * 1024 * 1024  # Windows is higher because of the shared vram issue
+EXTRA_RESERVED_VRAM = 400 * 1024 * 1024
+if WINDOWS:
+    EXTRA_RESERVED_VRAM = 600 * 1024 * 1024  # Windows is higher because of the shared vram issue
 
 if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
@@ -434,6 +433,10 @@ if args.reserve_vram is not None:
 
 def extra_reserved_memory():
     return EXTRA_RESERVED_VRAM
+
+
+def minimum_inference_memory():
+    return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
 
 
 def unload_model_clones(model, unload_weights_only=True, force_unload=True) -> bool | Literal[None]:
@@ -1119,7 +1122,10 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     nvidia_10_series = ["1080", "1070", "titan x", "p3000", "p3200", "p4000", "p4200", "p5000", "p5200", "p6000", "1060", "1050", "p40", "p100", "p6", "p4"]
     for x in nvidia_10_series:
         if x in props.name.lower():
-            return True
+            if WINDOWS or manual_cast:
+                return True
+            else:
+                return False  # weird linux behavior where fp32 is faster
 
     if manual_cast:
         free_model_memory = maximum_vram_for_weights(device)

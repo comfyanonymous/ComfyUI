@@ -1,7 +1,11 @@
-from aiohttp import web
+import logging
 from typing import Optional
-from ....cmd.folder_paths import models_dir, user_directory, output_directory
+
+from aiohttp import web
+
 from ...services.file_service import FileService
+from ....cmd.folder_paths import models_dir, user_directory, output_directory
+
 
 class InternalRoutes:
     '''
@@ -10,6 +14,7 @@ class InternalRoutes:
     Check README.md for more information.
     
     '''
+
     def __init__(self):
         self.routes: web.RouteTableDef = web.RouteTableDef()
         self._app: Optional[web.Application] = None
@@ -31,6 +36,10 @@ class InternalRoutes:
             except Exception as e:
                 return web.json_response({"error": str(e)}, status=500)
 
+        @self.routes.get('/logs')
+        async def get_logs(request):
+            # todo: applications really shouldn't serve logs like this
+            return web.json_response({})
 
     def get_app(self):
         if self._app is None:

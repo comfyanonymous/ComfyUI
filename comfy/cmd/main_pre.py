@@ -7,13 +7,13 @@ Use this instead of cli_args to import the args:
 
 It will enable command line argument parsing. If this isn't desired, you must author your own implementation of these fixes.
 """
+import ctypes
 import importlib.util
 import logging
 import os
 import shutil
 import sys
 import warnings
-import ctypes
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -110,6 +110,15 @@ def _create_tracer():
     return trace.get_tracer(args.otel_service_name)
 
 
+def _configure_logging():
+    logging_level = logging.INFO
+    if args.verbose:
+        logging_level = logging.DEBUG
+
+    logging.basicConfig(format="%(message)s", level=logging_level)
+
+
+_configure_logging()
 _fix_pytorch_240()
 tracer = _create_tracer()
 __all__ = ["args", "tracer"]

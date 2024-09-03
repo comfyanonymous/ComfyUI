@@ -33,8 +33,6 @@ from .cldm import cldm, mmdit
 from .ldm import hydit
 from .ldm.cascade import controlnet as cascade_controlnet
 from .ldm.flux import controlnet as controlnet_flux
-from .ldm.flux.controlnet_instantx import InstantXControlNetFlux
-from .ldm.flux.controlnet_instantx_format2 import InstantXControlNetFluxFormat2
 from .ldm.flux.weight_dtypes import FLUX_WEIGHT_DTYPES
 from .t2i_adapter import adapter
 
@@ -509,7 +507,12 @@ def load_controlnet_flux_instantx(sd):
     for k in sd:
         new_sd[k] = sd[k]
 
-    control_model = controlnet_flux.ControlNetFlux(latent_input=True, operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
+    num_union_modes = 0
+    union_cnet = "controlnet_mode_embedder.weight"
+    if union_cnet in new_sd:
+        num_union_modes = new_sd[union_cnet].shape[0]
+
+    control_model = controlnet_flux.ControlNetFlux(latent_input=True, num_union_modes=num_union_modes, operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
     control_model = controlnet_load_state_dict(control_model, new_sd)
 
     latent_format = latent_formats.Flux()
@@ -519,10 +522,6 @@ def load_controlnet_flux_instantx(sd):
 
 def load_controlnet(ckpt_path, model=None, weight_dtype=FLUX_WEIGHT_DTYPES[0]):
     controlnet_data = utils.load_torch_file(ckpt_path, safe_load=True)
-    if "controlnet_mode_embedder.weight" in controlnet_data:
-        return load_controlnet_flux_instantx_union(controlnet_data, InstantXControlNetFluxFormat2, weight_dtype, ckpt_path)
-    if "controlnet_mode_embedder.fc.weight" in controlnet_data:
-        return load_controlnet_flux_instantx_union(controlnet_data, InstantXControlNetFlux, weight_dtype, ckpt_path)
     if 'after_proj_list.18.bias' in controlnet_data.keys():  # Hunyuan DiT
         return load_controlnet_hunyuandit(controlnet_data)
     if "lora_controlnet" in controlnet_data:

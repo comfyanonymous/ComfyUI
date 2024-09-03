@@ -25,13 +25,11 @@ from aiohttp import web
 from can_ada import URL, parse as urlparse  # pylint: disable=no-name-in-module
 from typing_extensions import NamedTuple
 
-from ..api_server.routes.internal.internal_routes import InternalRoutes
-from ..model_filemanager import download_model, DownloadModelStatus
 from .latent_preview_image_encoding import encode_preview_image
 from .. import interruption
-from .. import model_management
 from .. import node_helpers
 from .. import utils
+from ..api_server.routes.internal.internal_routes import InternalRoutes
 from ..app.frontend_management import FrontendManager
 from ..app.user_manager import UserManager
 from ..cli_args import args
@@ -45,6 +43,8 @@ from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTy
     ExecutionStatus
 from ..digest import digest
 from ..images import open_image
+from ..model_filemanager import download_model, DownloadModelStatus
+from ..model_management import get_torch_device, get_torch_device_name, get_total_memory, get_free_memory, torch_version
 from ..nodes.package_typing import ExportedNodes
 
 
@@ -58,6 +58,22 @@ async def send_socket_catch_exception(function, message):
         await function(message)
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError) as err:
         logging.warning("send error: {}".format(err))
+
+
+def get_comfyui_version():
+    comfyui_version = "unknown"
+    repo_path = os.path.dirname(os.path.realpath(__file__))
+    try:
+        import pygit2
+        repo = pygit2.Repository(repo_path)
+        comfyui_version = repo.describe(describe_strategy=pygit2.GIT_DESCRIBE_TAGS)
+    except Exception:
+        try:
+            import subprocess
+            comfyui_version = subprocess.check_output(["git", "describe", "--tags"], cwd=repo_path).decode('utf-8')
+        except Exception as e:
+            logging.warning(f"Failed to get ComfyUI version: {e}")
+    return comfyui_version.strip()
 
 
 @web.middleware
@@ -104,7 +120,7 @@ class PromptServer(ExecutorToClientProgress):
         self.prompt_queue: AbstractPromptQueue | AsyncAbstractPromptQueue | None = None
         self.loop: AbstractEventLoop = loop
         self.messages: asyncio.Queue = asyncio.Queue()
-        self.client_session:Optional[aiohttp.ClientSession] = None
+        self.client_session: Optional[aiohttp.ClientSession] = None
         self.number: int = 0
         self.port: int = 8188
         self._external_address: Optional[str] = None
@@ -418,16 +434,20 @@ class PromptServer(ExecutorToClientProgress):
             return web.json_response(dt["__metadata__"])
 
         @routes.get("/system_stats")
-        async def get_system_stats(request):
-            device = model_management.get_torch_device()
-            device_name = model_management.get_torch_device_name(device)
-            vram_total, torch_vram_total = model_management.get_total_memory(device, torch_total_too=True)
-            vram_free, torch_vram_free = model_management.get_free_memory(device, torch_free_too=True)
+        async def system_stats(request):
+            device = get_torch_device()
+            device_name = get_torch_device_name(device)
+            vram_total, torch_vram_total = get_total_memory(device, torch_total_too=True)
+            vram_free, torch_vram_free = get_free_memory(device, torch_free_too=True)
+
             system_stats = {
                 "system": {
                     "os": os.name,
+                    "comfyui_version": get_comfyui_version(),
                     "python_version": sys.version,
-                    "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded"
+                    "pytorch_version": torch_version,
+                    "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
+                    "argv": sys.argv
                 },
                 "devices": [
                     {
@@ -611,7 +631,7 @@ class PromptServer(ExecutorToClientProgress):
             url = data.get('url')
             model_directory = data.get('model_directory')
             model_filename = data.get('model_filename')
-            progress_interval = data.get('progress_interval', 1.0) # In seconds, how often to report download progress.
+            progress_interval = data.get('progress_interval', 1.0)  # In seconds, how often to report download progress.
 
             if not url or not model_directory or not model_filename:
                 return web.json_response({"status": "error", "message": "Missing URL or folder path or filename"}, status=400)
@@ -776,7 +796,7 @@ class PromptServer(ExecutorToClientProgress):
         self._external_address = value
 
     async def setup(self):
-        timeout = aiohttp.ClientTimeout(total=None) # no timeout
+        timeout = aiohttp.ClientTimeout(total=None)  # no timeout
         self.client_session = aiohttp.ClientSession(timeout=timeout)
 
     def add_routes(self):
