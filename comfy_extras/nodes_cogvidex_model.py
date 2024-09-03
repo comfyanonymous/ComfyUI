@@ -1,5 +1,5 @@
 import os
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 import torch
 import folder_paths
 import comfy.model_management as mm
@@ -8,8 +8,7 @@ from diffusers.schedulers import CogVideoXDDIMScheduler, CogVideoXDPMScheduler
 from diffusers.models import AutoencoderKLCogVideoX, CogVideoXTransformer3DModel
 from diffusers import CogVideoXPipeline
 from diffusers.pipelines.cogvideo.pipeline_cogvideox import retrieve_timesteps, get_resize_crop_region_for_grid, get_3d_rotary_pos_embed
-from diffusers.utils.torch_utils import randn_tensor
-from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
+from diffusers.utils.torch_utils import randn_tensor 
 
 from diffusers.image_processor import VaeImageProcessor
 from transformers.models.t5.modeling_t5 import T5EncoderModel
@@ -108,8 +107,8 @@ def prepare_latents(
     if latents is None:
         latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
     else:
-        if latents.shape != shape:
-                raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {shape}")
+        # if latents.shape != shape:
+        #         raise ValueError(f"Unexpected latents shape, got {latents.shape}, expected {shape}")
         latents = latents.to(device)
 
     # scale the initial noise by the standard deviation required by the scheduler
@@ -247,21 +246,26 @@ def cogvideox_sampler(
         height // cogvideo_pipeline.vae_scale_factor_spatial,
         width // cogvideo_pipeline.vae_scale_factor_spatial,
     )
- 
-    frames_needed = frames_shape[1]
-    
+   
     # https://arxiv.org/pdf/2403.02827 Our method first adds noise to the input image and keep the added noise for latter rectification.
-    noise = latents.clone()
+
     init_latents = None
-    video_length = (num_frames - 1) // cogvideo_pipeline.vae_scale_factor_temporal + 1
-    if frames_needed > current_frames:
+    noise = latents.clone()
+    video_length = frames_shape[1]
+    if video_length > current_frames:
         # images lanets frame is index 0 ，get the noise latents 
-        init_latents = latents[:, 0, :, :, :, :]
-    elif frames_needed < current_frames:
-        latents = latents[:, :frames_needed, :, :, :]
-    
-    if init_latents is not None:
-        latents = cogvideo_pipeline.scheduler.add_noise(init_latents, noise, latent_timestep)
+        init_latents = latents[:, 0:1, :, :, :] 
+        repeat_factor = video_length - current_frames
+        additional_frame = torch.randn((latents.size(0), repeat_factor, latents.size(2), latents.size(3), latents.size(4)), dtype=latents.dtype, device=latents.device)
+        latents = torch.cat((latents, additional_frame), dim=1)
+    elif video_length < current_frames: 
+        init_latents = latents[:, :video_length, :, :, :]
+        latents = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
+    else:
+        init_latents = latents
+        latents = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
+
+    latents = cogvideo_pipeline.scheduler.add_noise(init_latents, latents, latent_timestep)
     latents = latents.to(cogvideo_pipeline.transformer.dtype)
 
     # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
@@ -320,7 +324,7 @@ def cogvideox_sampler(
 
                 if i >= len(timesteps) * noise_rectification_period[0] and i < len(timesteps) * noise_rectification_period[1]:
                     delta_frames = noise - noise_pred
-                    delta_noise_adjust = noise_rectification_weight * (delta_frames[:,:,[0],:,:].repeat((1, video_length, 1, 1, 1))) + \
+                    delta_noise_adjust = noise_rectification_weight * (delta_frames[:,[0],:,:,:].repeat((1, video_length, 1, 1, 1))) + \
                                         (1 - noise_rectification_weight) * delta_frames
                     noise_pred = noise_pred + delta_noise_adjust
 
@@ -458,6 +462,37 @@ class CogVideoPipeExtra:
         return (t5_tokenizer, text_encoder, vae3d, transformer, scheduler, dtype)
      
 
+class CogVideoTextEncode:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "clip": ("CLIP",),
+            "prompt": ("STRING", {"default": "", "multiline": True, } ),
+            },
+            "optional": {
+                
+                "text": ("STRING", {"forceInput": True}),
+            }
+        }
+
+    RETURN_TYPES = ("CONDITIONING",)
+    RETURN_NAMES = ("conditioning",)
+    FUNCTION = "process"
+    CATEGORY = "CogVideoWrapper"
+
+    def process(self, clip, text, prompt):
+        load_device = mm.text_encoder_device()
+        offload_device = mm.text_encoder_offload_device()
+        clip.tokenizer.t5xxl.pad_to_max_length = True
+        clip.tokenizer.t5xxl.max_length = 226
+        clip.cond_stage_model.to(load_device)
+        tokens = clip.tokenize(prompt or text, return_word_ids=True)
+
+        embeds = clip.encode_from_tokens(tokens, return_pooled=False, return_dict=False)
+        clip.cond_stage_model.to(offload_device)
+
+        return (embeds, )
+    
 
 class CogVideoEncodePrompt:
     @classmethod
@@ -466,8 +501,13 @@ class CogVideoEncodePrompt:
             "t5_tokenizer": ("T5_TOKENIZER",),
             "text_encoder": ("TEXT_ENCODER",),
             "dtype": ("DTYPE",),
-            "prompt": ("STRING", {"default": "", "multiline": True} ),
-            "negative_prompt": ("STRING", {"default": "", "multiline": True} ),
+            "prompt": ("STRING", {"default": "", "multiline": True, } ),
+            "negative_prompt": ("STRING", {"default": "", "multiline": True,}, ),
+            },
+            "optional": {
+                    
+                "negative_text": ("STRING",{"forceInput": True}),
+                "positive_text": ("STRING",{"forceInput": True}),
             }
         }
 
@@ -602,7 +642,7 @@ class CogVideoEncodePrompt:
         return prompt_embeds, negative_prompt_embeds
 
 
-    def process(self, t5_tokenizer, text_encoder, dtype, prompt, negative_prompt):
+    def process(self, t5_tokenizer, text_encoder, dtype, positive_text, negative_text, prompt, negative_prompt):
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device() 
 
@@ -611,8 +651,8 @@ class CogVideoEncodePrompt:
         positive, negative = self._encode_prompt(
             t5_tokenizer,
             text_encoder,
-            prompt=prompt,
-            negative_prompt=negative_prompt,
+            prompt=prompt or positive_text,
+            negative_prompt=negative_prompt or negative_text,
             do_classifier_free_guidance=True,
             num_videos_per_prompt=1,
             max_sequence_length=226,
@@ -874,6 +914,7 @@ NODE_CLASS_MAPPINGS = {
     "CogVideoModelLoader": CogVideoModelLoader,
     "CogVideoSchedulerLoader": CogVideoSchedulerLoader,
     "CogVideoPipeExtra": CogVideoPipeExtra,
+    "CogVideoTextEncode": CogVideoTextEncode,
     "CogVideoEncodePrompt": CogVideoEncodePrompt,
     "CogVideoSampler": CogVideoSampler,
     "CogVideoImageEncodeSampler": CogVideoImageEncodeSampler,
@@ -884,6 +925,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CogVideoModelLoader": "CogVideo ModelLoader",
     "CogVideoSchedulerLoader": "CogVideo SchedulerLoader",
     "CogVideoPipeExtra": "CogVideo PipeExtra",
+    "CogVideoTextEncode": "CogVideo TextEncode",
     "CogVideoEncodePrompt": "CogVideo EncodePrompt",
     "CogVideoSampler": "CogVideo Sampler",
     "CogVideoDecode": "CogVideo Decode", 
