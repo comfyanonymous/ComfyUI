@@ -1492,30 +1492,11 @@ class SaveImage:
 
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None, output_dir=None):
         # ===========================
-        if not output_dir or output_dir == "None":
-            output_dir = self.output_dir
-
-        output_dir = os.path.expandvars(output_dir)
-
-        if output_dir.startswith("Z:\\"):
-            output_dir = output_dir.replace("Z:\\", "\\\\192.168.0.3\\Work\\", 1)
-        elif output_dir.startswith("A:\\"):
-            output_dir = output_dir.replace("A:\\", "\\\\192.168.1.1\\Assets\\", 1)
-        elif output_dir.startswith("Y:\\"):
-            output_dir = output_dir.replace("Y:\\", "\\\\pixstor.r42.pri\\frames\\", 1)
-
-        print("====================================")
-        print(f"output_dir is {output_dir}")
-        print("====================================")
-
-        # os.startfile(output_dir)
-        if not os.path.isdir(output_dir):
-            logging.error(f"Output directory: {output_dir} does not exist")
-            raise FileNotFoundError(f"Output directory: {output_dir} does not exist")
-            return { "ui": { "images": () } }
+        self.r42_custom_save_location(images, filename_prefix, prompt, extra_pnginfo, output_dir)
         # ===========================
+
         filename_prefix += self.prefix_append
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, output_dir, images[0].shape[1], images[0].shape[0])
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
         for (batch_number, image) in enumerate(images):
             i = 255. * image.cpu().numpy()
@@ -1531,7 +1512,9 @@ class SaveImage:
 
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.png"
+
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
+
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
@@ -1540,6 +1523,44 @@ class SaveImage:
             counter += 1
 
         return { "ui": { "images": results } }
+
+    def r42_custom_save_location(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None, output_dir=None):
+        if not output_dir or output_dir == "None":
+            return
+
+        output_dir = os.path.expandvars(output_dir)
+
+        if output_dir.startswith("Z:\\"):
+            output_dir = output_dir.replace("Z:\\", "\\\\192.168.0.3\\Work\\", 1)
+        elif output_dir.startswith("A:\\"):
+            output_dir = output_dir.replace("A:\\", "\\\\192.168.1.1\\Assets\\", 1)
+        elif output_dir.startswith("Y:\\"):
+            output_dir = output_dir.replace("Y:\\", "\\\\pixstor.r42.pri\\frames\\", 1)
+
+        if not os.path.isdir(output_dir):
+            logging.error(f"Output directory: {output_dir} does not exist")
+            raise FileNotFoundError(f"Output directory: {output_dir} does not exist")
+            return
+
+        filename_prefix += self.prefix_append
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix, output_dir, images[0].shape[1], images[0].shape[0])
+
+        for (batch_number, image) in enumerate(images):
+            i = 255. * image.cpu().numpy()
+            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+            metadata = None
+            if not args.disable_metadata:
+                metadata = PngInfo()
+                if prompt is not None:
+                    metadata.add_text("prompt", json.dumps(prompt))
+                if extra_pnginfo is not None:
+                    for x in extra_pnginfo:
+                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+
+            filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
+            file = f"{filename_with_batch_num}_{counter:05}_.png"
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
 
 class PreviewImage(SaveImage):
     def __init__(self):
