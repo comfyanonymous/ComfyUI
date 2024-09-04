@@ -20,6 +20,7 @@ class UserManager():
 
         self.settings = AppSettings(self)
         if not os.path.exists(user_directory):
+            print('Creating user directory: ', user_directory)
             os.mkdir(user_directory)
             if not args.multi_user:
                 print("****** User settings have been changed to be stored on the server instead of browser storage. ******")

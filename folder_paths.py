@@ -84,6 +84,14 @@ def get_input_directory() -> str:
     global input_directory
     return input_directory
 
+def get_user_directory() -> str:
+    global user_directory
+    return user_directory
+
+def set_user_directory(user_dir: str) -> None:
+    global user_directory
+    user_directory = user_dir
+
 
 #NOTE: used in http server so don't put folders that should not be accessed remotely
 def get_directory_by_type(type_name: str) -> str | None:
@@ -165,6 +173,13 @@ def add_model_folder_path(folder_name: str, full_folder_path: str) -> None:
         folder_names_and_paths[folder_name][0].append(full_folder_path)
     else:
         folder_names_and_paths[folder_name] = ([full_folder_path], set())
+
+def replace_folder_path(folder_name: str, full_folder_path: str) -> None:
+    global folder_names_and_paths
+    folder_name = map_legacy(folder_name)
+    if folder_name in folder_names_and_paths:
+        folder_names_and_paths[folder_name] = full_folder_path
+
 
 def get_folder_paths(folder_name: str) -> list[str]:
     folder_name = map_legacy(folder_name)

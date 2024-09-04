@@ -47,6 +47,7 @@ parser.add_argument("--extra-model-paths-config", type=str, default=None, metava
 parser.add_argument("--output-directory", type=str, default=None, help="Set the ComfyUI output directory.")
 parser.add_argument("--temp-directory", type=str, default=None, help="Set the ComfyUI temp directory (default is in the ComfyUI directory).")
 parser.add_argument("--input-directory", type=str, default=None, help="Set the ComfyUI input directory.")
+parser.add_argument("--user-directory", type=str, default=None, help="Set the ComfyUI user directory.")
 parser.add_argument("--auto-launch", action="store_true", help="Automatically launch ComfyUI in the default browser.")
 parser.add_argument("--disable-auto-launch", action="store_true", help="Disable auto launching the browser.")
 parser.add_argument("--cuda-device", type=int, default=None, metavar="DEVICE_ID", help="Set the id of the cuda device this instance will use.")
