@@ -1,7 +1,7 @@
 #Original code can be found on: https://github.com/XLabs-AI/x-flux/blob/main/src/flux/controlnet.py
 
 import math
-from typing import Never
+from typing_extensions import Never
 
 import torch
 from einops import rearrange, repeat
