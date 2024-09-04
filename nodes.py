@@ -2101,6 +2101,7 @@ def init_builtin_extra_nodes():
         "nodes_controlnet.py",
         "nodes_hunyuan.py",
         "nodes_flux.py",
+        "nodes_lora_extract.py",
     ]
 
     import_failed = []
