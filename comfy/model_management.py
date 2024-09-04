@@ -275,19 +275,17 @@ try:
 
     
     if "[ZLUDA]" in torch_device_name:
+        print(" ")
         print("***----------------------ZLUDA--------------------------***")
         print("  ::  ZLUDA detected, disabling non-supported functions.")
-
-        if torch.backends.cudnn.enabled:
-            torch.backends.cudnn.enabled = False
-            print("  ::  cuDNN , flash_sdp , mem_efficient_sdp disabled")
-
+        torch.backends.cudnn.enabled = False
+        print("  ::  (cuDNN, flash_sdp, mem_efficient_sdp disabled) ")
         torch.backends.cuda.enable_flash_sdp(False)
         torch.backends.cuda.enable_math_sdp(True)
         torch.backends.cuda.enable_mem_efficient_sdp(False)
         print("***-----------------------------------------------------***")
-
-    print("Device:", torch_device_name)
+    print("  ::  Device:", torch_device_name)
+    print(" ")
 except:
     print("Could not pick default device.") 
 
