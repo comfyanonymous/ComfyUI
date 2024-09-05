@@ -94,6 +94,8 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | Alt + `+`                          | Canvas Zoom in                                                                                                     |
 | Alt + `-`                          | Canvas Zoom out                                                                                                    |
 | Ctrl + Shift + LMB + Vertical drag | Canvas Zoom in/out                                                                                                 |
+| P                                  | Pin/Unpin selected nodes                                                                                           |
+| Ctrl + G                           | Group selected nodes                                                                                               |
 | Q                                  | Toggle visibility of the queue                                                                                     |
 | H                                  | Toggle visibility of history                                                                                       |
 | R                                  | Refresh graph                                                                                                      |
