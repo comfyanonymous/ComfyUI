@@ -176,19 +176,41 @@ class ExecutionList(TopologicalSort):
                 "current_inputs": []
             }
             return None, error_details, ex
-        next_node = available[0]
+
+        self.staged_node_id = self.ux_friendly_pick_node(available)
+        return self.staged_node_id, None, None
+
+    def ux_friendly_pick_node(self, node_list):
         # If an output node is available, do that first.
         # Technically this has no effect on the overall length of execution, but it feels better as a user
         # for a PreviewImage to display a result as soon as it can
         # Some other heuristics could probably be used here to improve the UX further.
-        for node_id in available:
+        def is_output(node_id):
             class_type = self.dynprompt.get_node(node_id)["class_type"]
             class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
             if hasattr(class_def, 'OUTPUT_NODE') and class_def.OUTPUT_NODE == True:
-                next_node = node_id
-                break
-        self.staged_node_id = next_node
-        return self.staged_node_id, None, None
+                return True
+            return False
+
+        for node_id in node_list:
+            if is_output(node_id):
+                return node_id
+
+        #This should handle the VAEDecode -> preview case
+        for node_id in node_list:
+            for blocked_node_id in self.blocking[node_id]:
+                if is_output(blocked_node_id):
+                    return node_id
+
+        #This should handle the VAELoader -> VAEDecode -> preview case
+        for node_id in node_list:
+            for blocked_node_id in self.blocking[node_id]:
+                for blocked_node_id1 in self.blocking[blocked_node_id]:
+                    if is_output(blocked_node_id1):
+                        return node_id
+
+        #TODO: this function should be improved
+        return node_list[0]
 
     def unstage_node_execution(self):
         assert self.staged_node_id is not None
