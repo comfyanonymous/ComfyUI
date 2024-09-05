@@ -430,9 +430,9 @@ def load_controlnet_hunyuandit(controlnet_data):
     control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds, strength_type=StrengthType.CONSTANT)
     return control
 
-def load_controlnet_flux_xlabs(sd):
+def load_controlnet_flux_xlabs_mistoline(sd, mistoline=False):
     model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(sd)
-    control_model = comfy.ldm.flux.controlnet.ControlNetFlux(operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
+    control_model = comfy.ldm.flux.controlnet.ControlNetFlux(mistoline=mistoline, operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
     control_model = controlnet_load_state_dict(control_model, sd)
     extra_conds = ['y', 'guidance']
     control = ControlNet(control_model, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
@@ -456,6 +456,10 @@ def load_controlnet_flux_instantx(sd):
     extra_conds = ['y', 'guidance']
     control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
     return control
+
+def convert_mistoline(sd):
+    return comfy.utils.state_dict_prefix_replace(sd, {"single_controlnet_blocks.": "controlnet_single_blocks."})
+
 
 def load_controlnet(ckpt_path, model=None):
     controlnet_data = comfy.utils.load_torch_file(ckpt_path, safe_load=True)
@@ -518,13 +522,15 @@ def load_controlnet(ckpt_path, model=None):
         if len(leftover_keys) > 0:
             logging.warning("leftover keys: {}".format(leftover_keys))
         controlnet_data = new_sd
-    elif "controlnet_blocks.0.weight" in controlnet_data: #SD3 diffusers format
+    elif "controlnet_blocks.0.weight" in controlnet_data:
         if "double_blocks.0.img_attn.norm.key_norm.scale" in controlnet_data:
-            return load_controlnet_flux_xlabs(controlnet_data)
+            return load_controlnet_flux_xlabs_mistoline(controlnet_data)
         elif "pos_embed_input.proj.weight" in controlnet_data:
-            return load_controlnet_mmdit(controlnet_data)
+            return load_controlnet_mmdit(controlnet_data) #SD3 diffusers controlnet
         elif "controlnet_x_embedder.weight" in controlnet_data:
             return load_controlnet_flux_instantx(controlnet_data)
+    elif "controlnet_blocks.0.linear.weight" in controlnet_data: #mistoline flux
+        return load_controlnet_flux_xlabs_mistoline(convert_mistoline(controlnet_data), mistoline=True)
 
     pth_key = 'control_model.zero_convs.0.0.weight'
     pth = False
