@@ -76,7 +76,7 @@ def _vae3d_encode(vae3d, input_image, generator: torch.Generator):
     return final_latents
 
 
-def _vae3d_decode(vae3d, latents):
+def _vae3d_decode(vae3d, latents, denormalize=True):
     
     device = mm.get_torch_device()
     offload_device = mm.unet_offload_device()
@@ -93,7 +93,7 @@ def _vae3d_decode(vae3d, latents):
         pt_image = frames[batch_idx].permute(1, 0, 2, 3)  # (to [num_frames, num_channels, w, h])
 
         outputs.append(torch.stack(
-            [VaeImageProcessor.denormalize(pt_image[i]) for i in range(pt_image.shape[0])]
+            [VaeImageProcessor.denormalize(pt_image[i]) if denormalize else  pt_image[i] for i in range(pt_image.shape[0]) ]
         ))
 
     vae3d.to(offload_device)
@@ -197,8 +197,9 @@ def cogvideox_sampler(
     negative_prompt_embeds: Optional[torch.FloatTensor] = None, 
     device = torch.device("cuda"),
     noise_rectification_period: Optional[list] = None,
+    noise_rectification_weight: Optional[torch.FloatTensor] = None,
     noise_rectification_weight_start_omega = 1.0,
-    noise_rectification_weight_end_omega = 0.5,
+    noise_rectification_weight_end_omega = 0.1,
 ):
     """
     Function invoked when calling the pipeline for generation.
@@ -298,7 +299,7 @@ def cogvideox_sampler(
  
 
     timesteps, num_inference_steps = get_timesteps(cogvideo_pipeline, num_inference_steps, denoise_strength, device)
-    latent_timestep = timesteps[:1]
+    latent_timestep = timesteps[:1].repeat(batch_size * num_videos_per_prompt)
     
     # images to video latents
     # Check if the number of frames needed matches the current frames
@@ -313,43 +314,106 @@ def cogvideox_sampler(
     # https://arxiv.org/pdf/2403.02827 Our method first adds noise to the input image and keep the added noise for latter rectification.
 
     init_latents = None
-    noise = latents.clone()
+    noise = latents.clone() # [B, T_num_channels, chunk_size, H, W]
     video_length = frames_shape[1]
     if video_length > current_frames:
+        # images lanets frame is index 0 ，get the noise latents  
+        # first_latents = latents[:, :current_frames, :, :, :] 
+        # current_frames_shape = (
+        #     batch_size,
+        #     current_frames,
+        #     latent_channels,
+        #     height // cogvideo_pipeline.vae_scale_factor_spatial,
+        #     width // cogvideo_pipeline.vae_scale_factor_spatial,
+        # )
+        # current_frames_noise = randn_tensor(current_frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
+        
+        # current_latents = cogvideo_pipeline.scheduler.add_noise(first_latents, current_frames_noise, latent_timestep)
+        
+        # repeat_factor = video_length - current_frames  
+        # additional_frame = torch.randn((latents.size(0), repeat_factor, latents.size(2), latents.size(3), latents.size(4)), dtype=latents.dtype, device=latents.device)
+        # additional_frame_latents = cogvideo_pipeline.scheduler.add_noise(additional_frame, additional_frame, latent_timestep+100)
+        
+        # latents = torch.cat((current_latents, additional_frame_latents), dim=1)
+        
+        
+        # noise = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
         # images lanets frame is index 0 ，get the noise latents  
         first_latents = latents[:, :current_frames, :, :, :] 
         repeat_factor = video_length - current_frames
         
         latest_latents = latents[:, current_frames-2:, :, :, :] # to [B, T_num_channels, chunk_size, H, W]
 
-        output_frames = _vae3d_decode(cogvideo_pipeline.vae, latest_latents) # to [num_frames, num_channels, w, h]
+        output_frames = _vae3d_decode(cogvideo_pipeline.vae, latest_latents, denormalize=False) # to [num_frames, num_channels, w, h]
         end_frames = output_frames[:, output_frames.shape[1] - 1:, :, :, :]
         repeated_end_frames = end_frames.repeat(1, repeat_factor  * cogvideo_pipeline.vae_scale_factor_temporal, 1, 1, 1)
         input_image = repeated_end_frames.permute(0, 2, 1, 3, 4) # to [batch_size, num_channels, num_frames, height, width]
         additional_frame = _vae3d_encode(cogvideo_pipeline.vae, input_image, generator)
- 
         init_latents = torch.cat((first_latents, additional_frame), dim=1)
         
         noise = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
+ 
+        latents = cogvideo_pipeline.scheduler.add_noise(init_latents, noise, latent_timestep)
+        delta_noise_adjust = torch.cat([latents] * 2)
+        _batch_size, _num_frames, _channels, _height, _width = delta_noise_adjust.shape
+        # 1. Time embedding
+        
+        t_emb = cogvideo_pipeline.transformer.time_proj(latent_timestep.expand(delta_noise_adjust.shape[0]))
+
+        # timesteps does not contain any weights and will always return f32 tensors
+        # but time_embedding might actually be running in fp16. so we need to cast here.
+        # there might be better ways to encapsulate this.
+        t_emb = t_emb.to(dtype=delta_noise_adjust.dtype)
+        emb = cogvideo_pipeline.transformer.time_embedding(t_emb, None)
+
+        # Patch embedding
+        hidden_states = cogvideo_pipeline.transformer.patch_embed(prompt_embeds, delta_noise_adjust)
+        
+        hidden_states = cogvideo_pipeline.transformer.embedding_dropout(hidden_states)
+
+        text_seq_length = prompt_embeds.shape[1]
+        encoder_hidden_states = hidden_states[:, :text_seq_length]
+        hidden_states = hidden_states[:, text_seq_length:]
+
+        if not cogvideo_pipeline.transformer.config.use_rotary_positional_embeddings:
+            # CogVideoX-2B
+            hidden_states = cogvideo_pipeline.transformer.norm_final(hidden_states)
+        else:
+            # CogVideoX-5B
+            hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=1)
+            hidden_states = cogvideo_pipeline.transformer.norm_final(hidden_states)
+            hidden_states = hidden_states[:, text_seq_length:]
+
+        # 4. Final block
+        hidden_states = cogvideo_pipeline.transformer.norm_out(hidden_states, temb=emb)
+        hidden_states = cogvideo_pipeline.transformer.proj_out(hidden_states) 
+        image_emb = (hidden_states[0, :, :],
+                            hidden_states[1, :, :])
+        # latents = output[[1], :, :, :, :]
+
+        # latents = cogvideo_pipeline.scheduler.add_noise(latents, noise, latent_timestep)
     elif video_length < current_frames: 
         init_latents = latents[:, :video_length, :, :, :]
         noise = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
+      
+        latents = cogvideo_pipeline.scheduler.add_noise(init_latents, noise, latent_timestep)
     else:
         init_latents = latents
         noise = randn_tensor(frames_shape, generator=generator, device=device, dtype=cogvideo_pipeline.vae.dtype)
 
-    latents = cogvideo_pipeline.scheduler.add_noise(init_latents, noise, latent_timestep)
+        latents = cogvideo_pipeline.scheduler.add_noise(init_latents, noise, latent_timestep )
+        
     latents = latents.to(cogvideo_pipeline.transformer.dtype)
 
     # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
     extra_step_kwargs = prepare_extra_step_kwargs(cogvideo_pipeline, generator, eta)
 
-    # 7. Create rotary embeds if required
-    image_rotary_emb = (
-        _prepare_rotary_positional_embeddings(cogvideo_pipeline, height, width, latents.size(1), device)
-        if cogvideo_pipeline.transformer.config.use_rotary_positional_embeddings
-        else None
-    )
+    # # 7. Create rotary embeds if required
+    # image_rotary_emb = (
+    #     _prepare_rotary_positional_embeddings(cogvideo_pipeline, height, width, latents.size(1), device)
+    #     if cogvideo_pipeline.transformer.config.use_rotary_positional_embeddings
+    #     else None
+    # )
 
     # 8. Denoising loop
     num_warmup_steps = max(len(timesteps) - num_inference_steps * cogvideo_pipeline.scheduler.order, 0)
@@ -367,7 +431,13 @@ def cogvideox_sampler(
 
             # broadcast to batch dimension in a way that's compatible with ONNX/Core ML
             timestep = t.expand(latent_model_input.shape[0])
-
+            if i == len(timesteps) - 1:
+                
+                image_rotary_emb = image_emb
+            elif i == 0:
+                image_rotary_emb = image_emb
+            else:
+                image_rotary_emb = None
             # predict noise model_output
             noise_pred = cogvideo_pipeline.transformer(
                 hidden_states=latent_model_input,
@@ -377,7 +447,6 @@ def cogvideox_sampler(
                 return_dict=False,
             )[0]
             noise_pred = noise_pred.float()
-
             # perform guidance
             if use_dynamic_cfg:
                 cogvideo_pipeline._guidance_scale = 1 + guidance_scale * (
@@ -390,15 +459,27 @@ def cogvideox_sampler(
             # https://arxiv.org/pdf/2403.02827 our method rectifies the predicted noise with the GT noise to realize image-to-video.
             if noise_rectification_period is not None:
                 assert len(noise_rectification_period) == 2
-                noise_rectification_weight = torch.cat([torch.linspace(noise_rectification_weight_start_omega, noise_rectification_weight_end_omega, video_length//2), 
-                                                        torch.linspace(noise_rectification_weight_end_omega, noise_rectification_weight_end_omega, video_length//2)])
-                noise_rectification_weight = noise_rectification_weight.view(1, video_length, 1, 1, 1)
-                noise_rectification_weight = noise_rectification_weight.to(latent_model_input.dtype).to(latent_model_input.device)
+                if noise_rectification_weight is None:
+                    half_length = video_length // 2
+
+                    if video_length % 2 == 0:
+                        noise_rectification_weight = torch.cat([
+                            torch.linspace(noise_rectification_weight_start_omega, noise_rectification_weight_end_omega, half_length),
+                            torch.linspace(noise_rectification_weight_end_omega, noise_rectification_weight_end_omega, half_length)
+                        ])
+                    else:
+                        noise_rectification_weight = torch.cat([
+                            torch.linspace(noise_rectification_weight_start_omega, noise_rectification_weight_end_omega, half_length ),
+                            torch.linspace(noise_rectification_weight_end_omega, noise_rectification_weight_end_omega, half_length + 1)
+                        ])
+                    noise_rectification_weight = noise_rectification_weight.view(1, video_length, 1, 1, 1)
+                    noise_rectification_weight = noise_rectification_weight.to(latent_model_input.dtype).to(latent_model_input.device)
 
                 if i >= len(timesteps) * noise_rectification_period[0] and i < len(timesteps) * noise_rectification_period[1]:
                     delta_frames = noise - noise_pred
                     delta_noise_adjust = noise_rectification_weight * (delta_frames[:,[0],:,:,:].repeat((1, video_length, 1, 1, 1))) + \
                                         (1 - noise_rectification_weight) * delta_frames
+                    
                     noise_pred = noise_pred + delta_noise_adjust
 
             # compute the previous noisy sample x_t -> x_t-1
@@ -807,6 +888,11 @@ class CogVideoSampler:
             "optional": {
                 "samples": ("LATENT", ),
                 "scheduler": ("COGVIDEOSCHEDULER", ), 
+                "noise_rectification_weight": ("LATENT", ), 
+                "noise_rectification_period_start": ("FLOAT",  {"default": 0.1, "min": 0.01, "max": 1.0, "step": 0.01}), 
+                "noise_rectification_period_end": ("FLOAT",  {"default": 1, "min": 0.01, "max": 1.0, "step": 0.01}), 
+                "noise_rectification_weight_start_omega": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 1.0, "step": 0.01}), 
+                "noise_rectification_weight_end_omega": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 1.0, "step": 0.01}), 
             }
         }
 
@@ -816,7 +902,13 @@ class CogVideoSampler:
     CATEGORY = "sampler"
     DESCRIPTION = """CogVideoX sampler"""
 
-    def process(self, pipeline, positive, negative, steps, num_frames, cfg, denoise_strength, seed, height, width, samples=None, scheduler=None):
+    def process(self, pipeline, positive, negative, steps, num_frames, cfg, denoise_strength, seed, height, width, samples=None, scheduler=None,     
+                    noise_rectification_weight = None,                    
+                    noise_rectification_period_start = None,
+                    noise_rectification_period_end = None,
+                    noise_rectification_weight_start_omega = 1.0,
+                    noise_rectification_weight_end_omega = 0.1
+    ):
         mm.soft_empty_cache()
  
         device = mm.get_torch_device()
@@ -841,7 +933,11 @@ class CogVideoSampler:
                 prompt_embeds=positive.to(dtype).to(device),
                 negative_prompt_embeds=negative.to(dtype).to(device),
                 generator=generator,
-                device=device
+                device=device,
+                noise_rectification_weight=noise_rectification_weight["samples"] if noise_rectification_weight is not None else None,
+                noise_rectification_period=[noise_rectification_period_start, noise_rectification_period_end] if noise_rectification_period_start is not None else None,
+                noise_rectification_weight_start_omega=noise_rectification_weight_start_omega,
+                noise_rectification_weight_end_omega=noise_rectification_weight_end_omega,
             )
         pipe.transformer.to(offload_device)
         mm.soft_empty_cache() 
