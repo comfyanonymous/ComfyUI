@@ -436,6 +436,7 @@ KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("comfyanonymous/flux_text_encoders", "clip_l.safetensors", save_with_filename="clip_l.safetensors"),
     # uses names from https://comfyanonymous.github.io/ComfyUI_examples/audio/
     HuggingFile("google-t5/t5-base", "model.safetensors", save_with_filename="t5_base.safetensors"),
+    HuggingFile("zer0int/CLIP-GmP-ViT-L-14", "ViT-L-14-TEXT-detail-improved-hiT-GmP-TE-only-HF.safetensors"),
 ], folder_name="clip")
 
 _known_models_db: list[KnownDownloadables] = [
