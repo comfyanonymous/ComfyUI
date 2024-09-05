@@ -64,7 +64,7 @@ def get_comfyui_version():
     comfyui_version = "unknown"
     repo_path = os.path.dirname(os.path.realpath(__file__))
     try:
-        import pygit2
+        import pygit2  # pylint: disable=import-error
         repo = pygit2.Repository(repo_path)
         comfyui_version = repo.describe(describe_strategy=pygit2.GIT_DESCRIBE_TAGS)
     except Exception:

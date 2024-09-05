@@ -529,6 +529,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
             except Exception as e:
                 logging.error("ERROR {} {} {}".format(patch_type, key, e))
         elif patch_type == "glora":
+            rank = 0
             dora_scale = v[5]
 
             old_glora = False

@@ -1,3 +1,6 @@
+import dataclasses
+from typing import Any
+
 try:
     import bitsandbytes as bnb
     from bitsandbytes.nn.modules import Params4bit, QuantState
@@ -8,8 +11,9 @@ except (ImportError, ModuleNotFoundError):
         pass
 
 
+    @dataclasses.dataclass
     class Params4bit:
-        pass
+        data: Any
 
 
     class QuantState:

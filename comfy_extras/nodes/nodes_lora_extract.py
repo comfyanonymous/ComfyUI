@@ -1,11 +1,14 @@
+import logging
+import os
+
 import torch
+
 import comfy.model_management
 import comfy.utils
-import folder_paths
-import os
-import logging
+from comfy.cmd import folder_paths
 
 CLAMP_QUANTILE = 0.99
+
 
 def extract_lora(diff, rank):
     conv2d = (len(diff.shape) == 4)
@@ -19,7 +22,6 @@ def extract_lora(diff, rank):
             diff = diff.flatten(start_dim=1)
         else:
             diff = diff.squeeze()
-
 
     U, S, Vh = torch.linalg.svd(diff.float())
     U = U[:, :rank]
@@ -38,6 +40,7 @@ def extract_lora(diff, rank):
         Vh = Vh.reshape(rank, in_dim, kernel_size[0], kernel_size[1])
     return (U, Vh)
 
+
 class LoraSave:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -45,10 +48,11 @@ class LoraSave:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"filename_prefix": ("STRING", {"default": "loras/ComfyUI_extracted_lora"}),
-                              "rank": ("INT", {"default": 8, "min": 1, "max": 1024, "step": 1}),
-                            },
-                "optional": {"model_diff": ("MODEL",),},
-    }
+                             "rank": ("INT", {"default": 8, "min": 1, "max": 1024, "step": 1}),
+                             },
+                "optional": {"model_diff": ("MODEL",), },
+                }
+
     RETURN_TYPES = ()
     FUNCTION = "save"
     OUTPUT_NODE = True
@@ -85,6 +89,7 @@ class LoraSave:
 
         comfy.utils.save_torch_file(output_sd, output_checkpoint, metadata=None)
         return {}
+
 
 NODE_CLASS_MAPPINGS = {
     "LoraSave": LoraSave
