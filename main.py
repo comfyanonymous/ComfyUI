@@ -7,10 +7,23 @@ import folder_paths
 import time
 from comfy.cli_args import args
 from app.logger import setup_logger
+import datetime
+import tempfile
 
-pid = str(os.getpid())
-with open("/tmp/ComfyUI.pid", "w") as f:
-    f.write(pid)
+def write_pid_to_file(identifier="ComfyUI"):
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") 
+    filename = f"{identifier}_{timestamp}_{os.getpid()}.pid"  
+
+    temp_dir = tempfile.gettempdir()
+    full_filepath = os.path.join(temp_dir, filename)
+
+    with open(full_filepath, "w") as temp_file:
+        temp_file.write(str(os.getpid()))
+
+    return full_filepath 
+
+pid_filepath = write_pid_to_file()
+print(f"PID written to file: {pid_filepath}")
 
 setup_logger(verbose=args.verbose)
 
