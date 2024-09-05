@@ -98,7 +98,7 @@ class CacheKeySetInputSignature(CacheKeySet):
         class_type = node["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         signature = [class_type, self.is_changed_cache.get(node_id)]
-        if self.include_node_id_in_input() or (hasattr(class_def, "NOT_IDEMPOTENT") and class_def.NOT_IDEMPOTENT):
+        if self.include_node_id_in_input() or (hasattr(class_def, "NOT_IDEMPOTENT") and class_def.NOT_IDEMPOTENT) or "UNIQUE_ID" in class_def.INPUT_TYPES().get("hidden", {}).values():
             signature.append(node_id)
         inputs = node["inputs"]
         for key in sorted(inputs.keys()):
