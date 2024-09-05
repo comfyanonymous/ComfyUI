@@ -40,7 +40,6 @@ class DistributedExecutorToClientProgress(ExecutorToClientProgress):
         self.receive_all_progress_notifications = receive_all_progress_notifications
 
     async def send(self, event: SendSyncEvent, data: SendSyncData, user_id: Optional[str]) -> None:
-        # for now, do not send binary data this way, since it cannot be json serialized / it's impractical
         if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
             from ..cmd.latent_preview_image_encoding import encode_preview_image
 

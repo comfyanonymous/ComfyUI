@@ -1,6 +1,7 @@
 import asyncio
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from typing import Callable
 
 import jwt
 import pytest
@@ -10,9 +11,11 @@ from testcontainers.rabbitmq import RabbitMqContainer
 from comfy.client.aio_client import AsyncRemoteComfyClient
 from comfy.client.embedded_comfy_client import EmbeddedComfyClient
 from comfy.client.sdxl_with_refiner_workflow import sdxl_workflow_with_refiner
+from comfy.component_model.executor_types import Executor
 from comfy.component_model.make_mutable import make_mutable
 from comfy.component_model.queue_types import QueueItem, QueueTuple, TaskInvocation, NamedQueueTuple, ExecutionStatus
 from comfy.distributed.distributed_prompt_worker import DistributedPromptWorker
+from comfy.distributed.process_pool_executor import ProcessPoolExecutor
 from comfy.distributed.server_stub import ServerStub
 
 
@@ -35,12 +38,11 @@ async def test_sign_jwt_auth_none():
 
 
 @pytest.mark.asyncio
-async def test_basic_queue_worker() -> None:
-    # there are lots of side effects from importing that we have to deal with
-
+@pytest.mark.parametrize("executor_factory", (ThreadPoolExecutor, ProcessPoolExecutor,))
+async def test_basic_queue_worker(executor_factory: Callable[..., Executor]) -> None:
     with RabbitMqContainer("rabbitmq:latest") as rabbitmq:
         params = rabbitmq.get_connection_params()
-        async with DistributedPromptWorker(connection_uri=f"amqp://guest:guest@127.0.0.1:{params.port}"):
+        async with DistributedPromptWorker(connection_uri=f"amqp://guest:guest@127.0.0.1:{params.port}", executor=executor_factory(max_workers=1)):
             # this unfortunately does a bunch of initialization on the test thread
             from comfy.distributed.distributed_prompt_queue import DistributedPromptQueue
             # now submit some jobs
@@ -125,13 +127,14 @@ async def check_health(url: str, max_retries: int = 5, retry_delay: float = 1.0)
 
 
 @pytest.mark.asyncio
-async def test_basic_queue_worker_with_health_check():
+@pytest.mark.parametrize("executor_factory", (ThreadPoolExecutor, ProcessPoolExecutor,))
+async def test_basic_queue_worker_with_health_check(executor_factory):
     with RabbitMqContainer("rabbitmq:latest") as rabbitmq:
         params = rabbitmq.get_connection_params()
         connection_uri = f"amqp://guest:guest@127.0.0.1:{params.port}"
         health_check_port = 9090
 
-        async with DistributedPromptWorker(connection_uri=connection_uri, health_check_port=health_check_port) as worker:
+        async with DistributedPromptWorker(connection_uri=connection_uri, health_check_port=health_check_port, executor=executor_factory(max_workers=1)) as worker:
             health_check_url = f"http://localhost:{health_check_port}/health"
 
             health_check_ok = await check_health(health_check_url)

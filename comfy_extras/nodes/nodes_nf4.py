@@ -1,17 +1,25 @@
-import platform
-
 try:
     import bitsandbytes as bnb
     from bitsandbytes.nn.modules import Params4bit, QuantState
 
     has_bitsandbytes = True
 except (ImportError, ModuleNotFoundError):
-    bnb = {}
-    Params4bit = {}
-    QuantState = {}
+    class bnb:
+        pass
+
+
+    class Params4bit:
+        pass
+
+
+    class QuantState:
+        pass
+
+
     has_bitsandbytes = False
 
 import torch
+
 import comfy.ops
 import comfy.sd
 from comfy.cmd.folder_paths import get_folder_paths

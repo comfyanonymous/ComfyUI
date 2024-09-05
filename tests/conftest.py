@@ -86,8 +86,8 @@ def has_gpu() -> bool:
     yield has_gpu
 
 
-@pytest.fixture(scope="module", autouse=False)
-def frontend_backend_worker_with_rabbitmq(tmp_path_factory) -> str:
+@pytest.fixture(scope="module", autouse=False, params=["ThreadPoolExecutor", "ProcessPoolExecutor"])
+def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory) -> str:
     """
     populates the cache with the sdxl checkpoints, starts a frontend and backend worker against a started rabbitmq, and yields the address of the frontend
     :return:
@@ -97,6 +97,7 @@ def frontend_backend_worker_with_rabbitmq(tmp_path_factory) -> str:
     hf_hub_download("stabilityai/stable-diffusion-xl-refiner-1.0", "sd_xl_refiner_1.0.safetensors")
 
     tmp_path = tmp_path_factory.mktemp("comfy_background_server")
+    executor_factory = request.param
     processes_to_close: List[subprocess.Popen] = []
     from testcontainers.rabbitmq import RabbitMqContainer
     with RabbitMqContainer("rabbitmq:latest") as rabbitmq:
@@ -119,6 +120,7 @@ def frontend_backend_worker_with_rabbitmq(tmp_path_factory) -> str:
             "--port=9002",
             f"-w={str(tmp_path)}",
             f"--distributed-queue-connection-uri={connection_uri}",
+            f"--executor-factory={executor_factory}"
         ]
 
         processes_to_close.append(subprocess.Popen(backend_command, stdout=sys.stdout, stderr=sys.stderr))

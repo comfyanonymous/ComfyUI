@@ -1,11 +1,12 @@
 from __future__ import annotations  # for Python 3.7-3.9
 
+import concurrent.futures
 import typing
 from enum import Enum
 from typing import Optional, Literal, Protocol, Union, NamedTuple, List
 
 import PIL.Image
-from typing_extensions import NotRequired, TypedDict
+from typing_extensions import NotRequired, TypedDict, runtime_checkable
 
 from .queue_types import BinaryEventTypes
 from ..nodes.package_typing import InputTypeSpec
@@ -193,3 +194,11 @@ class NodeInputError(Exception):
 
 class NodeNotFoundError(Exception):
     pass
+
+
+class Executor(Protocol):
+    def submit(self, fn, /, *args, **kwargs) -> concurrent.futures.Future:
+        ...
+
+    def shutdown(self, wait=True, *, cancel_futures=False):
+        ...

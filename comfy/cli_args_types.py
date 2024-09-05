@@ -109,6 +109,7 @@ class Configuration(dict):
         otel_exporter_otlp_endpoint (Optional[str]): A base endpoint URL for any signal type, with an optionally-specified port number. Helpful for when you're sending more than one signal to the same endpoint and want one environment variable to control the endpoint.
         force_channels_last (bool): Force channels last format when inferencing the models.
         force_hf_local_dir_mode (bool): Download repos from huggingface.co to the models/huggingface directory with the "local_dir" argument instead of models/huggingface_cache with the "cache_dir" argument, recreating the traditional file structure.
+        executor_factory (str): Either ThreadPoolExecutor or ProcessPoolExecutor, defaulting to ThreadPoolExecutor
     """
 
     def __init__(self, **kwargs):
@@ -193,6 +194,8 @@ class Configuration(dict):
         self.otel_exporter_otlp_endpoint: Optional[str] = None
         for key, value in kwargs.items():
             self[key] = value
+
+        self.executor_factory: str = "ThreadPoolExecutor"
 
     def __getattr__(self, item):
         if item not in self:

@@ -198,6 +198,13 @@ def _create_parser() -> EnhancedConfigArgParser:
         help="The local filesystem path to the directory where the frontend is located. Overrides --front-end-version.",
     )
 
+    parser.add_argument(
+        "--executor-factory",
+        type=str,
+        default="ThreadPoolExecutor",
+        help="When running ComfyUI as a distributed worker, this specifies the kind of executor that should be used to run the actual ComfyUI workflow worker. A ThreadPoolExecutor is the default. A ProcessPoolExecutor results in better memory management, since the process will be closed and large, contiguous blocks of CUDA memory can be freed."
+    )
+
     # now give plugins a chance to add configuration
     for entry_point in entry_points().select(group='comfyui.custom_config'):
         try:
