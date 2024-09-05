@@ -110,6 +110,7 @@ class Configuration(dict):
         force_channels_last (bool): Force channels last format when inferencing the models.
         force_hf_local_dir_mode (bool): Download repos from huggingface.co to the models/huggingface directory with the "local_dir" argument instead of models/huggingface_cache with the "cache_dir" argument, recreating the traditional file structure.
         executor_factory (str): Either ThreadPoolExecutor or ProcessPoolExecutor, defaulting to ThreadPoolExecutor
+        preview_size (int): Sets the maximum preview size for sampler nodes. Defaults to 512.
     """
 
     def __init__(self, **kwargs):
@@ -184,6 +185,7 @@ class Configuration(dict):
         self.max_queue_size: int = 65536
         self.force_channels_last: bool = False
         self.force_hf_local_dir_mode = False
+        self.preview_size: int = 512
 
         # from guill
         self.cache_lru: int = 0

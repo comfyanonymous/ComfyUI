@@ -1,11 +1,16 @@
 import concurrent.futures
+from typing import Callable
 
-from pebble import ProcessPool
+from pebble import ProcessPool, ProcessFuture
 
-from ..component_model.executor_types import Executor
+from ..component_model.executor_types import Executor, ExecutePromptArgs
 
 
 class ProcessPoolExecutor(ProcessPool, Executor):
+    def __init__(self, max_workers: int = 1):
+        super().__init__(max_workers=1)
+
+
     def shutdown(self, wait=True, *, cancel_futures=False):
         if cancel_futures:
             raise NotImplementedError("cannot cancel futures in this implementation")
@@ -14,6 +19,18 @@ class ProcessPoolExecutor(ProcessPool, Executor):
         else:
             self.stop()
         return
+
+    def schedule(self, function: Callable,
+                 args: list = (),
+                 kwargs: dict = {},
+                 timeout: float = None) -> ProcessFuture:
+        try:
+            args: ExecutePromptArgs
+            prompt, prompt_id, client_id, span_context, progress_handler, configuration = args
+
+        except ValueError:
+            pass
+        super().schedule(function, args, kwargs, timeout)
 
     def submit(self, fn, /, *args, **kwargs) -> concurrent.futures.Future:
         return self.schedule(fn, args=list(args), kwargs=kwargs, timeout=None)

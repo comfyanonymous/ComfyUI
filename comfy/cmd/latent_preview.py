@@ -12,7 +12,7 @@ from .. import model_management
 from .. import utils
 import logging
 
-MAX_PREVIEW_RESOLUTION = 512
+MAX_PREVIEW_RESOLUTION = args.preview_size
 
 
 def preview_to_image(latent_image):

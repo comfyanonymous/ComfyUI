@@ -6,9 +6,10 @@ from enum import Enum
 from typing import Optional, Literal, Protocol, Union, NamedTuple, List
 
 import PIL.Image
-from typing_extensions import NotRequired, TypedDict, runtime_checkable
+from typing_extensions import NotRequired, TypedDict
 
 from .queue_types import BinaryEventTypes
+from ..cli_args_types import Configuration
 from ..nodes.package_typing import InputTypeSpec
 
 
@@ -202,3 +203,6 @@ class Executor(Protocol):
 
     def shutdown(self, wait=True, *, cancel_futures=False):
         ...
+
+
+ExecutePromptArgs = tuple[dict, str, str, dict, ExecutorToClientProgress | None, Configuration | None]

@@ -87,6 +87,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--preview-method", type=LatentPreviewMethod, default=LatentPreviewMethod.Auto,
                         help="Default preview method for sampler nodes.", action=EnumAction)
 
+    parser.add_argument("--preview-size", type=int, default=512, help="Sets the maximum preview size for sampler nodes.")
     cache_group = parser.add_mutually_exclusive_group()
     cache_group.add_argument("--cache-lru", type=int, default=0, help="Use LRU caching with a maximum of N node results cached. May use more RAM/VRAM.")
     attn_group = parser.add_mutually_exclusive_group()

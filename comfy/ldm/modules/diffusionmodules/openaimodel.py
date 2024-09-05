@@ -842,6 +842,11 @@ class UNetModel(nn.Module):
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False).to(x.dtype)
         emb = self.time_embed(t_emb)
 
+        if "emb_patch" in transformer_patches:
+            patch = transformer_patches["emb_patch"]
+            for p in patch:
+                emb = p(emb, self.model_channels, transformer_options)
+
         if self.num_classes is not None:
             assert y.shape[0] == x.shape[0]
             emb = emb + self.label_emb(y)

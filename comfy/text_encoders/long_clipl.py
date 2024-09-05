@@ -1,7 +1,6 @@
 from comfy import sd1_clip
-import os
 
-from comfy.component_model.files import get_path_as_dict
+from ..component_model.files import get_path_as_dict
 
 
 class LongClipTokenizer_(sd1_clip.SDTokenizer):

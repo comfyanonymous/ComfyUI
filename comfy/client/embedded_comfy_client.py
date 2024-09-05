@@ -100,6 +100,38 @@ def _cleanup():
 
 
 class EmbeddedComfyClient:
+    """
+    Embedded client for comfy executing prompts as a library.
+
+    This client manages a single-threaded executor to run long-running or blocking tasks
+    asynchronously without blocking the asyncio event loop. It initializes a PromptExecutor
+    in a dedicated thread for executing prompts and handling server-stub communications.
+    Example usage:
+
+    Asynchronous (non-blocking) usage with async-await:
+    ```
+    # Write a workflow, or enable Dev Mode in the UI settings, then Save (API Format) to get the workflow in your
+    # workspace.
+    prompt_dict = {
+      "1": {"class_type": "KSamplerAdvanced", ...}
+      ...
+    }
+    # Validate your workflow (the prompt)
+    from comfy.api.components.schema.prompt import Prompt
+    prompt = Prompt.validate(prompt_dict)
+    # Then use the client to run your workflow. This will start, then stop, a local ComfyUI workflow executor.
+    # It does not connect to a remote server.
+    async def main():
+        async with EmbeddedComfyClient() as client:
+            outputs = await client.queue_prompt(prompt)
+            print(outputs)
+        print("Now that we've exited the with statement, all your VRAM has been cleared from ComfyUI")
+    if __name__ == "__main__"
+        asyncio.run(main())
+    ```
+
+    In order to use this in blocking methods, learn more about asyncio online.
+    """
     def __init__(self, configuration: Optional[Configuration] = None, progress_handler: Optional[ExecutorToClientProgress] = None, max_workers: int = 1, executor: Executor = None):
         self._progress_handler = progress_handler or ServerStub()
         self._executor = executor or ThreadPoolExecutor(max_workers=max_workers)
