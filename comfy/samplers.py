@@ -6,7 +6,7 @@ from comfy import model_management
 import math
 import logging
 import comfy.sampler_helpers
-import scipy
+import scipy.stats
 import numpy
 
 def get_area_and_mult(conds, x_in, timestep_in):
