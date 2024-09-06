@@ -66,3 +66,5 @@ diffusers>=0.30.1
 vtracer
 skia-python
 pebble>=5.0.7
+openai
+anthropic

@@ -24,13 +24,14 @@ class ProcessPoolExecutor(ProcessPool, Executor):
                  args: list = (),
                  kwargs: dict = {},
                  timeout: float = None) -> ProcessFuture:
-        try:
-            args: ExecutePromptArgs
-            prompt, prompt_id, client_id, span_context, progress_handler, configuration = args
-
-        except ValueError:
-            pass
-        super().schedule(function, args, kwargs, timeout)
+        # todo: restart worker when there is insufficient VRAM or the workflows are sufficiently different
+        # try:
+        #     args: ExecutePromptArgs
+        #     prompt, prompt_id, client_id, span_context, progress_handler, configuration = args
+        #
+        # except ValueError:
+        #     pass
+        return super().schedule(function, args, kwargs, timeout)
 
     def submit(self, fn, /, *args, **kwargs) -> concurrent.futures.Future:
         return self.schedule(fn, args=list(args), kwargs=kwargs, timeout=None)

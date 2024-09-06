@@ -24,7 +24,7 @@ from .. import model_management
 from ..cli_args import args
 
 from ..cmd import folder_paths, latent_preview
-from ..component_model.tensor_types import RGBImage
+from ..component_model.tensor_types import RGBImage, RGBImageBatch, MaskBatch
 from ..execution_context import current_execution_context
 from ..images import open_image
 from ..ldm.flux.weight_dtypes import FLUX_WEIGHT_DTYPES
@@ -808,7 +808,7 @@ class ControlNetApply:
 
     CATEGORY = "conditioning/controlnet"
 
-    def apply_controlnet(self, conditioning, control_net, image, strength):
+    def apply_controlnet(self, conditioning, control_net, image: RGBImageBatch, strength):
         if strength == 0:
             return (conditioning, )
 
@@ -1573,7 +1573,7 @@ class LoadImage:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
 
-    def load_image(self, image: str):
+    def load_image(self, image: str) -> tuple[RGBImageBatch, MaskBatch]:
         image_path = folder_paths.get_annotated_filepath(image)
 
         img = node_helpers.pillow(Image.open, image_path)
@@ -1703,7 +1703,7 @@ class ImageScale:
 
     CATEGORY = "image/upscaling"
 
-    def upscale(self, image, upscale_method, width, height, crop):
+    def upscale(self, image: RGBImageBatch, upscale_method, width, height, crop) -> tuple[RGBImageBatch]:
         if width == 0 and height == 0:
             s = image
         else:

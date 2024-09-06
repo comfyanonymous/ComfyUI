@@ -111,6 +111,7 @@ class Configuration(dict):
         force_hf_local_dir_mode (bool): Download repos from huggingface.co to the models/huggingface directory with the "local_dir" argument instead of models/huggingface_cache with the "cache_dir" argument, recreating the traditional file structure.
         executor_factory (str): Either ThreadPoolExecutor or ProcessPoolExecutor, defaulting to ThreadPoolExecutor
         preview_size (int): Sets the maximum preview size for sampler nodes. Defaults to 512.
+        openai_api_key (str): Configures the OpenAI API Key for the OpenAI nodes
     """
 
     def __init__(self, **kwargs):
@@ -198,6 +199,7 @@ class Configuration(dict):
             self[key] = value
 
         self.executor_factory: str = "ThreadPoolExecutor"
+        self.openai_api_key: Optional[str] = None
 
     def __getattr__(self, item):
         if item not in self:

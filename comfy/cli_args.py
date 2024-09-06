@@ -206,6 +206,15 @@ def _create_parser() -> EnhancedConfigArgParser:
         help="When running ComfyUI as a distributed worker, this specifies the kind of executor that should be used to run the actual ComfyUI workflow worker. A ThreadPoolExecutor is the default. A ProcessPoolExecutor results in better memory management, since the process will be closed and large, contiguous blocks of CUDA memory can be freed."
     )
 
+    parser.add_argument(
+        "--openai-api-key",
+        required=False,
+        type=str,
+        help="Configures the OpenAI API Key for the OpenAI nodes",
+        env_var="OPENAI_API_KEY",
+        default=None
+    )
+
     # now give plugins a chance to add configuration
     for entry_point in entry_points().select(group='comfyui.custom_config'):
         try:

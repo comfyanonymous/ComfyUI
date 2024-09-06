@@ -1,38 +1,32 @@
 from __future__ import annotations
 
 import copy
+import inspect
 import logging
+import operator
 import pathlib
 import warnings
-from typing import Optional, Any, Callable, Union, List
+from functools import reduce
+from typing import Optional, Any, Callable, List
 
-import numpy as np
 import torch
-from PIL.Image import Image
 from transformers import PreTrainedModel, PreTrainedTokenizerBase, ProcessorMixin, AutoProcessor, AutoTokenizer, \
-    TensorType, BatchFeature
-from transformers.tokenization_utils_base import PreTokenizedInput, TextInput, TruncationStrategy
-from transformers.utils import PaddingStrategy
+    BatchFeature, AutoModelForVision2Seq, AutoModelForSeq2SeqLM, AutoModelForCausalLM, AutoModel, \
+    PretrainedConfig, TextStreamer, LogitsProcessor
+from transformers.models.auto.modeling_auto import MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES, \
+    MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES, MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 
 from .chat_templates import KNOWN_CHAT_TEMPLATES
-from .language_types import ProcessorResult
-from ..model_management import unet_offload_device, get_torch_device
+from .language_types import ProcessorResult, TOKENS_TYPE, GENERATION_KWARGS_TYPE, TransformerStreamedProgress, \
+    LLaVAProcessor, LanguageModel
+from .. import model_management
+from ..model_downloader import get_or_download_huggingface_repo
+from ..model_management import unet_offload_device, get_torch_device, unet_dtype, load_models_gpu
 from ..model_management_types import ModelManageable
-
-LLaVAProcessor = Callable[
-    [
-        Union[TextInput, PreTokenizedInput, List[TextInput], List[PreTokenizedInput]],  # text parameter
-        Union[Image, np.ndarray, torch.Tensor, List[Image], List[np.ndarray], List[torch.Tensor]],  # images parameter
-        Union[bool, str, PaddingStrategy],  # padding parameter
-        Union[bool, str, TruncationStrategy],  # truncation parameter
-        Optional[int],  # max_length parameter
-        Optional[Union[str, TensorType]]  # return_tensors parameter
-    ],
-    BatchFeature
-]
+from ..utils import comfy_tqdm, ProgressBar, comfy_progress, seed_for_block
 
 
-class TransformersManagedModel(ModelManageable):
+class TransformersManagedModel(ModelManageable, LanguageModel):
     def __init__(
             self,
             repo_id: str,
@@ -41,7 +35,7 @@ class TransformersManagedModel(ModelManageable):
             config_dict: Optional[dict] = None,
             processor: Optional[ProcessorMixin | AutoProcessor] = None
     ):
-        self.repo_id = repo_id
+        self._repo_id = repo_id
         self.model = model
         self._tokenizer = tokenizer
         self._processor = processor
@@ -53,6 +47,200 @@ class TransformersManagedModel(ModelManageable):
         self._on_set_processor(self._processor)
         if model.device != self.offload_device:
             model.to(device=self.offload_device)
+
+    @staticmethod
+    def from_pretrained(ckpt_name: str, subfolder: Optional[str] = None) -> "TransformersManagedModel":
+        hub_kwargs = {}
+        if subfolder is not None and subfolder != "":
+            hub_kwargs["subfolder"] = subfolder
+        repo_id = ckpt_name
+        ckpt_name = get_or_download_huggingface_repo(ckpt_name)
+        with comfy_tqdm():
+            from_pretrained_kwargs = {
+                "pretrained_model_name_or_path": ckpt_name,
+                "trust_remote_code": True,
+                **hub_kwargs
+            }
+
+            # compute bitsandbytes configuration
+            try:
+                import bitsandbytes
+            except ImportError:
+                pass
+
+            config_dict, _ = PretrainedConfig.get_config_dict(ckpt_name, **hub_kwargs)
+            model_type = config_dict["model_type"]
+            # language models prefer to use bfloat16 over float16
+            kwargs_to_try = ({"torch_dtype": unet_dtype(supported_dtypes=(torch.bfloat16, torch.float16, torch.float32)),
+                              "low_cpu_mem_usage": True,
+                              "device_map": str(unet_offload_device()), }, {})
+
+            # if we have flash-attn installed, try to use it
+            try:
+                import flash_attn
+                attn_override_kwargs = {
+                    "attn_implementation": "flash_attention_2",
+                    **kwargs_to_try[0]
+                }
+                kwargs_to_try = (attn_override_kwargs, *kwargs_to_try)
+                logging.debug(f"while loading model {ckpt_name}, flash_attn was installed, so the flash_attention_2 implementation will be tried")
+            except ImportError:
+                pass
+            for i, props in enumerate(kwargs_to_try):
+                try:
+                    if model_type in MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES:
+                        model = AutoModelForVision2Seq.from_pretrained(**from_pretrained_kwargs, **props)
+                    elif model_type in MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
+                        model = AutoModelForSeq2SeqLM.from_pretrained(**from_pretrained_kwargs, **props)
+                    elif model_type in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
+                        model = AutoModelForCausalLM.from_pretrained(**from_pretrained_kwargs, **props)
+                    else:
+                        model = AutoModel.from_pretrained(**from_pretrained_kwargs, **props)
+                    if model is not None:
+                        break
+                except Exception as exc_info:
+                    if i == len(kwargs_to_try) - 1:
+                        raise exc_info
+                    else:
+                        logging.warning(f"tried to import transformers model {ckpt_name} but got exception when trying additional import args {props}", exc_info=exc_info)
+                finally:
+                    torch.set_default_dtype(torch.float32)
+
+            for i, props in enumerate(kwargs_to_try):
+                try:
+                    try:
+                        processor = AutoProcessor.from_pretrained(**from_pretrained_kwargs, **props)
+                    except:
+                        processor = None
+                    if isinstance(processor, PreTrainedTokenizerBase):
+                        tokenizer = processor
+                        processor = None
+                    else:
+                        tokenizer = getattr(processor, "tokenizer") if processor is not None and hasattr(processor, "tokenizer") else AutoTokenizer.from_pretrained(ckpt_name, **hub_kwargs, **props)
+                    if tokenizer is not None or processor is not None:
+                        break
+                except Exception as exc_info:
+                    if i == len(kwargs_to_try) - 1:
+                        raise exc_info
+                finally:
+                    torch.set_default_dtype(torch.float32)
+
+        if model_management.xformers_enabled() and hasattr(model, "enable_xformers_memory_efficient_attention"):
+            model.enable_xformers_memory_efficient_attention()
+            logging.debug("enabled xformers memory efficient attention")
+
+        model_managed = TransformersManagedModel(
+            repo_id=repo_id,
+            model=model,
+            tokenizer=tokenizer,
+            config_dict=config_dict,
+            processor=processor
+        )
+
+        return model_managed
+
+    def generate(self, tokens: TOKENS_TYPE = None,
+                 max_new_tokens: int = 512,
+                 repetition_penalty: float = 0.0,
+                 seed: int = 0,
+                 sampler: Optional[GENERATION_KWARGS_TYPE] = None,
+                 *args,
+                 **kwargs) -> str:
+        tokens = copy.copy(tokens)
+        tokens_original = copy.copy(tokens)
+        sampler = sampler or {}
+        generate_kwargs = copy.copy(sampler)
+        load_models_gpu([self])
+        transformers_model: PreTrainedModel = self.model
+        tokenizer: PreTrainedTokenizerBase | AutoTokenizer = self.tokenizer
+        # remove unused inputs
+        # maximizes compatibility with different models
+        generate_signature = inspect.signature(transformers_model.generate).parameters
+        prepare_signature = inspect.signature(transformers_model.prepare_inputs_for_generation).parameters
+        to_delete = set(reduce(operator.sub, map(lambda x: x.keys(), [tokens, generate_signature, prepare_signature])))
+        gen_sig_keys = generate_signature.keys()
+        if "tgt_lang" in tokens:
+            to_delete.add("tgt_lang")
+            to_delete.add("src_lang")
+            to_delete.discard("input_ids")
+            if "forced_bos_token_id" in tokens:
+                to_delete.discard("forced_bos_token_id")
+            elif hasattr(tokenizer, "convert_tokens_to_ids"):
+                generate_kwargs["forced_bos_token_id"] = tokenizer.convert_tokens_to_ids(tokens["tgt_lang"])
+            else:
+                logging.warning(f"tokenizer {tokenizer} unexpected for translation task")
+        if "input_ids" in tokens and "inputs" in tokens:
+            if "input_ids" in gen_sig_keys:
+                to_delete.add("inputs")
+            elif "inputs" in gen_sig_keys:
+                to_delete.add("input_ids")
+        for unused_kwarg in to_delete:
+            tokens.pop(unused_kwarg)
+            logging.debug(f"{transformers_model.name_or_path}.generate does not accept {unused_kwarg}, removing")
+
+        # images should be moved to model
+        for key in ("images", "pixel_values"):
+            if key in tokens:
+                tokens[key] = tokens[key].to(device=self.current_device, dtype=self.model_dtype())
+
+        # sets up inputs
+        inputs = tokens
+
+        # used to determine if text streaming is supported
+        num_beams = generate_kwargs.get("num_beams", transformers_model.generation_config.num_beams)
+
+        progress_bar: ProgressBar
+        with comfy_progress(total=max_new_tokens) as progress_bar:
+            # todo: deal with batches correctly, don't assume batch size 1
+            token_count = 0
+
+            # progress
+            def on_finalized_text(next_token: str, stop: bool):
+                nonlocal token_count
+                nonlocal progress_bar
+
+                token_count += 1
+                preview = TransformerStreamedProgress(next_token=next_token)
+                progress_bar.update_absolute(token_count, total=max_new_tokens, preview_image_or_output=preview)
+
+            text_streamer = _ProgressTextStreamer(on_finalized_text, tokenizer, True)
+
+            with seed_for_block(seed):
+                if hasattr(inputs, "encodings") and inputs.encodings is not None and all(hasattr(encoding, "attention_mask") for encoding in inputs.encodings) and "attention_mask" in inputs:
+                    inputs.pop("attention_mask")
+                output_ids = transformers_model.generate(
+                    **inputs,
+                    streamer=text_streamer if num_beams <= 1 else None,
+                    max_new_tokens=max_new_tokens,
+                    repetition_penalty=repetition_penalty if repetition_penalty != 0 else None,
+                    **generate_kwargs
+                )
+
+                if not transformers_model.config.is_encoder_decoder:
+                    start_position = inputs["input_ids" if "input_ids" in inputs else "inputs"].shape[1]
+                    output_ids = output_ids[:, start_position:]
+
+        if hasattr(tokenizer, "src_lang") and "src_lang" in tokens_original:
+            prev_src_lang = tokenizer.src_lang
+            tokenizer.src_lang = tokens_original["src_lang"]
+        else:
+            prev_src_lang = None
+        # todo: is this redundant consider I'm decoding in the on_finalized_text block?
+        try:
+            outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+        finally:
+            if prev_src_lang is not None:
+                tokenizer.src_lang = prev_src_lang
+        # gpu-loaded stuff like images can now be unloaded
+        if hasattr(tokens, "to"):
+            del tokens
+        else:
+            for to_delete in tokens.values():
+                del to_delete
+            del tokens
+
+        # todo: better support batches
+        return outputs[0]
 
     @property
     def tokenizer(self) -> PreTrainedTokenizerBase | AutoTokenizer:
@@ -178,9 +366,32 @@ class TransformersManagedModel(ModelManageable):
                 **batch_feature
             }
 
+    @property
+    def repo_id(self) -> str:
+        return self._repo_id
+
     def __str__(self):
         if self.repo_id is not None:
             repo_id_as_path = pathlib.PurePath(self.repo_id)
             return f"<TransformersManagedModel for {'/'.join(repo_id_as_path.parts[-2:])} ({self.model.__class__.__name__})>"
         else:
             return f"<TransformersManagedModel for {self.model.__class__.__name__}>"
+
+
+class _ProgressTextStreamer(TextStreamer):
+    def __init__(self, on_finalized_text: Callable[[str, bool], None], tokenizer: "AutoTokenizer", skip_prompt: bool = False, **decode_kwargs):
+        super().__init__(tokenizer, skip_prompt, **decode_kwargs)
+        self.on_finalized_text_handler = on_finalized_text
+
+    def on_finalized_text(self, text: str, stream_end: bool = False):
+        self.on_finalized_text_handler(text, stream_end)
+
+
+class _ProgressLogitsProcessor(LogitsProcessor):
+    def __init__(self, model: TransformersManagedModel):
+        self.eos_token_id = model.tokenizer.eos_token_id
+
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+        probabilities = scores.softmax(dim=-1)
+        self.eos_probability = probabilities[:, self.eos_token_id].item()
+        return scores

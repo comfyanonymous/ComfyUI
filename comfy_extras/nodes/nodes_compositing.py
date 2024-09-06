@@ -5,7 +5,7 @@ import torch
 from skimage import exposure
 
 import comfy.utils
-from comfy.component_model.tensor_types import RGBImageBatch, ImageBatch
+from comfy.component_model.tensor_types import RGBImageBatch, ImageBatch, MaskBatch
 from comfy.nodes.package_typing import CustomNode
 
 
@@ -34,10 +34,7 @@ class PorterDuffMode(Enum):
     XOR = 17
 
 
-def porter_duff_composite(src_image: torch.Tensor, src_alpha: torch.Tensor, dst_image: torch.Tensor, dst_alpha: torch.Tensor, mode: PorterDuffMode):
-    # convert mask to alpha
-    src_alpha = 1 - src_alpha
-    dst_alpha = 1 - dst_alpha
+def _porter_duff_composite(src_image: torch.Tensor, src_alpha: torch.Tensor, dst_image: torch.Tensor, dst_alpha: torch.Tensor, mode: PorterDuffMode):
     # premultiply alpha
     src_image = src_image * src_alpha
     dst_image = dst_image * dst_alpha
@@ -109,24 +106,31 @@ def porter_duff_composite(src_image: torch.Tensor, src_alpha: torch.Tensor, dst_
     return out_image, out_alpha
 
 
-class PorterDuffImageComposite:
+class PorterDuffImageCompositeV2:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
                 "source": ("IMAGE",),
-                "source_alpha": ("MASK",),
                 "destination": ("IMAGE",),
-                "destination_alpha": ("MASK",),
                 "mode": ([mode.name for mode in PorterDuffMode], {"default": PorterDuffMode.DST.name}),
             },
+            "optional": {
+                "source_alpha": ("MASK",),
+                "destination_alpha": ("MASK",),
+            }
         }
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "composite"
     CATEGORY = "mask/compositing"
 
-    def composite(self, source: torch.Tensor, source_alpha: torch.Tensor, destination: torch.Tensor, destination_alpha: torch.Tensor, mode):
+    def composite(self, source: RGBImageBatch, destination: RGBImageBatch, mode, source_alpha: MaskBatch = None, destination_alpha: MaskBatch = None) -> tuple[RGBImageBatch, MaskBatch]:
+        if source_alpha is None:
+            source_alpha = torch.zeros(source.shape[:3])
+        if destination_alpha is None:
+            destination_alpha = torch.zeros(destination.shape[:3])
+
         batch_size = min(len(source), len(source_alpha), len(destination), len(destination_alpha))
         out_images = []
         out_alphas = []
@@ -153,13 +157,35 @@ class PorterDuffImageComposite:
                 upscale_output = comfy.utils.common_upscale(upscale_input, dst_alpha.shape[1], dst_alpha.shape[0], upscale_method='bicubic', crop='center')
                 src_alpha = upscale_output.permute(0, 2, 3, 1).squeeze(0)
 
-            out_image, out_alpha = porter_duff_composite(src_image, src_alpha, dst_image, dst_alpha, PorterDuffMode[mode])
+            out_image, out_alpha = _porter_duff_composite(src_image, src_alpha, dst_image, dst_alpha, PorterDuffMode[mode])
 
             out_images.append(out_image)
             out_alphas.append(out_alpha.squeeze(2))
 
         result = (torch.stack(out_images), torch.stack(out_alphas))
         return result
+
+
+class PorterDuffImageCompositeV1(PorterDuffImageCompositeV2):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "source": ("IMAGE",),
+                "source_alpha": ("MASK",),
+                "destination": ("IMAGE",),
+                "destination_alpha": ("MASK",),
+                "mode": ([mode.name for mode in PorterDuffMode], {"default": PorterDuffMode.DST.name}),
+            },
+        }
+
+    FUNCTION = "composite_v1"
+
+    def composite_v1(self, source: torch.Tensor, source_alpha: torch.Tensor, destination: torch.Tensor, destination_alpha: torch.Tensor, mode) -> tuple[RGBImageBatch, MaskBatch]:
+        # convert mask to alpha
+        source_alpha = 1 - source_alpha
+        destination_alpha = 1 - destination_alpha
+        return super().composite(source, destination, mode, source_alpha, destination_alpha)
 
 
 class SplitImageWithAlpha:
@@ -312,7 +338,8 @@ class Posterize(CustomNode):
 
 
 NODE_CLASS_MAPPINGS = {
-    "PorterDuffImageComposite": PorterDuffImageComposite,
+    "PorterDuffImageComposite": PorterDuffImageCompositeV1,
+    "PorterDuffImageCompositeV2": PorterDuffImageCompositeV2,
     "SplitImageWithAlpha": SplitImageWithAlpha,
     "JoinImageWithAlpha": JoinImageWithAlpha,
     "EnhanceContrast": EnhanceContrast,
@@ -321,7 +348,8 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "PorterDuffImageComposite": "Porter-Duff Image Composite",
+    "PorterDuffImageComposite": "Porter-Duff Image Composite (V1)",
+    "PorterDuffImageCompositeV2": "Image Composite",
     "SplitImageWithAlpha": "Split Image with Alpha",
     "JoinImageWithAlpha": "Join Image with Alpha",
 }
