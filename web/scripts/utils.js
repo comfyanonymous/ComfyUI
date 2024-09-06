@@ -1,4 +1,4 @@
-// Shim for scripts\utils.ts
+// Shim for scripts/utils.ts
 export const clone = window.comfyAPI.utils.clone;
 export const applyTextReplacements = window.comfyAPI.utils.applyTextReplacements;
 export const addStylesheet = window.comfyAPI.utils.addStylesheet;

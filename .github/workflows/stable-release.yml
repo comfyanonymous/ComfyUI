@@ -12,7 +12,7 @@ on:
         description: 'CUDA version'
         required: true
         type: string
-        default: "121"
+        default: "124"
       python_minor:
         description: 'Python minor version'
         required: true
