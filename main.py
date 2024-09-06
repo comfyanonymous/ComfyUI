@@ -6,6 +6,10 @@ import importlib.util
 import folder_paths
 import time
 from comfy.cli_args import args
+from app.logger import setup_logger
+
+
+setup_logger(verbose=args.verbose)
 
 
 def execute_prestartup_script():
@@ -101,7 +105,7 @@ def cuda_malloc_warning():
             logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 def prompt_worker(q, server):
-    e = execution.PromptExecutor(server)
+    e = execution.PromptExecutor(server, lru_size=args.cache_lru)
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -121,7 +125,7 @@ def prompt_worker(q, server):
             e.execute(item[2], prompt_id, item[3], item[4])
             need_gc = True
             q.task_done(item_id,
-                        e.outputs_ui,
+                        e.history_result,
                         status=execution.PromptQueue.ExecutionStatus(
                             status_str='success' if e.success else 'error',
                             completed=e.success,
@@ -242,6 +246,8 @@ if __name__ == "__main__":
     folder_paths.add_model_folder_path("checkpoints", os.path.join(folder_paths.get_output_directory(), "checkpoints"))
     folder_paths.add_model_folder_path("clip", os.path.join(folder_paths.get_output_directory(), "clip"))
     folder_paths.add_model_folder_path("vae", os.path.join(folder_paths.get_output_directory(), "vae"))
+    folder_paths.add_model_folder_path("diffusion_models", os.path.join(folder_paths.get_output_directory(), "diffusion_models"))
+    folder_paths.add_model_folder_path("loras", os.path.join(folder_paths.get_output_directory(), "loras"))
 
     if args.input_directory:
         input_dir = os.path.abspath(args.input_directory)
@@ -261,6 +267,7 @@ if __name__ == "__main__":
         call_on_start = startup_server
 
     try:
+        loop.run_until_complete(server.setup())
         loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
     except KeyboardInterrupt:
         logging.info("\nStopped server")

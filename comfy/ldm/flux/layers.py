@@ -6,6 +6,7 @@ from torch import Tensor, nn
 
 from .math import attention, rope
 import comfy.ops
+import comfy.ldm.common_dit
 
 
 class EmbedND(nn.Module):
@@ -63,10 +64,7 @@ class RMSNorm(torch.nn.Module):
         self.scale = nn.Parameter(torch.empty((dim), dtype=dtype, device=device))
 
     def forward(self, x: Tensor):
-        x_dtype = x.dtype
-        x = x.float()
-        rrms = torch.rsqrt(torch.mean(x**2, dim=-1, keepdim=True) + 1e-6)
-        return (x * rrms).to(dtype=x_dtype) * comfy.ops.cast_to(self.scale, dtype=x_dtype, device=x.device)
+        return comfy.ldm.common_dit.rms_norm(x, self.scale, 1e-6)
 
 
 class QKNorm(torch.nn.Module):
@@ -178,7 +176,7 @@ class DoubleStreamBlock(nn.Module):
         txt += txt_mod2.gate * self.txt_mlp((1 + txt_mod2.scale) * self.txt_norm2(txt) + txt_mod2.shift)
 
         if txt.dtype == torch.float16:
-            txt = txt.clip(-65504, 65504)
+            txt = torch.nan_to_num(txt, nan=0.0, posinf=65504, neginf=-65504)
 
         return img, txt
 
@@ -233,7 +231,7 @@ class SingleStreamBlock(nn.Module):
         output = self.linear2(torch.cat((attn, self.mlp_act(mlp)), 2))
         x += mod.gate * output
         if x.dtype == torch.float16:
-            x = x.clip(-65504, 65504)
+            x = torch.nan_to_num(x, nan=0.0, posinf=65504, neginf=-65504)
         return x
 
 
