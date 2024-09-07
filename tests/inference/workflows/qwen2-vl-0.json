@@ -1,0 +1,106 @@
+{
+  "4": {
+    "inputs": {
+      "ckpt_name": [
+        "20",
+        0
+      ],
+      "subfolder": ""
+    },
+    "class_type": "TransformersLoader",
+    "_meta": {
+      "title": "TransformersLoader"
+    }
+  },
+  "5": {
+    "inputs": {
+      "value": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Cute_dog.jpg/320px-Cute_dog.jpg",
+      "name": "",
+      "title": "Image to query",
+      "description": "",
+      "__required": true
+    },
+    "class_type": "ImageRequestParameter",
+    "_meta": {
+      "title": "ImageRequestParameter"
+    }
+  },
+  "7": {
+    "inputs": {
+      "prompt": "Describe the contents of this image.",
+      "chat_template": "default",
+      "model": [
+        "4",
+        0
+      ],
+      "images": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "OneShotInstructTokenize",
+    "_meta": {
+      "title": "OneShotInstructTokenize"
+    }
+  },
+  "9": {
+    "inputs": {
+      "max_new_tokens": 512,
+      "repetition_penalty": 0,
+      "seed": 2598326659,
+      "__tokens": "The image features a small brown and white puppy sitting on the grass. The puppy has floppy ears and is looking directly at the camera. Behind the puppy, there is a patch of purple flowers, adding a touch of color to the scene. The overall atmosphere of the image is cute and charming, with the puppy appearing to be in a peaceful outdoor setting.<|im_end|>",
+      "model": [
+        "4",
+        0
+      ],
+      "tokens": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "TransformersGenerate",
+    "_meta": {
+      "title": "TransformersGenerate"
+    }
+  },
+  "11": {
+    "inputs": {
+      "value": [
+        "9",
+        0
+      ],
+      "filename_prefix": "ComfyUI",
+      "extension": ".txt",
+      "output": "The image features a small brown and white puppy sitting on the grass. The puppy has floppy ears and is looking directly at the camera. Behind the puppy, there is a patch of purple flowers, adding a touch of color to the scene. The overall atmosphere of the image is cute and charming, with the puppy appearing to be in a peaceful outdoor setting."
+    },
+    "class_type": "SaveString",
+    "_meta": {
+      "title": "SaveString"
+    }
+  },
+  "20": {
+    "inputs": {
+      "value": "Qwen/Qwen2-VL-7B-Instruct",
+      "name": "",
+      "title": "",
+      "description": "",
+      "__required": true
+    },
+    "class_type": "StringEnumRequestParameter",
+    "_meta": {
+      "title": "StringEnumRequestParameter"
+    }
+  },
+  "21": {
+    "inputs": {
+      "images": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  }
+}

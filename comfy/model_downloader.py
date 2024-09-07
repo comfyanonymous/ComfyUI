@@ -423,6 +423,7 @@ KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
     'facebook/nllb-200-distilled-1.3B',
     'THUDM/chatglm3-6b',
     'roborovski/superprompt-v1',
+    'Qwen/Qwen2-VL-7B-Instruct',
 }
 
 KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([

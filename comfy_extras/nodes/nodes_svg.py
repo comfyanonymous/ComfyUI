@@ -7,19 +7,12 @@ import vtracer
 from PIL import Image
 
 from comfy.nodes.package_typing import CustomNode
+from comfy.utils import tensor2pil
 
 
 def RGB2RGBA(image: Image, mask: Image) -> Image:
     (R, G, B) = image.convert('RGB').split()
     return Image.merge('RGBA', (R, G, B, mask.convert('L')))
-
-
-def pil2tensor(image: Image) -> torch.Tensor:
-    return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
-
-
-def tensor2pil(t_image: torch.Tensor) -> Image:
-    return Image.fromarray(np.clip(255.0 * t_image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8))
 
 
 class ImageToSVG(CustomNode):

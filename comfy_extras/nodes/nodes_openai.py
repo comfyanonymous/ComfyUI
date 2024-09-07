@@ -14,7 +14,7 @@ from openai.types.chat import ChatCompletionMessageParam
 from comfy.cli_args import args
 from comfy.component_model.tensor_types import RGBImageBatch
 from comfy.language.language_types import LanguageModel, ProcessorResult, GENERATION_KWARGS_TYPE, TOKENS_TYPE, \
-    TransformerStreamedProgress
+    TransformerStreamedProgress, LanguagePrompt
 from comfy.nodes.package_typing import CustomNode, InputTypes
 from comfy.utils import comfy_progress, ProgressBar, seed_for_block
 
@@ -120,7 +120,7 @@ class OpenAILanguageModelWrapper(LanguageModel):
 
         return full_response
 
-    def tokenize(self, prompt: str, images: RGBImageBatch, chat_template: str | None = None) -> ProcessorResult:
+    def tokenize(self, prompt: str | LanguagePrompt, images: RGBImageBatch | None, chat_template: str | None = None) -> ProcessorResult:
         # OpenAI API doesn't require explicit tokenization, so we'll just return the prompt and images as is
         return {
             "inputs": [prompt],

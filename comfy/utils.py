@@ -948,3 +948,11 @@ def seed_for_block(seed):
         np.random.set_state(numpy_rng_state)
         if torch.cuda.is_available():
             torch.cuda.set_rng_state_all(cuda_rng_state)
+
+
+def pil2tensor(image: Image) -> torch.Tensor:
+    return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
+
+
+def tensor2pil(t_image: torch.Tensor) -> Image:
+    return Image.fromarray(np.clip(255.0 * t_image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8))

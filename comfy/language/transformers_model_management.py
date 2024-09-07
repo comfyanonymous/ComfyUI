@@ -7,7 +7,7 @@ import operator
 import pathlib
 import warnings
 from functools import reduce
-from typing import Optional, Any, Callable, List
+from typing import Optional, Any, Callable
 
 import torch
 from transformers import PreTrainedModel, PreTrainedTokenizerBase, ProcessorMixin, AutoProcessor, AutoTokenizer, \
@@ -18,12 +18,13 @@ from transformers.models.auto.modeling_auto import MODEL_FOR_VISION_2_SEQ_MAPPIN
 
 from .chat_templates import KNOWN_CHAT_TEMPLATES
 from .language_types import ProcessorResult, TOKENS_TYPE, GENERATION_KWARGS_TYPE, TransformerStreamedProgress, \
-    LLaVAProcessor, LanguageModel
+    LLaVAProcessor, LanguageModel, LanguagePrompt
 from .. import model_management
+from ..component_model.tensor_types import RGBImageBatch
 from ..model_downloader import get_or_download_huggingface_repo
 from ..model_management import unet_offload_device, get_torch_device, unet_dtype, load_models_gpu
 from ..model_management_types import ModelManageable
-from ..utils import comfy_tqdm, ProgressBar, comfy_progress, seed_for_block
+from ..utils import comfy_tqdm, ProgressBar, comfy_progress, seed_for_block, tensor2pil
 
 
 class TransformersManagedModel(ModelManageable, LanguageModel):
@@ -54,8 +55,9 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
         if subfolder is not None and subfolder != "":
             hub_kwargs["subfolder"] = subfolder
         repo_id = ckpt_name
-        ckpt_name = get_or_download_huggingface_repo(ckpt_name)
         with comfy_tqdm():
+            ckpt_name = get_or_download_huggingface_repo(ckpt_name)
+
             from_pretrained_kwargs = {
                 "pretrained_model_name_or_path": ckpt_name,
                 "trust_remote_code": True,
@@ -323,7 +325,7 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
         if processor is not None and hasattr(processor, "image_processor") and hasattr(processor.image_processor, "do_rescale"):
             processor.image_processor.do_rescale = False
 
-    def tokenize(self, prompt: str, images: List[torch.Tensor] | torch.Tensor, chat_template: str | None = None) -> ProcessorResult:
+    def tokenize(self, prompt: str | LanguagePrompt, images: RGBImageBatch | None, chat_template: str | None = None) -> ProcessorResult:
         tokenizer = self.tokenizer
         assert tokenizer is not None
         assert hasattr(tokenizer, "decode")
@@ -335,32 +337,57 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
             if len(candidate_chat_templates) > 0:
                 filename, chat_template = candidate_chat_templates[0]
                 logging.debug(f"Selected chat template filename={filename} for {self.model.name_or_path}")
+        if isinstance(images, list):
+            images = torch.stack(images, dim=0)
+        if images is not None:
+            # PIL it for the sake of simplicity
+            image_sizes = [(image.shape[-2], image.shape[-3]) for image in images]
+        else:
+            image_sizes = []
+            images = []
+
         try:
             if hasattr(tokenizer, "apply_chat_template"):
-                # todo: this should come from node inputs
-                prompt = tokenizer.apply_chat_template([
-                    {"role": "user", "content": prompt},
-                ], chat_template=chat_template, add_generation_prompt=True, tokenize=False)
+                messages: LanguagePrompt
+                if isinstance(prompt, list) and len(prompt) > 0 and isinstance(prompt[0], dict):
+                    messages = prompt
+                elif "content[" in chat_template:
+                    messages = [
+                        {"role": "user",
+                         "content": [
+                                        {
+                                            "type": "text",
+                                            "text": prompt
+                                        }
+                                    ] + [
+                                        {"type": "image"} for _ in range(len(images))
+                                    ]
+
+                         }
+                    ]
+                else:
+                    messages = [
+                        {"role": "user", "content": prompt},
+                    ]
+                prompt = tokenizer.apply_chat_template(messages, chat_template=chat_template, add_generation_prompt=True, tokenize=False)
         except Exception as exc:
             logging.debug("Could not apply chat template", exc_info=exc)
 
-        if self.processor is None:
+        if self.processor is None and isinstance(prompt, str):
             batch_encoding = tokenizer(prompt, return_tensors="pt").to(device=self.load_device)
             return {**batch_encoding}
         else:
-            assert images is not None and len(images) > 0, "When using a multi-modal model, pass at least one, possibly empty, image"
             if hasattr(self.processor, "to"):
                 self.processor.to(device=self.load_device)
 
-            assert "<image>" in prompt.lower(), "You must specify a &lt;image&gt; token inside the prompt for it to be substituted correctly by a HuggingFace processor"
-            batch_feature: BatchFeature = self.processor([prompt], images=images.unbind(), padding=True, return_tensors="pt")
+            batch_feature: BatchFeature = self.processor(text=[prompt], images=images.unbind(), return_tensors="pt", padding=True)
             if hasattr(self.processor, "to"):
                 self.processor.to(device=self.offload_device)
             assert "input_ids" in batch_feature
             batch_feature.to(device=self.load_device, dtype=self.model_dtype())
             # noinspection PyTypeChecker
             return {
-                "image_sizes": [(images.shape[-1], image.shape[-2]) for image in images],
+                "image_sizes": image_sizes,
                 "images": batch_feature["pixel_values"],
                 "inputs": batch_feature["input_ids"],
                 **batch_feature

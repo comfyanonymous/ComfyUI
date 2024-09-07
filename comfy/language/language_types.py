@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Union, Callable, List, Optional, Protocol, runtime_checkable
+from typing import Union, Callable, List, Optional, Protocol, runtime_checkable, Literal
 
 import numpy as np
 import torch
@@ -63,6 +63,27 @@ LLaVAProcessor = Callable[
 ]
 
 
+class LanguageMessage(TypedDict):
+    role: Literal["system", "user", "assistant"]
+    content: str | MessageContent
+
+
+class MessageContentImage(TypedDict):
+    url: NotRequired[str]
+
+
+class MessageContent(TypedDict):
+    type: Literal["text", "image", "video", "image_url"]
+    text: NotRequired[str]
+    image: NotRequired[str]
+    image_url: NotRequired[MessageContentImage]
+    min_pixels: NotRequired[int]
+    max_pixels: NotRequired[int]
+
+
+LanguagePrompt = list[LanguageMessage]
+
+
 @runtime_checkable
 class LanguageModel(Protocol):
     @staticmethod
@@ -78,7 +99,7 @@ class LanguageModel(Protocol):
                  **kwargs) -> str:
         ...
 
-    def tokenize(self, prompt: str, images: List[torch.Tensor] | torch.Tensor, chat_template: str | None = None) -> ProcessorResult:
+    def tokenize(self, prompt: str | LanguagePrompt, images: RGBImageBatch | None, chat_template: str | None = None) -> ProcessorResult:
         ...
 
     @property
