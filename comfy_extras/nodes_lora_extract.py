@@ -38,6 +38,23 @@ def extract_lora(diff, rank):
         Vh = Vh.reshape(rank, in_dim, kernel_size[0], kernel_size[1])
     return (U, Vh)
 
+def calc_lora_model(model_diff, rank, prefix_model, prefix_lora, output_sd):
+    comfy.model_management.load_models_gpu([model_diff], force_patch_weights=True)
+    sd = model_diff.model_state_dict(filter_prefix=prefix_model)
+
+    for k in sd:
+        if k.endswith(".weight"):
+            weight_diff = sd[k]
+            if weight_diff.ndim < 2:
+                continue
+            try:
+                out = extract_lora(weight_diff, rank)
+                output_sd["{}{}.lora_up.weight".format(prefix_lora, k[len(prefix_model):-7])] = out[0].contiguous().half().cpu()
+                output_sd["{}{}.lora_down.weight".format(prefix_lora, k[len(prefix_model):-7])] = out[1].contiguous().half().cpu()
+            except:
+                logging.warning("Could not generate lora weights for key {}, is the weight difference a zero?".format(k))
+    return output_sd
+
 class LoraSave:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -47,7 +64,8 @@ class LoraSave:
         return {"required": {"filename_prefix": ("STRING", {"default": "loras/ComfyUI_extracted_lora"}),
                               "rank": ("INT", {"default": 8, "min": 1, "max": 1024, "step": 1}),
                             },
-                "optional": {"model_diff": ("MODEL",),},
+                "optional": {"model_diff": ("MODEL",),
+                             "text_encoder_diff": ("CLIP",)},
     }
     RETURN_TYPES = ()
     FUNCTION = "save"
@@ -55,30 +73,17 @@ class LoraSave:
 
     CATEGORY = "_for_testing"
 
-    def save(self, filename_prefix, rank, model_diff=None):
-        if model_diff is None:
+    def save(self, filename_prefix, rank, model_diff=None, text_encoder_diff=None):
+        if model_diff is None and text_encoder_diff is None:
             return {}
 
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
 
         output_sd = {}
-        prefix_key = "diffusion_model."
-        stored = set()
-
-        comfy.model_management.load_models_gpu([model_diff], force_patch_weights=True)
-        sd = model_diff.model_state_dict(filter_prefix=prefix_key)
-
-        for k in sd:
-            if k.endswith(".weight"):
-                weight_diff = sd[k]
-                if weight_diff.ndim < 2:
-                    continue
-                try:
-                    out = extract_lora(weight_diff, rank)
-                    output_sd["{}.lora_up.weight".format(k[:-7])] = out[0].contiguous().half().cpu()
-                    output_sd["{}.lora_down.weight".format(k[:-7])] = out[1].contiguous().half().cpu()
-                except:
-                    logging.warning("Could not generate lora weights for key {}, is the weight difference a zero?".format(k))
+        if model_diff is not None:
+            output_sd = calc_lora_model(model_diff, rank, "diffusion_model.", "diffusion_model.", output_sd)
+        if text_encoder_diff is not None:
+            output_sd = calc_lora_model(text_encoder_diff.patcher, rank, "", "text_encoders.", output_sd)
 
         output_checkpoint = f"{filename}_{counter:05}_.safetensors"
         output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
