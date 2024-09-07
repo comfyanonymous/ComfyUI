@@ -38,7 +38,7 @@ def extract_lora(diff, rank):
         Vh = Vh.reshape(rank, in_dim, kernel_size[0], kernel_size[1])
     return (U, Vh)
 
-def calc_lora_model(model_diff, rank, prefix_model, prefix_lora, output_sd):
+def calc_lora_model(model_diff, rank, prefix_model, prefix_lora, output_sd, bias_diff=False):
     comfy.model_management.load_models_gpu([model_diff], force_patch_weights=True)
     sd = model_diff.model_state_dict(filter_prefix=prefix_model)
 
@@ -53,6 +53,8 @@ def calc_lora_model(model_diff, rank, prefix_model, prefix_lora, output_sd):
                 output_sd["{}{}.lora_down.weight".format(prefix_lora, k[len(prefix_model):-7])] = out[1].contiguous().half().cpu()
             except:
                 logging.warning("Could not generate lora weights for key {}, is the weight difference a zero?".format(k))
+        elif bias_diff and k.endswith(".bias"):
+            output_sd["{}{}.diff_b".format(prefix_lora, k[len(prefix_model):-5])] = sd[k].contiguous().half().cpu()
     return output_sd
 
 class LoraSave:
@@ -62,7 +64,9 @@ class LoraSave:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"filename_prefix": ("STRING", {"default": "loras/ComfyUI_extracted_lora"}),
-                              "rank": ("INT", {"default": 8, "min": 1, "max": 1024, "step": 1}),
+                              "rank": ("INT", {"default": 8, "min": 1, "max": 4096, "step": 1}),
+                              "lora_type": (["standard"],),
+                              "bias_diff": ("BOOLEAN", {"default": True}),
                             },
                 "optional": {"model_diff": ("MODEL",),
                              "text_encoder_diff": ("CLIP",)},
@@ -73,7 +77,7 @@ class LoraSave:
 
     CATEGORY = "_for_testing"
 
-    def save(self, filename_prefix, rank, model_diff=None, text_encoder_diff=None):
+    def save(self, filename_prefix, rank, lora_type, bias_diff, model_diff=None, text_encoder_diff=None):
         if model_diff is None and text_encoder_diff is None:
             return {}
 
@@ -81,9 +85,9 @@ class LoraSave:
 
         output_sd = {}
         if model_diff is not None:
-            output_sd = calc_lora_model(model_diff, rank, "diffusion_model.", "diffusion_model.", output_sd)
+            output_sd = calc_lora_model(model_diff, rank, "diffusion_model.", "diffusion_model.", output_sd, bias_diff=bias_diff)
         if text_encoder_diff is not None:
-            output_sd = calc_lora_model(text_encoder_diff.patcher, rank, "", "text_encoders.", output_sd)
+            output_sd = calc_lora_model(text_encoder_diff.patcher, rank, "", "text_encoders.", output_sd, bias_diff=bias_diff)
 
         output_checkpoint = f"{filename}_{counter:05}_.safetensors"
         output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
