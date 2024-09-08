@@ -248,15 +248,17 @@ def model_lora_keys_clip(model, key_map={}):
     for k in sdk:
         if k.endswith(".weight"):
             if k.startswith("t5xxl.transformer."):#OneTrainer SD3 and Flux lora
+                l_key = k[len("t5xxl.transformer."):-len(".weight")]
                 t5_index = 1
-                if clip_l_present:
-                    t5_index += 1
                 if clip_g_present:
                     t5_index += 1
+                if clip_l_present:
+                    t5_index += 1
+                    if t5_index == 2:
+                        key_map["lora_te{}_{}".format(t5_index, l_key.replace(".", "_"))] = k #OneTrainer Flux
+                        t5_index += 1
 
-                l_key = k[len("t5xxl.transformer."):-len(".weight")]
-                lora_key = "lora_te{}_{}".format(t5_index, l_key.replace(".", "_"))
-                key_map[lora_key] = k
+                key_map["lora_te{}_{}".format(t5_index, l_key.replace(".", "_"))] = k
             elif k.startswith("hydit_clip.transformer.bert."): #HunyuanDiT Lora
                 l_key = k[len("hydit_clip.transformer.bert."):-len(".weight")]
                 lora_key = "lora_te1_{}".format(l_key.replace(".", "_"))
