@@ -496,3 +496,29 @@ class TestExecution:
         assert len(images) == 1, "Should have 1 image"
         assert numpy.array(images[0]).min() == 63 and numpy.array(images[0]).max() == 63, "Image should have value 0.25"
         assert not result.did_run(test_node), "The execution should have been cached"
+
+    # This tests that nodes with OUTPUT_IS_LIST function correctly when they receive an ExecutionBlocker
+    # as input. We also test that when that list (containing an ExecutionBlocker) is passed to a node,
+    # only that one entry in the list is blocked.
+    def test_execution_block_list_output(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        image1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        image2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+        image3 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        image_list = g.node("TestMakeListNode", value1=image1.out(0), value2=image2.out(0), value3=image3.out(0))
+        int1 = g.node("StubInt", value=1)
+        int2 = g.node("StubInt", value=2)
+        int3 = g.node("StubInt", value=3)
+        int_list = g.node("TestMakeListNode", value1=int1.out(0), value2=int2.out(0), value3=int3.out(0))
+        compare = g.node("TestIntConditions", a=int_list.out(0), b=2, operation="==")
+        blocker = g.node("TestExecutionBlocker", input=image_list.out(0), block=compare.out(0), verbose=False)
+        
+        list_output = g.node("TestMakeListNode", value1=blocker.out(0))
+        output = g.node("PreviewImage", images=list_output.out(0))
+
+        result = client.run(g)
+        assert result.did_run(output), "The execution should have run"
+        images = result.get_images(output)
+        assert len(images) == 2, "Should have 2 images"
+        assert numpy.array(images[0]).min() == 0 and numpy.array(images[0]).max() == 0, "First image should be black"
+        assert numpy.array(images[1]).min() == 0 and numpy.array(images[1]).max() == 0, "Second image should also be black"

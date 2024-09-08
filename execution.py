@@ -179,7 +179,13 @@ def merge_result_data(results, obj):
     # merge node execution results
     for i, is_list in zip(range(len(results[0])), output_is_list):
         if is_list:
-            output.append([x for o in results for x in o[i]])
+            value = []
+            for o in results:
+                if isinstance(o[i], ExecutionBlocker):
+                    value.append(o[i])
+                else:
+                    value.extend(o[i])
+            output.append(value)
         else:
             output.append([o[i] for o in results])
     return output
