@@ -83,11 +83,6 @@ def create_cors_middleware(allowed_origin: str):
 def create_origin_only_middleware():
     @web.middleware
     async def origin_only_middleware(request: web.Request, handler):
-        if request.method == "OPTIONS":
-            response = web.Response()
-        else:
-            response = await handler(request)
-
         if 'Host' in request.headers and 'Origin' in request.headers:
             host = request.headers['Host']
             origin = request.headers['Origin']
@@ -96,6 +91,11 @@ def create_origin_only_middleware():
             if host_domain != origin_domain:
                 logging.warning("WARNING: request with non matching host and origin {} != {}, returning 403".format(host_domain, origin_domain))
                 return web.Response(status=403)
+
+        if request.method == "OPTIONS":
+            response = web.Response()
+        else:
+            response = await handler(request)
 
         return response
 
