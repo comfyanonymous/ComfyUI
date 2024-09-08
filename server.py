@@ -155,6 +155,10 @@ class PromptServer():
         def get_embeddings(self):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
+        
+        @routes.get("/models")
+        def list_model_types(request):
+            return web.json_response(list(folder_paths.folder_names_and_paths))
 
         @routes.get("/models/{folder}")
         async def get_models(request):
