@@ -49,7 +49,8 @@ def test_load_extra_model_paths_expands_userpath(
     monkeypatch.setattr(os.path, 'expanduser', mock_expanduser)
     monkeypatch.setattr(yaml, 'safe_load', mock_yaml_safe_load)
 
-    load_extra_path_config('dummy_path.yaml')
+    dummy_yaml_file_name = 'dummy_path.yaml'
+    load_extra_path_config(dummy_yaml_file_name)
 
     expected_calls = [
         ('model1', os.path.join(mock_expanded_home, 'App', 'subfolder1')),
@@ -65,4 +66,4 @@ def test_load_extra_model_paths_expands_userpath(
     mock_yaml_safe_load.assert_called_once()
 
     # Check if open was called with the correct file path
-    mock_file.assert_called_once_with('dummy_path.yaml', 'r')
+    mock_file.assert_called_once_with(dummy_yaml_file_name, 'r')
