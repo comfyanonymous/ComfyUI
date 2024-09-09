@@ -3,7 +3,6 @@ import yaml
 import os
 from unittest.mock import Mock, patch, mock_open
 
-# Import the function we're testing
 from main import load_extra_path_config
 import folder_paths
 
