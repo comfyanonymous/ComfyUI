@@ -3,7 +3,7 @@ import yaml
 import os
 from unittest.mock import Mock, patch, mock_open
 
-from main import load_extra_path_config
+from utils.extra_config import load_extra_path_config
 import folder_paths
 
 @pytest.fixture
