@@ -88,9 +88,10 @@ def create_origin_only_middleware():
             origin = request.headers['Origin']
             host_domain = host.lower()
             origin_domain = urllib.parse.urlparse(origin).netloc.lower()
-            if host_domain != origin_domain:
-                logging.warning("WARNING: request with non matching host and origin {} != {}, returning 403".format(host_domain, origin_domain))
-                return web.Response(status=403)
+            if len(host_domain) > 0 and len(origin_domain) > 0:
+                if host_domain != origin_domain:
+                    logging.warning("WARNING: request with non matching host and origin {} != {}, returning 403".format(host_domain, origin_domain))
+                    return web.Response(status=403)
 
         if request.method == "OPTIONS":
             response = web.Response()
