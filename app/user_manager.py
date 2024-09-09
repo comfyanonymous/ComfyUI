@@ -25,8 +25,8 @@ class UserManager():
                 print("****** For multi-user setups add the --multi-user CLI argument to enable multiple user profiles. ******")
 
         if args.multi_user:
-            if os.path.isfile(users_file):
-                with open(users_file) as f:
+            if os.path.isfile(self.get_users_file()):
+                with open(self.get_users_file()) as f:
                     self.users = json.load(f)
             else:
                 self.users = {}
@@ -87,7 +87,6 @@ class UserManager():
 
         self.users[user_id] = name
 
-        global users_file
         with open(self.get_users_file(), "w") as f:
             json.dump(self.users, f)
 
