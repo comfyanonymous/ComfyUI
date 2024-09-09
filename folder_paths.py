@@ -174,12 +174,6 @@ def add_model_folder_path(folder_name: str, full_folder_path: str) -> None:
     else:
         folder_names_and_paths[folder_name] = ([full_folder_path], set())
 
-def replace_folder_path(folder_name: str, full_folder_path: str) -> None:
-    global folder_names_and_paths
-    folder_name = map_legacy(folder_name)
-    if folder_name in folder_names_and_paths:
-        folder_names_and_paths[folder_name] = full_folder_path
-
 
 def get_folder_paths(folder_name: str) -> list[str]:
     folder_name = map_legacy(folder_name)
