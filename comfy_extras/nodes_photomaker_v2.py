@@ -236,7 +236,7 @@ class PhotoMakerEncodeV2:
         if index > 0:
             id_embeds = self.get_id_embeds(image)
             token_index = index - 1
-            num_id_images = 1
+            num_id_images = image.shape[0]
             num_tokens_v2 = 2
             id_embeds = id_embeds.unsqueeze(0).to(device=photomaker.load_device)
             class_tokens_mask = [True if token_index <= i < token_index+(num_id_images*num_tokens_v2) else False for i in range(cond.shape[1])]
@@ -248,7 +248,7 @@ class PhotoMakerEncodeV2:
 
         return ([[out, {"pooled_output": pooled}]], [[cond, {"pooled_output": pooled}]],)
     
-    def tensor2np(tensor: torch.Tensor):
+    def tensor2np(self, tensor: torch.Tensor):
         if len(tensor.shape) == 3:  # Single image
             return np.clip(255.0 * tensor.cpu().numpy(), 0, 255).astype(np.uint8)
         else:  # Batch of images
