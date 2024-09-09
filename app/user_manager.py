@@ -5,6 +5,7 @@ import uuid
 import glob
 import shutil
 from aiohttp import web
+from urllib import parse
 from comfy.cli_args import args
 from folder_paths import user_directory
 from .app_settings import AppSettings
@@ -59,6 +60,10 @@ class UserManager():
             return None
 
         if file is not None:
+            # Check if filename is url encoded
+            if "%" in file:
+                file = parse.unquote(file)
+                
             # prevent leaving /{type}/{user}
             path = os.path.abspath(os.path.join(user_root, file))
             if os.path.commonpath((user_root, path)) != user_root:
