@@ -2084,6 +2084,7 @@ def init_builtin_extra_nodes():
         "nodes_stable3d.py",
         "nodes_sdupscale.py",
         "nodes_photomaker.py",
+        "nodes_photomaker_v2.py",
         "nodes_cond.py",
         "nodes_morphology.py",
         "nodes_stable_cascade.py",
