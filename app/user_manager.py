@@ -19,7 +19,6 @@ class UserManager():
 
         self.settings = AppSettings(self)
         if not os.path.exists(user_directory):
-            print('Creating user directory: ', user_directory)
             os.mkdir(user_directory)
             if not args.multi_user:
                 print("****** User settings have been changed to be stored on the server instead of browser storage. ******")
@@ -57,7 +56,6 @@ class UserManager():
 
         user = self.get_request_user_id(request)
         path = user_root = os.path.abspath(os.path.join(root_dir, user))
-        print(f"User: {user}, Path: {path}")
 
         # prevent leaving /{type}
         if os.path.commonpath((root_dir, user_root)) != root_dir:
