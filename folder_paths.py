@@ -257,9 +257,17 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
     def compute_vars(input: str, image_width: int, image_height: int) -> str:
         input = input.replace("%width%", str(image_width))
         input = input.replace("%height%", str(image_height))
+        now = time.localtime()
+        input = input.replace("%year%", str(now.tm_year))
+        input = input.replace("%month%", str(now.tm_mon).zfill(2))
+        input = input.replace("%day%", str(now.tm_mday).zfill(2))
+        input = input.replace("%hour%", str(now.tm_hour).zfill(2))
+        input = input.replace("%minute%", str(now.tm_min).zfill(2))
+        input = input.replace("%second%", str(now.tm_sec).zfill(2))
         return input
 
-    filename_prefix = compute_vars(filename_prefix, image_width, image_height)
+    if "%" in filename_prefix:
+        filename_prefix = compute_vars(filename_prefix, image_width, image_height)
 
     subfolder = os.path.dirname(os.path.normpath(filename_prefix))
     filename = os.path.basename(os.path.normpath(filename_prefix))
