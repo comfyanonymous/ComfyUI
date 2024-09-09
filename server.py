@@ -80,6 +80,33 @@ def create_cors_middleware(allowed_origin: str):
 
     return cors_middleware
 
+def create_origin_only_middleware():
+    @web.middleware
+    async def origin_only_middleware(request: web.Request, handler):
+        if 'Host' in request.headers and 'Origin' in request.headers:
+            host = request.headers['Host']
+            origin = request.headers['Origin']
+            host_domain = host.lower()
+            parsed = urllib.parse.urlparse(origin)
+            origin_domain = parsed.netloc.lower()
+            if parsed.port is None: #if origin doesn't have a port strip it from the host to handle weird browsers
+                result = urllib.parse.urlsplit('//' + host_domain)
+                host_domain = result.hostname
+
+            if len(host_domain) > 0 and len(origin_domain) > 0:
+                if host_domain != origin_domain:
+                    logging.warning("WARNING: request with non matching host and origin {} != {}, returning 403".format(host_domain, origin_domain))
+                    return web.Response(status=403)
+
+        if request.method == "OPTIONS":
+            response = web.Response()
+        else:
+            response = await handler(request)
+
+        return response
+
+    return origin_only_middleware
+
 class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
@@ -99,6 +126,8 @@ class PromptServer():
         middlewares = [cache_control]
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
+        else:
+            middlewares.append(create_origin_only_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
