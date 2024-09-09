@@ -85,7 +85,6 @@ def get_input_directory() -> str:
     return input_directory
 
 def get_user_directory() -> str:
-    global user_directory
     return user_directory
 
 def set_user_directory(user_dir: str) -> None:
