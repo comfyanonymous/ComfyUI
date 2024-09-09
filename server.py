@@ -87,7 +87,12 @@ def create_origin_only_middleware():
             host = request.headers['Host']
             origin = request.headers['Origin']
             host_domain = host.lower()
-            origin_domain = urllib.parse.urlparse(origin).netloc.lower()
+            parsed = urllib.parse.urlparse(origin)
+            origin_domain = parsed.netloc.lower()
+            if parsed.port is None: #if origin doesn't have a port strip it from the host to handle weird browsers
+                result = urllib.parse.urlsplit('//' + host_domain)
+                host_domain = result.hostname
+
             if len(host_domain) > 0 and len(origin_domain) > 0:
                 if host_domain != origin_domain:
                     logging.warning("WARNING: request with non matching host and origin {} != {}, returning 403".format(host_domain, origin_domain))
