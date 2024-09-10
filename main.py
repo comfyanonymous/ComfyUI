@@ -63,7 +63,7 @@ import threading
 import gc
 
 import logging
-from utils import extra_config
+import utils.extra_config
 
 if os.name == "nt":
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
@@ -201,11 +201,11 @@ if __name__ == "__main__":
 
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
     if os.path.isfile(extra_model_paths_config_path):
-        extra_config.load_extra_path_config(extra_model_paths_config_path)
+        utils.extra_config.load_extra_path_config(extra_model_paths_config_path)
 
     if args.extra_model_paths_config:
         for config_path in itertools.chain(*args.extra_model_paths_config):
-            extra_config.load_extra_path_config(config_path)
+            utils.extra_config.load_extra_path_config(config_path)
 
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
 
