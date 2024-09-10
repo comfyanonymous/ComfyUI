@@ -63,6 +63,7 @@ import threading
 import gc
 
 import logging
+import utils.extra_config
 
 if os.name == "nt":
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
@@ -85,7 +86,6 @@ if args.windows_standalone_build:
         pass
 
 import comfy.utils
-import yaml
 
 import execution
 import server
@@ -180,27 +180,6 @@ def cleanup_temp():
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def load_extra_path_config(yaml_path):
-    with open(yaml_path, 'r') as stream:
-        config = yaml.safe_load(stream)
-    for c in config:
-        conf = config[c]
-        if conf is None:
-            continue
-        base_path = None
-        if "base_path" in conf:
-            base_path = conf.pop("base_path")
-        for x in conf:
-            for y in conf[x].split("\n"):
-                if len(y) == 0:
-                    continue
-                full_path = y
-                if base_path is not None:
-                    full_path = os.path.join(base_path, full_path)
-                logging.info("Adding extra search path {} {}".format(x, full_path))
-                folder_paths.add_model_folder_path(x, full_path)
-
-
 if __name__ == "__main__":
     if args.temp_directory:
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
@@ -222,11 +201,11 @@ if __name__ == "__main__":
 
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
     if os.path.isfile(extra_model_paths_config_path):
-        load_extra_path_config(extra_model_paths_config_path)
+        utils.extra_config.load_extra_path_config(extra_model_paths_config_path)
 
     if args.extra_model_paths_config:
         for config_path in itertools.chain(*args.extra_model_paths_config):
-            load_extra_path_config(config_path)
+            utils.extra_config.load_extra_path_config(config_path)
 
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
 
