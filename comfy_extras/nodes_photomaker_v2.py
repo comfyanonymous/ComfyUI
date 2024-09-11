@@ -213,14 +213,14 @@ class PhotoMakerEncodeV2:
         special_token = "photomaker"
         pixel_values = comfy.clip_vision.clip_preprocess(image.to(photomaker.load_device)).float()
         try:
-            if "photomaker" in text:
-                text = text.replace("photomaker"," photomaker ")
+            if special_token in text:
+                text = text.replace(special_token, " " + special_token + " ")
             index = text.split(" ").index(special_token) + 1
         except ValueError:            
             index = -1
 
         tokens = clip.tokenize(text, return_word_ids=True)
-        logger.debug(f"photomaker in prompt index:{index}, photomaker is running:{index>0}")
+        logger.info(f"photomaker index in prompt:{index},alarm: It's will failure when index >= 77, photomaker embeds id:{index >0 and index < 77}")
 
         out_tokens = {}
         for k in tokens:
