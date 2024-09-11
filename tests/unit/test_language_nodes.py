@@ -75,7 +75,9 @@ def mock_openai_client():
         yield instance
 
 
-def test_transformers_loader():
+def test_transformers_loader(has_gpu):
+    if not has_gpu:
+        pytest.skip("requires GPU")
     loader = TransformersLoader()
     model, = loader.execute("microsoft/Phi-3-mini-4k-instruct", "")
     assert isinstance(model, LanguageModel)
