@@ -19,7 +19,7 @@ on:
         description: 'python patch version'
         required: true
         type: string
-        default: "3"
+        default: "4"
 #  push:
 #    branches:
 #      - master
@@ -49,13 +49,13 @@ jobs:
             echo 'import site' >> ./python3${{ inputs.python_minor }}._pth
             curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
             ./python.exe get-pip.py
-            python -m pip wheel torch torchvision torchaudio mpmath==1.3.0 numpy==1.26.4 --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2 -w ../temp_wheel_dir
+            python -m pip wheel torch torchvision torchaudio --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2 -w ../temp_wheel_dir
             ls ../temp_wheel_dir
             ./python.exe -s -m pip install --pre ../temp_wheel_dir/*
             sed -i '1i../ComfyUI' ./python3${{ inputs.python_minor }}._pth
             cd ..
 
-            git clone https://github.com/comfyanonymous/taesd
+            git clone --depth 1 https://github.com/comfyanonymous/taesd
             cp taesd/*.pth ./ComfyUI_copy/models/vae_approx/
 
             mkdir ComfyUI_windows_portable_nightly_pytorch
@@ -67,6 +67,7 @@ jobs:
             mkdir update
             cp -r ComfyUI/.ci/update_windows/* ./update/
             cp -r ComfyUI/.ci/windows_base_files/* ./
+            cp -r ComfyUI/.ci/windows_nightly_base_files/* ./
 
             echo "call update_comfyui.bat nopause
             ..\python_embeded\python.exe -s -m pip install --upgrade --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2

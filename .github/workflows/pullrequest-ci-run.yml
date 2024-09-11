@@ -1,0 +1,53 @@
+# This is the GitHub Workflow that drives full-GPU-enabled tests of pull requests to ComfyUI, when the 'Run-CI-Test' label is added
+# Results are reported as checkmarks on the commits, as well as onto https://ci.comfy.org/
+name: Pull Request CI Workflow Runs
+on:
+    pull_request_target:
+        types: [labeled]
+
+jobs:
+  pr-test-stable:
+    if: ${{ github.event.label.name == 'Run-CI-Test' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos, linux, windows]
+        python_version: ["3.9", "3.10", "3.11", "3.12"]
+        cuda_version: ["12.1"]
+        torch_version: ["stable"]
+        include:
+          - os: macos
+            runner_label: [self-hosted, macOS]
+            flags: "--use-pytorch-cross-attention"
+          - os: linux
+            runner_label: [self-hosted, Linux]
+            flags: ""
+          - os: windows
+            runner_label: [self-hosted, win]
+            flags: ""
+    runs-on: ${{ matrix.runner_label }}
+    steps:
+      - name: Test Workflows
+        uses: comfy-org/comfy-action@main
+        with:
+          os: ${{ matrix.os }}
+          python_version: ${{ matrix.python_version }}
+          torch_version: ${{ matrix.torch_version }}
+          google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
+          comfyui_flags: ${{ matrix.flags }}
+          use_prior_commit: 'true'
+  comment:
+    if: ${{ github.event.label.name == 'Run-CI-Test' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '(Automated Bot Message) CI Tests are running, you can view the results at https://ci.comfy.org/?branch=${{ github.event.pull_request.number }}%2Fmerge'
+            })

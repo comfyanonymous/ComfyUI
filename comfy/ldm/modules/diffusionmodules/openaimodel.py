@@ -809,7 +809,7 @@ class UNetModel(nn.Module):
         self.out = nn.Sequential(
             operations.GroupNorm(32, ch, dtype=self.dtype, device=device),
             nn.SiLU(),
-            zero_module(operations.conv_nd(dims, model_channels, out_channels, 3, padding=1, dtype=self.dtype, device=device)),
+            operations.conv_nd(dims, model_channels, out_channels, 3, padding=1, dtype=self.dtype, device=device),
         )
         if self.predict_codebook_ids:
             self.id_predictor = nn.Sequential(
@@ -841,6 +841,11 @@ class UNetModel(nn.Module):
         hs = []
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False).to(x.dtype)
         emb = self.time_embed(t_emb)
+
+        if "emb_patch" in transformer_patches:
+            patch = transformer_patches["emb_patch"]
+            for p in patch:
+                emb = p(emb, self.model_channels, transformer_options)
 
         if self.num_classes is not None:
             assert y.shape[0] == x.shape[0]

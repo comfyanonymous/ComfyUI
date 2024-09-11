@@ -7,7 +7,7 @@ on:
         description: 'cuda version'
         required: true
         type: string
-        default: "121"
+        default: "124"
 
       python_minor:
         description: 'python minor version'
@@ -19,7 +19,7 @@ on:
         description: 'python patch version'
         required: true
         type: string
-        default: "8"
+        default: "9"
 #  push:
 #    branches:
 #      - master
@@ -66,7 +66,7 @@ jobs:
             sed -i '1i../ComfyUI' ./python3${{ inputs.python_minor }}._pth
             cd ..
 
-            git clone https://github.com/comfyanonymous/taesd
+            git clone --depth 1 https://github.com/comfyanonymous/taesd
             cp taesd/*.pth ./ComfyUI_copy/models/vae_approx/
 
             mkdir ComfyUI_windows_portable

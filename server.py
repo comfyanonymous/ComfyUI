@@ -12,7 +12,6 @@ import json
 import glob
 import struct
 import ssl
-import hashlib
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
@@ -28,7 +27,9 @@ import comfy.model_management
 import node_helpers
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
-
+from model_filemanager import download_model, DownloadModelStatus
+from typing import Optional
+from api_server.routes.internal.internal_routes import InternalRoutes
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -39,6 +40,21 @@ async def send_socket_catch_exception(function, message):
         await function(message)
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError) as err:
         logging.warning("send error: {}".format(err))
+
+def get_comfyui_version():
+    comfyui_version = "unknown"
+    repo_path = os.path.dirname(os.path.realpath(__file__))
+    try:
+        import pygit2
+        repo = pygit2.Repository(repo_path)
+        comfyui_version = repo.describe(describe_strategy=pygit2.GIT_DESCRIBE_TAGS)
+    except Exception:
+        try:
+            import subprocess
+            comfyui_version = subprocess.check_output(["git", "describe", "--tags"], cwd=repo_path).decode('utf-8')
+        except Exception as e:
+            logging.warning(f"Failed to get ComfyUI version: {e}")
+    return comfyui_version.strip()
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -64,6 +80,38 @@ def create_cors_middleware(allowed_origin: str):
 
     return cors_middleware
 
+def create_origin_only_middleware():
+    @web.middleware
+    async def origin_only_middleware(request: web.Request, handler):
+        #this code is used to prevent the case where a random website can queue comfy workflows by making a POST to 127.0.0.1 which browsers don't prevent for some dumb reason.
+        #in that case the Host and Origin hostnames won't match
+        #I know the proper fix would be to add a cookie but this should take care of the problem in the meantime
+        if 'Host' in request.headers and 'Origin' in request.headers:
+            host = request.headers['Host']
+            origin = request.headers['Origin']
+            host_domain = host.lower()
+            parsed = urllib.parse.urlparse(origin)
+            origin_domain = parsed.netloc.lower()
+            host_domain_parsed = urllib.parse.urlsplit('//' + host_domain)
+            if parsed.port is None: #if origin doesn't have a port strip it from the host to handle weird browsers, same for host
+                host_domain = host_domain_parsed.hostname
+            if host_domain_parsed.port is None:
+                origin_domain = parsed.hostname
+
+            if host_domain is not None and origin_domain is not None and len(host_domain) > 0 and len(origin_domain) > 0:
+                if host_domain != origin_domain:
+                    logging.warning("WARNING: request with non matching host and origin {} != {}, returning 403".format(host_domain, origin_domain))
+                    return web.Response(status=403)
+
+        if request.method == "OPTIONS":
+            response = web.Response()
+        else:
+            response = await handler(request)
+
+        return response
+
+    return origin_only_middleware
+
 class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
@@ -72,15 +120,19 @@ class PromptServer():
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
 
         self.user_manager = UserManager()
+        self.internal_routes = InternalRoutes()
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = None
         self.loop = loop
         self.messages = asyncio.Queue()
+        self.client_session:Optional[aiohttp.ClientSession] = None
         self.number = 0
 
         middlewares = [cache_control]
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
+        else:
+            middlewares.append(create_origin_only_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
@@ -127,12 +179,24 @@ class PromptServer():
 
         @routes.get("/")
         async def get_root(request):
-            return web.FileResponse(os.path.join(self.web_root, "index.html"))
+            response = web.FileResponse(os.path.join(self.web_root, "index.html"))
+            response.headers['Cache-Control'] = 'no-cache'
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
 
         @routes.get("/embeddings")
         def get_embeddings(self):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
+
+        @routes.get("/models/{folder}")
+        async def get_models(request):
+            folder = request.match_info.get("folder", None)
+            if not folder in folder_paths.folder_names_and_paths:
+                return web.Response(status=404)
+            files = folder_paths.get_filename_list(folder)
+            return web.json_response(files)
 
         @routes.get("/extensions")
         async def get_extensions(request):
@@ -385,16 +449,20 @@ class PromptServer():
             return web.json_response(dt["__metadata__"])
 
         @routes.get("/system_stats")
-        async def get_queue(request):
+        async def system_stats(request):
             device = comfy.model_management.get_torch_device()
             device_name = comfy.model_management.get_torch_device_name(device)
             vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
+
             system_stats = {
                 "system": {
                     "os": os.name,
+                    "comfyui_version": get_comfyui_version(),
                     "python_version": sys.version,
-                    "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded"
+                    "pytorch_version": comfy.model_management.torch_version,
+                    "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
+                    "argv": sys.argv
                 },
                 "devices": [
                     {
@@ -418,6 +486,7 @@ class PromptServer():
             obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
             info = {}
             info['input'] = obj_class.INPUT_TYPES()
+            info['input_order'] = {key: list(value.keys()) for (key, value) in obj_class.INPUT_TYPES().items()}
             info['output'] = obj_class.RETURN_TYPES
             info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(obj_class.RETURN_TYPES)
             info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
@@ -433,6 +502,14 @@ class PromptServer():
 
             if hasattr(obj_class, 'CATEGORY'):
                 info['category'] = obj_class.CATEGORY
+
+            if hasattr(obj_class, 'OUTPUT_TOOLTIPS'):
+                info['output_tooltips'] = obj_class.OUTPUT_TOOLTIPS
+
+            if getattr(obj_class, "DEPRECATED", False):
+                info['deprecated'] = True
+            if getattr(obj_class, "EXPERIMENTAL", False):
+                info['experimental'] = True
             return info
 
         @routes.get("/object_info")
@@ -555,9 +632,42 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
+        
+        # Internal route. Should not be depended upon and is subject to change at any time.
+        # TODO(robinhuang): Move to internal route table class once we refactor PromptServer to pass around Websocket.
+        @routes.post("/internal/models/download")
+        async def download_handler(request):
+            async def report_progress(filename: str, status: DownloadModelStatus):
+                payload = status.to_dict()
+                payload['download_path'] = filename
+                await self.send_json("download_progress", payload)
+
+            data = await request.json()
+            url = data.get('url')
+            model_directory = data.get('model_directory')
+            model_filename = data.get('model_filename')
+            progress_interval = data.get('progress_interval', 1.0) # In seconds, how often to report download progress.
+
+            if not url or not model_directory or not model_filename:
+                return web.json_response({"status": "error", "message": "Missing URL or folder path or filename"}, status=400)
+
+            session = self.client_session
+            if session is None:
+                logging.error("Client session is not initialized")
+                return web.Response(status=500)
+            
+            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, report_progress, progress_interval))
+            await task
+
+            return web.json_response(task.result().to_dict())
+
+    async def setup(self):
+        timeout = aiohttp.ClientTimeout(total=None) # no timeout
+        self.client_session = aiohttp.ClientSession(timeout=timeout)
 
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
+        self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
         # This is very useful for frontend dev server, which need to forward
@@ -675,6 +785,9 @@ class PromptServer():
 
         site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
         await site.start()
+
+        self.address = address
+        self.port = port
 
         if verbose:
             logging.info("Starting server\n")
