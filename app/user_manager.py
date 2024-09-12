@@ -7,16 +7,15 @@ import shutil
 from aiohttp import web
 from urllib import parse
 from comfy.cli_args import args
-from folder_paths import user_directory
+import folder_paths 
 from .app_settings import AppSettings
 
 default_user = "default"
-users_file = os.path.join(user_directory, "users.json")
 
 
 class UserManager():
     def __init__(self):
-        global user_directory
+        user_directory = folder_paths.get_user_directory()
 
         self.settings = AppSettings(self)
         if not os.path.exists(user_directory):
@@ -26,13 +25,16 @@ class UserManager():
                 print("****** For multi-user setups add the --multi-user CLI argument to enable multiple user profiles. ******")
 
         if args.multi_user:
-            if os.path.isfile(users_file):
-                with open(users_file) as f:
+            if os.path.isfile(self.get_users_file()):
+                with open(self.get_users_file()) as f:
                     self.users = json.load(f)
             else:
                 self.users = {}
         else:
             self.users = {"default": "default"}
+
+    def get_users_file(self):
+        return os.path.join(folder_paths.get_user_directory(), "users.json")
 
     def get_request_user_id(self, request):
         user = "default"
@@ -45,7 +47,7 @@ class UserManager():
         return user
 
     def get_request_user_filepath(self, request, file, type="userdata", create_dir=True):
-        global user_directory
+        user_directory = folder_paths.get_user_directory()
 
         if type == "userdata":
             root_dir = user_directory
@@ -85,8 +87,7 @@ class UserManager():
 
         self.users[user_id] = name
 
-        global users_file
-        with open(users_file, "w") as f:
+        with open(self.get_users_file(), "w") as f:
             json.dump(self.users, f)
 
         return user_id
