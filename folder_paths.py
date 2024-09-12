@@ -84,6 +84,13 @@ def get_input_directory() -> str:
     global input_directory
     return input_directory
 
+def get_user_directory() -> str:
+    return user_directory
+
+def set_user_directory(user_dir: str) -> None:
+    global user_directory
+    user_directory = user_dir
+
 
 #NOTE: used in http server so don't put folders that should not be accessed remotely
 def get_directory_by_type(type_name: str) -> str | None:

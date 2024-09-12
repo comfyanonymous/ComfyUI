@@ -171,6 +171,8 @@ parser.add_argument(
     help="The local filesystem path to the directory where the frontend is located. Overrides --front-end-version.",
 )
 
+parser.add_argument("--user-directory", type=is_valid_directory, default=None, help="Set the ComfyUI user directory with an absolute path.")
+
 if comfy.options.args_parsing:
     args = parser.parse_args()
 else:
