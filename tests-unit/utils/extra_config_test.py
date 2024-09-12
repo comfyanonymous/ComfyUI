@@ -24,7 +24,7 @@ def yaml_config_with_appdata():
     return """
     test_config:
       base_path: '%APPDATA%/ComfyUI'
-      checkpoints: 'models'
+      checkpoints: 'models/checkpoints'
     """
 
 @pytest.fixture
@@ -95,7 +95,7 @@ def test_load_extra_model_paths_expands_appdata(
     yaml_config_with_appdata,
     mock_yaml_content_appdata
 ):
-    # Set the mock_file to return our YAML content
+    # Set the mock_file to return yaml with appdata as a variable 
     mock_file.return_value.read.return_value = yaml_config_with_appdata
 
     # Attach mocks
@@ -111,12 +111,12 @@ def test_load_extra_model_paths_expands_appdata(
 
     expected_base_path = 'C:/Users/TestUser/AppData/Roaming/ComfyUI'
     expected_calls = [
-        ('checkpoints', os.path.join(expected_base_path, 'models')),
+        ('checkpoints', os.path.join(expected_base_path, 'models/checkpoints')),
     ]
 
     assert mock_add_model_folder_path.call_count == len(expected_calls)
     
-    # Check if add_model_folder_path was called with the correct arguments
+    # Check the base path variable was expanded
     for actual_call, expected_call in zip(mock_add_model_folder_path.call_args_list, expected_calls):
         assert actual_call.args == expected_call
 
