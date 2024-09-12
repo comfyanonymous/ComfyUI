@@ -13,7 +13,7 @@ def load_extra_path_config(yaml_path):
         base_path = None
         if "base_path" in conf:
             base_path = conf.pop("base_path")
-            base_path = os.path.expanduser(base_path)
+            base_path = os.path.expandvars(os.path.expanduser(base_path))
         for x in conf:
             for y in conf[x].split("\n"):
                 if len(y) == 0:
