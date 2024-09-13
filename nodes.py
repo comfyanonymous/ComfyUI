@@ -2027,10 +2027,30 @@ def init_external_custom_nodes():
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
+
+    # Path to the file specifying the load order for custom modules.
+    # Each line in the file should represent a module name.
+    module_order_path = 'custom_nodes/custom_load_order.txt'
+
+    # If the file exists, read module names from it; otherwise, use an empty list.
+    if os.path.exists(module_order_path):
+        with open(module_order_path, 'r') as file:
+            ordered_modules = [line.strip() for line in file]
+    else:
+        ordered_modules = []
+
+    # Create a dictionary that maps module names to their index in 'ordered_modules'.
+    # Modules not in this list will be assigned 'inf' to load them last.
+    order_map = {name: i for i, name in enumerate(ordered_modules)}
+
     for custom_node_path in node_paths:
         possible_modules = os.listdir(os.path.realpath(custom_node_path))
         if "__pycache__" in possible_modules:
             possible_modules.remove("__pycache__")
+
+        # Sort modules based on their order in 'order_map'.
+        # Modules without an entry are sorted to load after those listed.
+        possible_modules.sort(key=lambda x: order_map.get(x, float('inf')))
 
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
