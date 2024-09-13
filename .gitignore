@@ -15,6 +15,7 @@
 .vscode/
 .idea/
 venv/
+.venv/
 /web/extensions/*
 !/web/extensions/logging.js.example
 !/web/extensions/core/

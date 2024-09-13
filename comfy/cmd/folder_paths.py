@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 import os
 import time
-from typing import Optional, List, Final
+from typing import Optional, List, Final, Literal
 
 from .folder_paths_pre import get_base_path
 from ..component_model.files import get_package_as_path
 from ..component_model.folder_path_types import FolderPathsTuple, FolderNames, SaveImagePathResponse
+from ..component_model.folder_path_types import extension_mimetypes_cache as _extension_mimetypes_cache
 from ..component_model.folder_path_types import supported_pt_extensions as _supported_pt_extensions
 from ..component_model.module_property import module_property
 
 supported_pt_extensions: Final[frozenset[str]] = _supported_pt_extensions
+extension_mimetypes_cache: Final[dict[str, str]] = _extension_mimetypes_cache
 
 
 # todo: this needs to be wrapped in a context and configurable
@@ -85,6 +88,15 @@ def get_temp_directory():
 def get_input_directory():
     global input_directory
     return input_directory
+
+
+def get_user_directory() -> str:
+    return user_directory
+
+
+def set_user_directory(user_dir: str) -> None:
+    global user_directory
+    user_directory = user_dir
 
 
 # NOTE: used in http server so don't put folders that should not be accessed remotely
@@ -277,18 +289,25 @@ def get_filename_list(folder_name):
 
 
 def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height=0):
-    def map_filename(filename):
+    def map_filename(filename: str) -> tuple[int, str]:
         prefix_len = len(os.path.basename(filename_prefix))
         prefix = filename[:prefix_len + 1]
         try:
             digits = int(filename[prefix_len + 1:].split('_')[0])
         except:
             digits = 0
-        return (digits, prefix)
+        return digits, prefix
 
-    def compute_vars(input, image_width, image_height):
+    def compute_vars(input: str, image_width: int, image_height: int) -> str:
         input = input.replace("%width%", str(image_width))
         input = input.replace("%height%", str(image_height))
+        now = time.localtime()
+        input = input.replace("%year%", str(now.tm_year))
+        input = input.replace("%month%", str(now.tm_mon).zfill(2))
+        input = input.replace("%day%", str(now.tm_mday).zfill(2))
+        input = input.replace("%hour%", str(now.tm_hour).zfill(2))
+        input = input.replace("%minute%", str(now.tm_min).zfill(2))
+        input = input.replace("%second%", str(now.tm_sec).zfill(2))
         return input
 
     filename_prefix = compute_vars(filename_prefix, image_width, image_height)
@@ -328,3 +347,27 @@ def create_directories():
 def invalidate_cache(folder_name):
     global _filename_list_cache
     _filename_list_cache.pop(folder_name, None)
+
+
+def filter_files_content_types(files: list[str], content_types: Literal["image", "video", "audio"]) -> list[str]:
+    """
+    Example:
+        files = os.listdir(folder_paths.get_input_directory())
+        filter_files_content_types(files, ["image", "audio", "video"])
+    """
+    global extension_mimetypes_cache
+    result = []
+    for file in files:
+        extension = file.split('.')[-1]
+        if extension not in extension_mimetypes_cache:
+            mime_type, _ = mimetypes.guess_type(file, strict=False)
+            if not mime_type:
+                continue
+            content_type = mime_type.split('/')[0]
+            extension_mimetypes_cache[extension] = content_type
+        else:
+            content_type = extension_mimetypes_cache[extension]
+
+        if content_type in content_types:
+            result.append(file)
+    return result

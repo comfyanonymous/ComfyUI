@@ -125,6 +125,11 @@ async def main(from_script_dir: Optional[Path] = None):
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
 
+    if args.user_directory:
+        user_dir = os.path.abspath(args.user_directory)
+        logging.info(f"Setting user directory to: {user_dir}")
+        folder_paths.set_user_directory(user_dir)
+
     # configure extra model paths earlier
     try:
         extra_model_paths_config_path = os.path.join(os_getcwd, "extra_model_paths.yaml")

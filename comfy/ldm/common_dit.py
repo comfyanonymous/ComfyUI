@@ -16,7 +16,7 @@ except:
     rms_norm_torch = None
 
 def rms_norm(x, weight, eps=1e-6):
-    if rms_norm_torch is not None:
+    if rms_norm_torch is not None and not (torch.jit.is_tracing() or torch.jit.is_scripting()):
         return rms_norm_torch(x, weight.shape, weight=ops.cast_to(weight, dtype=x.dtype, device=x.device), eps=eps)
     else:
         rrms = torch.rsqrt(torch.mean(x**2, dim=-1, keepdim=True) + eps)

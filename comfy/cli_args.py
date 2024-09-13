@@ -215,6 +215,8 @@ def _create_parser() -> EnhancedConfigArgParser:
         default=None
     )
 
+    parser.add_argument("--user-directory", type=is_valid_directory, default=None, help="Set the ComfyUI user directory with an absolute path.")
+
     # now give plugins a chance to add configuration
     for entry_point in entry_points().select(group='comfyui.custom_config'):
         try:

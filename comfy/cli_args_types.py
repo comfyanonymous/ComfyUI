@@ -112,6 +112,7 @@ class Configuration(dict):
         executor_factory (str): Either ThreadPoolExecutor or ProcessPoolExecutor, defaulting to ThreadPoolExecutor
         preview_size (int): Sets the maximum preview size for sampler nodes. Defaults to 512.
         openai_api_key (str): Configures the OpenAI API Key for the OpenAI nodes
+        user_directory (Optional[str]): Set the ComfyUI user directory with an absolute path.
     """
 
     def __init__(self, **kwargs):
@@ -200,6 +201,7 @@ class Configuration(dict):
 
         self.executor_factory: str = "ThreadPoolExecutor"
         self.openai_api_key: Optional[str] = None
+        self.user_directory: Optional[str] = None
 
     def __getattr__(self, item):
         if item not in self:

@@ -30,7 +30,7 @@ from . import utils
 from .float import stochastic_rounding
 from .model_base import BaseModel
 from .model_management_types import ModelManageable, MemoryMeasurements
-from .types import UnetWrapperFunction
+from .comfy_types import UnetWrapperFunction
 
 def string_to_seed(data):
     crc = 0xFFFFFFFF

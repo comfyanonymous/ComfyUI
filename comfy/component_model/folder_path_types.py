@@ -5,6 +5,9 @@ import os
 from typing import List, Set, Any, Iterator, Sequence, Dict, NamedTuple
 
 supported_pt_extensions = frozenset(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'])
+extension_mimetypes_cache = {
+    "webp": "image",
+}
 
 
 @dataclasses.dataclass

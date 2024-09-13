@@ -4,16 +4,21 @@ import os
 import re
 import shutil
 import uuid
+from urllib import parse
 
 from aiohttp import web
 
 from .app_settings import AppSettings
 from ..cli_args import args
-from ..cmd.folder_paths import user_directory
+from ..cmd import folder_paths
+
+default_user = "default"
 
 
 class UserManager():
     def __init__(self):
+        user_directory = folder_paths.get_user_directory()
+
         self.default_user = "default"
         self.users_file = os.path.join(user_directory, "users.json")
         self.settings = AppSettings(self)
@@ -21,13 +26,16 @@ class UserManager():
             os.mkdir(user_directory)
 
         if args.multi_user:
-            if os.path.isfile(self.users_file):
-                with open(self.users_file) as f:
+            if os.path.isfile(self.get_users_file()):
+                with open(self.get_users_file()) as f:
                     self.users = json.load(f)
             else:
                 self.users = {}
         else:
             self.users = {"default": "default"}
+
+    def get_users_file(self):
+        return os.path.join(folder_paths.get_user_directory(), "users.json")
 
     def get_request_user_id(self, request):
         user = "default"
@@ -40,6 +48,7 @@ class UserManager():
         return user
 
     def get_request_user_filepath(self, request, file, type="userdata", create_dir=True):
+        user_directory = folder_paths.get_user_directory()
 
         if type == "userdata":
             root_dir = user_directory
@@ -54,6 +63,10 @@ class UserManager():
             raise PermissionError()
 
         if file is not None:
+            # Check if filename is url encoded
+            if "%" in file:
+                file = parse.unquote(file)
+
             # prevent leaving /{type}/{user}
             path = os.path.abspath(os.path.join(user_root, file))
             if os.path.commonpath((user_root, path)) != user_root:
@@ -75,7 +88,7 @@ class UserManager():
 
         self.users[user_id] = name
 
-        with open(self.users_file, "w") as f:
+        with open(self.get_users_file(), "w") as f:
             json.dump(self.users, f)
 
         return user_id
@@ -108,23 +121,40 @@ class UserManager():
         async def listuserdata(request):
             directory = request.rel_url.query.get('dir', '')
             if not directory:
-                return web.Response(status=400)
-
+                return web.Response(status=400, text="Directory not provided")
             path = self.get_request_user_filepath(request, directory)
             if not path:
-                return web.Response(status=403)
-
+                return web.Response(status=403, text="Invalid directory")
             if not os.path.exists(path):
-                return web.Response(status=404)
-
+                return web.Response(status=404, text="Directory not found")
             recurse = request.rel_url.query.get('recurse', '').lower() == "true"
-            results = glob.glob(os.path.join(
-                glob.escape(path), '**/*'), recursive=recurse)
-            results = [os.path.relpath(x, path) for x in results if os.path.isfile(x)]
+            full_info = request.rel_url.query.get('full_info', '').lower() == "true"
 
+            # Use different patterns based on whether we're recursing or not
+            if recurse:
+                pattern = os.path.join(glob.escape(path), '**', '*')
+            else:
+                pattern = os.path.join(glob.escape(path), '*')
+
+            results = glob.glob(pattern, recursive=recurse)
+
+            if full_info:
+                results = [
+                    {
+                        'path': os.path.relpath(x, path).replace(os.sep, '/'),
+                        'size': os.path.getsize(x),
+                        'modified': os.path.getmtime(x)
+                    } for x in results if os.path.isfile(x)
+                ]
+            else:
+                results = [
+                    os.path.relpath(x, path).replace(os.sep, '/')
+                    for x in results
+                    if os.path.isfile(x)
+                ]
             split_path = request.rel_url.query.get('split', '').lower() == "true"
-            if split_path:
-                results = [[x] + x.split(os.sep) for x in results]
+            if split_path and not full_info:
+                results = [[x] + x.split('/') for x in results]
 
             return web.json_response(results)
 
