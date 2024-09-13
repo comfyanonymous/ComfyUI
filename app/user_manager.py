@@ -120,14 +120,14 @@ class UserManager():
         async def listuserdata(request):
             directory = request.rel_url.query.get('dir', '')
             if not directory:
-                return web.Response(status=400)
+                return web.Response(status=400, text="Directory not provided")
 
             path = self.get_request_user_filepath(request, directory)
             if not path:
-                return web.Response(status=403)
+                return web.Response(status=403, text="Invalid directory")
 
             if not os.path.exists(path):
-                return web.Response(status=404)
+                return web.Response(status=404, text="Directory not found")
 
             recurse = request.rel_url.query.get('recurse', '').lower() == "true"
             full_info = request.rel_url.query.get('full_info', '').lower() == "true"
@@ -143,17 +143,21 @@ class UserManager():
             if full_info:
                 results = [
                     {
-                        'path': os.path.relpath(x, path),
+                        'path': os.path.relpath(x, path).replace(os.sep, '/'),
                         'size': os.path.getsize(x),
                         'modified': os.path.getmtime(x)
                     } for x in results if os.path.isfile(x)
                 ]
             else:
-                results = [os.path.relpath(x, path) for x in results if os.path.isfile(x)]
+                results = [
+                    os.path.relpath(x, path).replace(os.sep, '/')
+                    for x in results
+                    if os.path.isfile(x)
+                ]
 
             split_path = request.rel_url.query.get('split', '').lower() == "true"
             if split_path and not full_info:
-                results = [[x] + x.split(os.sep) for x in results]
+                results = [[x] + x.split('/') for x in results]
 
             return web.json_response(results)
 
