@@ -26,6 +26,7 @@ class PerpNeg:
     FUNCTION = "patch"
 
     CATEGORY = "_for_testing"
+    DEPRECATED = True
 
     def patch(self, model, empty_conditioning, neg_scale):
         m = model.clone()
