@@ -73,7 +73,8 @@ jobs:
           pip install --break-system-packages --no-build-isolation .[dev] || pip install --no-build-isolation .[dev]
       - name: Run tests
         run: |
-          export HSA_OVERRIDE_GFX_VERSION=11.0.2
+          export HSA_OVERRIDE_GFX_VERSION=11.0.0
+          export TORCH_BLAS_PREFER_HIPBLASLT=0
           export HIP_VISIBLE_DEVICES=0
           export PYTORCH_HIP_ALLOC_CONF=expandable_segments:True
           export NUMBA_THREADING_LAYER=omp
