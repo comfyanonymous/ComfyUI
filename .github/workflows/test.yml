@@ -53,7 +53,7 @@ jobs:
           - labels: [self-hosted, Linux, X64, cpu]
             container: "ubuntu:22.04"
           - labels: [self-hosted, Linux, X64, rocm-7600-8gb]
-            container: "rocm/pytorch:rocm6.1.3_ubuntu22.04_py3.10_pytorch_release-2.1.2"
+            container: "rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0"
           - labels: [self-hosted, Linux, X64, cuda-3060-12gb]
             container: "nvcr.io/nvidia/pytorch:24.03-py3"
     steps:
@@ -73,7 +73,8 @@ jobs:
           pip install --break-system-packages --no-build-isolation .[dev] || pip install --no-build-isolation .[dev]
       - name: Run tests
         run: |
-          export HSA_OVERRIDE_GFX_VERSION=11.0.0
+          export HSA_OVERRIDE_GFX_VERSION=11.0.2
+          export HIP_VISIBLE_DEVICES=0
           export PYTORCH_HIP_ALLOC_CONF=expandable_segments:True
           export NUMBA_THREADING_LAYER=omp
           export AMD_SERIALIZE_KERNEL=1
