@@ -3,7 +3,10 @@ import os
 from aiohttp import web
 from app.user_manager import UserManager
 
-pytestmark = pytest.mark.asyncio  # This applies the asyncio mark to all test functions in the module
+pytestmark = (
+    pytest.mark.asyncio
+)  # This applies the asyncio mark to all test functions in the module
+
 
 @pytest.fixture
 def user_manager(tmp_path):
@@ -85,6 +88,3 @@ async def test_listuserdata_invalid_directory(aiohttp_client, app):
     client = await aiohttp_client(app)
     resp = await client.get("/userdata?dir=")
     assert resp.status == 400
-
-
-# Add more tests as needed
