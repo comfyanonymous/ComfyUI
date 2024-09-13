@@ -181,7 +181,8 @@ def calc_cond_batch(model, conds, x_in, timestep, model_options):
                 if model.memory_required(input_shape) * 1.5 < free_memory:
                     to_batch = batch_amount
                     break
-            # TODO: add apply_hooks call here, once a ModelPatcher ref is added to BaseModel
+
+            model.current_patcher.apply_hooks(hooks=hooks)
 
             input_x = []
             mult = []
