@@ -115,8 +115,8 @@ class ModelPatcher:
 
         self.hook_patches: Dict[comfy.hooks.HookRef] = {}
         self.hook_backup: Dict[str, Tuple[torch.Tensor, torch.device]] = {}
-        self.cached_hook_patches: Dict[comfy.hooks.HookWeightGroup, Dict[str, torch.Tensor]] = {}
-        self.current_hooks: Optional[comfy.hooks.HookWeightGroup] = None
+        self.cached_hook_patches: Dict[comfy.hooks.HookGroup, Dict[str, torch.Tensor]] = {}
+        self.current_hooks: Optional[comfy.hooks.HookGroup] = None
         # TODO: hook_mode should be entirely removed; behavior should be determined by remaining VRAM/memory
         self.hook_mode = comfy.hooks.EnumHookMode.MaxSpeed
 
@@ -567,7 +567,7 @@ class ModelPatcher:
     def set_hook_mode(self, hook_mode: comfy.hooks.EnumHookMode):
         self.hook_mode = hook_mode
     
-    def prepare_hook_patches_current_keyframe(self, t: torch.Tensor, hook_group: comfy.hooks.HookWeightGroup):
+    def prepare_hook_patches_current_keyframe(self, t: torch.Tensor, hook_group: comfy.hooks.HookGroup):
         curr_t = t[0]
         for hook in hook_group.hooks:
             changed = hook.hook_keyframe.prepare_current_keyframe(curr_t=curr_t)
@@ -584,7 +584,7 @@ class ModelPatcher:
                     if cached_group.contains(hook):
                         self.cached_hook_patches.pop(cached_group)
 
-    def add_hook_patches(self, hook: comfy.hooks.HookWeight, patches, strength_patch=1.0, strength_model=1.0, is_diff=False):
+    def add_hook_patches(self, hook: comfy.hooks.Hook, patches, strength_patch=1.0, strength_model=1.0, is_diff=False):
         # NOTE: this mirrors behavior of add_patches func
         current_hook_patches: Dict[str,List] = self.hook_patches.get(hook.hook_ref, {})
         p = set()
@@ -620,7 +620,7 @@ class ModelPatcher:
         self.patches_uuid = uuid.uuid4()
         return list(p)
 
-    def get_combined_hook_patches(self, hooks: comfy.hooks.HookWeightGroup):
+    def get_combined_hook_patches(self, hooks: comfy.hooks.HookGroup):
         # combined_patches will contain  weights of all relevant hooks, per key
         combined_patches = {}
         if hooks is not None:
@@ -633,18 +633,18 @@ class ModelPatcher:
                     else:
                         # patches are stored as tuples: (strength_patch, (tuple_with_weights,), strength_model)
                         for patch in hook_patches[key]:
-                            new_patch = List(patch)
+                            new_patch = list(patch)
                             new_patch[0] *= hook.strength
-                            current_patches.append(Tuple(new_patch))
+                            current_patches.append(tuple(new_patch))
                     combined_patches[key] = current_patches
         return combined_patches
 
-    def apply_hooks(self, hooks: comfy.hooks.HookWeightGroup):
+    def apply_hooks(self, hooks: comfy.hooks.HookGroup):
         if self.current_hooks == hooks:
             return
         self.patch_hooks(hooks=hooks)
 
-    def patch_hooks(self, hooks: comfy.hooks.HookWeightGroup):
+    def patch_hooks(self, hooks: comfy.hooks.HookGroup):
         self.unpatch_hooks()
         model_sd = self.model_state_dict()
         # if have cached weights for hooks, use it
@@ -680,7 +680,7 @@ class ModelPatcher:
         self.cached_hook_patches.clear()
         self.current_hooks = None
 
-    def patch_hook_weight_to_device(self, hooks: comfy.hooks.HookWeightGroup, combined_patches: dict, key: str):
+    def patch_hook_weight_to_device(self, hooks: comfy.hooks.HookGroup, combined_patches: dict, key: str):
         if key not in combined_patches:
             return
         weight: torch.Tensor = comfy.utils.get_attr(self.model, key)
@@ -719,7 +719,7 @@ class ModelPatcher:
                     comfy.utils.copy_to_param(self.model, k, self.hook_backup[k][0].to(device=self.hook_backup[k][1]))
                 
         self.hook_backup.clear()
-        self.current_hooks = None # TODO: should this be clear_cached_hook_weights instead?
+        self.current_hooks = None
 
     def clean_hooks(self):
         self.unpatch_hooks()

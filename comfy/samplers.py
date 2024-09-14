@@ -140,7 +140,7 @@ def cond_cat(c_list):
 
     return out
 
-def finalize_default_conds(hooked_to_run: Dict[comfy.hooks.HookWeightGroup,List[Tuple[Tuple,int]]], default_conds: List[List[Dict]], x_in, timestep):
+def finalize_default_conds(hooked_to_run: Dict[comfy.hooks.HookGroup,List[Tuple[Tuple,int]]], default_conds: List[List[Dict]], x_in, timestep):
     # need to figure out remaining unmasked area for conds
     default_mults = []
     for _ in default_conds:
@@ -171,7 +171,7 @@ def finalize_default_conds(hooked_to_run: Dict[comfy.hooks.HookWeightGroup,List[
                 continue
             # replace p's mult with calculated mult
             p = p._replace(mult=mult)
-            hook: comfy.hooks.HookWeightGroup = x.get('hook', None)
+            hook: comfy.hooks.HookGroup = x.get('hook', None)
             hooked_to_run.setdefault(hook, list())
             hooked_to_run[hook] += [(p, i)]
 
@@ -180,7 +180,7 @@ def calc_cond_batch(model, conds: List[List[Dict]], x_in, timestep, model_option
     out_counts = []
     # separate conds by matching hooks
     # TODO: implement default_conds support
-    hooked_to_run: Dict[comfy.hooks.HookWeightGroup,List[Tuple[Tuple,int]]] = {}
+    hooked_to_run: Dict[comfy.hooks.HookGroup,List[Tuple[Tuple,int]]] = {}
     default_conds = []
     has_default_conds = False
 
@@ -199,7 +199,7 @@ def calc_cond_batch(model, conds: List[List[Dict]], x_in, timestep, model_option
                 p = comfy.samplers.get_area_and_mult(x, x_in, timestep)
                 if p is None:
                     continue
-                hooks: comfy.hooks.HookWeightGroup = x.get('hooks', None)
+                hooks: comfy.hooks.HookGroup = x.get('hooks', None)
                 if hooks is not None:
                     model.current_patcher.prepare_hook_patches_current_keyframe(timestep, hooks)
                 hooked_to_run.setdefault(hooks, list())
