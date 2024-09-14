@@ -21,6 +21,7 @@ class HookWeight:
         return self.hook_keyframe.strength
 
     def initialize_timesteps(self, model: 'BaseModel'):
+        self.reset()
         self.hook_keyframe.initalize_timesteps(model)
 
     def reset(self):

@@ -157,9 +157,11 @@ def calc_cond_batch(model, conds, x_in, timestep, model_options):
                 p = comfy.samplers.get_area_and_mult(x, x_in, timestep)
                 if p is None:
                     continue
-                hook: comfy.hooks.HookWeightGroup = x.get('hooks', None)
-                hooked_to_run.setdefault(hook, list())
-                hooked_to_run[hook] += [(p, i)]
+                hooks: comfy.hooks.HookWeightGroup = x.get('hooks', None)
+                if hooks is not None:
+                    model.current_patcher.prepare_hook_patches_current_keyframe(timestep, hooks)
+                hooked_to_run.setdefault(hooks, list())
+                hooked_to_run[hooks] += [(p, i)]
 
     # run every hooked_to_run separately
     for hooks, to_run in hooked_to_run.items():
@@ -657,6 +659,12 @@ def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=N
             for kk in conds:
                 if k != kk:
                     create_cond_with_same_area_if_none(conds[kk], c)
+
+    for k in conds:
+        for c in conds[k]:
+            if 'hooks' in c:
+                for hook in c['hooks'].hooks:
+                    hook.initialize_timesteps(model)
 
     for k in conds:
         pre_run_control(model, conds[k])
