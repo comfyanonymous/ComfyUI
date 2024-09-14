@@ -561,6 +561,9 @@ class ModelPatcher:
         print("WARNING the ModelPatcher.calculate_weight function is deprecated, please use: comfy.lora.calculate_weight instead")
         return comfy.lora.calculate_weight(patches, weight, key, intermediate_dtype=intermediate_dtype)
 
+    def clean(self):
+        self.clean_hooks()
+
     def set_hook_mode(self, hook_mode: comfy.hooks.EnumHookMode):
         self.hook_mode = hook_mode
     

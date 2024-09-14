@@ -140,20 +140,62 @@ def cond_cat(c_list):
 
     return out
 
-def calc_cond_batch(model, conds, x_in, timestep, model_options):
+def finalize_default_conds(hooked_to_run: Dict[comfy.hooks.HookWeightGroup,List[Tuple[Tuple,int]]], default_conds: List[List[Dict]], x_in, timestep):
+    # need to figure out remaining unmasked area for conds
+    default_mults = []
+    for _ in default_conds:
+        default_mults.append(torch.ones_like(x_in))
+    # look through each finalized cond in hooked_to_run for 'mult' and subtract it from each cond
+    for lora_hooks, to_run in hooked_to_run.items():
+        for cond_obj, i in to_run:
+            # if no default_cond for cond_type, do nothing
+            if len(default_conds[i]) == 0:
+                continue
+            area: list[int] = cond_obj.area
+            default_mults[i][:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]] -= cond_obj.mult
+    # for each default_mult, ReLU to make negatives=0, and then check for any nonzeros
+    for i, mult in enumerate(default_mults):
+        # if no default_cond for cond type, do nothing
+        if len(default_conds[i]) == 0:
+            continue
+        torch.nn.functional.relu(mult, inplace=True)
+        # if mult is all zeros, then don't add default_cond
+        if torch.max(mult) == 0.0:
+            continue
+
+        cond = default_conds[i]
+        for x in cond:
+            # do get_area_and_mult to get all the expected values
+            p = comfy.samplers.get_area_and_mult(x, x_in, timestep)
+            if p is None:
+                continue
+            # replace p's mult with calculated mult
+            p = p._replace(mult=mult)
+            hook: comfy.hooks.HookWeightGroup = x.get('hook', None)
+            hooked_to_run.setdefault(hook, list())
+            hooked_to_run[hook] += [(p, i)]
+
+def calc_cond_batch(model, conds: List[List[Dict]], x_in, timestep, model_options):
     out_conds = []
     out_counts = []
     # separate conds by matching hooks
     # TODO: implement default_conds support
     hooked_to_run: Dict[comfy.hooks.HookWeightGroup,List[Tuple[Tuple,int]]] = {}
+    default_conds = []
+    has_default_conds = False
 
     for i in range(len(conds)):
         out_conds.append(torch.zeros_like(x_in))
         out_counts.append(torch.ones_like(x_in) * 1e-37)
 
         cond = conds[i]
+        default_c = []
         if cond is not None:
             for x in cond:
+                if 'default' in x:
+                    default_c.append(x)
+                    has_default_conds = True
+                    continue
                 p = comfy.samplers.get_area_and_mult(x, x_in, timestep)
                 if p is None:
                     continue
@@ -162,6 +204,10 @@ def calc_cond_batch(model, conds, x_in, timestep, model_options):
                     model.current_patcher.prepare_hook_patches_current_keyframe(timestep, hooks)
                 hooked_to_run.setdefault(hooks, list())
                 hooked_to_run[hooks] += [(p, i)]
+        default_conds.append(default_c)
+
+    if has_default_conds:
+        finalize_default_conds(hooked_to_run, default_conds, x_in, timestep)
 
     # run every hooked_to_run separately
     for hooks, to_run in hooked_to_run.items():
@@ -732,6 +778,7 @@ class CFGGuider:
 
         output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
 
+        self.model_patcher.clean()
         comfy.sampler_helpers.cleanup_models(self.conds, self.loaded_models)
         del self.inner_model
         del self.conds
