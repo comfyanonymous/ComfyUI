@@ -43,10 +43,14 @@ class ControlNetInpaintingAliMamaApply(nodes.ControlNetApplyAdvanced):
     CATEGORY = "conditioning/controlnet"
 
     def apply_inpaint_controlnet(self, positive, negative, control_net, vae, image, mask, strength, start_percent, end_percent):
-        mask = 1.0 - mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
-        mask_apply = comfy.utils.common_upscale(mask, image.shape[2], image.shape[1], "bilinear", "center").round()
-        image = image * mask_apply.movedim(1, -1).repeat(1, 1, 1, image.shape[3])
-        return self.apply_controlnet(positive, negative, control_net, image, strength, start_percent, end_percent, vae=vae, extra_concat=[mask])
+        extra_concat = []
+        if control_net.concat_mask:
+            mask = 1.0 - mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
+            mask_apply = comfy.utils.common_upscale(mask, image.shape[2], image.shape[1], "bilinear", "center").round()
+            image = image * mask_apply.movedim(1, -1).repeat(1, 1, 1, image.shape[3])
+            extra_concat = [mask]
+
+        return self.apply_controlnet(positive, negative, control_net, image, strength, start_percent, end_percent, vae=vae, extra_concat=extra_concat)
 
 
 
