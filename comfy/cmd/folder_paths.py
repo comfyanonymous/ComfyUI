@@ -349,7 +349,7 @@ def invalidate_cache(folder_name):
     _filename_list_cache.pop(folder_name, None)
 
 
-def filter_files_content_types(files: list[str], content_types: Literal["image", "video", "audio"]) -> list[str]:
+def filter_files_content_types(files: list[str], content_types: list[Literal["image", "video", "audio"]]) -> list[str]:
     """
     Example:
         files = os.listdir(folder_paths.get_input_directory())

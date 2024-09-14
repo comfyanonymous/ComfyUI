@@ -118,7 +118,7 @@ async def check_health(url: str, max_retries: int = 5, retry_delay: float = 1.0)
         for _ in range(max_retries):
             try:
                 async with session.get(url, timeout=1) as response:
-                    if response.status == 200 and await response.text() == "OK":
+                    if response.status == 200:
                         return True
             except Exception as exc_info:
                 pass

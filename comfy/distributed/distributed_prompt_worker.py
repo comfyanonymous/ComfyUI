@@ -41,7 +41,14 @@ class DistributedPromptWorker:
         self._health_check_site: Optional[web.TCPSite] = None
 
     async def _health_check(self, request):
-        return web.Response(text="OK", content_type="text/plain")
+        if self._connection is None:
+            return web.Response(text="UNHEALTHY: RabbitMQ connection is not established", status=503)
+
+        is_healthy = await self._is_connection_healthy()
+        if is_healthy:
+            return web.Response(text="HEALTHY", status=200)
+        else:
+            return web.Response(text="UNHEALTHY: RabbitMQ connection is not healthy", status=503)
 
     async def _start_health_check_server(self):
         app = web.Application()
@@ -85,9 +92,27 @@ class DistributedPromptWorker:
         await self.on_did_complete_work_item(request_obj, reply)
         return asdict(reply)
 
+    async def _is_connection_healthy(self):
+        if self._connection is None:
+            return False
+
+        return (
+                not self._connection.is_closed
+                and self._connection.connected.is_set()
+                and await self._check_connection_ready()
+        )
+
+    async def _check_connection_ready(self):
+        try:
+            await asyncio.wait_for(self._connection.ready(), timeout=1.0)
+            return True
+        except asyncio.TimeoutError:
+            return False
+
     @tracer.start_as_current_span("Initialize Prompt Worker")
     async def init(self):
         await self._exit_stack.__aenter__()
+        await self._start_health_check_server()
         try:
             self._connection = await connect_robust(self._connection_uri, loop=self._loop)
         except AMQPConnectionError as connection_error:
@@ -102,7 +127,6 @@ class DistributedPromptWorker:
             await self._exit_stack.enter_async_context(self._embedded_comfy_client)
 
         await self._rpc.register(self._queue_name, self._do_work_item)
-        await self._start_health_check_server()
 
     async def __aenter__(self) -> "DistributedPromptWorker":
         await self.init()

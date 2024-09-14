@@ -1,10 +1,12 @@
-import pytest
-import yaml
 import os
 from unittest.mock import Mock, patch, mock_open
 
-from utils.extra_config import load_extra_path_config
-import folder_paths
+import pytest
+import yaml
+
+from comfy.cmd import folder_paths
+from comfy.extra_config import load_extra_path_config
+
 
 @pytest.fixture
 def mock_yaml_content():
@@ -15,9 +17,11 @@ def mock_yaml_content():
         }
     }
 
+
 @pytest.fixture
 def mock_expanded_home():
     return '/home/user'
+
 
 @pytest.fixture
 def yaml_config_with_appdata():
@@ -27,9 +31,11 @@ def yaml_config_with_appdata():
       checkpoints: 'models/checkpoints'
     """
 
+
 @pytest.fixture
 def mock_yaml_content_appdata(yaml_config_with_appdata):
     return yaml.safe_load(yaml_config_with_appdata)
+
 
 @pytest.fixture
 def mock_expandvars_appdata():
@@ -37,9 +43,11 @@ def mock_expandvars_appdata():
     mock.side_effect = lambda path: path.replace('%APPDATA%', 'C:/Users/TestUser/AppData/Roaming')
     return mock
 
+
 @pytest.fixture
 def mock_add_model_folder_path():
     return Mock()
+
 
 @pytest.fixture
 def mock_expanduser(mock_expanded_home):
@@ -47,20 +55,23 @@ def mock_expanduser(mock_expanded_home):
         if path.startswith('~/'):
             return os.path.join(mock_expanded_home, path[2:])
         return path
+
     return _expanduser
+
 
 @pytest.fixture
 def mock_yaml_safe_load(mock_yaml_content):
     return Mock(return_value=mock_yaml_content)
 
+
 @patch('builtins.open', new_callable=mock_open, read_data="dummy file content")
 def test_load_extra_model_paths_expands_userpath(
-    mock_file,
-    monkeypatch,
-    mock_add_model_folder_path, 
-    mock_expanduser, 
-    mock_yaml_safe_load,
-    mock_expanded_home
+        mock_file,
+        monkeypatch,
+        mock_add_model_folder_path,
+        mock_expanduser,
+        mock_yaml_safe_load,
+        mock_expanded_home
 ):
     # Attach mocks used by load_extra_path_config
     monkeypatch.setattr(folder_paths, 'add_model_folder_path', mock_add_model_folder_path)
@@ -75,7 +86,7 @@ def test_load_extra_model_paths_expands_userpath(
     ]
 
     assert mock_add_model_folder_path.call_count == len(expected_calls)
-    
+
     # Check if add_model_folder_path was called with the correct arguments
     for actual_call, expected_call in zip(mock_add_model_folder_path.call_args_list, expected_calls):
         assert actual_call.args == expected_call
@@ -86,14 +97,15 @@ def test_load_extra_model_paths_expands_userpath(
     # Check if open was called with the correct file path
     mock_file.assert_called_once_with(dummy_yaml_file_name, 'r')
 
+
 @patch('builtins.open', new_callable=mock_open)
 def test_load_extra_model_paths_expands_appdata(
-    mock_file,
-    monkeypatch,
-    mock_add_model_folder_path,
-    mock_expandvars_appdata,
-    yaml_config_with_appdata,
-    mock_yaml_content_appdata
+        mock_file,
+        monkeypatch,
+        mock_add_model_folder_path,
+        mock_expandvars_appdata,
+        yaml_config_with_appdata,
+        mock_yaml_content_appdata
 ):
     # Set the mock_file to return yaml with appdata as a variable 
     mock_file.return_value.read.return_value = yaml_config_with_appdata
@@ -115,7 +127,7 @@ def test_load_extra_model_paths_expands_appdata(
     ]
 
     assert mock_add_model_folder_path.call_count == len(expected_calls)
-    
+
     # Check the base path variable was expanded
     for actual_call, expected_call in zip(mock_add_model_folder_path.call_args_list, expected_calls):
         assert actual_call.args == expected_call
