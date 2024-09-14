@@ -7,7 +7,7 @@ import shutil
 from aiohttp import web
 from urllib import parse
 from comfy.cli_args import args
-import folder_paths 
+import folder_paths
 from .app_settings import AppSettings
 
 default_user = "default"
@@ -65,7 +65,7 @@ class UserManager():
             # Check if filename is url encoded
             if "%" in file:
                 file = parse.unquote(file)
-                
+
             # prevent leaving /{type}/{user}
             path = os.path.abspath(os.path.join(user_root, file))
             if os.path.commonpath((user_root, path)) != user_root:
@@ -165,14 +165,14 @@ class UserManager():
             file = request.match_info.get(param, None)
             if not file:
                 return web.Response(status=400)
-                
+
             path = self.get_request_user_filepath(request, file)
             if not path:
                 return web.Response(status=403)
-            
+
             if check_exists and not os.path.exists(path):
                 return web.Response(status=404)
-            
+
             return path
 
         @routes.get("/userdata/{file}")
@@ -180,7 +180,7 @@ class UserManager():
             path = get_user_data_path(request, check_exists=True)
             if not isinstance(path, str):
                 return path
-            
+
             return web.FileResponse(path)
 
         @routes.post("/userdata/{file}")
@@ -188,7 +188,7 @@ class UserManager():
             path = get_user_data_path(request)
             if not isinstance(path, str):
                 return path
-            
+
             overwrite = request.query["overwrite"] != "false"
             if not overwrite and os.path.exists(path):
                 return web.Response(status=409)
@@ -197,7 +197,7 @@ class UserManager():
 
             with open(path, "wb") as f:
                 f.write(body)
-                
+
             resp = os.path.relpath(path, self.get_request_user_filepath(request, None))
             return web.json_response(resp)
 
@@ -208,7 +208,7 @@ class UserManager():
                 return path
 
             os.remove(path)
-                
+
             return web.Response(status=204)
 
         @routes.post("/userdata/{file}/move/{dest}")
@@ -216,17 +216,17 @@ class UserManager():
             source = get_user_data_path(request, check_exists=True)
             if not isinstance(source, str):
                 return source
-            
+
             dest = get_user_data_path(request, check_exists=False, param="dest")
             if not isinstance(source, str):
                 return dest
-            
+
             overwrite = request.query["overwrite"] != "false"
             if not overwrite and os.path.exists(dest):
                 return web.Response(status=409)
 
             print(f"moving '{source}' -> '{dest}'")
             shutil.move(source, dest)
-                
+
             resp = os.path.relpath(dest, self.get_request_user_filepath(request, None))
             return web.json_response(resp)
