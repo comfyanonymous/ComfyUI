@@ -449,7 +449,9 @@ def load_controlnet_flux_instantx(sd):
     if union_cnet in new_sd:
         num_union_modes = new_sd[union_cnet].shape[0]
 
-    control_model = comfy.ldm.flux.controlnet.ControlNetFlux(latent_input=True, num_union_modes=num_union_modes, operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
+    control_latent_channels = new_sd.get("pos_embed_input.weight").shape[1] // 4
+
+    control_model = comfy.ldm.flux.controlnet.ControlNetFlux(latent_input=True, num_union_modes=num_union_modes, control_latent_channels=control_latent_channels, operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
     control_model = controlnet_load_state_dict(control_model, new_sd)
 
     latent_format = comfy.latent_formats.Flux()
