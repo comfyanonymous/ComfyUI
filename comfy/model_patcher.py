@@ -575,7 +575,7 @@ class ModelPatcher:
                         if cached_group.contains(hook):
                             self.cached_hook_patches.pop(cached_group)
 
-    def add_hook_patches(self, hook: comfy.hooks.HookWeight, patches, strength_patch=1.0, strength_model=1.0):
+    def add_hook_patches(self, hook: comfy.hooks.HookWeight, patches, strength_patch=1.0, strength_model=1.0, is_diff=False):
         # NOTE: this mirrors behavior of add_patches func
         current_hook_patches: Dict[str,List] = self.hook_patches.get(hook.hook_ref, {})
         p = set()
@@ -594,37 +594,19 @@ class ModelPatcher:
             if key in model_sd:
                 p.add(k)
                 current_patches: List[Tuple] = current_hook_patches.get(key, [])
-                current_patches.append((strength_patch, patches[k], strength_model, offset, function))
+                if is_diff:
+                    # take difference between desired weight and existing weight to get diff
+                    # TODO: try to implement diff his via strength_path/strength_model diff
+                    model_dtype = comfy.utils.get_attr(self.model, key).dtype
+                    if model_dtype in [torch.float8_e5m2, torch.float8_e4m3fn]:
+                        diff_weight = (patches[k].to(torch.float32)-comfy.utils.get_attr(self.model, key).to(torch.float32)).to(model_dtype)
+                    else:
+                        diff_weight = patches[k]-comfy.utils.get_attr(self.model, key)
+                    current_patches.append((strength_patch, (diff_weight,), strength_model, offset, function))
+                else:
+                    current_patches.append((strength_patch, patches[k], strength_model, offset, function))
                 current_hook_patches[key] = current_patches
         self.hook_patches[hook.hook_ref] = current_hook_patches
-        # since should care about these patches too to determine if same model, reroll patches_uuid
-        self.patches_uuid = uuid.uuid4()
-        return list(p)
-
-    def add_hooked_patches_as_diffs(self, hook: comfy.hooks.HookWeight, patches: Dict, strength_patch=1.0, strength_model=1.0):
-        # NOTE: this mirrors behavior of add_patches func
-        current_hooked_patches: Dict[str,List] = self.hooked_patches.get(hook.hook_ref, {})
-        p = set()
-        model_sd = self.model.state_dict()
-        for k in patches:
-            offset = None
-            function = None
-            if isinstance(k, str):
-                key = k
-            else:
-                offset = k[1]
-                key = k[0]
-                if len(k) > 2:
-                    function = k[2]
-            
-            if key in model_sd:
-                p.add(k)
-                current_patches: List[Tuple] = current_hooked_patches.get(key, [])
-                # take difference between desired weight and existing weight to get diff
-                # TODO: create fix for fp8; cast to torch32 first?
-                current_patches.append((strength_patch, (patches[k]-comfy.utils.get_attr(self.model, key),), strength_model, offset, function))
-                current_hooked_patches[key] = current_patches
-        self.hook_patches[hook.hook_ref] = current_hooked_patches
         # since should care about these patches too to determine if same model, reroll patches_uuid
         self.patches_uuid = uuid.uuid4()
         return list(p)
@@ -728,7 +710,7 @@ class ModelPatcher:
                     comfy.utils.copy_to_param(self.model, k, self.hook_backup[k][0].to(device=self.hook_backup[k][1]))
                 
         self.hook_backup.clear()
-        self.current_hooks = None # TODO: should this be clear_cached_hooked_weights instead?
+        self.current_hooks = None # TODO: should this be clear_cached_hook_weights instead?
 
     def clean_hooks(self):
         self.unpatch_hooks()
