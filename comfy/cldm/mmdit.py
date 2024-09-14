@@ -6,6 +6,7 @@ class ControlNet(comfy.ldm.modules.diffusionmodules.mmdit.MMDiT):
     def __init__(
         self,
         num_blocks = None,
+        control_latent_channels = None,
         dtype = None,
         device = None,
         operations = None,
@@ -17,10 +18,13 @@ class ControlNet(comfy.ldm.modules.diffusionmodules.mmdit.MMDiT):
         for _ in range(len(self.joint_blocks)):
             self.controlnet_blocks.append(operations.Linear(self.hidden_size, self.hidden_size, device=device, dtype=dtype))
 
+        if control_latent_channels is None:
+            control_latent_channels = self.in_channels
+
         self.pos_embed_input = comfy.ldm.modules.diffusionmodules.mmdit.PatchEmbed(
             None,
             self.patch_size,
-            self.in_channels,
+            control_latent_channels,
             self.hidden_size,
             bias=True,
             strict_img_size=False,
