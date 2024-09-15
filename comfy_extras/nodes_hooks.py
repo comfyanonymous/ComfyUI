@@ -150,6 +150,27 @@ class ConditioningSetDefaultAndCombine:
         (final_conditioning,) = comfy.hooks.set_default_and_combine_conds(conds=[cond], new_conds=[cond_DEFAULT],
                                                                         opt_hooks=opt_hooks)
         return (final_conditioning,)
+    
+class SetClipHooks:
+    NodeId = 'SetClipHooks'
+    NodeName = 'Set CLIP Hooks'
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "clip": ("CLIP",),
+                "hooks": ("HOOKS",),
+            }
+        }
+    
+    RETURN_TYPES = ("CLIP",)
+    CATEGORY = "advanced/hooks/clip"
+    FUNCTION = "apply_hooks"
+
+    def apply_hooks(self, clip: 'CLIP', hooks: comfy.hooks.HookGroup):
+        clip = clip.clone()
+        clip.patcher.forced_hooks = hooks
+        return (clip,)
 #------------------------------------------
 ###########################################
 
@@ -422,7 +443,8 @@ node_list = [
     PairConditioningSetProperties,
     ConditioningSetDefaultAndCombine,
     PairConditioningSetDefaultAndCombine,
-    PairConditioningCombine
+    PairConditioningCombine,
+    SetClipHooks,
 ]
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}

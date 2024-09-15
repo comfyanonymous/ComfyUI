@@ -58,7 +58,6 @@ class HookGroup:
     
     def clone(self):
         c = HookGroup()
-        # TODO: review if clone is necessary
         for hook in self.hooks:
             c.add(hook.clone())
         return c
@@ -90,7 +89,7 @@ class HookGroup:
             if final_hook is None:
                 final_hook = hook.clone()
             else:
-                final_hook - final_hook.clone_and_combine()
+                final_hook = final_hook.clone_and_combine(hook)
         return final_hook
 
 class HookWeightKeyframe:
@@ -227,11 +226,9 @@ def load_hook_lora_for_models(model: 'ModelPatcher', clip: 'CLIP', lora: Dict[st
         k = ()
         new_modelpatcher = None
     
-    # TODO: make hooks work with clip
     if clip is not None:
         new_clip = clip.clone()
-        k1 = []
-        #k1 = new_clip.add_hook_patches(hook=hook, patches=loaded, strength_patch=strength_clip)
+        k1 = new_clip.patcher.add_hook_patches(hook=hook, patches=loaded, strength_patch=strength_clip)
     else:
         k1 = ()
         new_clip = None
@@ -247,7 +244,6 @@ def load_hook_model_as_lora_for_models(model: 'ModelPatcher', clip: 'CLIP',
                                        hook: Hook, strength_model: float, strength_clip: float):
     if model is not None and model_loaded is not None:
         new_modelpatcher = model.clone()
-        comfy.model_management.unload_model_clones(new_modelpatcher)
         expected_model_keys = set(model_loaded.model.state_dict().keys())
         patches_model: Dict[str, torch.Tensor] = model_loaded.model.state_dict()
         # do not include ANY model_sampling components of the model that should act as a patch
@@ -260,14 +256,12 @@ def load_hook_model_as_lora_for_models(model: 'ModelPatcher', clip: 'CLIP',
         k = ()
         new_modelpatcher = None
     
-    # TODO: make hooks work with clip
     if clip is not None and clip_loaded is not None:
         new_clip = clip.clone()
         comfy.model_management.unload_model_clones(new_clip.patcher)
         expected_clip_keys = clip_loaded.patcher.model.state_dict().copy()
         patches_clip: Dict[str, torch.Tensor] = clip_loaded.cond_stage_model.state_dict()
-        k1 = []
-        #k1 = new_clip.add_hook_patches(hook=hook, patches=patches_clip, strength_patch=strength_clip, is_diff=True)
+        k1 = new_clip.patcher.add_hook_patches(hook=hook, patches=patches_clip, strength_patch=strength_clip, is_diff=True)
     else:
         k1 = ()
         new_clip = None

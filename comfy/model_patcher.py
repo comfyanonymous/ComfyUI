@@ -117,6 +117,7 @@ class ModelPatcher:
         self.hook_backup: Dict[str, Tuple[torch.Tensor, torch.device]] = {}
         self.cached_hook_patches: Dict[comfy.hooks.HookGroup, Dict[str, torch.Tensor]] = {}
         self.current_hooks: Optional[comfy.hooks.HookGroup] = None
+        self.forced_hooks: Optional[comfy.hooks.HookGroup] = None  # NOTE: only used for CLIP
         # TODO: hook_mode should be entirely removed; behavior should be determined by remaining VRAM/memory
         self.hook_mode = comfy.hooks.EnumHookMode.MaxSpeed
 
@@ -164,7 +165,8 @@ class ModelPatcher:
             for k in self.cached_hook_patches[group]:
                 n.cached_hook_patches[group][k] = self.cached_hook_patches[group][k]
         n.hook_backup = self.hook_backup
-        n.current_hooks = self.current_hooks
+        n.current_hooks = self.current_hooks.clone() if self.current_hooks else self.current_hooks
+        n.forced_hooks = self.forced_hooks.clone() if self.forced_hooks else self.forced_hooks
         n.hook_mode = self.hook_mode
         return n
 
@@ -180,6 +182,8 @@ class ModelPatcher:
         if len(self.hook_patches) > 0:  # TODO: check if this workaround is necessary
             return False
         if self.current_hooks != clone.current_hooks:
+            return False
+        if self.forced_hooks != clone.forced_hooks:
             return False
         if self.hook_patches.keys() != clone.hook_patches.keys():
             return False
@@ -358,6 +362,7 @@ class ModelPatcher:
             comfy.utils.set_attr_param(self.model, key, out_weight)
 
     def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
+        self.unpatch_hooks()
         mem_counter = 0
         patch_counter = 0
         lowvram_counter = 0
@@ -441,6 +446,7 @@ class ModelPatcher:
         self.model.lowvram_patch_counter += patch_counter
         self.model.device = device_to
         self.model.model_loaded_weight_memory = mem_counter
+        self.apply_hooks(self.forced_hooks)
 
     def patch_model(self, device_to=None, lowvram_model_memory=0, load_weights=True, force_patch_weights=False):
         for k in self.object_patches:
@@ -459,6 +465,7 @@ class ModelPatcher:
 
     def unpatch_model(self, device_to=None, unpatch_weights=True):
         if unpatch_weights:
+            self.unpatch_hooks()
             if self.model.model_lowvram:
                 for m in self.model.modules():
                     wipe_lowvram_weight(m)
@@ -606,6 +613,7 @@ class ModelPatcher:
                 if is_diff:
                     # take difference between desired weight and existing weight to get diff
                     # TODO: try to implement diff via strength_path/strength_model diff
+                    comfy.model_management.unload_model_clones(self)
                     model_dtype = comfy.utils.get_attr(self.model, key).dtype
                     if model_dtype in [torch.float8_e5m2, torch.float8_e4m3fn]:
                         diff_weight = (patches[k].to(torch.float32)-comfy.utils.get_attr(self.model, key).to(torch.float32)).to(model_dtype)
