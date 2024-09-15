@@ -445,12 +445,8 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.tokenizer = comfy.text_encoders.sa_t5.SAT5Tokenizer
         else:
             w = clip_data[0].get("text_model.embeddings.position_embedding.weight", None)
-            if w is not None and w.shape[0] == 248:
-                clip_target.clip = comfy.text_encoders.long_clipl.LongClipModel
-                clip_target.tokenizer = comfy.text_encoders.long_clipl.LongClipTokenizer
-            else:
-                clip_target.clip = sd1_clip.SD1ClipModel
-                clip_target.tokenizer = sd1_clip.SD1Tokenizer
+            clip_target.clip = sd1_clip.SD1ClipModel
+            clip_target.tokenizer = sd1_clip.SD1Tokenizer
     elif len(clip_data) == 2:
         if clip_type == CLIPType.SD3:
             clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=True, clip_g=True, t5=False)
@@ -475,10 +471,12 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
 
     parameters = 0
+    tokenizer_data = {}
     for c in clip_data:
         parameters += comfy.utils.calculate_parameters(c)
+        tokenizer_data, model_options = comfy.text_encoders.long_clipl.model_options_long_clip(c, tokenizer_data, model_options)
 
-    clip = CLIP(clip_target, embedding_directory=embedding_directory, parameters=parameters, model_options=model_options)
+    clip = CLIP(clip_target, embedding_directory=embedding_directory, parameters=parameters, tokenizer_data=tokenizer_data, model_options=model_options)
     for c in clip_data:
         m, u = clip.load_sd(c)
         if len(m) > 0:
