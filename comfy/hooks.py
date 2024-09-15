@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, List, Dict, Tuple
 import enum
 import torch
+import numpy as np
 
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
@@ -14,13 +15,41 @@ class EnumHookMode(enum.Enum):
     MinVram = "minvram"
     MaxSpeed = "maxspeed"
 
+class InterpolationMethod:
+    LINEAR = "linear"
+    EASE_IN = "ease_in"
+    EASE_OUT = "ease_out"
+    EASE_IN_OUT = "ease_in_out"
+
+    _LIST = [LINEAR, EASE_IN, EASE_OUT, EASE_IN_OUT]
+
+    @classmethod
+    def get_weights(cls, num_from: float, num_to: float, length: int, method: str, reverse=False):
+        diff = num_to - num_from
+        if method == cls.LINEAR:
+            weights = torch.linspace(num_from, num_to, length)
+        elif method == cls.EASE_IN:
+            index = torch.linspace(0, 1, length)
+            weights = diff * np.power(index, 2) + num_from
+        elif method == cls.EASE_OUT:
+            index = torch.linspace(0, 1, length)
+            weights = diff * (1 - np.power(1 - index, 2)) + num_from
+        elif method == cls.EASE_IN_OUT:
+            index = torch.linspace(0, 1, length)
+            weights = diff * ((1 - np.cos(index * np.pi)) / 2) + num_from
+        else:
+            raise ValueError(f"Unrecognized interpolation method '{method}'.")
+        if reverse:
+            weights = weights.flip(dims=(0,))
+        return weights
+
 class HookRef:
     pass
 
 class Hook:
     def __init__(self):
         self.hook_ref = HookRef()
-        self.hook_keyframe = HookWeightKeyframeGroup()
+        self.hook_keyframe = HookKeyframeGroup()
 
     @property
     def strength(self):
@@ -68,7 +97,7 @@ class HookGroup:
             c.add(hook.clone())
         return c
     
-    def set_keyframes_on_hooks(self, hook_kf: 'HookWeightKeyframeGroup'):
+    def set_keyframes_on_hooks(self, hook_kf: 'HookKeyframeGroup'):
         hook_kf = hook_kf.clone()
         for hook in self.hooks:
             hook.hook_keyframe = hook_kf
@@ -92,7 +121,7 @@ class HookGroup:
                 final_hook = final_hook.clone_and_combine(hook)
         return final_hook
 
-class HookWeightKeyframe:
+class HookKeyframe:
     def __init__(self, strength: float, start_percent=0.0, guarantee_steps=1):
         self.strength = strength
         # scheduling
@@ -101,15 +130,15 @@ class HookWeightKeyframe:
         self.guarantee_steps = guarantee_steps
     
     def clone(self):
-        c = HookWeightKeyframe(strength=self.strength,
+        c = HookKeyframe(strength=self.strength,
                                 start_percent=self.start_percent, guarantee_steps=self.guarantee_steps)
         c.start_t = self.start_t
         return c
 
-class HookWeightKeyframeGroup:
+class HookKeyframeGroup:
     def __init__(self):
-        self.keyframes: List[HookWeightKeyframe] = []
-        self._current_keyframe: HookWeightKeyframe = None
+        self.keyframes: List[HookKeyframe] = []
+        self._current_keyframe: HookKeyframe = None
         self._current_used_steps = 0
         self._current_index = 0
         self._curr_t = -1.
@@ -126,8 +155,9 @@ class HookWeightKeyframeGroup:
         self._current_used_steps = 0
         self._current_index = 0
         self.curr_t = -1.
+        self._set_first_as_current()
     
-    def add(self, keyframe: HookWeightKeyframe):
+    def add(self, keyframe: HookKeyframe):
         # add to end of list, then sort
         self.keyframes.append(keyframe)
         self.keyframes = get_sorted_list_via_attr(self.keyframes, "start_percent")
@@ -146,7 +176,7 @@ class HookWeightKeyframeGroup:
         return len(self.keyframes) == 0
     
     def clone(self):
-        c = HookWeightKeyframeGroup()
+        c = HookKeyframeGroup()
         for keyframe in self.keyframes:
             c.keyframes.append(keyframe)
         c._set_first_as_current()

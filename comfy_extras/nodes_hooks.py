@@ -1,5 +1,6 @@
-from typing import TYPE_CHECKING, Dict, List, Tuple
+from typing import TYPE_CHECKING, Dict, List, Tuple, Union
 import torch
+from collections.abc import Iterable
 
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
@@ -159,6 +160,8 @@ class SetClipHooks:
         return {
             "required": {
                 "clip": ("CLIP",),
+            },
+            "optional": {
                 "hooks": ("HOOKS",),
             }
         }
@@ -167,10 +170,30 @@ class SetClipHooks:
     CATEGORY = "advanced/hooks/clip"
     FUNCTION = "apply_hooks"
 
-    def apply_hooks(self, clip: 'CLIP', hooks: comfy.hooks.HookGroup):
-        clip = clip.clone()
-        clip.patcher.forced_hooks = hooks
+    def apply_hooks(self, clip: 'CLIP', hooks: comfy.hooks.HookGroup=None):
+        if hooks is not None:
+            clip = clip.clone()
+            clip.patcher.forced_hooks = hooks
         return (clip,)
+
+class ConditioningTimestepsRange:
+    NodeId = 'ConditioningTimestepsRange'
+    NodeName = 'Timesteps Range'
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
+            },
+        }
+    
+    RETURN_TYPES = ("TIMESTEPS_RANGE",)
+    CATEGORY = "advanced/hooks"
+    FUNCTION = "create_range"
+
+    def create_range(self, start_percent: float, end_percent: float):
+        return ((start_percent, end_percent),)
 #------------------------------------------
 ###########################################
 
@@ -313,6 +336,105 @@ class RegisterHookModelAsLoraModelOnly:
 ###########################################
 # Schedule Hooks
 #------------------------------------------
+class SetHookKeyframes:
+    NodeId = 'SetHookKeyframes'
+    NodeName = 'Set Hook Keyframes'
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "hooks": ("HOOKS",),
+            },
+            "optional": {
+                "hook_kf": ("HOOK_KEYFRAMES",),
+            }
+        }
+    
+    RETURN_TYPES = ("HOOKS",)
+    CATEGORY = "advanced/hooks/scheduling"
+    FUNCTION = "set_hook_keyframes"
+
+    def set_hook_keyframes(self, hooks: comfy.hooks.HookGroup, hook_kf: comfy.hooks.HookKeyframeGroup=None):
+        if hook_kf is not None:
+            hooks = hooks.clone()
+            hooks.set_keyframes_on_hooks(hook_kf=hook_kf)
+        return (hooks,)
+
+class CreateHookKeyframe:
+    NodeId = 'CreateHookKeyframe'
+    NodeName = 'Create Hook Keyframe'
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "strength_mult": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+                "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+            },
+            "optional": {
+                "prev_hook_kf": ("HOOK_KEYFRAMES",),
+            }
+        }
+    
+    RETURN_TYPES = ("HOOK_KEYFRAMES",)
+    RETURN_NAMES = ("HOOK_KF",)
+    CATEGORY = "advanced/hooks/scheduling"
+    FUNCTION = "create_hook_keyframe"
+
+    def create_hook_keyframe(self, strength_mult: float, start_percent: float, prev_hook_kf: comfy.hooks.HookKeyframeGroup=None):
+        if prev_hook_kf is None:
+            prev_hook_kf = comfy.hooks.HookKeyframeGroup()
+        prev_hook_kf = prev_hook_kf.clone()
+        keyframe = comfy.hooks.HookKeyframe(strength=strength_mult, start_percent=start_percent)
+        prev_hook_kf.add(keyframe)
+        return (prev_hook_kf,)
+    
+class CreateHookKeyframesFromFloats:
+    NodeId = 'CreateHookKeyframesFromFloats'
+    NodeName = 'Create Hook Keyframes From Floats'
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "floats_strength": ("FLOATS", {"default": -1, "min": -1, "step": 0.001, "forceInput": True}),
+                "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                "print_keyframes": ("BOOLEAN", {"default": False}),
+            },
+            "optional": {
+                "prev_hook_kf": ("HOOK_KEYFRAMES",),
+            }
+        }
+    
+    RETURN_TYPES = ("HOOK_KEYFRAMES",)
+    RETURN_NAMES = ("HOOK_KF",)
+    CATEGORY = "advanced/hooks/scheduling"
+    FUNCTION = "create_hook_keyframes"
+
+    def create_hook_keyframes(self, floats_strength: Union[float, List[float]],
+                              start_percent: float, end_percent: float,
+                              prev_hook_kf: comfy.hooks.HookKeyframeGroup=None, print_keyframes=False):
+        if prev_hook_kf is None:
+            prev_hook_kf = comfy.hooks.HookKeyframeGroup()
+        prev_hook_kf = prev_hook_kf.clone()
+        if type(floats_strength) in (float, int):
+            floats_strength = [float(floats_strength)]
+        elif isinstance(floats_strength, Iterable):
+            pass
+        else:
+            raise Exception(f"floats_strength must be either an iterable input or a float, but was{type(floats_strength).__repr__}.")
+        percents = comfy.hooks.InterpolationMethod.get_weights(num_from=start_percent, num_to=end_percent, length=len(floats_strength),
+                                                               method=comfy.hooks.InterpolationMethod.LINEAR)
+        
+        is_first = True
+        for percent, strength in zip(percents, floats_strength):
+            guarantee_steps = 0
+            if is_first:
+                guarantee_steps = 1
+                is_first = False
+            prev_hook_kf.add(comfy.hooks.HookKeyframe(strength=strength, start_percent=percent, guarantee_steps=guarantee_steps))
+            if print_keyframes:
+                print(f"Hook Keyframe - start_percent:{percent} = {strength}")
+        return (prev_hook_kf,)
 #------------------------------------------
 ###########################################
 
@@ -434,6 +556,10 @@ node_list = [
     RegisterHookLoraModelOnly,
     RegisterHookModelAsLora,
     RegisterHookModelAsLoraModelOnly,
+    # Scheduling
+    SetHookKeyframes,
+    CreateHookKeyframe,
+    CreateHookKeyframesFromFloats,
     # Combine
     CombineHooks,
     CombineHooksFour,
@@ -445,6 +571,8 @@ node_list = [
     PairConditioningSetDefaultAndCombine,
     PairConditioningCombine,
     SetClipHooks,
+    # Other
+    ConditioningTimestepsRange,
 ]
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
