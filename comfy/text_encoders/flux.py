@@ -18,7 +18,8 @@ class T5XXLTokenizer(sd1_clip.SDTokenizer):
 
 class FluxTokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}):
-        self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory)
+        clip_l_tokenizer_class = tokenizer_data.get("clip_l_tokenizer_class", sd1_clip.SDTokenizer)
+        self.clip_l = clip_l_tokenizer_class(embedding_directory=embedding_directory)
         self.t5xxl = T5XXLTokenizer(embedding_directory=embedding_directory)
 
     def tokenize_with_weights(self, text:str, return_word_ids=False):
@@ -38,7 +39,8 @@ class FluxClipModel(torch.nn.Module):
     def __init__(self, dtype_t5=None, device="cpu", dtype=None, model_options={}):
         super().__init__()
         dtype_t5 = comfy.model_management.pick_weight_dtype(dtype_t5, dtype, device)
-        self.clip_l = sd1_clip.SDClipModel(device=device, dtype=dtype, return_projected_pooled=False, model_options=model_options)
+        clip_l_class = model_options.get("clip_l_class", sd1_clip.SDClipModel)
+        self.clip_l = clip_l_class(device=device, dtype=dtype, return_projected_pooled=False, model_options=model_options)
         self.t5xxl = T5XXLModel(device=device, dtype=dtype_t5, model_options=model_options)
         self.dtypes = set([dtype, dtype_t5])
 

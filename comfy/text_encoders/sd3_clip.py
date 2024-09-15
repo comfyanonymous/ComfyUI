@@ -20,7 +20,8 @@ class T5XXLTokenizer(sd1_clip.SDTokenizer):
 
 class SD3Tokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}):
-        self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory)
+        clip_l_tokenizer_class = tokenizer_data.get("clip_l_tokenizer_class", sd1_clip.SDTokenizer)
+        self.clip_l = clip_l_tokenizer_class(embedding_directory=embedding_directory)
         self.clip_g = sdxl_clip.SDXLClipGTokenizer(embedding_directory=embedding_directory)
         self.t5xxl = T5XXLTokenizer(embedding_directory=embedding_directory)
 
@@ -42,7 +43,8 @@ class SD3ClipModel(torch.nn.Module):
         super().__init__()
         self.dtypes = set()
         if clip_l:
-            self.clip_l = sd1_clip.SDClipModel(layer="hidden", layer_idx=-2, device=device, dtype=dtype, layer_norm_hidden_state=False, return_projected_pooled=False, model_options=model_options)
+            clip_l_class = model_options.get("clip_l_class", sd1_clip.SDClipModel)
+            self.clip_l = clip_l_class(layer="hidden", layer_idx=-2, device=device, dtype=dtype, layer_norm_hidden_state=False, return_projected_pooled=False, model_options=model_options)
             self.dtypes.add(dtype)
         else:
             self.clip_l = None
@@ -95,7 +97,8 @@ class SD3ClipModel(torch.nn.Module):
             if self.clip_g is not None:
                 g_out, g_pooled = self.clip_g.encode_token_weights(token_weight_pairs_g)
                 if lg_out is not None:
-                    lg_out = torch.cat([lg_out, g_out], dim=-1)
+                    cut_to = min(lg_out.shape[1], g_out.shape[1])
+                    lg_out = torch.cat([lg_out[:,:cut_to], g_out[:,:cut_to]], dim=-1)
                 else:
                     lg_out = torch.nn.functional.pad(g_out, (768, 0))
             else:
