@@ -152,7 +152,10 @@ def finalize_default_conds(hooked_to_run: Dict[comfy.hooks.HookGroup,List[Tuple[
             if len(default_conds[i]) == 0:
                 continue
             area: list[int] = cond_obj.area
-            default_mults[i][:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]] -= cond_obj.mult
+            if area is not None:
+                default_mults[i][:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]] -= cond_obj.mult
+            else:
+                default_mults[i] -= cond_obj.mult
     # for each default_mult, ReLU to make negatives=0, and then check for any nonzeros
     for i, mult in enumerate(default_mults):
         # if no default_cond for cond type, do nothing

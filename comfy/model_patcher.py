@@ -711,6 +711,7 @@ class ModelPatcher:
     
     def unpatch_hooks(self) -> None:
         if len(self.hook_backup) == 0:
+            self.current_hooks = None
             return
         keys = list(self.hook_backup.keys())
         if self.weight_inplace_update:
@@ -722,9 +723,9 @@ class ModelPatcher:
         else:
             for k in keys:
                 if self.hook_mode == comfy.hooks.EnumHookMode.MaxSpeed:
-                    comfy.utils.copy_to_param(self.model, k, self.hook_backup[k][0])
+                    comfy.utils.set_attr_param(self.model, k, self.hook_backup[k][0])
                 else:
-                    comfy.utils.copy_to_param(self.model, k, self.hook_backup[k][0].to(device=self.hook_backup[k][1]))
+                    comfy.utils.set_attr_param(self.model, k, self.hook_backup[k][0].to(device=self.hook_backup[k][1]))
                 
         self.hook_backup.clear()
         self.current_hooks = None
