@@ -858,7 +858,7 @@ class MMDiT(nn.Module):
             context = torch.cat(
                 (
                     repeat(self.register, "1 ... -> b ...", b=x.shape[0]),
-                    torch.Tensor([]).type_as(x) is context is None else context,
+                    torch.Tensor([]).type_as(x) if context is None else context,
                 ),
                 1,
             )
