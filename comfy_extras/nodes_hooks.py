@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 
 import comfy.hooks
 import comfy.sd
+import comfy.utils
 import folder_paths
 
 ###########################################
@@ -39,7 +40,7 @@ class PairConditioningSetProperties:
 
     def set_properties(self, positive_NEW, negative_NEW,
                        strength: float, set_cond_area: str,
-                       opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.Hook=None, opt_timesteps: Tuple=None):
+                       opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: Tuple=None):
         final_positive, final_negative = comfy.hooks.set_mask_conds(conds=[positive_NEW, negative_NEW],
                                                                     strength=strength, set_cond_area=set_cond_area,
                                                                     opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
@@ -70,10 +71,10 @@ class ConditioningSetProperties:
 
     def set_properties(self, cond_NEW,
                        strength: float, set_cond_area: str,
-                       opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.Hook=None, opt_timesteps: Tuple=None):
+                       opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: Tuple=None):
         (final_cond,) = comfy.hooks.set_mask_conds(conds=[cond_NEW],
-                                                                    strength=strength, set_cond_area=set_cond_area,
-                                                                    opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
+                                                   strength=strength, set_cond_area=set_cond_area,
+                                                   opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
         return (final_cond,)
 
 class PairConditioningCombine:
@@ -199,6 +200,124 @@ class ConditioningTimestepsRange:
 
 
 ###########################################
+# Create Hooks
+#------------------------------------------
+class CreateHookLora:
+    NodeId = 'CreateHookLora'
+    NodeName = 'Create Hook LoRA'
+    def __init__(self):
+        self.loaded_lora = None
+    
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "lora_name": (folder_paths.get_filename_list("loras"), ),
+                "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+                "strength_clip": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+            }
+        }
+    
+    RETURN_TYPES = ("HOOKS",)
+    CATEGORY = "advanced/hooks/create"
+    FUNCTION = "create_hook"
+
+    def create_hook(self, lora_name: str, strength_model: float, strength_clip: float):
+        if strength_model == 0 and strength_clip == 0:
+            return (None,)
+        
+        lora_path = folder_paths.get_full_path("loras", lora_name)
+        lora = None
+        if self.loaded_lora is not None:
+            if self.loaded_lora[0] == lora_path:
+                lora = self.loaded_lora[1]
+            else:
+                temp = self.loaded_lora
+                self.loaded_lora = None
+                del temp
+        
+        if lora is None:
+            lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
+            self.loaded_lora = (lora_path, lora)
+
+        hooks = comfy.hooks.create_hook_lora(lora=lora, strength_model=strength_model, strength_clip=strength_clip)
+        return (hooks,)
+
+class CreateHookLoraModelOnly(CreateHookLora):
+    NodeId = 'CreateHookLoraModelOnly'
+    NodeName = 'Create Hook LoRA (MO)'
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "lora_name": (folder_paths.get_filename_list("loras"), ),
+                "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+            }
+        }
+    
+    RETURN_TYPES = ("HOOKS",)
+    CATEGORY = "advanced/hooks/create"
+    FUNCTION = "create_hook_model_only"
+
+    def create_hook_model_only(self, lora_name: str, strength_model: float):
+        return self.create_hook(lora_name=lora_name, strength_model=strength_model, strength_clip=0)
+
+class CreateHookModelAsLora:
+    NodeId = 'CreateHookModelAsLora'
+    NodeName = 'Create Hook Model as LoRA'
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "clip": ("CLIP",),
+                "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+                "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+                "strength_clip": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+            }
+        }
+    
+    RETURN_TYPES = ("HOOKS",)
+    CATEGORY = "advanced/hooks/create"
+    FUNCTION = "create_hook"
+
+    def create_hook(self, model: 'ModelPatcher', clip: 'CLIP', ckpt_name: str,
+                                 strength_model: float, strength_clip: float):
+        ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        model_loaded = out[0]
+        clip_loaded = out[1]
+
+        hooks = comfy.hooks.create_hook_model_as_lora(model=model, clip=clip,
+                                                     model_loaded=model_loaded, clip_loaded=clip_loaded,
+                                                     strength_model=strength_model, strength_clip=strength_clip)
+        return (hooks,)
+
+class CreateHookModelAsLoraModelOnly:
+    NodeId = 'CreateHookModelAsLoraModelOnly'
+    NodeName = 'Create Hook Model as LoRA (MO)'
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+                "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+            }
+        }
+    
+    RETURN_TYPES = ("HOOKS",)
+    CATEGORY = "advanced/hooks/create"
+    FUNCTION = "create_hook_model_only"
+
+    def create_hook_model_only(self, model: 'ModelPatcher', ckpt_name: str, strength_model: float):
+        return CreateHookModelAsLora.create_hook(self, model=model, clip=None, ckpt_name=ckpt_name,
+                                                                              strength_model=strength_model, strength_clip=0)
+#------------------------------------------
+###########################################
+
+
+###########################################
 # Register Hooks
 #------------------------------------------
 class RegisterHookLora:
@@ -242,12 +361,9 @@ class RegisterHookLora:
             lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
             self.loaded_lora = (lora_path, lora)
         
-        hook = comfy.hooks.Hook()
-        hook_group = comfy.hooks.HookGroup()
-        hook_group.add(hook)
-        model_lora, clip_lora = comfy.hooks.load_hook_lora_for_models(model=model, clip=clip, lora=lora, hook=hook,
+        model_lora, clip_lora, hooks = comfy.hooks.load_hook_lora_for_models(model=model, clip=clip, lora=lora,
                                                                       strength_model=strength_model, strength_clip=strength_clip)
-        return (model_lora, clip_lora, hook_group)
+        return (model_lora, clip_lora, hooks)
 
 class RegisterHookLoraModelOnly(RegisterHookLora):
     NodeId = 'RegisterHookLoraModelOnly'
@@ -257,10 +373,8 @@ class RegisterHookLoraModelOnly(RegisterHookLora):
         return {
             "required": {
                 "model": ("MODEL",),
-                "clip": ("CLIP",),
                 "lora_name": (folder_paths.get_filename_list("loras"), ),
                 "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
-                "strength_clip": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
             }
         }
     
@@ -299,14 +413,10 @@ class RegisterHookModelAsLora:
         model_loaded = out[0]
         clip_loaded = out[1]
 
-        hook = comfy.hooks.Hook()
-        hook_group = comfy.hooks.HookGroup()
-        hook_group.add(hook)
-        model_lora, clip_lora = comfy.hooks.load_hook_model_as_lora_for_models(model=model, clip=clip,
-                                                                               model_loaded=model_loaded, clip_loaded=clip_loaded,
-                                                                               hook=hook,
-                                                                               strength_model=strength_model, strength_clip=strength_clip)
-        return (model_lora, clip_lora, hook_group)
+        model_lora, clip_lora, hooks = comfy.hooks.load_hook_model_as_lora_for_models(model=model, clip=clip,
+                                                                                     model_loaded=model_loaded, clip_loaded=clip_loaded,
+                                                                                     strength_model=strength_model, strength_clip=strength_clip)
+        return (model_lora, clip_lora, hooks)
 
 class RegisterHookModelAsLoraModelOnly:
     NodeId = 'RegisterHookModelAsLoraModelOnly'
@@ -551,6 +661,11 @@ class CombineHooksEight:
 ###########################################
 
 node_list = [
+    # Create
+    CreateHookLora,
+    CreateHookLoraModelOnly,
+    CreateHookModelAsLora,
+    CreateHookModelAsLoraModelOnly,
     # Register
     RegisterHookLora,
     RegisterHookLoraModelOnly,

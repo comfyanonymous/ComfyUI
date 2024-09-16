@@ -1,5 +1,6 @@
-from typing import TYPE_CHECKING, List, Dict, Tuple
+from typing import TYPE_CHECKING, List, Dict, Tuple, Callable
 import enum
+import math
 import torch
 import numpy as np
 
@@ -15,41 +16,23 @@ class EnumHookMode(enum.Enum):
     MinVram = "minvram"
     MaxSpeed = "maxspeed"
 
-class InterpolationMethod:
-    LINEAR = "linear"
-    EASE_IN = "ease_in"
-    EASE_OUT = "ease_out"
-    EASE_IN_OUT = "ease_in_out"
+class EnumHookType(enum.Enum):
+    Weight = "weight"
+    Patch = "patch"
 
-    _LIST = [LINEAR, EASE_IN, EASE_OUT, EASE_IN_OUT]
+class EnumWeightTarget(enum.Enum):
+    Model = "model"
+    Clip = "clip"
 
-    @classmethod
-    def get_weights(cls, num_from: float, num_to: float, length: int, method: str, reverse=False):
-        diff = num_to - num_from
-        if method == cls.LINEAR:
-            weights = torch.linspace(num_from, num_to, length)
-        elif method == cls.EASE_IN:
-            index = torch.linspace(0, 1, length)
-            weights = diff * np.power(index, 2) + num_from
-        elif method == cls.EASE_OUT:
-            index = torch.linspace(0, 1, length)
-            weights = diff * (1 - np.power(1 - index, 2)) + num_from
-        elif method == cls.EASE_IN_OUT:
-            index = torch.linspace(0, 1, length)
-            weights = diff * ((1 - np.cos(index * np.pi)) / 2) + num_from
-        else:
-            raise ValueError(f"Unrecognized interpolation method '{method}'.")
-        if reverse:
-            weights = weights.flip(dims=(0,))
-        return weights
-
-class HookRef:
+class _HookRef:
     pass
 
 class Hook:
-    def __init__(self):
-        self.hook_ref = HookRef()
-        self.hook_keyframe = HookKeyframeGroup()
+    def __init__(self, hook_type: EnumHookType=None, hook_ref: _HookRef=None,
+                 hook_keyframe: 'HookKeyframeGroup'=None):
+        self.hook_type = hook_type
+        self.hook_ref = hook_ref if hook_ref else _HookRef()
+        self.hook_keyframe = hook_keyframe if hook_keyframe else HookKeyframeGroup()
 
     @property
     def strength(self):
@@ -62,17 +45,83 @@ class Hook:
     def reset(self):
         self.hook_keyframe.reset()
 
-    def clone(self):
-        c = Hook()
+    def clone(self, subtype: Callable=None):
+        if subtype is None:
+            subtype = type(self)
+        c: Hook = subtype()
+        c.hook_type = self.hook_type
         c.hook_ref = self.hook_ref
         c.hook_keyframe = self.hook_keyframe
         return c
-    
+
     def __eq__(self, other: 'Hook'):
         return self.__class__ == other.__class__ and self.hook_ref == other.hook_ref
 
     def __hash__(self):
         return hash(self.hook_ref)
+
+
+class WeightHook(Hook):
+    def __init__(self, strength_model=1.0, strength_clip=1.0):
+        super().__init__(hook_type=EnumHookType.Weight)
+        self.weights: Dict = None
+        self.weights_clip: Dict = None
+        self.need_weight_init = True
+        self._strength_model = strength_model
+        self._strength_clip = strength_clip
+    
+    @property
+    def strength_model(self):
+        return self._strength_model * self.strength
+    
+    @property
+    def strength_clip(self):
+        return self._strength_clip * self.strength
+
+    def add_hook_patches(self, model: 'ModelPatcher', target: EnumWeightTarget):
+        weights = None
+        if target == EnumWeightTarget.Model:
+            strength = self._strength_model
+        else:
+            strength = self._strength_clip
+        
+        if self.need_weight_init:
+            key_map = {}
+            if target == EnumWeightTarget.Model:
+                key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
+            else:
+                key_map = comfy.lora.model_lora_keys_clip(model.model, key_map)
+            weights = comfy.lora.load_lora(self.weights, key_map)
+        else:
+            if target == EnumWeightTarget.Model:
+                weights = self.weights
+            else:
+                weights = self.weights_clip
+        k = model.add_hook_patches(hook=self, patches=weights, strength_patch=strength)
+        # TODO: add logs about any keys that were not applied
+
+    def clone(self, subtype: Callable=None):
+        if subtype is None:
+            subtype = type(self)
+        c: WeightHook = super().clone(subtype)
+        c.weights = self.weights
+        c.weights_clip = self.weights_clip
+        c.need_weight_init = self.need_weight_init
+        c._strength_model = self._strength_model
+        c._strength_clip = self._strength_clip
+        return c
+
+class PatchHook(Hook):
+    def __init__(self):
+        super().__init__(hook_type=EnumHookType.Patch)
+        self.patches: Dict = None
+    
+    def clone(self, subtype: Callable=None):
+        if subtype is None:
+            subtype = type(self)
+        c: PatchHook = super().clone(type(self))
+        c.patches = self.patches
+        return c
 
 class HookGroup:
     def __init__(self):
@@ -120,6 +169,7 @@ class HookGroup:
             else:
                 final_hook = final_hook.clone_and_combine(hook)
         return final_hook
+
 
 class HookKeyframe:
     def __init__(self, strength: float, start_percent=0.0, guarantee_steps=1):
@@ -216,6 +266,35 @@ class HookKeyframeGroup:
         # return True if keyframe changed, False if no change
         return prev_index != self._current_index
 
+
+class InterpolationMethod:
+    LINEAR = "linear"
+    EASE_IN = "ease_in"
+    EASE_OUT = "ease_out"
+    EASE_IN_OUT = "ease_in_out"
+
+    _LIST = [LINEAR, EASE_IN, EASE_OUT, EASE_IN_OUT]
+
+    @classmethod
+    def get_weights(cls, num_from: float, num_to: float, length: int, method: str, reverse=False):
+        diff = num_to - num_from
+        if method == cls.LINEAR:
+            weights = torch.linspace(num_from, num_to, length)
+        elif method == cls.EASE_IN:
+            index = torch.linspace(0, 1, length)
+            weights = diff * np.power(index, 2) + num_from
+        elif method == cls.EASE_OUT:
+            index = torch.linspace(0, 1, length)
+            weights = diff * (1 - np.power(1 - index, 2)) + num_from
+        elif method == cls.EASE_IN_OUT:
+            index = torch.linspace(0, 1, length)
+            weights = diff * ((1 - np.cos(index * np.pi)) / 2) + num_from
+        else:
+            raise ValueError(f"Unrecognized interpolation method '{method}'.")
+        if reverse:
+            weights = weights.flip(dims=(0,))
+        return weights
+
 def get_sorted_list_via_attr(objects: List, attr: str) -> List:
     if not objects:
         return objects
@@ -239,15 +318,68 @@ def get_sorted_list_via_attr(objects: List, attr: str) -> List:
         sorted_list.extend(object_list)
     return sorted_list
 
+def create_hook_lora(lora: Dict[str, torch.Tensor], strength_model: float, strength_clip: float):
+    hook_group = HookGroup()
+    hook = WeightHook(strength_model=strength_model, strength_clip=strength_clip)
+    hook_group.add(hook)
+    hook.weights = lora
+    hook.need_weight_init = True
+    return hook_group
+
+def create_hook_model_as_lora(model: 'ModelPatcher', clip: 'CLIP',
+                              model_loaded: 'ModelPatcher', clip_loaded: 'CLIP',
+                              strength_model: float, strength_clip: float):
+    hook_group = HookGroup()
+    hook = WeightHook(strength_model=strength_model, strength_clip=strength_clip)
+    hook_group.add(hook)
+    if model is not None and model_loaded is not None:
+        expected_model_keys = set(model_loaded.model.state_dict().keys())
+        patches_model: Dict[str, torch.Tensor] = model_loaded.model.state_dict()
+        # do not include ANY model_sampling components of the model that should act as a patch
+        for key in list(patches_model.keys()):
+            if key.startswith("model_sampling"):
+                expected_model_keys.discard(key)
+                patches_model.pop(key, None)
+        weights_model, k = model.get_weight_diffs(patches_model)
+    else:
+        weights_model = {}
+        k = ()
+
+    if clip is not None and clip_loaded is not None:
+        expected_clip_keys = clip_loaded.patcher.model.state_dict().copy()
+        patches_clip: Dict[str, torch.Tensor] = clip_loaded.cond_stage_model.state_dict()
+        weights_clip, k1 = clip.patcher.get_weight_diffs(patches_clip)
+    else:
+        weights_clip = {}
+        k1 = ()
+    
+    k = set(k)
+    k1 = set(k1)
+    if model is not None and model_loaded is not None:
+        for key in expected_model_keys:
+            if key not in k:
+                print(f"MODEL-AS-LORA NOT LOADED {key}")
+    if clip is not None and clip_loaded is not None:
+        for key in expected_clip_keys:
+            if key not in k1:
+                print(f"CLIP-AS-LORA NOT LOADED {key}")
+
+    hook.weights = weights_model
+    hook.weights_clip = weights_clip
+    hook.need_weight_init = False
+    return hook_group
 
 def load_hook_lora_for_models(model: 'ModelPatcher', clip: 'CLIP', lora: Dict[str, torch.Tensor],
-                              hook: Hook, strength_model: float, strength_clip: float):
+                              strength_model: float, strength_clip: float):
     key_map = {}
     if model is not None:
         key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
     if clip is not None:
         key_map = comfy.lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
 
+    hook_group = HookGroup()
+    hook = WeightHook()
+    hook_group.add(hook)
     loaded: Dict[str] = comfy.lora.load_lora(lora, key_map)
     if model is not None:
         new_modelpatcher = model.clone()
@@ -267,11 +399,14 @@ def load_hook_lora_for_models(model: 'ModelPatcher', clip: 'CLIP', lora: Dict[st
     for x in loaded:
         if (x not in k) and (x not in k1):
             print(f"NOT LOADED {x}")
-    return (new_modelpatcher, new_clip)
+    return (new_modelpatcher, new_clip, hook_group)
 
 def load_hook_model_as_lora_for_models(model: 'ModelPatcher', clip: 'CLIP',
                                        model_loaded: 'ModelPatcher', clip_loaded: 'CLIP',
-                                       hook: Hook, strength_model: float, strength_clip: float):
+                                       strength_model: float, strength_clip: float):
+    hook_group = HookGroup()
+    hook = WeightHook()
+    hook_group.add(hook)
     if model is not None and model_loaded is not None:
         new_modelpatcher = model.clone()
         expected_model_keys = set(model_loaded.model.state_dict().keys())
@@ -307,7 +442,7 @@ def load_hook_model_as_lora_for_models(model: 'ModelPatcher', clip: 'CLIP',
             if key not in k1:
                 print(f"CLIP-AS-LORA NOT LOADED {key}")
     
-    return (new_modelpatcher, new_clip)
+    return (new_modelpatcher, new_clip, hook_group)
 
 def set_hooks_for_conditioning(cond, hooks: HookGroup):
     if hooks is None:

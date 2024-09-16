@@ -1,6 +1,7 @@
 import torch
 import comfy.model_management
 import comfy.conds
+import comfy.hooks
 
 def prepare_mask(noise_mask, shape, device):
     """ensures noise mask is of proper dimensions"""
@@ -77,3 +78,13 @@ def cleanup_models(conds, models):
         control_cleanup += get_models_from_cond(conds[k], "control")
 
     cleanup_additional_models(set(control_cleanup))
+
+def prepare_model_patcher(model, conds):
+    # check for hooks in conds - if not registered, see if can be applied
+    hooks = {}
+    for k in conds:
+        for cond in conds[k]:
+            if 'hooks' in cond:
+                for hook in cond['hooks'].hooks:
+                    hooks[hook] = None
+    model.register_all_hook_patches(hooks, comfy.hooks.EnumWeightTarget.Model)

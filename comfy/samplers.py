@@ -779,9 +779,12 @@ class CFGGuider:
         latent_image = latent_image.to(device)
         sigmas = sigmas.to(device)
 
-        output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+        try:
+            comfy.sampler_helpers.prepare_model_patcher(self.model_patcher, self.conds)
+            output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+        finally:
+            self.model_patcher.clean()
 
-        self.model_patcher.clean()
         comfy.sampler_helpers.cleanup_models(self.conds, self.loaded_models)
         del self.inner_model
         del self.conds

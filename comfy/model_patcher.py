@@ -16,7 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Callable
 import torch
 import copy
 import inspect
@@ -113,7 +113,8 @@ class ModelPatcher:
         self.weight_inplace_update = weight_inplace_update
         self.patches_uuid = uuid.uuid4()
 
-        self.hook_patches: Dict[comfy.hooks.HookRef] = {}
+        self.hook_patches: Dict[comfy.hooks._HookRef] = {}
+        self.hook_patches_backup: Dict[comfy.hooks._HookRef] = {}
         self.hook_backup: Dict[str, Tuple[torch.Tensor, torch.device]] = {}
         self.cached_hook_patches: Dict[comfy.hooks.HookGroup, Dict[str, torch.Tensor]] = {}
         self.current_hooks: Optional[comfy.hooks.HookGroup] = None
@@ -155,10 +156,8 @@ class ModelPatcher:
         n.object_patches_backup = self.object_patches_backup
 
         # hooks
-        for hook_ref in self.hook_patches:
-            n.hook_patches[hook_ref] = {}
-            for k in self.hook_patches[hook_ref]:
-                n.hook_patches[hook_ref][k] = self.hook_patches[hook_ref][k][:]
+        n.hook_patches = self.create_hook_patches_clone(self.hook_patches)
+        n.hook_patches_backup = self.create_hook_patches_clone(self.hook_patches_backup)
         # TODO: do we really need to clone cached_hook_patches/current_hooks?
         for group in self.cached_hook_patches:
             n.cached_hook_patches[group] = {}
@@ -169,6 +168,15 @@ class ModelPatcher:
         n.forced_hooks = self.forced_hooks.clone() if self.forced_hooks else self.forced_hooks
         n.hook_mode = self.hook_mode
         return n
+
+    @staticmethod
+    def create_hook_patches_clone(orig_hook_patches):
+        new_hook_patches = {}
+        for hook_ref in orig_hook_patches:
+            new_hook_patches[hook_ref] = {}
+            for k in orig_hook_patches[hook_ref]:
+                new_hook_patches[hook_ref][k] = orig_hook_patches[hook_ref][k][:]
+        return new_hook_patches
 
     def is_clone(self, other):
         if hasattr(other, 'model') and self.model is other.model:
@@ -570,6 +578,12 @@ class ModelPatcher:
 
     def clean(self):
         self.clean_hooks()
+        self.restore_hook_patches()
+
+    def restore_hook_patches(self):
+        if len(self.hook_patches_backup) > 0:
+            self.hook_patches = self.hook_patches_backup
+            self.hook_patches_backup = {}
 
     def set_hook_mode(self, hook_mode: comfy.hooks.EnumHookMode):
         self.hook_mode = hook_mode
@@ -591,8 +605,22 @@ class ModelPatcher:
                     if cached_group.contains(hook):
                         self.cached_hook_patches.pop(cached_group)
 
-    def add_hook_patches(self, hook: comfy.hooks.Hook, patches, strength_patch=1.0, strength_model=1.0, is_diff=False):
+    def register_all_hook_patches(self, hooks_dict: Dict[comfy.hooks.Hook, None], target: comfy.hooks.EnumWeightTarget):
+        self.restore_hook_patches()
+        weight_hooks_to_register: List[comfy.hooks.WeightHook] = []
+        for hook in hooks_dict:
+            if hook.hook_type == comfy.hooks.EnumHookType.Weight:
+                if hook.hook_ref not in self.hook_patches:
+                    weight_hooks_to_register.append(hook)
+        if len(weight_hooks_to_register) > 0:
+            self.hook_patches_backup = self.create_hook_patches_clone(self.hook_patches)
+            for hook in weight_hooks_to_register:
+                hook.add_hook_patches(self, target)
+
+    def add_hook_patches(self, hook: comfy.hooks.WeightHook, patches, strength_patch=1.0, strength_model=1.0, is_diff=False):
         # NOTE: this mirrors behavior of add_patches func
+        if is_diff:
+            comfy.model_management.unload_model_clones(self)
         current_hook_patches: Dict[str,List] = self.hook_patches.get(hook.hook_ref, {})
         p = set()
         model_sd = self.model.state_dict()
@@ -613,7 +641,6 @@ class ModelPatcher:
                 if is_diff:
                     # take difference between desired weight and existing weight to get diff
                     # TODO: try to implement diff via strength_path/strength_model diff
-                    comfy.model_management.unload_model_clones(self)
                     model_dtype = comfy.utils.get_attr(self.model, key).dtype
                     if model_dtype in [torch.float8_e5m2, torch.float8_e4m3fn]:
                         diff_weight = (patches[k].to(torch.float32)-comfy.utils.get_attr(self.model, key).to(torch.float32)).to(model_dtype)
@@ -627,6 +654,22 @@ class ModelPatcher:
         # since should care about these patches too to determine if same model, reroll patches_uuid
         self.patches_uuid = uuid.uuid4()
         return list(p)
+
+    def get_weight_diffs(self, patches):
+        comfy.model_management.unload_model_clones(self)
+        weights: Dict[str, Tuple] = {}
+        p = set()
+        model_sd = self.model.state_dict()
+        for k in patches:
+            if k in model_sd:
+                p.add(k)
+                model_dtype = comfy.utils.get_attr(self.model, k).dtype
+                if model_dtype in [torch.float8_e5m2, torch.float8_e4m3fn]:
+                    diff_weight = (patches[k].to(torch.float32)-comfy.utils.get_attr(self.model, k).to(torch.float32)).to(model_dtype)
+                else:
+                    diff_weight = patches[k]-comfy.utils.get_attr(self.model, k)
+                weights[k] = (diff_weight,)
+        return weights, p
 
     def get_combined_hook_patches(self, hooks: comfy.hooks.HookGroup):
         # combined_patches will contain  weights of all relevant hooks, per key
