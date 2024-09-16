@@ -58,6 +58,9 @@ class VAEDecodeAudio:
 
     def decode(self, vae, samples):
         audio = vae.decode(samples["samples"]).movedim(-1, 1)
+        std = torch.std(audio, dim=[1,2], keepdim=True) * 5.0
+        std[std < 1.0] = 1.0
+        audio /= std
         return ({"waveform": audio, "sample_rate": 44100}, )
 
 
