@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import os
 import time
+import mimetypes
 import logging
+from typing import Set, List, Dict, Tuple, Literal
 from collections.abc import Collection
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
@@ -44,6 +46,10 @@ user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
+extension_mimetypes_cache = {
+    "webp" : "image",
+}
+
 def map_legacy(folder_name: str) -> str:
     legacy = {"unet": "diffusion_models"}
     return legacy.get(folder_name, folder_name)
@@ -78,6 +84,13 @@ def get_input_directory() -> str:
     global input_directory
     return input_directory
 
+def get_user_directory() -> str:
+    return user_directory
+
+def set_user_directory(user_dir: str) -> None:
+    global user_directory
+    user_directory = user_dir
+
 
 #NOTE: used in http server so don't put folders that should not be accessed remotely
 def get_directory_by_type(type_name: str) -> str | None:
@@ -89,6 +102,28 @@ def get_directory_by_type(type_name: str) -> str | None:
         return get_input_directory()
     return None
 
+def filter_files_content_types(files: List[str], content_types: Literal["image", "video", "audio"]) -> List[str]:
+    """
+    Example:
+        files = os.listdir(folder_paths.get_input_directory())
+        filter_files_content_types(files, ["image", "audio", "video"])
+    """
+    global extension_mimetypes_cache
+    result = []
+    for file in files:
+        extension = file.split('.')[-1]
+        if extension not in extension_mimetypes_cache:
+            mime_type, _ = mimetypes.guess_type(file, strict=False)
+            if not mime_type:
+                continue
+            content_type = mime_type.split('/')[0]
+            extension_mimetypes_cache[extension] = content_type
+        else:
+            content_type = extension_mimetypes_cache[extension]
+
+        if content_type in content_types:
+            result.append(file)
+    return result
 
 # determine base_dir rely on annotation if name is 'filename.ext [annotation]' format
 # otherwise use default_path as base_dir

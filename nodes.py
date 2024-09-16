@@ -511,6 +511,7 @@ class CheckpointLoader:
     FUNCTION = "load_checkpoint"
 
     CATEGORY = "advanced/loaders"
+    DEPRECATED = True
 
     def load_checkpoint(self, config_name, ckpt_name):
         config_path = folder_paths.get_full_path("configs", config_name)
@@ -823,7 +824,7 @@ class ControlNetApplyAdvanced:
 
     CATEGORY = "conditioning/controlnet"
 
-    def apply_controlnet(self, positive, negative, control_net, image, strength, start_percent, end_percent, vae=None):
+    def apply_controlnet(self, positive, negative, control_net, image, strength, start_percent, end_percent, vae=None, extra_concat=[]):
         if strength == 0:
             return (positive, negative)
 
@@ -840,7 +841,7 @@ class ControlNetApplyAdvanced:
                 if prev_cnet in cnets:
                     c_net = cnets[prev_cnet]
                 else:
-                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent), vae)
+                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent), vae=vae, extra_concat=extra_concat)
                     c_net.set_previous_controlnet(prev_cnet)
                     cnets[prev_cnet] = c_net
 
@@ -2103,6 +2104,7 @@ def init_builtin_extra_nodes():
         "nodes_hunyuan.py",
         "nodes_flux.py",
         "nodes_lora_extract.py",
+        "nodes_torch_compile.py",
     ]
 
     import_failed = []
