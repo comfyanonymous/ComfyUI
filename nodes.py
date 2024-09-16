@@ -288,6 +288,10 @@ class ConditioningTimestepInterpolate:
             start = i * interval_range
             end = (i + 1) * interval_range
 
+            # Ensure the last interval ends exactly at 1.0
+            if i == num_intervals - 1:
+                end = 1.0
+
             if i % 2 == 0:
                 conditioning_1_intervals.append(node_helpers.conditioning_set_values(conditioning_1, {"start_percent": start, "end_percent": end}))
             else:
