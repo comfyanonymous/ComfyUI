@@ -22,7 +22,7 @@ class FeedForward(nn.Module):
         super().__init__()
         inner_dim = int(dim * mult)
         if not dim_out:
-            dim_out = dim() if isfunction(dim) else dim
+            dim_out = dim
         project_in = nn.Sequential(
             ops.Linear(dim, inner_dim),
             nn.GELU()
