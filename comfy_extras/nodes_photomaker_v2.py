@@ -173,7 +173,7 @@ class PhotoMakerLoaderV2:
     def INPUT_TYPES(s):
         return {"required": { "photomaker_model_name": (folder_paths.get_filename_list("photomaker"), )}}
 
-    RETURN_TYPES = ("PHOTOMAKER",)
+    RETURN_TYPES = ("PHOTOMAKERV2",)
     FUNCTION = "load_photomaker_model"
 
     CATEGORY = "_for_testing/photomaker"
@@ -197,7 +197,7 @@ class PhotoMakerEncodeV2:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "photomaker": ("PHOTOMAKER",),
+        return {"required": { "photomakerv2": ("PHOTOMAKERV2",),
                               "image": ("IMAGE",),
                               "clip": ("CLIP", ),
                               "text": ("STRING", {"multiline": True, "dynamicPrompts": True, "default": "photograph of photomaker"}),
