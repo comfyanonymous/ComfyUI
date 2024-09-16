@@ -49,8 +49,8 @@ git clone https://github.com/ltdrdata/ComfyUI-Impact-Subpack impact_subpack --qu
 cd ..
 cd ..
 echo. 
-echo  ::  %time:~0,8%  ::  - Patching ZLUDA
-curl -s -L https://github.com/lshqqytiger/ZLUDA/releases/download/rel.11cc5844514f93161e0e74387f04e2c537705a82/ZLUDA-windows-amd64.zip > zluda.zip
+echo  ::  %time:~0,8%  ::  - Patching ZLUDA (Zluda 3.8.4 for HIP SDK 5.7)
+curl -s -L https://github.com/lshqqytiger/ZLUDA/releases/download/rel.c0804ca624963aab420cb418412b1c7fbae3454b/ZLUDA-windows-rocm5-amd64.zip > zluda.zip
 tar -xf zluda.zip
 del zluda.zip
 copy zluda\cublas.dll venv\Lib\site-packages\torch\lib\cublas64_11.dll /y >NUL
@@ -69,4 +69,4 @@ echo .....................................................
 echo.
 echo *** Starting the Comfyui-ZLUDA for the first time, please be patient...
 echo.
-.\zluda\zluda.exe -- python main.py --auto-launch
+.\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
