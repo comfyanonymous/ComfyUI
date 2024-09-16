@@ -264,6 +264,48 @@ class ConditioningSetTimestepRange:
                                                                 "end_percent": end})
         return (c, )
 
+class ConditioningTimestepInterpolate:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning_1": ("CONDITIONING", ),
+                             "conditioning_2": ("CONDITIONING", ),
+                             "interval_range": ("FLOAT", {"default": 0.25, "min": 0.001, "max": 0.5, "step": 0.001})
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "interpolate_conds"
+
+    CATEGORY = "advanced/conditioning"
+
+
+    def interpolate_conds(self, conditioning_1, conditioning_2, interval_range):
+        
+        num_intervals = int(1 / interval_range)
+
+        conditioning_1_intervals = []
+        conditioning_2_intervals = []
+
+        for i in range(num_intervals):
+            start = i * interval_range
+            end = (i + 1) * interval_range
+
+            if i % 2 == 0:
+                conditioning_1_intervals.append(node_helpers.conditioning_set_values(conditioning_1, {"start_percent": start, "end_percent": end}))
+            else:
+                conditioning_2_intervals.append(node_helpers.conditioning_set_values(conditioning_2, {"start_percent": start, "end_percent": end}))
+
+        # Combine intervals for conditioning_1 and conditioning_2
+        conditioning_1_intervals_combined = conditioning_1_intervals[0]
+        for i in range(1, len(conditioning_1_intervals)):
+            conditioning_1_intervals_combined = (conditioning_1_intervals_combined + conditioning_1_intervals[i])
+
+        conditioning_2_intervals_combined = conditioning_2_intervals[0]
+        for i in range(1, len(conditioning_2_intervals)):
+            conditioning_2_intervals_combined = (conditioning_2_intervals_combined + conditioning_2_intervals[i])
+
+        c = (conditioning_1_intervals_combined + conditioning_2_intervals_combined)
+
+        return (c, )
+
 class VAEDecode:
     @classmethod
     def INPUT_TYPES(s):
@@ -1888,6 +1930,7 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningZeroOut": ConditioningZeroOut,
     "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
     "LoraLoaderModelOnly": LoraLoaderModelOnly,
+    "ConditioningTimestepInterpolate": ConditioningTimestepInterpolate,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
