@@ -209,9 +209,9 @@ class PhotoMakerEncodeV2:
 
     CATEGORY = "_for_testing/photomaker"
 
-    def apply_photomaker(self, photomaker, image, clip, text):
+    def apply_photomaker(self, photomakerv2, image, clip, text):
         special_token = "photomaker"
-        pixel_values = comfy.clip_vision.clip_preprocess(image.to(photomaker.load_device)).float()
+        pixel_values = comfy.clip_vision.clip_preprocess(image.to(photomakerv2.load_device)).float()
         try:
             if special_token in text:
                 text = text.replace(special_token, " " + special_token + " ")
@@ -238,11 +238,11 @@ class PhotoMakerEncodeV2:
             token_index = index - 1
             num_id_images = image.shape[0]
             num_tokens_v2 = 2
-            id_embeds = id_embeds.unsqueeze(0).to(device=photomaker.load_device)
+            id_embeds = id_embeds.unsqueeze(0).to(device=photomakerv2.load_device)
             class_tokens_mask = [True if token_index <= i < token_index+(num_id_images*num_tokens_v2) else False for i in range(cond.shape[1])]
 
-            out = photomaker(id_pixel_values=pixel_values.unsqueeze(0), prompt_embeds=cond.to(photomaker.load_device),
-                            class_tokens_mask=torch.tensor(class_tokens_mask, dtype=torch.bool, device=photomaker.load_device).unsqueeze(0),id_embeds=id_embeds.to(photomaker.load_device))
+            out = photomakerv2(id_pixel_values=pixel_values.unsqueeze(0), prompt_embeds=cond.to(photomakerv2.load_device),
+                            class_tokens_mask=torch.tensor(class_tokens_mask, dtype=torch.bool, device=photomakerv2.load_device).unsqueeze(0),id_embeds=id_embeds.to(photomakerv2.load_device))
         else:
             out = cond
 
