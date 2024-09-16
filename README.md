@@ -4,6 +4,8 @@
 
 <h2>## What's New ?</h2>
 
+* Changed  ``` start.bat  ```  to  ``` comfyui.bat ```  because there is already a windows command by that name, which creates some problems. Also added  ``` fix-update.bat  ``` which solves the problem that causes not being able to update to latest version.
+
 * Updated ZLUDA to 3.8.4, thanks for lshqqytiger still supporting HIP SDK 5.7 . Install will install that version from now on, and if you are already on the previous one please run ``` patchzluda.bat ``` once. Of course remember the first time for every type of model would take extra time. You can still use both zluda's on the same machine btw. But I recommend updating.
 
 *** BIG UPDATE. Things got broken, had to reset the fork, to get back and update successfully , on the comfyui-zluda directory run these one after another : ``` git fetch --all ``` (enter) ``` git reset --hard origin/master ``` (enter) now you can run comfyui.bat , it will update to the latest version. And also after this a reboot of windows might be needed if the generation time seems to be low. After reboot speed returns to normal.
