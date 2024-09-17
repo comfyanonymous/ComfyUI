@@ -24,9 +24,9 @@ FORCE_UPCAST_ATTENTION_DTYPE = model_management.force_upcast_attention_dtype()
 def get_attn_precision(attn_precision):
     if args.dont_upcast_attention:
         return None
-    if FORCE_UPCAST_ATTENTION_DTYPE is None:
-        return attn_precision
-    return FORCE_UPCAST_ATTENTION_DTYPE
+    if FORCE_UPCAST_ATTENTION_DTYPE is not None:
+        return FORCE_UPCAST_ATTENTION_DTYPE
+    return attn_precision
 
 
 # feedforward
