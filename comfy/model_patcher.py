@@ -283,17 +283,21 @@ class ModelPatcher:
         return list(p)
 
     def get_key_patches(self, filter_prefix=None):
-        comfy.model_management.unload_model_clones(self)
         model_sd = self.model_state_dict()
         p = {}
         for k in model_sd:
             if filter_prefix is not None:
                 if not k.startswith(filter_prefix):
                     continue
-            if k in self.patches:
-                p[k] = [model_sd[k]] + self.patches[k]
+            bk = self.backup.get(k, None)
+            if bk is not None:
+                weight = bk.weight
             else:
-                p[k] = (model_sd[k],)
+                weight = model_sd[k]
+            if k in self.patches:
+                p[k] = [weight] + self.patches[k]
+            else:
+                p[k] = (weight,)
         return p
 
     def model_state_dict(self, filter_prefix=None):
