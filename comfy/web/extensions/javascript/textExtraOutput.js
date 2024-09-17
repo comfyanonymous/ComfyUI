@@ -36,22 +36,16 @@ app.registerExtension({
         onExecuted?.apply(this, arguments);
 
         if (this.widgets) {
-          const index = this.widgets.findIndex((w) => w.name === "output");
+          let widget = this.widgets.find((w) => w.name === "output");
 
-          if (index !== -1) {
-            for (let i = index; i < this.widgets.length; i++) {
-              this.widgets[i].onRemove?.();
-            }
-
-            this.widgets.length = index;
+          if (!widget) {
+            widget = ComfyWidgets.STRING(this, "output", ["STRING", { multiline: true }], app).widget;
           }
-
-          const options = ["STRING", { multiline: true }];
-          const widget = ComfyWidgets["STRING"](this, "output", options, app).widget;
 
           widget.inputEl.readOnly = true;
           widget.inputEl.style.opacity = 0.7;
           widget.value = string;
+          widget.serializeValue = async () => {};
         }
       };
     }

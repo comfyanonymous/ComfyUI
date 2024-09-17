@@ -33,8 +33,8 @@ class TokenProgressHandler {
         }
         this.nodeOutputs[nodeId].tokens += detail.output.next_token;
         this.updateTokenWidget(nodeId, this.nodeOutputs[nodeId].tokens);
+        app.graph.setDirtyCanvas(true, false);
       }
-      app.graph.setDirtyCanvas(true, false);
     });
   }
 
@@ -44,12 +44,12 @@ class TokenProgressHandler {
       let widget = node.widgets.find((w) => w.name === tokenPreviewWidgetName);
 
       if (!widget) {
-        widget = ComfyWidgets["STRING"](node, tokenPreviewWidgetName, ["STRING", { multiline: true }], app).widget;
+        widget = ComfyWidgets.STRING(node, tokenPreviewWidgetName, ["STRING", { multiline: true }], app).widget;
         widget.inputEl.readOnly = true;
         widget.inputEl.style.opacity = 0.7;
       }
+      widget.serializeValue = async () => {};
       widget.value = tokens;
-      app.graph.setDirtyCanvas(true, false);
     }
   }
 }
