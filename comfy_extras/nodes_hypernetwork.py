@@ -107,7 +107,7 @@ class HypernetworkLoader:
     CATEGORY = "loaders"
 
     def load_hypernetwork(self, model, hypernetwork_name, strength):
-        hypernetwork_path = folder_paths.get_full_path("hypernetworks", hypernetwork_name)
+        hypernetwork_path = folder_paths.get_full_path_or_raise("hypernetworks", hypernetwork_name)
         model_hypernetwork = model.clone()
         patch = load_hypernetwork_patch(hypernetwork_path, strength)
         if patch is not None:

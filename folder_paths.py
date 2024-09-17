@@ -235,6 +235,14 @@ def get_full_path(folder_name: str, filename: str) -> str | None:
 
     return None
 
+
+def get_full_path_or_raise(folder_name: str, filename: str) -> str:
+    full_path = get_full_path(folder_name, filename)
+    if full_path is None:
+        raise FileNotFoundError(f"Model in folder '{folder_name}' with filename '{filename}' not found.")
+    return full_path
+
+
 def get_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], float]:
     folder_name = map_legacy(folder_name)
     global folder_names_and_paths
