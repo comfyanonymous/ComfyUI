@@ -276,11 +276,8 @@ class ConditioningTimestepInterpolate:
 
     CATEGORY = "advanced/conditioning"
 
-
     def interpolate_conds(self, conditioning_1, conditioning_2, interval_range):
-        
         num_intervals = int(1 / interval_range)
-
         conditioning_1_intervals = []
         conditioning_2_intervals = []
 
