@@ -126,7 +126,7 @@ class PhotoMakerLoader:
     CATEGORY = "_for_testing/photomaker"
 
     def load_photomaker_model(self, photomaker_model_name):
-        photomaker_model_path = folder_paths.get_full_path("photomaker", photomaker_model_name)
+        photomaker_model_path = folder_paths.get_full_path_or_raise("photomaker", photomaker_model_name)
         photomaker_model = PhotoMakerIDEncoder()
         data = comfy.utils.load_torch_file(photomaker_model_path, safe_load=True)
         if "id_encoder" in data:
