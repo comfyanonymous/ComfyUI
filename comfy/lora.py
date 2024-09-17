@@ -33,7 +33,7 @@ LORA_CLIP_MAP = {
 }
 
 
-def load_lora(lora, to_load):
+def load_lora(lora, to_load, log_missing=True):
     patch_dict = {}
     loaded_keys = set()
     for x in to_load:
@@ -193,9 +193,10 @@ def load_lora(lora, to_load):
             patch_dict["{}.bias".format(to_load[x][:-len(".weight")])] = ("diff", (diff_bias,))
             loaded_keys.add(diff_bias_name)
 
-    for x in lora.keys():
-        if x not in loaded_keys:
-            logging.warning("lora key not loaded: {}".format(x))
+    if log_missing:
+        for x in lora.keys():
+            if x not in loaded_keys:
+                logging.warning("lora key not loaded: {}".format(x))
 
     return patch_dict
 

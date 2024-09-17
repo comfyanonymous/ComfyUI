@@ -66,6 +66,7 @@ class WeightHook(Hook):
         super().__init__(hook_type=EnumHookType.Weight)
         self.weights: Dict = None
         self.weights_clip: Dict = None
+        self.is_diff = False
         self.need_weight_init = True
         self._strength_model = strength_model
         self._strength_clip = strength_clip
@@ -91,13 +92,13 @@ class WeightHook(Hook):
                 key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
             else:
                 key_map = comfy.lora.model_lora_keys_clip(model.model, key_map)
-            weights = comfy.lora.load_lora(self.weights, key_map)
+            weights = comfy.lora.load_lora(self.weights, key_map, log_missing=False)
         else:
             if target == EnumWeightTarget.Model:
                 weights = self.weights
             else:
                 weights = self.weights_clip
-        k = model.add_hook_patches(hook=self, patches=weights, strength_patch=strength)
+        k = model.add_hook_patches(hook=self, patches=weights, strength_patch=strength, is_diff=self.is_diff)
         # TODO: add logs about any keys that were not applied
 
     def clone(self, subtype: Callable=None):
@@ -107,6 +108,7 @@ class WeightHook(Hook):
         c.weights = self.weights
         c.weights_clip = self.weights_clip
         c.need_weight_init = self.need_weight_init
+        c.is_diff = self.is_diff
         c._strength_model = self._strength_model
         c._strength_clip = self._strength_clip
         return c
@@ -150,6 +152,12 @@ class HookGroup:
         hook_kf = hook_kf.clone()
         for hook in self.hooks:
             hook.hook_keyframe = hook_kf
+
+    def get_dict_repr(self):
+        d = {}
+        for hook in self.hooks:
+            d[hook] = None
+        return d
 
     @staticmethod
     def combine_all_hooks(hooks_list: List['HookGroup'], require_count=1) -> 'HookGroup':
@@ -323,10 +331,29 @@ def create_hook_lora(lora: Dict[str, torch.Tensor], strength_model: float, stren
     hook = WeightHook(strength_model=strength_model, strength_clip=strength_clip)
     hook_group.add(hook)
     hook.weights = lora
-    hook.need_weight_init = True
     return hook_group
 
-def create_hook_model_as_lora(model: 'ModelPatcher', clip: 'CLIP',
+def create_hook_model_as_lora(weights_model, weights_clip, strength_model: float, strength_clip: float):
+    hook_group = HookGroup()
+    hook = WeightHook(strength_model=strength_model, strength_clip=strength_clip)
+    hook_group.add(hook)
+    hook.weights = weights_model
+    hook.weights_clip = weights_clip
+    hook.is_diff = True
+    return hook_group
+
+def get_patch_weights_from_model(model: 'ModelPatcher', discard_model_sampling=False):
+    if model is None:
+        return None
+    patches_model: Dict[str, torch.Tensor] = model.model.state_dict()
+    if discard_model_sampling:
+        # do not include ANY model_sampling components of the model that should act as a patch
+        for key in list(patches_model.keys()):
+            if key.startswith("model_sampling"):
+                patches_model.pop(key, None)
+    return patches_model
+
+def create_hook_model_as_lora_precalc(model: 'ModelPatcher', clip: 'CLIP',
                               model_loaded: 'ModelPatcher', clip_loaded: 'CLIP',
                               strength_model: float, strength_clip: float):
     hook_group = HookGroup()
