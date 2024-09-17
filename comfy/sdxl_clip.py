@@ -22,7 +22,8 @@ class SDXLClipGTokenizer(sd1_clip.SDTokenizer):
 
 class SDXLTokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}):
-        self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory)
+        clip_l_tokenizer_class = tokenizer_data.get("clip_l_tokenizer_class", sd1_clip.SDTokenizer)
+        self.clip_l = clip_l_tokenizer_class(embedding_directory=embedding_directory)
         self.clip_g = SDXLClipGTokenizer(embedding_directory=embedding_directory)
 
     def tokenize_with_weights(self, text:str, return_word_ids=False):
@@ -40,7 +41,8 @@ class SDXLTokenizer:
 class SDXLClipModel(torch.nn.Module):
     def __init__(self, device="cpu", dtype=None, model_options={}):
         super().__init__()
-        self.clip_l = sd1_clip.SDClipModel(layer="hidden", layer_idx=-2, device=device, dtype=dtype, layer_norm_hidden_state=False, model_options=model_options)
+        clip_l_class = model_options.get("clip_l_class", sd1_clip.SDClipModel)
+        self.clip_l = clip_l_class(layer="hidden", layer_idx=-2, device=device, dtype=dtype, layer_norm_hidden_state=False, model_options=model_options)
         self.clip_g = SDXLClipG(device=device, dtype=dtype, model_options=model_options)
         self.dtypes = set([dtype])
 
@@ -57,7 +59,8 @@ class SDXLClipModel(torch.nn.Module):
         token_weight_pairs_l = token_weight_pairs["l"]
         g_out, g_pooled = self.clip_g.encode_token_weights(token_weight_pairs_g)
         l_out, l_pooled = self.clip_l.encode_token_weights(token_weight_pairs_l)
-        return torch.cat([l_out, g_out], dim=-1), g_pooled
+        cut_to = min(l_out.shape[1], g_out.shape[1])
+        return torch.cat([l_out[:,:cut_to], g_out[:,:cut_to]], dim=-1), g_pooled
 
     def load_sd(self, sd):
         if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
