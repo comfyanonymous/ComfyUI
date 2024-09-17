@@ -70,14 +70,14 @@ class CLIP:
         clip = target.clip
         tokenizer = target.tokenizer
 
-        load_device = model_management.text_encoder_device()
-        offload_device = model_management.text_encoder_offload_device()
+        load_device = model_options.get("load_device", model_management.text_encoder_device())
+        offload_device = model_options.get("offload_device", model_management.text_encoder_offload_device())
         dtype = model_options.get("dtype", None)
         if dtype is None:
             dtype = model_management.text_encoder_dtype(load_device)
 
         params['dtype'] = dtype
-        params['device'] = model_management.text_encoder_initial_device(load_device, offload_device, parameters * model_management.dtype_size(dtype))
+        params['device'] = model_options.get("initial_device", model_management.text_encoder_initial_device(load_device, offload_device, parameters * model_management.dtype_size(dtype)))
         params['model_options'] = model_options
 
         self.cond_stage_model = clip(**(params))
