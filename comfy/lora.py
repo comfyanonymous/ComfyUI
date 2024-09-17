@@ -396,7 +396,7 @@ def pad_tensor_to_shape(tensor: torch.Tensor, new_shape: list[int]) -> torch.Ten
 
     return padded_tensor
 
-def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
+def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, original_weights=None):
     for p in patches:
         strength = p[0]
         v = p[1]
@@ -436,6 +436,10 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
                     logging.warning("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, diff.shape, weight.shape))
                 else:
                     weight += function(strength * comfy.model_management.cast_to_device(diff, weight.device, weight.dtype))
+        elif patch_type == "model_as_lora":
+            target_weight: torch.Tensor = v[0]
+            diff_weight = target_weight.to(intermediate_dtype) - original_weights[key].to(intermediate_dtype)
+            weight += function(strength * comfy.model_management.cast_to_device(diff_weight, weight.device, weight.dtype))
         elif patch_type == "lora": #lora/locon
             mat1 = comfy.model_management.cast_to_device(v[0], weight.device, intermediate_dtype)
             mat2 = comfy.model_management.cast_to_device(v[1], weight.device, intermediate_dtype)
