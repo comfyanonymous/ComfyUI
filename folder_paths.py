@@ -199,10 +199,7 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
     logging.debug("recursive file list on directory {}".format(directory))
 
     async def proc_subdir(path: str):
-        try:
-            dirs[path] = await aiofiles.os.path.getmtime(path)
-        except FileNotFoundError:
-            logging.warning(f"Warning: Unable to access {path}. Skipping this path.")
+        dirs[path] = await aiofiles.os.path.getmtime(path)
 
     def proc_thread():
         asyncio.set_event_loop(asyncio.new_event_loop())
