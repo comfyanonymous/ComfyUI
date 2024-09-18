@@ -213,11 +213,11 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
                 relative_path = os.path.relpath(file, directory)
                 result.append(relative_path)
                 return
+            calls.append(proc_subdir(file))
             for subdir in await aiofiles.os.listdir(file):
                 path = os.path.join(file, subdir)
                 if subdir not in excluded_dir_names:
                     calls.append(handle(path))
-                    calls.append(proc_subdir(path))
         calls.append(handle(directory))
 
         while len(calls) > 0:
