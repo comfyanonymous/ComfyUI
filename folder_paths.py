@@ -307,7 +307,7 @@ def get_filename_list(folder_name: str) -> list[str]:
         out = get_filename_list_(folder_name)
         global filename_list_cache
         filename_list_cache[folder_name] = out
-        cache_helper.set(folder_name, out)
+    cache_helper.set(folder_name, out)
     return list(out[0])
 
 def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, image_height=0) -> tuple[str, str, int, str, str]:
