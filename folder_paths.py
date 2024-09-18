@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio, aiofiles, threading
 import os
 import time
 import mimetypes
 import logging
 from typing import Set, List, Dict, Tuple, Literal
 from collections.abc import Collection
+
+import aiofiles.os
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
 
@@ -194,23 +197,36 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
         logging.warning(f"Warning: Unable to access {directory}. Skipping this path.")
 
     logging.debug("recursive file list on directory {}".format(directory))
-    dirpath: str
-    subdirs: list[str]
-    filenames: list[str]
 
-    for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
-        subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]
-        for file_name in filenames:
-            relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)
-            result.append(relative_path)
+    async def proc_subdir(path: str):
+        try:
+            dirs[path] = await aiofiles.os.path.getmtime(path)
+        except FileNotFoundError:
+            logging.warning(f"Warning: Unable to access {path}. Skipping this path.")
 
-        for d in subdirs:
-            path: str = os.path.join(dirpath, d)
-            try:
-                dirs[path] = os.path.getmtime(path)
-            except FileNotFoundError:
-                logging.warning(f"Warning: Unable to access {path}. Skipping this path.")
-                continue
+    def proc_thread():
+        asyncio.set_event_loop(asyncio.new_event_loop())
+        calls = []
+
+        async def handle(file):
+            if not await aiofiles.os.path.isdir(file):
+                relative_path = os.path.relpath(file, directory)
+                result.append(relative_path)
+                return
+            for subdir in aiofiles.os.listdir(file):
+                path = os.path.join(file, subdir)
+                if subdir not in excluded_dir_names:
+                    calls.append(handle(path))
+                    calls.append(proc_subdir(path))
+
+        future = asyncio.gather(*calls)
+        asyncio.get_event_loop().run_until_complete(future)
+        asyncio.get_event_loop().close()
+
+    thread = threading.Thread(target=proc_thread)
+    thread.start()
+    thread.join()
+
     logging.debug("found {} files".format(len(result)))
     return result, dirs
 
@@ -263,19 +279,41 @@ def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float]
     if folder_name not in filename_list_cache:
         return None
     out = filename_list_cache[folder_name]
-
-    for x in out[1]:
-        time_modified = out[1][x]
-        folder = x
-        if os.path.getmtime(folder) != time_modified:
-            return None
-
+    must_invalidate = [False]
     folders = folder_names_and_paths[folder_name]
-    for x in folders[0]:
-        if os.path.isdir(x):
-            if x not in out[1]:
-                return None
 
+    async def check_folder_mtime(folder: str, time_modified: float):
+        if await aiofiles.os.path.getmtime(folder) != time_modified:
+            must_invalidate[0] = True
+
+    async def check_new_dirs(x: str):
+        if await aiofiles.os.path.isdir(x):
+            if x not in out[1]:
+                must_invalidate[0] = True
+
+    def proc_thread():
+        asyncio.set_event_loop(asyncio.new_event_loop())
+        calls = []
+
+        for x in out[1]:
+            time_modified = out[1][x]
+            call = check_folder_mtime(x, time_modified)
+            calls.append(call)
+
+        for x in folders[0]:
+            call = check_new_dirs(x)
+            calls.append(call)
+
+        future = asyncio.gather(*calls)
+        asyncio.get_event_loop().run_until_complete(future)
+        asyncio.get_event_loop().close()
+
+    thread = threading.Thread(target=proc_thread)
+    thread.start()
+    thread.join()
+
+    if must_invalidate[0]:
+        return None
     return out
 
 def get_filename_list(folder_name: str) -> list[str]:
