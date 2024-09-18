@@ -46,6 +46,24 @@ user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
+class CacheHelper:
+    """
+    Helper class for managing file list cache data.
+    """
+    def __init__(self):
+        self.cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
+
+    def get(self, key: str, default=None) -> tuple[list[str], dict[str, float], float]:
+        return self.cache.get(key, default)
+    
+    def set(self, key: str, value: tuple[list[str], dict[str, float], float]) -> None:
+        self.cache[key] = value
+
+    def clear(self):
+        self.cache.clear()
+
+cache_helper = CacheHelper()
+
 extension_mimetypes_cache = {
     "webp" : "image",
 }
@@ -257,6 +275,10 @@ def get_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], f
     return sorted(list(output_list)), output_folders, time.perf_counter()
 
 def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], float] | None:
+    strong_cache = cache_helper.get(folder_name)
+    if strong_cache is not None:
+        return strong_cache
+    
     global filename_list_cache
     global folder_names_and_paths
     folder_name = map_legacy(folder_name)
@@ -285,6 +307,7 @@ def get_filename_list(folder_name: str) -> list[str]:
         out = get_filename_list_(folder_name)
         global filename_list_cache
         filename_list_cache[folder_name] = out
+        cache_helper.set(folder_name, out)
     return list(out[0])
 
 def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, image_height=0) -> tuple[str, str, int, str, str]:
