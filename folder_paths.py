@@ -213,14 +213,17 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
                 relative_path = os.path.relpath(file, directory)
                 result.append(relative_path)
                 return
-            for subdir in aiofiles.os.listdir(file):
+            for subdir in await aiofiles.os.listdir(file):
                 path = os.path.join(file, subdir)
                 if subdir not in excluded_dir_names:
                     calls.append(handle(path))
                     calls.append(proc_subdir(path))
+        calls.append(handle(directory))
 
-        future = asyncio.gather(*calls)
-        asyncio.get_event_loop().run_until_complete(future)
+        while len(calls) > 0:
+            future = asyncio.gather(*calls)
+            calls = []
+            asyncio.get_event_loop().run_until_complete(future)
         asyncio.get_event_loop().close()
 
     thread = threading.Thread(target=proc_thread)
