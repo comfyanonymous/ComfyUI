@@ -202,8 +202,8 @@ class ModelPatcher:
         for k, c in self.callbacks.items():
             n.callbacks[k] = c.copy()
         # hooks
-        n.hook_patches = self.create_hook_patches_clone(self.hook_patches)
-        n.hook_patches_backup = self.create_hook_patches_clone(self.hook_patches_backup)
+        n.hook_patches = create_hook_patches_clone(self.hook_patches)
+        n.hook_patches_backup = create_hook_patches_clone(self.hook_patches_backup)
         # TODO: do we really need to clone cached_hook_patches/current_hooks?
         for group in self.cached_hook_patches:
             n.cached_hook_patches[group] = {}
@@ -678,7 +678,7 @@ class ModelPatcher:
                 if hook.hook_ref not in self.hook_patches:
                     weight_hooks_to_register.append(hook)
         if len(weight_hooks_to_register) > 0:
-            self.hook_patches_backup = self.create_hook_patches_clone(self.hook_patches)
+            self.hook_patches_backup = create_hook_patches_clone(self.hook_patches)
             for hook in weight_hooks_to_register:
                 hook.add_hook_patches(self, target)
         for callback in self.callbacks[CallbacksMP.ON_REGISTER_ALL_HOOK_PATCHES]:
