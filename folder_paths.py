@@ -66,6 +66,14 @@ class CacheHelper:
     def clear(self):
         self.cache.clear()
 
+    def __enter__(self):
+        self.active = True
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.active = False
+        self.clear()
+
 cache_helper = CacheHelper()
 
 extension_mimetypes_cache = {
