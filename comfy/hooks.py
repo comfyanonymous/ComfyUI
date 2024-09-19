@@ -19,6 +19,7 @@ class EnumHookMode(enum.Enum):
 class EnumHookType(enum.Enum):
     Weight = "weight"
     Patch = "patch"
+    AddModel = "addmodel"
 
 class EnumWeightTarget(enum.Enum):
     Model = "model"
@@ -121,8 +122,20 @@ class PatchHook(Hook):
     def clone(self, subtype: Callable=None):
         if subtype is None:
             subtype = type(self)
-        c: PatchHook = super().clone(type(self))
+        c: PatchHook = super().clone(subtype)
         c.patches = self.patches
+        return c
+
+class AddModelHook(Hook):
+    def __init__(self, model: 'ModelPatcher'):
+        super().__init__(hook_type=EnumHookType.AddModel)
+        self.model = model
+    
+    def clone(self, subtype: Callable=None):
+        if subtype is None:
+            subtype = type(self)
+        c: AddModelHook = super().clone(subtype)
+        c.model = self.model
         return c
 
 class HookGroup:
