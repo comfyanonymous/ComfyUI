@@ -1,10 +1,16 @@
 import pytest
+import tempfile
 import aiohttp
 from aiohttp import ClientResponse
 import itertools
 import os 
 from unittest.mock import AsyncMock, patch, MagicMock
 from model_filemanager import download_model, track_download_progress, create_model_path, check_file_exists, DownloadStatusType, DownloadModelStatus, validate_filename
+
+@pytest.fixture
+def temp_dir():
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        yield tmpdirname
 
 class AsyncIteratorMock:
     """
@@ -42,7 +48,7 @@ class ContentMock:
         return AsyncIteratorMock(self.chunks)
 
 @pytest.mark.asyncio
-async def test_download_model_success():
+async def test_download_model_success(temp_dir):
     mock_response = AsyncMock(spec=aiohttp.ClientResponse)
     mock_response.status = 200
     mock_response.headers = {'Content-Length': '1000'}
@@ -62,7 +68,7 @@ async def test_download_model_success():
     with patch('model_filemanager.create_model_path', return_value=('models/checkpoints/model.sft', 'model.sft')), \
          patch('model_filemanager.check_file_exists', return_value=None), \
          patch('builtins.open', mock_open), \
-         patch('folder_paths.get_folder_paths', return_value=['mock_directory']), \
+         patch('folder_paths.get_folder_paths', return_value=[temp_dir]), \
          patch('time.time', side_effect=time_values):  # Simulate time passing
 
         result = await download_model(
@@ -70,7 +76,7 @@ async def test_download_model_success():
             'model.sft',
             'http://example.com/model.sft',
             'checkpoints',
-            'mock_directory',
+            temp_dir,
             mock_progress_callback
         )
 

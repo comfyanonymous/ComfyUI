@@ -3,7 +3,7 @@ import aiohttp
 import os
 import traceback
 import logging
-from folder_paths import models_dir, folder_names_and_paths, get_folder_paths
+from folder_paths import folder_names_and_paths, get_folder_paths
 import re
 from typing import Callable, Any, Optional, Awaitable, Dict
 from enum import Enum
