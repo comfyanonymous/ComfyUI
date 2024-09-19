@@ -158,7 +158,10 @@ async def track_download_progress(response: aiohttp.ClientResponse,
             await progress_callback(model_name, status)
             last_update_time = time.time()
 
-        with open(file_path, 'wb') as f:
+        if os.path.exists(file_path + '.tmp'):
+            os.remove(file_path + '.tmp')
+
+        with open(file_path + '.tmp', 'wb') as f:
             chunk_iterator = response.content.iter_chunked(8192)
             while True:
                 try:
@@ -170,6 +173,8 @@ async def track_download_progress(response: aiohttp.ClientResponse,
 
                 if time.time() - last_update_time >= interval:
                     await update_progress()
+
+        os.rename(file_path + '.tmp', file_path)
 
         await update_progress()
 
