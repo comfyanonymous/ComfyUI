@@ -62,6 +62,7 @@ async def test_download_model_success():
     with patch('model_filemanager.create_model_path', return_value=('models/checkpoints/model.sft', 'model.sft')), \
          patch('model_filemanager.check_file_exists', return_value=None), \
          patch('builtins.open', mock_open), \
+         patch('folder_paths.get_folder_paths', return_value=['mock_directory']), \
          patch('time.time', side_effect=time_values):  # Simulate time passing
 
         result = await download_model(
@@ -111,18 +112,18 @@ async def test_download_model_url_request_failure():
     mock_progress_callback = AsyncMock()
 
     # Mock the create_model_path function
-    with patch('model_filemanager.create_model_path', return_value='/mock/path/model.safetensors'):
-        # Mock the check_file_exists function to return None (file doesn't exist)
-        with patch('model_filemanager.check_file_exists', return_value=None):
-            # Call the function
-            result = await download_model(
-                mock_get,
-                'model.safetensors',
-                'http://example.com/model.safetensors',
-                'checkpoints',
-                'mock_directory',
-                mock_progress_callback
-            )
+    with patch('model_filemanager.create_model_path', return_value='/mock/path/model.safetensors'), \
+         patch('model_filemanager.check_file_exists', return_value=None), \
+         patch('folder_paths.get_folder_paths', return_value=['mock_directory']):
+        # Call the function
+        result = await download_model(
+            mock_get,
+            'model.safetensors',
+            'http://example.com/model.safetensors',
+            'checkpoints',
+            'mock_directory',
+            mock_progress_callback
+        )
 
     # Assert the expected behavior
     assert isinstance(result, DownloadModelStatus)
@@ -132,7 +133,7 @@ async def test_download_model_url_request_failure():
 
     # Check that progress_callback was called with the correct arguments
     mock_progress_callback.assert_any_call(
-        'mock_directory/model.safetensors',
+        'model.safetensors',
         DownloadModelStatus(
             status=DownloadStatusType.PENDING,
             progress_percentage=0,
@@ -141,7 +142,7 @@ async def test_download_model_url_request_failure():
         )
     )
     mock_progress_callback.assert_called_with(
-        'mock_directory/model.safetensors',
+        'model.safetensors',
         DownloadModelStatus(
             status=DownloadStatusType.ERROR,
             progress_percentage=0,
@@ -155,11 +156,9 @@ async def test_download_model_url_request_failure():
 
 @pytest.mark.asyncio
 async def test_download_model_invalid_model_subdirectory():
-    
     mock_make_request = AsyncMock()
     mock_progress_callback = AsyncMock()
 
-    
     result = await download_model(
         mock_make_request,
         'model.sft',
@@ -175,6 +174,26 @@ async def test_download_model_invalid_model_subdirectory():
     assert result.status == 'error'
     assert result.already_existed is False
 
+@pytest.mark.asyncio
+async def test_download_model_invalid_folder_path():
+    mock_make_request = AsyncMock()
+    mock_progress_callback = AsyncMock()
+
+    with patch('folder_paths.get_folder_paths', return_value=['valid_path']):
+        result = await download_model(
+            mock_make_request,
+            'model.sft',
+            'http://example.com/model.sft',
+            'checkpoints',
+            'invalid_path',
+            mock_progress_callback
+        )
+
+    # Assert the result
+    assert isinstance(result, DownloadModelStatus)
+    assert result.message.startswith("Invalid folder path")
+    assert result.status == 'error'
+    assert result.already_existed is False
 
 # For create_model_path function
 def test_create_model_path(tmp_path, monkeypatch):
