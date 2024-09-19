@@ -241,12 +241,12 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
                     result.append(relative_path)
                     return
 
-                calls.append(executor.submit(lambda: proc_subdir(file)))
+                calls.append(executor.submit(lambda f=file: proc_subdir(f)))
 
                 for subdir in os.listdir(file):
-                    path = os.path.join(file, subdir)
                     if subdir not in excluded_dir_names:
-                        calls.append(executor.submit(lambda: handle(path)))
+                        path = os.path.join(file, subdir)
+                        calls.append(executor.submit(lambda p=path: handle(p)))
             except Exception as e:
                 logging.error(f"recursive_search encountered error while handling '{file}': {e}")
 
@@ -326,10 +326,10 @@ def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float]
 
         for x in out[1]:
             time_modified = out[1][x]
-            executor.submit(lambda: check_folder_mtime(x, time_modified))
+            executor.submit(lambda f=x, t=time_modified: check_folder_mtime(f, t))
 
         for x in folders[0]:
-            executor.submit(lambda: check_new_dirs(x))
+            executor.submit(lambda f=x: check_new_dirs(f))
 
         executor.shutdown(wait=True)
 
