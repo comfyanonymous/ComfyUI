@@ -248,7 +248,7 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
                     if subdir not in excluded_dir_names:
                         calls.append(executor.submit(lambda: handle(path)))
             except Exception as e:
-                logging.error(f"Error while handling {file}: {e}")
+                logging.error(f"recursive_search encountered error while handling '{file}': {e}")
 
         calls.append(executor.submit(lambda: handle(directory)))
         while len(calls) > 0:
