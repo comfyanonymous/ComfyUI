@@ -696,7 +696,7 @@ class PromptServer():
                 logging.error("Client session is not initialized")
                 return web.Response(status=500)
             
-            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, report_progress, progress_interval, folder_path))
+            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, folder_path, report_progress, progress_interval))
             await task
 
             return web.json_response(task.result().to_dict())

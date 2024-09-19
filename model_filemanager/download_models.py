@@ -88,7 +88,7 @@ async def download_model(model_download_request: Callable[[str], Awaitable[aioht
         return DownloadModelStatus(
             DownloadStatusType.ERROR,
             0,
-            "Invalid folder path, does not match the list of known directories. If you're seeing this in the downloader UI, you may need to refresh the page.",
+            f"Invalid folder path '{folder_path}', does not match the list of known directories ({get_folder_paths(model_directory)}). If you're seeing this in the downloader UI, you may need to refresh the page.",
             False
         )
 
@@ -98,6 +98,7 @@ async def download_model(model_download_request: Callable[[str], Awaitable[aioht
         return existing_file
 
     try:
+        logging.info(f"Downloading {model_name} from {model_url}")
         status = DownloadModelStatus(DownloadStatusType.PENDING, 0, f"Starting download of {model_name}", False)
         await progress_callback(model_name, status)
 
