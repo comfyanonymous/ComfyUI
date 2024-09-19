@@ -37,6 +37,9 @@ from enum import Enum
 from . import utils
 import comfy.latent_formats
 import math
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from model_patcher import ModelPatcher
 
 class ModelType(Enum):
     EPS = 1
@@ -93,7 +96,7 @@ class BaseModel(torch.nn.Module):
         self.model_config = model_config
         self.manual_cast_dtype = model_config.manual_cast_dtype
         self.device = device
-        self.current_patcher = None
+        self.current_patcher: 'ModelPatcher' = None
 
         if not unet_config.get("disable_unet_model_creation", False):
             if model_config.custom_operations is None:

@@ -216,6 +216,9 @@ class CreateHookLora:
                 "lora_name": (folder_paths.get_filename_list("loras"), ),
                 "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
                 "strength_clip": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+            },
+            "optional": {
+                "prev_hooks": ("HOOKS",)
             }
         }
     
@@ -223,9 +226,13 @@ class CreateHookLora:
     CATEGORY = "advanced/hooks/create"
     FUNCTION = "create_hook"
 
-    def create_hook(self, lora_name: str, strength_model: float, strength_clip: float):
+    def create_hook(self, lora_name: str, strength_model: float, strength_clip: float, prev_hooks: comfy.hooks.HookGroup=None):
+        if prev_hooks is None:
+            prev_hooks = comfy.hooks.HookGroup()
+        prev_hooks.clone()
+
         if strength_model == 0 and strength_clip == 0:
-            return (None,)
+            return (prev_hooks,)
         
         lora_path = folder_paths.get_full_path("loras", lora_name)
         lora = None
@@ -242,7 +249,7 @@ class CreateHookLora:
             self.loaded_lora = (lora_path, lora)
 
         hooks = comfy.hooks.create_hook_lora(lora=lora, strength_model=strength_model, strength_clip=strength_clip)
-        return (hooks,)
+        return (prev_hooks.clone_and_combine(hooks),)
 
 class CreateHookLoraModelOnly(CreateHookLora):
     NodeId = 'CreateHookLoraModelOnly'
@@ -253,6 +260,9 @@ class CreateHookLoraModelOnly(CreateHookLora):
             "required": {
                 "lora_name": (folder_paths.get_filename_list("loras"), ),
                 "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+            },
+            "optional": {
+                "prev_hooks": ("HOOKS",)
             }
         }
     
@@ -260,8 +270,8 @@ class CreateHookLoraModelOnly(CreateHookLora):
     CATEGORY = "advanced/hooks/create"
     FUNCTION = "create_hook_model_only"
 
-    def create_hook_model_only(self, lora_name: str, strength_model: float):
-        return self.create_hook(lora_name=lora_name, strength_model=strength_model, strength_clip=0)
+    def create_hook_model_only(self, lora_name: str, strength_model: float, prev_hooks: comfy.hooks.HookGroup=None):
+        return self.create_hook(lora_name=lora_name, strength_model=strength_model, strength_clip=0, prev_hooks=prev_hooks)
 
 class CreateHookModelAsLora:
     NodeId = 'CreateHookModelAsLora'
@@ -275,6 +285,9 @@ class CreateHookModelAsLora:
                 "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
                 "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
                 "strength_clip": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+            },
+            "optional": {
+                "prev_hooks": ("HOOKS",)
             }
         }
     
@@ -283,7 +296,12 @@ class CreateHookModelAsLora:
     FUNCTION = "create_hook"
 
     def create_hook(self, model: 'ModelPatcher', clip: 'CLIP', ckpt_name: str,
-                                 strength_model: float, strength_clip: float):
+                    strength_model: float, strength_clip: float,
+                    prev_hooks: comfy.hooks.HookGroup=None):
+        if prev_hooks is None:
+            prev_hooks = comfy.hooks.HookGroup()
+        prev_hooks.clone()
+
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         model_loaded = out[0]
@@ -292,7 +310,7 @@ class CreateHookModelAsLora:
         hooks = comfy.hooks.create_hook_model_as_lora_precalc(model=model, clip=clip,
                                                      model_loaded=model_loaded, clip_loaded=clip_loaded,
                                                      strength_model=strength_model, strength_clip=strength_clip)
-        return (hooks,)
+        return (prev_hooks.clone_and_combine(hooks),)
 
 class CreateHookModelAsLoraModelOnly:
     NodeId = 'CreateHookModelAsLoraModelOnly'
@@ -304,6 +322,9 @@ class CreateHookModelAsLoraModelOnly:
                 "model": ("MODEL",),
                 "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
                 "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+            },
+            "optional": {
+                "prev_hooks": ("HOOKS",)
             }
         }
     
@@ -311,9 +332,10 @@ class CreateHookModelAsLoraModelOnly:
     CATEGORY = "advanced/hooks/create"
     FUNCTION = "create_hook_model_only"
 
-    def create_hook_model_only(self, model: 'ModelPatcher', ckpt_name: str, strength_model: float):
+    def create_hook_model_only(self, model: 'ModelPatcher', ckpt_name: str, strength_model: float,
+                               prev_hooks: comfy.hooks.HookGroup=None):
         return CreateHookModelAsLora.create_hook(self, model=model, clip=None, ckpt_name=ckpt_name,
-                                                                              strength_model=strength_model, strength_clip=0)
+                                                 strength_model=strength_model, strength_clip=0, prev_hooks=prev_hooks)
 
 class CreateHookModelAsLoraTest:
     NodeId = 'CreateHookModelAsLoraTest'
@@ -331,6 +353,9 @@ class CreateHookModelAsLoraTest:
                 "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
                 "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
                 "strength_clip": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+            },
+            "optional": {
+                "prev_hooks": ("HOOKS",)
             }
         }
     
@@ -338,7 +363,12 @@ class CreateHookModelAsLoraTest:
     CATEGORY = "advanced/hooks/create"
     FUNCTION = "create_hook"
 
-    def create_hook(self, ckpt_name: str, strength_model: float, strength_clip: float):
+    def create_hook(self, ckpt_name: str, strength_model: float, strength_clip: float,
+                    prev_hooks: comfy.hooks.HookGroup=None):
+        if prev_hooks is None:
+            prev_hooks = comfy.hooks.HookGroup()
+        prev_hooks.clone()
+
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
         weights_model = None
         weights_clip = None
@@ -359,7 +389,7 @@ class CreateHookModelAsLoraTest:
 
         hooks = comfy.hooks.create_hook_model_as_lora(weights_model=weights_model, weights_clip=weights_clip,
                                                       strength_model=strength_model, strength_clip=strength_clip)
-        return (hooks,)
+        return (prev_hooks.clone_and_combine(hooks),)
 #------------------------------------------
 ###########################################
 

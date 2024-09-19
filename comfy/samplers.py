@@ -1,6 +1,9 @@
 from .k_diffusion import sampling as k_diffusion_sampling
 from .extra_samplers import uni_pc
-from typing import Dict, List, Tuple
+from typing import TYPE_CHECKING, Dict, List, Tuple
+if TYPE_CHECKING:
+    from comfy.model_patcher import ModelPatcher
+    from comfy.model_base import BaseModel
 import torch
 import collections
 from comfy import model_management
@@ -178,7 +181,7 @@ def finalize_default_conds(hooked_to_run: Dict[comfy.hooks.HookGroup,List[Tuple[
             hooked_to_run.setdefault(hook, list())
             hooked_to_run[hook] += [(p, i)]
 
-def calc_cond_batch(model, conds: List[List[Dict]], x_in, timestep, model_options):
+def calc_cond_batch(model: 'BaseModel', conds: List[List[Dict]], x_in: torch.Tensor, timestep, model_options):
     out_conds = []
     out_counts = []
     # separate conds by matching hooks
@@ -211,6 +214,8 @@ def calc_cond_batch(model, conds: List[List[Dict]], x_in, timestep, model_option
 
     if has_default_conds:
         finalize_default_conds(hooked_to_run, default_conds, x_in, timestep)
+
+    model.current_patcher.prepare_state(timestep)
 
     # run every hooked_to_run separately
     for hooks, to_run in hooked_to_run.items():
@@ -729,7 +734,7 @@ def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=N
 
 class CFGGuider:
     def __init__(self, model_patcher):
-        self.model_patcher = model_patcher
+        self.model_patcher: 'ModelPatcher' = model_patcher
         self.model_options = model_patcher.model_options
         self.original_conds = {}
         self.cfg = 1.0
@@ -780,10 +785,11 @@ class CFGGuider:
         sigmas = sigmas.to(device)
 
         try:
+            self.model_patcher.pre_run()
             comfy.sampler_helpers.prepare_model_patcher(self.model_patcher, self.conds)
             output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
         finally:
-            self.model_patcher.clean()
+            self.model_patcher.cleanup()
 
         comfy.sampler_helpers.cleanup_models(self.conds, self.loaded_models)
         del self.inner_model

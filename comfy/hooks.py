@@ -337,9 +337,19 @@ def create_hook_model_as_lora(weights_model, weights_clip, strength_model: float
     hook_group = HookGroup()
     hook = WeightHook(strength_model=strength_model, strength_clip=strength_clip)
     hook_group.add(hook)
-    hook.weights = weights_model
-    hook.weights_clip = weights_clip
-    hook.is_diff = True
+    patches_model = None
+    patches_clip = None
+    if weights_model is not None:
+        patches_model = {}
+        for key in weights_model:
+            patches_model[key] = ("model_as_lora", (weights_model[key],))
+    if weights_clip is not None:
+        patches_clip = {}
+        for key in weights_clip:
+            patches_clip[key] = ("model_as_lora", (weights_clip[key],))
+    hook.weights = patches_model
+    hook.weights_clip = patches_clip
+    hook.need_weight_init = False
     return hook_group
 
 def get_patch_weights_from_model(model: 'ModelPatcher', discard_model_sampling=False):
