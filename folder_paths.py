@@ -8,6 +8,7 @@ import mimetypes
 import logging
 from typing import Set, List, Dict, Tuple, Literal
 from collections.abc import Collection
+from concurrent.futures import ThreadPoolExecutor
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
 
@@ -197,34 +198,24 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
 
     logging.debug("recursive file list on directory {}".format(directory))
 
-    async def proc_subdir(path: str):
-        dirs[path] = await AsyncFiles.getmtime(path)
+    with ThreadPoolExecutor() as executor:
 
-    def proc_thread():
-        asyncio.set_event_loop(asyncio.new_event_loop())
-        calls = []
+        def proc_subdir(path: str):
+            dirs[path] = os.path.getmtime(path)
 
-        async def handle(file):
-            if not await AsyncFiles.isdir(file):
-                relative_path = await AsyncFiles.relpath(file, directory)
+        def handle(file):
+            if not os.path.isdir(file):
+                relative_path = os.path.relpath(file, directory)
                 result.append(relative_path)
                 return
-            calls.append(proc_subdir(file))
-            for subdir in await AsyncFiles.listdir(file):
+            executor.submit(lambda: proc_subdir(file))
+            for subdir in os.listdir(file):
                 path = os.path.join(file, subdir)
                 if subdir not in excluded_dir_names:
-                    calls.append(handle(path))
-        calls.append(handle(directory))
+                    executor.submit(lambda: handle(path))
 
-        while len(calls) > 0:
-            future = asyncio.gather(*calls)
-            calls = []
-            asyncio.get_event_loop().run_until_complete(future)
-        asyncio.get_event_loop().close()
-
-    thread = threading.Thread(target=proc_thread)
-    thread.start()
-    thread.join()
+        executor.submit(lambda: handle(directory))
+        executor.shutdown(wait=True)
 
     logging.debug("found {} files".format(len(result)))
     return result, dirs
@@ -281,35 +272,26 @@ def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float]
     must_invalidate = threading.Event()
     folders = folder_names_and_paths[folder_name]
 
-    async def check_folder_mtime(folder: str, time_modified: float):
-        if await AsyncFiles.getmtime(folder) != time_modified:
-            must_invalidate.set()
+    with ThreadPoolExecutor() as executor:
 
-    async def check_new_dirs(x: str):
-        if await AsyncFiles.isdir(x):
-            if x not in out[1]:
+        def check_folder_mtime(folder: str, time_modified: float):
+            if os.path.getmtime(folder) != time_modified:
                 must_invalidate.set()
 
-    def proc_thread():
-        asyncio.set_event_loop(asyncio.new_event_loop())
-        calls = []
+        def check_new_dirs(x: str):
+            if os.path.isdir(x):
+                if x not in out[1]:
+                    must_invalidate.set()
 
         for x in out[1]:
             time_modified = out[1][x]
-            call = check_folder_mtime(x, time_modified)
-            calls.append(call)
+            executor.submit(lambda: check_folder_mtime(x, time_modified))
 
         for x in folders[0]:
-            call = check_new_dirs(x)
-            calls.append(call)
+            executor.submit(lambda: check_new_dirs(x))
 
-        future = asyncio.gather(*calls)
-        asyncio.get_event_loop().run_until_complete(future)
-        asyncio.get_event_loop().close()
+        executor.shutdown(wait=True)
 
-    thread = threading.Thread(target=proc_thread)
-    thread.start()
-    thread.join()
 
     if must_invalidate.is_set():
         return None
@@ -370,35 +352,3 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         os.makedirs(full_output_folder, exist_ok=True)
         counter = 1
     return full_output_folder, filename, counter, subfolder, filename_prefix
-
-
-def aio_wrap(func):
-    @wraps(func)
-    async def run(*args, loop=None, executor=None, **kwargs):
-        if loop is None:
-            loop = asyncio.get_running_loop()
-        pfunc = partial(func, *args, **kwargs)
-        return await loop.run_in_executor(executor, pfunc)
-    return run
-
-
-class AsyncFiles:
-    @staticmethod
-    @aio_wrap
-    def listdir(path: str) -> list[str]:
-        return os.listdir(path)
-
-    @staticmethod
-    @aio_wrap
-    def isdir(path: str) -> bool:
-        return os.path.isdir(path)
-
-    @staticmethod
-    @aio_wrap
-    def getmtime(path: str) -> float:
-        return os.path.getmtime(path)
-
-    @staticmethod
-    @aio_wrap
-    def relpath(file: str, directory: str) -> str:
-        return os.path.relpath(file, directory)
