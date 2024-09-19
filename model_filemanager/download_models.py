@@ -44,9 +44,9 @@ async def download_model(model_download_request: Callable[[str], Awaitable[aioht
                          model_name: str,
                          model_url: str,
                          model_directory: str,
+                         folder_path: str,
                          progress_callback: Callable[[str, DownloadModelStatus], Awaitable[Any]],
-                         progress_interval: float = 1.0,
-                         folder_path: str = None) -> DownloadModelStatus:
+                         progress_interval: float = 1.0) -> DownloadModelStatus:
     """
     Download a model file from a given URL into the models directory.
 
@@ -68,14 +68,6 @@ async def download_model(model_download_request: Callable[[str], Awaitable[aioht
     Returns:
         DownloadModelStatus: The result of the download operation.
     """
-    if not validate_model_subdirectory(model_directory):
-        return DownloadModelStatus(
-            DownloadStatusType.ERROR,
-            0,
-            "Invalid model subdirectory",
-            False
-        )
-
     if not validate_filename(model_name):
         return DownloadModelStatus(
             DownloadStatusType.ERROR,
@@ -84,73 +76,66 @@ async def download_model(model_download_request: Callable[[str], Awaitable[aioht
             False
         )
 
-    models_base_dir = models_dir
+    if not model_directory in folder_names_and_paths:
+        return DownloadModelStatus(
+            DownloadStatusType.ERROR,
+            0,
+            "Invalid or unrecognized model directory. model_directory must be a known model type (eg 'checkpoints'). If you are seeing this error for a custom model type, ensure the relevant custom nodes are installed and working.",
+            False
+        )
 
-    if folder_path:
-        if not model_directory in folder_names_and_paths:
-            return DownloadModelStatus(
-                DownloadStatusType.ERROR,
-                0,
-                "Invalid model directory, when using 'folder_path', model_directory must be a known model type (eg 'checkpoints'). If you are seeing this error for a custom model type, ensure the relevant custom nodes are installed and working.",
-                False
-            )
-        
-        if not folder_path in get_folder_paths(model_directory):
-            return DownloadModelStatus(
-                DownloadStatusType.ERROR,
-                0,
-                "Invalid folder path, does not match the list of known directories. If you're seeing this in the downloader UI, you may need to refresh the page.",
-                False
-            )
-        models_base_dir = folder_path
-        model_directory = ''
+    if not folder_path in get_folder_paths(model_directory):
+        return DownloadModelStatus(
+            DownloadStatusType.ERROR,
+            0,
+            "Invalid folder path, does not match the list of known directories. If you're seeing this in the downloader UI, you may need to refresh the page.",
+            False
+        )
 
-    file_path, relative_path = create_model_path(model_name, model_directory, models_base_dir)
-    existing_file = await check_file_exists(file_path, model_name, progress_callback, relative_path)
+    file_path = create_model_path(model_name, folder_path)
+    existing_file = await check_file_exists(file_path, model_name, progress_callback)
     if existing_file:
         return existing_file
 
     try:
         status = DownloadModelStatus(DownloadStatusType.PENDING, 0, f"Starting download of {model_name}", False)
-        await progress_callback(relative_path, status)
+        await progress_callback(model_name, status)
 
         response = await model_download_request(model_url)
         if response.status != 200:
             error_message = f"Failed to download {model_name}. Status code: {response.status}"
             logging.error(error_message)
             status = DownloadModelStatus(DownloadStatusType.ERROR, 0, error_message, False)
-            await progress_callback(relative_path, status)
+            await progress_callback(model_name, status)
             return DownloadModelStatus(DownloadStatusType.ERROR, 0, error_message, False)
 
-        return await track_download_progress(response, file_path, model_name, progress_callback, relative_path, progress_interval)
+        return await track_download_progress(response, file_path, model_name, progress_callback, progress_interval)
 
     except Exception as e:
         logging.error(f"Error in downloading model: {e}")
-        return await handle_download_error(e, model_name, progress_callback, relative_path)
+        return await handle_download_error(e, model_name, progress_callback)
 
 
-def create_model_path(model_name: str, model_directory: str, models_base_dir: str) -> tuple[str, str]:
-    full_model_dir = os.path.join(models_base_dir, model_directory)
-    os.makedirs(full_model_dir, exist_ok=True)
-    file_path = os.path.join(full_model_dir, model_name)
+def create_model_path(model_name: str, folder_path: str) -> tuple[str, str]:
+    os.makedirs(folder_path, exist_ok=True)
+    file_path = os.path.join(folder_path, model_name)
 
     # Ensure the resulting path is still within the base directory
     abs_file_path = os.path.abspath(file_path)
-    abs_base_dir = os.path.abspath(str(models_base_dir))
+    abs_base_dir = os.path.abspath(folder_path)
     if os.path.commonprefix([abs_file_path, abs_base_dir]) != abs_base_dir:
-        raise Exception(f"Invalid model directory: {models_base_dir}/{model_directory}/{model_name}")
+        raise Exception(f"Invalid model directory: {folder_path}/{model_name}")
 
-    relative_path = '/'.join([model_directory, model_name])
-    return file_path, relative_path
+    return file_path
 
 
 async def check_file_exists(file_path: str,
                             model_name: str,
-                            progress_callback: Callable[[str, DownloadModelStatus], Awaitable[Any]],
-                            relative_path: str) -> Optional[DownloadModelStatus]:
+                            progress_callback: Callable[[str, DownloadModelStatus], Awaitable[Any]]
+                            ) -> Optional[DownloadModelStatus]:
     if os.path.exists(file_path):
         status = DownloadModelStatus(DownloadStatusType.COMPLETED, 100, f"{model_name} already exists", True)
-        await progress_callback(relative_path, status)
+        await progress_callback(model_name, status)
         return status
     return None
 
@@ -159,7 +144,6 @@ async def track_download_progress(response: aiohttp.ClientResponse,
                                   file_path: str,
                                   model_name: str,
                                   progress_callback: Callable[[str, DownloadModelStatus], Awaitable[Any]],
-                                  relative_path: str,
                                   interval: float = 1.0) -> DownloadModelStatus:
     try:
         total_size = int(response.headers.get('Content-Length', 0))
@@ -170,7 +154,7 @@ async def track_download_progress(response: aiohttp.ClientResponse,
             nonlocal last_update_time
             progress = (downloaded / total_size) * 100 if total_size > 0 else 0
             status = DownloadModelStatus(DownloadStatusType.IN_PROGRESS, progress, f"Downloading {model_name}", False)
-            await progress_callback(relative_path, status)
+            await progress_callback(model_name, status)
             last_update_time = time.time()
 
         with open(file_path, 'wb') as f:
@@ -190,47 +174,23 @@ async def track_download_progress(response: aiohttp.ClientResponse,
 
         logging.info(f"Successfully downloaded {model_name}. Total downloaded: {downloaded}")
         status = DownloadModelStatus(DownloadStatusType.COMPLETED, 100, f"Successfully downloaded {model_name}", False)
-        await progress_callback(relative_path, status)
+        await progress_callback(model_name, status)
 
         return status
     except Exception as e:
         logging.error(f"Error in track_download_progress: {e}")
         logging.error(traceback.format_exc())
-        return await handle_download_error(e, model_name, progress_callback, relative_path)
+        return await handle_download_error(e, model_name, progress_callback)
 
 
 async def handle_download_error(e: Exception,
                                 model_name: str,
-                                progress_callback: Callable[[str, DownloadModelStatus], Any],
-                                relative_path: str) -> DownloadModelStatus:
+                                progress_callback: Callable[[str, DownloadModelStatus], Any]
+                                ) -> DownloadModelStatus:
     error_message = f"Error downloading {model_name}: {str(e)}"
     status = DownloadModelStatus(DownloadStatusType.ERROR, 0, error_message, False)
-    await progress_callback(relative_path, status)
+    await progress_callback(model_name, status)
     return status
-
-
-def validate_model_subdirectory(model_subdirectory: str) -> bool:
-    """
-    Validate that the model subdirectory is safe to install into.
-    Must not contain relative paths, nested paths or special characters
-    other than underscores and hyphens.
-
-    Args:
-        model_subdirectory (str): The subdirectory for the specific model type.
-
-    Returns:
-        bool: True if the subdirectory is safe, False otherwise.
-    """
-    if len(model_subdirectory) > 50:
-        return False
-
-    if '..' in model_subdirectory or '/' in model_subdirectory:
-        return False
-
-    if not re.match(r'^[a-zA-Z0-9_-]+$', model_subdirectory):
-        return False
-
-    return True
 
 
 def validate_filename(filename: str)-> bool:
