@@ -71,7 +71,7 @@ def test_load_extra_model_paths_expands_userpath(
     load_extra_path_config(dummy_yaml_file_name)
 
     expected_calls = [
-        ('checkpoints', os.path.join(mock_expanded_home, 'App', 'subfolder1')),
+        ('checkpoints', os.path.join(mock_expanded_home, 'App', 'subfolder1', False)),
     ]
 
     assert mock_add_model_folder_path.call_count == len(expected_calls)
