@@ -3,7 +3,7 @@ import aiohttp
 import os
 import traceback
 import logging
-from folder_paths import models_dir
+from folder_paths import models_dir, folder_names_and_paths, get_folder_paths
 import re
 from typing import Callable, Any, Optional, Awaitable, Dict
 from enum import Enum
@@ -43,9 +43,10 @@ class DownloadModelStatus():
 async def download_model(model_download_request: Callable[[str], Awaitable[aiohttp.ClientResponse]],
                          model_name: str,
                          model_url: str,
-                         model_sub_directory: str,
+                         model_directory: str,
                          progress_callback: Callable[[str, DownloadModelStatus], Awaitable[Any]],
-                         progress_interval: float = 1.0) -> DownloadModelStatus:
+                         progress_interval: float = 1.0,
+                         folder_path: str = None) -> DownloadModelStatus:
     """
     Download a model file from a given URL into the models directory.
 
@@ -56,16 +57,18 @@ async def download_model(model_download_request: Callable[[str], Awaitable[aioht
             The name of the model file to be downloaded. This will be the filename on disk.
         model_url (str):
             The URL from which to download the model.
-        model_sub_directory (str):
+        model_directory (str):
             The subdirectory within the main models directory where the model
             should be saved (e.g., 'checkpoints', 'loras', etc.).
         progress_callback (Callable[[str, DownloadModelStatus], Awaitable[Any]]):
             An asynchronous function to call with progress updates.
+        folder_path (str);
+            Optional path to which model folder should be used as the root, or None to use default.
 
     Returns:
         DownloadModelStatus: The result of the download operation.
     """
-    if not validate_model_subdirectory(model_sub_directory):
+    if not validate_model_subdirectory(model_directory):
         return DownloadModelStatus(
             DownloadStatusType.ERROR,
             0,
@@ -81,7 +84,28 @@ async def download_model(model_download_request: Callable[[str], Awaitable[aioht
             False
         )
 
-    file_path, relative_path = create_model_path(model_name, model_sub_directory, models_dir)
+    models_base_dir = models_dir
+
+    if folder_path:
+        if not model_directory in folder_names_and_paths:
+            return DownloadModelStatus(
+                DownloadStatusType.ERROR,
+                0,
+                "Invalid model directory, when using 'folder_path', model_directory must be a known model type (eg 'checkpoints'). If you are seeing this error for a custom model type, ensure the relevant custom nodes are installed and working.",
+                False
+            )
+        
+        if not folder_path in get_folder_paths(model_directory):
+            return DownloadModelStatus(
+                DownloadStatusType.ERROR,
+                0,
+                "Invalid folder path, does not match the list of known directories. If you're seeing this in the downloader UI, you may need to refresh the page.",
+                False
+            )
+        models_base_dir = folder_path
+        model_directory = ''
+
+    file_path, relative_path = create_model_path(model_name, model_directory, models_base_dir)
     existing_file = await check_file_exists(file_path, model_name, progress_callback, relative_path)
     if existing_file:
         return existing_file
@@ -114,7 +138,7 @@ def create_model_path(model_name: str, model_directory: str, models_base_dir: st
     abs_file_path = os.path.abspath(file_path)
     abs_base_dir = os.path.abspath(str(models_base_dir))
     if os.path.commonprefix([abs_file_path, abs_base_dir]) != abs_base_dir:
-        raise Exception(f"Invalid model directory: {model_directory}/{model_name}")
+        raise Exception(f"Invalid model directory: {models_base_dir}/{model_directory}/{model_name}")
 
     relative_path = '/'.join([model_directory, model_name])
     return file_path, relative_path
