@@ -52,12 +52,16 @@ class CacheHelper:
     """
     def __init__(self):
         self.cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
+        self.active = False
 
     def get(self, key: str, default=None) -> tuple[list[str], dict[str, float], float]:
+        if not self.active:
+            return default
         return self.cache.get(key, default)
     
     def set(self, key: str, value: tuple[list[str], dict[str, float], float]) -> None:
-        self.cache[key] = value
+        if self.active:
+            self.cache[key] = value
 
     def clear(self):
         self.cache.clear()
