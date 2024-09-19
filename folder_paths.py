@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import asyncio, aiofiles, threading
+import asyncio, threading
+from functools import partial, wraps
 import os
 import time
 import mimetypes
 import logging
 from typing import Set, List, Dict, Tuple, Literal
 from collections.abc import Collection
-
-import aiofiles.os
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
 
@@ -199,19 +198,19 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
     logging.debug("recursive file list on directory {}".format(directory))
 
     async def proc_subdir(path: str):
-        dirs[path] = await aiofiles.os.path.getmtime(path)
+        dirs[path] = await AsyncFiles.getmtime(path)
 
     def proc_thread():
         asyncio.set_event_loop(asyncio.new_event_loop())
         calls = []
 
         async def handle(file):
-            if not await aiofiles.os.path.isdir(file):
-                relative_path = os.path.relpath(file, directory)
+            if not await AsyncFiles.isdir(file):
+                relative_path = await AsyncFiles.relpath(file, directory)
                 result.append(relative_path)
                 return
             calls.append(proc_subdir(file))
-            for subdir in await aiofiles.os.listdir(file):
+            for subdir in await AsyncFiles.listdir(file):
                 path = os.path.join(file, subdir)
                 if subdir not in excluded_dir_names:
                     calls.append(handle(path))
@@ -283,11 +282,11 @@ def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float]
     folders = folder_names_and_paths[folder_name]
 
     async def check_folder_mtime(folder: str, time_modified: float):
-        if await aiofiles.os.path.getmtime(folder) != time_modified:
+        if await AsyncFiles.getmtime(folder) != time_modified:
             must_invalidate[0] = True
 
     async def check_new_dirs(x: str):
-        if await aiofiles.os.path.isdir(x):
+        if await AsyncFiles.isdir(x):
             if x not in out[1]:
                 must_invalidate[0] = True
 
@@ -371,3 +370,35 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         os.makedirs(full_output_folder, exist_ok=True)
         counter = 1
     return full_output_folder, filename, counter, subfolder, filename_prefix
+
+
+def aio_wrap(func):
+    @wraps(func)
+    async def run(*args, loop=None, executor=None, **kwargs):
+        if loop is None:
+            loop = asyncio.get_running_loop()
+        pfunc = partial(func, *args, **kwargs)
+        return await loop.run_in_executor(executor, pfunc)
+    return run
+
+
+class AsyncFiles:
+    @staticmethod
+    @aio_wrap
+    def listdir(path: str) -> list[str]:
+        return os.listdir(path)
+
+    @staticmethod
+    @aio_wrap
+    def isdir(path: str) -> bool:
+        return os.path.isdir(path)
+
+    @staticmethod
+    @aio_wrap
+    def getmtime(path: str) -> float:
+        return os.path.getmtime(path)
+
+    @staticmethod
+    @aio_wrap
+    def relpath(file: str, directory: str) -> str:
+        return os.path.relpath(file, directory)
