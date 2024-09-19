@@ -224,6 +224,7 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
         dirs[directory] = os.path.getmtime(directory)
     except FileNotFoundError:
         logging.warning(f"Warning: Unable to access {directory}. Skipping this path.")
+        return [], {}
 
     logging.debug("recursive file list on directory {}".format(directory))
 
@@ -252,7 +253,6 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
         calls.append(executor.submit(lambda: handle(directory)))
         while len(calls) > 0:
             calls.pop().result()
-
 
     logging.debug("found {} files".format(len(result)))
     return result, dirs
