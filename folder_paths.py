@@ -278,17 +278,17 @@ def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float]
     if folder_name not in filename_list_cache:
         return None
     out = filename_list_cache[folder_name]
-    must_invalidate = [False]
+    must_invalidate = threading.Event()
     folders = folder_names_and_paths[folder_name]
 
     async def check_folder_mtime(folder: str, time_modified: float):
         if await AsyncFiles.getmtime(folder) != time_modified:
-            must_invalidate[0] = True
+            must_invalidate.set()
 
     async def check_new_dirs(x: str):
         if await AsyncFiles.isdir(x):
             if x not in out[1]:
-                must_invalidate[0] = True
+                must_invalidate.set()
 
     def proc_thread():
         asyncio.set_event_loop(asyncio.new_event_loop())
@@ -311,7 +311,7 @@ def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float]
     thread.start()
     thread.join()
 
-    if must_invalidate[0]:
+    if must_invalidate.is_set():
         return None
     return out
 
