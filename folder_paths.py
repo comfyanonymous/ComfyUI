@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import asyncio, threading
-from functools import partial, wraps
+import threading
 import os
 import time
 import mimetypes
@@ -199,23 +198,31 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
     logging.debug("recursive file list on directory {}".format(directory))
 
     with ThreadPoolExecutor() as executor:
+        calls = []
 
         def proc_subdir(path: str):
             dirs[path] = os.path.getmtime(path)
 
         def handle(file):
-            if not os.path.isdir(file):
-                relative_path = os.path.relpath(file, directory)
-                result.append(relative_path)
-                return
-            executor.submit(lambda: proc_subdir(file))
-            for subdir in os.listdir(file):
-                path = os.path.join(file, subdir)
-                if subdir not in excluded_dir_names:
-                    executor.submit(lambda: handle(path))
+            try:
+                if not os.path.isdir(file):
+                    relative_path = os.path.relpath(file, directory)
+                    result.append(relative_path)
+                    return
 
-        executor.submit(lambda: handle(directory))
-        executor.shutdown(wait=True)
+                calls.append(executor.submit(lambda: proc_subdir(file)))
+
+                for subdir in os.listdir(file):
+                    path = os.path.join(file, subdir)
+                    if subdir not in excluded_dir_names:
+                        calls.append(executor.submit(lambda: handle(path)))
+            except Exception as e:
+                logging.error(f"Error while handling {file}: {e}")
+
+        calls.append(executor.submit(lambda: handle(directory)))
+        while len(calls) > 0:
+            calls.pop().result()
+
 
     logging.debug("found {} files".format(len(result)))
     return result, dirs
