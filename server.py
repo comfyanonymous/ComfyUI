@@ -2,6 +2,7 @@ import os
 import sys
 import asyncio
 import traceback
+import base64
 
 import nodes
 import folder_paths
@@ -741,6 +742,12 @@ class PromptServer():
     async def send(self, event, data, sid=None):
         if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
             await self.send_image(data, sid=sid)
+        elif event == "latent_preview":
+            img = data[1]
+            buffered = BytesIO()
+            img.save(buffered, format="JPEG")
+            img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            await self.send_json("latent_preview", img_base64, sid=sid)
         elif isinstance(data, (bytes, bytearray)):
             await self.send_bytes(event, data, sid)
         else:
