@@ -729,7 +729,7 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     return cfg_guider.sample(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
 
 
-SCHEDULER_NAMES = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"]
+SCHEDULER_NAMES = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta", "laplace"]
 SAMPLER_NAMES = KSAMPLER_NAMES + ["ddim", "uni_pc", "uni_pc_bh2"]
 
 def calculate_sigmas(model_sampling, scheduler_name, steps):
@@ -747,6 +747,8 @@ def calculate_sigmas(model_sampling, scheduler_name, steps):
         sigmas = normal_scheduler(model_sampling, steps, sgm=True)
     elif scheduler_name == "beta":
         sigmas = beta_scheduler(model_sampling, steps)
+    elif scheduler_name == "laplace":
+        sigmas = k_diffusion_sampling.get_sigmas_laplace(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
     else:
         logging.error("error invalid scheduler {}".format(scheduler_name))
     return sigmas
