@@ -37,6 +37,20 @@ def get_images(ws, prompt):
                 data = message['data']
                 if data['node'] is None and data['prompt_id'] == prompt_id:
                     break #Execution is done
+        #elif message["type"] == "latent_preview": #if you want previews of the latent images add --latent-preview-api to the launch flags
+            #img_base64 = message['data']
+
+            #while there's no point in using previews in this example, this is helpful to have for using with frontends like gradio
+            #recommend moving the following to a function that updates on an interval and use a global variable to store img_base64
+            #img_data = base64.b64decode(img_base64) 
+            #buffered = io.BytesIO(img_data)
+            #preview_image = Image.open(buffered)
+            #preview_image = ImageOps.contain(preview_image, (512, 512))
+
+            #you'll need the following imports:
+            #from io import BytesIO
+            #import base64
+            #from PIL import Image, ImageOps
         else:
             continue #previews are binary data
 
