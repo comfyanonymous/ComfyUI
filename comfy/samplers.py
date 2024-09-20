@@ -10,6 +10,7 @@ from comfy import model_management
 import math
 import logging
 import comfy.sampler_helpers
+import comfy.model_patcher
 import comfy.hooks
 import scipy.stats
 import numpy
@@ -766,14 +767,7 @@ class CFGGuider:
         samples = sampler.sample(self, sigmas, extra_args, callback, noise, latent_image, denoise_mask, disable_pbar)
         return self.inner_model.process_latent_out(samples.to(torch.float32))
 
-    def sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
-        if sigmas.shape[-1] == 0:
-            return latent_image
-
-        self.conds = {}
-        for k in self.original_conds:
-            self.conds[k] = list(map(lambda a: a.copy(), self.original_conds[k]))
-
+    def outer_sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
         self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds)
         device = self.model_patcher.load_device
 
@@ -786,15 +780,33 @@ class CFGGuider:
 
         try:
             self.model_patcher.pre_run()
-            comfy.sampler_helpers.prepare_model_patcher(self.model_patcher, self.conds)
             output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
         finally:
             self.model_patcher.cleanup()
 
         comfy.sampler_helpers.cleanup_models(self.conds, self.loaded_models)
         del self.inner_model
-        del self.conds
         del self.loaded_models
+        return output
+
+    def sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
+        if sigmas.shape[-1] == 0:
+            return latent_image
+
+        self.conds = {}
+        for k in self.original_conds:
+            self.conds[k] = list(map(lambda a: a.copy(), self.original_conds[k]))
+
+        try:
+            comfy.sampler_helpers.prepare_model_patcher(self.model_patcher, self.conds)
+            executor = comfy.model_patcher.WrapperExecutor.new_executor(
+                self.outer_sample,
+                self.model_patcher.get_wrappers(comfy.model_patcher.WrappersMP.OUTER_SAMPLE))
+            output = executor._execute(self, noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+        finally:
+            self.model_patcher.restore_hook_patches()
+
+        del self.conds
         return output
 
 
