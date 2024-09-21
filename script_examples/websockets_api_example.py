@@ -40,7 +40,6 @@ def get_images(ws, prompt):
         #elif message["type"] == "latent_preview": #if you want previews of the latent images add --latent-preview-api to the launch flags
             #img_base64 = message['data']
 
-            #while there's no point in using previews in this example, this is helpful to have for using with frontends like gradio
             #recommend moving the following to a function that updates on an interval and use a global variable to store img_base64
             #img_data = base64.b64decode(img_base64) 
             #buffered = io.BytesIO(img_data)
@@ -51,6 +50,16 @@ def get_images(ws, prompt):
             #from io import BytesIO
             #import base64
             #from PIL import Image, ImageOps
+        
+            #while there's no point in using previews in this example, this is helpful to have for using with frontends like gradio
+            #if using this in an app that will make multiple generations in a row: make sure to ws.close() after the get_images call
+            #for example, if you call the following function, that then calls this get_images(ws, prompt) function:
+            #def get_prompt_images(prompt):
+                #ws = websocket.WebSocket()
+                #ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
+                #images = get_images(ws, prompt)
+                #ws.close()
+            #the ws.close() will prevent connection timeouts that might randomly occur            
         else:
             continue #previews are binary data
 
