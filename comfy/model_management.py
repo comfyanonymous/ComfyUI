@@ -626,6 +626,8 @@ def maximum_vram_for_weights(device=None):
     return (get_total_memory(device) * 0.88 - minimum_inference_memory())
 
 def unet_dtype(device=None, model_params=0, supported_dtypes=[torch.float16, torch.bfloat16, torch.float32]):
+    if model_params < 0:
+        model_params = 1000000000000000000000
     if args.bf16_unet:
         return torch.bfloat16
     if args.fp16_unet:
