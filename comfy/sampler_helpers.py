@@ -26,15 +26,14 @@ def get_models_from_cond(cond, model_type):
                 models += [c[model_type]]
     return models
 
-def get_hooks_from_cond(cond, filter_types: List[comfy.hooks.EnumHookType]=None):
-    hooks: Dict[comfy.hooks.Hook, None] = {}
+def get_hooks_from_cond(cond, hooks_dict: Dict[comfy.hooks.EnumHookType, Dict[comfy.hooks.Hook, None]]):
     for c in cond:
         if 'hooks' in c:
             for hook in c['hooks'].hooks:
                 hook: comfy.hooks.Hook
-                if not filter_types or hook.hook_type in filter_types:
-                    hooks[hook] = None
-    return hooks
+                with_type = hooks_dict.setdefault(hook.hook_type, {})
+                with_type[hook] = None
+    return hooks_dict
 
 def convert_cond(cond):
     out = []
@@ -53,13 +52,13 @@ def get_additional_models(conds, dtype):
     cnets: List[ControlBase] = []
     gligen = []
     add_models = []
-    hooks: Dict[comfy.hooks.AddModelHook, None] = {}
+    hooks: Dict[comfy.hooks.EnumHookType, Dict[comfy.hooks.Hook, None]] = {}
 
     for k in conds:
         cnets += get_models_from_cond(conds[k], "control")
         gligen += get_models_from_cond(conds[k], "gligen")
         add_models += get_models_from_cond(conds[k], "additional_models")
-        hooks.update(get_hooks_from_cond(conds[k], [comfy.hooks.EnumHookType.AddModel]))
+        get_hooks_from_cond(conds[k], hooks)
 
     control_nets = set(cnets)
 
@@ -70,7 +69,7 @@ def get_additional_models(conds, dtype):
         inference_memory += m.inference_memory_requirements(dtype)
 
     gligen = [x[1] for x in gligen]
-    hook_models = [x.model for x in hooks]
+    hook_models = [x.model for x in hooks.get(comfy.hooks.EnumHookType.AddModels, {}).keys()]
     models = control_models + gligen + add_models + hook_models
 
     return models, inference_memory
@@ -108,5 +107,5 @@ def prepare_model_patcher(model: 'ModelPatcher', conds):
     # check for hooks in conds - if not registered, see if can be applied
     hooks = {}
     for k in conds:
-        hooks.update(get_hooks_from_cond(conds[k]))
+        get_hooks_from_cond(conds[k], hooks)
     model.register_all_hook_patches(hooks, comfy.hooks.EnumWeightTarget.Model)

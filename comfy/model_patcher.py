@@ -809,13 +809,12 @@ class ModelPatcher:
                     if cached_group.contains(hook):
                         self.cached_hook_patches.pop(cached_group)
 
-    def register_all_hook_patches(self, hooks_dict: Dict[comfy.hooks.Hook, None], target: comfy.hooks.EnumWeightTarget):
+    def register_all_hook_patches(self, hooks_dict: Dict[comfy.hooks.EnumHookType, Dict[comfy.hooks.Hook, None]], target: comfy.hooks.EnumWeightTarget):
         self.restore_hook_patches()
         weight_hooks_to_register: List[comfy.hooks.WeightHook] = []
-        for hook in hooks_dict:
-            if hook.hook_type == comfy.hooks.EnumHookType.Weight:
-                if hook.hook_ref not in self.hook_patches:
-                    weight_hooks_to_register.append(hook)
+        for hook in hooks_dict.get(comfy.hooks.EnumHookType.Weight, {}):
+            if hook.hook_ref not in self.hook_patches:
+                weight_hooks_to_register.append(hook)
         if len(weight_hooks_to_register) > 0:
             self.hook_patches_backup = create_hook_patches_clone(self.hook_patches)
             for hook in weight_hooks_to_register:

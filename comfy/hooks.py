@@ -5,7 +5,7 @@ import torch
 import numpy as np
 
 if TYPE_CHECKING:
-    from comfy.model_patcher import ModelPatcher
+    from comfy.model_patcher import ModelPatcher, PatcherInjection
     from comfy.model_base import BaseModel
     from comfy.sd import CLIP
 import comfy.lora
@@ -19,7 +19,11 @@ class EnumHookMode(enum.Enum):
 class EnumHookType(enum.Enum):
     Weight = "weight"
     Patch = "patch"
-    AddModel = "addmodel"
+    ObjectPatch = "object_patch"
+    AddModels = "add_models"
+    AddCallback = "add_callback"
+    SetInjections = "add_injections"
+    AddWrapper = "add_wrapper"
 
 class EnumWeightTarget(enum.Enum):
     Model = "model"
@@ -125,18 +129,94 @@ class PatchHook(Hook):
         c: PatchHook = super().clone(subtype)
         c.patches = self.patches
         return c
+    
+    def add_hook_patches(self, model: 'ModelPatcher'):
+        pass
 
-class AddModelHook(Hook):
-    def __init__(self, model: 'ModelPatcher'):
-        super().__init__(hook_type=EnumHookType.AddModel)
-        self.model = model
+class ObjectPatchHook(Hook):
+    def __init__(self):
+        super().__init__(hook_type=EnumHookType.ObjectPatch)
+        self.object_patches: Dict = None
     
     def clone(self, subtype: Callable=None):
         if subtype is None:
             subtype = type(self)
-        c: AddModelHook = super().clone(subtype)
-        c.model = self.model
+        c: ObjectPatchHook = super().clone(subtype)
+        c.object_patches = self.object_patches
         return c
+    
+    def add_hook_object_patches(self, model: 'ModelPatcher'):
+        pass
+
+class AddModelsHook(Hook):
+    def __init__(self, key: str=None, models: List['ModelPatcher']=None):
+        super().__init__(hook_type=EnumHookType.AddModels)
+        self.key = key
+        self.models = models
+        self.append_when_same = True
+    
+    def clone(self, subtype: Callable=None):
+        if subtype is None:
+            subtype = type(self)
+        c: AddModelsHook = super().clone(subtype)
+        c.key = self.key
+        c.models = self.models.copy() if self.models else self.models
+        c.append_when_same = self.append_when_same
+        return c
+    
+    def add_hook_models(self, model: 'ModelPatcher'):
+        pass
+
+class AddCallbackHook(Hook):
+    def __init__(self, key: str=None, callback: Callable=None):
+        super().__init__(hook_type=EnumHookType.AddCallback)
+        self.key = key
+        self.callback = callback
+
+    def clone(self, subtype: Callable=None):
+        if subtype is None:
+            subtype = type(self)
+        c: AddCallbackHook = super().clone(subtype)
+        c.key = self.key
+        c.callback = self.callback
+        return c
+    
+    def add_hook_callback(self, model: 'ModelPatcher'):
+        pass
+
+class SetInjectionsHook(Hook):
+    def __init__(self, key: str=None, injections: List['PatcherInjection']=None):
+        super().__init__(hook_type=EnumHookType.SetInjections)
+        self.key = key
+        self.injections = injections
+    
+    def clone(self, subtype: Callable=None):
+        if subtype is None:
+            subtype = type(self)
+        c: SetInjectionsHook = super().clone(subtype)
+        c.key = self.key
+        c.injections = self.injections.copy() if self.injections else self.injections
+        return c
+    
+    def add_hook_injections(self, model: 'ModelPatcher'):
+        pass
+
+class AddWrapperHook(Hook):
+    def __init__(self, key: str=None, wrapper: Callable=None):
+        super().__init__(hook_type=EnumHookType.AddWrapper)
+        self.key = key
+        self.wrapper = wrapper
+
+    def clone(self, subtype: Callable=None):
+        if subtype is None:
+            subtype = type(self)
+        c: AddWrapperHook = super().clone(subtype)
+        c.key = self.key
+        c.wrapper = self.wrapper
+        return c
+    
+    def add_hook_wrapper(self, model: 'ModelPatcher'):
+        pass
 
 class HookGroup:
     def __init__(self):
@@ -167,9 +247,10 @@ class HookGroup:
             hook.hook_keyframe = hook_kf
 
     def get_dict_repr(self):
-        d = {}
+        d: Dict[EnumHookType, Dict[Hook, None]] = {}
         for hook in self.hooks:
-            d[hook] = None
+            with_type = d.setdefault(hook.hook_type, {})
+            with_type[hook] = None
         return d
 
     @staticmethod
