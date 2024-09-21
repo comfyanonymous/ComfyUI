@@ -36,7 +36,7 @@ class EmptySD3LatentImage:
     CATEGORY = "latent/sd3"
 
     def generate(self, width, height, batch_size=1):
-        latent = torch.ones([batch_size, 16, height // 8, width // 8], device=self.device) * 0.0609
+        latent = torch.zeros([batch_size, 16, height // 8, width // 8], device=self.device)
         return ({"samples":latent}, )
 
 class CLIPTextEncodeSD3:
