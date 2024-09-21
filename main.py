@@ -172,6 +172,7 @@ def hijack_progress(server):
         if preview_image is not None:
             if args.latent_preview_api:
                 server.send_sync("latent_preview", preview_image, server.client_id)
+                server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
             else:
                 server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
     comfy.utils.set_progress_bar_global_hook(hook)
