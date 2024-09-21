@@ -88,6 +88,8 @@ class ControlBase:
         self.strength = strength
         self.timestep_percent_range = timestep_percent_range
         if self.latent_format is not None:
+            if vae is None:
+                logging.warning("WARNING: no VAE provided to the controlnet apply node when this controlnet requires one.")
             self.vae = vae
         self.extra_concat_orig = extra_concat.copy()
         if self.concat_mask and len(self.extra_concat_orig) == 0:
@@ -222,6 +224,9 @@ class ControlNet(ControlBase):
             compression_ratio = self.compression_ratio
             if self.vae is not None:
                 compression_ratio *= self.vae.downscale_ratio
+            else:
+                if self.latent_format is not None:
+                    raise ValueError("This Controlnet needs a VAE but none was provided, please use a different ControlNetApply node with a VAE input.")
             self.cond_hint = comfy.utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * compression_ratio, x_noisy.shape[2] * compression_ratio, self.upscale_algorithm, "center")
             if self.vae is not None:
                 loaded_models = comfy.model_management.loaded_models(only_currently_used=True)
