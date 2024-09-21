@@ -103,5 +103,5 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     # Sampling
-    "ControlNetApplySD3": "ControlNetApply SD3 and HunyuanDiT",
+    "ControlNetApplySD3": "Apply Controlnet",
 }
