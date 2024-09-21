@@ -180,7 +180,10 @@ class AutoPatcherEjector:
 
     def __exit__(self, *args):
         if self.was_injected:
-            if self.skip_until_exit or not self.model.skip_injection:
+            if self.skip_until_exit:
+                self.model.skip_injection = self.prev_skip_injection
+                self.model.inject_model()
+            elif not self.model.skip_injection:
                 self.model.inject_model()
         self.model.skip_injection = self.prev_skip_injection
 
