@@ -93,6 +93,7 @@ class ControlNetApplySD3(nodes.ControlNetApplyAdvanced):
                              "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
                              }}
     CATEGORY = "conditioning/controlnet"
+    DEPRECATED = True
 
 NODE_CLASS_MAPPINGS = {
     "TripleCLIPLoader": TripleCLIPLoader,
@@ -103,5 +104,5 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     # Sampling
-    "ControlNetApplySD3": "Apply Controlnet",
+    "ControlNetApplySD3": "Apply Controlnet with VAE",
 }

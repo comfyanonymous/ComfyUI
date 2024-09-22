@@ -226,7 +226,7 @@ class ControlNet(ControlBase):
                 compression_ratio *= self.vae.downscale_ratio
             else:
                 if self.latent_format is not None:
-                    raise ValueError("This Controlnet needs a VAE but none was provided, please use a different ControlNetApply node with a VAE input.")
+                    raise ValueError("This Controlnet needs a VAE but none was provided, please use a ControlNetApply node with a VAE input and connect it.")
             self.cond_hint = comfy.utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * compression_ratio, x_noisy.shape[2] * compression_ratio, self.upscale_algorithm, "center")
             if self.vae is not None:
                 loaded_models = comfy.model_management.loaded_models(only_currently_used=True)
