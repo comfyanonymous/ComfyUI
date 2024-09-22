@@ -326,7 +326,7 @@ class LoadedModel:
                 self.model_unload()
                 raise e
 
-        if is_intel_xpu() and not args.disable_ipex_optimize and self.real_model is not None:
+        if is_intel_xpu() and not args.disable_ipex_optimize and 'ipex' in globals() and self.real_model is not None:
             with torch.no_grad():
                 self.real_model = ipex.optimize(self.real_model.eval(), inplace=True, graph_mode=True, concat_linear=True)
 
@@ -626,6 +626,8 @@ def maximum_vram_for_weights(device=None):
     return (get_total_memory(device) * 0.88 - minimum_inference_memory())
 
 def unet_dtype(device=None, model_params=0, supported_dtypes=[torch.float16, torch.bfloat16, torch.float32]):
+    if model_params < 0:
+        model_params = 1000000000000000000000
     if args.bf16_unet:
         return torch.bfloat16
     if args.fp16_unet:

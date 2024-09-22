@@ -46,6 +46,36 @@ user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
+class CacheHelper:
+    """
+    Helper class for managing file list cache data.
+    """
+    def __init__(self):
+        self.cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
+        self.active = False
+
+    def get(self, key: str, default=None) -> tuple[list[str], dict[str, float], float]:
+        if not self.active:
+            return default
+        return self.cache.get(key, default)
+    
+    def set(self, key: str, value: tuple[list[str], dict[str, float], float]) -> None:
+        if self.active:
+            self.cache[key] = value
+
+    def clear(self):
+        self.cache.clear()
+
+    def __enter__(self):
+        self.active = True
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.active = False
+        self.clear()
+
+cache_helper = CacheHelper()
+
 extension_mimetypes_cache = {
     "webp" : "image",
 }
@@ -165,11 +195,14 @@ def exists_annotated_filepath(name) -> bool:
     return os.path.exists(filepath)
 
 
-def add_model_folder_path(folder_name: str, full_folder_path: str) -> None:
+def add_model_folder_path(folder_name: str, full_folder_path: str, is_default: bool = False) -> None:
     global folder_names_and_paths
     folder_name = map_legacy(folder_name)
     if folder_name in folder_names_and_paths:
-        folder_names_and_paths[folder_name][0].append(full_folder_path)
+        if is_default:
+            folder_names_and_paths[folder_name][0].insert(0, full_folder_path)
+        else:
+            folder_names_and_paths[folder_name][0].append(full_folder_path)
     else:
         folder_names_and_paths[folder_name] = ([full_folder_path], set())
 
@@ -235,6 +268,14 @@ def get_full_path(folder_name: str, filename: str) -> str | None:
 
     return None
 
+
+def get_full_path_or_raise(folder_name: str, filename: str) -> str:
+    full_path = get_full_path(folder_name, filename)
+    if full_path is None:
+        raise FileNotFoundError(f"Model in folder '{folder_name}' with filename '{filename}' not found.")
+    return full_path
+
+
 def get_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], float]:
     folder_name = map_legacy(folder_name)
     global folder_names_and_paths
@@ -249,6 +290,10 @@ def get_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], f
     return sorted(list(output_list)), output_folders, time.perf_counter()
 
 def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], float] | None:
+    strong_cache = cache_helper.get(folder_name)
+    if strong_cache is not None:
+        return strong_cache
+    
     global filename_list_cache
     global folder_names_and_paths
     folder_name = map_legacy(folder_name)
@@ -277,6 +322,7 @@ def get_filename_list(folder_name: str) -> list[str]:
         out = get_filename_list_(folder_name)
         global filename_list_cache
         filename_list_cache[folder_name] = out
+    cache_helper.set(folder_name, out)
     return list(out[0])
 
 def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, image_height=0) -> tuple[str, str, int, str, str]:

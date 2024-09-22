@@ -70,14 +70,14 @@ class CLIP:
         clip = target.clip
         tokenizer = target.tokenizer
 
-        load_device = model_management.text_encoder_device()
-        offload_device = model_management.text_encoder_offload_device()
+        load_device = model_options.get("load_device", model_management.text_encoder_device())
+        offload_device = model_options.get("offload_device", model_management.text_encoder_offload_device())
         dtype = model_options.get("dtype", None)
         if dtype is None:
             dtype = model_management.text_encoder_dtype(load_device)
 
         params['dtype'] = dtype
-        params['device'] = model_management.text_encoder_initial_device(load_device, offload_device, parameters * model_management.dtype_size(dtype))
+        params['device'] = model_options.get("initial_device", model_management.text_encoder_initial_device(load_device, offload_device, parameters * model_management.dtype_size(dtype)))
         params['model_options'] = model_options
 
         self.cond_stage_model = clip(**(params))
@@ -645,7 +645,7 @@ def load_diffusion_model_state_dict(sd, model_options={}): #load unet in diffuse
 
     manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
-    model_config.custom_operations = model_options.get("custom_operations", None)
+    model_config.custom_operations = model_options.get("custom_operations", model_config.custom_operations)
     model = model_config.get_model(new_sd, "")
     model = model.to(offload_device)
     model.load_model_weights(new_sd, "")

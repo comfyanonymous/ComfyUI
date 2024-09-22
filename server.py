@@ -221,6 +221,12 @@ class PromptServer():
         def get_embeddings(self):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
+        
+        @routes.get("/models")
+        def list_model_types(request):
+            model_types = list(folder_paths.folder_names_and_paths.keys())
+
+            return web.json_response(model_types)
 
         @routes.get("/models/{folder}")
         async def get_models(request):
@@ -546,14 +552,15 @@ class PromptServer():
 
         @routes.get("/object_info")
         async def get_object_info(request):
-            out = {}
-            for x in nodes.NODE_CLASS_MAPPINGS:
-                try:
-                    out[x] = node_info(x)
-                except Exception as e:
-                    logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
-                    logging.error(traceback.format_exc())
-            return web.json_response(out)
+            with folder_paths.cache_helper:
+                out = {}
+                for x in nodes.NODE_CLASS_MAPPINGS:
+                    try:
+                        out[x] = node_info(x)
+                    except Exception as e:
+                        logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
+                        logging.error(traceback.format_exc())
+                return web.json_response(out)
 
         @routes.get("/object_info/{node_class}")
         async def get_object_info_node(request):
