@@ -3,9 +3,10 @@ import tempfile
 import aiohttp
 from aiohttp import ClientResponse
 import itertools
-import os 
+import os
 from unittest.mock import AsyncMock, patch, MagicMock
 from model_filemanager import download_model, track_download_progress, create_model_path, check_file_exists, DownloadStatusType, DownloadModelStatus, validate_filename
+import folder_paths
 
 @pytest.fixture
 def temp_dir():
@@ -65,9 +66,12 @@ async def test_download_model_success(temp_dir):
     mock_open.return_value.__enter__.return_value = mock_file
     time_values = itertools.count(0, 0.1)
 
+    fake_paths = {'checkpoints': ([temp_dir], folder_paths.supported_pt_extensions)}
+
     with patch('model_filemanager.create_model_path', return_value=('models/checkpoints/model.sft', 'model.sft')), \
          patch('model_filemanager.check_file_exists', return_value=None), \
          patch('builtins.open', mock_open), \
+         patch('folder_paths.folder_names_and_paths', fake_paths), \
          patch('folder_paths.get_folder_paths', return_value=[temp_dir]), \
          patch('time.time', side_effect=time_values):  # Simulate time passing
 
@@ -116,11 +120,14 @@ async def test_download_model_url_request_failure():
     mock_response.status = 404  # Simulate a "Not Found" error
     mock_get = AsyncMock(return_value=mock_response)
     mock_progress_callback = AsyncMock()
+    
+    fake_paths = {'checkpoints': (['mock_directory'], folder_paths.supported_pt_extensions)}
 
     # Mock the create_model_path function
     with patch('model_filemanager.create_model_path', return_value='/mock/path/model.safetensors'), \
          patch('model_filemanager.check_file_exists', return_value=None), \
-         patch('folder_paths.get_folder_paths', return_value=['mock_directory']):
+         patch('folder_paths.get_folder_paths', return_value=['mock_directory']), \
+         patch('folder_paths.folder_names_and_paths', fake_paths):
         # Call the function
         result = await download_model(
             mock_get,
