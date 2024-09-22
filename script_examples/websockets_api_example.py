@@ -39,11 +39,8 @@ def get_images(ws, prompt):
                     break #Execution is done
         else:
             # If you want to be able to decode the binary stream for latent previews, here is how you can do it:
-            # event = struct.unpack(">I", out[:4])[0]
-            # image_data = out[8:]
-            # if event == 1:
-                # bytesIO = BytesIO(image_data)
-                # preview_image = Image.open(bytesIO) # This is your preview in PIL image format, store it in a global
+            # bytesIO = BytesIO(out[8:])
+            # preview_image = Image.open(bytesIO) # This is your preview in PIL image format, store it in a global
             continue #previews are binary data
 
     history = get_history(prompt_id)[prompt_id]
