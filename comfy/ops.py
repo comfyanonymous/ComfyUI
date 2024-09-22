@@ -300,10 +300,10 @@ class fp8_ops(manual_cast):
             return torch.nn.functional.linear(input, weight, bias)
 
 
-def pick_operations(weight_dtype, compute_dtype, load_device=None):
+def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False):
     if compute_dtype is None or weight_dtype == compute_dtype:
         return disable_weight_init
-    if args.fast:
+    if args.fast and not disable_fast_fp8:
         if comfy.model_management.supports_fp8_compute(load_device):
             return fp8_ops
     return manual_cast
