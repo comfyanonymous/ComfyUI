@@ -183,6 +183,13 @@ def finalize_default_conds(hooked_to_run: Dict[comfy.hooks.HookGroup,List[Tuple[
             hooked_to_run[hook] += [(p, i)]
 
 def calc_cond_batch(model: 'BaseModel', conds: List[List[Dict]], x_in: torch.Tensor, timestep, model_options):
+    executor = comfy.model_patcher.WrapperExecutor.new_executor(
+        outer_calc_cond_batch,
+        model.current_patcher.get_wrappers(comfy.model_patcher.WrappersMP.CALC_COND_BATCH)
+    )
+    return executor._execute(model, conds, x_in, timestep, model_options)
+
+def outer_calc_cond_batch(model: 'BaseModel', conds: List[List[Dict]], x_in: torch.Tensor, timestep, model_options):
     out_conds = []
     out_counts = []
     # separate conds by matching hooks
@@ -799,9 +806,10 @@ class CFGGuider:
 
         try:
             comfy.sampler_helpers.prepare_model_patcher(self.model_patcher, self.conds)
-            executor = comfy.model_patcher.WrapperExecutor.new_executor(
+            executor = comfy.model_patcher.WrapperClassExecutor.new_executor(
                 self.outer_sample,
-                self.model_patcher.get_wrappers(comfy.model_patcher.WrappersMP.OUTER_SAMPLE))
+                self.model_patcher.get_wrappers(comfy.model_patcher.WrappersMP.OUTER_SAMPLE)
+            )
             output = executor._execute(self, noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
         finally:
             self.model_patcher.restore_hook_patches()
