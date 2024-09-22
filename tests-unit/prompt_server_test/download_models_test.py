@@ -202,18 +202,20 @@ async def test_download_model_invalid_folder_path():
     assert result.status == 'error'
     assert result.already_existed is False
 
-# For create_model_path function
 def test_create_model_path(tmp_path, monkeypatch):
-    mock_models_dir = tmp_path / "models"
-    monkeypatch.setattr('folder_paths.models_dir', str(mock_models_dir))
+    model_name = "model.safetensors"
+    folder_path = os.path.join(tmp_path, "mock_dir")
 
-    model_name = "test_model.sft"
-    model_directory = "test_dir"
+    file_path = create_model_path(model_name, folder_path)
 
-    file_path = create_model_path(model_name, model_directory, mock_models_dir)
-
-    assert file_path == str(mock_models_dir / model_directory / model_name)
+    assert file_path == os.path.join(folder_path, "model.safetensors")
     assert os.path.exists(os.path.dirname(file_path))
+
+    with pytest.raises(Exception, match="Invalid model directory"):
+        create_model_path("../path_traversal.safetensors", folder_path)
+
+    with pytest.raises(Exception, match="Invalid model directory"):
+        create_model_path("/etc/some_root_path", folder_path)
 
 
 @pytest.mark.asyncio
