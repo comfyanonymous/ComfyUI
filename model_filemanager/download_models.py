@@ -63,7 +63,7 @@ async def download_model(model_download_request: Callable[[str], Awaitable[aioht
         progress_callback (Callable[[str, DownloadModelStatus], Awaitable[Any]]):
             An asynchronous function to call with progress updates.
         folder_path (str);
-            Optional path to which model folder should be used as the root, or None to use default.
+            Path to which model folder should be used as the root.
 
     Returns:
         DownloadModelStatus: The result of the download operation.
