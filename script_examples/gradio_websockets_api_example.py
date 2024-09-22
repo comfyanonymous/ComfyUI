@@ -8,6 +8,10 @@
 # If you use Comfy Manager, make sure to set the preview type there because it will override --preview-method auto/latent2rgb/taesd launch flag settings
 # Check or change the preview_method in "/custom_nodes/ComfyUI-Manager/config.ini"
 
+# If you chose to install Gradio to your ComfyUI python venv, open a command prompt this script_examples directory and run:
+# ..\..\python_embeded\python.exe -s ..\script_examples\gradio_websockets_api_example.py
+# To launch the app
+
 import websocket #NOTE: websocket-client (https://github.com/websocket-client/websocket-client)
 import uuid
 import json
