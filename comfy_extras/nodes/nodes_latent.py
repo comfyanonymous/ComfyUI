@@ -1,5 +1,8 @@
-import comfy.utils
 import torch
+
+import comfy.utils
+from comfy.component_model.tensor_types import Latent
+
 
 def reshape_latent_to(target_shape, latent):
     if latent.shape[1:] != target_shape[1:]:
@@ -10,7 +13,7 @@ def reshape_latent_to(target_shape, latent):
 class LatentAdd:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples1": ("LATENT",), "samples2": ("LATENT",)}}
+        return {"required": {"samples1": ("LATENT",), "samples2": ("LATENT",)}}
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "op"
@@ -27,10 +30,11 @@ class LatentAdd:
         samples_out["samples"] = s1 + s2
         return (samples_out,)
 
+
 class LatentSubtract:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples1": ("LATENT",), "samples2": ("LATENT",)}}
+        return {"required": {"samples1": ("LATENT",), "samples2": ("LATENT",)}}
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "op"
@@ -47,11 +51,12 @@ class LatentSubtract:
         samples_out["samples"] = s1 - s2
         return (samples_out,)
 
+
 class LatentMultiply:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT",),
-                              "multiplier": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+        return {"required": {"samples": ("LATENT",),
+                             "multiplier": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                              }}
 
     RETURN_TYPES = ("LATENT",)
@@ -66,13 +71,14 @@ class LatentMultiply:
         samples_out["samples"] = s1 * multiplier
         return (samples_out,)
 
+
 class LatentInterpolate:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples1": ("LATENT",),
-                              "samples2": ("LATENT",),
-                              "ratio": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                              }}
+        return {"required": {"samples1": ("LATENT",),
+                             "samples2": ("LATENT",),
+                             "ratio": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                             }}
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "op"
@@ -100,10 +106,11 @@ class LatentInterpolate:
         samples_out["samples"] = st * (m1 * ratio + m2 * (1.0 - ratio))
         return (samples_out,)
 
+
 class LatentBatch:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples1": ("LATENT",), "samples2": ("LATENT",)}}
+        return {"required": {"samples1": ("LATENT",), "samples2": ("LATENT",)}}
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "batch"
@@ -122,11 +129,12 @@ class LatentBatch:
         samples_out["batch_index"] = samples1.get("batch_index", [x for x in range(0, s1.shape[0])]) + samples2.get("batch_index", [x for x in range(0, s2.shape[0])])
         return (samples_out,)
 
+
 class LatentBatchSeedBehavior:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT",),
-                              "seed_behavior": (["random", "fixed"],{"default": "fixed"}),}}
+        return {"required": {"samples": ("LATENT",),
+                             "seed_behavior": (["random", "fixed"], {"default": "fixed"}), }}
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "op"
@@ -145,6 +153,44 @@ class LatentBatchSeedBehavior:
 
         return (samples_out,)
 
+
+class LatentAddNoiseChannels:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "samples": ("LATENT",),
+                "std_dev": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "slice_i": ("INT", {"default": 0, "min": -16, "max": 16}),
+                "slice_j": ("INT", {"default": 16, "min": -16, "max": 16}),
+            }
+        }
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "inject_noise"
+
+    CATEGORY = "latent/advanced"
+
+    def inject_noise(self, samples: Latent, std_dev, seed: int, slice_i: int, slice_j: int):
+        s = samples.copy()
+
+        latent = samples["samples"]
+        with comfy.utils.seed_for_block(seed):
+            if not isinstance(latent, torch.Tensor):
+                raise TypeError("Input must be a PyTorch tensor")
+
+            noise = torch.randn_like(latent[:, slice_i:slice_j, :, :]) * std_dev
+
+        noised_latent = latent.clone()
+        noised_latent[:, slice_i:slice_j, :, :] += noise
+        s["samples"] = noised_latent
+        return (s,)
+
+
 NODE_CLASS_MAPPINGS = {
     "LatentAdd": LatentAdd,
     "LatentSubtract": LatentSubtract,
@@ -152,4 +198,5 @@ NODE_CLASS_MAPPINGS = {
     "LatentInterpolate": LatentInterpolate,
     "LatentBatch": LatentBatch,
     "LatentBatchSeedBehavior": LatentBatchSeedBehavior,
+    "LatentAddNoiseChannels": LatentAddNoiseChannels,
 }

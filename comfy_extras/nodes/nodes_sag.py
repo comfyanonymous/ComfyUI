@@ -1,11 +1,13 @@
-import torch
-from torch import einsum
-import torch.nn.functional as F
 import math
 
+import torch
+import torch.nn.functional as F
 from einops import rearrange, repeat
-from comfy.ldm.modules.attention import optimized_attention
+from torch import einsum
+
 from comfy import samplers
+from comfy.ldm.modules.attention import optimized_attention
+
 
 # from comfy/ldm/modules/attention.py
 # but modified to return attention scores as well as output
@@ -50,6 +52,7 @@ def attention_basic_with_sim(q, k, v, heads, mask=None, attn_precision=None):
     )
     return (out, sim)
 
+
 def create_blur_map(x0, attn, sigma=3.0, threshold=1.0):
     # reshape and GAP the attention map
     _, hw1, hw2 = attn.shape
@@ -57,7 +60,7 @@ def create_blur_map(x0, attn, sigma=3.0, threshold=1.0):
     attn = attn.reshape(b, -1, hw1, hw2)
     # Global Average Pool
     mask = attn.mean(1, keepdim=False).sum(1, keepdim=False) > threshold
-    ratio = 2**(math.ceil(math.sqrt(lh * lw / hw1)) - 1).bit_length()
+    ratio = 2 ** (math.ceil(math.sqrt(lh * lw / hw1)) - 1).bit_length()
     mid_shape = [math.ceil(lh / ratio), math.ceil(lw / ratio)]
 
     # Reshape
@@ -72,6 +75,7 @@ def create_blur_map(x0, attn, sigma=3.0, threshold=1.0):
     blurred = gaussian_blur_2d(x0, kernel_size=9, sigma=sigma)
     blurred = blurred * mask + x0 * (1 - mask)
     return blurred
+
 
 def gaussian_blur_2d(img, kernel_size, sigma):
     ksize_half = (kernel_size - 1) * 0.5
@@ -92,13 +96,15 @@ def gaussian_blur_2d(img, kernel_size, sigma):
     img = F.conv2d(img, kernel2d, groups=img.shape[-3])
     return img
 
+
 class SelfAttentionGuidance:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
+        return {"required": {"model": ("MODEL",),
                              "scale": ("FLOAT", {"default": 0.5, "min": -2.0, "max": 5.0, "step": 0.01}),
                              "blur_sigma": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 10.0, "step": 0.1}),
-                              }}
+                             }}
+
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
@@ -123,7 +129,7 @@ class SelfAttentionGuidance:
                 (out, sim) = attention_basic_with_sim(q, k, v, heads=heads, attn_precision=extra_options["attn_precision"])
                 # when using a higher batch size, I BELIEVE the result batch dimension is [uc1, ... ucn, c1, ... cn]
                 n_slices = heads * b
-                attn_scores = sim[n_slices * uncond_index:n_slices * (uncond_index+1)]
+                attn_scores = sim[n_slices * uncond_index:n_slices * (uncond_index + 1)]
                 return out
             else:
                 return optimized_attention(q, k, v, heads=heads, attn_precision=extra_options["attn_precision"])
@@ -142,7 +148,7 @@ class SelfAttentionGuidance:
             sigma = args["sigma"]
             model_options = args["model_options"]
             x = args["input"]
-            if min(cfg_result.shape[2:]) <= 4: #skip when too small to add padding
+            if min(cfg_result.shape[2:]) <= 4:  # skip when too small to add padding
                 return cfg_result
 
             # create the adversarially blurred image
@@ -158,7 +164,8 @@ class SelfAttentionGuidance:
         # unet.mid_block.attentions[0].transformer_blocks[0].attn1.patch
         m.set_model_attn1_replace(attn_and_record, "middle", 0, 0)
 
-        return (m, )
+        return (m,)
+
 
 NODE_CLASS_MAPPINGS = {
     "SelfAttentionGuidance": SelfAttentionGuidance,

@@ -6,7 +6,8 @@ from typing_extensions import NotRequired
 
 ImageBatch = Float[Tensor, "batch height width channels"]
 LatentBatch = Float[Tensor, "batch channels height width"]
-SD1LatentBatch = Float[Tensor, "batch 8 height width"]
+SD15LatentBatch = Float[Tensor, "batch 4 height width"]
+SDXLLatentBatch = Float[Tensor, "batch 8 height width"]
 SD3LatentBatch = Float[Tensor, "batch 16 height width"]
 MaskBatch = Float[Tensor, "batch height width"]
 RGBImageBatch = Float[Tensor, "batch height width 3"]

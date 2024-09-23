@@ -480,13 +480,6 @@ class LoadLatent:
         samples = {"samples": latent["latent_tensor"].float() * multiplier}
         return (samples, )
 
-    @classmethod
-    def IS_CHANGED(s, latent):
-        image_path = folder_paths.get_annotated_filepath(latent)
-        m = hashlib.sha256()
-        with open(image_path, 'rb') as f:
-            m.update(f.read())
-        return m.digest().hex()
 
     @classmethod
     def VALIDATE_INPUTS(s, latent):
@@ -1626,14 +1619,6 @@ class LoadImage:
         return (output_image, output_mask)
 
     @classmethod
-    def IS_CHANGED(s, image):
-        image_path = folder_paths.get_annotated_filepath(image)
-        m = hashlib.sha256()
-        with open(image_path, 'rb') as f:
-            m.update(f.read())
-        return m.digest().hex()
-
-    @classmethod
     def VALIDATE_INPUTS(s, image):
         if not folder_paths.exists_annotated_filepath(image):
             return "Invalid image file: {}".format(image)
@@ -1673,14 +1658,6 @@ class LoadImageMask:
         else:
             mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
         return (mask.unsqueeze(0),)
-
-    @classmethod
-    def IS_CHANGED(s, image, channel):
-        image_path = folder_paths.get_annotated_filepath(image)
-        m = hashlib.sha256()
-        with open(image_path, 'rb') as f:
-            m.update(f.read())
-        return m.digest().hex()
 
     @classmethod
     def VALIDATE_INPUTS(s, image):

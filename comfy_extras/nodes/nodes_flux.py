@@ -29,7 +29,7 @@ class FluxGuidance:
     def INPUT_TYPES(s):
         return {"required": {
             "conditioning": ("CONDITIONING", ),
-            "guidance": ("FLOAT", {"default": 3.5, "min": 0.0, "max": 100.0, "step": 0.1}),
+            "guidance": ("FLOAT", {"default": 3.5, "min": -100.0, "max": 100.0, "step": 0.1}),
             }}
 
     RETURN_TYPES = ("CONDITIONING",)
