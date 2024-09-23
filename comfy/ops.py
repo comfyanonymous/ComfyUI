@@ -260,7 +260,6 @@ def fp8_linear(self, input):
 
     if len(input.shape) == 3:
         inn = input.reshape(-1, input.shape[2]).to(dtype)
-        non_blocking = comfy.model_management.device_supports_non_blocking(input.device)
         w, bias = cast_bias_weight(self, input, dtype=dtype, bias_dtype=input.dtype)
         w = w.t()
 
