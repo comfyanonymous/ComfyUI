@@ -82,7 +82,10 @@ def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
 
 
 async def run(server, address='', port=8188, verbose=True, call_on_start=None):
-    await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
+    addresses = []
+    for addr in address.split(","):
+        addresses.append((addr, port))
+    await asyncio.gather(server.start_multi_address(addresses, call_on_start), server.publish_loop())
 
 
 def cleanup_temp():
@@ -223,12 +226,15 @@ async def main(from_script_dir: Optional[Path] = None):
             import webbrowser
             if os.name == 'nt' and address == '0.0.0.0' or address == '':
                 address = '127.0.0.1'
+            if ':' in address:
+                address = "[{}]".format(address)
             webbrowser.open(f"http://{address}:{port}")
 
         call_on_start = startup_server
 
     server.address = args.listen
     server.port = args.port
+
     try:
         await server.setup()
         await run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server,

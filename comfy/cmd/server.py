@@ -29,7 +29,7 @@ from can_ada import URL, parse as urlparse  # pylint: disable=no-name-in-module
 from typing_extensions import NamedTuple
 
 from .latent_preview_image_encoding import encode_preview_image
-from .. import interruption
+from .. import interruption, model_management
 from .. import node_helpers
 from .. import utils
 from ..api_server.routes.internal.internal_routes import InternalRoutes
@@ -255,6 +255,12 @@ class PromptServer(ExecutorToClientProgress):
         def get_embeddings(self):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
+
+        @routes.get("/models")
+        def list_model_types(request):
+            model_types = list(folder_paths.folder_names_and_paths.keys())
+
+            return web.json_response(model_types)
 
         @routes.get("/models/{folder}")
         async def get_models(request):
@@ -505,12 +511,17 @@ class PromptServer(ExecutorToClientProgress):
         async def system_stats(request):
             device = get_torch_device()
             device_name = get_torch_device_name(device)
+            cpu_device = model_management.torch.device("cpu")
+            ram_total = model_management.get_total_memory(cpu_device)
+            ram_free = model_management.get_free_memory(cpu_device)
             vram_total, torch_vram_total = get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = get_free_memory(device, torch_free_too=True)
 
             system_stats = {
                 "system": {
                     "os": os.name,
+                    "ram_total": ram_total,
+                    "ram_free": ram_free,
                     "comfyui_version": get_comfyui_version(),
                     "python_version": sys.version,
                     "pytorch_version": torch_version,
@@ -568,14 +579,15 @@ class PromptServer(ExecutorToClientProgress):
 
         @routes.get("/object_info")
         async def get_object_info(request):
-            out = {}
-            for x in self.nodes.NODE_CLASS_MAPPINGS:
-                try:
-                    out[x] = node_info(x)
-                except Exception as e:
-                    logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
-                    logging.error(traceback.format_exc())
-            return web.json_response(out)
+            with folder_paths.cache_helper:
+                out = {}
+                for x in self.nodes.NODE_CLASS_MAPPINGS:
+                    try:
+                        out[x] = node_info(x)
+                    except Exception as e:
+                        logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
+                        logging.error(traceback.format_exc())
+                return web.json_response(out)
 
         @routes.get("/object_info/{node_class}")
         async def get_object_info_node(request):
@@ -969,17 +981,29 @@ class PromptServer(ExecutorToClientProgress):
             await self.send(*msg)
 
     async def start(self, address: str | None, port: int | None, verbose=True, call_on_start=None):
+        await self.start_multi_address([(address, port)], call_on_start=call_on_start, verbose=verbose)
+
+    async def start_multi_address(self, addresses, call_on_start=None, verbose=True):
         runner = web.AppRunner(self.app, access_log=None)
         await runner.setup()
-        site = web.TCPSite(runner, host=address, port=port)
-        await site.start()
+        for addr in addresses:
+            address = addr[0]
+            port = addr[1]
+            site = web.TCPSite(runner, address, port)
+            await site.start()
 
-        self.address = address
-        self.port = port
+            if not hasattr(self, 'address'):
+                self.address = address #TODO: remove this
+                self.port = port
+
+            if ':' in address:
+                address_print = "[{}]".format(address)
+            else:
+                address_print = address
 
         if verbose:
             logging.info("Starting server")
-            logging.info("To see the GUI go to: http://{}:{}".format("localhost" if address == "0.0.0.0" else address, port))
+            logging.info("To see the GUI go to: http://{}:{}".format("localhost" if address_print == "0.0.0.0" else address, port))
         if call_on_start is not None:
             call_on_start(address, port)
 

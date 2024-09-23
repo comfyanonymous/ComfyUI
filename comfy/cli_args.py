@@ -28,8 +28,8 @@ def _create_parser() -> EnhancedConfigArgParser:
 
     parser.add_argument('-w', "--cwd", type=str, default=None,
                         help="Specify the working directory. If not set, this is the current working directory. models/, input/, output/ and other directories will be located here by default.")
-    parser.add_argument('-H', "--listen", type=str, default="127.0.0.1", metavar="IP", nargs="?", const="0.0.0.0",
-                        help="Specify the IP address to listen on (default: 127.0.0.1). If --listen is provided without an argument, it defaults to 0.0.0.0. (listens on all)")
+    parser.add_argument('-H', "--listen", type=str, default="127.0.0.1", metavar="IP", nargs="?", const="0.0.0.0,::",
+                        help="Specify the IP address to listen on (default: 127.0.0.1). You can give a list of ip addresses by separating them with a comma like: 127.2.2.2,127.3.3.3 If --listen is provided without an argument, it defaults to 0.0.0.0,:: (listens on all ipv4 and ipv6)")
     parser.add_argument("--port", type=int, default=8188, help="Set the listen port.")
     parser.add_argument("--enable-cors-header", type=str, default=None, metavar="ORIGIN", nargs="?", const="*",
                         help="Enable CORS (Cross-Origin Resource Sharing) with optional origin or allow all with default '*'.")

@@ -76,14 +76,14 @@ class CLIP:
         clip = target.clip
         tokenizer = target.tokenizer
 
-        load_device = model_management.text_encoder_device()
-        offload_device = model_management.text_encoder_offload_device()
+        load_device = model_options.get("load_device", model_management.text_encoder_device())
+        offload_device = model_options.get("offload_device", model_management.text_encoder_offload_device())
         dtype = model_options.get("dtype", None)
         if dtype is None:
             dtype = model_management.text_encoder_dtype(load_device)
 
         params['dtype'] = dtype
-        params['device'] = model_management.text_encoder_initial_device(load_device, offload_device, parameters * model_management.dtype_size(dtype))
+        params['device'] = model_options.get("initial_device", model_management.text_encoder_initial_device(load_device, offload_device, parameters * model_management.dtype_size(dtype)))
         if "textmodel_json_config" not in params and textmodel_json_config is not None:
             params['textmodel_json_config'] = textmodel_json_config
 
@@ -469,12 +469,8 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.tokenizer = sa_t5.SAT5Tokenizer
         else:
             w = clip_data[0].get("text_model.embeddings.position_embedding.weight", None)
-            if w is not None and w.shape[0] == 248:
-                clip_target.clip = long_clipl.LongClipModel
-                clip_target.tokenizer = long_clipl.LongClipTokenizer
-            else:
-                clip_target.clip = sd1_clip.SD1ClipModel
-                clip_target.tokenizer = sd1_clip.SD1Tokenizer
+            clip_target.clip = sd1_clip.SD1ClipModel
+            clip_target.tokenizer = sd1_clip.SD1Tokenizer
     elif len(clip_data) == 2:
         if clip_type == CLIPType.SD3:
             clip_target.clip = sd3_clip.sd3_clip(clip_l=True, clip_g=True, t5=False)
@@ -499,10 +495,12 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         clip_target.tokenizer = sd3_clip.SD3Tokenizer
 
     parameters = 0
+    tokenizer_data = {}
     for c in clip_data:
         parameters += utils.calculate_parameters(c)
+        tokenizer_data, model_options = long_clipl.model_options_long_clip(c, tokenizer_data, model_options)
 
-    clip = CLIP(clip_target, embedding_directory=embedding_directory, textmodel_json_config=textmodel_json_config, parameters=parameters, model_options=model_options)
+    clip = CLIP(clip_target, embedding_directory=embedding_directory, textmodel_json_config=textmodel_json_config, parameters=parameters, tokenizer_data=tokenizer_data, model_options=model_options)
     for c in clip_data:
         m, u = clip.load_sd(c)
         if len(m) > 0:
@@ -548,14 +546,22 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
 
     return (model, clip, vae)
 
-def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options={}, te_model_options={}):
+def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options=None, te_model_options=None):
+    if te_model_options is None:
+        te_model_options = {}
+    if model_options is None:
+        model_options = {}
     sd = utils.load_torch_file(ckpt_path)
-    out = load_state_dict_guess_config(sd, output_vae, output_clip, output_clipvision, embedding_directory, output_model, model_options, te_model_options=te_model_options)
+    out = load_state_dict_guess_config(sd, output_vae, output_clip, output_clipvision, embedding_directory, output_model, model_options, te_model_options=te_model_options, ckpt_path=ckpt_path)
     if out is None:
         raise RuntimeError("Could not detect model type of: {}".format(ckpt_path))
     return out
 
-def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options={}, te_model_options={}, ckpt_path=""):
+def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options=None, te_model_options=None, ckpt_path=""):
+    if te_model_options is None:
+        te_model_options = {}
+    if model_options is None:
+        model_options = {}
     clip = None
     clipvision = None
     vae = None
@@ -632,7 +638,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
     return (_model_patcher, clip, vae, clipvision)
 
 
-def load_diffusion_model_state_dict(sd, model_options: dict = None):  # load unet in diffusers or regular format
+def load_diffusion_model_state_dict(sd, model_options: dict = None, ckpt_path: Optional[str]=""):  # load unet in diffusers or regular format
     if model_options is None:
         model_options = {}
     dtype = model_options.get("dtype", None)
@@ -677,21 +683,21 @@ def load_diffusion_model_state_dict(sd, model_options: dict = None):  # load une
 
     manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
-    model_config.custom_operations = model_options.get("custom_operations", None)
+    model_config.custom_operations = model_options.get("custom_operations", model_config.custom_operations)
     model = model_config.get_model(new_sd, "")
     model = model.to(offload_device)
     model.load_model_weights(new_sd, "")
     left_over = sd.keys()
     if len(left_over) > 0:
         logging.info("left over keys in unet: {}".format(left_over))
-    return model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device)
+    return model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device, ckpt_name=os.path.basename(ckpt_path))
 
 
 def load_diffusion_model(unet_path, model_options: dict = None):
     if model_options is None:
         model_options = {}
     sd = utils.load_torch_file(unet_path)
-    model = load_diffusion_model_state_dict(sd, model_options=model_options)
+    model = load_diffusion_model_state_dict(sd, model_options=model_options, ckpt_path=unet_path)
     if model is None:
         logging.error("ERROR UNSUPPORTED UNET {}".format(unet_path))
         raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))

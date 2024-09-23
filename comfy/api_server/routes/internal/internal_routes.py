@@ -1,10 +1,9 @@
-import logging
 from typing import Optional
 
 from aiohttp import web
 
 from ...services.file_service import FileService
-from ....cmd.folder_paths import models_dir, user_directory, output_directory
+from ....cmd.folder_paths import models_dir, user_directory, output_directory, folder_names_and_paths
 
 
 class InternalRoutes:
@@ -40,6 +39,13 @@ class InternalRoutes:
         async def get_logs(request):
             # todo: applications really shouldn't serve logs like this
             return web.json_response({})
+
+        @self.routes.get('/folder_paths')
+        async def get_folder_paths(request):
+            response = {}
+            for key in folder_names_and_paths:
+                response[key] = folder_names_and_paths[key][0]
+            return web.json_response(response)
 
     def get_app(self):
         if self._app is None:

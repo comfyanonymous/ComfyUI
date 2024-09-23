@@ -199,6 +199,8 @@ Visit the repository, accept the terms, and then do one of the following:
             # a path was found for any reason, so we should invalidate the cache
             if path is not None:
                 folder_paths.invalidate_cache(folder_name)
+    if path is None:
+        raise FileNotFoundError(f"Model in folder '{folder_name}' with filename '{filename}' not found, and no download candidates matched for the filename.")
     return path
 
 

@@ -414,7 +414,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
             weight *= strength_model
 
         if isinstance(v, list):
-            v = (calculate_weight(v[1:], v[0].clone(), key, intermediate_dtype=intermediate_dtype),)
+            v = (calculate_weight(v[1:], model_management.cast_to_device(v[0], weight.device, intermediate_dtype, copy=True), key, intermediate_dtype=intermediate_dtype),)
 
         patch_type = ""
         if len(v) == 1:

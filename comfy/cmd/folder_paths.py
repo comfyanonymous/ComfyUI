@@ -51,7 +51,46 @@ temp_directory = os.path.join(get_base_path(), "temp")
 input_directory = os.path.join(get_base_path(), "input")
 user_directory = os.path.join(get_base_path(), "user")
 
-_filename_list_cache = {}
+filename_list_cache = {}
+
+
+class CacheHelper:
+    """
+    Helper class for managing file list cache data.
+    """
+
+    def __init__(self):
+        self.cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
+        self.active = False
+
+    def get(self, key: str, default=None) -> tuple[list[str], dict[str, float], float]:
+        if not self.active:
+            return default
+        return self.cache.get(key, default)
+
+    def set(self, key: str, value: tuple[list[str], dict[str, float], float]) -> None:
+        if self.active:
+            self.cache[key] = value
+
+    def clear(self):
+        self.cache.clear()
+
+    def __enter__(self):
+        self.active = True
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.active = False
+        self.clear()
+
+
+cache_helper = CacheHelper()
+
+
+def map_legacy(folder_name: str) -> str:
+    legacy = {"unet": "diffusion_models"}
+    return legacy.get(folder_name, folder_name)
+
 
 if not os.path.exists(input_directory):
     try:
@@ -150,7 +189,7 @@ def exists_annotated_filepath(name):
     return os.path.exists(filepath)
 
 
-def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, extensions: Optional[set[str]] = None) -> str:
+def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, extensions: Optional[set[str]] = None, is_default: bool = False) -> str:
     """
     Registers a model path for the given canonical name.
     :param folder_name: the folder name
@@ -165,7 +204,10 @@ def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, e
 
     folder_path = folder_names_and_paths[folder_name]
     if full_folder_path not in folder_path.paths:
-        folder_path.paths.append(full_folder_path)
+        if is_default:
+            folder_path.paths.insert(0, full_folder_path)
+        else:
+            folder_path.paths.append(full_folder_path)
 
     if extensions is not None:
         folder_path.supported_extensions |= extensions
@@ -244,7 +286,15 @@ def get_full_path(folder_name, filename) -> Optional[str | bytes | os.PathLike]:
     return None
 
 
-def get_filename_list_(folder_name):
+def get_full_path_or_raise(folder_name: str, filename: str) -> str:
+    full_path = get_full_path(folder_name, filename)
+    if full_path is None:
+        raise FileNotFoundError(f"Model in folder '{folder_name}' with filename '{filename}' not found.")
+    return full_path
+
+
+def get_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], float]:
+    folder_name = map_legacy(folder_name)
     global folder_names_and_paths
     output_list = set()
     folders = folder_names_and_paths[folder_name]
@@ -257,12 +307,17 @@ def get_filename_list_(folder_name):
     return sorted(list(output_list)), output_folders, time.perf_counter()
 
 
-def cached_filename_list_(folder_name):
-    global _filename_list_cache
+def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], float] | None:
+    strong_cache = cache_helper.get(folder_name)
+    if strong_cache is not None:
+        return strong_cache
+
+    global filename_list_cache
     global folder_names_and_paths
-    if folder_name not in _filename_list_cache:
+    folder_name = map_legacy(folder_name)
+    if folder_name not in filename_list_cache:
         return None
-    out = _filename_list_cache[folder_name]
+    out = filename_list_cache[folder_name]
 
     for x in out[1]:
         time_modified = out[1][x]
@@ -279,12 +334,14 @@ def cached_filename_list_(folder_name):
     return out
 
 
-def get_filename_list(folder_name):
+def get_filename_list(folder_name: str) -> list[str]:
+    folder_name = map_legacy(folder_name)
     out = cached_filename_list_(folder_name)
     if out is None:
         out = get_filename_list_(folder_name)
-        global _filename_list_cache
-        _filename_list_cache[folder_name] = out
+        global filename_list_cache
+        filename_list_cache[folder_name] = out
+    cache_helper.set(folder_name, out)
     return list(out[0])
 
 
@@ -345,8 +402,8 @@ def create_directories():
 
 
 def invalidate_cache(folder_name):
-    global _filename_list_cache
-    _filename_list_cache.pop(folder_name, None)
+    global filename_list_cache
+    filename_list_cache.pop(folder_name, None)
 
 
 def filter_files_content_types(files: list[str], content_types: list[Literal["image", "video", "audio"]]) -> list[str]:

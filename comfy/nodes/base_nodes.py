@@ -696,11 +696,11 @@ class VAELoader:
         encoder = next(filter(lambda a: a.startswith("{}_encoder.".format(name)), approx_vaes))
         decoder = next(filter(lambda a: a.startswith("{}_decoder.".format(name)), approx_vaes))
 
-        enc = utils.load_torch_file(folder_paths.get_full_path("vae_approx", encoder))
+        enc = utils.load_torch_file(folder_paths.get_full_path_or_raise("vae_approx", encoder))
         for k in enc:
             sd_["taesd_encoder.{}".format(k)] = enc[k]
 
-        dec = utils.load_torch_file(folder_paths.get_full_path("vae_approx", decoder))
+        dec = utils.load_torch_file(folder_paths.get_full_path_or_raise("vae_approx", decoder))
         for k in dec:
             sd_["taesd_decoder.{}".format(k)] = dec[k]
 
@@ -769,7 +769,13 @@ class ControlNetLoaderWeights:
 
     def load_controlnet(self, control_net_name, weight_dtype):
         controlnet_path = get_or_download("controlnet", control_net_name, KNOWN_CONTROLNETS)
-        controlnet_ = controlnet.load_controlnet(controlnet_path, weight_dtype=weight_dtype)
+        model_options = {}
+        if weight_dtype == "float8_e5m2":
+            model_options["dtype"] = torch.float8_e5m2
+        elif weight_dtype == "float8_e4m3fn":
+            model_options["dtype"] = torch.float8_e4m3fn
+
+        controlnet_ = controlnet.load_controlnet(controlnet_path, model_options=model_options)
         return (controlnet_,)
 
 class DiffControlNetLoader:
@@ -800,6 +806,7 @@ class ControlNetApply:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_controlnet"
 
+    DEPRECATED = True
     CATEGORY = "conditioning/controlnet"
 
     def apply_controlnet(self, conditioning, control_net, image: RGBImageBatch, strength):
@@ -829,7 +836,10 @@ class ControlNetApplyAdvanced:
                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                              "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
                              "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
-                             }}
+                             },
+                "optional": {"vae": ("VAE", ),
+                             }
+    }
 
     RETURN_TYPES = ("CONDITIONING","CONDITIONING")
     RETURN_NAMES = ("positive", "negative")
@@ -837,7 +847,7 @@ class ControlNetApplyAdvanced:
 
     CATEGORY = "conditioning/controlnet"
 
-    def apply_controlnet(self, positive, negative, control_net, image, strength, start_percent, end_percent, vae=None):
+    def apply_controlnet(self, positive, negative, control_net, image, strength, start_percent, end_percent, vae=None, extra_concat=[]):
         if strength == 0:
             return (positive, negative)
 
@@ -854,7 +864,7 @@ class ControlNetApplyAdvanced:
                 if prev_cnet in cnets:
                     c_net = cnets[prev_cnet]
                 else:
-                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent), vae)
+                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent), vae=vae, extra_concat=extra_concat)
                     c_net.set_previous_controlnet(prev_cnet)
                     cnets[prev_cnet] = c_net
 
@@ -1932,8 +1942,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ConditioningSetAreaPercentage": "Conditioning (Set Area with Percentage)",
     "ConditioningSetMask": "Conditioning (Set Mask)",
-    "ControlNetApply": "Apply ControlNet",
-    "ControlNetApplyAdvanced": "Apply ControlNet (Advanced)",
+    "ControlNetApply": "Apply ControlNet (OLD)",
+    "ControlNetApplyAdvanced": "Apply ControlNet",
     # Latent
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
     "SetLatentNoiseMask": "Set Latent Noise Mask",
