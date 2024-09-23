@@ -109,19 +109,18 @@ async def test_download_model_success(temp_dir):
     mock_make_request.assert_called_once_with('http://example.com/model.sft')
 
 @pytest.mark.asyncio
-async def test_download_model_url_request_failure():
+async def test_download_model_url_request_failure(temp_dir):
     # Mock dependencies
     mock_response = AsyncMock(spec=ClientResponse)
     mock_response.status = 404  # Simulate a "Not Found" error
     mock_get = AsyncMock(return_value=mock_response)
     mock_progress_callback = AsyncMock()
     
-    fake_paths = {'checkpoints': (['mock_directory'], folder_paths.supported_pt_extensions)}
+    fake_paths = {'checkpoints': ([temp_dir], folder_paths.supported_pt_extensions)}
 
     # Mock the create_model_path function
     with patch('model_filemanager.create_model_path', return_value='/mock/path/model.safetensors'), \
          patch('model_filemanager.check_file_exists', return_value=None), \
-         patch('folder_paths.get_folder_paths', return_value=['mock_directory']), \
          patch('folder_paths.folder_names_and_paths', fake_paths):
         # Call the function
         result = await download_model(
@@ -129,7 +128,7 @@ async def test_download_model_url_request_failure():
             'model.safetensors',
             'http://example.com/model.safetensors',
             'checkpoints',
-            'mock_directory',
+            temp_dir,
             mock_progress_callback
         )
 
