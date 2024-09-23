@@ -95,6 +95,7 @@ class SC_Prior(LatentFormat):
             [ 0.0542,  0.1545,  0.1325],
             [-0.0352, -0.1672, -0.2541]
         ]
+    taesd_decoder_name = "previewer.safetensors"
 
 class SC_B(LatentFormat):
     def __init__(self):

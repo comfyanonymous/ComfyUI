@@ -8,6 +8,7 @@ import comfy.model_management
 import folder_paths
 import comfy.utils
 import logging
+from comfy.ldm.cascade.stage_c_coder import Previewer
 
 MAX_PREVIEW_RESOLUTION = args.preview_size
 
@@ -33,6 +34,17 @@ class TAESDPreviewerImpl(LatentPreviewer):
     def decode_latent_to_preview(self, x0):
         x_sample = self.taesd.decode(x0[:1])[0].movedim(0, 2)
         return preview_to_image(x_sample)
+
+
+class StageCPreviewer(Previewer):
+    def __init__(self, path):
+        super().__init__()
+        sd = comfy.utils.load_torch_file(path, safe_load=True)
+        self.load_state_dict(sd, strict=True)
+        self.eval()
+
+    def decode(self, latent):
+        return self(latent)
 
 
 class Latent2RGBPreviewer(LatentPreviewer):
@@ -64,7 +76,10 @@ def get_previewer(device, latent_format):
 
         if method == LatentPreviewMethod.TAESD:
             if taesd_decoder_path:
-                taesd = TAESD(None, taesd_decoder_path, latent_channels=latent_format.latent_channels).to(device)
+                if 'previewer' in taesd_decoder_path:
+                    taesd = StageCPreviewer(taesd_decoder_path).to(device)
+                else:
+                    taesd = TAESD(None, taesd_decoder_path, latent_channels=latent_format.latent_channels).to(device)
                 previewer = TAESDPreviewerImpl(taesd)
             else:
                 logging.warning("Warning: TAESD previews enabled, but could not find models/vae_approx/{}".format(latent_format.taesd_decoder_name))
