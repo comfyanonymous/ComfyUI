@@ -817,6 +817,9 @@ class PromptServer():
             await self.send(*msg)
 
     async def start(self, address, port, verbose=True, call_on_start=None):
+        await self.start_multi_address([(address, port)], call_on_start=call_on_start)
+
+    async def start_multi_address(self, addresses, call_on_start=None):
         runner = web.AppRunner(self.app, access_log=None)
         await runner.setup()
         ssl_ctx = None
@@ -827,17 +830,26 @@ class PromptServer():
                                 keyfile=args.tls_keyfile)
                 scheme = "https"
 
-        site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
-        await site.start()
+        logging.info("Starting server\n")
+        for addr in addresses:
+            address = addr[0]
+            port = addr[1]
+            site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
+            await site.start()
 
-        self.address = address
-        self.port = port
+            if not hasattr(self, 'address'):
+                self.address = address #TODO: remove this
+                self.port = port
 
-        if verbose:
-            logging.info("Starting server\n")
-            logging.info("To see the GUI go to: {}://{}:{}".format(scheme, address, port))
+            if ':' in address:
+                address_print = "[{}]".format(address)
+            else:
+                address_print = address
+
+            logging.info("To see the GUI go to: {}://{}:{}".format(scheme, address_print, port))
+
         if call_on_start is not None:
-            call_on_start(scheme, address, port)
+            call_on_start(scheme, self.address, self.port)
 
     def add_on_prompt_handler(self, handler):
         self.on_prompt_handlers.append(handler)
