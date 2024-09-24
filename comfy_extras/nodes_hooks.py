@@ -65,7 +65,6 @@ class ConditioningSetProperties:
         }
 
     RETURN_TYPES = ("CONDITIONING",)
-    RETURN_NAMES = ("positive", "negative")
     CATEGORY = "advanced/hooks/cond single"
     FUNCTION = "set_properties"
 

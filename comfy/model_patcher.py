@@ -433,6 +433,12 @@ class ModelPatcher:
     def set_model_output_block_patch(self, patch):
         self.set_model_patch(patch, "output_block_patch")
 
+    def set_model_emb_patch(self, patch):
+        self.set_model_patch(patch, "emb_patch")
+
+    def set_model_forward_timestep_embed_patch(self, patch):
+        self.set_model_patch(patch, "forward_timestep_embed_patch")
+
     def add_object_patch(self, name, obj):
         self.object_patches[name] = obj
 
@@ -769,12 +775,6 @@ class ModelPatcher:
         for callback in self.get_all_callbacks(CallbacksMP.ON_CLEANUP):
             callback(self)
 
-    def get_all_additional_models(self):
-        all_models = []
-        for models in self.additional_models.values():
-            all_models.extend(models)
-        return all_models
-
     def add_callback(self, call_type: str, callback: Callable):
         self.add_callback_with_key(call_type, None, callback)
 
@@ -784,6 +784,11 @@ class ModelPatcher:
         c = self.callbacks[call_type].setdefault(key, [])
         c.append(callback)
     
+    def remove_callbacks_with_key(self, call_type: str, key: str):
+        c = self.callbacks.get(call_type, {})
+        if key in c:
+            c.pop(key)
+
     def get_callbacks(self, call_type: str, key: str):
         return self.callbacks.get(call_type, {}).get(key, [])
     
@@ -802,6 +807,11 @@ class ModelPatcher:
         w = self.wrappers[wrapper_type].setdefault(key, [])
         w.append(wrapper)
     
+    def remove_wrappers_with_key(self, wrapper_type: str, key: str):
+        w = self.wrappers.get(wrapper_type, {})
+        if key in w:
+            w.pop(key)
+
     def get_wrappers(self, wrapper_type: str, key: str):
         return self.wrappers.get(wrapper_type, {}).get(key, [])
 
@@ -814,11 +824,29 @@ class ModelPatcher:
     def set_attachments(self, key: str, attachment):
         self.attachments[key] = attachment
     
+    def remove_attachments(self, key: str):
+        if key in self.attachments:
+            self.attachments.pop(key)
+
     def set_injections(self, key: str, injections: List[PatcherInjection]):
         self.injections[key] = injections
 
+    def remove_injections(self, key: str):
+        if key in self.injections:
+            self.injections.pop(key)
+
     def set_additional_models(self, key: str, models: List['ModelPatcher']):
         self.additional_models[key] = models
+
+    def remove_additional_models(self, key: str):
+        if key in self.additional_models:
+            self.additional_models.pop(key)
+
+    def get_all_additional_models(self):
+        all_models = []
+        for models in self.additional_models.values():
+            all_models.extend(models)
+        return all_models
 
     def use_ejected(self, skip_and_inject_on_exit_only=False):
         return AutoPatcherEjector(self, skip_and_inject_on_exit_only=skip_and_inject_on_exit_only)

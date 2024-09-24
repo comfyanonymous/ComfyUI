@@ -32,12 +32,18 @@ class EnumWeightTarget(enum.Enum):
 class _HookRef:
     pass
 
+# NOTE: this is an example of how the should_register function should look
+def default_should_register(hook: 'Hook', model: 'ModelPatcher', target: EnumWeightTarget):
+    return True
+
+
 class Hook:
     def __init__(self, hook_type: EnumHookType=None, hook_ref: _HookRef=None,
                  hook_keyframe: 'HookKeyframeGroup'=None):
         self.hook_type = hook_type
         self.hook_ref = hook_ref if hook_ref else _HookRef()
         self.hook_keyframe = hook_keyframe if hook_keyframe else HookKeyframeGroup()
+        self.custom_should_register = default_should_register
 
     @property
     def strength(self):
@@ -57,14 +63,17 @@ class Hook:
         c.hook_type = self.hook_type
         c.hook_ref = self.hook_ref
         c.hook_keyframe = self.hook_keyframe
+        c.custom_should_register = self.custom_should_register
         return c
+
+    def should_register(self, model: 'ModelPatcher', target: EnumWeightTarget):
+        return self.custom_should_register(self, model, target)
 
     def __eq__(self, other: 'Hook'):
         return self.__class__ == other.__class__ and self.hook_ref == other.hook_ref
 
     def __hash__(self):
         return hash(self.hook_ref)
-
 
 class WeightHook(Hook):
     def __init__(self, strength_model=1.0, strength_clip=1.0):
@@ -85,6 +94,8 @@ class WeightHook(Hook):
         return self._strength_clip * self.strength
 
     def add_hook_patches(self, model: 'ModelPatcher', target: EnumWeightTarget):
+        if not self.should_register(model, target):
+            return
         weights = None
         if target == EnumWeightTarget.Model:
             strength = self._strength_model

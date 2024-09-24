@@ -47,6 +47,15 @@ def forward_timestep_embed(ts, x, emb, context=None, transformer_options={}, out
         elif isinstance(layer, Upsample):
             x = layer(x, output_shape=output_shape)
         else:
+            if "patches" in transformer_options and "forward_timestep_embed_patch" in transformer_options["patches"]:
+                found_patched = False
+                for class_type, handler in transformer_options["patches"]["forward_timestep_embed_patch"]:
+                    if isinstance(layer, class_type):
+                        x = handler(layer, x, emb, context, transformer_options, output_shape, time_context, num_video_frames, image_only_indicator)
+                        found_patched = True
+                        break
+                if found_patched:
+                    continue
             x = layer(x)
     return x
 
