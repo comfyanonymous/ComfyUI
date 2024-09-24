@@ -4,6 +4,9 @@ from comfy.cli_args import args, LatentPreviewMethod
 import comfy.model_management
 import comfy.utils
 
+# Import this here to avoid breaking ComfyUI-Impact-Pack
+from comfy.taesd.taesd import TAESD
+
 MAX_PREVIEW_RESOLUTION = args.preview_size
 
 def preview_to_image(latent_image):
