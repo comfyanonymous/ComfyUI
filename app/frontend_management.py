@@ -8,7 +8,7 @@ import zipfile
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import TypedDict
+from typing import TypedDict, Optional
 
 import requests
 from typing_extensions import NotRequired
@@ -132,12 +132,13 @@ class FrontendManager:
         return match_result.group(1), match_result.group(2), match_result.group(3)
 
     @classmethod
-    def init_frontend_unsafe(cls, version_string: str) -> str:
+    def init_frontend_unsafe(cls, version_string: str, provider: Optional[FrontEndProvider] = None) -> str:
         """
         Initializes the frontend for the specified version.
 
         Args:
             version_string (str): The version string.
+            provider (FrontEndProvider, optional): The provider to use. Defaults to None.
 
         Returns:
             str: The path to the initialized frontend.
@@ -150,7 +151,7 @@ class FrontendManager:
             return cls.DEFAULT_FRONTEND_PATH
 
         repo_owner, repo_name, version = cls.parse_version_string(version_string)
-        provider = FrontEndProvider(repo_owner, repo_name)
+        provider = provider or FrontEndProvider(repo_owner, repo_name)
         release = provider.get_release(version)
 
         semantic_version = release["tag_name"].lstrip("v")
@@ -158,15 +159,21 @@ class FrontendManager:
             Path(cls.CUSTOM_FRONTENDS_ROOT) / provider.folder_name / semantic_version
         )
         if not os.path.exists(web_root):
-            os.makedirs(web_root, exist_ok=True)
-            logging.info(
-                "Downloading frontend(%s) version(%s) to (%s)",
-                provider.folder_name,
-                semantic_version,
-                web_root,
-            )
-            logging.debug(release)
-            download_release_asset_zip(release, destination_path=web_root)
+            try:
+                os.makedirs(web_root, exist_ok=True)
+                logging.info(
+                    "Downloading frontend(%s) version(%s) to (%s)",
+                    provider.folder_name,
+                    semantic_version,
+                    web_root,
+                )
+                logging.debug(release)
+                download_release_asset_zip(release, destination_path=web_root)
+            finally:
+                # Clean up the directory if it is empty, i.e. the download failed
+                if not os.listdir(web_root):
+                    os.rmdir(web_root)
+
         return web_root
 
     @classmethod

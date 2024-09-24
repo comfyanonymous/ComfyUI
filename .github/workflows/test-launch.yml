@@ -1,0 +1,45 @@
+name: Test server launches without errors
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout ComfyUI
+      uses: actions/checkout@v4
+      with:
+        repository: "comfyanonymous/ComfyUI"
+        path: "ComfyUI"
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+    - name: Install requirements
+      run: |
+        python -m pip install --upgrade pip
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        pip install -r requirements.txt
+        pip install wait-for-it
+      working-directory: ComfyUI
+    - name: Start ComfyUI server
+      run: |
+        python main.py --cpu 2>&1 | tee console_output.log &
+        wait-for-it --service 127.0.0.1:8188 -t 600
+      working-directory: ComfyUI
+    - name: Check for unhandled exceptions in server log
+      run: |
+        if grep -qE "Exception|Error" console_output.log; then
+          echo "Unhandled exception/error found in server log."
+          exit 1
+        fi
+      working-directory: ComfyUI
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: console-output
+        path: ComfyUI/console_output.log
+        retention-days: 30

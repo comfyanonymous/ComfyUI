@@ -372,7 +372,7 @@ class HunYuanDiT(nn.Module):
         for layer, block in enumerate(self.blocks):
             if layer > self.depth // 2:
                 if controls is not None:
-                    skip = skips.pop() + controls.pop()
+                    skip = skips.pop() + controls.pop().to(dtype=x.dtype)
                 else:
                     skip = skips.pop()
                 x = block(x, c, text_states, freqs_cis_img, skip)   # (N, L, D)

@@ -15,9 +15,9 @@ class TripleCLIPLoader:
     CATEGORY = "advanced/loaders"
 
     def load_clip(self, clip_name1, clip_name2, clip_name3):
-        clip_path1 = folder_paths.get_full_path("clip", clip_name1)
-        clip_path2 = folder_paths.get_full_path("clip", clip_name2)
-        clip_path3 = folder_paths.get_full_path("clip", clip_name3)
+        clip_path1 = folder_paths.get_full_path_or_raise("clip", clip_name1)
+        clip_path2 = folder_paths.get_full_path_or_raise("clip", clip_name2)
+        clip_path3 = folder_paths.get_full_path_or_raise("clip", clip_name3)
         clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2, clip_path3], embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return (clip,)
 
@@ -36,7 +36,7 @@ class EmptySD3LatentImage:
     CATEGORY = "latent/sd3"
 
     def generate(self, width, height, batch_size=1):
-        latent = torch.ones([batch_size, 16, height // 8, width // 8], device=self.device) * 0.0609
+        latent = torch.zeros([batch_size, 16, height // 8, width // 8], device=self.device)
         return ({"samples":latent}, )
 
 class CLIPTextEncodeSD3:
@@ -93,6 +93,7 @@ class ControlNetApplySD3(nodes.ControlNetApplyAdvanced):
                              "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
                              }}
     CATEGORY = "conditioning/controlnet"
+    DEPRECATED = True
 
 NODE_CLASS_MAPPINGS = {
     "TripleCLIPLoader": TripleCLIPLoader,
@@ -103,5 +104,5 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     # Sampling
-    "ControlNetApplySD3": "ControlNetApply SD3 and HunyuanDiT",
+    "ControlNetApplySD3": "Apply Controlnet with VAE",
 }

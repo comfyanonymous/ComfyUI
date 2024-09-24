@@ -7,9 +7,9 @@ import os
 import torch
 
 class HyditBertModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None):
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, model_options={}):
         textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "hydit_clip.json")
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"start": 101, "end": 102, "pad": 0}, model_class=BertModel, enable_attention_masks=True, return_attention_masks=True)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"start": 101, "end": 102, "pad": 0}, model_class=BertModel, enable_attention_masks=True, return_attention_masks=True, model_options=model_options)
 
 class HyditBertTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
@@ -18,9 +18,9 @@ class HyditBertTokenizer(sd1_clip.SDTokenizer):
 
 
 class MT5XLModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None):
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, model_options={}):
         textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "mt5_config_xl.json")
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=comfy.text_encoders.t5.T5, enable_attention_masks=True, return_attention_masks=True)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=comfy.text_encoders.t5.T5, enable_attention_masks=True, return_attention_masks=True, model_options=model_options)
 
 class MT5XLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
@@ -50,10 +50,10 @@ class HyditTokenizer:
         return {"mt5xl.spiece_model": self.mt5xl.state_dict()["spiece_model"]}
 
 class HyditModel(torch.nn.Module):
-    def __init__(self, device="cpu", dtype=None):
+    def __init__(self, device="cpu", dtype=None, model_options={}):
         super().__init__()
-        self.hydit_clip = HyditBertModel(dtype=dtype)
-        self.mt5xl = MT5XLModel(dtype=dtype)
+        self.hydit_clip = HyditBertModel(dtype=dtype, model_options=model_options)
+        self.mt5xl = MT5XLModel(dtype=dtype, model_options=model_options)
 
         self.dtypes = set()
         if dtype is not None:

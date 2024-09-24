@@ -75,6 +75,25 @@ else:
 print("pulling latest changes")
 pull(repo)
 
+if "--stable" in sys.argv:
+    def latest_tag(repo):
+        versions = []
+        for k in repo.references:
+            try:
+                prefix = "refs/tags/v"
+                if k.startswith(prefix):
+                    version = list(map(int, k[len(prefix):].split(".")))
+                    versions.append((version[0] * 10000000000 + version[1] * 100000 + version[2], k))
+            except:
+                pass
+        versions.sort()
+        if len(versions) > 0:
+            return versions[-1][1]
+        return None
+    latest_tag = latest_tag(repo)
+    if latest_tag is not None:
+        repo.checkout(latest_tag)
+
 print("Done!")
 
 self_update = True
@@ -115,3 +134,13 @@ if not os.path.exists(req_path) or not files_equal(repo_req_path, req_path):
         shutil.copy(repo_req_path, req_path)
     except:
         pass
+
+
+stable_update_script = os.path.join(repo_path, ".ci/update_windows/update_comfyui_stable.bat")
+stable_update_script_to = os.path.join(cur_path, "update_comfyui_stable.bat")
+
+try:
+    if not file_size(stable_update_script_to) > 10:
+        shutil.copy(stable_update_script, stable_update_script_to)
+except:
+    pass

@@ -38,18 +38,20 @@ def get_images(ws, prompt):
                 if data['node'] is None and data['prompt_id'] == prompt_id:
                     break #Execution is done
         else:
+            # If you want to be able to decode the binary stream for latent previews, here is how you can do it:
+            # bytesIO = BytesIO(out[8:])
+            # preview_image = Image.open(bytesIO) # This is your preview in PIL image format, store it in a global
             continue #previews are binary data
 
     history = get_history(prompt_id)[prompt_id]
-    for o in history['outputs']:
-        for node_id in history['outputs']:
-            node_output = history['outputs'][node_id]
-            if 'images' in node_output:
-                images_output = []
-                for image in node_output['images']:
-                    image_data = get_image(image['filename'], image['subfolder'], image['type'])
-                    images_output.append(image_data)
-            output_images[node_id] = images_output
+    for node_id in history['outputs']:
+        node_output = history['outputs'][node_id]
+        images_output = []
+        if 'images' in node_output:
+            for image in node_output['images']:
+                image_data = get_image(image['filename'], image['subfolder'], image['type'])
+                images_output.append(image_data)
+        output_images[node_id] = images_output
 
     return output_images
 
@@ -85,7 +87,7 @@ prompt_text = """
     "4": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {
-            "ckpt_name": "v1-5-pruned-emaonly.ckpt"
+            "ckpt_name": "v1-5-pruned-emaonly.safetensors"
         }
     },
     "5": {
@@ -152,7 +154,7 @@ prompt["3"]["inputs"]["seed"] = 5
 ws = websocket.WebSocket()
 ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
 images = get_images(ws, prompt)
-
+ws.close() # for in case this example is used in an environment where it will be repeatedly called, like in a Gradio app. otherwise, you'll randomly receive connection timeouts
 #Commented out code to display the output images:
 
 # for node_id in images:
