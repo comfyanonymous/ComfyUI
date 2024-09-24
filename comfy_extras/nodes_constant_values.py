@@ -50,7 +50,7 @@ class ConstantString(_CONSTANT_BASE):
     def INPUT_TYPES(s) -> dict:
         return {
             "required" : {
-                "value": ("STRING", {"multiline": False})
+                "value": ("STRING", {"multiline": False, "dynamicPrompts": True})
             }
         }
 
@@ -63,7 +63,33 @@ class ConstantStringMultiline(_CONSTANT_BASE):
     def INPUT_TYPES(s) -> dict:
         return {
             "required": {
-                "value": ("STRING", {"multiline": True})
+                "value": ("STRING", {"multiline": True, "dynamicPrompts": True})
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("string",)
+
+
+class ConstantNonDynamicString(_CONSTANT_BASE):
+    @classmethod
+    def INPUT_TYPES(s) -> dict:
+        return {
+            "required" : {
+                "value": ("STRING", {"multiline": False, "dynamicPrompts": False})
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("string",)
+
+
+class ConstantNonDynamicStringMultiline(_CONSTANT_BASE):
+    @classmethod
+    def INPUT_TYPES(s) -> dict:
+        return {
+            "required": {
+                "value": ("STRING", {"multiline": True, "dynamicPrompts": False})
             }
         }
 
@@ -76,4 +102,6 @@ NODE_CLASS_MAPPINGS = {
     "ConstantInteger": ConstantInteger,
     "ConstantString": ConstantString,
     "ConstantStringMultiline": ConstantStringMultiline,
+    "ConstantNonDynamicString": ConstantNonDynamicString,
+    "ConstantNonDynamicStringMultiline": ConstantNonDynamicStringMultiline
 }
