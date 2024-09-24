@@ -41,7 +41,6 @@ a111:
 #     loras: models/loras/
 #     photomaker: models/photomaker/
 #     style_models: models/style_models/
-#     diffusion_models: models/diffusion_models/
 #     upscale_models: models/upscale_models/
 #     vae: models/vae/
 #     vae_approx: models/vae_approx/
