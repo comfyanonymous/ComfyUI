@@ -4,14 +4,14 @@ class Example:
 
     Class methods
     -------------
-    INPUT_TYPES (dict): 
+    INPUT_TYPES (dict):
         Tell the main program input parameters of nodes.
     IS_CHANGED:
         optional method to control when the node is re executed.
 
     Attributes
     ----------
-    RETURN_TYPES (`tuple`): 
+    RETURN_TYPES (`tuple`):
         The type of each element in the output tuple.
     RETURN_NAMES (`tuple`):
         Optional: The name of each output in the output tuple.
@@ -23,13 +23,19 @@ class Example:
         Assumed to be False if not present.
     CATEGORY (`str`):
         The category the node should appear in the UI.
+    DEPRECATED (`bool`):
+        Indicates whether the node is deprecated. Deprecated nodes are hidden by default in the UI, but remain
+        functional in existing workflows that use them.
+    EXPERIMENTAL (`bool`):
+        Indicates whether the node is experimental. Experimental nodes are marked as such in the UI and may be subject to
+        significant changes or removal in future versions. Use with caution in production workflows.
     execute(s) -> tuple || None:
         The entry point method. The name of this method must be the same as the value of property `FUNCTION`.
         For example, if `FUNCTION = "execute"` then this method's name must be `execute`, if `FUNCTION = "foo"` then it must be `foo`.
     """
     def __init__(self):
         pass
-    
+
     @classmethod
     def INPUT_TYPES(s):
         """

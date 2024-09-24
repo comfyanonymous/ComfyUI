@@ -1,10 +1,20 @@
 import itertools
-from typing import Sequence, Mapping
+from typing import Sequence, Mapping, Dict
 from comfy_execution.graph import DynamicPrompt
 
 import nodes
 
 from comfy_execution.graph_utils import is_link
+
+NODE_CLASS_CONTAINS_UNIQUE_ID: Dict[str, bool] = {}
+
+
+def include_unique_id_in_input(class_type: str) -> bool:
+    if class_type in NODE_CLASS_CONTAINS_UNIQUE_ID:
+        return NODE_CLASS_CONTAINS_UNIQUE_ID[class_type]
+    class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+    NODE_CLASS_CONTAINS_UNIQUE_ID[class_type] = "UNIQUE_ID" in class_def.INPUT_TYPES().get("hidden", {}).values()
+    return NODE_CLASS_CONTAINS_UNIQUE_ID[class_type]
 
 class CacheKeySet:
     def __init__(self, dynprompt, node_ids, is_changed_cache):
@@ -56,6 +66,8 @@ class CacheKeySetID(CacheKeySet):
         for node_id in node_ids:
             if node_id in self.keys:
                 continue
+            if not self.dynprompt.has_node(node_id):
+                continue
             node = self.dynprompt.get_node(node_id)
             self.keys[node_id] = (node_id, node["class_type"])
             self.subcache_keys[node_id] = (node_id, node["class_type"])
@@ -74,6 +86,8 @@ class CacheKeySetInputSignature(CacheKeySet):
         for node_id in node_ids:
             if node_id in self.keys:
                 continue
+            if not self.dynprompt.has_node(node_id):
+                continue
             node = self.dynprompt.get_node(node_id)
             self.keys[node_id] = self.get_node_signature(self.dynprompt, node_id)
             self.subcache_keys[node_id] = (node_id, node["class_type"])
@@ -87,11 +101,14 @@ class CacheKeySetInputSignature(CacheKeySet):
         return to_hashable(signature)
 
     def get_immediate_node_signature(self, dynprompt, node_id, ancestor_order_mapping):
+        if not dynprompt.has_node(node_id):
+            # This node doesn't exist -- we can't cache it.
+            return [float("NaN")]
         node = dynprompt.get_node(node_id)
         class_type = node["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         signature = [class_type, self.is_changed_cache.get(node_id)]
-        if self.include_node_id_in_input() or (hasattr(class_def, "NOT_IDEMPOTENT") and class_def.NOT_IDEMPOTENT):
+        if self.include_node_id_in_input() or (hasattr(class_def, "NOT_IDEMPOTENT") and class_def.NOT_IDEMPOTENT) or include_unique_id_in_input(class_type):
             signature.append(node_id)
         inputs = node["inputs"]
         for key in sorted(inputs.keys()):
@@ -112,6 +129,8 @@ class CacheKeySetInputSignature(CacheKeySet):
         return ancestors, order_mapping
 
     def get_ordered_ancestry_internal(self, dynprompt, node_id, ancestors, order_mapping):
+        if not dynprompt.has_node(node_id):
+            return
         inputs = dynprompt.get_node(node_id)["inputs"]
         input_keys = sorted(inputs.keys())
         for key in input_keys:

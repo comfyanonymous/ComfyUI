@@ -114,19 +114,28 @@ class Flux(nn.Module):
         ids = torch.cat((txt_ids, img_ids), dim=1)
         pe = self.pe_embedder(ids)
 
-        for i in range(len(self.double_blocks)):
-            img, txt = self.double_blocks[i](img=img, txt=txt, vec=vec, pe=pe)
+        for i, block in enumerate(self.double_blocks):
+            img, txt = block(img=img, txt=txt, vec=vec, pe=pe)
 
-            if control is not None: #Controlnet
-                control_o = control.get("output")
-                if i < len(control_o):
-                    add = control_o[i]
+            if control is not None: # Controlnet
+                control_i = control.get("input")
+                if i < len(control_i):
+                    add = control_i[i]
                     if add is not None:
                         img += add
 
         img = torch.cat((txt, img), 1)
-        for block in self.single_blocks:
+
+        for i, block in enumerate(self.single_blocks):
             img = block(img, vec=vec, pe=pe)
+
+            if control is not None: # Controlnet
+                control_o = control.get("output")
+                if i < len(control_o):
+                    add = control_o[i]
+                    if add is not None:
+                        img[:, txt.shape[1] :, ...] += add
+
         img = img[:, txt.shape[1] :, ...]
 
         img = self.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
