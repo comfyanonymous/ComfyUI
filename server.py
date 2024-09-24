@@ -689,10 +689,11 @@ class PromptServer():
             data = await request.json()
             url = data.get('url')
             model_directory = data.get('model_directory')
+            folder_path = data.get('folder_path')
             model_filename = data.get('model_filename')
             progress_interval = data.get('progress_interval', 1.0) # In seconds, how often to report download progress.
 
-            if not url or not model_directory or not model_filename:
+            if not url or not model_directory or not model_filename or not folder_path:
                 return web.json_response({"status": "error", "message": "Missing URL or folder path or filename"}, status=400)
 
             session = self.client_session
@@ -700,7 +701,7 @@ class PromptServer():
                 logging.error("Client session is not initialized")
                 return web.Response(status=500)
             
-            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, report_progress, progress_interval))
+            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, folder_path, report_progress, progress_interval))
             await task
 
             return web.json_response(task.result().to_dict())
