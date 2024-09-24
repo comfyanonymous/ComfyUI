@@ -823,10 +823,13 @@ class ModelPatcher:
 
     def set_attachments(self, key: str, attachment):
         self.attachments[key] = attachment
-    
+
     def remove_attachments(self, key: str):
         if key in self.attachments:
             self.attachments.pop(key)
+    
+    def get_attachment(self, key: str):
+        return self.attachments.get(key, None)
 
     def set_injections(self, key: str, injections: List[PatcherInjection]):
         self.injections[key] = injections
