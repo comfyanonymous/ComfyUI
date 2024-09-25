@@ -132,20 +132,23 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                             del v
                         logging.info(f"Converted {path} to 16 bit, size is {os.stat(path, follow_symlinks=True).st_size}")
 
-                    link_exc_info = None
+                    link_successful = True
                     if linked_filename is not None:
                         destination_link = os.path.join(this_model_directory, linked_filename)
                         try:
                             os.makedirs(this_model_directory, exist_ok=True)
                             os.symlink(path, destination_link)
                         except Exception as exc_info:
+                            logging.error("error while symbolic linking", exc_info=exc_info)
                             try:
                                 os.link(path, destination_link)
-                            except Exception as exc_info:
+                            except Exception as hard_link_exc:
+                                logging.error("error while hard linking", exc_info=hard_link_exc)
                                 if cache_hit:
                                     shutil.copyfile(path, destination_link)
-                            link_exc_info = exc_info
-                    if link_exc_info is not None:
+                                link_successful = False
+
+                    if not link_successful:
                         logging.error(f"Failed to link file with alternative download save name in a way that is compatible with Hugging Face caching {repr(known_file)}. If cache_hit={cache_hit} is True, the file was copied into the destination.", exc_info=exc_info)
                 else:
                     url: Optional[str] = None
