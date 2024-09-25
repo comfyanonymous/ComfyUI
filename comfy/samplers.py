@@ -1,6 +1,6 @@
 from .k_diffusion import sampling as k_diffusion_sampling
 from .extra_samplers import uni_pc
-from typing import TYPE_CHECKING, Dict, List, Tuple
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
     from comfy.model_base import BaseModel
@@ -144,7 +144,7 @@ def cond_cat(c_list):
 
     return out
 
-def finalize_default_conds(hooked_to_run: Dict[comfy.hooks.HookGroup,List[Tuple[Tuple,int]]], default_conds: List[List[Dict]], x_in, timestep):
+def finalize_default_conds(hooked_to_run: dict[comfy.hooks.HookGroup,list[tuple[tuple,int]]], default_conds: list[list[dict]], x_in, timestep):
     # need to figure out remaining unmasked area for conds
     default_mults = []
     for _ in default_conds:
@@ -182,19 +182,19 @@ def finalize_default_conds(hooked_to_run: Dict[comfy.hooks.HookGroup,List[Tuple[
             hooked_to_run.setdefault(hook, list())
             hooked_to_run[hook] += [(p, i)]
 
-def calc_cond_batch(model: 'BaseModel', conds: List[List[Dict]], x_in: torch.Tensor, timestep, model_options):
+def calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
     executor = comfy.model_patcher.WrapperExecutor.new_executor(
         outer_calc_cond_batch,
         model.current_patcher.get_all_wrappers(comfy.model_patcher.WrappersMP.CALC_COND_BATCH)
     )
     return executor._execute(model, conds, x_in, timestep, model_options)
 
-def outer_calc_cond_batch(model: 'BaseModel', conds: List[List[Dict]], x_in: torch.Tensor, timestep, model_options):
+def outer_calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
     out_conds = []
     out_counts = []
     # separate conds by matching hooks
     # TODO: implement default_conds support
-    hooked_to_run: Dict[comfy.hooks.HookGroup,List[Tuple[Tuple,int]]] = {}
+    hooked_to_run: dict[comfy.hooks.HookGroup,list[tuple[tuple,int]]] = {}
     default_conds = []
     has_default_conds = False
 

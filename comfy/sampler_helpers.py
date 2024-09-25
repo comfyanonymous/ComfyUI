@@ -1,8 +1,9 @@
+from __future__ import annotations
 import torch
 import comfy.model_management
 import comfy.conds
 import comfy.hooks
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
     from comfy.model_base import BaseModel
@@ -26,7 +27,7 @@ def get_models_from_cond(cond, model_type):
                 models += [c[model_type]]
     return models
 
-def get_hooks_from_cond(cond, hooks_dict: Dict[comfy.hooks.EnumHookType, Dict[comfy.hooks.Hook, None]]):
+def get_hooks_from_cond(cond, hooks_dict: dict[comfy.hooks.EnumHookType, dict[comfy.hooks.Hook, None]]):
     for c in cond:
         if 'hooks' in c:
             for hook in c['hooks'].hooks:
@@ -49,10 +50,10 @@ def convert_cond(cond):
 
 def get_additional_models(conds, dtype):
     """loads additional models in conditioning"""
-    cnets: List[ControlBase] = []
+    cnets: list[ControlBase] = []
     gligen = []
     add_models = []
-    hooks: Dict[comfy.hooks.EnumHookType, Dict[comfy.hooks.Hook, None]] = {}
+    hooks: dict[comfy.hooks.EnumHookType, dict[comfy.hooks.Hook, None]] = {}
 
     for k in conds:
         cnets += get_models_from_cond(conds[k], "control")

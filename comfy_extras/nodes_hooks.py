@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Dict, List, Tuple, Union
+from __future__ import annotations
+from typing import TYPE_CHECKING, Union
 import torch
 from collections.abc import Iterable
 
@@ -40,7 +41,7 @@ class PairConditioningSetProperties:
 
     def set_properties(self, positive_NEW, negative_NEW,
                        strength: float, set_cond_area: str,
-                       opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: Tuple=None):
+                       opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: tuple=None):
         final_positive, final_negative = comfy.hooks.set_mask_conds(conds=[positive_NEW, negative_NEW],
                                                                     strength=strength, set_cond_area=set_cond_area,
                                                                     opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
@@ -70,7 +71,7 @@ class ConditioningSetProperties:
 
     def set_properties(self, cond_NEW,
                        strength: float, set_cond_area: str,
-                       opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: Tuple=None):
+                       opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: tuple=None):
         (final_cond,) = comfy.hooks.set_mask_conds(conds=[cond_NEW],
                                                    strength=strength, set_cond_area=set_cond_area,
                                                    opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
@@ -596,7 +597,7 @@ class CreateHookKeyframesFromFloats:
     CATEGORY = "advanced/hooks/scheduling"
     FUNCTION = "create_hook_keyframes"
 
-    def create_hook_keyframes(self, floats_strength: Union[float, List[float]],
+    def create_hook_keyframes(self, floats_strength: Union[float, list[float]],
                               start_percent: float, end_percent: float,
                               prev_hook_kf: comfy.hooks.HookKeyframeGroup=None, print_keyframes=False):
         if prev_hook_kf is None:

@@ -16,7 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Dict, List, Tuple, Optional, Callable
+from __future__ import annotations
+from typing import Optional, Callable
 import torch
 import copy
 import inspect
@@ -78,6 +79,17 @@ def set_model_options_pre_cfg_function(model_options, pre_cfg_function, disable_
         model_options["disable_cfg1_optimization"] = True
     return model_options
 
+def create_model_options_clone(orig_model_options: dict):
+    def copy_nested_dicts(input_dict: dict):
+        new_dict = input_dict.copy()
+        for key, value in input_dict.items():
+            if isinstance(value, dict):
+                new_dict[key] = copy_nested_dicts(value)
+            elif isinstance(value, list):
+                new_dict[key] = value.copy()
+        return new_dict
+    return copy_nested_dicts(orig_model_options)
+        
 def create_hook_patches_clone(orig_hook_patches):
     new_hook_patches = {}
     for hook_ref in orig_hook_patches:
@@ -137,7 +149,7 @@ class WrappersMP:
         }
 
 class WrapperExecutor:
-    def __init__(self, original: Callable, wrappers: List[Callable], idx: int):
+    def __init__(self, original: Callable, wrappers: list[Callable], idx: int):
         self.original = original
         self.wrappers = wrappers.copy()
         self.idx = idx
@@ -161,11 +173,11 @@ class WrapperExecutor:
         return WrapperExecutor(self.original, self.wrappers, new_idx)
 
     @classmethod
-    def new_executor(cls, original: Callable, wrappers: List[Callable]):
+    def new_executor(cls, original: Callable, wrappers: list[Callable]):
         return cls(original, wrappers, idx=0)
 
 class WrapperClassExecutor:
-    def __init__(self, original: Callable, wrappers: List[Callable], idx: int):
+    def __init__(self, original: Callable, wrappers: list[Callable], idx: int):
         self.original = original
         self.wrappers = wrappers.copy()
         self.idx = idx
@@ -189,7 +201,7 @@ class WrapperClassExecutor:
         return WrapperClassExecutor(self.original, self.wrappers, new_idx)
 
     @classmethod
-    def new_executor(cls, original: Callable, wrappers: List[Callable]):
+    def new_executor(cls, original: Callable, wrappers: list[Callable]):
         return cls(original, wrappers, idx=0)
 
 class AutoPatcherEjector:
@@ -261,19 +273,19 @@ class ModelPatcher:
         self.weight_inplace_update = weight_inplace_update
         self.patches_uuid = uuid.uuid4()
 
-        self.attachments: Dict[str] = {}
-        self.additional_models: Dict[str, List[ModelPatcher]] = {}
-        self.callbacks: Dict[str, Dict[str, List[Callable]]] = CallbacksMP.init_callbacks()
-        self.wrappers: Dict[str, Dict[str, List[Callable]]] = WrappersMP.init_wrappers()
+        self.attachments: dict[str] = {}
+        self.additional_models: dict[str, list[ModelPatcher]] = {}
+        self.callbacks: dict[str, dict[str, list[Callable]]] = CallbacksMP.init_callbacks()
+        self.wrappers: dict[str, dict[str, list[Callable]]] = WrappersMP.init_wrappers()
 
         self.is_injected = False
         self.skip_injection = False
-        self.injections: Dict[str, List[PatcherInjection]] = {}
+        self.injections: dict[str, list[PatcherInjection]] = {}
 
-        self.hook_patches: Dict[comfy.hooks._HookRef] = {}
-        self.hook_patches_backup: Dict[comfy.hooks._HookRef] = {}
-        self.hook_backup: Dict[str, Tuple[torch.Tensor, torch.device]] = {}
-        self.cached_hook_patches: Dict[comfy.hooks.HookGroup, Dict[str, torch.Tensor]] = {}
+        self.hook_patches: dict[comfy.hooks._HookRef] = {}
+        self.hook_patches_backup: dict[comfy.hooks._HookRef] = {}
+        self.hook_backup: dict[str, tuple[torch.Tensor, torch.device]] = {}
+        self.cached_hook_patches: dict[comfy.hooks.HookGroup, dict[str, torch.Tensor]] = {}
         self.current_hooks: Optional[comfy.hooks.HookGroup] = None
         self.forced_hooks: Optional[comfy.hooks.HookGroup] = None  # NOTE: only used for CLIP
         # TODO: hook_mode should be entirely removed; behavior should be determined by remaining VRAM/memory
@@ -850,14 +862,14 @@ class ModelPatcher:
     def get_attachment(self, key: str):
         return self.attachments.get(key, None)
 
-    def set_injections(self, key: str, injections: List[PatcherInjection]):
+    def set_injections(self, key: str, injections: list[PatcherInjection]):
         self.injections[key] = injections
 
     def remove_injections(self, key: str):
         if key in self.injections:
             self.injections.pop(key)
 
-    def set_additional_models(self, key: str, models: List['ModelPatcher']):
+    def set_additional_models(self, key: str, models: list['ModelPatcher']):
         self.additional_models[key] = models
 
     def remove_additional_models(self, key: str):
@@ -927,9 +939,9 @@ class ModelPatcher:
                     if cached_group.contains(hook):
                         self.cached_hook_patches.pop(cached_group)
 
-    def register_all_hook_patches(self, hooks_dict: Dict[comfy.hooks.EnumHookType, Dict[comfy.hooks.Hook, None]], target: comfy.hooks.EnumWeightTarget):
+    def register_all_hook_patches(self, hooks_dict: dict[comfy.hooks.EnumHookType, dict[comfy.hooks.Hook, None]], target: comfy.hooks.EnumWeightTarget):
         self.restore_hook_patches()
-        weight_hooks_to_register: List[comfy.hooks.WeightHook] = []
+        weight_hooks_to_register: list[comfy.hooks.WeightHook] = []
         for hook in hooks_dict.get(comfy.hooks.EnumHookType.Weight, {}):
             if hook.hook_ref not in self.hook_patches:
                 weight_hooks_to_register.append(hook)
@@ -945,7 +957,7 @@ class ModelPatcher:
             # NOTE: this mirrors behavior of add_patches func
             if is_diff:
                 comfy.model_management.unload_model_clones(self)
-            current_hook_patches: Dict[str,List] = self.hook_patches.get(hook.hook_ref, {})
+            current_hook_patches: dict[str,list] = self.hook_patches.get(hook.hook_ref, {})
             p = set()
             model_sd = self.model.state_dict()
             for k in patches:
@@ -961,7 +973,7 @@ class ModelPatcher:
                 
                 if key in model_sd:
                     p.add(k)
-                    current_patches: List[Tuple] = current_hook_patches.get(key, [])
+                    current_patches: list[tuple] = current_hook_patches.get(key, [])
                     if is_diff:
                         # take difference between desired weight and existing weight to get diff
                         # TODO: try to implement diff via strength_path/strength_model diff
@@ -982,7 +994,7 @@ class ModelPatcher:
     def get_weight_diffs(self, patches):
         with self.use_ejected():
             comfy.model_management.unload_model_clones(self)
-            weights: Dict[str, Tuple] = {}
+            weights: dict[str, tuple] = {}
             p = set()
             model_sd = self.model.state_dict()
             for k in patches:
@@ -1001,9 +1013,9 @@ class ModelPatcher:
         combined_patches = {}
         if hooks is not None:
             for hook in hooks.hooks:
-                hook_patches: Dict = self.hook_patches.get(hook.hook_ref, {})
+                hook_patches: dict = self.hook_patches.get(hook.hook_ref, {})
                 for key in hook_patches.keys():
-                    current_patches: List[Tuple] = combined_patches.get(key, [])
+                    current_patches: list[tuple] = combined_patches.get(key, [])
                     if math.isclose(hook.strength, 1.0):
                         current_patches.extend(hook_patches[key])
                     else:
@@ -1050,7 +1062,7 @@ class ModelPatcher:
                                                      memory_counter=memory_counter)
             self.current_hooks = hooks
 
-    def patch_cached_hook_weights(self, cached_weights: Dict, key: str, memory_counter: MemoryCounter):
+    def patch_cached_hook_weights(self, cached_weights: dict, key: str, memory_counter: MemoryCounter):
         if key not in self.hook_backup:
             weight: torch.Tensor = comfy.utils.get_attr(self.model, key)
             target_device = self.offload_device

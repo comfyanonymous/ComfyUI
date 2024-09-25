@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, List, Dict, Tuple, Callable
+from __future__ import annotations
+from typing import TYPE_CHECKING, Callable
 import enum
 import math
 import torch
@@ -78,8 +79,8 @@ class Hook:
 class WeightHook(Hook):
     def __init__(self, strength_model=1.0, strength_clip=1.0):
         super().__init__(hook_type=EnumHookType.Weight)
-        self.weights: Dict = None
-        self.weights_clip: Dict = None
+        self.weights: dict = None
+        self.weights_clip: dict = None
         self.is_diff = False
         self.need_weight_init = True
         self._strength_model = strength_model
@@ -132,7 +133,7 @@ class WeightHook(Hook):
 class PatchHook(Hook):
     def __init__(self):
         super().__init__(hook_type=EnumHookType.Patch)
-        self.patches: Dict = None
+        self.patches: dict = None
     
     def clone(self, subtype: Callable=None):
         if subtype is None:
@@ -147,7 +148,7 @@ class PatchHook(Hook):
 class ObjectPatchHook(Hook):
     def __init__(self):
         super().__init__(hook_type=EnumHookType.ObjectPatch)
-        self.object_patches: Dict = None
+        self.object_patches: dict = None
     
     def clone(self, subtype: Callable=None):
         if subtype is None:
@@ -160,7 +161,7 @@ class ObjectPatchHook(Hook):
         pass
 
 class AddModelsHook(Hook):
-    def __init__(self, key: str=None, models: List['ModelPatcher']=None):
+    def __init__(self, key: str=None, models: list['ModelPatcher']=None):
         super().__init__(hook_type=EnumHookType.AddModels)
         self.key = key
         self.models = models
@@ -196,7 +197,7 @@ class AddCallbackHook(Hook):
         pass
 
 class SetInjectionsHook(Hook):
-    def __init__(self, key: str=None, injections: List['PatcherInjection']=None):
+    def __init__(self, key: str=None, injections: list['PatcherInjection']=None):
         super().__init__(hook_type=EnumHookType.SetInjections)
         self.key = key
         self.injections = injections
@@ -231,7 +232,7 @@ class AddWrapperHook(Hook):
 
 class HookGroup:
     def __init__(self):
-        self.hooks: List[Hook] = []
+        self.hooks: list[Hook] = []
 
     def add(self, hook: Hook):
         if hook not in self.hooks:
@@ -258,15 +259,15 @@ class HookGroup:
             hook.hook_keyframe = hook_kf
 
     def get_dict_repr(self):
-        d: Dict[EnumHookType, Dict[Hook, None]] = {}
+        d: dict[EnumHookType, dict[Hook, None]] = {}
         for hook in self.hooks:
             with_type = d.setdefault(hook.hook_type, {})
             with_type[hook] = None
         return d
 
     @staticmethod
-    def combine_all_hooks(hooks_list: List['HookGroup'], require_count=0) -> 'HookGroup':
-        actual: List[HookGroup] = []
+    def combine_all_hooks(hooks_list: list['HookGroup'], require_count=0) -> 'HookGroup':
+        actual: list[HookGroup] = []
         for group in hooks_list:
             if group is not None:
                 actual.append(group)
@@ -303,7 +304,7 @@ class HookKeyframe:
 
 class HookKeyframeGroup:
     def __init__(self):
-        self.keyframes: List[HookKeyframe] = []
+        self.keyframes: list[HookKeyframe] = []
         self._current_keyframe: HookKeyframe = None
         self._current_used_steps = 0
         self._current_index = 0
@@ -411,7 +412,7 @@ class InterpolationMethod:
             weights = weights.flip(dims=(0,))
         return weights
 
-def get_sorted_list_via_attr(objects: List, attr: str) -> List:
+def get_sorted_list_via_attr(objects: list, attr: str) -> list:
     if not objects:
         return objects
     elif len(objects) <= 1:
@@ -422,7 +423,7 @@ def get_sorted_list_via_attr(objects: List, attr: str) -> List:
     unique_attrs = {}
     for o in objects:
         val_attr = getattr(o, attr)
-        attr_list: List = unique_attrs.get(val_attr, list())
+        attr_list: list = unique_attrs.get(val_attr, list())
         attr_list.append(o)
         if val_attr not in unique_attrs:
             unique_attrs[val_attr] = attr_list
@@ -434,7 +435,7 @@ def get_sorted_list_via_attr(objects: List, attr: str) -> List:
         sorted_list.extend(object_list)
     return sorted_list
 
-def create_hook_lora(lora: Dict[str, torch.Tensor], strength_model: float, strength_clip: float):
+def create_hook_lora(lora: dict[str, torch.Tensor], strength_model: float, strength_clip: float):
     hook_group = HookGroup()
     hook = WeightHook(strength_model=strength_model, strength_clip=strength_clip)
     hook_group.add(hook)
@@ -463,7 +464,7 @@ def create_hook_model_as_lora(weights_model, weights_clip, strength_model: float
 def get_patch_weights_from_model(model: 'ModelPatcher', discard_model_sampling=False):
     if model is None:
         return None
-    patches_model: Dict[str, torch.Tensor] = model.model.state_dict()
+    patches_model: dict[str, torch.Tensor] = model.model.state_dict()
     if discard_model_sampling:
         # do not include ANY model_sampling components of the model that should act as a patch
         for key in list(patches_model.keys()):
@@ -479,7 +480,7 @@ def create_hook_model_as_lora_precalc(model: 'ModelPatcher', clip: 'CLIP',
     hook_group.add(hook)
     if model is not None and model_loaded is not None:
         expected_model_keys = set(model_loaded.model.state_dict().keys())
-        patches_model: Dict[str, torch.Tensor] = model_loaded.model.state_dict()
+        patches_model: dict[str, torch.Tensor] = model_loaded.model.state_dict()
         # do not include ANY model_sampling components of the model that should act as a patch
         for key in list(patches_model.keys()):
             if key.startswith("model_sampling"):
@@ -492,7 +493,7 @@ def create_hook_model_as_lora_precalc(model: 'ModelPatcher', clip: 'CLIP',
 
     if clip is not None and clip_loaded is not None:
         expected_clip_keys = clip_loaded.patcher.model.state_dict().copy()
-        patches_clip: Dict[str, torch.Tensor] = clip_loaded.cond_stage_model.state_dict()
+        patches_clip: dict[str, torch.Tensor] = clip_loaded.cond_stage_model.state_dict()
         weights_clip, k1 = clip.patcher.get_weight_diffs(patches_clip)
     else:
         weights_clip = {}
@@ -514,7 +515,7 @@ def create_hook_model_as_lora_precalc(model: 'ModelPatcher', clip: 'CLIP',
     hook.need_weight_init = False
     return hook_group
 
-def load_hook_lora_for_models(model: 'ModelPatcher', clip: 'CLIP', lora: Dict[str, torch.Tensor],
+def load_hook_lora_for_models(model: 'ModelPatcher', clip: 'CLIP', lora: dict[str, torch.Tensor],
                               strength_model: float, strength_clip: float):
     key_map = {}
     if model is not None:
@@ -525,7 +526,7 @@ def load_hook_lora_for_models(model: 'ModelPatcher', clip: 'CLIP', lora: Dict[st
     hook_group = HookGroup()
     hook = WeightHook()
     hook_group.add(hook)
-    loaded: Dict[str] = comfy.lora.load_lora(lora, key_map)
+    loaded: dict[str] = comfy.lora.load_lora(lora, key_map)
     if model is not None:
         new_modelpatcher = model.clone()
         k = new_modelpatcher.add_hook_patches(hook=hook, patches=loaded, strength_patch=strength_model)
@@ -555,7 +556,7 @@ def load_hook_model_as_lora_for_models(model: 'ModelPatcher', clip: 'CLIP',
     if model is not None and model_loaded is not None:
         new_modelpatcher = model.clone()
         expected_model_keys = set(model_loaded.model.state_dict().keys())
-        patches_model: Dict[str, torch.Tensor] = model_loaded.model.state_dict()
+        patches_model: dict[str, torch.Tensor] = model_loaded.model.state_dict()
         # do not include ANY model_sampling components of the model that should act as a patch
         for key in list(patches_model.keys()):
             if key.startswith("model_sampling"):
@@ -570,7 +571,7 @@ def load_hook_model_as_lora_for_models(model: 'ModelPatcher', clip: 'CLIP',
         new_clip = clip.clone()
         comfy.model_management.unload_model_clones(new_clip.patcher)
         expected_clip_keys = clip_loaded.patcher.model.state_dict().copy()
-        patches_clip: Dict[str, torch.Tensor] = clip_loaded.cond_stage_model.state_dict()
+        patches_clip: dict[str, torch.Tensor] = clip_loaded.cond_stage_model.state_dict()
         k1 = new_clip.patcher.add_hook_patches(hook=hook, patches=patches_clip, strength_patch=strength_clip, is_diff=True)
     else:
         k1 = ()
@@ -594,7 +595,7 @@ def set_hooks_for_conditioning(cond, hooks: HookGroup):
         return cond
     return conditioning_set_values(cond, {'hooks': hooks})
 
-def set_timesteps_for_conditioning(cond, timestep_range: Tuple[float,float]):
+def set_timesteps_for_conditioning(cond, timestep_range: tuple[float,float]):
     if timestep_range is None:
         return cond
     return conditioning_set_values(cond, {"start_percent": timestep_range[0],
@@ -612,14 +613,14 @@ def set_mask_for_conditioning(cond, mask: torch.Tensor, set_cond_area: str, stre
                                           'set_area_to_bounds': set_area_to_bounds,
                                           'mask_strength': strength})
 
-def combine_conditioning(conds: List):
+def combine_conditioning(conds: list):
     combined_conds = []
     for cond in conds:
         combined_conds.extend(cond)
     return combined_conds
 
-def set_mask_conds(conds: List, strength: float, set_cond_area: str,
-                   opt_mask: torch.Tensor=None, opt_hooks: HookGroup=None, opt_timestep_range: Tuple[float,float]=None):
+def set_mask_conds(conds: list, strength: float, set_cond_area: str,
+                   opt_mask: torch.Tensor=None, opt_hooks: HookGroup=None, opt_timestep_range: tuple[float,float]=None):
     masked_conds = []
     for c in conds:
         # first, apply lora_hook to conditioning, if provided
@@ -632,8 +633,8 @@ def set_mask_conds(conds: List, strength: float, set_cond_area: str,
         masked_conds.append(c)
     return masked_conds
 
-def set_mask_and_combine_conds(conds: List, new_conds: List, strength: float=1.0, set_cond_area: str="default",
-                               opt_mask: torch.Tensor=None, opt_hooks: HookGroup=None, opt_timestep_range: Tuple[float,float]=None):
+def set_mask_and_combine_conds(conds: list, new_conds: list, strength: float=1.0, set_cond_area: str="default",
+                               opt_mask: torch.Tensor=None, opt_hooks: HookGroup=None, opt_timestep_range: tuple[float,float]=None):
     combined_conds = []
     for c, masked_c in zip(conds, new_conds):
         # first, apply lora_hook to new conditioning, if provided
@@ -647,7 +648,7 @@ def set_mask_and_combine_conds(conds: List, new_conds: List, strength: float=1.0
     return combined_conds
 
 def set_default_and_combine_conds(conds: list, new_conds: list,
-                                   opt_hooks: HookGroup=None, opt_timestep_range: Tuple[float,float]=None):
+                                   opt_hooks: HookGroup=None, opt_timestep_range: tuple[float,float]=None):
     combined_conds = []
     for c, new_c in zip(conds, new_conds):
         # first, apply lora_hook to new conditioning, if provided
