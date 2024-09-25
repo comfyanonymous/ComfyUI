@@ -201,10 +201,10 @@ class ControlNet(ControlBase):
         self.strength_type = strength_type
         self.concat_mask = concat_mask
 
-    def get_control(self, x_noisy, t, cond, batched_number):
+    def get_control(self, x_noisy, t, cond, batched_number, transformer_options):
         control_prev = None
         if self.previous_controlnet is not None:
-            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number)
+            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number, transformer_options)
 
         if self.timestep_range is not None:
             if t[0] > self.timestep_range[0] or t[0] < self.timestep_range[1]:
@@ -674,10 +674,10 @@ class T2IAdapter(ControlBase):
         height = math.ceil(height / unshuffle_amount) * unshuffle_amount
         return width, height
 
-    def get_control(self, x_noisy, t, cond, batched_number):
+    def get_control(self, x_noisy, t, cond, batched_number, transformer_options):
         control_prev = None
         if self.previous_controlnet is not None:
-            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number)
+            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number, transformer_options)
 
         if self.timestep_range is not None:
             if t[0] > self.timestep_range[0] or t[0] < self.timestep_range[1]:

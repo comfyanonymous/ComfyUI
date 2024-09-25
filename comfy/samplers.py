@@ -271,9 +271,6 @@ def outer_calc_cond_batch(model: 'BaseModel', conds: List[List[Dict]], x_in: tor
             c = cond_cat(c)
             timestep_ = torch.cat([timestep] * batch_chunks)
 
-            if control is not None:
-                c['control'] = control.get_control(input_x, timestep_, c, len(cond_or_uncond))
-
             transformer_options = {}
             if 'transformer_options' in model_options:
                 transformer_options = model_options['transformer_options'].copy()
@@ -294,6 +291,9 @@ def outer_calc_cond_batch(model: 'BaseModel', conds: List[List[Dict]], x_in: tor
             transformer_options["sigmas"] = timestep
 
             c['transformer_options'] = transformer_options
+
+            if control is not None:
+                c['control'] = control.get_control(input_x, timestep_, c, len(cond_or_uncond), transformer_options)
 
             if 'model_function_wrapper' in model_options:
                 output = model_options['model_function_wrapper'](model.apply_model, {"input": input_x, "timestep": timestep_, "c": c, "cond_or_uncond": cond_or_uncond}).chunk(batch_chunks)
@@ -769,7 +769,7 @@ class CFGGuider:
 
         self.conds = process_conds(self.inner_model, noise, self.conds, device, latent_image, denoise_mask, seed)
 
-        extra_args = {"model_options": self.model_options, "seed":seed}
+        extra_args = {"model_options": comfy.model_patcher.create_model_options_clone(self.model_options), "seed": seed}
 
         samples = sampler.sample(self, sigmas, extra_args, callback, noise, latent_image, denoise_mask, disable_pbar)
         return self.inner_model.process_latent_out(samples.to(torch.float32))
