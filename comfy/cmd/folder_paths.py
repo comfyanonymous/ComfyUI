@@ -189,7 +189,7 @@ def exists_annotated_filepath(name):
     return os.path.exists(filepath)
 
 
-def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, extensions: Optional[set[str]] = None, is_default: bool = False) -> str:
+def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, extensions: Optional[set[str] | frozenset[str]] = None, is_default: bool = False) -> str:
     """
     Registers a model path for the given canonical name.
     :param folder_name: the folder name
