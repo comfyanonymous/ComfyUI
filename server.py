@@ -679,6 +679,7 @@ class PromptServer():
         
         # Internal route. Should not be depended upon and is subject to change at any time.
         # TODO(robinhuang): Move to internal route table class once we refactor PromptServer to pass around Websocket.
+        # NOTE: This was an experiment and WILL BE REMOVED
         @routes.post("/internal/models/download")
         async def download_handler(request):
             async def report_progress(filename: str, status: DownloadModelStatus):

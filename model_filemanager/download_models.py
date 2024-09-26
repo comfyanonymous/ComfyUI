@@ -1,3 +1,4 @@
+#NOTE: This was an experiment and WILL BE REMOVED
 from __future__ import annotations
 import aiohttp
 import os
