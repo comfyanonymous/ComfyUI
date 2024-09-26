@@ -493,6 +493,40 @@ class IntClamp(CustomNode):
         return (min(max(value, v_min), v_max),)
 
 
+class IntToFloat(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "value": ("INT", {}),
+            }
+        }
+
+    CATEGORY = "arithmetic"
+    RETURN_TYPES = ("FLOAT",)
+    FUNCTION = "execute"
+
+    def execute(self, value: int = 0):
+        return float(value),
+
+
+class FloatToInt(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "value": ("FLOAT", {}),
+            }
+        }
+
+    CATEGORY = "arithmetic"
+    RETURN_TYPES = ("INT",)
+    FUNCTION = "execute"
+
+    def execute(self, value: float = 0):
+        return int(value),
+
+
 NODE_CLASS_MAPPINGS = {}
 for cls in (
         FloatAdd,

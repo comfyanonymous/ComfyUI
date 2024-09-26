@@ -1,14 +1,17 @@
 import json
 import os
+from typing import Literal, Tuple
 
+import cv2
 import numpy as np
+import torch
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
 from comfy.cli_args import args
 from comfy.cmd import folder_paths
+from comfy.component_model.tensor_types import ImageBatch
 from comfy.nodes.common import MAX_RESOLUTION
-from comfy.utils import tensor2pil
 
 
 class ImageCrop:
@@ -195,24 +198,7 @@ class SaveAnimatedPNG:
         return {"ui": {"images": results, "animated": (True,)}}
 
 
-class ImageSizeToNumber:
-    """
-    By WASasquatch (Discord: WAS#0263)
-
-    Copyright 2023 Jordan Thompson (WASasquatch)
-
-    Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to
-    deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
-    and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-    The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-    THE SOFTWARE.
-    """
-
+class ImageShape:
     def __init__(self):
         pass
 
@@ -224,24 +210,101 @@ class ImageSizeToNumber:
             }
         }
 
-    RETURN_TYPES = ("*", "*", "FLOAT", "FLOAT", "INT", "INT")
-    RETURN_NAMES = ("width_num", "height_num", "width_float", "height_float", "width_int", "height_int")
+    RETURN_TYPES = ("INT", "INT")
+    RETURN_NAMES = ("width", "height")
     FUNCTION = "image_width_height"
 
     CATEGORY = "image/operations"
 
-    def image_width_height(self, image):
-        image = tensor2pil(image)
-        if image.size:
-            return (
-                image.size[0], image.size[1], float(image.size[0]), float(image.size[1]), image.size[0], image.size[1])
-        return 0, 0, 0, 0, 0, 0
+    def image_width_height(self, image: ImageBatch):
+        shape = image.shape
+        return shape[2], shape[1]
+
+
+class ImageResize:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "resize_mode": (["cover", "contain", "auto"], {"default": "cover"}),
+                "resolutions": (["SDXL/SD3/Flux", "SD1.5", ], {"default": "SDXL/SD3/Flux"})
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "resize_image"
+    CATEGORY = "image/transform"
+
+    def resize_image(self, image: ImageBatch, resize_mode: Literal["cover", "contain", "auto"], resolutions: Literal["SDXL/SD3/Flux", "SD1.5",]) -> Tuple[ImageBatch]:
+        if resolutions == "SDXL/SD3/Flux":
+            supported_resolutions = [
+                (640, 1536),
+                (768, 1344),
+                (832, 1216),
+                (896, 1152),
+                (1024, 1024),
+                (1152, 896),
+                (1216, 832),
+                (1344, 768),
+                (1536, 640),
+            ]
+        else:
+            supported_resolutions = [
+                (512, 512),
+            ]
+
+        resized_images = []
+        for img in image:
+            img_np = (img.cpu().numpy() * 255).astype(np.uint8)
+            h, w = img_np.shape[:2]
+            current_aspect_ratio = w / h
+            target_resolution = min(supported_resolutions,
+                                    key=lambda res: abs(res[0] / res[1] - current_aspect_ratio))
+            scale_w, scale_h = target_resolution[0] / w, target_resolution[1] / h
+
+            if resize_mode == "cover":
+                scale = max(scale_w, scale_h)
+                new_w, new_h = int(w * scale), int(h * scale)
+                resized = cv2.resize(img_np, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+                x1 = (new_w - target_resolution[0]) // 2
+                y1 = (new_h - target_resolution[1]) // 2
+                resized = resized[y1:y1 + target_resolution[1], x1:x1 + target_resolution[0]]
+            elif resize_mode == "contain":
+                scale = min(scale_w, scale_h)
+                new_w, new_h = int(w * scale), int(h * scale)
+                resized = cv2.resize(img_np, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+                canvas = np.zeros((target_resolution[1], target_resolution[0], 3), dtype=np.uint8)
+                x1 = (target_resolution[0] - new_w) // 2
+                y1 = (target_resolution[1] - new_h) // 2
+                canvas[y1:y1 + new_h, x1:x1 + new_w] = resized
+                resized = canvas
+            else:
+                if current_aspect_ratio > target_resolution[0] / target_resolution[1]:
+                    scale = scale_w
+                else:
+                    scale = scale_h
+                new_w, new_h = int(w * scale), int(h * scale)
+                resized = cv2.resize(img_np, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+                if new_w > target_resolution[0] or new_h > target_resolution[1]:
+                    x1 = (new_w - target_resolution[0]) // 2
+                    y1 = (new_h - target_resolution[1]) // 2
+                    resized = resized[y1:y1 + target_resolution[1], x1:x1 + target_resolution[0]]
+                else:
+                    canvas = np.zeros((target_resolution[1], target_resolution[0], 3), dtype=np.uint8)
+                    x1 = (target_resolution[0] - new_w) // 2
+                    y1 = (target_resolution[1] - new_h) // 2
+                    canvas[y1:y1 + new_h, x1:x1 + new_w] = resized
+                    resized = canvas
+
+            resized_images.append(resized)
+
+        return (torch.from_numpy(np.stack(resized_images)).float() / 255.0,)
 
 
 NODE_CLASS_MAPPINGS = {
-    # From WAS Node Suite
-    # Class mapping is kept for compatibility
-    "Image Size to Number": ImageSizeToNumber,
+    "ImageResize": ImageResize,
+    "ImageShape": ImageShape,
     "ImageCrop": ImageCrop,
     "RepeatImageBatch": RepeatImageBatch,
     "ImageFromBatch": ImageFromBatch,
