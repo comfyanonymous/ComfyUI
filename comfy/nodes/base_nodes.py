@@ -1580,8 +1580,6 @@ class LoadImage:
     def load_image(self, image: str) -> tuple[RGBImageBatch, MaskBatch]:
         image_path = folder_paths.get_annotated_filepath(image)
 
-        img = node_helpers.pillow(Image.open, image_path)
-
         output_images = []
         output_masks = []
         w, h = None, None
