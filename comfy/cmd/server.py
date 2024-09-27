@@ -13,7 +13,7 @@ import sys
 import traceback
 import urllib
 import uuid
-from asyncio import Future, AbstractEventLoop
+from asyncio import Future, AbstractEventLoop, Task
 from enum import Enum
 from io import BytesIO
 from posixpath import join as urljoin
@@ -190,7 +190,7 @@ class PromptServer(ExecutorToClientProgress):
         self.number: int = 0
         self.port: int = 8188
         self._external_address: Optional[str] = None
-        self.receive_all_progress_notifications = True
+        self.background_tasks: dict[str, Task] = dict()
 
         middlewares = [cache_control]
         if args.enable_cors_header:
@@ -726,11 +726,35 @@ class PromptServer(ExecutorToClientProgress):
 
             return web.json_response(task.result().to_dict())
 
+        @routes.get("/api/v1/prompts/{prompt_id}")
+        async def get_api_prompt(request: web.Request) -> web.Response | web.FileResponse:
+            prompt_id: str = request.match_info.get("prompt_id", "")
+            if prompt_id == "":
+                return web.Response(status=404)
+
+            history_items = self.prompt_queue.get_history(prompt_id)
+            if len(history_items) == 0:
+                # todo: this should really be moved to a stateful queue abstraction
+                if prompt_id in self.background_tasks:
+                    return web.Response(status=204)
+                else:
+                    # todo: this should check a stateful queue abstraction
+                    return web.Response(status=404)
+            else:
+                history_entry = history_items[prompt_id]
+                return web.json_response(history_entry["outputs"])
+
         @routes.post("/api/v1/prompts")
         async def post_api_prompt(request: web.Request) -> web.Response | web.FileResponse:
-            # check if the queue is too long
             accept = request.headers.get("accept", "application/json")
             content_type = request.headers.get("content-type", "application/json")
+            preferences = request.headers.get("prefer", "") + request.query.get("prefer", "") + " " + content_type
+            if "+" in content_type:
+                content_type = content_type.split("+")[0]
+
+            wait = not "respond-async" in preferences
+
+            # check if the queue is too long
             queue_size = self.prompt_queue.size()
             queue_too_busy_size = PromptServer.get_too_busy_queue_size()
             if queue_size > queue_too_busy_size:
@@ -778,17 +802,25 @@ class PromptServer(ExecutorToClientProgress):
 
             result: TaskInvocation
             completed: Future[TaskInvocation | dict] = self.loop.create_future()
-            item = QueueItem(queue_tuple=(number, str(uuid.uuid4()), prompt_dict, {}, valid[2]), completed=completed)
+            task_id = str(uuid.uuid4())
+            item = QueueItem(queue_tuple=(number, task_id, prompt_dict, {}, valid[2]), completed=completed)
 
             try:
                 if hasattr(self.prompt_queue, "put_async") or isinstance(self.prompt_queue, AsyncAbstractPromptQueue):
                     # this enables span propagation seamlessly
-                    result = await self.prompt_queue.put_async(item)
-                    if result is None:
-                        return web.Response(body="the queue is shutting down", status=503)
+                    fut = self.prompt_queue.put_async(item)
+                    if wait:
+                        result = await fut
+                        if result is None:
+                            return web.Response(body="the queue is shutting down", status=503)
+                    else:
+                        return await self._schedule_background_task_with_web_response(fut, task_id)
                 else:
                     self.prompt_queue.put(item)
-                    await completed
+                    if wait:
+                        await completed
+                    else:
+                        return await self._schedule_background_task_with_web_response(completed, task_id)
                     task_invocation_or_dict: TaskInvocation | dict = completed.result()
                     if isinstance(task_invocation_or_dict, dict):
                         result = TaskInvocation(item_id=item.prompt_id, outputs=task_invocation_or_dict, status=ExecutionStatus("success", True, []))
@@ -867,6 +899,18 @@ class PromptServer(ExecutorToClientProgress):
             prompt = last_history_item['prompt'][2]
             return web.json_response(prompt, status=200)
 
+    async def _schedule_background_task_with_web_response(self, fut, task_id):
+        task = asyncio.create_task(fut, name=task_id)
+        self.background_tasks[task_id] = task
+        task.add_done_callback(lambda _: self.background_tasks.pop(task_id))
+        # todo: type this from the OpenAPI spec
+        return web.json_response({
+            "prompt_id": task_id
+        }, status=202, headers={
+            "Location": f"api/v1/prompts/{task_id}",
+            "Retry-After": "60"
+        })
+
     @property
     def external_address(self):
         return self._external_address if self._external_address is not None else f"http://{'localhost' if self.address == '0.0.0.0' else self.address}:{self.port}"
@@ -874,6 +918,10 @@ class PromptServer(ExecutorToClientProgress):
     @external_address.setter
     def external_address(self, value):
         self._external_address = value
+
+    @property
+    def receive_all_progress_notifications(self) -> bool:
+        return True
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None)  # no timeout
@@ -989,11 +1037,11 @@ class PromptServer(ExecutorToClientProgress):
         for addr in addresses:
             address = addr[0]
             port = addr[1]
-            site = web.TCPSite(runner, address, port)
+            site = web.TCPSite(runner, address, port, backlog=PromptServer.get_too_busy_queue_size())
             await site.start()
 
             if not hasattr(self, 'address'):
-                self.address = address #TODO: remove this
+                self.address = address  # TODO: remove this
                 self.port = port
 
             if ':' in address:

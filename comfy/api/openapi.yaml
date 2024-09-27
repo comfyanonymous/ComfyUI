@@ -331,9 +331,25 @@ paths:
               description: >-
                 A POST request to /free with: {"unload_models":true} will unload models from vram. 
                 A POST request to /free with: {"free_memory":true} will unload models and free all cached data from the last run workflow.
+  /api/v1/prompts/{prompt_id}:
+    get:
+      summary: (API) Get prompt status
+    responses:
+      204:
+        description: |
+          The prompt is still in progress
+      200:
+        description: |
+          Prompt outputs
+        content:
+          application/json:
+            $ref: "#/components/schemas/Outputs"
+      404:
+        description: |
+          The prompt was not found
   /api/v1/prompts:
     get:
-      summary: (API) Get prompt
+      summary: (API) Get last prompt
       description: |
         Return the last prompt run anywhere that was used to produce an image
         
@@ -395,56 +411,6 @@ paths:
                   
                   For each SaveImage node, there will be two URLs: the internal URL returned by the worker, and
                   the URL for the image based on the `--external-address` / `COMFYUI_EXTERNAL_ADDRESS` configuration.
-                  
-                  Hashing function for web browsers:
-                  
-                  ```js
-                  async function generateHash(body) {
-                    // Stringify and sort keys in the JSON object
-                    let str = JSON.stringify(body);
-                  
-                    // Encode the string as a Uint8Array
-                    let encoder = new TextEncoder();
-                    let data = encoder.encode(str);
-                  
-                    // Create a SHA-256 hash of the data
-                    let hash = await window.crypto.subtle.digest('SHA-256', data);
-                  
-                    // Convert the hash (which is an ArrayBuffer) to a hex string
-                    let hashArray = Array.from(new Uint8Array(hash));
-                    let hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-                  
-                    return hashHex;
-                  }
-                  ```
-                  
-                  Hashing function for nodejs:
-                  
-                  ```js
-                  const crypto = require('crypto');
-                  
-                  function generateHash(body) {
-                    // Stringify and sort keys in the JSON object
-                    let str = JSON.stringify(body);
-                  
-                    // Create a SHA-256 hash of the string
-                    let hash = crypto.createHash('sha256');
-                    hash.update(str);
-                  
-                    // Return the hexadecimal representation of the hash
-                    return hash.digest('hex');
-                  }
-                  ```
-                  
-                  Hashing function for python:
-                  ```python
-                  def digest(data: dict | str) -> str:
-                    json_str = data if isinstance(data, str) else json.dumps(data, separators=(',', ':'))
-                    json_bytes = json_str.encode('utf-8')
-                    hash_object = hashlib.sha256(json_bytes)
-                    return hash_object.hexdigest()
-                  
-                  ```
                 type: object
                 required:
                   - urls
@@ -475,6 +441,28 @@ paths:
                     "^\\d+$":
                       type: string
                       format: binary
+        202:
+          description: |
+            The prompt was successfully queued.
+          content:
+            application/json:
+              description: Information about the item that was queued
+              schema:
+                type: object
+                properties:
+                  prompt_id:
+                    type: string
+                    description: The ID of the prompt that was queued
+          headers:
+            Location:
+              description: The relative URL to check on the status of the request
+              schema:
+                type: string
+            Retry-After:
+              description: |
+                A hint for the number of seconds to check the provided Location for the status of your request.
+                
+                This is the server's estimate for when the request will be completed.
         204:
           description: |
             The prompt was run but did not contain any SaveImage outputs, so nothing will be returned.
@@ -517,11 +505,38 @@ paths:
               - "application/json"
               - "image/png"
               - "multipart/mixed"
+              - "application/json+respond-async"
+              - "image/png+respond-async"
+              - "multipart/mixed+respond-async"
           required: false
           description: |
             Specifies the media type the client is willing to receive.
             
             multipart/mixed will soon be supported to return all the images from the workflow.
+            
+            If +respond-async is specified after your Accept mimetype, the request will be run async and you will get 202 when the prompt was queued.
+        - in: header
+          name: Prefer
+          schema:
+            type: string
+            enum:
+              - "respond-async"
+              - ""
+          required: false
+          allowEmptyValue: true
+          description: |
+            When respond-async is in your Prefer header, the request will be run async and you will get 202 when the prompt was queued.
+        - in: path
+          name: prefer
+          schema:
+            type: string
+            enum:
+              - "respond-async"
+              - ""
+          required: false
+          allowEmptyValue: true
+          description: |
+            When respond-async is in the prefer query parameter, the request will be run async and you will get 202 when the prompt was queued.
       requestBody:
         content:
           application/json:

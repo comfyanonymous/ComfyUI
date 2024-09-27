@@ -119,6 +119,7 @@ class DistributedPromptWorker:
             logging.error(f"failed to connect to self._connection_uri={self._connection_uri}", connection_error)
             raise connection_error
         self._channel = await self._connection.channel()
+        await self._channel.set_qos(prefetch_count=1)
         self._rpc = await JsonRPC.create(channel=self._channel, auto_delete=True, durable=False)
 
         if self._embedded_comfy_client is None:

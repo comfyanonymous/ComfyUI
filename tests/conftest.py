@@ -1,4 +1,3 @@
-import logging
 import multiprocessing
 import os
 import pathlib
@@ -87,11 +86,7 @@ def has_gpu() -> bool:
 
 
 @pytest.fixture(scope="module", autouse=False, params=["ThreadPoolExecutor", "ProcessPoolExecutor"])
-def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory) -> str:
-    """
-    populates the cache with the sdxl checkpoints, starts a frontend and backend worker against a started rabbitmq, and yields the address of the frontend
-    :return:
-    """
+def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers: int = 1):
     from huggingface_hub import hf_hub_download
     hf_hub_download("stabilityai/stable-diffusion-xl-base-1.0", "sd_xl_base_1.0.safetensors")
     hf_hub_download("stabilityai/stable-diffusion-xl-refiner-1.0", "sd_xl_refiner_1.0.safetensors")
@@ -99,6 +94,7 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory) -> str:
     tmp_path = tmp_path_factory.mktemp("comfy_background_server")
     executor_factory = request.param
     processes_to_close: List[subprocess.Popen] = []
+
     from testcontainers.rabbitmq import RabbitMqContainer
     with RabbitMqContainer("rabbitmq:latest") as rabbitmq:
         params = rabbitmq.get_connection_params()
@@ -115,15 +111,18 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory) -> str:
         ]
 
         processes_to_close.append(subprocess.Popen(frontend_command, stdout=sys.stdout, stderr=sys.stderr))
-        backend_command = [
-            "comfyui-worker",
-            "--port=9002",
-            f"-w={str(tmp_path)}",
-            f"--distributed-queue-connection-uri={connection_uri}",
-            f"--executor-factory={executor_factory}"
-        ]
 
-        processes_to_close.append(subprocess.Popen(backend_command, stdout=sys.stdout, stderr=sys.stderr))
+        # Start multiple workers
+        for i in range(num_workers):
+            backend_command = [
+                "comfyui-worker",
+                f"--port={9002 + i}",
+                f"-w={str(tmp_path)}",
+                f"--distributed-queue-connection-uri={connection_uri}",
+                f"--executor-factory={executor_factory}"
+            ]
+            processes_to_close.append(subprocess.Popen(backend_command, stdout=sys.stdout, stderr=sys.stderr))
+
         try:
             server_address = f"http://{get_lan_ip()}:9001"
             start_time = time.time()
@@ -134,10 +133,8 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory) -> str:
                     if response.status_code == 200:
                         connected = True
                         break
-                except ConnectionRefusedError:
+                except requests.exceptions.ConnectionError:
                     pass
-                except Exception as exc:
-                    logging.warning("", exc_info=exc)
                 time.sleep(1)
             if not connected:
                 raise RuntimeError("could not connect to frontend")

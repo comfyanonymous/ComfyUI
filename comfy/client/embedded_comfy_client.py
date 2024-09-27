@@ -167,7 +167,7 @@ class EmbeddedComfyClient:
     async def queue_prompt_api(self,
                                prompt: PromptDict) -> V1QueuePromptResponse:
         outputs = await self.queue_prompt(prompt)
-        return V1QueuePromptResponse(**outputs)
+        return V1QueuePromptResponse(urls=[], outputs=outputs)
 
     @tracer.start_as_current_span("Queue Prompt")
     async def queue_prompt(self,

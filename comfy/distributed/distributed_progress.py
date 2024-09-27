@@ -28,7 +28,7 @@ def _get_name(queue_name: str, user_id: str) -> str:
 
 
 class DistributedExecutorToClientProgress(ExecutorToClientProgress):
-    def __init__(self, rpc: RPC, queue_name: str, loop: AbstractEventLoop, receive_all_progress_notifications=True):
+    def __init__(self, rpc: RPC, queue_name: str, loop: AbstractEventLoop):
         self._rpc = rpc
         self._queue_name = queue_name
         self._loop = loop
@@ -37,7 +37,10 @@ class DistributedExecutorToClientProgress(ExecutorToClientProgress):
         self.node_id = None
         self.last_node_id = None
         self.last_prompt_id = None
-        self.receive_all_progress_notifications = receive_all_progress_notifications
+
+    @property
+    def receive_all_progress_notifications(self) -> bool:
+        return True
 
     async def send(self, event: SendSyncEvent, data: SendSyncData, user_id: Optional[str]) -> None:
         if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:

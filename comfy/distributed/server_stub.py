@@ -16,7 +16,6 @@ class ServerStub(ExecutorToClientProgress):
         self.client_id = str(uuid.uuid4())
         self.last_node_id = None
         self.last_prompt_id = None
-        self.receive_all_progress_notifications = False
 
     def send_sync(self,
                   event: Literal["status", "executing"] | BinaryEventTypes | str | None,
@@ -25,3 +24,7 @@ class ServerStub(ExecutorToClientProgress):
 
     def queue_updated(self, queue_remaining: Optional[int] = None):
         pass
+
+    @property
+    def receive_all_progress_notifications(self) -> bool:
+        return False

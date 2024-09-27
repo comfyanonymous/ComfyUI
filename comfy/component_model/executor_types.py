@@ -80,7 +80,14 @@ class ExecutorToClientProgress(Protocol):
     client_id: Optional[str]
     last_node_id: Optional[str]
     last_prompt_id: Optional[str]
-    receive_all_progress_notifications: Optional[bool]
+
+    @property
+    def receive_all_progress_notifications(self):
+        """
+        Set to true if this should receive progress bar updates, in addition to the standard execution lifecycle messages
+        :return:
+        """
+        return False
 
     def send_sync(self,
                   event: SendSyncEvent,

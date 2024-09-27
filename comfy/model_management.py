@@ -173,10 +173,15 @@ try:
 except:
     pass
 
+
+class _ComfyOutOfMemoryException(RuntimeError):
+    pass
+
+
 try:
     OOM_EXCEPTION = torch.cuda.OutOfMemoryError
 except:
-    OOM_EXCEPTION = Exception
+    OOM_EXCEPTION = _ComfyOutOfMemoryException
 
 XFORMERS_VERSION = ""
 XFORMERS_ENABLED_VAE = True
