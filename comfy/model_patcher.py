@@ -140,69 +140,55 @@ class CallbacksMP:
 class WrappersMP:
     OUTER_SAMPLE = "outer_sample"
     CALC_COND_BATCH = "calc_cond_batch"
+    SAMPLER_SAMPLE = "sampler_sample"
 
     @classmethod
     def init_wrappers(cls):
         return {
             cls.OUTER_SAMPLE: {None: []},
+            cls.SAMPLER_SAMPLE: {None: []},
             cls.CALC_COND_BATCH: {None: []},
         }
 
 class WrapperExecutor:
-    def __init__(self, original: Callable, wrappers: list[Callable], idx: int):
+    """Handles call stack of wrappers around a function in an ordered manner."""
+    def __init__(self, original: Callable, class_obj: object, wrappers: list[Callable], idx: int):
         self.original = original
+        self.class_obj = class_obj
         self.wrappers = wrappers.copy()
         self.idx = idx
         self.is_last = idx == len(wrappers)
     
     def __call__(self, *args, **kwargs):
+        """Calls the next wrapper in line or original function, whichever is appropriate."""
         new_executor = self._create_next_executor()
-        return new_executor._execute(*args, **kwargs)
+        return new_executor.execute(*args, **kwargs)
     
-    def _execute(self, *args, **kwargs):
+    def execute(self, *args, **kwargs):
+        """Used to initiate executor internally - DO NOT use this if you received executor in wrapper."""
         args = list(args)
         kwargs = dict(kwargs)
         if self.is_last:
+            if self.class_obj is None:
+                return self.original(*args, **kwargs)
             return self.original(*args, **kwargs)
         return self.wrappers[self.idx](self, *args, **kwargs)
 
-    def _create_next_executor(self):
+    def _create_next_executor(self) -> 'WrapperExecutor':
         new_idx = self.idx + 1
         if new_idx > len(self.wrappers):
             raise Exception(f"Wrapper idx exceeded available wrappers; something went very wrong.")
-        return WrapperExecutor(self.original, self.wrappers, new_idx)
+        if self.class_obj is None:
+            return WrapperExecutor.new_executor(self.original, self.wrappers, new_idx)
+        return WrapperExecutor.new_class_executor(self.original, self.class_obj, self.wrappers, new_idx)
 
     @classmethod
-    def new_executor(cls, original: Callable, wrappers: list[Callable]):
-        return cls(original, wrappers, idx=0)
-
-class WrapperClassExecutor:
-    def __init__(self, original: Callable, wrappers: list[Callable], idx: int):
-        self.original = original
-        self.wrappers = wrappers.copy()
-        self.idx = idx
-        self.is_last = idx == len(wrappers)
+    def new_executor(cls, original: Callable, wrappers: list[Callable], idx=0):
+        return cls(original, class_obj=None, wrappers=wrappers, idx=idx)
     
-    def __call__(self, class_inst, *args, **kwargs):
-        new_executor = self._create_next_executor()
-        return new_executor._execute(class_inst, *args, **kwargs)
-    
-    def _execute(self, class_inst, *args, **kwargs):
-        args = list(args)
-        kwargs = dict(kwargs)
-        if self.is_last:
-            return self.original(*args, **kwargs)
-        return self.wrappers[self.idx](self, class_inst, *args, **kwargs)
-
-    def _create_next_executor(self):
-        new_idx = self.idx + 1
-        if new_idx > len(self.wrappers):
-            raise Exception(f"Wrapper idx exceeded available wrappers; something went very wrong.")
-        return WrapperClassExecutor(self.original, self.wrappers, new_idx)
-
     @classmethod
-    def new_executor(cls, original: Callable, wrappers: list[Callable]):
-        return cls(original, wrappers, idx=0)
+    def new_class_executor(cls, original: Callable, class_obj: object, wrappers: list[Callable], idx=0):
+        return cls(original, class_obj, wrappers, idx=idx)
 
 class AutoPatcherEjector:
     def __init__(self, model: 'ModelPatcher', skip_and_inject_on_exit_only=False):
