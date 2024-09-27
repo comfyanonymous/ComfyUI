@@ -342,7 +342,7 @@ class CreateHookLoraModelOnly(CreateHookLora):
 
 class CreateHookModelAsLora:
     NodeId = 'CreateHookModelAsLora'
-    NodeName = 'Create Hook Model as LoRA'
+    NodeName = 'Create Hook Model as LoRA Direct'
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -381,7 +381,7 @@ class CreateHookModelAsLora:
 
 class CreateHookModelAsLoraModelOnly:
     NodeId = 'CreateHookModelAsLoraModelOnly'
-    NodeName = 'Create Hook Model as LoRA (MO)'
+    NodeName = 'Create Hook Model as LoRA Direct (MO)'
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -406,7 +406,7 @@ class CreateHookModelAsLoraModelOnly:
 
 class CreateHookModelAsLoraTest:
     NodeId = 'CreateHookModelAsLoraTest'
-    NodeName = 'Create Hook Model as LoRA (TEST)'
+    NodeName = 'Create Hook Model as LoRA'
 
     def __init__(self):
         # when not None, will be in following format:
