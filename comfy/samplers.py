@@ -178,7 +178,7 @@ def finalize_default_conds(hooked_to_run: dict[comfy.hooks.HookGroup,list[tuple[
                 continue
             # replace p's mult with calculated mult
             p = p._replace(mult=mult)
-            hook: comfy.hooks.HookGroup = x.get('hook', None)
+            hook: comfy.hooks.HookGroup = x.get('hooks', None)
             hooked_to_run.setdefault(hook, list())
             hooked_to_run[hook] += [(p, i)]
 

@@ -17,7 +17,7 @@ import folder_paths
 #------------------------------------------
 class PairConditioningSetProperties:
     NodeId = 'PairConditioningSetProperties'
-    NodeName = 'Pair Cond Set Props'
+    NodeName = 'Cond Pair Set Props'
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -45,6 +45,41 @@ class PairConditioningSetProperties:
         final_positive, final_negative = comfy.hooks.set_mask_conds(conds=[positive_NEW, negative_NEW],
                                                                     strength=strength, set_cond_area=set_cond_area,
                                                                     opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
+        return (final_positive, final_negative)
+    
+class PairConditioningSetPropertiesAndCombine:
+    NodeId = 'PairConditioningSetPropertiesAndCombine'
+    NodeName = 'Cond Pair Set Props Combine'
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "positive": ("CONDITIONING", ),
+                "negative": ("CONDITIONING", ),
+                "positive_NEW": ("CONDITIONING", ),
+                "negative_NEW": ("CONDITIONING", ),
+                "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                "set_cond_area": (["default", "mask bounds"],),
+            },
+            "optional": {
+                "opt_mask": ("MASK", ),
+                "opt_hooks": ("HOOKS",),
+                "opt_timesteps": ("TIMESTEPS_RANGE",),
+            }
+        }
+    
+    RETURN_TYPES = ("CONDITIONING", "CONDITIONING")
+    RETURN_NAMES = ("positive", "negative")
+    CATEGORY = "advanced/hooks/cond pair"
+    FUNCTION = "set_properties"
+
+    def set_properties(self, positive, negative, positive_NEW, negative_NEW,
+                       strength: float, set_cond_area: str,
+                       opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: tuple=None):
+        positive_NEW, negative_NEW = comfy.hooks.set_mask_conds(conds=[positive_NEW, negative_NEW],
+                                                                    strength=strength, set_cond_area=set_cond_area,
+                                                                    opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
+        final_positive, final_negative = comfy.hooks.combine_with_new_conds(conds=[positive, negative], new_conds=[positive_NEW, negative_NEW])
         return (final_positive, final_negative)
 
 class ConditioningSetProperties:
@@ -77,9 +112,41 @@ class ConditioningSetProperties:
                                                    opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
         return (final_cond,)
 
+class ConditioningSetPropertiesAndCombine:
+    NodeId = 'ConditioningSetPropertiesAndCombine'
+    NodeName = 'Cond Set Props Combine'
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "cond": ("CONDITIONING", ),
+                "cond_NEW": ("CONDITIONING", ),
+                "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                "set_cond_area": (["default", "mask bounds"],),
+            },
+            "optional": {
+                "opt_mask": ("MASK", ),
+                "opt_hooks": ("HOOKS",),
+                "opt_timesteps": ("TIMESTEPS_RANGE",),
+            }
+        }
+
+    RETURN_TYPES = ("CONDITIONING",)
+    CATEGORY = "advanced/hooks/cond single"
+    FUNCTION = "set_properties"
+
+    def set_properties(self, cond, cond_NEW,
+                       strength: float, set_cond_area: str,
+                       opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: tuple=None):
+        (cond_NEW,) = comfy.hooks.set_mask_conds(conds=[cond_NEW],
+                                                   strength=strength, set_cond_area=set_cond_area,
+                                                   opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
+        (final_cond,) = comfy.hooks.combine_with_new_conds(conds=[cond], new_conds=[cond_NEW])
+        return (final_cond,)
+
 class PairConditioningCombine:
     NodeId = 'PairConditioningCombine'
-    NodeName = 'Pair Cond Combine'
+    NodeName = 'Cond Pair Combine'
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -102,7 +169,7 @@ class PairConditioningCombine:
 
 class PairConditioningSetDefaultAndCombine:
     NodeId = 'PairConditioningSetDefaultCombine'
-    NodeName = 'Pair Cond Set Default Combine'
+    NodeName = 'Cond Pair Set Default Combine'
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -759,7 +826,9 @@ node_list = [
     CombineHooksEight,
     # Attach
     ConditioningSetProperties,
+    ConditioningSetPropertiesAndCombine,
     PairConditioningSetProperties,
+    PairConditioningSetPropertiesAndCombine,
     ConditioningSetDefaultAndCombine,
     PairConditioningSetDefaultAndCombine,
     PairConditioningCombine,

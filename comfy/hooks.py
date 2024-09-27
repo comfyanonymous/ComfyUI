@@ -619,6 +619,12 @@ def combine_conditioning(conds: list):
         combined_conds.extend(cond)
     return combined_conds
 
+def combine_with_new_conds(conds: list, new_conds: list):
+    combined_conds = []
+    for c, new_c in zip(conds, new_conds):
+        combined_conds.append(combine_conditioning([c, new_c]))
+    return combined_conds
+
 def set_mask_conds(conds: list, strength: float, set_cond_area: str,
                    opt_mask: torch.Tensor=None, opt_hooks: HookGroup=None, opt_timestep_range: tuple[float,float]=None):
     masked_conds = []
