@@ -394,6 +394,7 @@ KNOWN_CONTROLNETS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("XLabs-AI/flux-controlnet-collections", "flux-canny-controlnet-v3.safetensors"),
     HuggingFile("XLabs-AI/flux-controlnet-collections", "flux-depth-controlnet-v3.safetensors"),
     HuggingFile("XLabs-AI/flux-controlnet-collections", "flux-hed-controlnet-v3.safetensors"),
+    HuggingFile("alimama-creative/FLUX.1-dev-Controlnet-Inpainting-Alpha", "diffusion_pytorch_model.safetensors", save_with_filename="alimama-creative-flux.1-dev-controlnet-inpainting-alpha.safetensors"),
 ], folder_name="controlnet")
 
 KNOWN_DIFF_CONTROLNETS: Final[KnownDownloadables] = KnownDownloadables([
