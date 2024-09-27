@@ -733,16 +733,18 @@ class PromptServer(ExecutorToClientProgress):
                 return web.Response(status=404)
 
             history_items = self.prompt_queue.get_history(prompt_id)
-            if len(history_items) == 0:
+            if len(history_items) == 0 or prompt_id not in history_items:
                 # todo: this should really be moved to a stateful queue abstraction
                 if prompt_id in self.background_tasks:
                     return web.Response(status=204)
                 else:
                     # todo: this should check a stateful queue abstraction
                     return web.Response(status=404)
-            else:
+            elif prompt_id in history_items:
                 history_entry = history_items[prompt_id]
                 return web.json_response(history_entry["outputs"])
+            else:
+                return web.Response(status=500)
 
         @routes.post("/api/v1/prompts")
         async def post_api_prompt(request: web.Request) -> web.Response | web.FileResponse:
