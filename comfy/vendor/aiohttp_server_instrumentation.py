@@ -18,12 +18,15 @@ from typing import Dict, List, Tuple, Union
 
 from aiohttp import web
 from multidict import CIMultiDictProxy
-from opentelemetry import context, metrics, trace
-from opentelemetry.context import _SUPPRESS_HTTP_INSTRUMENTATION_KEY
+
+from opentelemetry import metrics, trace
 _instruments = ("aiohttp ~= 3.0",)
-__version__ = "0.46b0.dev"
+__version__ = "0.49b0.dev"
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
-from opentelemetry.instrumentation.utils import http_status_to_status_code
+from opentelemetry.instrumentation.utils import (
+    http_status_to_status_code,
+    is_http_instrumentation_enabled,
+)
 from opentelemetry.propagate import extract
 from opentelemetry.propagators.textmap import Getter
 from opentelemetry.semconv.metrics import MetricInstruments
@@ -152,7 +155,7 @@ def set_status_code(span, status_code: int) -> None:
             Status(
                 StatusCode.ERROR,
                 "Non-integer HTTP status: " + repr(status_code),
-            )
+                )
         )
     else:
         span.set_attribute(SpanAttributes.HTTP_STATUS_CODE, status_code)
@@ -190,10 +193,8 @@ getter = AiohttpGetter()
 @web.middleware
 async def middleware(request, handler):
     """Middleware for aiohttp implementing tracing logic"""
-    if (
-            context.get_value("suppress_instrumentation")
-            or context.get_value(_SUPPRESS_HTTP_INSTRUMENTATION_KEY)
-            or _excluded_urls.url_disabled(request.url.path)
+    if not is_http_instrumentation_enabled() or _excluded_urls.url_disabled(
+            request.url.path
     ):
         return await handler(request)
 
@@ -206,7 +207,7 @@ async def middleware(request, handler):
     duration_histogram = meter.create_histogram(
         name=MetricInstruments.HTTP_SERVER_DURATION,
         unit="ms",
-        description="Duration of HTTP client requests.",
+        description="Measures the duration of inbound HTTP requests.",
     )
 
     active_requests_counter = meter.create_up_down_counter(
