@@ -1,93 +1,135 @@
-<h1># ComfyUI-ZLUDA</h1>
+<div align="center">
 
-* Windows only version of comfyui which uses ZLUDA to get better performance with AMD GPUs.
+# ComfyUI-ZLUDA
 
-<h2>## What's New ?</h2>
+Windows-only version of ComfyUI which uses ZLUDA to get better performance with AMD GPUs.
 
-* Changed  ``` start.bat  ```  to  ``` comfyui.bat ```  because there is already a windows command by that name, which creates some problems. Also added  ``` fix-update.bat  ``` which solves the problem that causes not being able to update to latest version.
+![ComfyUI Screenshot](comfyui_screenshot.png)
 
-* Updated ZLUDA to 3.8.4, thanks for lshqqytiger still supporting HIP SDK 5.7 . Install will install that version from now on, and if you are already on the previous one please run ``` patchzluda.bat ``` once. Of course remember the first time for every type of model would take extra time. You can still use both zluda's on the same machine btw. But I recommend updating.
+</div>
 
-*** BIG UPDATE. Things got broken, had to reset the fork, to get back and update successfully , on the comfyui-zluda directory run these one after another : ``` git fetch --all ``` (enter) ``` git reset --hard origin/master ``` (enter) now you can run comfyui.bat , it will update to the latest version. And also after this a reboot of windows might be needed if the generation time seems to be low. After reboot speed returns to normal.
+## Table of Contents
 
-* Regarding keeping the app up to date, don't use the update function from the manager, instead use git pull which we are doing on every start if start.bat is used. (APP ALREADY DOES IT EVERYTIME YOU OPEN IT , IF YOU ARE USING COMFYUI.BAT, SO THIS WAY IT IS ALWAYS UP-TO-DATE WITH WHATEVER IS ON MY GITHUB PAGE)  Only use comfy manager to update the extensions  ( MANAGER - CUSTOM NODES MANAGER - SET FILTER TO INSTALLED - CLICK CHECK UPDATE ON THE BOTTOM OF THE WINDOW) otherwise it breaks the basic installation, and in that case run install.bat once again.
----
+- [What's New?](#whats-new)
+- [Dependencies](#dependencies)
+- [Setup (Windows-Only)](#setup-windows-only)
+- [Troubleshooting](#troubleshooting)
+- [Credits](#credits)
 
-<details>
- <summary><h2>## CREDITS</h2></summary>
- 
-- comfyui (https://github.com/comfyanonymous/ComfyUI)
-- Zluda wiki from sdnext (https://github.com/vladmandic/automatic/wiki/ZLUDA)
-- brknsoul for rocm libraries (https://github.com/brknsoul/ROCmLibs)
-- lshqqytiger (https://github.com/lshqqytiger/ZLUDA)
-- LeagueRaINi (https://github.com/LeagueRaINi/ComfyUI)
-- ComfyUI-Manager (https://github.com/ltdrdata/ComfyUI-Manager)
- </details>
+## What's New?
 
-<details open>
- <summary><h2>## DEPENDENCIES</h2></summary>
+* Changed `start.bat` to `comfyui.bat` because there is already a windows command by that name, which
+  creates some problems. Also added  `fix-update.bat` which solves the problem that causes not being able to
+  update to the latest version.
+* Updated ZLUDA to 3.8.4, thanks to lshqqytiger for still supporting HIP SDK 5.7. Install will install that version from
+  now on, and if you are already on the previous one please run `patchzluda.bat` once. Of course, remember the
+  first time for every type of model would take extra time. You can still use both zluda's on the same machine btw. But
+  I recommend updating.
+
+> [!IMPORTANT]
+> 📢 **BIG UPDATE**
+>
+> Things got broken, had to reset the fork, to get back and update successfully, on the ComfyUI-ZLUDA
+> directory run these after another : `git fetch --all` <kbd>Enter</kbd> `git reset --hard origin/master` <kbd>
+> Enter</kbd>
+> now you can run `comfyui.bat`, it will update to the latest version. And also after this, a reboot of windows might be
+> necessary if the generation time seems low. After reboot speed returns to normal.
+
+- Regarding keeping the app up to date, don't use the update function from the manager, instead use `git pull`, which we
+  are doing on every start if `start.bat` is used. (App Already Does It Every Time You Open It, If You Are Using
+  `comfyui.bat`, So This Way It Is Always Up To Date With Whatever Is On My GitHub Page) Only use comfy manager to
+  update the extensions (Manager -> Custom Nodes Manager -> Set Filter To Installed -> Click Check Update On The Bottom
+  Of The Window) otherwise it breaks the basic installation, and in that case run `install.bat` once again.
+
+## Dependencies
 
 If coming from the very start, you need :
 
-1. **Git** : download from https://git-scm.com/download/win .
-	During installation don't forget to check the box for "Use Git from the Windows Command line and also from 3rd-party-software" to add Git to your system's PATH .
-
-2. **Python** (3.10.11 or 3.11 from the official website) : Install latest release from python.org .  DON'T USE WINDOWS STORE VERSION. If you have that installed, uninstall and please install from python.org .
-	  During installation don't forget to check the box for "Add Python to PATH when you are at the the "Customize Python" screen.
-
-3. **Visual C++ Runtime** : download from https://aka.ms/vs/17/release/vc_redist.x64.exe , install it.
-
-4. Install **HIP SDK 5.7.1** from https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html ((UPDATE: HIP 6.1.2 released now, but there are problems so no need to use that one please be careful about selecting the correct version, "Windows 10 & 11	5.7.1	HIP SDK"))
-
-5.  Add the system variable HIP_PATH , value : C:\\Program Files\\AMD\\ROCm\\5.7\\ (this is the default folder, if you installed it on another drive, change if necessary)
-
-- 	1. Check the variables on the lower part (System Variables) , there should be a variable called : HIP_PATH .
-- 	2. Also check the variables on the lower part (System Variables) , there should be a variable called : "Path".	   Double click it and click "New" add this : C:\Program Files\AMD\ROCm\5.7\bin
-	
-6. If you have an AMD GPU below 6800 (6700,6600 etc.) , download the recommended library files for you gpu from : https://github.com/brknsoul/ROCmLibs/
-
-- 	1. Go to folder C:\Program Files\AMD\ROCm\5.7\bin\rocblas , there would be a "library" folder, backup the files inside to somewhere else.
-- 	2. Open your downloaded optimized library archive and put them inside the library folder (overwriting if necessary) : "C:\\Program Files\\AMD\\ROCm\\5.7\\bin\\rocblas\\library"
-
+1. **Git**: Download from https://git-scm.com/download/win.
+   During installation don't forget to check the box for "Use Git from the Windows Command line and also from
+   3rd-party-software" to add Git to your system's PATH.
+2. **Python** (3.10.11 or 3.11 from the official website): Install the latest release from python.org. **Don't Use
+   Windows Store Version**. If you have that installed, uninstall and please install from python.org. During
+   installation remember to check the box for "Add Python to PATH when you are at the "Customize Python" screen.
+3. **Visual C++ Runtime**: Download [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe) and install it.
+4. Install **HIP SDK 5.7.1** from [HERE](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html)
+    - **Update**: HIP 6.1.2 released now, but there are problems so no need to use that one, please be careful about
+      selecting the correct version, "Windows 10 & 11 5.7.1 HIP SDK"
+5. Add the system variable HIP_PATH, value: `C:\\Program Files\\AMD\\ROCm\\5.7\\` (This is the default folder, if you
+   have installed it on another drive, change if necessary)
+    1. Check the variables on the lower part (System Variables), there should be a variable called: HIP_PATH.
+    2. Also check the variables on the lower part (System Variables), there should be a variable called: "Path".
+       Double-click it and click "New" add this: C:\Program Files\AMD\ROCm\5.7\bin
+6. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
+   from [Brknsoul Repository](https://github.com/brknsoul/ROCmLibs)
+    1. Go to folder "C:\Program Files\AMD\ROCm\5.7\bin\rocblas", there would be a "library" folder, backup the files
+       inside to somewhere else.
+    2. Open your downloaded optimized library archive and put them inside the library folder (overwriting if
+       necessary): "C:\\Program Files\\AMD\\ROCm\\5.7\\bin\\rocblas\\library"
 7. Reboot your system.
-</details>
 
-<h2>## SETUP (FOR WINDOWS ONLY)</h2>
+## Setup (Windows-Only)
 
-Open a cmd prompt. 
+Open a cmd prompt.
 
 ```bash
 git clone https://github.com/patientx/ComfyUI-Zluda
 ```
+
 ```bash
 cd ComfyUI-Zluda
 ```
+
 ```bash
 install.bat
 ```
+
 to start for later use (or create a shortcut to) :
+
 ```bash
 comfyui.bat
 ```
-also for later when you need to repatch zluda (maybe a torch update etc.) you can use :
+
+also for later when you need to repatch zluda (maybe a torch update etc.) you can use:
+
 ```bash
 patchzluda.bat
 ```
-- The first generation would take around 10-15 minutes, there won't any progress or indicator on the webui or cmd window, just wait. Zluda creates a database for use with generation with your gpu.
 
- ** !!! This might happen with torch changes , zluda version changes and / or gpu driver changes. !!! **
+- The first generation would take around 10-15 minutes, there won't be any progress or indicator on the webui or cmd
+  window, just wait. Zluda creates a database for use with generation with your gpu.
 
-<h2>## TROUBLESHOOTING</h2>
+> [!NOTE]
+> **This might happen with torch changes , zluda version changes and / or gpu driver changes.**
 
-- wipe your pip cache ( C:\Users\[your windows username]\AppData\Local\pip\cache )
-  You can also do this when venv is active with : ``` pip cache purge ```
-  
-- ```xformers``` isn't usable with zluda so any nodes / packages that require it doesn't work. ```Flash attention``` doesn't work. And lastly using ```codeformer``` for face restoration gives "Failed inference: CUDA driver error: unknown error" You should use gfpgan / gpen / restoreformer or other face restoration models.
-  
-- have the latest drivers installed for your amd gpu. ALSO REMOVE ANY NVIDIA DRIVERS you might have from previous nvidia gpu's.
-- if you see zluda errors make sure these three files are inside "ComfyUI-Zluda\venv\Lib\site-packages\torch\lib\" 
-   cublas64_11.dll (196kb) cusparse64_11.dll (193kb) nvrtc64_112_0.dll (125kb)
-  If they are there but bigger files run : ``` patchzluda.bat ```
-- if for some reason you can't solve with these and want to start from zero, delete "venv" folder and re-run ``` install.bat ```
-- If you can't git pull to the latest version , run these commands, ``` git fetch --all ``` and then ``` git reset --hard origin/master ``` now you can git pull
-- Problems with "caffe2_nvrtc.dll" : if you are sure you properly installed hip and can see it on path, please DON'T use python from windows store, use the link provided or 3.11 from the official website. After uninstalling python from windows store and installing the one from the website, be sure the delete venv folder, and run install.bat once again.
+## Troubleshooting
+
+- Wipe your pip cache "C:\Users\USERNAME\AppData\Local\pip\cache" You can also do this when venv is active with :
+  `pip cache purge`
+- `xformers` isn't usable with zluda so any nodes / packages that require it doesn't work. `Flash attention`
+  doesn't work. And lastly using `codeformer` for face restoration gives "Failed inference: CUDA driver error:
+  unknown error" You should use gfpgan / gpen / restoreformer or other face restoration models.
+- Have the latest drivers installed for your amd gpu. **Also, Remove Any Nvidia Drivers** you might have from previous
+  nvidia
+  gpu's.
+- If you see zluda errors make sure these three files are inside "ComfyUI-Zluda\venv\Lib\site-packages\torch\lib\"
+  `cublas64_11.dll (196kb)` `cusparse64_11.dll (193kb)` `nvrtc64_112_0.dll (125kb)` If they are there but bigger files
+  run : `patchzluda.bat`
+- If for some reason you can't solve with these and want to start from zero, delete "venv" folder and re-run
+  `install.bat`
+- If you can't git pull to the latest version, run these commands, `git fetch --all` and then
+  `git reset --hard origin/master` now you can git pull
+- Problems with `caffe2_nvrtc.dll`: if you are sure you properly installed hip and can see it on path, please DON'T use
+  python from windows store, use the link provided or 3.11 from the official website. After uninstalling python from
+  windows store and installing the one from the website, be sure the delete venv folder, and run install.bat once again.
+
+___
+
+## Credits
+
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
+- [Zluda Wiki from SdNext](https://github.com/vladmandic/automatic/wiki/ZLUDA)
+- [Brknsoul for Rocm Libraries](https://github.com/brknsoul/ROCmLibs)
+- [Lshqqytiger](https://github.com/lshqqytiger/ZLUDA)
+- [LeagueRaINi](https://github.com/LeagueRaINi/ComfyUI)
+- [ComfyUI-Manager](https://github.com/ltdrdata/ComfyUI-Manager)
