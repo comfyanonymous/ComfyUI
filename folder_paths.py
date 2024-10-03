@@ -48,7 +48,7 @@ user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
-async_executor = ThreadPoolExecutor()
+async_executor = ThreadPoolExecutor(32)
 
 class CacheHelper:
     """
