@@ -221,8 +221,8 @@ def prebuild_lists():
     calls = []
     for folder_name in folder_names_and_paths:
         calls.append(async_executor.submit(lambda: get_filename_list(folder_name)))
-    while len(calls) > 0:
-        calls.pop().result()
+    for call in calls:
+        call.result()
     end_time = time.time()
     logging.info("Scanned model lists in {:.2f} seconds".format(end_time - start_time))
 
@@ -348,8 +348,8 @@ def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float]
     for x in folders[0]:
         calls.append(async_executor.submit(lambda f=x: check_new_dirs(f)))
 
-    while len(calls) > 0:
-        calls.pop().result()
+    for call in calls:
+        call.result()
 
     if must_invalidate.is_set():
         return None
