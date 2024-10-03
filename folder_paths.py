@@ -5,7 +5,6 @@ import os
 import time
 import mimetypes
 import logging
-import time
 from typing import Set, List, Dict, Tuple, Literal
 from collections.abc import Collection
 from concurrent.futures import ThreadPoolExecutor
@@ -217,13 +216,14 @@ def get_folder_paths(folder_name: str) -> list[str]:
 
 
 def prebuild_lists():
-    start_time = time.time()
-    calls = []
-    for folder_name in folder_names_and_paths:
-        calls.append(async_executor.submit(lambda: get_filename_list(folder_name)))
-    for call in calls:
-        call.result()
-    end_time = time.time()
+    start_time = time.perf_counter()
+    with ThreadPoolExecutor(32) as executor:
+        calls = []
+        for folder_name in folder_names_and_paths:
+            calls.append(executor.submit(lambda: get_filename_list(folder_name)))
+        for call in calls:
+            call.result()
+    end_time = time.perf_counter()
     logging.info("Scanned model lists in {:.2f} seconds".format(end_time - start_time))
 
 
