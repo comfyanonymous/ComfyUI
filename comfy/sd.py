@@ -481,7 +481,8 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.tokenizer = sd1_clip.SD1Tokenizer
     elif len(clip_data) == 2:
         if clip_type == CLIPType.SD3:
-            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=True, clip_g=True, t5=False)
+            te_models = [detect_te_model(clip_data[0]), detect_te_model(clip_data[1])]
+            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=TEModel.CLIP_L in te_models, clip_g=TEModel.CLIP_G in te_models, t5=TEModel.T5_XXL in te_models)
             clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
         elif clip_type == CLIPType.HUNYUAN_DIT:
             clip_target.clip = comfy.text_encoders.hydit.HyditModel
