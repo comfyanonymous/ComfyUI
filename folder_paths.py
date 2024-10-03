@@ -217,14 +217,17 @@ def get_folder_paths(folder_name: str) -> list[str]:
 
 def prebuild_lists():
     start_time = time.perf_counter()
+
     with ThreadPoolExecutor(32) as executor:
         calls = []
         for folder_name in folder_names_and_paths:
             calls.append(executor.submit(lambda: get_filename_list(folder_name)))
+
         for call in calls:
             call.result()
+
     end_time = time.perf_counter()
-    logging.info("Scanned model lists in {:.2f} seconds".format(end_time - start_time))
+    logging.info(f"Scanned model lists in {end_time - start_time:.2f} seconds")
 
 
 def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) -> tuple[list[str], dict[str, float]]:
