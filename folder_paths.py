@@ -48,6 +48,8 @@ user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
+async_executor = ThreadPoolExecutor()
+
 class CacheHelper:
     """
     Helper class for managing file list cache data.
@@ -231,31 +233,30 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
 
     logging.debug("recursive file list on directory {}".format(directory))
 
-    with ThreadPoolExecutor() as executor:
-        calls = []
+    calls = []
 
-        def proc_subdir(path: str):
-            dirs[path] = os.path.getmtime(path)
+    def proc_subdir(path: str):
+        dirs[path] = os.path.getmtime(path)
 
-        def handle(file):
-            try:
-                if not os.path.isdir(file):
-                    relative_path = os.path.relpath(file, directory)
-                    result.append(relative_path)
-                    return
+    def handle(file):
+        try:
+            if not os.path.isdir(file):
+                relative_path = os.path.relpath(file, directory)
+                result.append(relative_path)
+                return
 
-                calls.append(executor.submit(lambda f=file: proc_subdir(f)))
+            calls.append(async_executor.submit(lambda f=file: proc_subdir(f)))
 
-                for subdir in os.listdir(file):
-                    if subdir not in excluded_dir_names:
-                        path = os.path.join(file, subdir)
-                        calls.append(executor.submit(lambda p=path: handle(p)))
-            except Exception as e:
-                logging.error(f"recursive_search encountered error while handling '{file}': {e}")
+            for subdir in os.listdir(file):
+                if subdir not in excluded_dir_names:
+                    path = os.path.join(file, subdir)
+                    calls.append(async_executor.submit(lambda p=path: handle(p)))
+        except Exception as e:
+            logging.error(f"recursive_search encountered error while handling '{file}': {e}")
 
-        calls.append(executor.submit(lambda: handle(directory)))
-        while len(calls) > 0:
-            calls.pop().result()
+    calls.append(async_executor.submit(lambda: handle(directory)))
+    while len(calls) > 0:
+        calls.pop().result()
 
     logging.debug("found {} files".format(len(result)))
     return result, dirs
@@ -316,25 +317,26 @@ def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float]
     must_invalidate = threading.Event()
     folders = folder_names_and_paths[folder_name]
 
-    with ThreadPoolExecutor() as executor:
+    def check_folder_mtime(folder: str, time_modified: float):
+        if os.path.getmtime(folder) != time_modified:
+            must_invalidate.set()
 
-        def check_folder_mtime(folder: str, time_modified: float):
-            if os.path.getmtime(folder) != time_modified:
+    def check_new_dirs(x: str):
+        if os.path.isdir(x):
+            if x not in out[1]:
                 must_invalidate.set()
 
-        def check_new_dirs(x: str):
-            if os.path.isdir(x):
-                if x not in out[1]:
-                    must_invalidate.set()
+    calls = []
 
-        for x in out[1]:
-            time_modified = out[1][x]
-            executor.submit(lambda f=x, t=time_modified: check_folder_mtime(f, t))
+    for x in out[1]:
+        time_modified = out[1][x]
+        calls.append(async_executor.submit(lambda f=x, t=time_modified: check_folder_mtime(f, t)))
 
-        for x in folders[0]:
-            executor.submit(lambda f=x: check_new_dirs(f))
+    for x in folders[0]:
+        calls.append(async_executor.submit(lambda f=x: check_new_dirs(f)))
 
-        executor.shutdown(wait=True)
+    while len(calls) > 0:
+        calls.pop().result()
 
     if must_invalidate.is_set():
         return None
