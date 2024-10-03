@@ -212,6 +212,8 @@ if __name__ == "__main__":
 
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
 
+    folder_paths.prebuild_lists()
+
     cuda_malloc_warning()
 
     server.add_routes()

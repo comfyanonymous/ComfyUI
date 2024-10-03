@@ -5,6 +5,7 @@ import os
 import time
 import mimetypes
 import logging
+import time
 from typing import Set, List, Dict, Tuple, Literal
 from collections.abc import Collection
 from concurrent.futures import ThreadPoolExecutor
@@ -214,6 +215,18 @@ def get_folder_paths(folder_name: str) -> list[str]:
     folder_name = map_legacy(folder_name)
     return folder_names_and_paths[folder_name][0][:]
 
+
+def prebuild_lists():
+    start_time = time.time()
+    calls = []
+    for folder_name in folder_names_and_paths:
+        calls.append(async_executor.submit(lambda: get_filename_list(folder_name)))
+    while len(calls) > 0:
+        calls.pop().result()
+    end_time = time.time()
+    logging.info("Scanned model lists in {:.2f} seconds".format(end_time - start_time))
+
+
 def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) -> tuple[list[str], dict[str, float]]:
     if not os.path.isdir(directory):
         return [], {}
@@ -261,9 +274,9 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
     logging.debug("found {} files".format(len(result)))
     return result, dirs
 
+
 def filter_files_extensions(files: Collection[str], extensions: Collection[str]) -> list[str]:
     return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions or len(extensions) == 0, files)))
-
 
 
 def get_full_path(folder_name: str, filename: str) -> str | None:
