@@ -44,6 +44,17 @@ def get_sigmas_vp(n, beta_d=19.9, beta_min=0.1, eps_s=1e-3, device='cpu'):
     return append_zero(sigmas)
 
 
+def get_sigmas_laplace(n, sigma_min, sigma_max, mu=0., beta=0.5, device='cpu'):
+    """Constructs the noise schedule proposed by Tiankai et al. (2024). """
+    epsilon = 1e-5 # avoid log(0)
+    x = torch.linspace(0, 1, n, device=device)
+    clamp = lambda x: torch.clamp(x, min=sigma_min, max=sigma_max)
+    lmb = mu - beta * torch.sign(0.5-x) * torch.log(1 - 2 * torch.abs(0.5-x) + epsilon)
+    sigmas = clamp(torch.exp(lmb))
+    return sigmas
+
+
+
 def to_d(x, sigma, denoised):
     """Converts a denoiser output to a Karras ODE derivative."""
     return (x - denoised) / utils.append_dims(sigma, x.ndim)
@@ -1142,4 +1153,37 @@ def sample_dpmpp_2s_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback
         # Noise addition
         if sigmas[i + 1] > 0:
             x = x + noise_sampler(sigmas[i], sigmas[i + 1]) * s_noise * sigma_up
+    return x
+
+@torch.no_grad()
+def sample_dpmpp_2m_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None):
+    """DPM-Solver++(2M)."""
+    extra_args = {} if extra_args is None else extra_args
+    s_in = x.new_ones([x.shape[0]])
+    t_fn = lambda sigma: sigma.log().neg()
+
+    old_uncond_denoised = None
+    uncond_denoised = None
+    def post_cfg_function(args):
+        nonlocal uncond_denoised
+        uncond_denoised = args["uncond_denoised"]
+        return args["denoised"]
+    
+    model_options = extra_args.get("model_options", {}).copy()
+    extra_args["model_options"] = comfy.model_patcher.set_model_options_post_cfg_function(model_options, post_cfg_function, disable_cfg1_optimization=True)
+
+    for i in trange(len(sigmas) - 1, disable=disable):
+        denoised = model(x, sigmas[i] * s_in, **extra_args)
+        if callback is not None:
+            callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+        t, t_next = t_fn(sigmas[i]), t_fn(sigmas[i + 1])
+        h = t_next - t
+        if old_uncond_denoised is None or sigmas[i + 1] == 0:
+            denoised_mix = -torch.exp(-h) * uncond_denoised
+        else:
+            h_last = t - t_fn(sigmas[i - 1])
+            r = h_last / h
+            denoised_mix = -torch.exp(-h) * uncond_denoised - torch.expm1(-h) * (1 / (2 * r)) * (denoised - old_uncond_denoised)
+        x = denoised + denoised_mix + torch.exp(-h) * x
+        old_uncond_denoised = uncond_denoised
     return x

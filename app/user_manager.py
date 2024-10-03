@@ -118,6 +118,29 @@ class UserManager():
 
         @routes.get("/userdata")
         async def listuserdata(request):
+            """
+            List user data files in a specified directory.
+
+            This endpoint allows listing files in a user's data directory, with options for recursion,
+            full file information, and path splitting.
+
+            Query Parameters:
+            - dir (required): The directory to list files from.
+            - recurse (optional): If "true", recursively list files in subdirectories.
+            - full_info (optional): If "true", return detailed file information (path, size, modified time).
+            - split (optional): If "true", split file paths into components (only applies when full_info is false).
+
+            Returns:
+            - 400: If 'dir' parameter is missing.
+            - 403: If the requested path is not allowed.
+            - 404: If the requested directory does not exist.
+            - 200: JSON response with the list of files or file information.
+
+            The response format depends on the query parameters:
+            - Default: List of relative file paths.
+            - full_info=true: List of dictionaries with file details.
+            - split=true (and full_info=false): List of lists, each containing path components.
+            """
             directory = request.rel_url.query.get('dir', '')
             if not directory:
                 return web.Response(status=400, text="Directory not provided")

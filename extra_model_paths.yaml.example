@@ -25,6 +25,8 @@ a111:
 
 #comfyui:
 #     base_path: path/to/comfyui/
+#     # You can use is_default to mark that these folders should be listed first, and used as the default dirs for eg downloads
+#     #is_default: true
 #     checkpoints: models/checkpoints/
 #     clip: models/clip/
 #     clip_vision: models/clip_vision/

@@ -107,7 +107,7 @@ class VideoTriangleCFGGuidance:
         return (m, )
 
 class ImageOnlyCheckpointSave(comfy_extras.nodes_model_merging.CheckpointSave):
-    CATEGORY = "_for_testing"
+    CATEGORY = "advanced/model_merging"
 
     @classmethod
     def INPUT_TYPES(s):

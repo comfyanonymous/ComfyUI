@@ -71,14 +71,16 @@ def test_load_extra_model_paths_expands_userpath(
     load_extra_path_config(dummy_yaml_file_name)
 
     expected_calls = [
-        ('checkpoints', os.path.join(mock_expanded_home, 'App', 'subfolder1')),
+        ('checkpoints', os.path.join(mock_expanded_home, 'App', 'subfolder1'), False),
     ]
 
     assert mock_add_model_folder_path.call_count == len(expected_calls)
     
     # Check if add_model_folder_path was called with the correct arguments
     for actual_call, expected_call in zip(mock_add_model_folder_path.call_args_list, expected_calls):
-        assert actual_call.args == expected_call
+        assert actual_call.args[0] == expected_call[0] 
+        assert os.path.normpath(actual_call.args[1]) == os.path.normpath(expected_call[1])  # Normalize and check the path to check on multiple OS.
+        assert actual_call.args[2] == expected_call[2]
 
     # Check if yaml.safe_load was called
     mock_yaml_safe_load.assert_called_once()
@@ -111,7 +113,7 @@ def test_load_extra_model_paths_expands_appdata(
 
     expected_base_path = 'C:/Users/TestUser/AppData/Roaming/ComfyUI'
     expected_calls = [
-        ('checkpoints', os.path.join(expected_base_path, 'models/checkpoints')),
+        ('checkpoints', os.path.join(expected_base_path, 'models/checkpoints'), False),
     ]
 
     assert mock_add_model_folder_path.call_count == len(expected_calls)

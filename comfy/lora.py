@@ -294,6 +294,7 @@ def model_lora_keys_unet(model, key_map={}):
             unet_key = "diffusion_model.{}".format(diffusers_keys[k])
             key_lora = k[:-len(".weight")].replace(".", "_")
             key_map["lora_unet_{}".format(key_lora)] = unet_key
+            key_map["lycoris_{}".format(key_lora)] = unet_key #simpletuner lycoris format
 
             diffusers_lora_prefix = ["", "unet."]
             for p in diffusers_lora_prefix:
@@ -414,7 +415,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
             weight *= strength_model
 
         if isinstance(v, list):
-            v = (calculate_weight(v[1:], v[0].clone(), key, intermediate_dtype=intermediate_dtype), )
+            v = (calculate_weight(v[1:], comfy.model_management.cast_to_device(v[0], weight.device, intermediate_dtype, copy=True), key, intermediate_dtype=intermediate_dtype), )
 
         if len(v) == 1:
             patch_type = "diff"

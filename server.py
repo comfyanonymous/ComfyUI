@@ -490,12 +490,17 @@ class PromptServer():
         async def system_stats(request):
             device = comfy.model_management.get_torch_device()
             device_name = comfy.model_management.get_torch_device_name(device)
+            cpu_device = comfy.model_management.torch.device("cpu")
+            ram_total = comfy.model_management.get_total_memory(cpu_device)
+            ram_free = comfy.model_management.get_free_memory(cpu_device)
             vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
 
             system_stats = {
                 "system": {
                     "os": os.name,
+                    "ram_total": ram_total,
+                    "ram_free": ram_free,
                     "comfyui_version": get_comfyui_version(),
                     "python_version": sys.version,
                     "pytorch_version": comfy.model_management.torch_version,
@@ -674,6 +679,7 @@ class PromptServer():
         
         # Internal route. Should not be depended upon and is subject to change at any time.
         # TODO(robinhuang): Move to internal route table class once we refactor PromptServer to pass around Websocket.
+        # NOTE: This was an experiment and WILL BE REMOVED
         @routes.post("/internal/models/download")
         async def download_handler(request):
             async def report_progress(filename: str, status: DownloadModelStatus):
@@ -684,10 +690,11 @@ class PromptServer():
             data = await request.json()
             url = data.get('url')
             model_directory = data.get('model_directory')
+            folder_path = data.get('folder_path')
             model_filename = data.get('model_filename')
             progress_interval = data.get('progress_interval', 1.0) # In seconds, how often to report download progress.
 
-            if not url or not model_directory or not model_filename:
+            if not url or not model_directory or not model_filename or not folder_path:
                 return web.json_response({"status": "error", "message": "Missing URL or folder path or filename"}, status=400)
 
             session = self.client_session
@@ -695,7 +702,7 @@ class PromptServer():
                 logging.error("Client session is not initialized")
                 return web.Response(status=500)
             
-            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, report_progress, progress_interval))
+            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, folder_path, report_progress, progress_interval))
             await task
 
             return web.json_response(task.result().to_dict())
@@ -812,6 +819,9 @@ class PromptServer():
             await self.send(*msg)
 
     async def start(self, address, port, verbose=True, call_on_start=None):
+        await self.start_multi_address([(address, port)], call_on_start=call_on_start)
+
+    async def start_multi_address(self, addresses, call_on_start=None):
         runner = web.AppRunner(self.app, access_log=None)
         await runner.setup()
         ssl_ctx = None
@@ -822,17 +832,26 @@ class PromptServer():
                                 keyfile=args.tls_keyfile)
                 scheme = "https"
 
-        site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
-        await site.start()
+        logging.info("Starting server\n")
+        for addr in addresses:
+            address = addr[0]
+            port = addr[1]
+            site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
+            await site.start()
 
-        self.address = address
-        self.port = port
+            if not hasattr(self, 'address'):
+                self.address = address #TODO: remove this
+                self.port = port
 
-        if verbose:
-            logging.info("Starting server\n")
-            logging.info("To see the GUI go to: {}://{}:{}".format(scheme, address, port))
+            if ':' in address:
+                address_print = "[{}]".format(address)
+            else:
+                address_print = address
+
+            logging.info("To see the GUI go to: {}://{}:{}".format(scheme, address_print, port))
+
         if call_on_start is not None:
-            call_on_start(scheme, address, port)
+            call_on_start(scheme, self.address, self.port)
 
     def add_on_prompt_handler(self, handler):
         self.on_prompt_handlers.append(handler)
