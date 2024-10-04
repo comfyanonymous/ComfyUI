@@ -169,8 +169,6 @@ class FrontendManager:
         )
         if not os.path.exists(web_root):
             tmp_path = web_root + ".tmp"
-            if os.path.exists(tmp_path):
-                os.rmdir(tmp_path)
             try:
                 os.makedirs(tmp_path, exist_ok=True)
                 logging.info(
