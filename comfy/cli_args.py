@@ -136,7 +136,7 @@ parser.add_argument("--disable-all-custom-nodes", action="store_true", help="Dis
 
 parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
-parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
+parser.add_argument("--verbose", default='INFO', const='DEBUG', nargs="?", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set the logging level')
 
 # The default built-in provider hosted under web/
 DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"

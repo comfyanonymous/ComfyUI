@@ -9,7 +9,7 @@ from comfy.cli_args import args
 from app.logger import setup_logger
 
 
-setup_logger(verbose=args.verbose)
+setup_logger(log_level=args.verbose)
 
 
 def execute_prestartup_script():
