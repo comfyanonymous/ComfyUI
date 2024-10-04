@@ -10,14 +10,14 @@ def get_logs():
     return "\n".join([formatter.format(x) for x in logs])
 
 
-def setup_logger(verbose: bool = False, capacity: int = 300):
+def setup_logger(log_level: str = 'INFO', capacity: int = 300):
     global logs
     if logs:
         return
 
     # Setup default global logger
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+    logger.setLevel(log_level)
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(logging.Formatter("%(message)s"))
