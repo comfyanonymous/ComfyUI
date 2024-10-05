@@ -75,6 +75,9 @@ class FolderNames:
     def keys(self):
         return self.contents.keys()
 
+    def get(self, key, __default=None):
+        return self.contents.get(key, __default)
+
 
 class SaveImagePathResponse(NamedTuple):
     full_output_folder: str
