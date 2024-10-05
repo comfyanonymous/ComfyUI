@@ -168,6 +168,7 @@ class FrontendManager:
             Path(cls.CUSTOM_FRONTENDS_ROOT) / provider.folder_name / semantic_version
         )
         if not os.path.exists(web_root):
+            # Use tmp path until complete to avoid path exists check passing from interrupted downloads
             tmp_path = web_root + ".tmp"
             try:
                 os.makedirs(tmp_path, exist_ok=True)
