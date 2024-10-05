@@ -109,8 +109,7 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
     keys = list(sd.keys())
     for k in keys:
         if k not in u:
-            t = sd.pop(k)
-            del t
+            sd.pop(k)
     return clip
 
 def load(ckpt_path):
