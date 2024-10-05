@@ -37,6 +37,7 @@ class SaveImageWebsocket:
 
         return {}
 
+    @classmethod
     def IS_CHANGED(s, images):
         return time.time()
 
