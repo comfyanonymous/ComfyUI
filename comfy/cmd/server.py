@@ -727,7 +727,7 @@ class PromptServer(ExecutorToClientProgress):
             return web.json_response(task.result().to_dict())
 
         @routes.get("/api/v1/prompts/{prompt_id}")
-        async def get_api_prompt(request: web.Request) -> web.Response | web.FileResponse:
+        async def get_api_v1_prompts_prompt_id(request: web.Request) -> web.Response | web.FileResponse:
             prompt_id: str = request.match_info.get("prompt_id", "")
             if prompt_id == "":
                 return web.Response(status=404)
