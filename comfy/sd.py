@@ -29,7 +29,6 @@ import comfy.text_encoders.long_clipl
 import comfy.model_patcher
 import comfy.lora
 import comfy.t2i_adapter.adapter
-import comfy.supported_models_base
 import comfy.taesd.taesd
 
 def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
