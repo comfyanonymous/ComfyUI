@@ -31,11 +31,13 @@ class SDXL(LatentFormat):
     def __init__(self):
         self.latent_rgb_factors = [
                     #   R        G        B
-                    [ 0.3920,  0.4054,  0.4549],
-                    [-0.2634, -0.0196,  0.0653],
-                    [ 0.0568,  0.1687, -0.0755],
-                    [-0.3112, -0.2359, -0.2076]
+                    [ 0.3651,  0.4232,  0.4341],
+                    [-0.2533, -0.0042,  0.1068],
+                    [ 0.1076,  0.1111, -0.0362],
+                    [-0.3165, -0.2492, -0.2188]
                 ]
+        self.latent_rgb_factors_bias = [ 0.1084, -0.0175, -0.0011]
+
         self.taesd_decoder_name = "taesdxl_decoder"
 
 class SDXL_Playground_2_5(LatentFormat):
