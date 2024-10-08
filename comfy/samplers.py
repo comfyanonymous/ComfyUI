@@ -91,8 +91,8 @@ def get_area_and_mult(conds, x_in, timestep_in):
 
         patches['middle_patch'] = [gligen_patch]
 
-    cond_obj = collections.namedtuple('cond_obj', ['input_x', 'mult', 'conditioning', 'area', 'control', 'patches'])
-    return cond_obj(input_x, mult, conditioning, area, control, patches)
+    cond_obj = collections.namedtuple('cond_obj', ['input_x', 'mult', 'conditioning', 'area', 'control', 'patches', 'uuid'])
+    return cond_obj(input_x, mult, conditioning, area, control, patches, conds['uuid'])
 
 def cond_equal_size(c1, c2):
     if c1 is c2:
@@ -252,6 +252,7 @@ def outer_calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: tor
             mult = []
             c = []
             cond_or_uncond = []
+            uuids = []
             area = []
             control = None
             patches = None
@@ -263,6 +264,7 @@ def outer_calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: tor
                 c.append(p.conditioning)
                 area.append(p.area)
                 cond_or_uncond.append(o[1])
+                uuids.append(p.uuid)
                 control = p.control
                 patches = p.patches
 
@@ -288,6 +290,7 @@ def outer_calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: tor
                     transformer_options["patches"] = patches
 
             transformer_options["cond_or_uncond"] = cond_or_uncond[:]
+            transformer_options["uuids"] = uuids[:]
             transformer_options["sigmas"] = timestep
 
             c['transformer_options'] = transformer_options

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import uuid
 import torch
 import comfy.model_management
 import comfy.conds
@@ -45,6 +46,7 @@ def convert_cond(cond):
             model_conds["c_crossattn"] = comfy.conds.CONDCrossAttn(c[0]) #TODO: remove
             temp["cross_attn"] = c[0]
         temp["model_conds"] = model_conds
+        temp["uuid"] = uuid.uuid4()
         out.append(temp)
     return out
 
