@@ -85,14 +85,14 @@ class QuantizeModel(CustomNode):
             "final_layer.",
         }
         if strategy == "quanto":
-            from optimum.quanto import quantize, qint8
+            from optimum.quanto import quantize, qint8  # pylint: disable=import-error
             exclusion_list = [
                 name for name, module in unet.named_modules() if isinstance(module, LayerNorm) and module.weight is None
             ]
             quantize(unet, weights=qint8, activations=qint8, exclude=exclusion_list)
             _in_place_fixme = unet
         elif strategy == "torchao":
-            from torchao.quantization import quantize_, int8_dynamic_activation_int8_weight
+            from torchao.quantization import quantize_, int8_dynamic_activation_int8_weight  # pylint: disable=import-error
             model = model.clone()
             unet = model.get_model_object("diffusion_model")
             # todo: quantize quantizes in place, which is not desired
