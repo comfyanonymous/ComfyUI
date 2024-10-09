@@ -13,9 +13,17 @@ def first_file(path, filenames) -> str | None:
     return None
 
 
-def load_diffusers(model_path, output_vae=True, output_clip=True, embedding_directory=None):
-    diffusion_model_names = ["diffusion_pytorch_model.fp16.safetensors", "diffusion_pytorch_model.safetensors", "diffusion_pytorch_model.fp16.bin", "diffusion_pytorch_model.bin"]
-    unet_path = first_file(os.path.join(model_path, "unet"), diffusion_model_names)
+def load_diffusers(model_path, output_vae=True, output_clip=True, embedding_directory=None, model_options=None):
+    if model_options is None:
+        model_options = {}
+    diffusion_model_names = [
+        "diffusion_pytorch_model.fp16.safetensors",
+        "diffusion_pytorch_model.safetensors",
+        "diffusion_pytorch_model.fp16.bin",
+        "diffusion_pytorch_model.bin",
+        "diffusion_pytorch_model.safetensors.index.json"
+    ]
+    unet_path = first_file(os.path.join(model_path, "unet"), diffusion_model_names) or  first_file(os.path.join(model_path, "transformer"), diffusion_model_names)
     vae_path = first_file(os.path.join(model_path, "vae"), diffusion_model_names)
 
     text_encoder_model_names = ["model.fp16.safetensors", "model.safetensors", "pytorch_model.fp16.bin", "pytorch_model.bin"]
@@ -28,7 +36,7 @@ def load_diffusers(model_path, output_vae=True, output_clip=True, embedding_dire
 
     unet = None
     if unet_path is not None:
-        unet = sd.load_diffusion_model(unet_path)
+        unet = sd.load_diffusion_model(unet_path, model_options=model_options)
 
     clip = None
     textmodel_json_config1 = first_file(os.path.join(model_path, "text_encoder"), ["config.json"])

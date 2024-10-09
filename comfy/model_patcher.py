@@ -27,10 +27,11 @@ import torch.nn
 
 from . import model_management, lora
 from . import utils
+from .comfy_types import UnetWrapperFunction
 from .float import stochastic_rounding
 from .model_base import BaseModel
 from .model_management_types import ModelManageable, MemoryMeasurements
-from .comfy_types import UnetWrapperFunction
+
 
 def string_to_seed(data):
     crc = 0xFFFFFFFF
@@ -44,6 +45,7 @@ def string_to_seed(data):
             else:
                 crc >>= 1
     return crc ^ 0xFFFFFFFF
+
 
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
     to = model_options["transformer_options"].copy()
@@ -106,7 +108,7 @@ class ModelPatcher(ModelManageable):
         self.backup = {}
         self.object_patches = {}
         self.object_patches_backup = {}
-        self.model_options = {"transformer_options": {}}
+        self._model_options = {"transformer_options": {}}
         self.model_size()
         self.load_device = load_device
         self.offload_device = offload_device
@@ -114,6 +116,14 @@ class ModelPatcher(ModelManageable):
         self.patches_uuid = uuid.uuid4()
         self.ckpt_name = ckpt_name
         self._memory_measurements = MemoryMeasurements(self.model)
+
+    @property
+    def model_options(self) -> dict:
+        return self._model_options
+
+    @model_options.setter
+    def model_options(self, value):
+        self._model_options = value
 
     @property
     def model_device(self) -> torch.device:
@@ -145,7 +155,7 @@ class ModelPatcher(ModelManageable):
         n.patches_uuid = self.patches_uuid
 
         n.object_patches = self.object_patches.copy()
-        n.model_options = copy.deepcopy(self.model_options)
+        n._model_options = copy.deepcopy(self.model_options)
         n.backup = self.backup
         n.object_patches_backup = self.object_patches_backup
         return n
@@ -260,6 +270,11 @@ class ModelPatcher(ModelManageable):
                 self.model_options["model_function_wrapper"] = wrap_func.to(device)
 
     def model_dtype(self):
+        # this pokes into the internals of diffusion model a little bit
+        # todo: the base model isn't going to be aware that its diffusion model is patched this way
+        if isinstance(self.model, BaseModel):
+            diffusion_model = self.get_model_object("diffusion_model")
+            return diffusion_model.dtype
         if hasattr(self.model, "get_dtype"):
             return self.model.get_dtype()
 
@@ -293,7 +308,7 @@ class ModelPatcher(ModelManageable):
             if filter_prefix is not None:
                 if not k.startswith(filter_prefix):
                     continue
-            bk = self.backup.get(k, None)
+            bk: torch.nn.Module | None = self.backup.get(k, None)
             if bk is not None:
                 weight = bk.weight
             else:
@@ -494,7 +509,7 @@ class ModelPatcher(ModelManageable):
 
             if hasattr(m, "comfy_patched_weights") and m.comfy_patched_weights == True:
                 for key in [weight_key, bias_key]:
-                    bk = self.backup.get(key, None)
+                    bk: torch.nn.Module | None = self.backup.get(key, None)
                     if bk is not None:
                         if bk.inplace_update:
                             utils.copy_to_param(self.model, key, bk.weight)

@@ -55,17 +55,13 @@ class ModelManageable(Protocol):
     def model_dtype(self) -> torch.dtype:
         return next(self.model.parameters()).dtype
 
-    def patch_model_lowvram(self, device_to: torch.device, lowvram_model_memory: int, force_patch_weights: Optional[bool] = False) -> torch.nn.Module:
-        self.patch_model(device_to=device_to, patch_weights=False)
-        return self.model
-
-    def patch_model(self, device_to: torch.device | None = None, patch_weights: bool = True) -> torch.nn.Module:
+    def patch_model(self, device_to: torch.device | None = None, lowvram_model_memory: int = 0, load_weights: bool = True, force_patch_weights: bool = False) -> torch.nn.Module:
         ...
 
-    def unpatch_model(self, offload_device: torch.device | None = None, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
+    def unpatch_model(self, device_to: torch.device | None = None, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
         """
         Unloads the model by moving it to the offload device
-        :param offload_device:
+        :param device_to:
         :param unpatch_weights:
         :return:
         """
@@ -98,6 +94,20 @@ class ModelManageable(Protocol):
 
     def current_loaded_device(self) -> torch.device:
         return self.current_device
+
+    def get_model_object(self, name: str) -> torch.nn.Module:
+        from . import utils
+        return utils.get_attr(self.model, name)
+
+    @property
+    def model_options(self) -> dict:
+        if not hasattr(self, "_model_options"):
+            setattr(self, "_model_options", {"transformer_options": {}})
+        return getattr(self, "_model_options")
+
+    @model_options.setter
+    def model_options(self, value):
+        setattr(self, "_model_options", value)
 
 
 @dataclasses.dataclass

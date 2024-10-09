@@ -19,15 +19,19 @@ from __future__ import annotations
 
 import contextlib
 import itertools
+import json
 import logging
 import math
+import os
 import random
 import struct
 import sys
 import warnings
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Optional, Any
 
+import accelerate
 import numpy as np
 import safetensors.torch
 import torch
@@ -55,13 +59,27 @@ def _get_progress_bar_enabled():
 setattr(sys.modules[__name__], 'PROGRESS_BAR_ENABLED', property(_get_progress_bar_enabled))
 
 
-def load_torch_file(ckpt, safe_load=False, device=None):
+def load_torch_file(ckpt: str, safe_load=False, device=None):
     if device is None:
         device = torch.device("cpu")
     if ckpt is None:
         raise FileNotFoundError("the checkpoint was not found")
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         sd = safetensors.torch.load_file(ckpt, device=device.type)
+    elif ckpt.lower().endswith("index.json"):
+        # from accelerate
+        index_filename = ckpt
+        checkpoint_folder = os.path.split(index_filename)[0]
+        with open(index_filename) as f:
+            index = json.loads(f.read())
+
+        if "weight_map" in index:
+            index = index["weight_map"]
+        checkpoint_files = sorted(list(set(index.values())))
+        checkpoint_files = [os.path.join(checkpoint_folder, f) for f in checkpoint_files]
+        sd: dict[str, torch.Tensor] = {}
+        for checkpoint_file in checkpoint_files:
+            sd.update(safetensors.torch.load_file(str(checkpoint_file), device=device.type))
     else:
         if safe_load:
             if not 'weights_only' in torch.load.__code__.co_varnames:

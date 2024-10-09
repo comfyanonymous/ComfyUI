@@ -99,6 +99,8 @@ def _create_parser() -> EnhancedConfigArgParser:
                             help="Use the new pytorch 2.0 cross attention function.")
 
     parser.add_argument("--disable-xformers", action="store_true", help="Disable xformers.")
+    parser.add_argument("--disable-flash-attn", action="store_true", help="Disable Flash Attention")
+    parser.add_argument("--disable-sage-attention", action="store_true", help="Disable Sage Attention")
 
     upcast = parser.add_mutually_exclusive_group()
     upcast.add_argument("--force-upcast-attention", action="store_true", help="Force enable attention upcasting, please report if it fixes black images.")

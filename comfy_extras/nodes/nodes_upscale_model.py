@@ -88,16 +88,12 @@ class UpscaleModelManageable(ModelManageable):
     def model_dtype(self) -> torch.dtype:
         return next(self.model.parameters()).dtype
 
-    def patch_model_lowvram(self, device_to: torch.device, lowvram_model_memory: int, force_patch_weights: Optional[bool] = False) -> torch.nn.Module:
+    def patch_model(self, device_to: torch.device | None = None, lowvram_model_memory: int = 0, load_weights: bool = True, force_patch_weights: bool = False) -> torch.nn.Module:
         self.model.to(device=device_to)
         return self.model
 
-    def patch_model(self, device_to: torch.device | None = None, patch_weights: bool = True) -> torch.nn.Module:
+    def unpatch_model(self, device_to: torch.device | None = None, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
         self.model.to(device=device_to)
-        return self.model
-
-    def unpatch_model(self, offload_device: torch.device | None = None, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
-        self.model.to(device=offload_device)
         return self.model
 
     def __str__(self):

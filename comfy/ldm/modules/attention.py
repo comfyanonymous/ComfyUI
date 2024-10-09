@@ -1,10 +1,12 @@
+import logging
 import math
+from functools import wraps
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
-from torch import nn, einsum
 from einops import rearrange, repeat
-from typing import Optional
-import logging
+from torch import nn, einsum
 
 from .diffusionmodules.util import AlphaBlender, timestep_embedding
 from .sub_quadratic_attention import efficient_dot_product_attention
@@ -12,13 +14,21 @@ from ... import model_management
 
 if model_management.xformers_enabled():
     import xformers  # pylint: disable=import-error
-    import xformers.ops # pylint: disable=import-error
+    import xformers.ops  # pylint: disable=import-error
+
+if model_management.sage_attention_enabled():
+    from sageattention import sageattn
+
+if model_management.flash_attn_enabled():
+    from flash_attn import flash_attn_func
 
 from ...cli_args import args
 from ... import ops
+
 ops = ops.disable_weight_init
 
 FORCE_UPCAST_ATTENTION_DTYPE = model_management.force_upcast_attention_dtype()
+
 
 def get_attn_precision(attn_precision):
     if args.dont_upcast_attention:
@@ -27,12 +37,13 @@ def get_attn_precision(attn_precision):
         return FORCE_UPCAST_ATTENTION_DTYPE
     return attn_precision
 
+
 def exists(val):
     return val is not None
 
 
 def uniq(arr):
-    return{el: True for el in arr}.keys()
+    return {el: True for el in arr}.keys()
 
 
 def default(val, d):
@@ -82,8 +93,10 @@ class FeedForward(nn.Module):
     def forward(self, x):
         return self.net(x)
 
+
 def Normalize(in_channels, dtype=None, device=None):
     return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype, device=device)
+
 
 def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
     attn_precision = get_attn_precision(attn_precision)
@@ -98,7 +111,7 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
 
     h = heads
     if skip_reshape:
-         q, k, v = map(
+        q, k, v = map(
             lambda t: t.reshape(b * heads, -1, dim_head),
             (q, k, v),
         )
@@ -122,7 +135,7 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
 
     if exists(mask):
         if mask.dtype == torch.bool:
-            mask = rearrange(mask, 'b ... -> b (...)') #TODO: check if this bool part matches pytorch attention
+            mask = rearrange(mask, 'b ... -> b (...)')  # TODO: check if this bool part matches pytorch attention
             max_neg_value = -torch.finfo(sim.dtype).max
             mask = repeat(mask, 'b j -> (b h) () j', h=h)
             sim.masked_fill_(~mask, max_neg_value)
@@ -167,13 +180,12 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None,
         value = value.unsqueeze(3).reshape(b, -1, heads, dim_head).permute(0, 2, 1, 3).reshape(b * heads, -1, dim_head)
         key = key.unsqueeze(3).reshape(b, -1, heads, dim_head).permute(0, 2, 3, 1).reshape(b * heads, dim_head, -1)
 
-
     dtype = query.dtype
     upcast_attention = attn_precision == torch.float32 and query.dtype != torch.float32
     if upcast_attention:
-        bytes_per_token = torch.finfo(torch.float32).bits//8
+        bytes_per_token = torch.finfo(torch.float32).bits // 8
     else:
-        bytes_per_token = torch.finfo(query.dtype).bits//8
+        bytes_per_token = torch.finfo(query.dtype).bits // 8
     batch_x_heads, q_tokens, _ = query.shape
     _, _, k_tokens = key.shape
     qk_matmul_size_bytes = batch_x_heads * bytes_per_token * q_tokens * k_tokens
@@ -215,8 +227,9 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None,
 
     hidden_states = hidden_states.to(dtype)
 
-    hidden_states = hidden_states.unflatten(0, (-1, heads)).transpose(1,2).flatten(start_dim=2)
+    hidden_states = hidden_states.unflatten(0, (-1, heads)).transpose(1, 2).flatten(start_dim=2)
     return hidden_states
+
 
 def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
     attn_precision = get_attn_precision(attn_precision)
@@ -231,7 +244,7 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
 
     h = heads
     if skip_reshape:
-         q, k, v = map(
+        q, k, v = map(
             lambda t: t.reshape(b * heads, -1, dim_head),
             (q, k, v),
         )
@@ -262,16 +275,15 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     mem_required = tensor_size * modifier
     steps = 1
 
-
     if mem_required > mem_free_total:
-        steps = 2**(math.ceil(math.log(mem_required / mem_free_total, 2)))
+        steps = 2 ** (math.ceil(math.log(mem_required / mem_free_total, 2)))
         # print(f"Expected tensor size:{tensor_size/gb:0.1f}GB, cuda free:{mem_free_cuda/gb:0.1f}GB "
         #      f"torch free:{mem_free_torch/gb:0.1f} total:{mem_free_total/gb:0.1f} steps:{steps}")
 
     if steps > 64:
         max_res = math.floor(math.sqrt(math.sqrt(mem_free_total / 2.5)) / 8) * 64
         raise RuntimeError(f'Not enough memory, use lower resolution (max approx. {max_res}x{max_res}). '
-                            f'Need: {mem_required/64/gb:0.1f}GB free, Have:{mem_free_total/gb:0.1f}GB free')
+                           f'Need: {mem_required / 64 / gb:0.1f}GB free, Have:{mem_free_total / gb:0.1f}GB free')
 
     if mask is not None:
         if len(mask.shape) == 2:
@@ -289,7 +301,7 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
             for i in range(0, q.shape[1], slice_size):
                 end = i + slice_size
                 if upcast:
-                    with torch.autocast(enabled=False, device_type = 'cuda'):
+                    with torch.autocast(enabled=False, device_type='cuda'):
                         s1 = einsum('b i d, b j d -> b i j', q[:, i:end].float(), k.float()) * scale
                 else:
                     s1 = einsum('b i d, b j d -> b i j', q[:, i:end], k) * scale
@@ -331,11 +343,6 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     )
     return r1
 
-BROKEN_XFORMERS = False
-if model_management.xformers_enabled():
-    x_vers = xformers.__version__
-    # XFormers bug confirmed on all versions from 0.0.21 to 0.0.26 (q with bs bigger than 65535 gives CUDA error)
-    BROKEN_XFORMERS = x_vers.startswith("0.0.2") and not x_vers.startswith("0.0.20")
 
 def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
     if skip_reshape:
@@ -346,10 +353,6 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_resh
 
     disabled_xformers = False
 
-    if BROKEN_XFORMERS:
-        if b * heads > 65535:
-            disabled_xformers = True
-
     if not disabled_xformers:
         if torch.jit.is_tracing() or torch.jit.is_scripting():
             disabled_xformers = True
@@ -358,7 +361,7 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_resh
         return attention_pytorch(q, k, v, heads, mask, skip_reshape=skip_reshape)
 
     if skip_reshape:
-         q, k, v = map(
+        q, k, v = map(
             lambda t: t.reshape(b * heads, -1, dim_head),
             (q, k, v),
         )
@@ -390,22 +393,36 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_resh
 
     return out
 
-def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
-    if skip_reshape:
-        b, _, _, dim_head = q.shape
-    else:
-        b, _, dim_head = q.shape
-        dim_head //= heads
-        q, k, v = map(
-            lambda t: t.view(b, -1, heads, dim_head).transpose(1, 2),
-            (q, k, v),
-        )
+def pytorch_style_decl(func):
+    @wraps(func)
+    def wrapper(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
+        if skip_reshape:
+            b, _, _, dim_head = q.shape
+        else:
+            b, _, dim_head = q.shape
+            dim_head //= heads
+            q, k, v = map(
+                lambda t: t.view(b, -1, heads, dim_head).transpose(1, 2),
+                (q, k, v),
+            )
 
-    out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
-    out = (
-        out.transpose(1, 2).reshape(b, -1, heads * dim_head)
-    )
-    return out
+        out = func(q, k, v, heads, mask=mask, attn_precision=attn_precision, skip_reshape=skip_reshape)
+        out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+        return out
+
+    return wrapper
+
+@pytorch_style_decl
+def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
+    return torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
+
+@pytorch_style_decl
+def attention_sagemaker(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
+    return sageattn(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
+
+@pytorch_style_decl
+def attention_flash_attn(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
+    return flash_attn_func(q, k, v)
 
 
 optimized_attention = attention_basic
@@ -426,10 +443,11 @@ else:
 
 optimized_attention_masked = optimized_attention
 
+
 def optimized_attention_for_device(device, mask=False, small_input=False):
     if small_input:
         if model_management.pytorch_attention_enabled():
-            return attention_pytorch #TODO: need to confirm but this is probably slightly faster for small inputs in all cases
+            return attention_pytorch  # TODO: need to confirm but this is probably slightly faster for small inputs in all cases
         else:
             return attention_basic
 
@@ -493,7 +511,7 @@ class BasicTransformerBlock(nn.Module):
 
         self.disable_self_attn = disable_self_attn
         self.attn1 = CrossAttention(query_dim=inner_dim, heads=n_heads, dim_head=d_head, dropout=dropout,
-                              context_dim=context_dim if self.disable_self_attn else None, attn_precision=self.attn_precision, dtype=dtype, device=device, operations=operations)  # is a self-attention if not self.disable_self_attn
+                                    context_dim=context_dim if self.disable_self_attn else None, attn_precision=self.attn_precision, dtype=dtype, device=device, operations=operations)  # is a self-attention if not self.disable_self_attn
         self.ff = FeedForward(inner_dim, dim_out=dim, dropout=dropout, glu=gated_ff, dtype=dtype, device=device, operations=operations)
 
         if disable_temporal_crossattention:
@@ -507,7 +525,7 @@ class BasicTransformerBlock(nn.Module):
                 context_dim_attn2 = context_dim
 
             self.attn2 = CrossAttention(query_dim=inner_dim, context_dim=context_dim_attn2,
-                                heads=n_heads, dim_head=d_head, dropout=dropout, attn_precision=self.attn_precision, dtype=dtype, device=device, operations=operations)  # is self-attn if context is none
+                                        heads=n_heads, dim_head=d_head, dropout=dropout, attn_precision=self.attn_precision, dtype=dtype, device=device, operations=operations)  # is self-attn if context is none
             self.norm2 = operations.LayerNorm(inner_dim, dtype=dtype, device=device)
 
         self.norm1 = operations.LayerNorm(inner_dim, dtype=dtype, device=device)
@@ -641,6 +659,7 @@ class SpatialTransformer(nn.Module):
     Finally, reshape to image
     NEW: use_linear for more efficiency instead of the 1x1 convs
     """
+
     def __init__(self, in_channels, n_heads, d_head,
                  depth=1, dropout=0., context_dim=None,
                  disable_self_attn=False, use_linear=False,
@@ -653,23 +672,23 @@ class SpatialTransformer(nn.Module):
         self.norm = operations.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype, device=device)
         if not use_linear:
             self.proj_in = operations.Conv2d(in_channels,
-                                     inner_dim,
-                                     kernel_size=1,
-                                     stride=1,
-                                     padding=0, dtype=dtype, device=device)
+                                             inner_dim,
+                                             kernel_size=1,
+                                             stride=1,
+                                             padding=0, dtype=dtype, device=device)
         else:
             self.proj_in = operations.Linear(in_channels, inner_dim, dtype=dtype, device=device)
 
         self.transformer_blocks = nn.ModuleList(
             [BasicTransformerBlock(inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim[d],
                                    disable_self_attn=disable_self_attn, checkpoint=use_checkpoint, attn_precision=attn_precision, dtype=dtype, device=device, operations=operations)
-                for d in range(depth)]
+             for d in range(depth)]
         )
         if not use_linear:
-            self.proj_out = operations.Conv2d(inner_dim,in_channels,
-                                                  kernel_size=1,
-                                                  stride=1,
-                                                  padding=0, dtype=dtype, device=device)
+            self.proj_out = operations.Conv2d(inner_dim, in_channels,
+                                              kernel_size=1,
+                                              stride=1,
+                                              padding=0, dtype=dtype, device=device)
         else:
             self.proj_out = operations.Linear(in_channels, inner_dim, dtype=dtype, device=device)
         self.use_linear = use_linear
@@ -699,27 +718,27 @@ class SpatialTransformer(nn.Module):
 
 class SpatialVideoTransformer(SpatialTransformer):
     def __init__(
-        self,
-        in_channels,
-        n_heads,
-        d_head,
-        depth=1,
-        dropout=0.0,
-        use_linear=False,
-        context_dim=None,
-        use_spatial_context=False,
-        timesteps=None,
-        merge_strategy: str = "fixed",
-        merge_factor: float = 0.5,
-        time_context_dim=None,
-        ff_in=False,
-        checkpoint=False,
-        time_depth=1,
-        disable_self_attn=False,
-        disable_temporal_crossattention=False,
-        max_time_embed_period: int = 10000,
-        attn_precision=None,
-        dtype=None, device=None, operations=ops
+            self,
+            in_channels,
+            n_heads,
+            d_head,
+            depth=1,
+            dropout=0.0,
+            use_linear=False,
+            context_dim=None,
+            use_spatial_context=False,
+            timesteps=None,
+            merge_strategy: str = "fixed",
+            merge_factor: float = 0.5,
+            time_context_dim=None,
+            ff_in=False,
+            checkpoint=False,
+            time_depth=1,
+            disable_self_attn=False,
+            disable_temporal_crossattention=False,
+            max_time_embed_period: int = 10000,
+            attn_precision=None,
+            dtype=None, device=None, operations=ops
     ):
         super().__init__(
             in_channels,
@@ -785,13 +804,13 @@ class SpatialVideoTransformer(SpatialTransformer):
         )
 
     def forward(
-        self,
-        x: torch.Tensor,
-        context: Optional[torch.Tensor] = None,
-        time_context: Optional[torch.Tensor] = None,
-        timesteps: Optional[int] = None,
-        image_only_indicator: Optional[torch.Tensor] = None,
-        transformer_options={}
+            self,
+            x: torch.Tensor,
+            context: Optional[torch.Tensor] = None,
+            time_context: Optional[torch.Tensor] = None,
+            timesteps: Optional[int] = None,
+            image_only_indicator: Optional[torch.Tensor] = None,
+            transformer_options={}
     ) -> torch.Tensor:
         _, _, h, w = x.shape
         x_in = x
@@ -801,7 +820,7 @@ class SpatialVideoTransformer(SpatialTransformer):
 
         if self.use_spatial_context:
             assert (
-                context.ndim == 3
+                    context.ndim == 3
             ), f"n dims of spatial context should be 3 but are {context.ndim}"
 
             if time_context is None:
@@ -830,7 +849,7 @@ class SpatialVideoTransformer(SpatialTransformer):
         emb = emb[:, None, :]
 
         for it_, (block, mix_block) in enumerate(
-            zip(self.transformer_blocks, self.time_stack)
+                zip(self.transformer_blocks, self.time_stack)
         ):
             transformer_options["block_index"] = it_
             x = block(
@@ -844,7 +863,7 @@ class SpatialVideoTransformer(SpatialTransformer):
 
             B, S, C = x_mix.shape
             x_mix = rearrange(x_mix, "(b t) s c -> (b s) t c", t=timesteps)
-            x_mix = mix_block(x_mix, context=time_context) #TODO: transformer_options
+            x_mix = mix_block(x_mix, context=time_context)  # TODO: transformer_options
             x_mix = rearrange(
                 x_mix, "(b s) t c -> (b t) s c", s=S, b=B // timesteps, c=C, t=timesteps
             )
@@ -858,5 +877,3 @@ class SpatialVideoTransformer(SpatialTransformer):
             x = self.proj_out(x)
         out = x + x_in
         return out
-
-

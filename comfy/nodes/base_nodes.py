@@ -538,14 +538,16 @@ class DiffusersLoader:
 
         paths += get_huggingface_repo_list()
         paths = list(frozenset(paths))
-        return {"required": {"model_path": (paths,), }}
+        return {"required": {"model_path": (paths,),
+                             "weight_dtype": (FLUX_WEIGHT_DTYPES,)
+                             }}
 
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
     CATEGORY = "advanced/loaders"
 
-    def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
+    def load_checkpoint(self, model_path, output_vae=True, output_clip=True,weight_dtype:str="default"):
         for search_path in folder_paths.get_folder_paths("diffusers"):
             if os.path.exists(search_path):
                 path = os.path.join(search_path, model_path)
@@ -556,7 +558,8 @@ class DiffusersLoader:
             with comfy_tqdm():
                 model_path = snapshot_download(model_path)
 
-        return diffusers_load.load_diffusers(model_path, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        model_options = get_model_options_for_dtype(weight_dtype)
+        return diffusers_load.load_diffusers(model_path, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"), model_options=model_options)
 
 
 class unCLIPCheckpointLoader:
@@ -875,6 +878,14 @@ class ControlNetApplyAdvanced:
             out.append(c)
         return (out[0], out[1])
 
+def get_model_options_for_dtype(weight_dtype):
+    model_options = {}
+    if weight_dtype == "fp8_e4m3fn":
+        model_options["dtype"] = torch.float8_e4m3fn
+    elif weight_dtype == "fp8_e5m2":
+        model_options["dtype"] = torch.float8_e5m2
+    return model_options
+
 
 class UNETLoader:
     @classmethod
@@ -888,15 +899,13 @@ class UNETLoader:
     CATEGORY = "advanced/loaders"
 
     def load_unet(self, unet_name, weight_dtype):
-        model_options = {}
-        if weight_dtype == "fp8_e4m3fn":
-            model_options["dtype"] = torch.float8_e4m3fn
-        elif weight_dtype == "fp8_e5m2":
-            model_options["dtype"] = torch.float8_e5m2
+        model_options = get_model_options_for_dtype(weight_dtype)
 
         unet_path = get_or_download("diffusion_models", unet_name, KNOWN_UNET_MODELS)
         model = sd.load_diffusion_model(unet_path, model_options=model_options)
         return (model,)
+
+
 
 class CLIPLoader:
     @classmethod

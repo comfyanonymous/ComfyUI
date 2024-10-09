@@ -79,13 +79,13 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
 
             # if we have flash-attn installed, try to use it
             try:
-                import flash_attn
-                attn_override_kwargs = {
-                    "attn_implementation": "flash_attention_2",
-                    **kwargs_to_try[0]
-                }
-                kwargs_to_try = (attn_override_kwargs, *kwargs_to_try)
-                logging.debug(f"while loading model {ckpt_name}, flash_attn was installed, so the flash_attention_2 implementation will be tried")
+                if model_management.flash_attn_enabled():
+                    attn_override_kwargs = {
+                        "attn_implementation": "flash_attention_2",
+                        **kwargs_to_try[0]
+                    }
+                    kwargs_to_try = (attn_override_kwargs, *kwargs_to_try)
+                    logging.debug(f"while loading model {ckpt_name}, flash_attn was installed, so the flash_attention_2 implementation will be tried")
             except ImportError:
                 pass
             for i, props in enumerate(kwargs_to_try):
@@ -303,15 +303,12 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
     def model_dtype(self) -> torch.dtype:
         return self.model.dtype
 
-    def patch_model_lowvram(self, device_to: torch.device, lowvram_model_memory: int, force_patch_weights=False) -> torch.nn.Module:
-        warnings.warn("Transformers models do not currently support adapters like LoRAs")
+
+    def patch_model(self, device_to: torch.device | None = None, lowvram_model_memory: int = 0, load_weights: bool = True, force_patch_weights: bool = False) -> torch.nn.Module:
         return self.model.to(device=device_to)
 
-    def patch_model(self, device_to: torch.device | None = None, patch_weights: bool = True) -> torch.nn.Module:
+    def unpatch_model(self, device_to: torch.device | None = None, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
         return self.model.to(device=device_to)
-
-    def unpatch_model(self, offload_device: torch.device | None = None, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
-        return self.model.to(device=offload_device)
 
     def patch_processor(self, processor: Any, overwrite_tokenizer: bool = False) -> TransformersManagedModel:
         model = copy.copy(self)

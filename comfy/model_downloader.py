@@ -535,10 +535,6 @@ def get_huggingface_repo_list(*extra_cache_dirs: str) -> List[str]:
 
         for user_dir in Path(local_dir_root).iterdir():
             for model_dir in user_dir.iterdir():
-                try:
-                    _hf_fs.resolve_path(str(user_dir / model_dir))
-                except Exception as exc_info:
-                    logging.debug(f"HuggingFaceFS did not think this was a valid repo: {user_dir.name}/{model_dir.name} with error {exc_info}", exc_info)
                 existing_local_dir_repos.add(f"{user_dir.name}/{model_dir.name}")
 
     known_repo_ids = frozenset(KNOWN_HUGGINGFACE_MODEL_REPOS)

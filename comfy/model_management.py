@@ -23,7 +23,7 @@ import sys
 import warnings
 from enum import Enum
 from threading import RLock
-from typing import Literal, List, Sequence
+from typing import Literal, List, Sequence, Final
 
 import psutil
 import torch
@@ -128,6 +128,9 @@ def get_torch_device():
             return torch.device("xpu", torch.xpu.current_device())
         else:
             try:
+                # https://github.com/sayakpaul/diffusers-torchao/blob/bade7a6abb1cab9ef44782e6bcfab76d0237ae1f/inference/benchmark_image.py#L3
+                # This setting optimizes performance on NVIDIA GPUs with Ampere architecture (e.g., A100, RTX 30 series) or newer.
+                torch.set_float32_matmul_precision("high")
                 return torch.device(torch.cuda.current_device())
             except:
                 warnings.warn("torch.cuda.current_device() did not return a device, returning a CPU torch device")
@@ -319,7 +322,7 @@ try:
 except:
     logging.warning("Could not pick default device.")
 
-current_loaded_models: List["LoadedModel"] = []
+current_loaded_models: Final[List["LoadedModel"]] = []
 
 
 def module_size(module):
@@ -974,6 +977,22 @@ def cast_to_device(tensor, device, dtype, copy=False):
         else:
             return tensor.to(device, dtype, copy=copy, non_blocking=non_blocking)
 
+FLASH_ATTENTION_ENABLED = False
+if not args.disable_flash_attn:
+    try:
+        import flash_attn
+        FLASH_ATTENTION_ENABLED = True
+    except ImportError:
+        pass
+
+SAGE_ATTENTION_ENABLED = False
+if not args.disable_sage_attention:
+    try:
+        import sageattention
+        SAGE_ATTENTION_ENABLED = True
+    except ImportError:
+        pass
+
 
 def xformers_enabled():
     global directml_device
@@ -985,6 +1004,30 @@ def xformers_enabled():
     if directml_device:
         return False
     return XFORMERS_IS_AVAILABLE
+
+def flash_attn_enabled():
+    global directml_device
+    global cpu_state
+    if cpu_state != CPUState.GPU:
+        return False
+    if is_intel_xpu():
+        return False
+    if directml_device:
+        return False
+    return FLASH_ATTENTION_ENABLED
+
+def sage_attention_enabled():
+    global directml_device
+    global cpu_state
+    if cpu_state != CPUState.GPU:
+        return False
+    if is_intel_xpu():
+        return False
+    if directml_device:
+        return False
+    if xformers_enabled():
+        return False
+    return SAGE_ATTENTION_ENABLED
 
 
 def xformers_enabled_vae():
