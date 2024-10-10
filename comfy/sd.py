@@ -431,6 +431,19 @@ def detect_te_model(sd):
         return TEModel.T5_BASE
     return None
 
+
+def t5xxl_weight_dtype(clip_data):
+    weight_name = "encoder.block.23.layer.1.DenseReluDense.wi_1.weight"
+
+    dtype_t5 = None
+    for sd in clip_data:
+        weight = sd.get(weight_name, None)
+        if weight is not None:
+            dtype_t5 = weight.dtype
+            break
+    return dtype_t5
+
+
 def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
     clip_data = state_dicts
 
@@ -462,9 +475,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.sd2_clip.SD2ClipModel
             clip_target.tokenizer = comfy.text_encoders.sd2_clip.SD2Tokenizer
         elif te_model == TEModel.T5_XXL:
-            weight = clip_data[0]["encoder.block.23.layer.1.DenseReluDense.wi_1.weight"]
-            dtype_t5 = weight.dtype
-            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, dtype_t5=dtype_t5)
+            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, dtype_t5=t5xxl_weight_dtype(clip_data))
             clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
         elif te_model == TEModel.T5_XL:
             clip_target.clip = comfy.text_encoders.aura_t5.AuraT5Model
@@ -482,25 +493,19 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
     elif len(clip_data) == 2:
         if clip_type == CLIPType.SD3:
             te_models = [detect_te_model(clip_data[0]), detect_te_model(clip_data[1])]
-            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=TEModel.CLIP_L in te_models, clip_g=TEModel.CLIP_G in te_models, t5=TEModel.T5_XXL in te_models)
+            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=TEModel.CLIP_L in te_models, clip_g=TEModel.CLIP_G in te_models, t5=TEModel.T5_XXL in te_models, dtype_t5=t5xxl_weight_dtype(clip_data))
             clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
         elif clip_type == CLIPType.HUNYUAN_DIT:
             clip_target.clip = comfy.text_encoders.hydit.HyditModel
             clip_target.tokenizer = comfy.text_encoders.hydit.HyditTokenizer
         elif clip_type == CLIPType.FLUX:
-            weight_name = "encoder.block.23.layer.1.DenseReluDense.wi_1.weight"
-            weight = clip_data[0].get(weight_name, clip_data[1].get(weight_name, None))
-            dtype_t5 = None
-            if weight is not None:
-                dtype_t5 = weight.dtype
-
-            clip_target.clip = comfy.text_encoders.flux.flux_clip(dtype_t5=dtype_t5)
+            clip_target.clip = comfy.text_encoders.flux.flux_clip(dtype_t5=t5xxl_weight_dtype(clip_data))
             clip_target.tokenizer = comfy.text_encoders.flux.FluxTokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer
     elif len(clip_data) == 3:
-        clip_target.clip = comfy.text_encoders.sd3_clip.SD3ClipModel
+        clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(dtype_t5=t5xxl_weight_dtype(clip_data))
         clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
 
     parameters = 0
