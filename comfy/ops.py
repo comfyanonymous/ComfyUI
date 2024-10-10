@@ -60,12 +60,51 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
         weight = s.weight_function(weight)
     return weight, bias
 
+class SkipInit:
+    def reset_parameters(self):
+        return None
 
 class CastWeightBiasOp:
     comfy_cast_weights = False
     weight_function = None
     bias_function = None
 
+class skip_init:
+    class Linear(SkipInit, torch.nn.Linear):
+        pass
+
+    class Conv1d(SkipInit, torch.nn.Conv1d):
+        pass
+
+    class Conv2d(SkipInit, torch.nn.Conv2d):
+        pass
+
+    class Conv3d(SkipInit, torch.nn.Conv3d):
+        pass
+
+    class GroupNorm(SkipInit, torch.nn.GroupNorm):
+        pass
+
+    class LayerNorm(SkipInit, torch.nn.LayerNorm):
+        pass
+
+    class ConvTranspose2d(SkipInit, torch.nn.ConvTranspose2d):
+        pass
+
+    class ConvTranspose1d(SkipInit, torch.nn.ConvTranspose1d):
+        pass
+
+    class Embedding(SkipInit, torch.nn.Embedding):
+        pass
+
+    @classmethod
+    def conv_nd(cls, dims, *args, **kwargs):
+        if dims == 2:
+            return cls.Conv2d(*args, **kwargs)
+        elif dims == 3:
+            return cls.Conv3d(*args, **kwargs)
+        else:
+            raise ValueError(f"unsupported dimensions: {dims}")
 
 class disable_weight_init:
     class Linear(torch.nn.Linear, CastWeightBiasOp):

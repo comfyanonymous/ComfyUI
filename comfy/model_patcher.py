@@ -248,6 +248,14 @@ class ModelPatcher(ModelManageable):
             else:
                 return utils.get_attr(self.model, name)
 
+    @property
+    def diffusion_model(self) -> BaseModel:
+        return self.get_model_object("diffusion_model")
+
+    @diffusion_model.setter
+    def diffusion_model(self, value: torch.nn.Module):
+        self.add_object_patch("diffusion_model", value)
+
     def model_patches_to(self, device):
         to = self.model_options["transformer_options"]
         if "patches" in to:

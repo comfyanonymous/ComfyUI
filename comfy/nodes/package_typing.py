@@ -127,6 +127,7 @@ class CustomNode(Protocol):
     FUNCTION: ClassVar[str]
     CATEGORY: ClassVar[str]
     OUTPUT_NODE: Optional[ClassVar[bool]]
+    INFERENCE_MODE: Optional[ClassVar[bool]]
 
     @classmethod
     def IS_CHANGED(cls, *args, **kwargs) -> str:

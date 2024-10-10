@@ -9,6 +9,7 @@ import threading
 import time
 import traceback
 import typing
+from contextlib import nullcontext
 from os import PathLike
 from typing import List, Optional, Tuple
 
@@ -28,7 +29,7 @@ from ..component_model.files import canonicalize_path
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
 from ..execution_context import new_execution_context, ExecutionContext
 from ..nodes.package import import_all_nodes_in_workspace
-from ..nodes.package_typing import ExportedNodes, InputTypeSpec, FloatSpecOptions, IntSpecOptions
+from ..nodes.package_typing import ExportedNodes, InputTypeSpec, FloatSpecOptions, IntSpecOptions, CustomNode
 
 # ideally this would be passed in from main, but the way this is authored, we can't easily pass nodes down to the
 # various functions that are declared here. It should have been a context in the first place.
@@ -544,7 +545,7 @@ class PromptExecutor:
         self.status_messages = []
         self.add_message("execution_start", {"prompt_id": prompt_id}, broadcast=False)
 
-        with torch.inference_mode():
+        with torch.inference_mode() if all(not hasattr(node_class, "INFERENCE_MODE") or node_class.INFERENCE_MODE for node_class in iterate_obj_classes(prompt)) else nullcontext():
             dynamic_prompt = DynamicPrompt(prompt)
             is_changed_cache = IsChangedCache(dynamic_prompt, self.caches.outputs)
             for cache in self.caches.all:
@@ -558,7 +559,7 @@ class PromptExecutor:
 
             model_management.cleanup_models(keep_clone_weights_loaded=True)
             self.add_message("execution_cached",
-                             { "nodes": cached_nodes, "prompt_id": prompt_id},
+                             {"nodes": cached_nodes, "prompt_id": prompt_id},
                              broadcast=False)
             pending_subgraph_results = {}
             executed = set()
@@ -584,7 +585,7 @@ class PromptExecutor:
                     execution_list.complete_node_execution()
             else:
                 # Only execute when the while-loop ends without break
-                self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
+                self.add_message("execution_success", {"prompt_id": prompt_id}, broadcast=False)
 
             ui_outputs = {}
             meta_outputs = {}
@@ -605,6 +606,11 @@ class PromptExecutor:
     @property
     def outputs_ui(self) -> dict | None:
         return self.history_result["outputs"] if self.history_result is not None else None
+
+
+def iterate_obj_classes(prompt: dict[str, typing.Any]) -> typing.Generator[typing.Type[CustomNode], None, None]:
+    for _, node in prompt.items():
+        yield nodes.NODE_CLASS_MAPPINGS[node['class_type']]
 
 
 def validate_inputs(prompt, item, validated: typing.Dict[str, ValidateInputsTuple]) -> ValidateInputsTuple:

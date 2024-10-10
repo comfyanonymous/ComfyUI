@@ -21,6 +21,7 @@ from .. import sd
 from .. import utils
 from .. import clip_vision as clip_vision_module
 from .. import model_management
+from .. import ops
 from ..cli_args import args
 
 from ..cmd import folder_paths, latent_preview
@@ -898,9 +899,8 @@ class UNETLoader:
 
     CATEGORY = "advanced/loaders"
 
-    def load_unet(self, unet_name, weight_dtype):
+    def load_unet(self, unet_name, weight_dtype="default"):
         model_options = get_model_options_for_dtype(weight_dtype)
-
         unet_path = get_or_download("diffusion_models", unet_name, KNOWN_UNET_MODELS)
         model = sd.load_diffusion_model(unet_path, model_options=model_options)
         return (model,)
