@@ -65,6 +65,9 @@ import gc
 import logging
 import utils.extra_config
 
+import faulthandler, signal
+faulthandler.register(signal.SIGUSR1)
+
 if os.name == "nt":
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
