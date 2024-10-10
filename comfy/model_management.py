@@ -899,7 +899,7 @@ def force_upcast_attention_dtype():
     upcast = args.force_upcast_attention
     try:
         macos_version = tuple(int(n) for n in platform.mac_ver()[0].split("."))
-        if (14, 5) <= macos_version < (14, 7):  # black image bug on recent versions of MacOS
+        if (14, 5) <= macos_version <= (15, 0, 1):  # black image bug on recent versions of macOS
             upcast = True
     except:
         pass
