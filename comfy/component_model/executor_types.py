@@ -50,6 +50,13 @@ class UnencodedPreviewImageMessage(NamedTuple):
     task_id: str = ""
 
 
+class ExecutionInterruptedMessage(TypedDict):
+    prompt_id: str
+    node_id: str
+    node_type: str
+    executed: list[str]
+
+
 class ExecutionErrorMessage(TypedDict):
     prompt_id: str
     node_id: str
@@ -74,7 +81,7 @@ ExecutedMessage = ExecutingMessage
 
 SendSyncEvent = Union[Literal["status", "execution_error", "executing", "progress", "executed"], BinaryEventTypes, None]
 
-SendSyncData = Union[StatusMessage, ExecutingMessage, ExecutionErrorMessage, ProgressMessage, UnencodedPreviewImageMessage, bytes, bytearray, str, None]
+SendSyncData = Union[StatusMessage, ExecutingMessage, DependencyExecutionErrorMessage, ExecutionErrorMessage, ExecutionInterruptedMessage, ProgressMessage, UnencodedPreviewImageMessage, bytes, bytearray, str, None]
 
 
 class ExecutorToClientProgress(Protocol):

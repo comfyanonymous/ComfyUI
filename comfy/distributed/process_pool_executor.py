@@ -22,7 +22,7 @@ class ProcessPoolExecutor(ProcessPool, Executor):
 
     def schedule(self, function: Callable,
                  args: list = (),
-                 kwargs: dict = {},
+                 kwargs=None,
                  timeout: float = None) -> ProcessFuture:
         # todo: restart worker when there is insufficient VRAM or the workflows are sufficiently different
         # try:
@@ -31,6 +31,8 @@ class ProcessPoolExecutor(ProcessPool, Executor):
         #
         # except ValueError:
         #     pass
+        if kwargs is None:
+            kwargs = {}
         return super().schedule(function, args, kwargs, timeout)
 
     def submit(self, fn, /, *args, **kwargs) -> concurrent.futures.Future:

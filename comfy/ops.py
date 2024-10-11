@@ -21,6 +21,7 @@ import torch
 
 from . import model_management
 from .cli_args import args
+from .execution_context import current_execution_context
 
 
 def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False):
@@ -352,7 +353,7 @@ class fp8_ops(manual_cast):
 def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, inference_mode: Optional[bool] = None):
     if inference_mode is None:
         # todo: check a context here, since this isn't being used by any callers yet
-        inference_mode = False
+        inference_mode = current_execution_context().inference_mode
     if compute_dtype is None or weight_dtype == compute_dtype:
         # disable_weight_init seems to interact poorly with some other optimization code
         return disable_weight_init if inference_mode else skip_init

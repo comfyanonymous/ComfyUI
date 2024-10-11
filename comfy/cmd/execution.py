@@ -24,7 +24,7 @@ from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, ValidationTuple, ValidateInputsTuple, \
     ValidationErrorDict, NodeErrorsDictValue, ValidationErrorExtraInfoDict, FormattedValue, RecursiveExecutionTuple, \
     RecursiveExecutionErrorDetails, RecursiveExecutionErrorDetailsInterrupted, ExecutionResult, DuplicateNodeError, \
-    HistoryResultDict
+    HistoryResultDict, ExecutionErrorMessage, ExecutionInterruptedMessage
 from ..component_model.files import canonicalize_path
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
 from ..execution_context import new_execution_context, context_execute_node, ExecutionContext
@@ -311,6 +311,7 @@ def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, caches, 
     with context_execute_node(_node_id, prompt_id):
         return _execute(server, dynprompt, caches, _node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results)
 
+
 def _execute(server, dynprompt, caches, current_item: str, extra_data, executed, prompt_id, execution_list, pending_subgraph_results) -> RecursiveExecutionTuple:
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
@@ -368,11 +369,11 @@ def _execute(server, dynprompt, caches, current_item: str, extra_data, executed,
                 if len(required_inputs) > 0:
                     for i in required_inputs:
                         execution_list.make_input_strong_link(unique_id, i)
-                    return (ExecutionResult.PENDING, None, None)
+                    return RecursiveExecutionTuple(ExecutionResult.PENDING, None, None)
 
             def execution_block_cb(block):
                 if block.message is not None:
-                    mes = {
+                    mes: ExecutionErrorMessage = {
                         "prompt_id": prompt_id,
                         "node_id": unique_id,
                         "node_type": class_type,
@@ -442,7 +443,7 @@ def _execute(server, dynprompt, caches, current_item: str, extra_data, executed,
             for link in new_output_links:
                 execution_list.add_strong_link(link[0], link[1], unique_id)
             pending_subgraph_results[unique_id] = cached_outputs
-            return (ExecutionResult.PENDING, None, None)
+            return RecursiveExecutionTuple(ExecutionResult.PENDING, None, None)
         caches.outputs.set(unique_id, output_data)
     except interruption.InterruptProcessingException as iex:
         logging.info("Processing interrupted")
@@ -481,7 +482,7 @@ def _execute(server, dynprompt, caches, current_item: str, extra_data, executed,
 
     executed.add(unique_id)
 
-    return ExecutionResult.SUCCESS, None, None
+    return RecursiveExecutionTuple(ExecutionResult.SUCCESS, None, None)
 
 
 class PromptExecutor:
@@ -519,7 +520,7 @@ class PromptExecutor:
         # First, send back the status to the frontend depending
         # on the exception type
         if isinstance(ex, interruption.InterruptProcessingException):
-            mes = {
+            mes: ExecutionInterruptedMessage = {
                 "prompt_id": prompt_id,
                 "node_id": node_id,
                 "node_type": class_type,
@@ -527,7 +528,7 @@ class PromptExecutor:
             }
             self.add_message("execution_interrupted", mes, broadcast=True)
         else:
-            mes = {
+            mes: ExecutionErrorMessage = {
                 "prompt_id": prompt_id,
                 "node_id": node_id,
                 "node_type": class_type,
@@ -544,10 +545,13 @@ class PromptExecutor:
             raise ex
 
     def execute(self, prompt, prompt_id, extra_data=None, execute_outputs: List[str] = None):
-        with new_execution_context(ExecutionContext(self.server, task_id=prompt_id)):
+        # torchao and potentially other optimization approaches break when the models are created in inference mode
+        # todo: this should really be backpropagated to code which creates ModelPatchers via lazy evaluation rather than globally checked here
+        inference_mode = all(not hasattr(node_class, "INFERENCE_MODE") or node_class.INFERENCE_MODE for node_class in iterate_obj_classes(prompt))
+        with new_execution_context(ExecutionContext(self.server, task_id=prompt_id, inference_mode=inference_mode)):
             self._execute_inner(prompt, prompt_id, extra_data, execute_outputs)
 
-    def _execute_inner(self, prompt, prompt_id, extra_data=None, execute_outputs: List[str] = None):
+    def _execute_inner(self, prompt, prompt_id, extra_data=None, execute_outputs: List[str] = None, inference_mode: bool = True):
         if execute_outputs is None:
             execute_outputs = []
         if extra_data is None:
@@ -562,7 +566,7 @@ class PromptExecutor:
         self.status_messages = []
         self.add_message("execution_start", {"prompt_id": prompt_id}, broadcast=False)
 
-        with torch.inference_mode() if all(not hasattr(node_class, "INFERENCE_MODE") or node_class.INFERENCE_MODE for node_class in iterate_obj_classes(prompt)) else nullcontext():
+        with torch.inference_mode() if inference_mode else nullcontext():
             dynamic_prompt = DynamicPrompt(prompt)
             is_changed_cache = IsChangedCache(dynamic_prompt, self.caches.outputs)
             for cache in self.caches.all:
