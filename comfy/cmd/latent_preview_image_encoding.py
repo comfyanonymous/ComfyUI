@@ -13,7 +13,7 @@ def encode_preview_image(image: PIL.Image.Image, image_type: Literal["JPEG", "PN
         if hasattr(Image, 'Resampling'):
             resampling = Image.Resampling.BILINEAR
         else:
-            resampling = Image.LANCZOS
+            resampling = Image.Resampling.LANCZOS
 
         image = ImageOps.contain(image, (max_size, max_size), resampling)
 
