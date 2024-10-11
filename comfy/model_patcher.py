@@ -793,6 +793,8 @@ class ModelPatcher:
 
     def cleanup(self):
         self.clean_hooks()
+        if hasattr(self.model, "current_patcher"):
+            self.model.current_patcher = None
         for callback in self.get_all_callbacks(CallbacksMP.ON_CLEANUP):
             callback(self)
 
@@ -897,6 +899,8 @@ class ModelPatcher:
             callback(self)
 
     def pre_run(self):
+        if hasattr(self.model, "current_patcher"):
+            self.model.current_patcher = self
         for callback in self.get_all_callbacks(CallbacksMP.ON_PRE_RUN):
             callback(self)
     
