@@ -406,17 +406,18 @@ paths:
               schema:
                 description: |
                   The complete outputs dictionary from the workflow.
-                  
-                  Additionally, a list of URLs to binary outputs, whenever save nodes are used.
-                  
-                  For each SaveImage node, there will be two URLs: the internal URL returned by the worker, and
-                  the URL for the image based on the `--external-address` / `COMFYUI_EXTERNAL_ADDRESS` configuration.
                 type: object
                 required:
                   - urls
                   - outputs
                 properties:
                   urls:
+                    deprecated: true
+                    description: |
+                      A deprecated list of URLs to binary outputs, whenever save nodes are used.
+
+                      For each SaveImage node, there will be two URLs: the internal URL returned by the worker, and
+                      the URL for the image based on the `--external-address` / `COMFYUI_EXTERNAL_ADDRESS` configuration.
                     type: array
                     items:
                       type: string
@@ -424,23 +425,6 @@ paths:
                     $ref: "#/components/schemas/Outputs"
               example:
                 outputs: { }
-                urls: [ "http://127.0.0.1:8188/view?filename=ComfyUI_00001_.png&type=output", "https://comfyui.example.com/view?filename=ComfyUI_00001_.png&type=output" ]
-            multipart/mixed:
-              encoding:
-                "^\\d+$":
-                  contentType: image/png, image/jpeg, image/webp
-              schema:
-                type: object
-                description: |
-                  Each of the output nodes' binary values for images, and the "outputs" json object.
-                properties:
-                  outputs:
-                    $ref: "#/components/schemas/Outputs"
-                additionalProperties:
-                  patternProperties:
-                    "^\\d+$":
-                      type: string
-                      format: binary
         202:
           description: |
             The prompt was successfully queued.
@@ -504,16 +488,11 @@ paths:
             enum:
               - "application/json"
               - "image/png"
-              - "multipart/mixed"
               - "application/json+respond-async"
-              - "image/png+respond-async"
-              - "multipart/mixed+respond-async"
           required: false
           description: |
             Specifies the media type the client is willing to receive.
-            
-            multipart/mixed will soon be supported to return all the images from the workflow.
-            
+                        
             If +respond-async is specified after your Accept mimetype, the request will be run async and you will get 202 when the prompt was queued.
         - in: header
           name: Prefer
@@ -795,7 +774,7 @@ components:
             type: string
     Outputs:
       description: |
-        The keys are node IDs, the values are output objects
+        The keys are node IDs, the values are output objects.
       type: object
       additionalProperties:
         $ref: "#/components/schemas/Output"
