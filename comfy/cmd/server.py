@@ -1034,7 +1034,7 @@ class PromptServer(ExecutorToClientProgress):
         await self.start_multi_address([(address, port)], call_on_start=call_on_start, verbose=verbose)
 
     async def start_multi_address(self, addresses, call_on_start=None, verbose=True):
-        runner = web.AppRunner(self.app, access_log=None)
+        runner = web.AppRunner(self.app, access_log=None, keepalive_timeout=900)
         await runner.setup()
         for addr in addresses:
             address = addr[0]
