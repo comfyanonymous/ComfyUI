@@ -53,13 +53,13 @@ class SDXLTokenizer:
 
 
 class SDXLClipModel(torch.nn.Module):
-    def __init__(self, device="cpu", dtype=None, model_options=None):
+    def __init__(self, device="cpu", dtype=None, model_options=None, textmodel_json_config=None):
         super().__init__()
         if model_options is None:
             model_options = {}
         clip_l_class = model_options.get("clip_l_class", sd1_clip.SDClipModel)
-        self.clip_l = clip_l_class(layer="hidden", layer_idx=-2, device=device, dtype=dtype, layer_norm_hidden_state=False, model_options=model_options)
-        self.clip_g = SDXLClipG(device=device, dtype=dtype, model_options=model_options)
+        self.clip_l = clip_l_class(layer="hidden", layer_idx=-2, device=device, dtype=dtype, layer_norm_hidden_state=False, model_options=model_options, textmodel_json_config=textmodel_json_config)
+        self.clip_g = SDXLClipG(device=device, dtype=dtype, model_options=model_options, textmodel_json_config=textmodel_json_config)
         self.dtypes = {dtype}
 
     def set_clip_options(self, options):
@@ -76,7 +76,7 @@ class SDXLClipModel(torch.nn.Module):
         g_out, g_pooled = self.clip_g.encode_token_weights(token_weight_pairs_g)
         l_out, l_pooled = self.clip_l.encode_token_weights(token_weight_pairs_l)
         cut_to = min(l_out.shape[1], g_out.shape[1])
-        return torch.cat([l_out[:,:cut_to], g_out[:,:cut_to]], dim=-1), g_pooled
+        return torch.cat([l_out[:, :cut_to], g_out[:, :cut_to]], dim=-1), g_pooled
 
     def load_sd(self, sd):
         if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
@@ -89,8 +89,8 @@ class SDXLRefinerClipModel(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", dtype=None, textmodel_json_config=None, model_options=None):
         if model_options is None:
             model_options = {}
+        textmodel_json_config = get_path_as_dict(textmodel_json_config, "clip_config_bigg.json", package=__package__)
         super().__init__(device=device, dtype=dtype, clip_name="g", clip_model=SDXLClipG, model_options=model_options, textmodel_json_config=textmodel_json_config)
-
 
 
 class StableCascadeClipGTokenizer(sd1_clip.SDTokenizer):
@@ -100,13 +100,11 @@ class StableCascadeClipGTokenizer(sd1_clip.SDTokenizer):
         super().__init__(tokenizer_path, pad_with_end=True, embedding_directory=embedding_directory, embedding_size=1280, embedding_key='clip_g')
 
 
-
 class StableCascadeTokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data=None):
         if tokenizer_data is None:
             tokenizer_data = {}
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, clip_name="g", tokenizer=StableCascadeClipGTokenizer)
-
 
 
 class StableCascadeClipG(sd1_clip.SDClipModel):

@@ -548,7 +548,7 @@ class DiffusersLoader:
 
     CATEGORY = "advanced/loaders"
 
-    def load_checkpoint(self, model_path, output_vae=True, output_clip=True,weight_dtype:str="default"):
+    def load_checkpoint(self, model_path, output_vae=True, output_clip=True, weight_dtype:str="default"):
         for search_path in folder_paths.get_folder_paths("diffusers"):
             if os.path.exists(search_path):
                 path = os.path.join(search_path, model_path)
