@@ -1,3 +1,4 @@
+# pylint: skip-file
 """
 Copyright 2024 Lvmin Zhang, fannovel16, Mikubill, Benjamin Berman
 
