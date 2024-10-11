@@ -333,7 +333,16 @@ paths:
                 A POST request to /free with: {"free_memory":true} will unload models and free all cached data from the last run workflow.
   /api/v1/prompts/{prompt_id}:
     get:
+      operationId: get_prompt
       summary: (API) Get prompt status
+      parameters:
+        - in: path
+          name: prompt_id
+          schema:
+            type: string
+          required: true
+          description: |
+            The ID of the prompt to query.
     responses:
       204:
         description: |
@@ -349,6 +358,7 @@ paths:
           The prompt was not found
   /api/v1/prompts:
     get:
+      operationId: list_prompts
       summary: (API) Get last prompt
       description: |
         Return the last prompt run anywhere that was used to produce an image
@@ -368,6 +378,7 @@ paths:
           description: |
             There were no prompts in the history to return.
     post:
+      operationId: generate
       summary: (API) Generate image
       description: |
         Run a prompt to generate an image.
@@ -382,6 +393,20 @@ paths:
       responses:
         200:
           headers:
+            Idempotency-Key:
+              description: |
+                The API supports idempotency for safely retrying requests without accidentally performing the same operation twice. When creating or updating an object, use an idempotency key. Then, if a connection error occurs, you can safely repeat the request without risk of creating a second object or performing the update twice.
+
+                To perform an idempotent request, provide an additional IdempotencyKey element to the request options.
+
+                Idempotency works by saving the resulting status code and body of the first request made for any given idempotency key, regardless of whether it succeeds or fails. Subsequent requests with the same key return the same result, including 500 errors.
+
+                A client generates an idempotency key, which is a unique key that the server uses to recognize subsequent retries of the same request. How you create unique keys is up to you, but we suggest using V4 UUIDs, or another random string with enough entropy to avoid collisions. Idempotency keys are up to 255 characters long.
+
+                You can remove keys from the system automatically after they’re at least 24 hours old. We generate a new request if a key is reused after the original is pruned. The idempotency layer compares incoming parameters to those of the original request and errors if they’re the same to prevent accidental misuse.
+              example: XFDSF000213
+              schema:
+                type: string
             Digest:
               description: The digest of the request body
               example: SHA256=e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3
@@ -492,9 +517,10 @@ paths:
           required: false
           description: |
             Specifies the media type the client is willing to receive.
-                        
+            
             If +respond-async is specified after your Accept mimetype, the request will be run async and you will get 202 when the prompt was queued.
         - in: header
+          title: prefer_header
           name: Prefer
           schema:
             type: string
@@ -505,17 +531,6 @@ paths:
           allowEmptyValue: true
           description: |
             When respond-async is in your Prefer header, the request will be run async and you will get 202 when the prompt was queued.
-        - in: path
-          name: prefer
-          schema:
-            type: string
-            enum:
-              - "respond-async"
-              - ""
-          required: false
-          allowEmptyValue: true
-          description: |
-            When respond-async is in the prefer query parameter, the request will be run async and you will get 202 when the prompt was queued.
       requestBody:
         content:
           application/json:
@@ -538,6 +553,30 @@ paths:
                     format: binary
 components:
   schemas:
+    InputSpec:
+      type: array
+      prefixItems:
+        - oneOf:
+            - type: string
+            - type: array
+              items:
+                oneOf:
+                  - type: string
+                  - type: number
+                  - type: boolean
+        - type: object
+          properties:
+            default:
+              type: string
+            min:
+              type: number
+            max:
+              type: number
+            step:
+              type: number
+            multiline:
+              type: boolean
+      items: false
     Node:
       type: object
       properties:
@@ -549,32 +588,15 @@ components:
             required:
               type: object
               additionalProperties:
-                type: array
-                items:
-                  minItems: 1
-                  maxItems: 2
-                  oneOf:
-                    - type: string
-                    - type: number
-                    - type: object
-                      properties:
-                        default:
-                          type: string
-                        min:
-                          type: number
-                        max:
-                          type: number
-                        step:
-                          type: number
-                        multiline:
-                          type: boolean
-                    - type: array
-                      items:
-                        type: string
+                $ref: "#/components/schemas/InputSpec"
+            optional:
+              type: object
+              additionalProperties:
+                $ref: "#/components/schemas/InputSpec"
             hidden:
               type: object
               additionalProperties:
-                type: string
+                $ref: "#/components/schemas/InputSpec"
         output:
           type: array
           items:

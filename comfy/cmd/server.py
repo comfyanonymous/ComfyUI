@@ -804,6 +804,8 @@ class PromptServer(ExecutorToClientProgress):
 
             result: TaskInvocation
             completed: Future[TaskInvocation | dict] = self.loop.create_future()
+            # todo: actually implement idempotency keys
+            # we would need some kind of more durable, distributed task queue
             task_id = str(uuid.uuid4())
             item = QueueItem(queue_tuple=(number, task_id, prompt_dict, {}, valid[2]), completed=completed)
 
