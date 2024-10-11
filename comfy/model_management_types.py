@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Protocol, Optional, TypeVar, runtime_checkable
+from typing import Protocol, Optional, TypeVar, runtime_checkable, Callable
 
 import torch
 import torch.nn
+from typing_extensions import TypedDict, NotRequired
 
 ModelManageableT = TypeVar('ModelManageableT', bound='ModelManageable')
 
@@ -109,6 +110,9 @@ class ModelManageable(Protocol):
     def model_options(self, value):
         setattr(self, "_model_options", value)
 
+    def __del__(self):
+        del self.model
+
 
 @dataclasses.dataclass
 class MemoryMeasurements:
@@ -130,3 +134,20 @@ class MemoryMeasurements:
         if isinstance(self.model, DeviceSettable):
             self.model.device = value
         self._device = value
+
+
+class TransformerOptions(TypedDict, total=False):
+    cond_or_uncond: NotRequired[list]
+    patches: NotRequired[dict]
+    sigmas: NotRequired[torch.Tensor]
+
+
+class ModelOptions(TypedDict, total=False):
+    transformer_options: NotRequired[dict]
+    # signature of BaseModel.apply_model
+    model_function_wrapper: NotRequired[Callable]
+    sampler_cfg_function: NotRequired[Callable]
+    sampler_post_cfg_function: NotRequired[list[Callable]]
+    disable_cfg1_optimization: NotRequired[bool]
+    denoise_mask_function: NotRequired[Callable]
+    patches: NotRequired[dict[str, list]]

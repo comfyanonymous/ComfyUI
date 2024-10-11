@@ -1,3 +1,4 @@
+from .component_model.deprecation import _deprecate_method
 from .k_diffusion import sampling as k_diffusion_sampling
 from .extra_samplers import uni_pc
 import torch
@@ -8,6 +9,8 @@ import logging
 import scipy.stats
 import numpy
 from . import sampler_helpers
+from .model_base import BaseModel
+from .model_management_types import ModelOptions
 
 from .sampler_names import SCHEDULER_NAMES, SAMPLER_NAMES
 
@@ -141,7 +144,7 @@ def cond_cat(c_list):
 
     return out
 
-def calc_cond_batch(model, conds, x_in, timestep, model_options):
+def calc_cond_batch(model: BaseModel, conds, x_in: torch.Tensor, timestep: torch.Tensor, model_options: ModelOptions):
     out_conds = []
     out_counts = []
     to_run = []
@@ -251,11 +254,13 @@ def calc_cond_batch(model, conds, x_in, timestep, model_options):
 
     return out_conds
 
+@_deprecate_method(version="0.0.2", message="The comfy.samplers.calc_cond_uncond_batch function is deprecated please use the calc_cond_batch one instead.")
 def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, model_options): #TODO: remove
-    logging.warning("WARNING: The comfy.samplers.calc_cond_uncond_batch function is deprecated please use the calc_cond_batch one instead.")
     return tuple(calc_cond_batch(model, [cond, uncond], x_in, timestep, model_options))
 
-def cfg_function(model, cond_pred, uncond_pred, cond_scale, x, timestep, model_options={}, cond=None, uncond=None):
+def cfg_function(model, cond_pred, uncond_pred, cond_scale, x, timestep, model_options:ModelOptions=None, cond=None, uncond=None):
+    if model_options is None:
+        model_options = {}
     if "sampler_cfg_function" in model_options:
         args = {"cond": x - cond_pred, "uncond": x - uncond_pred, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep,
                 "cond_denoised": cond_pred, "uncond_denoised": uncond_pred, "model": model, "model_options": model_options}
@@ -272,7 +277,9 @@ def cfg_function(model, cond_pred, uncond_pred, cond_scale, x, timestep, model_o
 
 #The main sampling function shared by all the samplers
 #Returns denoised
-def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_options={}, seed=None):
+def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_options:ModelOptions=None, seed=None):
+    if model_options is None:
+        model_options = {}
     if math.isclose(cond_scale, 1.0) and model_options.get("disable_cfg1_optimization", False) == False:
         uncond_ = None
     else:
@@ -293,7 +300,9 @@ class KSamplerX0Inpaint:
     def __init__(self, model, sigmas):
         self.inner_model = model
         self.sigmas = sigmas
-    def __call__(self, x, sigma, denoise_mask, model_options={}, seed=None):
+    def __call__(self, x, sigma, denoise_mask, model_options:ModelOptions=None, seed=None):
+        if model_options is None:
+            model_options = {}
         if denoise_mask is not None:
             if "denoise_mask_function" in model_options:
                 denoise_mask = model_options["denoise_mask_function"](sigma, denoise_mask, extra_options={"model": self.inner_model, "sigmas": self.sigmas})

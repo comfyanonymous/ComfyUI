@@ -46,6 +46,8 @@ class UnencodedPreviewImageMessage(NamedTuple):
     format: Literal["JPEG", "PNG"]
     pil_image: PIL.Image.Image
     max_size: int = 512
+    node_id: str = ""
+    task_id: str = ""
 
 
 class ExecutionErrorMessage(TypedDict):
@@ -58,6 +60,14 @@ class ExecutionErrorMessage(TypedDict):
     traceback: list[str]
     current_inputs: list[typing.Never] | dict[str, FormattedValue]
     current_outputs: list[str]
+
+
+class DependencyExecutionErrorMessage(TypedDict):
+    node_id: str
+    exception_message: str
+    exception_type: Literal["graph.DependencyCycleError"]
+    traceback: list[typing.Never]
+    current_inputs: list[typing.Never]
 
 
 ExecutedMessage = ExecutingMessage
@@ -144,7 +154,7 @@ class NodeErrorsDictValue(TypedDict, total=False):
 
 class ValidationTuple(typing.NamedTuple):
     valid: bool
-    error: Optional[ValidationErrorDict]
+    error: Optional[ValidationErrorDict | DependencyExecutionErrorMessage]
     good_output_node_ids: List[str]
     node_errors: list[typing.Never] | typing.Dict[str, NodeErrorsDictValue]
 

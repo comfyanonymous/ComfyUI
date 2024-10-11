@@ -1,21 +1,25 @@
 from __future__ import annotations
 
+import logging
+from typing import Optional
+
 import torch
 from PIL import Image
-import numpy as np
-from ..cli_args import args
-from ..cli_args_types import LatentPreviewMethod
-from ..model_downloader import get_or_download, KNOWN_APPROX_VAES
-from ..taesd.taesd import TAESD
-from ..cmd import folder_paths
+
 from .. import model_management
 from .. import utils
-import logging
+from ..cli_args import args
+from ..cli_args_types import LatentPreviewMethod
+from ..cmd import folder_paths
+from ..component_model.executor_types import UnencodedPreviewImageMessage
+from ..execution_context import current_execution_context
+from ..model_downloader import get_or_download, KNOWN_APPROX_VAES
+from ..taesd.taesd import TAESD
 
 MAX_PREVIEW_RESOLUTION = args.preview_size
 
 
-def preview_to_image(latent_image):
+def preview_to_image(latent_image) -> Image:
     latents_ubyte = (((latent_image + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
                         .mul(0xFF)  # to 0..255
                         ).to(device="cpu", dtype=torch.uint8, non_blocking=model_management.device_supports_non_blocking(latent_image.device))
@@ -24,19 +28,20 @@ def preview_to_image(latent_image):
 
 
 class LatentPreviewer:
-    def decode_latent_to_preview(self, x0):
+    def decode_latent_to_preview(self, x0) -> Image:
         raise NotImplementedError
 
-    def decode_latent_to_preview_image(self, preview_format, x0):
+    def decode_latent_to_preview_image(self, preview_format, x0) -> UnencodedPreviewImageMessage:
+        ctx = current_execution_context()
         preview_image = self.decode_latent_to_preview(x0)
-        return ("JPEG", preview_image, MAX_PREVIEW_RESOLUTION)
+        return UnencodedPreviewImageMessage(preview_format, preview_image, MAX_PREVIEW_RESOLUTION, ctx.node_id, ctx.task_id)
 
 
 class TAESDPreviewerImpl(LatentPreviewer):
     def __init__(self, taesd):
         self.taesd = taesd
 
-    def decode_latent_to_preview(self, x0):
+    def decode_latent_to_preview(self, x0) -> bytes:
         x_sample = self.taesd.decode(x0[:1])[0].movedim(0, 2)
         return preview_to_image(x_sample)
 
@@ -101,7 +106,7 @@ def prepare_callback(model, steps, x0_output_dict=None):
         if x0_output_dict is not None:
             x0_output_dict["x0"] = x0
 
-        preview_bytes = None
+        preview_bytes: Optional[UnencodedPreviewImageMessage] = None
         if previewer:
             preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
         pbar.update_absolute(step + 1, total_steps, preview_bytes)

@@ -15,11 +15,13 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+from typing import Optional
 
 import torch
 
 from . import model_management
 from .cli_args import args
+
 
 def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False):
     if device is None or weight.device == device:
@@ -60,14 +62,17 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
         weight = s.weight_function(weight)
     return weight, bias
 
+
 class SkipInit:
     def reset_parameters(self):
         return None
+
 
 class CastWeightBiasOp:
     comfy_cast_weights = False
     weight_function = None
     bias_function = None
+
 
 class skip_init:
     class Linear(SkipInit, torch.nn.Linear):
@@ -105,6 +110,7 @@ class skip_init:
             return cls.Conv3d(*args, **kwargs)
         else:
             raise ValueError(f"unsupported dimensions: {dims}")
+
 
 class disable_weight_init:
     class Linear(torch.nn.Linear, CastWeightBiasOp):
@@ -326,6 +332,7 @@ def fp8_linear(self, input):
         return o.reshape((-1, input.shape[1], self.weight.shape[0]))
     return None
 
+
 class fp8_ops(manual_cast):
     class Linear(manual_cast.Linear):
         def reset_parameters(self):
@@ -342,9 +349,13 @@ class fp8_ops(manual_cast):
             return torch.nn.functional.linear(input, weight, bias)
 
 
-def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False):
+def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, inference_mode: Optional[bool] = None):
+    if inference_mode is None:
+        # todo: check a context here, since this isn't being used by any callers yet
+        inference_mode = False
     if compute_dtype is None or weight_dtype == compute_dtype:
-        return disable_weight_init
+        # disable_weight_init seems to interact poorly with some other optimization code
+        return disable_weight_init if inference_mode else skip_init
     if args.fast and not disable_fast_fp8:
         if model_management.supports_fp8_compute(load_device):
             return fp8_ops

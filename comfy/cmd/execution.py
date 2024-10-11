@@ -27,7 +27,7 @@ from ..component_model.executor_types import ExecutorToClientProgress, Validatio
     HistoryResultDict
 from ..component_model.files import canonicalize_path
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
-from ..execution_context import new_execution_context, ExecutionContext
+from ..execution_context import new_execution_context, context_execute_node, ExecutionContext
 from ..nodes.package import import_all_nodes_in_workspace
 from ..nodes.package_typing import ExportedNodes, InputTypeSpec, FloatSpecOptions, IntSpecOptions, CustomNode
 
@@ -294,7 +294,24 @@ def format_value(x) -> FormattedValue:
         return str(x)
 
 
-def execute(server, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results):
+def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, caches, _node_id: str, extra_data: dict, executed, prompt_id, execution_list, pending_subgraph_results) -> RecursiveExecutionTuple:
+    """
+
+    :param server:
+    :param dynprompt:
+    :param caches:
+    :param node_id: the node id
+    :param extra_data:
+    :param executed:
+    :param prompt_id:
+    :param execution_list:
+    :param pending_subgraph_results:
+    :return:
+    """
+    with context_execute_node(_node_id, prompt_id):
+        return _execute(server, dynprompt, caches, _node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results)
+
+def _execute(server, dynprompt, caches, current_item: str, extra_data, executed, prompt_id, execution_list, pending_subgraph_results) -> RecursiveExecutionTuple:
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
     display_node_id = dynprompt.get_display_node_id(unique_id)
@@ -527,7 +544,7 @@ class PromptExecutor:
             raise ex
 
     def execute(self, prompt, prompt_id, extra_data=None, execute_outputs: List[str] = None):
-        with new_execution_context(ExecutionContext(self.server)):
+        with new_execution_context(ExecutionContext(self.server, task_id=prompt_id)):
             self._execute_inner(prompt, prompt_id, extra_data, execute_outputs)
 
     def _execute_inner(self, prompt, prompt_id, extra_data=None, execute_outputs: List[str] = None):
@@ -570,6 +587,7 @@ class PromptExecutor:
 
             while not execution_list.is_empty():
                 node_id, error, ex = execution_list.stage_node_execution()
+                node_id: str
                 if error is not None:
                     self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
                     break

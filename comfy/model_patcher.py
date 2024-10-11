@@ -30,7 +30,7 @@ from . import utils
 from .comfy_types import UnetWrapperFunction
 from .float import stochastic_rounding
 from .model_base import BaseModel
-from .model_management_types import ModelManageable, MemoryMeasurements
+from .model_management_types import ModelManageable, MemoryMeasurements, ModelOptions
 
 
 def string_to_seed(data):
@@ -103,7 +103,7 @@ class LowVramPatch:
 class ModelPatcher(ModelManageable):
     def __init__(self, model: torch.nn.Module, load_device: torch.device, offload_device: torch.device, size=0, weight_inplace_update=False, ckpt_name: Optional[str] = None):
         self.size = size
-        self.model: torch.nn.Module = model
+        self.model: torch.nn.Module | BaseModel = model
         self.patches = {}
         self.backup = {}
         self.object_patches = {}
@@ -118,11 +118,11 @@ class ModelPatcher(ModelManageable):
         self._memory_measurements = MemoryMeasurements(self.model)
 
     @property
-    def model_options(self) -> dict:
+    def model_options(self) -> ModelOptions:
         return self._model_options
 
     @model_options.setter
-    def model_options(self, value):
+    def model_options(self, value: ModelOptions):
         self._model_options = value
 
     @property
@@ -249,7 +249,7 @@ class ModelPatcher(ModelManageable):
                 return utils.get_attr(self.model, name)
 
     @property
-    def diffusion_model(self) -> BaseModel:
+    def diffusion_model(self) -> torch.nn.Module | BaseModel:
         return self.get_model_object("diffusion_model")
 
     @diffusion_model.setter

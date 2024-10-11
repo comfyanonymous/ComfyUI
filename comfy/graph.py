@@ -1,5 +1,7 @@
+from typing import Optional
+
 from .cmd.execution import nodes
-from .component_model.executor_types import DependencyCycleError, NodeInputError, NodeNotFoundError
+from .component_model.executor_types import DependencyCycleError, NodeInputError, NodeNotFoundError, DependencyExecutionErrorMessage
 from .graph_utils import is_link
 
 
@@ -159,7 +161,7 @@ class ExecutionList(TopologicalSort):
     def is_cached(self, node_id):
         return self.output_cache.get(node_id) is not None
 
-    def stage_node_execution(self):
+    def stage_node_execution(self) -> tuple[Optional[str], Optional[DependencyExecutionErrorMessage], Optional[DependencyCycleError]]:
         assert self.staged_node_id is None
         if self.is_empty():
             return None, None, None
@@ -187,7 +189,7 @@ class ExecutionList(TopologicalSort):
         self.staged_node_id = self.ux_friendly_pick_node(available)
         return self.staged_node_id, None, None
 
-    def ux_friendly_pick_node(self, node_list):
+    def ux_friendly_pick_node(self, node_list) -> str:
         # If an output node is available, do that first.
         # Technically this has no effect on the overall length of execution, but it feels better as a user
         # for a PreviewImage to display a result as soon as it can

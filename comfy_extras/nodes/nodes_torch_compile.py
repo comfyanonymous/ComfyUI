@@ -59,8 +59,8 @@ class TorchCompileModel(CustomNode):
 
 _QUANTIZATION_STRATEGIES = [
     "torchao",
+    "torchao-autoquant",
     "quanto",
-    "torchao-autoquant"
 ]
 
 
@@ -121,8 +121,10 @@ class QuantizeModel(CustomNode):
             if "autoquant" in strategy:
                 _in_place_fixme = autoquant(unet, error_on_unseen=False)
             else:
-                quantize_(unet, int8_dynamic_activation_int8_weight(), device=model_management.get_torch_device(), filter_fn=filter)
+                quantize_(unet, int8_dynamic_activation_int8_weight(), device=model_management.get_torch_device(), set_inductor_config=False)
                 _in_place_fixme = unet
+            from torchao.utils import unwrap_tensor_subclass
+            unwrap_tensor_subclass(_in_place_fixme)
         else:
             raise ValueError(f"unknown strategy {strategy}")
 

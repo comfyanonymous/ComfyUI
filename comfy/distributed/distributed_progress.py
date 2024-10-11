@@ -49,8 +49,8 @@ class DistributedExecutorToClientProgress(ExecutorToClientProgress):
             # encode preview image
             event = BinaryEventTypes.PREVIEW_IMAGE.value
             data: UnencodedPreviewImageMessage
-            format, pil_image, max_size = data
-            data: bytes = encode_preview_image(pil_image, format, max_size)
+            format, pil_image, max_size, node_id, task_id = data
+            data: bytes = encode_preview_image(pil_image, format, max_size, node_id, task_id)
 
         if isinstance(data, bytes) or isinstance(data, bytearray):
             if isinstance(event, Enum):

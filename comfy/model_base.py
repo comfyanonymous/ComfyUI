@@ -19,7 +19,7 @@
 import logging
 import math
 from enum import Enum
-from typing import TypeVar, Type
+from typing import TypeVar, Type, Protocol, Any, Optional
 
 import torch
 
@@ -89,6 +89,11 @@ def model_sampling(model_config, model_type):
 
 
 TModule = TypeVar('TModule', bound=torch.nn.Module)
+
+
+class ComfyUIModel(Protocol):
+    def __call__(self, xc: torch.Tensor, t: torch.Tensor, context: Any = None, control: Any = None, transformer_options: Optional[dict] = None, **extra_conds: dict[str, Any]) -> Any:
+        ...
 
 
 class BaseModel(torch.nn.Module):

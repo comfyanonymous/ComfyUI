@@ -73,7 +73,12 @@ def __execute_prompt(
             from ..cmd.execution import validate_prompt
             validation_tuple = validate_prompt(prompt_mut)
             if not validation_tuple.valid:
-                validation_error_dict = {"message": "Unknown", "details": ""} if not validation_tuple.node_errors or len(validation_tuple.node_errors) == 0 else validation_tuple.node_errors
+                if validation_tuple.node_errors is not None and len(validation_tuple.node_errors) > 0:
+                    validation_error_dict = validation_tuple.node_errors
+                elif validation_tuple.error is not None:
+                    validation_error_dict = validation_tuple.error
+                else:
+                    validation_error_dict = {"message": "Unknown", "details": ""}
                 raise ValueError(json.dumps(validation_error_dict))
 
             if client_id is None:
