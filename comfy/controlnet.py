@@ -237,6 +237,7 @@ class ControlNet(ControlBase):
             if len(self.extra_concat_orig) > 0:
                 to_concat = []
                 for c in self.extra_concat_orig:
+                    c = c.to(self.cond_hint.device)
                     c = comfy.utils.common_upscale(c, self.cond_hint.shape[3], self.cond_hint.shape[2], self.upscale_algorithm, "center")
                     to_concat.append(comfy.utils.repeat_to_batch_size(c, self.cond_hint.shape[0]))
                 self.cond_hint = torch.cat([self.cond_hint] + to_concat, dim=1)
