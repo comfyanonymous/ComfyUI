@@ -1472,6 +1472,7 @@ class KSamplerAdvanced:
 
 class SaveImage:
     def __init__(self):
+        self.id: str
         self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
         self.prefix_append = ""
@@ -1512,6 +1513,7 @@ class SaveImage:
                 if extra_pnginfo is not None:
                     for x in extra_pnginfo:
                         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+                metadata.add_text("output_node_id", self.id)
 
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.png"
