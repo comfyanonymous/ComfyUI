@@ -64,19 +64,7 @@ async def send_socket_catch_exception(function, message):
 
 
 def get_comfyui_version():
-    comfyui_version = "unknown"
-    repo_path = os.path.dirname(os.path.realpath(__file__))
-    try:
-        import pygit2  # pylint: disable=import-error
-        repo = pygit2.Repository(repo_path)
-        comfyui_version = repo.describe(describe_strategy=pygit2.GIT_DESCRIBE_TAGS)
-    except Exception:
-        try:
-            import subprocess
-            comfyui_version = subprocess.check_output(["git", "describe", "--tags"], cwd=repo_path).decode('utf-8')
-        except Exception as e:
-            logging.warning(f"Failed to get ComfyUI version: {e}")
-    return comfyui_version.strip()
+    return "0.2.3"
 
 
 @web.middleware

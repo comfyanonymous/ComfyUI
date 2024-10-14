@@ -136,12 +136,15 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
    pip install torchaudio==2.4.1+cu121 --index-url https://download.pytorch.org/whl/cu121
    ```
    **Advanced**: If you are running in Google Collab or another environment which has already installed `torch` for you; or, if you are an application developer:
-    ```shell
-    # You will need wheel, which isn't included in Python 3.11 or later
-    pip install wheel
-    pip install --no-build-isolation comfyui@git+https://github.com/hiddenswitch/ComfyUI.git
-    ```
-   This will use your pre-installed torch.
+   ```shell
+   # You will need wheel, which isn't included in Python 3.11 or later
+   pip install wheel
+   pip install --no-build-isolation comfyui@git+https://github.com/hiddenswitch/ComfyUI.git
+   ```
+   This will use your pre-installed torch. This is also the appropriate dependency for packages, and is the one published to `pypi`. To automatically install with `torch` nightlies, use:
+   ```shell
+   pip install comfyui[withtorchnightlies]@git+https://github.com/hiddenswitch/ComfyUI.git
+   ```
 4. Create the directories you can fill with checkpoints:
    ```shell
    comfyui --create-directories

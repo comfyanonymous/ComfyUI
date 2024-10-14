@@ -213,6 +213,7 @@ setup(
     tests_require=dev_dependencies,
     extras_require={
         'withtorch': dependencies(install_torch_for_system=True),
+        'withtorchnightly': dependencies(install_torch_for_system=True, force_nightly=True),
         'dev': dev_dependencies
     },
 )
