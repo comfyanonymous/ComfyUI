@@ -24,7 +24,7 @@ def _base_path():
 
 
 models_dir = os.path.join(get_base_path(), "models")
-folder_names_and_paths = FolderNames(models_dir)
+folder_names_and_paths: Final[FolderNames] = FolderNames(models_dir)
 folder_names_and_paths["checkpoints"] = FolderPathsTuple("checkpoints", [os.path.join(models_dir, "checkpoints")], set(supported_pt_extensions))
 folder_names_and_paths["configs"] = FolderPathsTuple("configs", [os.path.join(models_dir, "configs"), get_package_as_path("comfy.configs")], {".yaml"})
 folder_names_and_paths["loras"] = FolderPathsTuple("loras", [os.path.join(models_dir, "loras")], set(supported_pt_extensions))
@@ -239,8 +239,12 @@ def recursive_search(directory, excluded_dir_names=None):
     for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
         subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]
         for file_name in filenames:
-            relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)
-            result.append(relative_path)
+            try:
+                relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)
+                result.append(relative_path)
+            except:
+                logging.warning(f"Warning: Unable to access {file_name}. Skipping this file.")
+                continue
 
         for d in subdirs:
             path = os.path.join(dirpath, d)

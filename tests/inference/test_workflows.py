@@ -7,7 +7,7 @@ import pytest
 from comfy.api.components.schema.prompt import Prompt
 from comfy.client.embedded_comfy_client import EmbeddedComfyClient
 from comfy.model_downloader import add_known_models, KNOWN_LORAS
-from comfy.model_downloader_types import CivitFile
+from comfy.model_downloader_types import CivitFile, HuggingFile
 from comfy_extras.nodes.nodes_audio import TorchAudioNotFoundError
 from comfy_extras.nodes.nodes_nf4 import BitsAndBytesNotFoundError
 from . import workflows
@@ -22,6 +22,7 @@ async def client(tmp_path_factory) -> EmbeddedComfyClient:
 
 def _prepare_for_workflows() -> dict[str, Traversable]:
     add_known_models("loras", KNOWN_LORAS, CivitFile(13941, 16576, "epi_noiseoffset2.safetensors"))
+    add_known_models("checkpoints", HuggingFile("autismanon/modeldump", "cardosAnime_v20.safetensors"))
 
     return {f.name: f for f in importlib.resources.files(workflows).iterdir() if f.is_file() and f.name.endswith(".json")}
 

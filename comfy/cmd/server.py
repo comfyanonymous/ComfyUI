@@ -700,6 +700,7 @@ class PromptServer(ExecutorToClientProgress):
 
         # Internal route. Should not be depended upon and is subject to change at any time.
         # TODO(robinhuang): Move to internal route table class once we refactor PromptServer to pass around Websocket.
+        # NOTE: This was an experiment and WILL BE REMOVED
         @routes.post("/internal/models/download")
         async def download_handler(request):
             async def report_progress(filename: str, status: DownloadModelStatus):
@@ -710,10 +711,11 @@ class PromptServer(ExecutorToClientProgress):
             data = await request.json()
             url = data.get('url')
             model_directory = data.get('model_directory')
+            folder_path = data.get('folder_path')
             model_filename = data.get('model_filename')
             progress_interval = data.get('progress_interval', 1.0)  # In seconds, how often to report download progress.
 
-            if not url or not model_directory or not model_filename:
+            if not url or not model_directory or not model_filename or not folder_path:
                 return web.json_response({"status": "error", "message": "Missing URL or folder path or filename"}, status=400)
 
             session = self.client_session
@@ -721,7 +723,7 @@ class PromptServer(ExecutorToClientProgress):
                 logging.error("Client session is not initialized")
                 return web.Response(status=500)
 
-            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, report_progress, progress_interval))
+            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, folder_path, report_progress, progress_interval))
             await task
 
             return web.json_response(task.result().to_dict())

@@ -161,7 +161,7 @@ def _create_parser() -> EnhancedConfigArgParser:
                         help="This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID")
     parser.add_argument("--external-address", required=False,
                         help="Specifies a base URL for external addresses reported by the API, such as for image paths.")
-    parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
+    parser.add_argument("--verbose", default='INFO', const='DEBUG', nargs="?", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set the logging level')
     parser.add_argument("--disable-known-models", action="store_true", help="Disables automatic downloads of known models and prevents them from appearing in the UI.")
     parser.add_argument("--max-queue-size", type=int, default=65536, help="The API will reject prompt requests if the queue's size exceeds this value.")
     # tracing

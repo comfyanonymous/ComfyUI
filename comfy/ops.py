@@ -350,10 +350,13 @@ class fp8_ops(manual_cast):
             return torch.nn.functional.linear(input, weight, bias)
 
 
-def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, inference_mode: Optional[bool] = None):
+def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, inference_mode: Optional[bool] = None):
     if inference_mode is None:
         # todo: check a context here, since this isn't being used by any callers yet
         inference_mode = current_execution_context().inference_mode
+    if model_management.supports_fp8_compute(load_device):
+        if (fp8_optimizations or args.fast) and not disable_fast_fp8:
+            return fp8_ops
     if compute_dtype is None or weight_dtype == compute_dtype:
         # disable_weight_init seems to interact poorly with some other optimization code
         return disable_weight_init if inference_mode else skip_init

@@ -154,7 +154,7 @@ class TomePatchModel:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "model_patches/unet"
 
     def patch(self, model, ratio):
         self.u = None

@@ -97,7 +97,11 @@ class LowVramPatch:
         self.patches = patches
 
     def __call__(self, weight):
-        return lora.calculate_weight(self.patches[self.key], weight, self.key, intermediate_dtype=weight.dtype)
+        intermediate_dtype = weight.dtype
+        if intermediate_dtype not in [torch.float32, torch.float16, torch.bfloat16]:  # intermediate_dtype has to be one that is supported in math ops
+            intermediate_dtype = torch.float32
+            return stochastic_rounding(lora.calculate_weight(self.patches[self.key], weight.to(intermediate_dtype), self.key, intermediate_dtype=intermediate_dtype), weight.dtype, seed=string_to_seed(self.key))
+        return lora.calculate_weight(self.patches[self.key], weight, self.key, intermediate_dtype=intermediate_dtype)
 
 
 class ModelPatcher(ModelManageable):

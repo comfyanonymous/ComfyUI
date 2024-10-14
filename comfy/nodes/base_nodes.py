@@ -773,11 +773,7 @@ class ControlNetLoaderWeights:
 
     def load_controlnet(self, control_net_name, weight_dtype):
         controlnet_path = get_or_download("controlnet", control_net_name, KNOWN_CONTROLNETS)
-        model_options = {}
-        if weight_dtype == "float8_e5m2":
-            model_options["dtype"] = torch.float8_e5m2
-        elif weight_dtype == "float8_e4m3fn":
-            model_options["dtype"] = torch.float8_e4m3fn
+        model_options = get_model_options_for_dtype(weight_dtype)
 
         controlnet_ = controlnet.load_controlnet(controlnet_path, model_options=model_options)
         return (controlnet_,)
@@ -885,6 +881,9 @@ def get_model_options_for_dtype(weight_dtype):
         model_options["dtype"] = torch.float8_e4m3fn
     elif weight_dtype == "fp8_e5m2":
         model_options["dtype"] = torch.float8_e5m2
+    elif weight_dtype == "fp8_e4m3fn_fast":
+        model_options["dtype"] = torch.float8_e4m3fn
+        model_options["fp8_optimizations"] = True
     return model_options
 
 

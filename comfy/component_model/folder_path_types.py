@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import dataclasses
 import os
+import typing
 from typing import List, Set, Any, Iterator, Sequence, Dict, NamedTuple
 
-supported_pt_extensions = frozenset(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'])
+supported_pt_extensions = frozenset(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft', ".index.json"])
 extension_mimetypes_cache = {
     "webp": "image",
 }
@@ -37,6 +38,31 @@ class FolderPathsTuple:
 
 
 class FolderNames:
+    @staticmethod
+    def from_dict(folder_paths_dict: dict[str, tuple[typing.Sequence[str], Sequence[str]]] = None) -> FolderNames:
+        """
+        Turns a dictionary of
+        {
+          "folder_name": (["folder/paths"], {".supported.extensions"})
+        }
+
+        into a FolderNames object
+        :param folder_paths_dict: A dictionary
+        :return: A FolderNames object
+        """
+        if folder_paths_dict is None:
+            return FolderNames(os.getcwd())
+
+        fn = FolderNames(os.getcwd())
+        for folder_name, (paths, extensions) in folder_paths_dict.items():
+            paths_tuple = FolderPathsTuple(folder_name=folder_name, paths=list(paths), supported_extensions=set(extensions))
+
+            if folder_name in fn:
+                fn[folder_name] += paths_tuple
+            else:
+                fn[folder_name] = paths_tuple
+        return fn
+
     def __init__(self, default_new_folder_path: str):
         self.contents: Dict[str, FolderPathsTuple] = dict()
         self.default_new_folder_path = default_new_folder_path
@@ -65,6 +91,9 @@ class FolderNames:
 
     def __delitem__(self, key):
         del self.contents[key]
+
+    def __contains__(self, item):
+        return item in self.contents
 
     def items(self):
         return self.contents.items()

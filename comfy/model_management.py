@@ -173,7 +173,7 @@ total_ram = psutil.virtual_memory().total / (1024 * 1024)
 logging.debug("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))
 
 try:
-    logging.debug("pytorch version: {}".format(torch.version.__version__))
+    logging.debug("pytorch version: {}".format(torch_version))
 except:
     pass
 
@@ -1059,7 +1059,7 @@ def force_upcast_attention_dtype():
     upcast = args.force_upcast_attention
     try:
         macos_version = tuple(int(n) for n in platform.mac_ver()[0].split("."))
-        if (14, 5) <= macos_version < (14, 7):  # black image bug on recent versions of MacOS
+        if (14, 5) <= macos_version <= (15, 0, 1):  # black image bug on recent versions of macOS
             upcast = True
     except:
         pass
@@ -1244,6 +1244,9 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
 
 
 def supports_fp8_compute(device=None):
+    if not is_nvidia():
+        return False
+
     props = torch.cuda.get_device_properties(device)
     if props.major >= 9:
         return True
@@ -1251,6 +1254,14 @@ def supports_fp8_compute(device=None):
         return False
     if props.minor < 9:
         return False
+
+    if int(torch_version[0]) < 2 or (int(torch_version[0]) == 2 and int(torch_version[2]) < 3):
+        return False
+
+    if WINDOWS:
+        if (int(torch_version[0]) == 2 and int(torch_version[2]) < 4):
+            return False
+
     return True
 
 
