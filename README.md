@@ -122,13 +122,13 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
 
 3. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
    ```shell
-   pip install git+https://github.com/hiddenswitch/ComfyUI.git#egg=comfyui[withtorch]
+   pip install comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git
    ```
    **Recommended**: Currently, `torch 2.4.1` is the last version that `xformers` is compatible with. On Windows, install it first, along with `xformers`, for maximum compatibility and the best performance without advanced techniques in ComfyUI:
    ```shell
    pip install torch==2.4.1+cu121 torchvision --index-url https://download.pytorch.org/whl/cu121
    pip install xformers==0.0.28.post1
-   pip install git+https://github.com/hiddenswitch/ComfyUI.git
+   pip install comfyui@git+https://github.com/hiddenswitch/ComfyUI.git
    ```
 
    To enable `torchaudio` support on Windows, install it directly:
@@ -139,7 +139,7 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
     ```shell
     # You will need wheel, which isn't included in Python 3.11 or later
     pip install wheel
-    pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
+    pip install --no-build-isolation comfyui@git+https://github.com/hiddenswitch/ComfyUI.git
     ```
    This will use your pre-installed torch.
 4. Create the directories you can fill with checkpoints:
@@ -173,7 +173,7 @@ comfyui
 Upgrades are delivered frequently and automatically. To force one immediately, run pip upgrade like so:
 
 ```shell
-pip install --no-build-isolation --no-deps --upgrade git+https://github.com/hiddenswitch/ComfyUI.git
+pip install --no-build-isolation --no-deps --upgrade comfyui@git+https://github.com/hiddenswitch/ComfyUI.git
 ```
 
 **Advanced: Using `uv`**:
@@ -183,7 +183,7 @@ pip install --no-build-isolation --no-deps --upgrade git+https://github.com/hidd
 ```powershell
 uv venv --seed
 & .\venv\Scripts\activate.ps1
-uv pip install git+https://github.com/hiddenswitch/ComfyUI.git#egg=comfyui[withtorch]
+uv pip install comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git
 python -m comfy.cmd.main
 ```
 
