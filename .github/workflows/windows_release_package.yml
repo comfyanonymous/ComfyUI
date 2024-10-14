@@ -13,13 +13,13 @@ on:
         description: 'python minor version'
         required: true
         type: string
-        default: "11"
+        default: "12"
 
       python_patch:
         description: 'python patch version'
         required: true
         type: string
-        default: "9"
+        default: "7"
 #  push:
 #    branches:
 #      - master
