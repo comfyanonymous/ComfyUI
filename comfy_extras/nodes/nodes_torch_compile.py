@@ -110,7 +110,7 @@ class QuantizeModel(CustomNode):
             quantize(unet, weights=qint8, activations=qint8, exclude=exclusion_list)
             _in_place_fixme = unet
         elif "torchao" in strategy:
-            from torchao.quantization import quantize_, int8_dynamic_activation_int8_weight, autoquant  # pylint: disable=import-error
+            from torchao.quantization import quantize_, int8_dynamic_activation_int8_weight, unwrap_tensor_subclass, autoquant  # pylint: disable=import-error
             model = model.clone()
             self.warn_in_place(model)
             unet = model.get_model_object("diffusion_model")
@@ -123,7 +123,6 @@ class QuantizeModel(CustomNode):
             else:
                 quantize_(unet, int8_dynamic_activation_int8_weight(), device=model_management.get_torch_device(), set_inductor_config=False)
                 _in_place_fixme = unet
-            from torchao.utils import unwrap_tensor_subclass
             unwrap_tensor_subclass(_in_place_fixme)
         else:
             raise ValueError(f"unknown strategy {strategy}")
