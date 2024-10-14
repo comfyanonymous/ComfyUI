@@ -119,7 +119,7 @@ def _is_linux_arm64():
 
 def dependencies(install_torch_for_system=False, force_nightly: bool = False) -> List[str]:
     _dependencies = open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines()
-    if install_torch_for_system:
+    if not install_torch_for_system:
         return [dep for dep in _dependencies if "@" not in dep]
     # If we're installing with no build isolation, we can check if torch is already installed in the environment, and if
     # so, go ahead and use the version that is already installed.
