@@ -122,30 +122,26 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
 
 3. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
    ```shell
+   pip install git+https://github.com/hiddenswitch/ComfyUI.git#egg=comfyui[withtorch]
+   ```
+   **Recommended**: Currently, `torch 2.4.1` is the last version that `xformers` is compatible with. On Windows, install it first, along with `xformers`, for maximum compatibility and the best performance without advanced techniques in ComfyUI:
+   ```shell
+   pip install torch==2.4.1+cu121 torchvision --index-url https://download.pytorch.org/whl/cu121
+   pip install xformers==0.0.28.post1
    pip install git+https://github.com/hiddenswitch/ComfyUI.git
    ```
-   **Recommended**: Currently, `torch 2.4.0` is the last version that `xformers` is compatible with. On Windows, install it first, along with `xformers`, for maximum compatibility and the best performance without advanced techniques in ComfyUI:
-   ```shell
-   pip install torch==2.4.0+cu121 torchvision --index-url https://download.pytorch.org/whl/cu121
-   pip install xformers==0.0.27.post2
-   pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
-   ```
 
-   For improved performance when using the language models on Windows, Python 3.11, CUDA 12.1 and PyTorch 2.4.0, add:
-   ```shell
-   pip install https://github.com/AppMana/appmana-comfyui-nodes-extramodels/releases/download/v0.0.0-flash_attn/flash_attn-2.6.3-cp311-cp311-win_amd64.whl
-   ```
    To enable `torchaudio` support on Windows, install it directly:
    ```shell
-   pip install torchaudio==2.4.0+cu121 --index-url https://download.pytorch.org/whl/cu121
+   pip install torchaudio==2.4.1+cu121 --index-url https://download.pytorch.org/whl/cu121
    ```
-   Flash Attention as implemented in PyTorch is not functional on any version of Windows. ComfyUI will always run with "memory efficient attention" in practice on this platform. This is distinct from the `flash-attn` package. <br />
-   **Advanced**: If you are running in Google Collab or another environment which has already installed `torch` for you, disable build isolation, and the package will recognize your currently installed torch.
+   **Advanced**: If you are running in Google Collab or another environment which has already installed `torch` for you; or, if you are an application developer:
     ```shell
     # You will need wheel, which isn't included in Python 3.11 or later
     pip install wheel
     pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
     ```
+   This will use your pre-installed torch.
 4. Create the directories you can fill with checkpoints:
    ```shell
    comfyui --create-directories
@@ -187,7 +183,7 @@ pip install --no-build-isolation --no-deps --upgrade git+https://github.com/hidd
 ```powershell
 uv venv --seed
 & .\venv\Scripts\activate.ps1
-uv pip install git+https://github.com/hiddenswitch/ComfyUI.git
+uv pip install git+https://github.com/hiddenswitch/ComfyUI.git#egg=comfyui[withtorch]
 python -m comfy.cmd.main
 ```
 
@@ -281,8 +277,7 @@ To disable model downloading, start with the command line argument `--disable-kn
     ```
    To run tests:
     ```shell
-    pytest tests/inference
-    (cd tests-ui && npm ci && npm run test:generate && npm test)
+    pytest -v tests/
     ```
    You can use `comfyui` as an API. Visit the [OpenAPI specification](comfy/api/openapi.yaml). This file can be used to generate typed clients for your preferred language.
 5. To create the standalone binary:
@@ -350,6 +345,70 @@ Clone the repository containing the custom nodes into `custom_nodes/` in your wo
 Run `pip install git+https://github.com/owner/repository`, replacing the `git` repository with the installable custom nodes URL. This is just the GitHub URL.
 
 ## Authoring Custom Nodes
+
+These instructions will allow you to quickly author installable custom nodes.
+
+#### Using `pyproject.toml` for projects with existing `requirements.txt`
+
+Suppose your custom nodes called `my_comfyui_nodes` has a folder layout that looks like this:
+
+```
+__init__.py
+some_python_file.py
+requirements.txt
+LICENSE.txt
+some_directory/some_code.py
+```
+
+First, add an `__init__.py` to `some_directory`, so that it is a Python package:
+
+```
+__init__.py
+some_python_file.py
+requirements.txt
+LICENSE.txt
+some_directory/__init__.py
+some_directory/some_code.py
+```
+
+Then, if your `NODE_CLASS_MAPPINGS` are declared in `__init__.py`, use the following as a `pyproject.toml`, substituting your actual project name:
+
+**pyproject.toml**
+```toml
+[project]
+name = "my_comfyui_nodes"
+description = "My nodes description."
+version = "1.0.0"
+license = { file = "LICENSE.txt" }
+dynamic = ["dependencies"]
+
+[project.urls]
+Repository = "https://github.com/your-github-username/my-comfyui-nodes"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "your-github-username"
+DisplayName = "my_comfyui_nodes"
+Icon = ""
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["my_comfyui_nodes", "my_comfyui_nodes.some_directory"]
+package-dir = { "my_comfyui_nodes" = ".", "my_comfyui_nodes.some_directory" = "some_directory" }
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[project.entry-points."comfyui.custom_nodes"]
+my_comfyui_nodes = "my_comfyui_nodes"
+```
+
+Observe that the directory should now be listed as a package in the `packages` and `package-dir` statement.
+
+#### Using `setup.py`
 
 Create a `requirements.txt`:
 

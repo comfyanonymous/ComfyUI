@@ -23,7 +23,7 @@ package_name = "comfyui"
 """
 The current version.
 """
-version = '0.0.1'
+version = '0.2.3'
 
 """
 The package index to the torch built with AMD ROCm.
@@ -117,10 +117,10 @@ def _is_linux_arm64():
     return os_name == 'Linux' and architecture == 'aarch64'
 
 
-def dependencies(for_pypi=False, force_nightly: bool = False) -> List[str]:
+def dependencies(install_torch_for_system=False, force_nightly: bool = False) -> List[str]:
     _dependencies = open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines()
-    if for_pypi:
-        return [dep for dep in _dependencies if dep not in {"torch", "torchvision", "torchaudio"} and "@" not in dep]
+    if install_torch_for_system:
+        return [dep for dep in _dependencies if "@" not in dep]
     # If we're installing with no build isolation, we can check if torch is already installed in the environment, and if
     # so, go ahead and use the version that is already installed.
     existing_torch: Optional[str]
@@ -199,7 +199,7 @@ setup(
     python_requires=">=3.10,<3.13",
     packages=find_packages(exclude=["tests"] + [] if is_editable else ['custom_nodes']),
     include_package_data=True,
-    install_requires=dependencies(for_pypi=False),
+    install_requires=dependencies(install_torch_for_system=False),
     setup_requires=["pip", "wheel"],
     entry_points={
         'console_scripts': [
@@ -212,6 +212,7 @@ setup(
     },
     tests_require=dev_dependencies,
     extras_require={
+        'withtorch': dependencies(install_torch_for_system=True),
         'dev': dev_dependencies
     },
 )
