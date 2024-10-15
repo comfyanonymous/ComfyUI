@@ -246,7 +246,7 @@ KNOWN_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
     CivitFile(139562, 344487, filename="realvisxlV40_v40Bakedvae.safetensors"),
     HuggingFile("SG161222/Realistic_Vision_V6.0_B1_noVAE", "Realistic_Vision_V6.0_NV_B1_fp16.safetensors"),
     HuggingFile("SG161222/Realistic_Vision_V5.1_noVAE", "Realistic_Vision_V5.1_fp16-no-ema.safetensors"),
-    CivitFile(4384, 128713, filename="dreamshaper_8.safetensors"),
+    HuggingFile("Lykon/DreamShaper", "DreamShaper_8_pruned.safetensors", save_with_filename="dreamshaper_8.safetensors", alternate_filenames=("DreamShaper_8_pruned.safetensors")),
     CivitFile(7371, 425083, filename="revAnimated_v2Rebirth.safetensors"),
     CivitFile(4468, 57618, filename="counterfeitV30_v30.safetensors"),
     CivitFile(241415, 272376, filename="picxReal_10.safetensors"),
