@@ -198,7 +198,6 @@ setup(
     version=version,
     python_requires=">=3.10,<3.13",
     packages=find_packages(exclude=["tests"] + [] if is_editable else ['custom_nodes']),
-    include_package_data=True,
     install_requires=dependencies(install_torch_for_system=False),
     setup_requires=["pip", "wheel"],
     entry_points={
@@ -208,7 +207,7 @@ setup(
         ],
     },
     package_data={
-        'comfy': package_data
+        '': package_data
     },
     tests_require=dev_dependencies,
     extras_require={
