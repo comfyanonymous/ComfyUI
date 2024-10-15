@@ -42,6 +42,7 @@ model_management_lock = RLock()
 # This setting optimizes performance on NVIDIA GPUs with Ampere architecture (e.g., A100, RTX 30 series) or newer.
 torch.set_float32_matmul_precision("high")
 
+
 class VRAMState(Enum):
     DISABLED = 0  # No vram present: no need to move models to vram
     NO_VRAM = 1  # Very low vram: enable all the options to save vram
@@ -978,10 +979,12 @@ def cast_to_device(tensor, device, dtype, copy=False):
         else:
             return tensor.to(device, dtype, copy=copy, non_blocking=non_blocking)
 
+
 FLASH_ATTENTION_ENABLED = False
 if not args.disable_flash_attn:
     try:
         import flash_attn
+
         FLASH_ATTENTION_ENABLED = True
     except ImportError:
         pass
@@ -990,6 +993,7 @@ SAGE_ATTENTION_ENABLED = False
 if not args.disable_sage_attention:
     try:
         import sageattention
+
         SAGE_ATTENTION_ENABLED = True
     except ImportError:
         pass
@@ -1006,6 +1010,7 @@ def xformers_enabled():
         return False
     return XFORMERS_IS_AVAILABLE
 
+
 def flash_attn_enabled():
     global directml_device
     global cpu_state
@@ -1016,6 +1021,7 @@ def flash_attn_enabled():
     if directml_device:
         return False
     return FLASH_ATTENTION_ENABLED
+
 
 def sage_attention_enabled():
     global directml_device
@@ -1250,7 +1256,11 @@ def supports_fp8_compute(device=None):
     if not is_nvidia():
         return False
 
-    props = torch.cuda.get_device_properties(device)
+    try:
+        props = torch.cuda.get_device_properties(device)
+    except (RuntimeError, ValueError, AssertionError):
+        return False
+
     if props.major >= 9:
         return True
     if props.major < 8:

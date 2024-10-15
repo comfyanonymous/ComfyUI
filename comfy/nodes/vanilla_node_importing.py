@@ -13,6 +13,12 @@ from os.path import join, basename, dirname, isdir, isfile, exists, abspath, spl
 
 from . import base_nodes
 from .package_typing import ExportedNodes
+from ..component_model.plugins import prompt_server_instance_routes
+
+
+class _PromptServerStub():
+    def __init__(self):
+        self.routes = prompt_server_instance_routes
 
 
 def _vanilla_load_importing_execute_prestartup_script(node_paths: Iterable[str]) -> None:
@@ -175,6 +181,9 @@ def mitigated_import_of_vanilla_custom_nodes() -> ExportedNodes:
     for module in (execution, server):
         module_short_name = module.__name__.split(".")[-1]
         sys.modules[module_short_name] = module
+
+    if server.PromptServer.instance is None:
+        server.PromptServer.instance = _PromptServerStub()
 
     # Impact Pack wants to find model_patcher
     from .. import model_patcher

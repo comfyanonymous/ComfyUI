@@ -6,7 +6,7 @@ class _RoutesWrapper:
         def decorator(path):
             def wrapper(func):
                 from ..cmd.server import PromptServer
-                if PromptServer.instance is not None:
+                if PromptServer.instance is not None and not isinstance(PromptServer.instance.routes, _RoutesWrapper):
                     getattr(PromptServer.instance.routes, method)(path)(func)
                 self.routes.append((method, path, func))
                 return func
