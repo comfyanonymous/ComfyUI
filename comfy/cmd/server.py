@@ -28,6 +28,7 @@ from aiohttp import web
 from can_ada import URL, parse as urlparse  # pylint: disable=no-name-in-module
 from typing_extensions import NamedTuple
 
+from .. import __version__
 from .latent_preview_image_encoding import encode_preview_image
 from .. import interruption, model_management
 from .. import node_helpers
@@ -64,7 +65,7 @@ async def send_socket_catch_exception(function, message):
 
 
 def get_comfyui_version():
-    return "0.2.3"
+    return __version__
 
 
 @web.middleware
@@ -941,11 +942,11 @@ class PromptServer(ExecutorToClientProgress):
 
         for name, dir in self.nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([
-                web.static('/extensions/' + quote(name), dir),
+                web.static('/extensions/' + quote(name), dir, follow_symlinks=True),
             ])
 
         self.app.add_routes([
-            web.static('/', self.web_root),
+            web.static('/', self.web_root, follow_symlinks=True),
         ])
 
     def get_queue_info(self):
