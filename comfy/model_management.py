@@ -1165,6 +1165,9 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
 
         if props.major < 6:
             return False
+    except (ValueError, RuntimeError):
+        logging.warning("No CUDA devices were present, even though CUDA is available in this torch installation. This assumes the CPU device will be selected for computation")
+        return False
     except AssertionError:
         logging.warning("Torch was not compiled with cuda support")
         return False
@@ -1226,7 +1229,7 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
         props_major = min(torch.cuda.get_device_properties(torch.device(f"cuda:{i}")).major for i in range(torch.cuda.device_count()))
         if props_major >= 8:
             return True
-    except ValueError:
+    except (ValueError, RuntimeError):
         logging.warning("No CUDA devices were present, even though CUDA is available in this torch installation. This assumes the CPU device will be selected for computation")
         return False
     except AssertionError:
