@@ -1080,7 +1080,6 @@ def sample_euler_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disabl
         d = to_d(x, sigma_hat, temp[0])
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigma_hat, 'denoised': denoised})
-        dt = sigmas[i + 1] - sigma_hat
         # Euler method
         x = denoised + d * sigmas[i + 1]
     return x
@@ -1107,7 +1106,6 @@ def sample_euler_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback=No
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
         d = to_d(x, sigmas[i], temp[0])
         # Euler method
-        dt = sigma_down - sigmas[i]
         x = denoised + d * sigma_down
         if sigmas[i + 1] > 0:
             x = x + noise_sampler(sigmas[i], sigmas[i + 1]) * s_noise * sigma_up
@@ -1138,7 +1136,6 @@ def sample_dpmpp_2s_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback
         if sigma_down == 0:
             # Euler method
             d = to_d(x, sigmas[i], temp[0])
-            dt = sigma_down - sigmas[i]
             x = denoised + d * sigma_down
         else:
             # DPM-Solver++(2S)
