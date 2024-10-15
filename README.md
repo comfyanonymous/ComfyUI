@@ -16,7 +16,6 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 - [Embed](#embedded) ComfyUI as a library inside your Python application. No server or frontend needed.
 - [Containers](#containers) for running on Linux, Windows and Kubernetes with CUDA acceleration.
 - Automated tests for new features.
-- Automatic model downloading for well-known models.
 
 ### Upstream Features
 
