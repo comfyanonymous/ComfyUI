@@ -22,3 +22,10 @@ kornia>=0.7.1
 spandrel
 soundfile
 av
+
+# memedeck dependencies
+pika
+python-dotenv
+pillow 
+azure-storage-blob 
+cairosvg

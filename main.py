@@ -53,6 +53,14 @@ def apply_custom_paths():
         logging.info(f"Setting user directory to: {user_dir}")
         folder_paths.set_user_directory(user_dir)
 
+# ---------------------------------------------------------------------------------------
+# memedeck imports
+# ---------------------------------------------------------------------------------------
+from memedeck import MemedeckWorker
+
+import sys
+sys.stdout = open(os.devnull, 'w') # disable all print statements
+# ---------------------------------------------------------------------------------------
 
 def execute_prestartup_script():
     def execute_script(script_path):
@@ -153,9 +161,11 @@ def cuda_malloc_warning():
             logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
-def prompt_worker(q, server_instance):
+def prompt_worker(q, server, memedeck_worker):
     current_time: float = 0.0
-    e = execution.PromptExecutor(server_instance, lru_size=args.cache_lru)
+    e = execution.PromptExecutor(server, memedeck_worker, lru_size=args.cache_lru)
+    
+    # threading.Thread(target=memedeck_worker.start, daemon=True, args=(q, execution.validate_prompt)).start()
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -209,12 +219,12 @@ def prompt_worker(q, server_instance):
                 need_gc = False
 
 
-async def run(server_instance, address='', port=8188, verbose=True, call_on_start=None):
+async def run(server_instance, memedeck_worker, address='', port=8188, verbose=True, call_on_start=None):
     addresses = []
     for addr in address.split(","):
         addresses.append((addr, port))
     await asyncio.gather(
-        server_instance.start_multi_address(addresses, call_on_start, verbose), server_instance.publish_loop()
+        server_instance.start_multi_address(addresses, call_on_start, verbose), server_instance.publish_loop(), memedeck_worker.publish_loop()
     )
 
 
@@ -224,10 +234,33 @@ def hijack_progress(server_instance):
         progress = {"value": value, "max": total, "prompt_id": server_instance.last_prompt_id, "node": server_instance.last_node_id}
 
         server_instance.send_sync("progress", progress, server_instance.client_id)
+        if memedeck_worker.ws_id is not None:
+            memedeck_worker.send_sync("progress", {"value": value, "max": total, "prompt_id": memedeck_worker.last_prompt_id, "node": server_instance.last_node_id}, memedeck_worker.ws_id)
         if preview_image is not None:
             server_instance.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server_instance.client_id)
-
+            if memedeck_worker.ws_id is not None:
+                memedeck_worker.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, memedeck_worker.ws_id)
     comfy.utils.set_progress_bar_global_hook(hook)
+
+# async def run(server, memedeck_worker, address='', port=8188, verbose=True, call_on_start=None):
+#     addresses = []
+#     for addr in address.split(","):
+#         addresses.append((addr, port))
+#     # add memedeck worker publish loop
+#     await asyncio.gather(server.start_multi_address(addresses, call_on_start), server.publish_loop(), memedeck_worker.publish_loop())
+
+
+# def hijack_progress(server, memedeck_worker):
+#     def hook(value, total, preview_image):
+#         comfy.model_management.throw_exception_if_processing_interrupted()
+#         server.send_sync("progress", {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}, server.client_id)
+#         if memedeck_worker.ws_id is not None:
+#             memedeck_worker.send_sync("progress", {"value": value, "max": total, "prompt_id": memedeck_worker.last_prompt_id, "node": server.last_node_id}, memedeck_worker.ws_id)
+#         if preview_image is not None:
+#             server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
+#             if memedeck_worker.ws_id is not None:
+#                 memedeck_worker.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, memedeck_worker.ws_id)
+#     comfy.utils.set_progress_bar_global_hook(hook)
 
 
 def cleanup_temp():
@@ -258,16 +291,54 @@ def start_comfyui(asyncio_loop=None):
         asyncio_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(asyncio_loop)
     prompt_server = server.PromptServer(asyncio_loop)
-    q = execution.PromptQueue(prompt_server)
+    memedeck_worker = MemedeckWorker(asyncio_loop)
+    q = execution.PromptQueue(prompt_server, memedeck_worker)
+    
+    # loop = asyncio.new_event_loop()
+    # asyncio.set_event_loop(loop)
+    # server = server.PromptServer(loop)
+    # q = execution.PromptQueue(server, memedeck_worker)
+
+    extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
+    if os.path.isfile(extra_model_paths_config_path):
+        utils.extra_config.load_extra_path_config(extra_model_paths_config_path)
+
+    if args.extra_model_paths_config:
+        for config_path in itertools.chain(*args.extra_model_paths_config):
+            utils.extra_config.load_extra_path_config(config_path)
 
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
 
     cuda_malloc_warning()
 
     prompt_server.add_routes()
-    hijack_progress(prompt_server)
+    hijack_progress(server, memedeck_worker)
 
-    threading.Thread(target=prompt_worker, daemon=True, args=(q, prompt_server,)).start()
+    threading.Thread(target=prompt_worker, daemon=True, args=(q, server, memedeck_worker)).start()
+    threading.Thread(target=memedeck_worker.start, daemon=True, args=(q, execution.validate_prompt)).start()
+    # set logging level to info
+    
+    if args.output_directory:
+        output_dir = os.path.abspath(args.output_directory)
+        logging.info(f"Setting output directory to: {output_dir}")
+        folder_paths.set_output_directory(output_dir)
+
+    #These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
+    folder_paths.add_model_folder_path("checkpoints", os.path.join(folder_paths.get_output_directory(), "checkpoints"))
+    folder_paths.add_model_folder_path("clip", os.path.join(folder_paths.get_output_directory(), "clip"))
+    folder_paths.add_model_folder_path("vae", os.path.join(folder_paths.get_output_directory(), "vae"))
+    folder_paths.add_model_folder_path("diffusion_models", os.path.join(folder_paths.get_output_directory(), "diffusion_models"))
+    folder_paths.add_model_folder_path("loras", os.path.join(folder_paths.get_output_directory(), "loras"))
+
+    if args.input_directory:
+        input_dir = os.path.abspath(args.input_directory)
+        logging.info(f"Setting input directory to: {input_dir}")
+        folder_paths.set_input_directory(input_dir)
+    
+    if args.user_directory:
+        user_dir = os.path.abspath(args.user_directory)
+        logging.info(f"Setting user directory to: {user_dir}")
+        folder_paths.set_user_directory(user_dir)
 
     if args.quick_test_for_ci:
         exit(0)
@@ -287,6 +358,7 @@ def start_comfyui(asyncio_loop=None):
     async def start_all():
         await prompt_server.setup()
         await run(prompt_server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start)
+        await run(server, memedeck_worker, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start)
 
     # Returning these so that other code can integrate with the ComfyUI loop and server
     return asyncio_loop, prompt_server, start_all
@@ -298,6 +370,8 @@ if __name__ == "__main__":
     event_loop, _, start_all_func = start_comfyui()
     try:
         event_loop.run_until_complete(start_all_func())
+        # event_loop.run_until_complete(run(server, memedeck_worker, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
+
     except KeyboardInterrupt:
         logging.info("\nStopped server")
 

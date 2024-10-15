@@ -21,3 +21,12 @@ venv/
 *.log
 web_custom_versions/
 .DS_Store
+
+.env
+
+
+models
+custom_nodes
+models/
+flux_loras/
+custom_nodes/

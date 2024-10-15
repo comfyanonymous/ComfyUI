@@ -245,7 +245,7 @@ def format_value(x):
     else:
         return str(x)
 
-def execute(server, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results):
+def execute(server, memedeck_worker, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results):
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
     display_node_id = dynprompt.get_display_node_id(unique_id)
@@ -253,10 +253,15 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
     inputs = dynprompt.get_node(unique_id)['inputs']
     class_type = dynprompt.get_node(unique_id)['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+    is_memedeck = extra_data.get("is_memedeck", False)
+    
     if caches.outputs.get(unique_id) is not None:
         if server.client_id is not None:
             cached_output = caches.ui.get(unique_id) or {}
             server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": cached_output.get("output",None), "prompt_id": prompt_id }, server.client_id)
+        if memedeck_worker.ws_id is not None:
+            memedeck_worker.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": cached_output.get("output",None), "prompt_id": prompt_id }, memedeck_worker.ws_id)
+        # elif is_memedeck:
         return (ExecutionResult.SUCCESS, None, None)
 
     input_data_all = None
@@ -284,10 +289,13 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             has_subgraph = False
         else:
             input_data_all, missing_keys = get_input_data(inputs, class_def, unique_id, caches.outputs, dynprompt, extra_data)
-            if server.client_id is not None:
+            if server.client_id is not None and not is_memedeck:
                 server.last_node_id = display_node_id
                 server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, server.client_id)
-
+            elif is_memedeck:
+                memedeck_worker.last_node_id = display_node_id
+                memedeck_worker.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, memedeck_worker.ws_id)
+                
             obj = caches.objects.get(unique_id)
             if obj is None:
                 obj = class_def()
@@ -319,6 +327,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                         "current_outputs": [],
                     }
                     server.send_sync("execution_error", mes, server.client_id)
+                    memedeck_worker.send_sync("execution_error", mes, memedeck_worker.ws_id)
                     return ExecutionBlocker(None)
                 else:
                     return block
@@ -335,8 +344,11 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                 },
                 "output": output_ui
             })
-            if server.client_id is not None:
+            if server.client_id is not None and not is_memedeck:
                 server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
+            elif is_memedeck:
+                memedeck_worker.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": output_ui, "prompt_id": prompt_id }, memedeck_worker.ws_id)
+                
         if has_subgraph:
             cached_outputs = []
             new_node_ids = []
@@ -414,9 +426,12 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
     return (ExecutionResult.SUCCESS, None, None)
 
 class PromptExecutor:
-    def __init__(self, server, lru_size=None):
+    def __init__(self, server, memedeck_worker, lru_size=None):
         self.lru_size = lru_size
         self.server = server
+        self.memedeck_worker = memedeck_worker
+        # set logging level
+        logging.basicConfig(level=logging.INFO)
         self.reset()
 
     def reset(self):
@@ -432,6 +447,9 @@ class PromptExecutor:
         self.status_messages.append((event, data))
         if self.server.client_id is not None or broadcast:
             self.server.send_sync(event, data, self.server.client_id)
+        elif self.memedeck_worker.ws_id is not None:
+            self.memedeck_worker.send_sync(event, data, self.memedeck_worker.ws_id)
+            
 
     def handle_execution_error(self, prompt_id, prompt, current_outputs, executed, error, ex):
         node_id = error["node_id"]
@@ -466,8 +484,12 @@ class PromptExecutor:
 
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]
+            if "ws_id" in extra_data:
+                self.memedeck_worker.ws_id = extra_data["ws_id"]
+                self.memedeck_worker.websocket_node_id = extra_data["websocket_node_id"]
         else:
             self.server.client_id = None
+            self.memedeck_worker.ws_id = None
 
         self.status_messages = []
         self.add_message("execution_start", { "prompt_id": prompt_id}, broadcast=False)
@@ -501,7 +523,7 @@ class PromptExecutor:
                     self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
                     break
 
-                result, error, ex = execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results)
+                result, error, ex = execute(self.server, self.memedeck_worker, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results)
                 self.success = result != ExecutionResult.FAILURE
                 if result == ExecutionResult.FAILURE:
                     self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
@@ -512,7 +534,7 @@ class PromptExecutor:
                     execution_list.complete_node_execution()
             else:
                 # Only execute when the while-loop ends without break
-                self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
+                self.add_message("execution_success", { "prompt_id": prompt_id, 'ws_id': self.memedeck_worker.ws_id }, broadcast=False)
 
             ui_outputs = {}
             meta_outputs = {}
@@ -527,6 +549,7 @@ class PromptExecutor:
                 "meta": meta_outputs,
             }
             self.server.last_node_id = None
+            self.memedeck_worker.last_node_id = None
             if comfy.model_management.DISABLE_SMART_MEMORY:
                 comfy.model_management.unload_all_models()
 
@@ -869,8 +892,9 @@ def validate_prompt(prompt):
 MAXIMUM_HISTORY_SIZE = 10000
 
 class PromptQueue:
-    def __init__(self, server):
+    def __init__(self, server, memedeck_worker):
         self.server = server
+        self.memedeck_worker = memedeck_worker
         self.mutex = threading.RLock()
         self.not_empty = threading.Condition(self.mutex)
         self.task_counter = 0
@@ -884,6 +908,7 @@ class PromptQueue:
         with self.mutex:
             heapq.heappush(self.queue, item)
             self.server.queue_updated()
+            self.memedeck_worker.queue_updated()
             self.not_empty.notify()
 
     def get(self, timeout=None):
@@ -897,6 +922,7 @@ class PromptQueue:
             self.currently_running[i] = copy.deepcopy(item)
             self.task_counter += 1
             self.server.queue_updated()
+            self.memedeck_worker.queue_updated()
             return (item, i)
 
     class ExecutionStatus(NamedTuple):
@@ -922,6 +948,7 @@ class PromptQueue:
             }
             self.history[prompt[1]].update(history_result)
             self.server.queue_updated()
+            self.memedeck_worker.queue_updated()
 
     def get_current_queue(self):
         with self.mutex:
@@ -938,6 +965,7 @@ class PromptQueue:
         with self.mutex:
             self.queue = []
             self.server.queue_updated()
+            self.memedeck_worker.queue_updated()
 
     def delete_queue_item(self, function):
         with self.mutex:
@@ -949,6 +977,8 @@ class PromptQueue:
                         self.queue.pop(x)
                         heapq.heapify(self.queue)
                     self.server.queue_updated()
+                    self.memedeck_worker.queue_updated()
+                    
                     return True
         return False
 
