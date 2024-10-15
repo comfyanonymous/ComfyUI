@@ -6,7 +6,7 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 ### New Features
 
 - To run, just type `comfyui` in your command line and press enter.
-- [Installable](#installing) via `pip`: `pip install git+https://github.com/hiddenswitch/ComfyUI.git`.
+- [Installable](#installing) via `pip`: `pip install comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git`.
 - [Large Language Models](#large-language-models) with multi-modal support included.
 - [Automatic model downloading](#model-downloading) to save you disk space and time.
 - [Distributed](#distributed-multi-process-and-multi-gpu-comfy) with support for multiple GPUs, multiple backends and frontends, including in containers, using RabbitMQ.
