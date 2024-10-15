@@ -232,6 +232,10 @@ async def middleware(request, handler):
         except web.HTTPException as ex:
             set_status_code(span, ex.status_code)
             raise
+        except AttributeError:
+            # No response was returned or a NoneType response was returned, handle gracefully
+            set_status_code(span, 500)
+            raise
         finally:
             duration = max((default_timer() - start) * 1000, 0)
             duration_histogram.record(duration, duration_attrs)
