@@ -21,13 +21,14 @@ from .. import sd
 from .. import utils
 from .. import clip_vision as clip_vision_module
 from .. import model_management
-from .. import ops
 from ..cli_args import args
 
 from ..cmd import folder_paths, latent_preview
+from ..component_model.deprecation import _deprecate_method
 from ..component_model.tensor_types import RGBImage, RGBImageBatch, MaskBatch
 from ..execution_context import current_execution_context
 from ..images import open_image
+from ..interruption import interrupt_current_processing
 from ..ldm.flux.weight_dtypes import FLUX_WEIGHT_DTYPES
 from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES, get_huggingface_repo_list, KNOWN_CLIP_MODELS, KNOWN_UNET_MODELS
 from ..nodes.common import MAX_RESOLUTION
@@ -36,6 +37,11 @@ from ..open_exr import load_exr
 from .. import node_helpers
 from ..sd import VAE
 from ..utils import comfy_tqdm
+
+
+@_deprecate_method(version="0.2.3", message="Use interrupt_current_processing from comfy.interruption")
+def interrupt_processing(value=True):
+    interrupt_current_processing(value)
 
 
 class CLIPTextEncode:
