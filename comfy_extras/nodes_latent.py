@@ -1,4 +1,5 @@
 import comfy.utils
+import comfy_extras.nodes_post_processing
 import torch
 
 def reshape_latent_to(target_shape, latent):
