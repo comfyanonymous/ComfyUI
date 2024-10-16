@@ -534,7 +534,7 @@ class PromptExecutor:
                     execution_list.complete_node_execution()
             else:
                 # Only execute when the while-loop ends without break
-                self.add_message("execution_success", { "prompt_id": prompt_id, 'ws_id': self.memedeck_worker.ws_id }, broadcast=False)
+                self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
 
             ui_outputs = {}
             meta_outputs = {}

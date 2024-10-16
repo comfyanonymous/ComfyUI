@@ -58,8 +58,8 @@ def apply_custom_paths():
 # ---------------------------------------------------------------------------------------
 from memedeck import MemedeckWorker
 
-import sys
-sys.stdout = open(os.devnull, 'w') # disable all print statements
+# import sys
+# sys.stdout = open(os.devnull, 'w') # disable all print statements
 # ---------------------------------------------------------------------------------------
 
 def execute_prestartup_script():
