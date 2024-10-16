@@ -12,11 +12,11 @@ from typing import List, Literal, NamedTuple, Optional
 import torch
 import nodes
 
-import comfy.model_management
-from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
-from comfy_execution.graph_utils import is_link, GraphBuilder
-from comfy_execution.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID
-from comfy.cli_args import args
+import seap.model_management
+from seap_execution.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
+from seap_execution.graph_utils import is_link, GraphBuilder
+from seap_execution.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID
+from seap.cli_args import args
 
 class ExecutionResult(Enum):
     SUCCESS = 0
@@ -371,7 +371,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             pending_subgraph_results[unique_id] = cached_outputs
             return (ExecutionResult.PENDING, None, None)
         caches.outputs.set(unique_id, output_data)
-    except comfy.model_management.InterruptProcessingException as iex:
+    except seap.model_management.InterruptProcessingException as iex:
         logging.info("Processing interrupted")
 
         # skip formatting inputs/outputs
@@ -399,9 +399,9 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             "traceback": traceback.format_tb(tb),
             "current_inputs": input_data_formatted
         }
-        if isinstance(ex, comfy.model_management.OOM_EXCEPTION):
+        if isinstance(ex, seap.model_management.OOM_EXCEPTION):
             logging.error("Got an OOM, unloading all loaded models.")
-            comfy.model_management.unload_all_models()
+            seap.model_management.unload_all_models()
 
         return (ExecutionResult.FAILURE, error_details, ex)
 
@@ -435,7 +435,7 @@ class PromptExecutor:
 
         # First, send back the status to the frontend depending
         # on the exception type
-        if isinstance(ex, comfy.model_management.InterruptProcessingException):
+        if isinstance(ex, seap.model_management.InterruptProcessingException):
             mes = {
                 "prompt_id": prompt_id,
                 "node_id": node_id,
@@ -480,7 +480,7 @@ class PromptExecutor:
                 if self.caches.outputs.get(node_id) is not None:
                     cached_nodes.append(node_id)
 
-            comfy.model_management.cleanup_models(keep_clone_weights_loaded=True)
+            seap.model_management.cleanup_models(keep_clone_weights_loaded=True)
             self.add_message("execution_cached",
                           { "nodes": cached_nodes, "prompt_id": prompt_id},
                           broadcast=False)
@@ -523,8 +523,8 @@ class PromptExecutor:
                 "meta": meta_outputs,
             }
             self.server.last_node_id = None
-            if comfy.model_management.DISABLE_SMART_MEMORY:
-                comfy.model_management.unload_all_models()
+            if seap.model_management.DISABLE_SMART_MEMORY:
+                seap.model_management.unload_all_models()
 
 
 

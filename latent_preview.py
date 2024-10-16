@@ -2,11 +2,11 @@ import torch
 from PIL import Image
 import struct
 import numpy as np
-from comfy.cli_args import args, LatentPreviewMethod
-from comfy.taesd.taesd import TAESD
-import comfy.model_management
+from seap.cli_args import args, LatentPreviewMethod
+from seap.taesd.taesd import TAESD
+import seap.model_management
 import folder_paths
-import comfy.utils
+import seap.utils
 import logging
 
 MAX_PREVIEW_RESOLUTION = args.preview_size
@@ -14,7 +14,7 @@ MAX_PREVIEW_RESOLUTION = args.preview_size
 def preview_to_image(latent_image):
         latents_ubyte = (((latent_image + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
                             .mul(0xFF)  # to 0..255
-                            ).to(device="cpu", dtype=torch.uint8, non_blocking=comfy.model_management.device_supports_non_blocking(latent_image.device))
+                            ).to(device="cpu", dtype=torch.uint8, non_blocking=seap.model_management.device_supports_non_blocking(latent_image.device))
 
         return Image.fromarray(latents_ubyte.numpy())
 
@@ -89,7 +89,7 @@ def prepare_callback(model, steps, x0_output_dict=None):
 
     previewer = get_previewer(model.load_device, model.model.latent_format)
 
-    pbar = comfy.utils.ProgressBar(steps)
+    pbar = seap.utils.ProgressBar(steps)
     def callback(step, x0, x, total_steps):
         if x0_output_dict is not None:
             x0_output_dict["x0"] = x0

@@ -13,7 +13,7 @@ import uuid
 import urllib.request
 import urllib.parse
 import urllib.error
-from comfy_execution.graph_utils import GraphBuilder, Node
+from seap_execution.graph_utils import GraphBuilder, Node
 
 class RunResult:
     def __init__(self, prompt_id: str):

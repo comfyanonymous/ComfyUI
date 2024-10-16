@@ -316,7 +316,7 @@ const _sfc_main$F = /* @__PURE__ */ defineComponent({
         icon: icon.value,
         onClick: toggleTheme,
         tooltip: _ctx.$t("sideToolbar.themeToggle"),
-        class: "comfy-vue-theme-toggle"
+        class: "seap-vue-theme-toggle"
       }, null, 8, ["icon", "tooltip"]);
     };
   }
@@ -334,7 +334,7 @@ const _sfc_main$E = /* @__PURE__ */ defineComponent({
     return (_ctx, _cache) => {
       return openBlock(), createBlock(SidebarIcon, {
         icon: "pi pi-cog",
-        class: "comfy-settings-btn",
+        class: "seap-settings-btn",
         onClick: showSetting,
         tooltip: _ctx.$t("settings")
       }, null, 8, ["tooltip"]);
@@ -3316,10 +3316,10 @@ const _sfc_main$y = /* @__PURE__ */ defineComponent({
 });
 const NodePreview = /* @__PURE__ */ _export_sfc(_sfc_main$y, [["__scopeId", "data-v-ff07c900"]]);
 const _withScopeId$g = /* @__PURE__ */ __name((n) => (pushScopeId("data-v-2d409367"), n = n(), popScopeId(), n), "_withScopeId$g");
-const _hoisted_1$w = { class: "comfy-vue-node-search-container" };
+const _hoisted_1$w = { class: "seap-vue-node-search-container" };
 const _hoisted_2$o = {
   key: 0,
-  class: "comfy-vue-node-preview-container"
+  class: "seap-vue-node-preview-container"
 };
 const _hoisted_3$i = /* @__PURE__ */ _withScopeId$g(() => /* @__PURE__ */ createBaseVNode("h3", null, "Add node filter condition", -1));
 const _hoisted_4$b = { class: "_dialog-body" };
@@ -3415,7 +3415,7 @@ const _sfc_main$x = /* @__PURE__ */ defineComponent({
         }, 8, ["visible"]),
         createVNode(_sfc_main$B, {
           "model-value": props.filters,
-          class: "comfy-vue-node-search-box",
+          class: "seap-vue-node-search-box",
           scrollHeight: "40vh",
           placeholder: placeholder.value,
           "input-id": inputId,
@@ -5804,7 +5804,7 @@ const _sfc_main$t = /* @__PURE__ */ defineComponent({
     });
     watchEffect(() => {
       const spellcheckEnabled = settingStore.get("Comfy.TextareaWidget.Spellcheck");
-      const textareas = document.querySelectorAll("textarea.comfy-multiline-input");
+      const textareas = document.querySelectorAll("textarea.seap-multiline-input");
       textareas.forEach((textarea) => {
         textarea.spellcheck = spellcheckEnabled;
         textarea.focus();
@@ -7344,20 +7344,20 @@ const _sfc_main$s = /* @__PURE__ */ defineComponent({
       return openBlock(), createElementBlock(Fragment, null, [
         !imageBroken.value ? (openBlock(), createElementBlock("span", {
           key: 0,
-          class: normalizeClass(["comfy-image-wrap", [{ contain: _ctx.contain }]])
+          class: normalizeClass(["seap-image-wrap", [{ contain: _ctx.contain }]])
         }, [
           _ctx.contain ? (openBlock(), createElementBlock("img", {
             key: 0,
             src: _ctx.src,
             onError: handleImageError,
             "data-test": _ctx.src,
-            class: "comfy-image-blur",
+            class: "seap-image-blur",
             style: normalizeStyle({ "background-image": `url(${_ctx.src})` })
           }, null, 44, _hoisted_1$r)) : createCommentVNode("", true),
           createBaseVNode("img", {
             src: _ctx.src,
             onError: handleImageError,
-            class: normalizeClass(["comfy-image-main", [...classArray.value]])
+            class: normalizeClass(["seap-image-main", [...classArray.value]])
           }, null, 42, _hoisted_2$k)
         ], 2)) : createCommentVNode("", true),
         imageBroken.value ? (openBlock(), createElementBlock("div", _hoisted_3$e, [
@@ -9287,9 +9287,9 @@ function render$9(_ctx, _cache, $props, $setup, $data, $options) {
 __name(render$9, "render$9");
 script$a.render = render$9;
 const _withScopeId$c = /* @__PURE__ */ __name((n) => (pushScopeId("data-v-1b0a8fe3"), n = n(), popScopeId(), n), "_withScopeId$c");
-const _hoisted_1$l = { class: "comfy-vue-side-bar-container" };
-const _hoisted_2$f = { class: "comfy-vue-side-bar-header-span" };
-const _hoisted_3$a = { class: "comfy-vue-side-bar-body" };
+const _hoisted_1$l = { class: "seap-vue-side-bar-container" };
+const _hoisted_2$f = { class: "seap-vue-side-bar-header-span" };
+const _hoisted_3$a = { class: "seap-vue-side-bar-body" };
 const _sfc_main$o = /* @__PURE__ */ defineComponent({
   __name: "SidebarTabTemplate",
   props: {
@@ -9302,7 +9302,7 @@ const _sfc_main$o = /* @__PURE__ */ defineComponent({
     const props = __props;
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("div", _hoisted_1$l, [
-        createVNode(unref(script$a), { class: "comfy-vue-side-bar-header" }, {
+        createVNode(unref(script$a), { class: "seap-vue-side-bar-header" }, {
           start: withCtx(() => [
             createBaseVNode("span", _hoisted_2$f, toDisplayString(props.title.toUpperCase()), 1)
           ]),
@@ -17332,14 +17332,14 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
     watchEffect(() => {
       const fontSize = settingStore.get("Comfy.TextareaWidget.FontSize");
       document.documentElement.style.setProperty(
-        "--comfy-textarea-font-size",
+        "--seap-textarea-font-size",
         `${fontSize}px`
       );
     });
     watchEffect(() => {
       const padding = settingStore.get("Comfy.TreeExplorer.ItemPadding");
       document.documentElement.style.setProperty(
-        "--comfy-tree-explorer-item-padding",
+        "--seap-tree-explorer-item-padding",
         `${padding}px`
       );
     });

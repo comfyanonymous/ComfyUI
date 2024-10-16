@@ -6,7 +6,7 @@ import glob
 import shutil
 from aiohttp import web
 from urllib import parse
-from comfy.cli_args import args
+from seap.cli_args import args
 import folder_paths
 from .app_settings import AppSettings
 
@@ -38,8 +38,8 @@ class UserManager():
 
     def get_request_user_id(self, request):
         user = "default"
-        if args.multi_user and "comfy-user" in request.headers:
-            user = request.headers["comfy-user"]
+        if args.multi_user and "seap-user" in request.headers:
+            user = request.headers["seap-user"]
 
         if user not in self.users:
             raise KeyError("Unknown user: " + user)

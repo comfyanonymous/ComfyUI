@@ -9,7 +9,7 @@ class AppSettings():
 
     def get_settings(self, request):
         file = self.user_manager.get_request_user_filepath(
-            request, "comfy.settings.json")
+            request, "seap.settings.json")
         if os.path.isfile(file):
             with open(file) as f:
                 return json.load(f)
@@ -18,7 +18,7 @@ class AppSettings():
 
     def save_settings(self, request, settings):
         file = self.user_manager.get_request_user_filepath(
-            request, "comfy.settings.json")
+            request, "seap.settings.json")
         with open(file, "w") as f:
             f.write(json.dumps(settings, indent=4))
 

@@ -33,7 +33,7 @@ class ClipspaceDialog extends ComfyDialog {
   static invalidate() {
     if (ClipspaceDialog.instance) {
       const self = ClipspaceDialog.instance;
-      const children = $el("div.comfy-modal-content", [
+      const children = $el("div.seap-modal-content", [
         self.createImgSettings(),
         ...self.createButtons()
       ]);
@@ -41,7 +41,7 @@ class ClipspaceDialog extends ComfyDialog {
         self.element.removeChild(self.element.firstChild);
         self.element.appendChild(children);
       } else {
-        self.element = $el("div.comfy-modal", { parent: document.body }, [
+        self.element = $el("div.seap-modal", { parent: document.body }, [
           children
         ]);
       }
@@ -163,7 +163,7 @@ const ext$2 = {
       const ctx = new ctxMenu(values, options);
       if (options?.className === "dark" && values?.length > 4) {
         const filter = document.createElement("input");
-        filter.classList.add("comfy-context-menu-filter");
+        filter.classList.add("seap-context-menu-filter");
         filter.placeholder = "Filter list";
         ctx.root.prepend(filter);
         const items = Array.from(
@@ -469,7 +469,7 @@ class ManageGroupDialog extends ComfyDialog {
   constructor(app2) {
     super();
     this.app = app2;
-    this.element = $el("dialog.comfy-group-manage", {
+    this.element = $el("dialog.seap-group-manage", {
       parent: document.body
     });
   }
@@ -691,11 +691,11 @@ class ManageGroupDialog extends ComfyDialog {
       (a, b) => a.localeCompare(b)
     );
     this.innerNodesList = $el(
-      "ul.comfy-group-manage-list-items"
+      "ul.seap-group-manage-list-items"
     );
-    this.widgetsPage = $el("section.comfy-group-manage-node-page");
-    this.inputsPage = $el("section.comfy-group-manage-node-page");
-    this.outputsPage = $el("section.comfy-group-manage-node-page");
+    this.widgetsPage = $el("section.seap-group-manage-node-page");
+    this.inputsPage = $el("section.seap-group-manage-node-page");
+    this.outputsPage = $el("section.seap-group-manage-node-page");
     const pages = $el("div", [
       this.widgetsPage,
       this.inputsPage,
@@ -717,7 +717,7 @@ class ManageGroupDialog extends ComfyDialog {
       };
       return p;
     }, {});
-    const outer = $el("div.comfy-group-manage-outer", [
+    const outer = $el("div.seap-group-manage-outer", [
       $el("header", [
         $el("h2", "Group Nodes"),
         $el(
@@ -737,8 +737,8 @@ class ManageGroupDialog extends ComfyDialog {
         )
       ]),
       $el("main", [
-        $el("section.comfy-group-manage-list", this.innerNodesList),
-        $el("section.comfy-group-manage-node", [
+        $el("section.seap-group-manage-list", this.innerNodesList),
+        $el("section.seap-group-manage-node", [
           $el(
             "header",
             Object.values(this.tabs).map((t) => t.tab)
@@ -748,7 +748,7 @@ class ManageGroupDialog extends ComfyDialog {
       ]),
       $el("footer", [
         $el(
-          "button.comfy-btn",
+          "button.seap-btn",
           {
             onclick: /* @__PURE__ */ __name((e) => {
               const node = app.graph.nodes.find(
@@ -774,7 +774,7 @@ class ManageGroupDialog extends ComfyDialog {
           "Delete Group Node"
         ),
         $el(
-          "button.comfy-btn",
+          "button.seap-btn",
           {
             onclick: /* @__PURE__ */ __name(async () => {
               let nodesByType;
@@ -840,7 +840,7 @@ class ManageGroupDialog extends ComfyDialog {
           "Save"
         ),
         $el(
-          "button.comfy-btn",
+          "button.seap-btn",
           { onclick: /* @__PURE__ */ __name(() => this.element.close(), "onclick") },
           "Close"
         )
@@ -2321,7 +2321,7 @@ app.registerExtension({
         return;
       }
       if (event.key === "Escape") {
-        const modals = document.querySelectorAll(".comfy-modal");
+        const modals = document.querySelectorAll(".seap-modal");
         const modal = Array.from(modals).find(
           (modal2) => window.getComputedStyle(modal2).getPropertyValue("display") !== "none"
         );
@@ -2484,8 +2484,8 @@ class MaskEditorDialog extends ComfyDialog {
   is_layout_created = false;
   constructor() {
     super();
-    this.element = $el("div.comfy-modal", { parent: document.body }, [
-      $el("div.comfy-modal-content", [...this.createButtons()])
+    this.element = $el("div.seap-modal", { parent: document.body }, [
+      $el("div.seap-modal-content", [...this.createButtons()])
     ]);
   }
   createButtons() {
@@ -2517,7 +2517,7 @@ class MaskEditorDialog extends ComfyDialog {
     divElement.style.fontFamily = "sans-serif";
     divElement.style.marginRight = "4px";
     divElement.style.color = "var(--input-text)";
-    divElement.style.backgroundColor = "var(--comfy-input-bg)";
+    divElement.style.backgroundColor = "var(--seap-input-bg)";
     divElement.style.borderRadius = "8px";
     divElement.style.borderColor = "var(--border-color)";
     divElement.style.borderStyle = "solid";
@@ -2547,7 +2547,7 @@ class MaskEditorDialog extends ComfyDialog {
     divElement.style.fontFamily = "sans-serif";
     divElement.style.marginRight = "4px";
     divElement.style.color = "var(--input-text)";
-    divElement.style.backgroundColor = "var(--comfy-input-bg)";
+    divElement.style.backgroundColor = "var(--seap-input-bg)";
     divElement.style.borderRadius = "8px";
     divElement.style.borderColor = "var(--border-color)";
     divElement.style.borderStyle = "solid";
@@ -2578,7 +2578,7 @@ class MaskEditorDialog extends ComfyDialog {
     divElement.style.fontFamily = "sans-serif";
     divElement.style.marginRight = "4px";
     divElement.style.color = "var(--input-text)";
-    divElement.style.backgroundColor = "var(--comfy-input-bg)";
+    divElement.style.backgroundColor = "var(--seap-input-bg)";
     divElement.style.borderRadius = "8px";
     divElement.style.borderColor = "var(--border-color)";
     divElement.style.borderStyle = "solid";
@@ -3299,7 +3299,7 @@ app.registerExtension({
   }
 });
 const id = "Comfy.NodeTemplates";
-const file = "comfy.templates.json";
+const file = "seap.templates.json";
 class ManageTemplates extends ComfyDialog {
   static {
     __name(this, "ManageTemplates");
@@ -3314,7 +3314,7 @@ class ManageTemplates extends ComfyDialog {
     this.load().then((v) => {
       this.templates = v;
     });
-    this.element.classList.add("comfy-manage-templates");
+    this.element.classList.add("seap-manage-templates");
     this.draggedEl = null;
     this.saveVisualCue = null;
     this.emptyImg = new Image();
@@ -3454,7 +3454,7 @@ class ManageTemplates extends ComfyDialog {
                   gridTemplateColumns: "1fr auto",
                   border: "1px dashed transparent",
                   gap: "5px",
-                  backgroundColor: "var(--comfy-menu-bg)"
+                  backgroundColor: "var(--seap-menu-bg)"
                 },
                 ondragstart: /* @__PURE__ */ __name((e) => {
                   this.draggedEl = e.currentTarget;
@@ -3528,14 +3528,14 @@ class ManageTemplates extends ComfyDialog {
                         el.style.transitionDuration = "0s";
                         this.saveVisualCue = setTimeout(function() {
                           el.style.transitionDuration = ".7s";
-                          el.style.backgroundColor = "var(--comfy-input-bg)";
+                          el.style.backgroundColor = "var(--seap-input-bg)";
                         }, 15);
                       }, "onchange"),
                       onkeypress: /* @__PURE__ */ __name((e) => {
                         var el = e.target;
                         clearTimeout(this.saveVisualCue);
                         el.style.transitionDuration = "0s";
-                        el.style.backgroundColor = "var(--comfy-input-bg)";
+                        el.style.backgroundColor = "var(--seap-input-bg)";
                       }, "onkeypress"),
                       $: /* @__PURE__ */ __name((el) => nameInput = el, "$")
                     })
@@ -4457,7 +4457,7 @@ app.registerExtension({
       AUDIO_UI(node, inputName) {
         const audio = document.createElement("audio");
         audio.controls = true;
-        audio.classList.add("comfy-audio");
+        audio.classList.add("seap-audio");
         audio.setAttribute("name", "media");
         const audioUIWidget = node.addDOMWidget(
           inputName,

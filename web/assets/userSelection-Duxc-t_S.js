@@ -15,7 +15,7 @@ class UserSelectionScreen {
     __name(this, "UserSelectionScreen");
   }
   async show(users, user) {
-    const userSelection = document.getElementById("comfy-user-selection");
+    const userSelection = document.getElementById("seap-user-selection");
     userSelection.style.display = "";
     return new Promise((resolve) => {
       const input = userSelection.getElementsByTagName("input")[0];

@@ -23,9 +23,9 @@ from aiohttp import web
 import logging
 
 import mimetypes
-from comfy.cli_args import args
-import comfy.utils
-import comfy.model_management
+from seap.cli_args import args
+import seap.utils
+import seap.model_management
 import node_helpers
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
@@ -111,7 +111,7 @@ def is_loopback(host):
 def create_origin_only_middleware():
     @web.middleware
     async def origin_only_middleware(request: web.Request, handler):
-        #this code is used to prevent the case where a random website can queue comfy workflows by making a POST to 127.0.0.1 which browsers don't prevent for some dumb reason.
+        #this code is used to prevent the case where a random website can queue seap workflows by making a POST to 127.0.0.1 which browsers don't prevent for some dumb reason.
         #in that case the Host and Origin hostnames won't match
         #I know the proper fix would be to add a cookie but this should take care of the problem in the meantime
         if 'Host' in request.headers and 'Origin' in request.headers:
@@ -478,7 +478,7 @@ class PromptServer():
             safetensors_path = folder_paths.get_full_path(folder_name, filename)
             if safetensors_path is None:
                 return web.Response(status=404)
-            out = comfy.utils.safetensors_header(safetensors_path, max_size=1024*1024)
+            out = seap.utils.safetensors_header(safetensors_path, max_size=1024 * 1024)
             if out is None:
                 return web.Response(status=404)
             dt = json.loads(out)
@@ -488,13 +488,13 @@ class PromptServer():
 
         @routes.get("/system_stats")
         async def system_stats(request):
-            device = comfy.model_management.get_torch_device()
-            device_name = comfy.model_management.get_torch_device_name(device)
-            cpu_device = comfy.model_management.torch.device("cpu")
-            ram_total = comfy.model_management.get_total_memory(cpu_device)
-            ram_free = comfy.model_management.get_free_memory(cpu_device)
-            vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
-            vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
+            device = seap.model_management.get_torch_device()
+            device_name = seap.model_management.get_torch_device_name(device)
+            cpu_device = seap.model_management.torch.device("cpu")
+            ram_total = seap.model_management.get_total_memory(cpu_device)
+            ram_free = seap.model_management.get_free_memory(cpu_device)
+            vram_total, torch_vram_total = seap.model_management.get_total_memory(device, torch_total_too=True)
+            vram_free, torch_vram_free = seap.model_management.get_free_memory(device, torch_free_too=True)
 
             system_stats = {
                 "system": {
@@ -503,7 +503,7 @@ class PromptServer():
                     "ram_free": ram_free,
                     "comfyui_version": get_comfyui_version(),
                     "python_version": sys.version,
-                    "pytorch_version": comfy.model_management.torch_version,
+                    "pytorch_version": seap.model_management.torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
                     "argv": sys.argv
                 },

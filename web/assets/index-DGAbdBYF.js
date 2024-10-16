@@ -19450,7 +19450,7 @@ var NodeSourceType = /* @__PURE__ */ ((NodeSourceType2) => {
 })(NodeSourceType || {});
 const UNKNOWN_NODE_SOURCE = {
   type: "unknown",
-  className: "comfy-unknown",
+  className: "seap-unknown",
   displayText: "Unknown",
   badgeText: "?"
 };
@@ -19462,10 +19462,10 @@ const getNodeSource = /* @__PURE__ */ __name((python_module) => {
     return UNKNOWN_NODE_SOURCE;
   }
   const modules = python_module.split(".");
-  if (["nodes", "comfy_extras"].includes(modules[0])) {
+  if (["nodes", "seap_extras"].includes(modules[0])) {
     return {
       type: "core",
-      className: "comfy-core",
+      className: "seap-core",
       displayText: "Comfy Core",
       badgeText: "🦊"
     };
@@ -19473,7 +19473,7 @@ const getNodeSource = /* @__PURE__ */ __name((python_module) => {
     const displayName = shortenNodeName(modules[1]);
     return {
       type: "custom_nodes",
-      className: "comfy-custom-nodes",
+      className: "seap-custom-nodes",
       displayText: displayName,
       badgeText: displayName
     };
@@ -23059,8 +23059,8 @@ let ComfyDialog$1 = class ComfyDialog2 extends EventTarget {
   constructor(type = "div", buttons = null) {
     super();
     this.#buttons = buttons;
-    this.element = $el(type + ".comfy-modal", { parent: document.body }, [
-      $el("div.comfy-modal-content", [
+    this.element = $el(type + ".seap-modal", { parent: document.body }, [
+      $el("div.seap-modal-content", [
         $el("p", { $: /* @__PURE__ */ __name((p2) => this.textElement = p2, "$") }),
         ...this.createButtons()
       ])
@@ -23098,14 +23098,14 @@ function toggleSwitch(name, items2, e) {
   let elements;
   function updateSelected(index2) {
     if (selectedIndex != null) {
-      elements[selectedIndex].classList.remove("comfy-toggle-selected");
+      elements[selectedIndex].classList.remove("seap-toggle-selected");
     }
     onChange10?.({
       item: items2[index2],
       prev: selectedIndex == null ? void 0 : items2[selectedIndex]
     });
     selectedIndex = index2;
-    elements[selectedIndex].classList.add("comfy-toggle-selected");
+    elements[selectedIndex].classList.add("seap-toggle-selected");
   }
   __name(updateSelected, "updateSelected");
   elements = items2.map((item, i2) => {
@@ -23132,7 +23132,7 @@ function toggleSwitch(name, items2, e) {
     }
     return toggle;
   });
-  const container = $el("div.comfy-toggle-switch", elements);
+  const container = $el("div.seap-toggle-switch", elements);
   if (selectedIndex == null) {
     elements[0].children[0].checked = true;
     updateSelected(0);
@@ -23570,7 +23570,7 @@ const CORE_SETTINGS = [
     type: "boolean",
     defaultValue: false,
     onChange: /* @__PURE__ */ __name((value3) => {
-      const element = document.getElementById("comfy-dev-save-api-button");
+      const element = document.getElementById("seap-dev-save-api-button");
       if (element) {
         element.style.display = value3 ? "flex" : "none";
       }
@@ -23707,15 +23707,15 @@ class ComfySettingsDialog extends ComfyDialog$1 {
     this.element = $el(
       "dialog",
       {
-        id: "comfy-settings-dialog",
+        id: "seap-settings-dialog",
         parent: document.body
       },
       [
-        $el("table.comfy-modal-content.comfy-table", [
+        $el("table.seap-modal-content.seap-table", [
           $el(
             "caption",
             { textContent: `Settings (v${frontendVersion})` },
-            $el("button.comfy-btn", {
+            $el("button.seap-btn", {
               type: "button",
               textContent: "×",
               onclick: /* @__PURE__ */ __name(() => {
@@ -23883,7 +23883,7 @@ class ComfySettingsDialog extends ComfyDialog$1 {
         const labelCell = $el("td", [
           $el("label", {
             for: htmlID,
-            classList: [tooltip !== "" ? "comfy-tooltip-indicator" : ""],
+            classList: [tooltip !== "" ? "seap-tooltip-indicator" : ""],
             textContent: name
           })
         ]);
@@ -30926,7 +30926,7 @@ function render$Q(_ctx, _cache, $props, $setup, $data, $options) {
 __name(render$Q, "render$Q");
 script$R.render = render$Q;
 const _withScopeId$9 = /* @__PURE__ */ __name((n) => (pushScopeId("data-v-0a88b934"), n = n(), popScopeId(), n), "_withScopeId$9");
-const _hoisted_1$Z = { class: "comfy-missing-nodes" };
+const _hoisted_1$Z = { class: "seap-missing-nodes" };
 const _hoisted_2$N = /* @__PURE__ */ _withScopeId$9(() => /* @__PURE__ */ createBaseVNode("h4", { class: "warning-title" }, "Warning: Missing Node Types", -1));
 const _hoisted_3$h = /* @__PURE__ */ _withScopeId$9(() => /* @__PURE__ */ createBaseVNode("p", { class: "warning-description" }, " When loading the graph, the following node types were not found: ", -1));
 const _hoisted_4$b = { class: "missing-node-item" };
@@ -32820,7 +32820,7 @@ function render$K(_ctx, _cache, $props, $setup, $data, $options) {
 __name(render$K, "render$K");
 script$L.render = render$K;
 const _withScopeId$8 = /* @__PURE__ */ __name((n) => (pushScopeId("data-v-d0515260"), n = n(), popScopeId(), n), "_withScopeId$8");
-const _hoisted_1$T = { class: "comfy-missing-models" };
+const _hoisted_1$T = { class: "seap-missing-models" };
 const _hoisted_2$H = /* @__PURE__ */ _withScopeId$8(() => /* @__PURE__ */ createBaseVNode("h4", { class: "warning-title" }, "Warning: Missing Models", -1));
 const _hoisted_3$f = /* @__PURE__ */ _withScopeId$8(() => /* @__PURE__ */ createBaseVNode("p", { class: "warning-description" }, " When loading the graph, the following models were not found: ", -1));
 const _hoisted_4$9 = { class: "warning-options" };
@@ -82950,7 +82950,7 @@ const _sfc_main$6 = /* @__PURE__ */ defineComponent({
   }
 });
 const _withScopeId$1 = /* @__PURE__ */ __name((n) => (pushScopeId("data-v-25398546"), n = n(), popScopeId(), n), "_withScopeId$1");
-const _hoisted_1$6 = { class: "comfy-error-report" };
+const _hoisted_1$6 = { class: "seap-error-report" };
 const _hoisted_2$1 = { class: "wrapper-pre" };
 const _hoisted_3$1 = { class: "action-container" };
 const repoOwner = "comfyanonymous";
@@ -83763,7 +83763,7 @@ function dragElement(dragEl, settings) {
   function elementDrag(e) {
     e = e || window.event;
     e.preventDefault();
-    dragEl.classList.add("comfy-menu-manual-pos");
+    dragEl.classList.add("seap-menu-manual-pos");
     posDiffX = e.clientX - posStartX;
     posDiffY = e.clientY - posStartY;
     posStartX = e.clientX;
@@ -83803,7 +83803,7 @@ class ComfyList {
     this.#text = text2;
     this.#type = type || text2.toLowerCase();
     this.#reverse = reverse || false;
-    this.element = $el("div.comfy-list");
+    this.element = $el("div.seap-list");
     this.element.style.display = "none";
   }
   get visible() {
@@ -83816,7 +83816,7 @@ class ComfyList {
         $el("h4", {
           textContent: section
         }),
-        $el("div.comfy-list-items", [
+        $el("div.seap-list-items", [
           ...(this.#reverse ? items2[section].reverse() : items2[section]).map(
             (item) => {
               const removeAction = "remove" in item ? item.remove : {
@@ -83853,7 +83853,7 @@ class ComfyList {
           )
         ])
       ]),
-      $el("div.comfy-list-actions", [
+      $el("div.seap-list-actions", [
         $el("button", {
           textContent: "Clear " + this.#text,
           onclick: /* @__PURE__ */ __name(async () => {
@@ -83924,7 +83924,7 @@ class ComfyUI {
   }
   setup(containerElement) {
     const fileInput2 = $el("input", {
-      id: "comfy-file-input",
+      id: "seap-file-input",
       type: "file",
       accept: ".json,image/png,.latent,.safetensors,image/webp,audio/flac",
       style: { display: "none" },
@@ -83965,7 +83965,7 @@ class ComfyUI {
       }
     });
     this.menuHamburger = $el(
-      "div.comfy-menu-hamburger",
+      "div.seap-menu-hamburger",
       {
         parent: containerElement,
         onclick: /* @__PURE__ */ __name(() => {
@@ -83975,9 +83975,9 @@ class ComfyUI {
       },
       [$el("div"), $el("div"), $el("div")]
     );
-    this.menuContainer = $el("div.comfy-menu", { parent: containerElement }, [
+    this.menuContainer = $el("div.seap-menu", { parent: containerElement }, [
       $el(
-        "div.drag-handle.comfy-menu-header",
+        "div.drag-handle.seap-menu-header",
         {
           style: {
             overflow: "hidden",
@@ -83988,13 +83988,13 @@ class ComfyUI {
         },
         [
           $el("span.drag-handle"),
-          $el("span.comfy-menu-queue-size", { $: /* @__PURE__ */ __name((q) => this.queueSize = q, "$") }),
-          $el("div.comfy-menu-actions", [
-            $el("button.comfy-settings-btn", {
+          $el("span.seap-menu-queue-size", { $: /* @__PURE__ */ __name((q) => this.queueSize = q, "$") }),
+          $el("div.seap-menu-actions", [
+            $el("button.seap-settings-btn", {
               textContent: "⚙️",
               onclick: showSettingsDialog
             }),
-            $el("button.comfy-close-menu-btn", {
+            $el("button.seap-close-menu-btn", {
               textContent: "×",
               onclick: /* @__PURE__ */ __name(() => {
                 this.menuContainer.style.display = "none";
@@ -84004,7 +84004,7 @@ class ComfyUI {
           ])
         ]
       ),
-      $el("button.comfy-queue-btn", {
+      $el("button.seap-queue-btn", {
         id: "queue-button",
         textContent: "Queue Prompt",
         onclick: /* @__PURE__ */ __name(() => app$1.queuePrompt(0, this.batchCount), "onclick")
@@ -84078,7 +84078,7 @@ class ComfyUI {
           ])
         ]
       ),
-      $el("div.comfy-menu-btns", [
+      $el("div.seap-menu-btns", [
         $el("button", {
           id: "queue-front-button",
           textContent: "Queue Front",
@@ -84086,7 +84086,7 @@ class ComfyUI {
         }),
         $el("button", {
           $: /* @__PURE__ */ __name((b) => this.queue.button = b, "$"),
-          id: "comfy-view-queue-button",
+          id: "seap-view-queue-button",
           textContent: "View Queue",
           onclick: /* @__PURE__ */ __name(() => {
             this.history.hide();
@@ -84095,7 +84095,7 @@ class ComfyUI {
         }),
         $el("button", {
           $: /* @__PURE__ */ __name((b) => this.history.button = b, "$"),
-          id: "comfy-view-history-button",
+          id: "seap-view-history-button",
           textContent: "View History",
           onclick: /* @__PURE__ */ __name(() => {
             this.queue.hide();
@@ -84106,14 +84106,14 @@ class ComfyUI {
       this.queue.element,
       this.history.element,
       $el("button", {
-        id: "comfy-save-button",
+        id: "seap-save-button",
         textContent: "Save",
         onclick: /* @__PURE__ */ __name(() => {
           useCommandStore().execute("Comfy.ExportWorkflow");
         }, "onclick")
       }),
       $el("button", {
-        id: "comfy-dev-save-api-button",
+        id: "seap-dev-save-api-button",
         textContent: "Save (API Format)",
         style: { width: "100%", display: "none" },
         onclick: /* @__PURE__ */ __name(() => {
@@ -84121,23 +84121,23 @@ class ComfyUI {
         }, "onclick")
       }),
       $el("button", {
-        id: "comfy-load-button",
+        id: "seap-load-button",
         textContent: "Load",
         onclick: /* @__PURE__ */ __name(() => fileInput2.click(), "onclick")
       }),
       $el("button", {
-        id: "comfy-refresh-button",
+        id: "seap-refresh-button",
         textContent: "Refresh",
         onclick: /* @__PURE__ */ __name(() => app$1.refreshComboInNodes(), "onclick")
       }),
       $el("button", {
-        id: "comfy-clipspace-button",
+        id: "seap-clipspace-button",
         textContent: "Clipspace",
         // @ts-expect-error Move to ComfyApp
         onclick: /* @__PURE__ */ __name(() => app$1.openClipspace(), "onclick")
       }),
       $el("button", {
-        id: "comfy-clear-button",
+        id: "seap-clear-button",
         textContent: "Clear",
         onclick: /* @__PURE__ */ __name(() => {
           if (!useSettingStore().get("Comfy.ConfirmClear") || confirm("Clear workflow?")) {
@@ -84149,7 +84149,7 @@ class ComfyUI {
         }, "onclick")
       }),
       $el("button", {
-        id: "comfy-load-default-button",
+        id: "seap-load-default-button",
         textContent: "Load Default",
         onclick: /* @__PURE__ */ __name(async () => {
           if (!useSettingStore().get("Comfy.ConfirmClear") || confirm("Load default workflow?")) {
@@ -84159,7 +84159,7 @@ class ComfyUI {
         }, "onclick")
       }),
       $el("button", {
-        id: "comfy-reset-view-button",
+        id: "seap-reset-view-button",
         textContent: "Reset View",
         onclick: /* @__PURE__ */ __name(async () => {
           app$1.resetView();
@@ -84348,13 +84348,13 @@ class ComfyLoggingDialog extends ComfyDialog {
     };
     const keys2 = Object.keys(cols);
     const headers = Object.values(cols).map(
-      (title) => $el("div.comfy-logging-title", {
+      (title) => $el("div.seap-logging-title", {
         textContent: title
       })
     );
     const rows3 = entries.map((entry, i2) => {
       return $el(
-        "div.comfy-logging-log",
+        "div.seap-logging-log",
         {
           $: /* @__PURE__ */ __name((el) => el.style.setProperty(
             "--row-bg",
@@ -84382,7 +84382,7 @@ class ComfyLoggingDialog extends ComfyDialog {
       );
     });
     const grid = $el(
-      "div.comfy-logging-logs",
+      "div.seap-logging-logs",
       {
         style: {
           gridTemplateColumns: `repeat(${headers.length}, 1fr)`
@@ -84588,9 +84588,9 @@ function computeSize(size2) {
       widgetHeight += w2.computeSize()[1] + 4;
     } else if (w2.element) {
       const styles = getComputedStyle(w2.element);
-      let minHeight = w2.options.getMinHeight?.() ?? parseInt(styles.getPropertyValue("--comfy-widget-min-height"));
-      let maxHeight = w2.options.getMaxHeight?.() ?? parseInt(styles.getPropertyValue("--comfy-widget-max-height"));
-      let prefHeight = w2.options.getHeight?.() ?? styles.getPropertyValue("--comfy-widget-height");
+      let minHeight = w2.options.getMinHeight?.() ?? parseInt(styles.getPropertyValue("--seap-widget-min-height"));
+      let maxHeight = w2.options.getMaxHeight?.() ?? parseInt(styles.getPropertyValue("--seap-widget-max-height"));
+      let prefHeight = w2.options.getHeight?.() ?? styles.getPropertyValue("--seap-widget-height");
       if (prefHeight.endsWith?.("%")) {
         prefHeight = size2[1] * (parseFloat(prefHeight.substring(0, prefHeight.length - 1)) / 100);
       } else {
@@ -85088,7 +85088,7 @@ function createIntWidget(node2, inputName, inputData, app2, isSeedInput = false)
 __name(createIntWidget, "createIntWidget");
 function addMultilineWidget(node2, name, opts, app2) {
   const inputEl = document.createElement("textarea");
-  inputEl.className = "comfy-multiline-input";
+  inputEl.className = "seap-multiline-input";
   inputEl.value = opts.defaultVal;
   inputEl.placeholder = opts.placeholder || name;
   if (app2.vueAppReady) {
@@ -86066,7 +86066,7 @@ function calculateImageGrid(imgs, dw, dh) {
 }
 __name(calculateImageGrid, "calculateImageGrid");
 function createImageHost(node2) {
-  const el = $el("div.comfy-img-preview");
+  const el = $el("div.seap-img-preview");
   let currentImgs;
   let first4 = true;
   function updateSize() {
@@ -86079,9 +86079,9 @@ function createImageHost(node2) {
         if (elH < 190) {
           elH = 190;
         }
-        el.style.setProperty("--comfy-widget-min-height", elH.toString());
+        el.style.setProperty("--seap-widget-min-height", elH.toString());
       } else {
-        el.style.setProperty("--comfy-widget-min-height", null);
+        el.style.setProperty("--seap-widget-min-height", null);
       }
       const nw = node2.size[0];
       ({ cellWidth: w2, cellHeight: h2 } = calculateImageGrid(
@@ -86091,8 +86091,8 @@ function createImageHost(node2) {
       ));
       w2 += "px";
       h2 += "px";
-      el.style.setProperty("--comfy-img-preview-width", w2);
-      el.style.setProperty("--comfy-img-preview-height", h2);
+      el.style.setProperty("--seap-img-preview-width", w2);
+      el.style.setProperty("--seap-img-preview-height", h2);
     }
   }
   __name(updateSize, "updateSize");
@@ -86948,7 +86948,7 @@ class ComfyAsyncDialog extends ComfyDialog$1 {
   #resolve;
   constructor(actions) {
     super(
-      "dialog.comfy-dialog.comfyui-dialog",
+      "dialog.seap-dialog.comfyui-dialog",
       actions?.map((opt) => {
         if (typeof opt === "string") {
           opt = { text: opt };

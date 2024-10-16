@@ -16,19 +16,19 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "seap"))
 
-import comfy.diffusers_load
-import comfy.samplers
-import comfy.sample
-import comfy.sd
-import comfy.utils
-import comfy.controlnet
+import seap.diffusers_load
+import seap.samplers
+import seap.sample
+import seap.sd
+import seap.utils
+import seap.controlnet
 
-import comfy.clip_vision
+import seap.clip_vision
 
-import comfy.model_management
-from comfy.cli_args import args
+import seap.model_management
+from seap.cli_args import args
 
 import importlib
 
@@ -37,10 +37,10 @@ import latent_preview
 import node_helpers
 
 def before_node_execution():
-    comfy.model_management.throw_exception_if_processing_interrupted()
+    seap.model_management.throw_exception_if_processing_interrupted()
 
 def interrupt_processing(value=True):
-    comfy.model_management.interrupt_current_processing(value)
+    seap.model_management.interrupt_current_processing(value)
 
 MAX_RESOLUTION=16384
 
@@ -462,7 +462,7 @@ class SaveLatent:
         output["latent_tensor"] = samples["samples"]
         output["latent_format_version_0"] = torch.tensor([])
 
-        comfy.utils.save_torch_file(output, file, metadata=metadata)
+        seap.utils.save_torch_file(output, file, metadata=metadata)
         return { "ui": { "latents": results } }
 
 
@@ -516,7 +516,7 @@ class CheckpointLoader:
     def load_checkpoint(self, config_name, ckpt_name):
         config_path = folder_paths.get_full_path("configs", config_name)
         ckpt_path = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
-        return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return seap.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 class CheckpointLoaderSimple:
     @classmethod
@@ -537,7 +537,7 @@ class CheckpointLoaderSimple:
 
     def load_checkpoint(self, ckpt_name):
         ckpt_path = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
-        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        out = seap.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out[:3]
 
 class DiffusersLoader:
@@ -564,7 +564,7 @@ class DiffusersLoader:
                     model_path = path
                     break
 
-        return comfy.diffusers_load.load_diffusers(model_path, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return seap.diffusers_load.load_diffusers(model_path, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
 class unCLIPCheckpointLoader:
@@ -579,7 +579,7 @@ class unCLIPCheckpointLoader:
 
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
         ckpt_path = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
-        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        out = seap.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out
 
 class CLIPSetLastLayer:
@@ -636,10 +636,10 @@ class LoraLoader:
                 del temp
 
         if lora is None:
-            lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
+            lora = seap.utils.load_torch_file(lora_path, safe_load=True)
             self.loaded_lora = (lora_path, lora)
 
-        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+        model_lora, clip_lora = seap.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
         return (model_lora, clip_lora)
 
 class LoraLoaderModelOnly(LoraLoader):
@@ -704,11 +704,11 @@ class VAELoader:
         encoder = next(filter(lambda a: a.startswith("{}_encoder.".format(name)), approx_vaes))
         decoder = next(filter(lambda a: a.startswith("{}_decoder.".format(name)), approx_vaes))
 
-        enc = comfy.utils.load_torch_file(folder_paths.get_full_path_or_raise("vae_approx", encoder))
+        enc = seap.utils.load_torch_file(folder_paths.get_full_path_or_raise("vae_approx", encoder))
         for k in enc:
             sd["taesd_encoder.{}".format(k)] = enc[k]
 
-        dec = comfy.utils.load_torch_file(folder_paths.get_full_path_or_raise("vae_approx", decoder))
+        dec = seap.utils.load_torch_file(folder_paths.get_full_path_or_raise("vae_approx", decoder))
         for k in dec:
             sd["taesd_decoder.{}".format(k)] = dec[k]
 
@@ -740,8 +740,8 @@ class VAELoader:
             sd = self.load_taesd(vae_name)
         else:
             vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
-            sd = comfy.utils.load_torch_file(vae_path)
-        vae = comfy.sd.VAE(sd=sd)
+            sd = seap.utils.load_torch_file(vae_path)
+        vae = seap.sd.VAE(sd=sd)
         return (vae,)
 
 class ControlNetLoader:
@@ -756,7 +756,7 @@ class ControlNetLoader:
 
     def load_controlnet(self, control_net_name):
         controlnet_path = folder_paths.get_full_path_or_raise("controlnet", control_net_name)
-        controlnet = comfy.controlnet.load_controlnet(controlnet_path)
+        controlnet = seap.controlnet.load_controlnet(controlnet_path)
         return (controlnet,)
 
 class DiffControlNetLoader:
@@ -772,7 +772,7 @@ class DiffControlNetLoader:
 
     def load_controlnet(self, model, control_net_name):
         controlnet_path = folder_paths.get_full_path_or_raise("controlnet", control_net_name)
-        controlnet = comfy.controlnet.load_controlnet(controlnet_path, model)
+        controlnet = seap.controlnet.load_controlnet(controlnet_path, model)
         return (controlnet,)
 
 
@@ -879,7 +879,7 @@ class UNETLoader:
             model_options["dtype"] = torch.float8_e5m2
 
         unet_path = folder_paths.get_full_path_or_raise("diffusion_models", unet_name)
-        model = comfy.sd.load_diffusion_model(unet_path, model_options=model_options)
+        model = seap.sd.load_diffusion_model(unet_path, model_options=model_options)
         return (model,)
 
 class CLIPLoader:
@@ -895,16 +895,16 @@ class CLIPLoader:
 
     def load_clip(self, clip_name, type="stable_diffusion"):
         if type == "stable_cascade":
-            clip_type = comfy.sd.CLIPType.STABLE_CASCADE
+            clip_type = seap.sd.CLIPType.STABLE_CASCADE
         elif type == "sd3":
-            clip_type = comfy.sd.CLIPType.SD3
+            clip_type = seap.sd.CLIPType.SD3
         elif type == "stable_audio":
-            clip_type = comfy.sd.CLIPType.STABLE_AUDIO
+            clip_type = seap.sd.CLIPType.STABLE_AUDIO
         else:
-            clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
+            clip_type = seap.sd.CLIPType.STABLE_DIFFUSION
 
         clip_path = folder_paths.get_full_path_or_raise("clip", clip_name)
-        clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
+        clip = seap.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)
 
 class DualCLIPLoader:
@@ -923,13 +923,13 @@ class DualCLIPLoader:
         clip_path1 = folder_paths.get_full_path_or_raise("clip", clip_name1)
         clip_path2 = folder_paths.get_full_path_or_raise("clip", clip_name2)
         if type == "sdxl":
-            clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
+            clip_type = seap.sd.CLIPType.STABLE_DIFFUSION
         elif type == "sd3":
-            clip_type = comfy.sd.CLIPType.SD3
+            clip_type = seap.sd.CLIPType.SD3
         elif type == "flux":
-            clip_type = comfy.sd.CLIPType.FLUX
+            clip_type = seap.sd.CLIPType.FLUX
 
-        clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
+        clip = seap.sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)
 
 class CLIPVisionLoader:
@@ -944,7 +944,7 @@ class CLIPVisionLoader:
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path_or_raise("clip_vision", clip_name)
-        clip_vision = comfy.clip_vision.load(clip_path)
+        clip_vision = seap.clip_vision.load(clip_path)
         return (clip_vision,)
 
 class CLIPVisionEncode:
@@ -974,7 +974,7 @@ class StyleModelLoader:
 
     def load_style_model(self, style_model_name):
         style_model_path = folder_paths.get_full_path_or_raise("style_models", style_model_name)
-        style_model = comfy.sd.load_style_model(style_model_path)
+        style_model = seap.sd.load_style_model(style_model_path)
         return (style_model,)
 
 
@@ -1039,7 +1039,7 @@ class GLIGENLoader:
 
     def load_gligen(self, gligen_name):
         gligen_path = folder_paths.get_full_path_or_raise("gligen", gligen_name)
-        gligen = comfy.sd.load_gligen(gligen_path)
+        gligen = seap.sd.load_gligen(gligen_path)
         return (gligen,)
 
 class GLIGENTextBoxApply:
@@ -1075,7 +1075,7 @@ class GLIGENTextBoxApply:
 
 class EmptyLatentImage:
     def __init__(self):
-        self.device = comfy.model_management.intermediate_device()
+        self.device = seap.model_management.intermediate_device()
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1187,7 +1187,7 @@ class LatentUpscale:
                 width = max(64, width)
                 height = max(64, height)
 
-            s["samples"] = comfy.utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
+            s["samples"] = seap.utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
         return (s,)
 
 class LatentUpscaleBy:
@@ -1206,7 +1206,7 @@ class LatentUpscaleBy:
         s = samples.copy()
         width = round(samples["samples"].shape[3] * scale_by)
         height = round(samples["samples"].shape[2] * scale_by)
-        s["samples"] = comfy.utils.common_upscale(samples["samples"], width, height, upscale_method, "disabled")
+        s["samples"] = seap.utils.common_upscale(samples["samples"], width, height, upscale_method, "disabled")
         return (s,)
 
 class LatentRotate:
@@ -1322,7 +1322,7 @@ class LatentBlend:
 
         if samples1.shape != samples2.shape:
             samples2.permute(0, 3, 1, 2)
-            samples2 = comfy.utils.common_upscale(samples2, samples1.shape[3], samples1.shape[2], 'bicubic', crop='center')
+            samples2 = seap.utils.common_upscale(samples2, samples1.shape[3], samples1.shape[2], 'bicubic', crop='center')
             samples2.permute(0, 2, 3, 1)
 
         samples_blended = self.blend_mode(samples1, samples2, blend_mode)
@@ -1387,23 +1387,23 @@ class SetLatentNoiseMask:
 
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     latent_image = latent["samples"]
-    latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image)
+    latent_image = seap.sample.fix_empty_latent_channels(model, latent_image)
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
         batch_inds = latent["batch_index"] if "batch_index" in latent else None
-        noise = comfy.sample.prepare_noise(latent_image, seed, batch_inds)
+        noise = seap.sample.prepare_noise(latent_image, seed, batch_inds)
 
     noise_mask = None
     if "noise_mask" in latent:
         noise_mask = latent["noise_mask"]
 
     callback = latent_preview.prepare_callback(model, steps)
-    disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
-    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
-                                  denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
-                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
+    disable_pbar = not seap.utils.PROGRESS_BAR_ENABLED
+    samples = seap.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+                                 denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
+                                 force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
     out = latent.copy()
     out["samples"] = samples
     return (out, )
@@ -1417,8 +1417,8 @@ class KSampler:
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The random seed used for creating the noise."}),
                 "steps": ("INT", {"default": 20, "min": 1, "max": 10000, "tooltip": "The number of steps used in the denoising process."}),
                 "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01, "tooltip": "The Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality."}),
-                "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"tooltip": "The algorithm used when sampling, this can affect the quality, speed, and style of the generated output."}),
-                "scheduler": (comfy.samplers.KSampler.SCHEDULERS, {"tooltip": "The scheduler controls how noise is gradually removed to form the image."}),
+                "sampler_name": (seap.samplers.KSampler.SAMPLERS, {"tooltip": "The algorithm used when sampling, this can affect the quality, speed, and style of the generated output."}),
+                "scheduler": (seap.samplers.KSampler.SCHEDULERS, {"tooltip": "The scheduler controls how noise is gradually removed to form the image."}),
                 "positive": ("CONDITIONING", {"tooltip": "The conditioning describing the attributes you want to include in the image."}),
                 "negative": ("CONDITIONING", {"tooltip": "The conditioning describing the attributes you want to exclude from the image."}),
                 "latent_image": ("LATENT", {"tooltip": "The latent image to denoise."}),
@@ -1445,8 +1445,8 @@ class KSamplerAdvanced:
                     "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
-                    "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
-                    "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
+                    "sampler_name": (seap.samplers.KSampler.SAMPLERS,),
+                    "scheduler": (seap.samplers.KSampler.SCHEDULERS,),
                     "positive": ("CONDITIONING", ),
                     "negative": ("CONDITIONING", ),
                     "latent_image": ("LATENT", ),
@@ -1686,7 +1686,7 @@ class ImageScale:
             elif height == 0:
                 height = max(1, round(samples.shape[2] * width / samples.shape[3]))
 
-            s = comfy.utils.common_upscale(samples, width, height, upscale_method, crop)
+            s = seap.utils.common_upscale(samples, width, height, upscale_method, crop)
             s = s.movedim(1,-1)
         return (s,)
 
@@ -1706,7 +1706,7 @@ class ImageScaleBy:
         samples = image.movedim(-1,1)
         width = round(samples.shape[3] * scale_by)
         height = round(samples.shape[2] * scale_by)
-        s = comfy.utils.common_upscale(samples, width, height, upscale_method, "disabled")
+        s = seap.utils.common_upscale(samples, width, height, upscale_method, "disabled")
         s = s.movedim(1,-1)
         return (s,)
 
@@ -1738,7 +1738,7 @@ class ImageBatch:
 
     def batch(self, image1, image2):
         if image1.shape[1:] != image2.shape[1:]:
-            image2 = comfy.utils.common_upscale(image2.movedim(-1,1), image1.shape[2], image1.shape[1], "bilinear", "center").movedim(1,-1)
+            image2 = seap.utils.common_upscale(image2.movedim(-1, 1), image1.shape[2], image1.shape[1], "bilinear", "center").movedim(1, -1)
         s = torch.cat((image1, image2), dim=0)
         return (s,)
 
@@ -2061,13 +2061,13 @@ def init_builtin_extra_nodes():
     """
     Initializes the built-in extra nodes in ComfyUI.
 
-    This function loads the extra node files located in the "comfy_extras" directory and imports them into ComfyUI.
+    This function loads the extra node files located in the "seap_extras" directory and imports them into ComfyUI.
     If any of the extra node files fail to import, a warning message is logged.
 
     Returns:
         None
     """
-    extras_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras")
+    extras_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "seap_extras")
     extras_files = [
         "nodes_latent.py",
         "nodes_hypernetwork.py",
@@ -2115,7 +2115,7 @@ def init_builtin_extra_nodes():
 
     import_failed = []
     for node_file in extras_files:
-        if not load_custom_node(os.path.join(extras_dir, node_file), module_parent="comfy_extras"):
+        if not load_custom_node(os.path.join(extras_dir, node_file), module_parent="seap_extras"):
             import_failed.append(node_file)
 
     return import_failed
@@ -2130,7 +2130,7 @@ def init_extra_nodes(init_custom_nodes=True):
         logging.info("Skipping loading of custom nodes")
 
     if len(import_failed) > 0:
-        logging.warning("WARNING: some comfy_extras/ nodes did not import correctly. This may be because they are missing some dependencies.\n")
+        logging.warning("WARNING: some seap_extras/ nodes did not import correctly. This may be because they are missing some dependencies.\n")
         for node in import_failed:
             logging.warning("IMPORT FAILED: {}".format(node))
         logging.warning("\nThis issue might be caused by new missing dependencies added the last time you updated ComfyUI.")
