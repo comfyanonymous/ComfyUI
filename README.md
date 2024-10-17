@@ -127,6 +127,8 @@ To run it on services like paperspace, kaggle or colab you can use my [Jupyter N
 
 ## Manual Install (Windows, Linux)
 
+Note that some dependencies do not yet support python 3.13 so using 3.12 is recommended.
+
 Git clone this repo.
 
 Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
