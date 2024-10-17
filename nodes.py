@@ -1741,6 +1741,50 @@ class ImageBatch:
             image2 = comfy.utils.common_upscale(image2.movedim(-1,1), image1.shape[2], image1.shape[1], "bilinear", "center").movedim(1,-1)
         s = torch.cat((image1, image2), dim=0)
         return (s,)
+    
+class ImageBatchPlus:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image1": ("IMAGE",),
+                "image2": ("IMAGE",),
+                "method": (["nearest-exact", "bilinear", "area", "bicubic", "lanczos"], { "default": "lanczos" }),
+            }, "optional": {
+                "image3": ("IMAGE",),
+                "image4": ("IMAGE",),
+                "image5": ("IMAGE",),
+                "image6": ("IMAGE",),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "batch"
+
+    CATEGORY = "image"
+
+    def batch(self, image1, method, image2, image3=None, image4=None, image5=None, image6=None):
+        if image1.shape[1:] != image2.shape[1:]:
+            image2 = comfy.utils.common_upscale(image2.movedim(-1,1), image1.shape[2], image1.shape[1], method, "center").movedim(1,-1)
+        s = torch.cat((image1, image2), dim=0)
+        if image3 is not None:
+            if image1.shape[1:] != image3.shape[1:]:
+                image3 = comfy.utils.common_upscale(image3.movedim(-1,1), image1.shape[2], image1.shape[1], method, "center").movedim(1,-1)
+            s = torch.cat((s, image3), dim=0)
+        if image4 is not None:
+            if image1.shape[1:] != image4.shape[1:]:
+                image4 = comfy.utils.common_upscale(image4.movedim(-1,1), image1.shape[2], image1.shape[1], method, "center").movedim(1,-1)
+            s = torch.cat((s, image4), dim=0)
+        if image5 is not None:
+            if image1.shape[1:] != image5.shape[1:]:
+                image5 = comfy.utils.common_upscale(image5.movedim(-1,1), image1.shape[2], image1.shape[1], method, "center").movedim(1,-1)
+            s = torch.cat((s, image5), dim=0)
+        if image6 is not None:
+            if image1.shape[1:] != image6.shape[1:]:
+                image6 = comfy.utils.common_upscale(image6.movedim(-1,1), image1.shape[2], image1.shape[1], method, "center").movedim(1,-1)
+            s = torch.cat((s, image6), dim=0)
+        return (s,)
 
 class EmptyImage:
     def __init__(self, device="cpu"):
@@ -1850,6 +1894,7 @@ NODE_CLASS_MAPPINGS = {
     "ImageScaleBy": ImageScaleBy,
     "ImageInvert": ImageInvert,
     "ImageBatch": ImageBatch,
+    "ImageBatchPlus": ImageBatchPlus,
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "EmptyImage": EmptyImage,
     "ConditioningAverage": ConditioningAverage ,
@@ -1952,6 +1997,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageInvert": "Invert Image",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
     "ImageBatch": "Batch Images",
+    "ImageBatchPlus": "Batch Images+",
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
