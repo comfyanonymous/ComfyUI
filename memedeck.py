@@ -1,12 +1,7 @@
 import asyncio
-import base64
 from io import BytesIO
 import os
 import logging
-import signal
-import struct
-import time
-from typing import Optional
 import uuid
 from PIL import Image, ImageOps
 from functools import partial
@@ -15,7 +10,6 @@ import pika
 import json
 
 import requests
-import aiohttp
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -77,21 +71,6 @@ class MemedeckWorker:
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"\n[memedeck]: initialized with API URL: {self.api_url} and API Key: {self.api_key}\n")
         
-    def on_connection_open(self, connection):
-        self.connection = connection
-        self.connection.channel(on_open_callback=self.on_channel_open)
-
-    def on_channel_open(self, channel):
-        self.channel = channel
-        
-        # only consume one message at a time
-        self.channel.basic_qos(prefetch_size=0, prefetch_count=1)
-        self.channel.queue_declare(queue=self.queue_name, durable=True)
-        self.channel.basic_consume(queue=self.queue_name, on_message_callback=self.on_message_received, auto_ack=False)
-        # declare another queue
-        self.channel.queue_declare(queue='faceswap-queue', durable=True)
-        self.channel.basic_consume(queue='faceswap-queue', on_message_callback=self.on_message_received, auto_ack=False)
-        
     def start(self, prompt_queue, validate_prompt):
         self.prompt_queue = prompt_queue
         self.validate_prompt = validate_prompt
@@ -106,24 +85,56 @@ class MemedeckWorker:
         try:
             self.connection.ioloop.start()
         except KeyboardInterrupt:
-            self.connection.close()
-            self.connection.ioloop.start()
+            self.stop()
+            
+    def stop(self):
+        self.connection.close()
+        self.connection.ioloop.stop()
+    
+    # --------------------------------------------------
+    # AMQP
+    # --------------------------------------------------
+    def on_connection_open(self, connection):
+        self.connection = connection
+        # Open the first channel
+        self.connection.channel(on_open_callback=self.on_channel_open)
+        # Open the second channel
+        self.connection.channel(on_open_callback=self.on_faceswap_channel_open)
+    
+    def on_channel_open(self, channel):
+        self.channel = channel
+        # Only consume one message at a time
+        self.channel.basic_qos(prefetch_size=0, prefetch_count=1)
+        # Declare the queue and set the callback
+        self.channel.queue_declare(queue=self.queue_name, durable=True, callback=self.on_queue_declared)
+
+    def on_queue_declared(self, frame):
+        self.channel.basic_consume(queue=self.queue_name, on_message_callback=self.on_message_received)
+
+    def on_faceswap_channel_open(self, channel):
+        self.faceswap_channel = channel
+        self.faceswap_channel.basic_qos(prefetch_size=0, prefetch_count=1)
+        # Declare the faceswap queue and set the callback
+        self.faceswap_channel.queue_declare(queue='faceswap-queue', durable=True, callback=self.on_faceswap_queue_declared)
+
+    def on_faceswap_queue_declared(self, frame):
+        self.faceswap_channel.basic_consume(queue='faceswap-queue', on_message_callback=self.on_faceswap_message_received)
+
+    def on_faceswap_message_received(self, channel, method, properties, body):
+        self.on_message_received(channel, method, properties, body)
         
-    def on_message_received(self, channel, method, properties, body):        
+    def on_message_received(self, channel, method, properties, body):
         decoded_string = body.decode('utf-8')
-        json_object = json.loads(decoded_string)
-        payload = json_object[1]
-              
-        # execute the task
+        payload = json.loads(decoded_string)
+
+        # Execute the task
         prompt = payload["nodes"]
-        valid =  self.validate_prompt(prompt)
-        
+        valid = self.validate_prompt(prompt)
+
         # Prepare task_info
         prompt_id = str(uuid.uuid4())
         outputs_to_execute = valid[2]
-        # get the routing key from the method
         routing_key = method.routing_key
-        self.logger.info(f"[memedeck]: routing_key: {routing_key}")
         task_info = {
             "workflow": 'faceswap' if routing_key == 'faceswap-queue' else 'generation',
             "prompt_id": prompt_id,
@@ -149,10 +160,66 @@ class MemedeckWorker:
         if valid[0]:
             # Enqueue the task into the internal job queue
             self.loop.call_soon_threadsafe(self.internal_job_queue.put_nowait, (prompt_id, prompt, task_info))
-            # self.logger.info(f"[memedeck]: Enqueued task for {task_info['ws_id']}")
         else:
-            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False) # unack the message
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)  # Unack the message
 
+    # def on_channel_open(self, channel):
+    #     self.channel = channel
+        
+    #     # only consume one message at a time
+    #     self.channel.basic_qos(prefetch_size=0, prefetch_count=1)
+    #     self.channel.queue_declare(queue=self.queue_name, durable=True)
+    #     self.channel.basic_consume(queue=self.queue_name, on_message_callback=self.on_message_received)
+    #     # declare another queue
+    #     self.channel.queue_declare(queue='faceswap-queue', durable=True)
+    #     self.channel.basic_consume(queue='faceswap-queue', on_message_callback=self.on_message_received)
+        
+    # def on_message_received(self, channel, method, properties, body):        
+    #     decoded_string = body.decode('utf-8')
+    #     json_object = json.loads(decoded_string)
+    #     payload = json_object[1]
+              
+    #     # execute the task
+    #     prompt = payload["nodes"]
+    #     valid =  self.validate_prompt(prompt)
+        
+    #     # Prepare task_info
+    #     prompt_id = str(uuid.uuid4())
+    #     outputs_to_execute = valid[2]
+    #     # get the routing key from the method
+    #     routing_key = method.routing_key
+    #     task_info = {
+    #         "workflow": 'faceswap' if routing_key == 'faceswap-queue' else 'generation',
+    #         "prompt_id": prompt_id,
+    #         "prompt": prompt,
+    #         "outputs_to_execute": outputs_to_execute,
+    #         "client_id": "memedeck-1",
+    #         "is_memedeck": True,
+    #         "websocket_node_id": None,
+    #         "ws_id": payload["source_ws_id"],
+    #         "context": payload["req_ctx"],
+    #         "current_node": None,
+    #         "current_progress": 0,
+    #         "delivery_tag": method.delivery_tag,
+    #         "task_status": "waiting",
+    #     }
+
+    #     # Find the websocket_node_id
+    #     for node in prompt:
+    #         if isinstance(prompt[node], dict) and prompt[node].get("class_type") == "SaveImageWebsocket":
+    #             task_info['websocket_node_id'] = node
+    #             break
+
+    #     if valid[0]:
+    #         # Enqueue the task into the internal job queue
+    #         self.loop.call_soon_threadsafe(self.internal_job_queue.put_nowait, (prompt_id, prompt, task_info))
+    #         # self.logger.info(f"[memedeck]: Enqueued task for {task_info['ws_id']}")
+    #     else:
+    #         channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False) # unack the message
+
+    # --------------------------------------------------
+    # Internal job queue
+    # --------------------------------------------------
     async def process_job_queue(self):
         while True:
             prompt_id, prompt, task_info = await self.internal_job_queue.get()
@@ -172,13 +239,9 @@ class MemedeckWorker:
                 'context': task_info['context'] 
             }, task_info['outputs_to_execute']))
         
-        # Acknowledge the message
-        self.channel.basic_ack(delivery_tag=task_info["delivery_tag"]) # ack the task
-        
         if 'faceswap_strength' not in task_info['context']['prompt_config']:
             # pretty print the prompt config
             self.logger.info(f"[memedeck]: prompt: {task_info['context']['prompt_config']['character']['id']} {task_info['context']['prompt_config']['positive_prompt']}")
-
         # Wait until the current task is completed
         await self.wait_for_task_completion(ws_id)
         # Task is done
@@ -188,11 +251,19 @@ class MemedeckWorker:
         """
         Wait until the task with the given ws_id is completed.
         """
+        task = self.tasks_by_ws_id[ws_id]
+        delivery_tag = task['delivery_tag']
         while ws_id in self.tasks_by_ws_id:
-            await asyncio.sleep(0.5)         
+            await asyncio.sleep(0.25)
+            
+        # Acknowledge the message when the task is completed
+        if task['workflow'] == 'faceswap':
+            self.faceswap_channel.basic_ack(delivery_tag=delivery_tag) 
+        else:
+            self.channel.basic_ack(delivery_tag=delivery_tag) 
 
     # --------------------------------------------------
-    # callbacks for the prompt queue
+    # allbacks for the prompt queue
     # --------------------------------------------------
     def queue_updated(self):
         info = self.get_queue_info()
@@ -320,8 +391,6 @@ class MemedeckWorker:
         if workflow == 'faceswap':
             ai_queue_progress['kind'] = "faceswap_generated"
             del ai_queue_progress['progress']
-            # dont print the data field without deleting it
-            self.logger.info(f"[memedeck]: sending faceswap result")
                            
         await self.send_to_api(ai_queue_progress)
         
@@ -596,4 +665,5 @@ class MemedeckWorker:
 
 #         average_brightness = total_brightness // pixel_count
 #         return average_brightness
+
 

@@ -53,7 +53,7 @@ class IsChangedCache:
             is_changed = _map_node_over_list(class_def, input_data_all, "IS_CHANGED")
             node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
         except Exception as e:
-            logging.warning("WARNING: {}".format(e))
+            # logging.warning("WARNING: {}".format(e))
             node["is_changed"] = float("NaN")
         finally:
             self.is_changed[node_id] = node["is_changed"]

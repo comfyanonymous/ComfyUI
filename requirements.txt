@@ -29,3 +29,4 @@ python-dotenv
 pillow 
 azure-storage-blob 
 cairosvg
+aio_pika
