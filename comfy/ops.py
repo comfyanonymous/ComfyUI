@@ -20,19 +20,10 @@ import torch
 import comfy.model_management
 from comfy.cli_args import args
 
-def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False):
-    if device is None or weight.device == device:
-        if not copy:
-            if dtype is None or weight.dtype == dtype:
-                return weight
-        return weight.to(dtype=dtype, copy=copy)
-
-    r = torch.empty_like(weight, dtype=dtype, device=device)
-    r.copy_(weight, non_blocking=non_blocking)
-    return r
+cast_to = comfy.model_management.cast_to #TODO: remove once no more references
 
 def cast_to_input(weight, input, non_blocking=False, copy=True):
-    return cast_to(weight, input.dtype, input.device, non_blocking=non_blocking, copy=copy)
+    return comfy.model_management.cast_to(weight, input.dtype, input.device, non_blocking=non_blocking, copy=copy)
 
 def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
     if input is not None:
@@ -47,12 +38,12 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
     non_blocking = comfy.model_management.device_supports_non_blocking(device)
     if s.bias is not None:
         has_function = s.bias_function is not None
-        bias = cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking, copy=has_function)
+        bias = comfy.model_management.cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking, copy=has_function)
         if has_function:
             bias = s.bias_function(bias)
 
     has_function = s.weight_function is not None
-    weight = cast_to(s.weight, dtype, device, non_blocking=non_blocking, copy=has_function)
+    weight = comfy.model_management.cast_to(s.weight, dtype, device, non_blocking=non_blocking, copy=has_function)
     if has_function:
         weight = s.weight_function(weight)
     return weight, bias
