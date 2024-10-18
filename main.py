@@ -7,7 +7,8 @@ import folder_paths
 import time
 from comfy.cli_args import args
 from app.logger import setup_logger
-
+import aiohttp
+import asyncio
 
 setup_logger(log_level=args.verbose)
 
@@ -104,6 +105,18 @@ def cuda_malloc_warning():
         if cuda_malloc_warning:
             logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
+async def send_webhook(server, prompt_id, data):
+    webhook_url = server.webhooks.pop(prompt_id, None)
+    if webhook_url:
+        try:
+            async with aiohttp.ClientSession() as session:
+                logging.info(f"Sending webhook for prompt {prompt_id}")
+                async with session.post(webhook_url, json=data) as response:
+                    if response.status != 200:
+                        logging.warning(f"Webhook delivery failed for prompt {prompt_id}. Status: {response.status}")
+        except Exception as e:
+            logging.error(f"Error sending webhook for prompt {prompt_id}: {str(e)}")
+
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server, lru_size=args.cache_lru)
     last_gc_collect = 0
@@ -136,6 +149,15 @@ def prompt_worker(q, server):
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
             logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
+
+            # Send webhook after execution is complete
+            webhook_data = {
+                "prompt_id": prompt_id,
+                "execution_time": execution_time,
+                "status": "success" if e.success else "error",
+                "result": e.history_result
+            }
+            asyncio.run_coroutine_threadsafe(send_webhook(server, prompt_id, webhook_data), server.loop)
 
         flags = q.get_flags()
         free_memory = flags.get("free_memory", False)
