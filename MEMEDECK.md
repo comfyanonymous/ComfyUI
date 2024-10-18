@@ -48,3 +48,17 @@ This is to allow the port to be accessed from the local machine.
 ```zsh
 sudo iptables -A INPUT -p tcp --dport 9090 -j ACCEPT
 ```
+
+
+### Quick start for dev
+
+```zsh
+# ssh into to the server
+ssh -i ~/.ssh/memedeck-monolith.pem holium@172.206.15.40
+
+# on a100 server
+API_ADDRESS='http://localhost:9090/v2' API_KEY='<your-api-key>' AMQP_ADDR='amqp://api:gacdownatravKekmy9@51.8.120.154:5672/dev' python main.py --port 5001 --listen 0.0.0.0 --cuda-device 0 --preview-method auto
+
+# on local machine
+ssh -N -R 9090:0.0.0.0:8079 -i ~/.ssh/memedeck-monolith.pem holium@172.206.15.40 
+```
