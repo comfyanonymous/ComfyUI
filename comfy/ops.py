@@ -309,8 +309,12 @@ def scaled_fp8_ops(fp8_matrix_mult=False):
                 weight, bias = cast_bias_weight(self, input)
                 return torch.nn.functional.linear(input, weight * self.scale_weight.to(device=weight.device, dtype=weight.dtype), bias)
 
-            def convert_weight(self, weight):
-                return weight * self.scale_weight.to(device=weight.device, dtype=weight.dtype)
+            def convert_weight(self, weight, inplace=False, **kwargs):
+                if inplace:
+                    weight *= self.scale_weight.to(device=weight.device, dtype=weight.dtype)
+                    return weight
+                else:
+                    return weight * self.scale_weight.to(device=weight.device, dtype=weight.dtype)
 
             def set_weight(self, weight, inplace_update=False, seed=None, **kwargs):
                 weight = comfy.float.stochastic_rounding(weight / self.scale_weight.to(device=weight.device, dtype=weight.dtype), self.weight.dtype, seed=seed)
