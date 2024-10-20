@@ -17,9 +17,6 @@ from typing import Optional, Tuple
 #
 # Variadic Input - Different Types
 # If you want to have a variadic input with a dynamic type, you can combine the two. For example, if you have an input named "input#COUNT" with the type "<FOO#COUNT>", each socket for the input can have a different type. (Internally, this is equivalent to making the type <FOO1> where 1 is the index of this input.)
-#
-# Restrictions
-# - All dynamic inputs must have `"forceInput": True` due to frontend reasons that will hopefully be resolved before merging.
 
 def TemplateTypeSupport():
     def decorator(cls):
@@ -35,7 +32,16 @@ def TemplateTypeSupport():
                 if category not in old_types:
                     continue
                 for key, value in old_types[category].items():
-                    new_types[category][replace_variadic_suffix(key, 1)] = (template_to_type(value[0]),) + value[1:]
+                    input_name = replace_variadic_suffix(key, 1)
+                    input_type = template_to_type(value[0])
+                    if len(value) == 1:
+                        extra_info = {}
+                    else:
+                        extra_info = value[1]
+                    if input_name != key or input_type != value[0]:
+                        # TODO - Fix front-end to handle widgets and remove this
+                        extra_info["forceInput"] = True
+                    new_types[category][input_name] = (input_type,extra_info)
             return new_types
         setattr(cls, "INPUT_TYPES", classmethod(new_input_types))
         old_outputs = getattr(cls, "RETURN_TYPES")
@@ -77,7 +83,14 @@ def TemplateTypeSupport():
                             input_type = value[0]
                             if isinstance(input_type, str):
                                 input_type = replace_variadic_suffix(input_type, i)
-                            variadic_inputs[category][replace_variadic_suffix(key, i)] = (input_type,value[1])
+                            if len(value) == 1:
+                                extra_info = {}
+                            else:
+                                extra_info = value[1]
+                            if input_type != value[0]:
+                                # TODO - Fix front-end to handle widgets and remove this
+                                extra_info["forceInput"] = True
+                            variadic_inputs[category][replace_variadic_suffix(key, i)] = (input_type,extra_info)
 
             # Step 3 - Resolve template arguments
             resolved = {}
@@ -103,7 +116,15 @@ def TemplateTypeSupport():
             }
             for category in ["required", "optional"]:
                 for key, value in variadic_inputs[category].items():
-                    final_inputs[category][key] = (template_to_type(value[0], resolved),) + value[1:]
+                    if len(value) == 1:
+                        extra_info = {}
+                    else:
+                        extra_info = value[1]
+                    resolved_type = template_to_type(value[0], resolved)
+                    if resolved_type != value[0]:
+                        # TODO - Fix front-end to handle widgets and remove this
+                        extra_info["forceInput"] = True
+                    final_inputs[category][key] = (resolved_type,extra_info)
             outputs = (template_to_type(x, resolved) for x in old_outputs)
             return {
                 "input": final_inputs,
