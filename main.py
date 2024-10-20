@@ -250,7 +250,7 @@ if __name__ == "__main__":
         def startup_server(scheme, address, port):
             import webbrowser
             if os.name == 'nt' and address == '0.0.0.0':
-                address = '127.0.0.1'
+                log.info(address)
             if ':' in address:
                 address = "[{}]".format(address)
             webbrowser.open(f"{scheme}://{address}:{port}")
