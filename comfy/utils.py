@@ -68,7 +68,7 @@ def weight_dtype(sd, prefix=""):
     for k in sd.keys():
         if k.startswith(prefix):
             w = sd[k]
-            dtypes[w.dtype] = dtypes.get(w.dtype, 0) + 1
+            dtypes[w.dtype] = dtypes.get(w.dtype, 0) + w.numel()
 
     if len(dtypes) == 0:
         return None

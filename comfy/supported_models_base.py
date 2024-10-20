@@ -49,6 +49,7 @@ class BASE:
 
     manual_cast_dtype = None
     custom_operations = None
+    scaled_fp8 = False
     optimizations = {"fp8": False}
 
     @classmethod
