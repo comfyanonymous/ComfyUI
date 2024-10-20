@@ -649,6 +649,8 @@ def load_diffusion_model_state_dict(sd, model_options={}): #load unet in diffuse
         sd = temp_sd
 
     parameters = comfy.utils.calculate_parameters(sd)
+    weight_dtype = comfy.utils.weight_dtype(sd)
+
     load_device = model_management.get_torch_device()
     model_config = model_detection.model_config_from_unet(sd, "")
 
@@ -675,8 +677,12 @@ def load_diffusion_model_state_dict(sd, model_options={}): #load unet in diffuse
                     logging.warning("{} {}".format(diffusers_keys[k], k))
 
     offload_device = model_management.unet_offload_device()
+    unet_weight_dtype = list(model_config.supported_inference_dtypes)
+    if weight_dtype is not None:
+        unet_weight_dtype.append(weight_dtype)
+
     if dtype is None:
-        unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=model_config.supported_inference_dtypes)
+        unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=unet_weight_dtype)
     else:
         unet_dtype = dtype
 

@@ -317,7 +317,26 @@ class ModelPatcher:
         if key not in self.patches:
             return
 
-        weight = comfy.utils.get_attr(self.model, key)
+        set_func = None
+        convert_func = None
+        op_keys = key.rsplit('.', 1)
+        if len(op_keys) < 2:
+            weight = comfy.utils.get_attr(self.model, key)
+        else:
+            op = comfy.utils.get_attr(self.model, op_keys[0])
+            try:
+                set_func = getattr(op, "set_{}".format(op_keys[1]))
+            except AttributeError:
+                pass
+
+            try:
+                convert_func = getattr(op, "convert_{}".format(op_keys[1]))
+            except AttributeError:
+                pass
+
+            weight = getattr(op, op_keys[1])
+            if convert_func is not None:
+                weight = comfy.utils.get_attr(self.model, key)
 
         inplace_update = self.weight_inplace_update or inplace_update
 
@@ -328,12 +347,18 @@ class ModelPatcher:
             temp_weight = comfy.model_management.cast_to_device(weight, device_to, torch.float32, copy=True)
         else:
             temp_weight = weight.to(torch.float32, copy=True)
+        if convert_func is not None:
+            temp_weight = convert_func(temp_weight)
+
         out_weight = comfy.lora.calculate_weight(self.patches[key], temp_weight, key)
-        out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=string_to_seed(key))
-        if inplace_update:
-            comfy.utils.copy_to_param(self.model, key, out_weight)
+        if set_func is None:
+            out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=string_to_seed(key))
+            if inplace_update:
+                comfy.utils.copy_to_param(self.model, key, out_weight)
+            else:
+                comfy.utils.set_attr_param(self.model, key, out_weight)
         else:
-            comfy.utils.set_attr_param(self.model, key, out_weight)
+            set_func(out_weight, inplace_update=inplace_update, seed=string_to_seed(key))
 
     def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
         mem_counter = 0
