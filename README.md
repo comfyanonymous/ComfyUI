@@ -155,6 +155,19 @@ This is the command to install pytorch nightly instead which might have performa
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu124```
 
+### ASCEND
+
+Ascend users should install ```cann>=7.0.0 torch+cpu>=2.1.0``` and ```torch_npu```,below are the installation reference documents.
+
+https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/80RC2alpha001/softwareinst/instg/instg_0001.html
+
+https://gitee.com/ascend/pytorch
+
+This is the command to lanuch ComfyUI using Ascend backend.
+
+```python main.py --use-npu```
+
+
 #### Troubleshooting
 
 If you get the "Torch not compiled with CUDA enabled" error, uninstall torch with:
