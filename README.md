@@ -42,14 +42,14 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
-- Smart memory management: can automatically run models on GPUs with as low as 1GB vram.
+- Smart memory management: can automatically run models on GPUs with as low as 1GB of VRAM.
 - Works even if you don't have a GPU with: ```--cpu``` (slow)
 - Can load ckpt, safetensors and diffusers models/checkpoints. Standalone VAEs and CLIP models.
 - Embeddings/Textual inversion
 - [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
 - [Hypernetworks](https://comfyanonymous.github.io/ComfyUI_examples/hypernetworks/)
 - Loading full workflows (with seeds) from generated PNG, WebP and FLAC files.
-- Saving/Loading workflows as Json files.
+- Saving/Loading workflows as JSON files.
 - Nodes interface can be used to create complex workflows like one for [Hires fix](https://comfyanonymous.github.io/ComfyUI_examples/2_pass_txt2img/) or much more advanced ones.
 - [Area Composition](https://comfyanonymous.github.io/ComfyUI_examples/area_composition/)
 - [Inpainting](https://comfyanonymous.github.io/ComfyUI_examples/inpaint/) with both regular and inpainting models.
@@ -66,6 +66,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - Starts up very fast.
 - Works fully offline: will never download anything.
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
+- [Docker](#running-with-docker) support
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 
@@ -211,6 +212,20 @@ For 6700, 6600 and maybe other RDNA2 or older: ```HSA_OVERRIDE_GFX_VERSION=10.3.
 
 For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 python main.py```
 
+# Running with Docker
+Just execute the command below:
+
+```docker compose --profile <your-profile> up --build -d```
+## Profiles
+```cpu``` - For CPU-only machines
+
+```cuda``` - For NVIDIA CUDA Chips
+
+## Additional variables for Docker (.env support)
+```PORT``` - Port for ComfyUI
+
+```LISTEN_IP``` - IP address for ComfyUI to listen
+
 # Notes
 
 Only parts of the graph that have an output with all the correct inputs will be executed.
@@ -296,4 +311,3 @@ This will use a snapshot of the legacy frontend preserved in the [ComfyUI Legacy
 ### Which GPU should I buy for this?
 
 [See this page for some recommendations](https://github.com/comfyanonymous/ComfyUI/wiki/Which-GPU-should-I-buy-for-ComfyUI)
-
