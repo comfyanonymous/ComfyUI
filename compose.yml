@@ -2,6 +2,7 @@
 x-comfyui-common: &comfyui-common
   build:
     context: .
+  image: comfyui
   ports:
     - "${PORT:-8188}:8188"
   volumes:
@@ -11,13 +12,13 @@ x-comfyui-common: &comfyui-common
 
 # ComfyUI profiles
 services:
-  cpu:
+  comfyui-cpu:
     <<: *comfyui-common
     command: >
       python main.py --listen=${LISTEN_IP:-0.0.0.0} --cpu
     profiles:
       - cpu
-  cuda:
+  comfyui-cuda:
     <<: *comfyui-common
     command: >
       python main.py --listen=${LISTEN_IP:-0.0.0.0}
