@@ -529,12 +529,11 @@ class SD3(supported_models_base.BASE):
             clip_l = True
         if "{}clip_g.transformer.text_model.final_layer_norm.weight".format(pref) in state_dict:
             clip_g = True
-        t5_key = "{}t5xxl.transformer.encoder.final_layer_norm.weight".format(pref)
-        if t5_key in state_dict:
+        t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
+        if "dtype_t5" in t5_detect:
             t5 = True
-            dtype_t5 = state_dict[t5_key].dtype
 
-        return supported_models_base.ClipTarget(comfy.text_encoders.sd3_clip.SD3Tokenizer, comfy.text_encoders.sd3_clip.sd3_clip(clip_l=clip_l, clip_g=clip_g, t5=t5, dtype_t5=dtype_t5))
+        return supported_models_base.ClipTarget(comfy.text_encoders.sd3_clip.SD3Tokenizer, comfy.text_encoders.sd3_clip.sd3_clip(clip_l=clip_l, clip_g=clip_g, t5=t5, **t5_detect))
 
 class StableAudio(supported_models_base.BASE):
     unet_config = {
@@ -653,11 +652,8 @@ class Flux(supported_models_base.BASE):
 
     def clip_target(self, state_dict={}):
         pref = self.text_encoder_key_prefix[0]
-        t5_key = "{}t5xxl.transformer.encoder.final_layer_norm.weight".format(pref)
-        dtype_t5 = None
-        if t5_key in state_dict:
-            dtype_t5 = state_dict[t5_key].dtype
-        return supported_models_base.ClipTarget(comfy.text_encoders.flux.FluxTokenizer, comfy.text_encoders.flux.flux_clip(dtype_t5=dtype_t5))
+        t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.flux.FluxTokenizer, comfy.text_encoders.flux.flux_clip(**t5_detect))
 
 class FluxSchnell(Flux):
     unet_config = {
