@@ -5,7 +5,7 @@ from typing import Dict, Optional
 import numpy as np
 import torch
 import torch.nn as nn
-from .. import attention
+from ..attention import optimized_attention
 from einops import rearrange, repeat
 from .util import timestep_embedding
 import comfy.ops
@@ -266,8 +266,6 @@ def split_qkv(qkv, head_dim):
     qkv = qkv.reshape(qkv.shape[0], qkv.shape[1], 3, -1, head_dim).movedim(2, 0)
     return qkv[0], qkv[1], qkv[2]
 
-def optimized_attention(qkv, num_heads):
-    return attention.optimized_attention(qkv[0], qkv[1], qkv[2], num_heads)
 
 class SelfAttention(nn.Module):
     ATTENTION_MODES = ("xformers", "torch", "torch-hb", "math", "debug")
@@ -326,9 +324,9 @@ class SelfAttention(nn.Module):
         return x
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        qkv = self.pre_attention(x)
+        q, k, v = self.pre_attention(x)
         x = optimized_attention(
-            qkv, num_heads=self.num_heads
+            q, k, v, num_heads=self.num_heads
         )
         x = self.post_attention(x)
         return x
