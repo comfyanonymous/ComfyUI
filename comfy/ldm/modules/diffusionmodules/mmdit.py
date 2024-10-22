@@ -326,7 +326,7 @@ class SelfAttention(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         q, k, v = self.pre_attention(x)
         x = optimized_attention(
-            q, k, v, num_heads=self.num_heads
+            q, k, v, heads=self.num_heads
         )
         x = self.post_attention(x)
         return x
@@ -529,8 +529,8 @@ class DismantledBlock(nn.Module):
         assert not self.pre_only
         qkv, intermediates = self.pre_attention(x, c)
         attn = optimized_attention(
-            qkv,
-            num_heads=self.attn.num_heads,
+            q[0], k[1], v[2],
+            heads=self.attn.num_heads,
         )
         return self.post_attention(attn, *intermediates)
 
@@ -555,8 +555,8 @@ def _block_mixing(context, x, context_block, x_block, c):
     qkv = tuple(o)
 
     attn = optimized_attention(
-        qkv,
-        num_heads=x_block.attn.num_heads,
+        q[0], k[1], v[2],
+        heads=x_block.attn.num_heads,
     )
     context_attn, x_attn = (
         attn[:, : context_qkv[0].shape[1]],
@@ -640,7 +640,7 @@ class SelfAttentionContext(nn.Module):
     def forward(self, x):
         qkv = self.qkv(x)
         q, k, v = split_qkv(qkv, self.dim_head)
-        x = optimized_attention((q.reshape(q.shape[0], q.shape[1], -1), k, v), self.heads)
+        x = optimized_attention(q.reshape(q.shape[0], q.shape[1], -1), k, v, heads=self.heads)
         return self.proj(x)
 
 class ContextProcessorBlock(nn.Module):
