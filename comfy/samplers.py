@@ -358,8 +358,11 @@ def beta_scheduler(model_sampling, steps, alpha=0.6, beta=0.6):
     ts = numpy.rint(scipy.stats.beta.ppf(ts, alpha, beta) * total_timesteps)
 
     sigs = []
+    last_t = -1
     for t in ts:
-        sigs += [float(model_sampling.sigmas[int(t)])]
+        if t != last_t:
+            sigs += [float(model_sampling.sigmas[int(t)])]
+        last_t = t
     sigs += [0.0]
     return torch.FloatTensor(sigs)
 
