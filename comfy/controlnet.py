@@ -238,7 +238,7 @@ class ControlNet(ControlBase):
                     to_concat.append(comfy.utils.repeat_to_batch_size(c, self.cond_hint.shape[0]))
                 self.cond_hint = torch.cat([self.cond_hint] + to_concat, dim=1)
 
-            self.cond_hint = self.cond_hint.to(device=self.load_device, dtype=dtype)
+            self.cond_hint = self.cond_hint.to(device=x_noisy.device, dtype=dtype)
         if x_noisy.shape[0] != self.cond_hint.shape[0]:
             self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
 
