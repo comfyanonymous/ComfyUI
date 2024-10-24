@@ -347,7 +347,7 @@ class VAE:
             memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used)
             free_memory = model_management.get_free_memory(self.device)
-            batch_number = int(free_memory / memory_used)
+            batch_number = int(free_memory / max(1, memory_used))
             batch_number = max(1, batch_number)
             samples = torch.empty((pixel_samples.shape[0], self.latent_channels) + tuple(map(lambda a: a // self.downscale_ratio, pixel_samples.shape[2:])), device=self.output_device)
             for x in range(0, pixel_samples.shape[0], batch_number):
@@ -431,8 +431,21 @@ def detect_te_model(sd):
         return TEModel.T5_BASE
     return None
 
+
+def t5xxl_detect(clip_data):
+    weight_name = "encoder.block.23.layer.1.DenseReluDense.wi_1.weight"
+
+    dtype_t5 = None
+    for sd in clip_data:
+        if weight_name in sd:
+            return comfy.text_encoders.sd3_clip.t5_xxl_detect(sd)
+
+    return {}
+
+
 def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
     clip_data = state_dicts
+
     class EmptyClass:
         pass
 
@@ -461,9 +474,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.sd2_clip.SD2ClipModel
             clip_target.tokenizer = comfy.text_encoders.sd2_clip.SD2Tokenizer
         elif te_model == TEModel.T5_XXL:
-            weight = clip_data[0]["encoder.block.23.layer.1.DenseReluDense.wi_1.weight"]
-            dtype_t5 = weight.dtype
-            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, dtype_t5=dtype_t5)
+            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, **t5xxl_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
         elif te_model == TEModel.T5_XL:
             clip_target.clip = comfy.text_encoders.aura_t5.AuraT5Model
@@ -481,25 +492,19 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
     elif len(clip_data) == 2:
         if clip_type == CLIPType.SD3:
             te_models = [detect_te_model(clip_data[0]), detect_te_model(clip_data[1])]
-            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=TEModel.CLIP_L in te_models, clip_g=TEModel.CLIP_G in te_models, t5=TEModel.T5_XXL in te_models)
+            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=TEModel.CLIP_L in te_models, clip_g=TEModel.CLIP_G in te_models, t5=TEModel.T5_XXL in te_models, **t5xxl_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
         elif clip_type == CLIPType.HUNYUAN_DIT:
             clip_target.clip = comfy.text_encoders.hydit.HyditModel
             clip_target.tokenizer = comfy.text_encoders.hydit.HyditTokenizer
         elif clip_type == CLIPType.FLUX:
-            weight_name = "encoder.block.23.layer.1.DenseReluDense.wi_1.weight"
-            weight = clip_data[0].get(weight_name, clip_data[1].get(weight_name, None))
-            dtype_t5 = None
-            if weight is not None:
-                dtype_t5 = weight.dtype
-
-            clip_target.clip = comfy.text_encoders.flux.flux_clip(dtype_t5=dtype_t5)
+            clip_target.clip = comfy.text_encoders.flux.flux_clip(**t5xxl_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.flux.FluxTokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer
     elif len(clip_data) == 3:
-        clip_target.clip = comfy.text_encoders.sd3_clip.SD3ClipModel
+        clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(**t5xxl_detect(clip_data))
         clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
 
     parameters = 0
@@ -574,11 +579,11 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
         return None
 
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
-    if weight_dtype is not None:
+    if weight_dtype is not None and model_config.scaled_fp8 is None:
         unet_weight_dtype.append(weight_dtype)
 
     model_config.custom_operations = model_options.get("custom_operations", None)
-    unet_dtype = model_options.get("weight_dtype", None)
+    unet_dtype = model_options.get("dtype", model_options.get("weight_dtype", None))
 
     if unet_dtype is None:
         unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=unet_weight_dtype)
@@ -592,7 +597,6 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
 
     if output_model:
         inital_load_device = model_management.unet_inital_load_device(parameters, unet_dtype)
-        offload_device = model_management.unet_offload_device()
         model = model_config.get_model(sd, diffusion_model_prefix, device=inital_load_device)
         model.load_model_weights(sd, diffusion_model_prefix)
 
@@ -644,6 +648,8 @@ def load_diffusion_model_state_dict(sd, model_options={}): #load unet in diffuse
         sd = temp_sd
 
     parameters = comfy.utils.calculate_parameters(sd)
+    weight_dtype = comfy.utils.weight_dtype(sd)
+
     load_device = model_management.get_torch_device()
     model_config = model_detection.model_config_from_unet(sd, "")
 
@@ -670,14 +676,21 @@ def load_diffusion_model_state_dict(sd, model_options={}): #load unet in diffuse
                     logging.warning("{} {}".format(diffusers_keys[k], k))
 
     offload_device = model_management.unet_offload_device()
+    unet_weight_dtype = list(model_config.supported_inference_dtypes)
+    if weight_dtype is not None and model_config.scaled_fp8 is None:
+        unet_weight_dtype.append(weight_dtype)
+
     if dtype is None:
-        unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=model_config.supported_inference_dtypes)
+        unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=unet_weight_dtype)
     else:
         unet_dtype = dtype
 
     manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
     model_config.custom_operations = model_options.get("custom_operations", model_config.custom_operations)
+    if model_options.get("fp8_optimizations", False):
+        model_config.optimizations["fp8"] = True
+
     model = model_config.get_model(new_sd, "")
     model = model.to(offload_device)
     model.load_model_weights(new_sd, "")

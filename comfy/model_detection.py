@@ -286,9 +286,15 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
         return None
     model_config = model_config_from_unet_config(unet_config, state_dict)
     if model_config is None and use_base_if_no_match:
-        return comfy.supported_models_base.BASE(unet_config)
-    else:
-        return model_config
+        model_config = comfy.supported_models_base.BASE(unet_config)
+
+    scaled_fp8_weight = state_dict.get("{}scaled_fp8".format(unet_key_prefix), None)
+    if scaled_fp8_weight is not None:
+        model_config.scaled_fp8 = scaled_fp8_weight.dtype
+        if model_config.scaled_fp8 == torch.float32:
+            model_config.scaled_fp8 = torch.float8_e4m3fn
+
+    return model_config
 
 def unet_prefix_from_state_dict(state_dict):
     candidates = ["model.diffusion_model.", #ldm/sgm models
