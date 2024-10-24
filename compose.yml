@@ -1,0 +1,33 @@
+# ComfyUI common x-variable
+x-comfyui-common: &comfyui-common
+  build:
+    context: .
+  image: comfyui
+  ports:
+    - "${PORT:-8188}:8188"
+  volumes:
+    - "./custom_nodes:/ComfyUI/custom_nodes"
+    - "./models:/ComfyUI/models"
+    - "./output:/ComfyUI/output"
+
+# ComfyUI profiles
+services:
+  comfyui-cpu:
+    <<: *comfyui-common
+    command: >
+      python main.py --listen=${LISTEN_IP:-0.0.0.0} --cpu
+    profiles:
+      - cpu
+  comfyui-cuda:
+    <<: *comfyui-common
+    command: >
+      python main.py --listen=${LISTEN_IP:-0.0.0.0}
+    profiles:
+      - cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
