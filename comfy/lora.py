@@ -317,6 +317,10 @@ def model_lora_keys_unet(model, key_map={}):
                 key_lora = "lora_transformer_{}".format(k[:-len(".weight")].replace(".", "_")) #OneTrainer lora
                 key_map[key_lora] = to
 
+                key_lora = "lycoris_{}".format(k[:-len(".weight")].replace(".", "_")) #simpletuner lycoris format
+                key_map[key_lora] = to
+
+
     if isinstance(model, comfy.model_base.AuraFlow): #Diffusers lora AuraFlow
         diffusers_keys = comfy.utils.auraflow_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
         for k in diffusers_keys:
