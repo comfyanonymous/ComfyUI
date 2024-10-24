@@ -97,7 +97,7 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 
 You must have Python 3.10, 3.11 or 3.12 installed. On Windows, download the latest Python from the Python website.
 
-On macOS, install Python 3.10, 3.11 or 3.12 using `brew`, which you can download from https://brew.sh, using this command: `brew install python@3.11`.
+On macOS, you will need Python 3.10, 3.11 or 3.12, which is easy to install using [`brew`](https://brew.sh): `brew install python@3.12`. You can check which version of Python you have installed using `python --version`.
 
 When using Windows, open the **Windows Powershell** app. Then observe you are at a command line, and it is printing "where" you are in your file system: your user directory (e.g., `C:\Users\doctorpangloss`). This is where a bunch of files will go. If you want files to go somewhere else, consult a chat bot for the basics of using command lines, because it is beyond the scope of this document. Then:
 
@@ -121,7 +121,7 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
 
 3. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
    ```shell
-   pip install comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git
+   pip install "comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git"
    ```
    **Recommended**: Currently, `torch 2.4.1` is the last version that `xformers` is compatible with. On Windows, install it first, along with `xformers`, for maximum compatibility and the best performance without advanced techniques in ComfyUI:
    ```shell
