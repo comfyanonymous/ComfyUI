@@ -168,20 +168,16 @@ class FrontendManager:
             Path(cls.CUSTOM_FRONTENDS_ROOT) / provider.folder_name / semantic_version
         )
         if not os.path.exists(web_root):
-            # Use tmp path until complete to avoid path exists check passing from interrupted downloads
-            tmp_path = web_root + ".tmp"
             try:
-                os.makedirs(tmp_path, exist_ok=True)
+                os.makedirs(web_root, exist_ok=True)
                 logging.info(
                     "Downloading frontend(%s) version(%s) to (%s)",
                     provider.folder_name,
                     semantic_version,
-                    tmp_path,
+                    web_root,
                 )
                 logging.debug(release)
-                download_release_asset_zip(release, destination_path=tmp_path)
-                if os.listdir(tmp_path):
-                    os.rename(tmp_path, web_root)
+                download_release_asset_zip(release, destination_path=web_root)
             finally:
                 # Clean up the directory if it is empty, i.e. the download failed
                 if not os.listdir(web_root):
