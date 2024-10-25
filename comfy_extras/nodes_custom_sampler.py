@@ -412,15 +412,6 @@ class SamplerDPMAdaptative:
                                                               "s_noise":s_noise })
         return (sampler, )
 
-class Noise_EmptyNoise:
-    def __init__(self):
-        self.seed = 0
-
-    def generate_noise(self, input_latent):
-        latent_image = input_latent["samples"]
-        return torch.zeros(latent_image.shape, dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
-
-
 class Noise_RandomNoise:
     def __init__(self, seed):
         self.seed = seed
@@ -461,7 +452,7 @@ class SamplerCustom:
         latent["samples"] = latent_image
 
         if not add_noise:
-            noise = Noise_EmptyNoise().generate_noise(latent)
+            raise ValueError("add_noise must be enabled")
         else:
             noise = Noise_RandomNoise(noise_seed).generate_noise(latent)
 
@@ -581,7 +572,7 @@ class DisableNoise:
     CATEGORY = "sampling/custom_sampling/noise"
 
     def get_noise(self):
-        return (Noise_EmptyNoise(),)
+        raise RuntimeError("DisableNoise cannot be used")
 
 
 class RandomNoise(DisableNoise):
