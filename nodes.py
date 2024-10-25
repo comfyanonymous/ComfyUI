@@ -2111,6 +2111,7 @@ def init_builtin_extra_nodes():
         "nodes_flux.py",
         "nodes_lora_extract.py",
         "nodes_torch_compile.py",
+        "nodes_constant_values.py",
     ]
 
     import_failed = []
