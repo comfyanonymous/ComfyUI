@@ -198,8 +198,6 @@ class WrapperExecutor:
         args = list(args)
         kwargs = dict(kwargs)
         if self.is_last:
-            if self.class_obj is None:
-                return self.original(*args, **kwargs)
             return self.original(*args, **kwargs)
         return self.wrappers[self.idx](self, *args, **kwargs)
 
@@ -968,13 +966,14 @@ class ModelPatcher:
     def register_all_hook_patches(self, hooks_dict: dict[comfy.hooks.EnumHookType, dict[comfy.hooks.Hook, None]], target: comfy.hooks.EnumWeightTarget):
         self.restore_hook_patches()
         weight_hooks_to_register: list[comfy.hooks.WeightHook] = []
+        registered_hooks: list[comfy.hooks.Hook] = []
         for hook in hooks_dict.get(comfy.hooks.EnumHookType.Weight, {}):
             if hook.hook_ref not in self.hook_patches:
                 weight_hooks_to_register.append(hook)
         if len(weight_hooks_to_register) > 0:
             self.hook_patches_backup = create_hook_patches_clone(self.hook_patches)
             for hook in weight_hooks_to_register:
-                hook.add_hook_patches(self, target)
+                hook.add_hook_patches(self, target, registered_hooks)
         for callback in self.get_all_callbacks(CallbacksMP.ON_REGISTER_ALL_HOOK_PATCHES):
             callback(self, hooks_dict, target)
 
@@ -1066,7 +1065,9 @@ class ModelPatcher:
             model_sd = self.model_state_dict()
             memory_counter = None
             if self.hook_mode == comfy.hooks.EnumHookMode.MaxSpeed:
-                memory_counter = MemoryCounter(comfy.model_management.get_free_memory(self.load_device))
+                # TODO: minimum_counter should have a minimum that conforms to loaded model requirements
+                memory_counter = MemoryCounter(initial=comfy.model_management.get_free_memory(self.load_device),
+                                               minimum=comfy.model_management.minimum_inference_memory())
             # if have cached weights for hooks, use it
             cached_weights = self.cached_hook_patches.get(hooks, None)
             if cached_weights is not None:

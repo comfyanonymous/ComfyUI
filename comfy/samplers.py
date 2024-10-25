@@ -144,7 +144,7 @@ def cond_cat(c_list):
 
     return out
 
-def finalize_default_conds(hooked_to_run: dict[comfy.hooks.HookGroup,list[tuple[tuple,int]]], default_conds: list[list[dict]], x_in, timestep):
+def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.HookGroup,list[tuple[tuple,int]]], default_conds: list[list[dict]], x_in, timestep):
     # need to figure out remaining unmasked area for conds
     default_mults = []
     for _ in default_conds:
@@ -178,9 +178,11 @@ def finalize_default_conds(hooked_to_run: dict[comfy.hooks.HookGroup,list[tuple[
                 continue
             # replace p's mult with calculated mult
             p = p._replace(mult=mult)
-            hook: comfy.hooks.HookGroup = x.get('hooks', None)
-            hooked_to_run.setdefault(hook, list())
-            hooked_to_run[hook] += [(p, i)]
+            hooks: comfy.hooks.HookGroup = x.get('hooks', None)
+            if hooks is not None:
+                model.current_patcher.prepare_hook_patches_current_keyframe(timestep, hooks)
+            hooked_to_run.setdefault(hooks, list())
+            hooked_to_run[hooks] += [(p, i)]
 
 def calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
     executor = comfy.model_patcher.WrapperExecutor.new_executor(
@@ -221,7 +223,7 @@ def outer_calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: tor
         default_conds.append(default_c)
 
     if has_default_conds:
-        finalize_default_conds(hooked_to_run, default_conds, x_in, timestep)
+        finalize_default_conds(model, hooked_to_run, default_conds, x_in, timestep)
 
     model.current_patcher.prepare_state(timestep)
 

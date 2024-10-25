@@ -34,7 +34,7 @@ class _HookRef:
     pass
 
 # NOTE: this is an example of how the should_register function should look
-def default_should_register(hook: 'Hook', model: 'ModelPatcher', target: EnumWeightTarget):
+def default_should_register(hook: 'Hook', model: 'ModelPatcher', target: EnumWeightTarget, registered: list[Hook]):
     return True
 
 
@@ -45,6 +45,7 @@ class Hook:
         self.hook_ref = hook_ref if hook_ref else _HookRef()
         self.hook_keyframe = hook_keyframe if hook_keyframe else HookKeyframeGroup()
         self.custom_should_register = default_should_register
+        self.auto_apply_to_nonpositive = False
 
     @property
     def strength(self):
@@ -65,10 +66,21 @@ class Hook:
         c.hook_ref = self.hook_ref
         c.hook_keyframe = self.hook_keyframe
         c.custom_should_register = self.custom_should_register
+        # TODO: make this do something
+        c.auto_apply_to_nonpositive = self.auto_apply_to_nonpositive
         return c
 
-    def should_register(self, model: 'ModelPatcher', target: EnumWeightTarget):
-        return self.custom_should_register(self, model, target)
+    def should_register(self, model: 'ModelPatcher', target: EnumWeightTarget, registered: list[Hook]):
+        return self.custom_should_register(self, model, target, registered)
+
+    def add_hook_patches(self, model: 'ModelPatcher', target: EnumWeightTarget, registered: list[Hook]):
+        raise NotImplementedError("add_hook_patches should be defined for Hook subclasses")
+
+    def on_apply(self, model: 'ModelPatcher', transformer_options: dict[str]):
+        pass
+
+    def on_unapply(self, model: 'ModelPatcher', transformer_options: dict[str]):
+        pass
 
     def __eq__(self, other: 'Hook'):
         return self.__class__ == other.__class__ and self.hook_ref == other.hook_ref
@@ -94,9 +106,9 @@ class WeightHook(Hook):
     def strength_clip(self):
         return self._strength_clip * self.strength
 
-    def add_hook_patches(self, model: 'ModelPatcher', target: EnumWeightTarget):
-        if not self.should_register(model, target):
-            return
+    def add_hook_patches(self, model: 'ModelPatcher', target: EnumWeightTarget, registered: list[Hook]):
+        if not self.should_register(model, target, registered):
+            return False
         weights = None
         if target == EnumWeightTarget.Model:
             strength = self._strength_model
@@ -116,6 +128,7 @@ class WeightHook(Hook):
             else:
                 weights = self.weights_clip
         k = model.add_hook_patches(hook=self, patches=weights, strength_patch=strength, is_diff=self.is_diff)
+        return True
         # TODO: add logs about any keys that were not applied
 
     def clone(self, subtype: Callable=None):
@@ -308,6 +321,7 @@ class HookKeyframeGroup:
         self._current_keyframe: HookKeyframe = None
         self._current_used_steps = 0
         self._current_index = 0
+        self._current_strength = None
         self._curr_t = -1.
 
     # properties shadow those of HookWeightsKeyframe
@@ -321,6 +335,7 @@ class HookKeyframeGroup:
         self._current_keyframe = None
         self._current_used_steps = 0
         self._current_index = 0
+        self._current_strength = None
         self.curr_t = -1.
         self._set_first_as_current()
     
@@ -359,6 +374,7 @@ class HookKeyframeGroup:
         if curr_t == self._curr_t:
             return False
         prev_index = self._current_index
+        prev_strength = self._current_strength
         # if met guaranteed steps, look for next keyframe in case need to switch
         if self._current_used_steps >= self._current_keyframe.guarantee_steps:
             # if has next index, loop through and see if need to switch
@@ -369,6 +385,7 @@ class HookKeyframeGroup:
                     # NOTE: t is in terms of sigmas, not percent, so bigger number = earlier step in sampling
                     if eval_c.start_t >= curr_t:
                         self._current_index = i
+                        self._current_strength = eval_c.strength
                         self._current_keyframe = eval_c
                         self._current_used_steps = 0
                         # if guarantee_steps greater than zero, stop searching for other keyframes
@@ -381,7 +398,7 @@ class HookKeyframeGroup:
         # update current timestep this was performed on
         self._curr_t = curr_t
         # return True if keyframe changed, False if no change
-        return prev_index != self._current_index
+        return prev_index != self._current_index and prev_strength != self._current_strength
 
 
 class InterpolationMethod:

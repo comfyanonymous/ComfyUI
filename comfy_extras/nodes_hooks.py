@@ -214,7 +214,7 @@ class ConditioningSetDefaultAndCombine:
     CATEGORY = "advanced/hooks/cond single"
     FUNCTION = "set_default_and_combine"
 
-    def append_and_combine(self, cond, cond_DEFAULT,
+    def set_default_and_combine(self, cond, cond_DEFAULT,
                            opt_hooks: comfy.hooks.HookGroup=None):
         (final_conditioning,) = comfy.hooks.set_default_and_combine_conds(conds=[cond], new_conds=[cond_DEFAULT],
                                                                         opt_hooks=opt_hooks)
