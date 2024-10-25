@@ -833,6 +833,7 @@ class PromptServer():
                 scheme = "https"
 
         logging.info("Starting server\n")
+        addresses= ["0.0.0.0","8188"]
         for addr in addresses:
             address = addr[0]
             port = addr[1]
