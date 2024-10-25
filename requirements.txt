@@ -14,7 +14,11 @@ scipy
 tqdm
 psutil
 
+#webhook handling
+aiohttp
+
 #non essential dependencies:
 kornia>=0.7.1
 spandrel
 soundfile
+

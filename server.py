@@ -32,6 +32,10 @@ from app.user_manager import UserManager
 from model_filemanager import download_model, DownloadModelStatus
 from typing import Optional
 from api_server.routes.internal.internal_routes import InternalRoutes
+import requests
+import json
+from urllib.parse import urlparse, parse_qs, urlencode
+
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -159,6 +163,7 @@ class PromptServer():
         self.messages = asyncio.Queue()
         self.client_session:Optional[aiohttp.ClientSession] = None
         self.number = 0
+        self.webhooks = {}
 
         middlewares = [cache_control]
         if args.enable_cors_header:
@@ -623,8 +628,15 @@ class PromptServer():
                 if "client_id" in json_data:
                     extra_data["client_id"] = json_data["client_id"]
                 if valid[0]:
-                    prompt_id = str(uuid.uuid4())
+                    # allow to accept prompt_id from api caller to reference it in webhook handler if needed
+                    prompt_id = json_data.get("prompt_id", str(uuid.uuid4()))
                     outputs_to_execute = valid[2]
+                    
+                    # Add webhook URL to the webhooks dict if provided
+                    webhook_url = json_data.get("webhook_url")
+                    if webhook_url:
+                        self.webhooks[prompt_id] = webhook_url
+
                     self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
