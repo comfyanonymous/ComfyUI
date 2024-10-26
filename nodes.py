@@ -1179,10 +1179,10 @@ class LatentUpscale:
 
             if width == 0:
                 height = max(64, height)
-                width = max(64, round(samples["samples"].shape[3] * height / samples["samples"].shape[2]))
+                width = max(64, round(samples["samples"].shape[-1] * height / samples["samples"].shape[-2]))
             elif height == 0:
                 width = max(64, width)
-                height = max(64, round(samples["samples"].shape[2] * width / samples["samples"].shape[3]))
+                height = max(64, round(samples["samples"].shape[-2] * width / samples["samples"].shape[-1]))
             else:
                 width = max(64, width)
                 height = max(64, height)
@@ -1204,8 +1204,8 @@ class LatentUpscaleBy:
 
     def upscale(self, samples, upscale_method, scale_by):
         s = samples.copy()
-        width = round(samples["samples"].shape[3] * scale_by)
-        height = round(samples["samples"].shape[2] * scale_by)
+        width = round(samples["samples"].shape[-1] * scale_by)
+        height = round(samples["samples"].shape[-2] * scale_by)
         s["samples"] = comfy.utils.common_upscale(samples["samples"], width, height, upscale_method, "disabled")
         return (s,)
 
