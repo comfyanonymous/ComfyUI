@@ -1001,7 +1001,6 @@ class ModelPatcher:
                     current_patches: list[tuple] = current_hook_patches.get(key, [])
                     if is_diff:
                         # take difference between desired weight and existing weight to get diff
-                        # TODO: try to implement diff via strength_path/strength_model diff
                         model_dtype = comfy.utils.get_attr(self.model, key).dtype
                         if model_dtype in [torch.float8_e5m2, torch.float8_e4m3fn]:
                             diff_weight = (patches[k].to(torch.float32)-comfy.utils.get_attr(self.model, key).to(torch.float32)).to(model_dtype)

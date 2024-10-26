@@ -340,8 +340,8 @@ class CreateHookLoraModelOnly(CreateHookLora):
     def create_hook_model_only(self, lora_name: str, strength_model: float, prev_hooks: comfy.hooks.HookGroup=None):
         return self.create_hook(lora_name=lora_name, strength_model=strength_model, strength_clip=0, prev_hooks=prev_hooks)
 
-class CreateHookModelAsLora:
-    NodeId = 'CreateHookModelAsLora'
+class CreateHookModelAsLoraDirect:
+    NodeId = 'CreateHookModelAsLoraDirect'
     NodeName = 'Create Hook Model as LoRA Direct'
     @classmethod
     def INPUT_TYPES(s):
@@ -379,8 +379,8 @@ class CreateHookModelAsLora:
                                                      strength_model=strength_model, strength_clip=strength_clip)
         return (prev_hooks.clone_and_combine(hooks),)
 
-class CreateHookModelAsLoraModelOnly:
-    NodeId = 'CreateHookModelAsLoraModelOnly'
+class CreateHookModelAsLoraDirectModelOnly:
+    NodeId = 'CreateHookModelAsLoraDirectModelOnly'
     NodeName = 'Create Hook Model as LoRA Direct (MO)'
     @classmethod
     def INPUT_TYPES(s):
@@ -401,11 +401,11 @@ class CreateHookModelAsLoraModelOnly:
 
     def create_hook_model_only(self, model: 'ModelPatcher', ckpt_name: str, strength_model: float,
                                prev_hooks: comfy.hooks.HookGroup=None):
-        return CreateHookModelAsLora.create_hook(self, model=model, clip=None, ckpt_name=ckpt_name,
+        return CreateHookModelAsLoraDirect.create_hook(self, model=model, clip=None, ckpt_name=ckpt_name,
                                                  strength_model=strength_model, strength_clip=0, prev_hooks=prev_hooks)
 
-class CreateHookModelAsLoraTest:
-    NodeId = 'CreateHookModelAsLoraTest'
+class CreateHookModelAsLora:
+    NodeId = 'CreateHookModelAsLora'
     NodeName = 'Create Hook Model as LoRA'
 
     def __init__(self):
@@ -457,6 +457,29 @@ class CreateHookModelAsLoraTest:
         hooks = comfy.hooks.create_hook_model_as_lora(weights_model=weights_model, weights_clip=weights_clip,
                                                       strength_model=strength_model, strength_clip=strength_clip)
         return (prev_hooks.clone_and_combine(hooks),)
+
+class CreateHookModelAsLoraModelOnly(CreateHookModelAsLora):
+    NodeId = 'CreateHookModelAsLoraModelOnly'
+    NodeName = 'Create Hook Model as LoRA (MO)'
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+                "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+            },
+            "optional": {
+                "prev_hooks": ("HOOKS",)
+            }
+        }
+    
+    RETURN_TYPES = ("HOOKS",)
+    CATEGORY = "advanced/hooks/create"
+    FUNCTION = "create_hook_model_only"
+
+    def create_hook_model_only(self, ckpt_name: str, strength_model: float,
+                               prev_hooks: comfy.hooks.HookGroup=None):
+        return self.create_hook(ckpt_name=ckpt_name, strength_model=strength_model, strength_clip=0.0, prev_hooks=prev_hooks)
 #------------------------------------------
 ###########################################
 
@@ -809,8 +832,9 @@ node_list = [
     CreateHookLora,
     CreateHookLoraModelOnly,
     CreateHookModelAsLora,
-    CreateHookModelAsLoraTest,
     CreateHookModelAsLoraModelOnly,
+    CreateHookModelAsLoraDirect, # TODO: remove before merge
+    CreateHookModelAsLoraDirectModelOnly, # TODO: remove before merge
     # Register
     RegisterHookLora,
     RegisterHookLoraModelOnly,
