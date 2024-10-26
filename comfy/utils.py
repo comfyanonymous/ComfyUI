@@ -690,9 +690,14 @@ def lanczos(samples, width, height):
     return result.to(samples.device, samples.dtype)
 
 def common_upscale(samples, width, height, upscale_method, crop):
+        orig_shape = tuple(samples.shape)
+        if len(orig_shape) > 4:
+            samples = samples.reshape(samples.shape[0], samples.shape[1], -1, samples.shape[-2], samples.shape[-1])
+            samples = samples.movedim(2, 1)
+            samples = samples.reshape(-1, orig_shape[1], orig_shape[-2], orig_shape[-1])
         if crop == "center":
-            old_width = samples.shape[3]
-            old_height = samples.shape[2]
+            old_width = samples.shape[-1]
+            old_height = samples.shape[-2]
             old_aspect = old_width / old_height
             new_aspect = width / height
             x = 0
@@ -701,16 +706,22 @@ def common_upscale(samples, width, height, upscale_method, crop):
                 x = round((old_width - old_width * (new_aspect / old_aspect)) / 2)
             elif old_aspect < new_aspect:
                 y = round((old_height - old_height * (old_aspect / new_aspect)) / 2)
-            s = samples[:,:,y:old_height-y,x:old_width-x]
+            s = samples.narrow(-2, y, old_height - y * 2).narrow(-1, x, old_width - x * 2)
         else:
             s = samples
 
         if upscale_method == "bislerp":
-            return bislerp(s, width, height)
+            out = bislerp(s, width, height)
         elif upscale_method == "lanczos":
-            return lanczos(s, width, height)
+            out = lanczos(s, width, height)
         else:
-            return torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
+            out = torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
+
+        if len(orig_shape) == 4:
+            return out
+
+        out = out.reshape((orig_shape[0], -1, orig_shape[1]) + (height, width))
+        return out.movedim(2, 1).reshape(orig_shape[:-2] + (height, width))
 
 def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
     rows = 1 if height <= tile_y else math.ceil((height - overlap) / (tile_y - overlap))
@@ -720,7 +731,27 @@ def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
 @torch.inference_mode()
 def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
     dims = len(tile)
-    output = torch.empty([samples.shape[0], out_channels] + list(map(lambda a: round(a * upscale_amount), samples.shape[2:])), device=output_device)
+
+    if not (isinstance(upscale_amount, (tuple, list))):
+        upscale_amount = [upscale_amount] * dims
+
+    if not (isinstance(overlap, (tuple, list))):
+        overlap = [overlap] * dims
+
+    def get_upscale(dim, val):
+        up = upscale_amount[dim]
+        if callable(up):
+            return up(val)
+        else:
+            return up * val
+
+    def mult_list_upscale(a):
+        out = []
+        for i in range(len(a)):
+            out.append(round(get_upscale(i, a[i])))
+        return out
+
+    output = torch.empty([samples.shape[0], out_channels] + mult_list_upscale(samples.shape[2:]), device=output_device)
 
     for b in range(samples.shape[0]):
         s = samples[b:b+1]
@@ -732,27 +763,27 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_
                 pbar.update(1)
             continue
 
-        out = torch.zeros([s.shape[0], out_channels] + list(map(lambda a: round(a * upscale_amount), s.shape[2:])), device=output_device)
-        out_div = torch.zeros([s.shape[0], out_channels] + list(map(lambda a: round(a * upscale_amount), s.shape[2:])), device=output_device)
+        out = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
+        out_div = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
 
-        positions = [range(0, s.shape[d+2], tile[d] - overlap) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
+        positions = [range(0, s.shape[d+2], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
 
         for it in itertools.product(*positions):
             s_in = s
             upscaled = []
 
             for d in range(dims):
-                pos = max(0, min(s.shape[d + 2] - overlap, it[d]))
+                pos = max(0, min(s.shape[d + 2] - (overlap[d] + 1), it[d]))
                 l = min(tile[d], s.shape[d + 2] - pos)
                 s_in = s_in.narrow(d + 2, pos, l)
-                upscaled.append(round(pos * upscale_amount))
+                upscaled.append(round(get_upscale(d, pos)))
 
             ps = function(s_in).to(output_device)
             mask = torch.ones_like(ps)
-            feather = round(overlap * upscale_amount)
 
-            for t in range(feather):
-                for d in range(2, dims + 2):
+            for d in range(2, dims + 2):
+                feather = round(get_upscale(d - 2, overlap[d - 2]))
+                for t in range(feather):
                     a = (t + 1) / feather
                     mask.narrow(d, t, 1).mul_(a)
                     mask.narrow(d, mask.shape[d] - 1 - t, 1).mul_(a)
