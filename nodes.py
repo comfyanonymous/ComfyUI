@@ -281,7 +281,10 @@ class VAEDecode:
     DESCRIPTION = "Decodes latent images back into pixel space images."
 
     def decode(self, vae, samples):
-        return (vae.decode(samples["samples"]), )
+        images = vae.decode(samples["samples"])
+        if len(images.shape) == 5: #Combine batches
+            images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
+        return (images, )
 
 class VAEDecodeTiled:
     @classmethod
@@ -886,7 +889,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -900,6 +903,8 @@ class CLIPLoader:
             clip_type = comfy.sd.CLIPType.SD3
         elif type == "stable_audio":
             clip_type = comfy.sd.CLIPType.STABLE_AUDIO
+        elif type == "mochi":
+            clip_type = comfy.sd.CLIPType.MOCHI
         else:
             clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
 
@@ -2111,6 +2116,7 @@ def init_builtin_extra_nodes():
         "nodes_flux.py",
         "nodes_lora_extract.py",
         "nodes_torch_compile.py",
+        "nodes_mochi.py",
     ]
 
     import_failed = []
