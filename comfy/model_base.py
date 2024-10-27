@@ -24,6 +24,7 @@ from comfy.ldm.cascade.stage_b import StageB
 from comfy.ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
 from comfy.ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
 from comfy.ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
+import comfy.ldm.genmo.joint_model.asymm_models_joint
 import comfy.ldm.aura.mmdit
 import comfy.ldm.hydit.models
 import comfy.ldm.audio.dit
@@ -717,4 +718,19 @@ class Flux(BaseModel):
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([kwargs.get("guidance", 3.5)]))
+        return out
+
+class GenmoMochi(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.genmo.joint_model.asymm_models_joint.AsymmDiTJoint)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+            out['num_tokens'] = comfy.conds.CONDConstant(max(1, torch.sum(attention_mask).item()))
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
