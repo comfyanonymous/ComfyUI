@@ -686,7 +686,7 @@ class GenmoMochi(supported_models_base.BASE):
 
     memory_usage_factor = 2.0 #TODO
 
-    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
     vae_key_prefix = ["vae."]
     text_encoder_key_prefix = ["text_encoders."]
