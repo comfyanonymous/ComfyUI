@@ -38,7 +38,7 @@ class InternalRoutes:
 
         @self.routes.get('/logs')
         async def get_logs(request):
-            return web.json_response([(l["t"] + " - " + l["m"]) for l in app.logger.get_logs()])
+            return web.json_response("".join([(l["t"] + " - " + l["m"]) for l in app.logger.get_logs()]))
 
         @self.routes.get('/logs/raw')
         async def get_logs(request):
