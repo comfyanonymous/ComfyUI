@@ -1,4 +1,3 @@
-import asyncio
 from app.logger import on_flush
 import os
 
@@ -9,7 +8,7 @@ class TerminalService:
         self.cols = None
         self.rows = None
         self.subscriptions = set()
-        on_flush(self.send_messages_sync)
+        on_flush(self.send_messages)
 
     def update_size(self):
         sz = os.get_terminal_size()
@@ -33,31 +32,16 @@ class TerminalService:
     def unsubscribe(self, client_id):
         self.subscriptions.discard(client_id)
 
-    def send_messages_sync(self, entries):
+    def send_messages(self, entries):
         if not len(entries) or not len(self.subscriptions):
             return
         
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError: 
-            loop = None
-
-        if loop and loop.is_running():
-            loop.create_task(self.send_messages(entries))
-        else:
-            asyncio.run(self.send_messages(entries))
-
-    async def send_messages(self, entries):
-        if not len(entries):
-            return
-
         new_size = self.update_size()
-
+        
         for client_id in self.subscriptions:
             if client_id not in self.server.sockets:
                 # Automatically unsub if the socket has disconnected
                 self.unsubscribe(client_id)
                 continue
 
-            await self.server.send_json(
-                "logs", {"entries": entries, "size": new_size}, client_id)
+            self.server.send_sync("logs", {"entries": entries, "size": new_size}, client_id)
