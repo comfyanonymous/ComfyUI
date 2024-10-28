@@ -455,7 +455,6 @@ def detect_te_model(sd):
 def t5xxl_detect(clip_data):
     weight_name = "encoder.block.23.layer.1.DenseReluDense.wi_1.weight"
 
-    dtype_t5 = None
     for sd in clip_data:
         if weight_name in sd:
             return comfy.text_encoders.sd3_clip.t5_xxl_detect(sd)
