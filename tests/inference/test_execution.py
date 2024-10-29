@@ -1,3 +1,4 @@
+import logging
 import uuid
 from contextvars import ContextVar
 from typing import Dict, Optional
@@ -73,7 +74,8 @@ class ComfyClient:
         prompt_id = str(uuid.uuid4())
         try:
             outputs = await self.embedded_client.queue_prompt(graph.finalize(), prompt_id=prompt_id)
-        except (RuntimeError, DependencyCycleError):
+        except (RuntimeError, DependencyCycleError) as exc_info:
+            logging.warning("error when queueing prompt", exc_info=exc_info)
             outputs = {}
         result = RunResult(prompt_id=prompt_id)
         result.outputs = outputs

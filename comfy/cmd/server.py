@@ -28,8 +28,8 @@ from aiohttp import web
 from can_ada import URL, parse as urlparse  # pylint: disable=no-name-in-module
 from typing_extensions import NamedTuple
 
-from .. import __version__
 from .latent_preview_image_encoding import encode_preview_image
+from .. import __version__
 from .. import interruption, model_management
 from .. import node_helpers
 from .. import utils
@@ -241,7 +241,7 @@ class PromptServer(ExecutorToClientProgress):
             return response
 
         @routes.get("/embeddings")
-        def get_embeddings(self):
+        def get_embeddings(request):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
 
@@ -568,15 +568,14 @@ class PromptServer(ExecutorToClientProgress):
 
         @routes.get("/object_info")
         async def get_object_info(request):
-            with folder_paths.cache_helper:
-                out = {}
-                for x in self.nodes.NODE_CLASS_MAPPINGS:
-                    try:
-                        out[x] = node_info(x)
-                    except Exception as e:
-                        logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
-                        logging.error(traceback.format_exc())
-                return web.json_response(out)
+            out = {}
+            for x in self.nodes.NODE_CLASS_MAPPINGS:
+                try:
+                    out[x] = node_info(x)
+                except Exception as e:
+                    logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
+                    logging.error(traceback.format_exc())
+            return web.json_response(out)
 
         @routes.get("/object_info/{node_class}")
         async def get_object_info_node(request):
@@ -721,21 +720,21 @@ class PromptServer(ExecutorToClientProgress):
         async def get_api_v1_prompts_prompt_id(request: web.Request) -> web.Response | web.FileResponse:
             prompt_id: str = request.match_info.get("prompt_id", "")
             if prompt_id == "":
-                return web.Response(status=404)
+                return web.json_response(status=404)
 
             history_items = self.prompt_queue.get_history(prompt_id)
             if len(history_items) == 0 or prompt_id not in history_items:
                 # todo: this should really be moved to a stateful queue abstraction
                 if prompt_id in self.background_tasks:
-                    return web.Response(status=204)
+                    return web.json_response(status=204)
                 else:
                     # todo: this should check a stateful queue abstraction
-                    return web.Response(status=404)
+                    return web.json_response(status=404)
             elif prompt_id in history_items:
                 history_entry = history_items[prompt_id]
                 return web.json_response(history_entry["outputs"])
             else:
-                return web.Response(status=500)
+                return web.json_response(status=500)
 
         @routes.post("/api/v1/prompts")
         async def post_api_prompt(request: web.Request) -> web.Response | web.FileResponse:
@@ -751,8 +750,8 @@ class PromptServer(ExecutorToClientProgress):
             queue_size = self.prompt_queue.size()
             queue_too_busy_size = PromptServer.get_too_busy_queue_size()
             if queue_size > queue_too_busy_size:
-                return web.Response(status=429,
-                                    reason=f"the queue has {queue_size} elements and {queue_too_busy_size} is the limit for this worker")
+                return web.json_response(status=429,
+                                         reason=f"the queue has {queue_size} elements and {queue_too_busy_size} is the limit for this worker")
             # read the request
             prompt_dict: dict = {}
             if content_type == 'application/json':

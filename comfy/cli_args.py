@@ -28,6 +28,7 @@ def _create_parser() -> EnhancedConfigArgParser:
 
     parser.add_argument('-w', "--cwd", type=str, default=None,
                         help="Specify the working directory. If not set, this is the current working directory. models/, input/, output/ and other directories will be located here by default.")
+    parser.add_argument("--base-paths", type=str, nargs='+', default=[], help="Additional base paths for custom nodes, models and inputs.")
     parser.add_argument('-H', "--listen", type=str, default="127.0.0.1", metavar="IP", nargs="?", const="0.0.0.0,::",
                         help="Specify the IP address to listen on (default: 127.0.0.1). You can give a list of ip addresses by separating them with a comma like: 127.2.2.2,127.3.3.3 If --listen is provided without an argument, it defaults to 0.0.0.0,:: (listens on all ipv4 and ipv6)")
     parser.add_argument("--port", type=int, default=8188, help="Set the listen port.")
@@ -161,7 +162,7 @@ def _create_parser() -> EnhancedConfigArgParser:
                         help="This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID")
     parser.add_argument("--external-address", required=False,
                         help="Specifies a base URL for external addresses reported by the API, such as for image paths.")
-    parser.add_argument("--verbose", default='INFO', const='DEBUG', nargs="?", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set the logging level')
+    parser.add_argument("--logging-level", type=str, default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set the logging level')
     parser.add_argument("--disable-known-models", action="store_true", help="Disables automatic downloads of known models and prevents them from appearing in the UI.")
     parser.add_argument("--max-queue-size", type=int, default=65536, help="The API will reject prompt requests if the queue's size exceeds this value.")
     # tracing
@@ -251,11 +252,6 @@ def _parse_args(parser: Optional[argparse.ArgumentParser] = None, args_parsing: 
     if args.disable_auto_launch:
         args.auto_launch = False
 
-    logging_level = logging.INFO
-    if args.verbose:
-        logging_level = logging.DEBUG
-
-    logging.basicConfig(format="%(message)s", level=logging_level)
     configuration_obj = Configuration(**vars(args))
     configuration_obj.config_files = config_files
     assert all(isinstance(config_file, str) for config_file in config_files)

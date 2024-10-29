@@ -2,11 +2,13 @@
 # TODO(yoland): clean up this after I get back down
 import os
 import tempfile
-from unittest.mock import patch
+from pathlib import Path
 
 import pytest
 
 from comfy.cmd import folder_paths
+from comfy.component_model.folder_path_types import FolderNames, ModelPaths
+from comfy.execution_context import context_folder_names_and_paths
 
 
 @pytest.fixture
@@ -40,16 +42,6 @@ def test_add_model_folder_path():
     assert "/test/path" in folder_paths.get_folder_paths("test_folder")
 
 
-def test_recursive_search(temp_dir):
-    os.makedirs(os.path.join(temp_dir, "subdir"))
-    open(os.path.join(temp_dir, "file1.txt"), "w").close()
-    open(os.path.join(temp_dir, "subdir", "file2.txt"), "w").close()
-
-    files, dirs = folder_paths.recursive_search(temp_dir)
-    assert set(files) == {"file1.txt", os.path.join("subdir", "file2.txt")}
-    assert len(dirs) == 2  # temp_dir and subdir
-
-
 def test_filter_files_extensions():
     files = ["file1.txt", "file2.jpg", "file3.png", "file4.txt"]
     assert folder_paths.filter_files_extensions(files, [".txt"]) == ["file1.txt", "file4.txt"]
@@ -57,16 +49,24 @@ def test_filter_files_extensions():
     assert folder_paths.filter_files_extensions(files, []) == files
 
 
-@patch("folder_paths.recursive_search")
-@patch("folder_paths.folder_names_and_paths")
-def test_get_filename_list(mock_folder_names_and_paths, mock_recursive_search):
-    mock_folder_names_and_paths.__getitem__.return_value = (["/test/path"], {".txt"})
-    mock_recursive_search.return_value = (["file1.txt", "file2.jpg"], {})
-    assert folder_paths.get_filename_list("test_folder") == ["file1.txt"]
+def test_get_filename_list(temp_dir):
+    base_path = Path(temp_dir)
+    fn = FolderNames(base_paths=[base_path])
+    rel_path = Path("test/path")
+    fn.add(ModelPaths(["test_folder"], additional_relative_directory_paths={rel_path}, supported_extensions={".txt"}))
+    dir_path = base_path / rel_path
+    Path.mkdir(dir_path, parents=True, exist_ok=True)
+    files = ["file1.txt", "file2.jpg"]
+
+    for file in files:
+        Path.touch(dir_path / file, exist_ok=True)
+
+    with context_folder_names_and_paths(fn):
+        assert folder_paths.get_filename_list("test_folder") == ["file1.txt"]
 
 
 def test_get_save_image_path(temp_dir):
-    with patch("folder_paths.output_directory", temp_dir):
+    with context_folder_names_and_paths(FolderNames(base_paths=[Path(temp_dir)])):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path("test", temp_dir, 100, 100)
         assert os.path.samefile(full_output_folder, temp_dir)
         assert filename == "test"

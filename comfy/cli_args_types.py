@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import collections
 import enum
+from pathlib import Path
 from typing import Optional, List, Callable, Any, Union, Mapping, NamedTuple
 
 import configargparse
@@ -36,15 +38,16 @@ class Configuration(dict):
 
     Attributes:
         config_files (Optional[List[str]]): Path to the configuration file(s) that were set in the arguments.
-        cwd (Optional[str]): Working directory. Defaults to the current directory.
+        cwd (Optional[str]): Working directory. Defaults to the current directory. This is always treated as a base path for model files, and it will be the place where model files are downloaded.
+        base_paths (Optional[list[str]]): Additional base paths for custom nodes, models and inputs.
         listen (str): IP address to listen on. Defaults to "127.0.0.1".
         port (int): Port number for the server to listen on. Defaults to 8188.
         enable_cors_header (Optional[str]): Enables CORS with the specified origin.
         max_upload_size (float): Maximum upload size in MB. Defaults to 100.
         extra_model_paths_config (Optional[List[str]]): Extra model paths configuration files.
-        output_directory (Optional[str]): Directory for output files.
+        output_directory (Optional[str]): Directory for output files. This can also be a relative path to the cwd or current working directory.
         temp_directory (Optional[str]): Temporary directory for processing.
-        input_directory (Optional[str]): Directory for input files.
+        input_directory (Optional[str]): Directory for input files. When this is a relative path, it will be looked up relative to the cwd (current working directory) and all of the base_paths.
         auto_launch (bool): Auto-launch UI in the default browser. Defaults to False.
         disable_auto_launch (bool): Disable auto-launching the browser.
         cuda_device (Optional[int]): CUDA device ID. None means default device.
@@ -87,7 +90,6 @@ class Configuration(dict):
         reserve_vram (Optional[float]): Set the amount of vram in GB you want to reserve for use by your OS/other software. By default some amount is reserved depending on your OS
         disable_smart_memory (bool): Disable smart memory management.
         deterministic (bool): Use deterministic algorithms where possible.
-        dont_print_server (bool): Suppress server output.
         quick_test_for_ci (bool): Enable quick testing mode for CI.
         windows_standalone_build (bool): Enable features for standalone Windows build.
         disable_metadata (bool): Disable saving metadata with outputs.
@@ -103,7 +105,7 @@ class Configuration(dict):
         distributed_queue_worker (bool): Workers will pull requests off the AMQP URL.
         distributed_queue_name (str): This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID.
         external_address (str): Specifies a base URL for external addresses reported by the API, such as for image paths.
-        verbose (bool | str): Shows extra output for debugging purposes such as import errors of custom nodes; or, specifies a log level
+        logging_level (str): Specifies a log level
         disable_known_models (bool): Disables automatic downloads of known models and prevents them from appearing in the UI.
         max_queue_size (int): The API will reject prompt requests if the queue's size exceeds this value.
         otel_service_name (str): The name of the service or application that is generating telemetry data. Default: "comfyui".
@@ -122,6 +124,7 @@ class Configuration(dict):
         self._observers: List[ConfigObserver] = []
         self.config_files = []
         self.cwd: Optional[str] = None
+        self.base_paths: list[Path] = []
         self.listen: str = "127.0.0.1"
         self.port: int = 8188
         self.enable_cors_header: Optional[str] = None
@@ -192,7 +195,7 @@ class Configuration(dict):
         self.force_channels_last: bool = False
         self.force_hf_local_dir_mode = False
         self.preview_size: int = 512
-        self.verbose: str | bool = "INFO"
+        self.logging_level: str = "INFO"
 
         # from guill
         self.cache_lru: int = 0
@@ -252,6 +255,17 @@ class Configuration(dict):
     def __setstate__(self, state):
         self.update(state)
         self._observers = []
+
+    @property
+    def verbose(self) -> str:
+        return self.logging_level
+
+    @verbose.setter
+    def verbose(self, value):
+        if isinstance(value, bool):
+            self.logging_level = "DEBUG"
+        else:
+            self.logging_level = value
 
 
 class EnumAction(argparse.Action):

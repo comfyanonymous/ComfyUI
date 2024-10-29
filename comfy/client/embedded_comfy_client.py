@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-import contextvars
 import gc
 import json
+import os
+import threading
 import uuid
 from asyncio import get_event_loop
-from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import RLock
+from pathlib import Path
 from typing import Optional
 
 from opentelemetry import context, propagate
@@ -17,13 +18,16 @@ from opentelemetry.trace import Status, StatusCode
 from .client_types import V1QueuePromptResponse
 from ..api.components.schema.prompt import PromptDict
 from ..cli_args_types import Configuration
+from ..cmd.folder_paths import init_default_paths
 from ..cmd.main_pre import tracer
-from ..component_model.executor_types import ExecutorToClientProgress, Executor
+from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.make_mutable import make_mutable
+from ..distributed.executors import ContextVarExecutor
 from ..distributed.process_pool_executor import ProcessPoolExecutor
 from ..distributed.server_stub import ServerStub
+from ..execution_context import current_execution_context
 
-_prompt_executor = contextvars.ContextVar('prompt_executor')
+_prompt_executor = threading.local()
 
 
 def _execute_prompt(
@@ -33,6 +37,9 @@ def _execute_prompt(
         span_context: dict,
         progress_handler: ExecutorToClientProgress | None,
         configuration: Configuration | None) -> dict:
+    execution_context = current_execution_context()
+    if len(execution_context.folder_names_and_paths) == 0 or configuration is not None:
+        init_default_paths(execution_context.folder_names_and_paths, configuration)
     span_context: Context = propagate.extract(span_context)
     token = attach(span_context)
     try:
@@ -52,8 +59,8 @@ def __execute_prompt(
     progress_handler = progress_handler or ServerStub()
 
     try:
-        prompt_executor = _prompt_executor.get()
-    except LookupError:
+        prompt_executor: PromptExecutor = _prompt_executor.executor
+    except (LookupError, AttributeError):
         if configuration is None:
             options.enable_args_parsing()
         else:
@@ -65,7 +72,7 @@ def __execute_prompt(
         with tracer.start_as_current_span("Initialize Prompt Executor", context=span_context) as span:
             prompt_executor = PromptExecutor(progress_handler, lru_size=configuration.cache_lru if configuration is not None else 0)
             prompt_executor.raise_exceptions = True
-            _prompt_executor.set(prompt_executor)
+            _prompt_executor.executor = prompt_executor
 
     with tracer.start_as_current_span("Execute Prompt", context=span_context) as span:
         try:
@@ -96,6 +103,13 @@ def __execute_prompt(
 
 
 def _cleanup():
+    from ..cmd.execution import PromptExecutor
+    try:
+        prompt_executor: PromptExecutor = _prompt_executor.executor
+        # this should clear all references to output tensors and make it easier to collect back the memory
+        prompt_executor.reset()
+    except (LookupError, AttributeError):
+        pass
     from .. import model_management
     model_management.unload_all_models()
     gc.collect()
@@ -139,9 +153,9 @@ class EmbeddedComfyClient:
     In order to use this in blocking methods, learn more about asyncio online.
     """
 
-    def __init__(self, configuration: Optional[Configuration] = None, progress_handler: Optional[ExecutorToClientProgress] = None, max_workers: int = 1, executor: Executor = None):
+    def __init__(self, configuration: Optional[Configuration] = None, progress_handler: Optional[ExecutorToClientProgress] = None, max_workers: int = 1, executor: ProcessPoolExecutor | ContextVarExecutor = None):
         self._progress_handler = progress_handler or ServerStub()
-        self._executor = executor or ThreadPoolExecutor(max_workers=max_workers)
+        self._executor = executor or ContextVarExecutor(max_workers=max_workers)
         self._configuration = configuration
         self._is_running = False
         self._task_count_lock = RLock()

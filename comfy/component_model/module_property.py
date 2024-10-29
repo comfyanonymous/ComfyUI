@@ -1,22 +1,44 @@
 import sys
+from functools import wraps
 
+def create_module_properties():
+    properties = {}
+    patched_modules = set()
 
-def module_property(func):
-    """Decorator to turn module functions into properties.
-    Function names must be prefixed with an underscore."""
-    module = sys.modules[func.__module__]
+    def patch_module(module):
+        if module in patched_modules:
+            return
 
-    def base_getattr(name):
-        raise AttributeError(
-            f"module '{module.__name__}' has no attribute '{name}'")
+        def base_getattr(name):
+            raise AttributeError(f"module '{module.__name__}' has no attribute '{name}'")
 
-    old_getattr = getattr(module, '__getattr__', base_getattr)
+        old_getattr = getattr(module, '__getattr__', base_getattr)
 
-    def new_getattr(name):
-        if f'_{name}' == func.__name__:
-            return func()
-        else:
-            return old_getattr(name)
+        def new_getattr(name):
+            if name in properties:
+                return properties[name]()
+            else:
+                return old_getattr(name)
 
-    module.__getattr__ = new_getattr
-    return func
+        module.__getattr__ = new_getattr
+        patched_modules.add(module)
+
+    class ModuleProperties:
+        @staticmethod
+        def getter(func):
+            @wraps(func)
+            def wrapper():
+                return func()
+
+            name = func.__name__
+            if name.startswith('_'):
+                properties[name[1:]] = wrapper
+            else:
+                raise ValueError("Property function names must start with an underscore")
+
+            module = sys.modules[func.__module__]
+            patch_module(module)
+
+            return wrapper
+
+    return ModuleProperties()

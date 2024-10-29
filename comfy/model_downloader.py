@@ -198,10 +198,6 @@ Visit the repository, accept the terms, and then do one of the following:
  - Login to Hugging Face in your terminal using `huggingface-cli login`
 """)
             raise exc_info
-        finally:
-            # a path was found for any reason, so we should invalidate the cache
-            if path is not None:
-                folder_paths.invalidate_cache(folder_name)
     if path is None:
         raise FileNotFoundError(f"Model in folder '{folder_name}' with filename '{filename}' not found, and no download candidates matched for the filename.")
     return path
@@ -504,7 +500,6 @@ def add_known_models(folder_name: str, known_models: Optional[List[Downloadable]
 
     pre_existing = frozenset(known_models)
     known_models.extend([model for model in models if model not in pre_existing])
-    folder_paths.invalidate_cache(folder_name)
     return known_models
 
 

@@ -111,13 +111,7 @@ def _create_tracer():
 
 
 def _configure_logging():
-    if isinstance(args.verbose, str):
-        logging_level = args.verbose
-    elif args.verbose == True:
-        logging_level = logging.DEBUG
-    else:
-        logging_level = logging.ERROR
-
+    logging_level = args.logging_level
     logging.basicConfig(format="%(message)s", level=logging_level)
 
 

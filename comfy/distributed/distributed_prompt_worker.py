@@ -10,11 +10,12 @@ from aio_pika.patterns import JsonRPC
 from aiohttp import web
 from aiormq import AMQPConnectionError
 
+from .executors import ContextVarExecutor
 from .distributed_progress import DistributedExecutorToClientProgress
 from .distributed_types import RpcRequest, RpcReply
+from .process_pool_executor import ProcessPoolExecutor
 from ..client.embedded_comfy_client import EmbeddedComfyClient
 from ..cmd.main_pre import tracer
-from ..component_model.executor_types import Executor
 from ..component_model.queue_types import ExecutionStatus
 
 
@@ -28,7 +29,7 @@ class DistributedPromptWorker:
                  queue_name: str = "comfyui",
                  health_check_port: int = 9090,
                  loop: Optional[AbstractEventLoop] = None,
-                 executor: Optional[Executor] = None):
+                 executor: Optional[ContextVarExecutor | ProcessPoolExecutor] = None):
         self._rpc = None
         self._channel = None
         self._exit_stack = AsyncExitStack()

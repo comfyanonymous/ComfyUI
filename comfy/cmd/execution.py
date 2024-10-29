@@ -27,7 +27,7 @@ from ..component_model.executor_types import ExecutorToClientProgress, Validatio
     HistoryResultDict, ExecutionErrorMessage, ExecutionInterruptedMessage
 from ..component_model.files import canonicalize_path
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
-from ..execution_context import new_execution_context, context_execute_node, ExecutionContext
+from ..execution_context import context_execute_node, context_execute_prompt
 from ..nodes.package import import_all_nodes_in_workspace
 from ..nodes.package_typing import ExportedNodes, InputTypeSpec, FloatSpecOptions, IntSpecOptions, CustomNode
 
@@ -77,23 +77,18 @@ class IsChangedCache:
 class CacheSet:
     def __init__(self, lru_size=None):
         if lru_size is None or lru_size == 0:
-            self.init_classic_cache()
+            # Performs like the old cache -- dump data ASAP
+
+            self.outputs = HierarchicalCache(CacheKeySetInputSignature)
+            self.ui = HierarchicalCache(CacheKeySetInputSignature)
+            self.objects = HierarchicalCache(CacheKeySetID)
         else:
-            self.init_lru_cache(lru_size)
+            # Useful for those with ample RAM/VRAM -- allows experimenting without
+            # blowing away the cache every time
+            self.outputs = LRUCache(CacheKeySetInputSignature, max_size=lru_size)
+            self.ui = LRUCache(CacheKeySetInputSignature, max_size=lru_size)
+            self.objects = HierarchicalCache(CacheKeySetID)
         self.all = [self.outputs, self.ui, self.objects]
-
-    # Useful for those with ample RAM/VRAM -- allows experimenting without
-    # blowing away the cache every time
-    def init_lru_cache(self, cache_size):
-        self.outputs = LRUCache(CacheKeySetInputSignature, max_size=cache_size)
-        self.ui = LRUCache(CacheKeySetInputSignature, max_size=cache_size)
-        self.objects = HierarchicalCache(CacheKeySetID)
-
-    # Performs like the old cache -- dump data ASAP
-    def init_classic_cache(self):
-        self.outputs = HierarchicalCache(CacheKeySetInputSignature)
-        self.ui = HierarchicalCache(CacheKeySetInputSignature)
-        self.objects = HierarchicalCache(CacheKeySetID)
 
     def recursive_debug_dump(self):
         result = {
@@ -308,11 +303,11 @@ def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, caches, 
     :param pending_subgraph_results:
     :return:
     """
-    with context_execute_node(_node_id, prompt_id):
+    with context_execute_node(_node_id):
         return _execute(server, dynprompt, caches, _node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results)
 
 
-def _execute(server, dynprompt, caches, current_item: str, extra_data, executed, prompt_id, execution_list, pending_subgraph_results) -> RecursiveExecutionTuple:
+def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra_data, executed, prompt_id, execution_list, pending_subgraph_results) -> RecursiveExecutionTuple:
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
     display_node_id = dynprompt.get_display_node_id(unique_id)
@@ -548,7 +543,7 @@ class PromptExecutor:
         # torchao and potentially other optimization approaches break when the models are created in inference mode
         # todo: this should really be backpropagated to code which creates ModelPatchers via lazy evaluation rather than globally checked here
         inference_mode = all(not hasattr(node_class, "INFERENCE_MODE") or node_class.INFERENCE_MODE for node_class in iterate_obj_classes(prompt))
-        with new_execution_context(ExecutionContext(self.server, task_id=prompt_id, inference_mode=inference_mode)):
+        with context_execute_prompt(self.server, prompt_id, inference_mode=inference_mode):
             self._execute_inner(prompt, prompt_id, extra_data, execute_outputs)
 
     def _execute_inner(self, prompt, prompt_id, extra_data=None, execute_outputs: List[str] = None, inference_mode: bool = True):

@@ -8,13 +8,15 @@ from typing import Tuple
 
 from typing_extensions import NotRequired, TypedDict
 
+from .outputs_types import OutputsDict
+
 QueueTuple = Tuple[float, str, dict, dict, list]
 MAXIMUM_HISTORY_SIZE = 10000
 
 
 class TaskInvocation(NamedTuple):
     item_id: int | str
-    outputs: dict
+    outputs: OutputsDict
     status: Optional[ExecutionStatus]
 
 

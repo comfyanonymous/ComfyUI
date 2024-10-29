@@ -13,7 +13,7 @@ from transformers.models.nllb.tokenization_nllb import \
     FAIRSEQ_LANGUAGE_CODES as tokenization_nllb_FAIRSEQ_LANGUAGE_CODES
 
 from comfy.cmd import folder_paths
-from comfy.component_model.folder_path_types import SaveImagePathResponse
+from comfy.component_model.folder_path_types import SaveImagePathTuple
 from comfy.language.chat_templates import KNOWN_CHAT_TEMPLATES
 from comfy.language.language_types import GENERATION_KWARGS_TYPE, GENERATION_KWARGS_TYPE_NAME, TOKENS_TYPE, \
     TOKENS_TYPE_NAME, LanguageModel
@@ -397,7 +397,7 @@ class SaveString(CustomNode):
     OUTPUT_NODE = True
     RETURN_TYPES = ()
 
-    def get_save_path(self, filename_prefix) -> SaveImagePathResponse:
+    def get_save_path(self, filename_prefix) -> SaveImagePathTuple:
         return folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory(), 0, 0)
 
     def execute(self, value: str | list[str], filename_prefix: str, extension: str = ".json"):

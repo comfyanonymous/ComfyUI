@@ -29,9 +29,9 @@ import sys
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
+from pickle import UnpicklingError
 from typing import Optional, Any
 
-import accelerate
 import numpy as np
 import safetensors.torch
 import torch
@@ -65,7 +65,7 @@ def load_torch_file(ckpt: str, safe_load=False, device=None):
     if ckpt is None:
         raise FileNotFoundError("the checkpoint was not found")
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
-        sd = safetensors.torch.load_file(ckpt, device=device.type)
+        sd = safetensors.torch.load_file(Path(ckpt).resolve(strict=True), device=device.type)
     elif ckpt.lower().endswith("index.json"):
         # from accelerate
         index_filename = ckpt
@@ -81,20 +81,29 @@ def load_torch_file(ckpt: str, safe_load=False, device=None):
         for checkpoint_file in checkpoint_files:
             sd.update(safetensors.torch.load_file(str(checkpoint_file), device=device.type))
     else:
-        if safe_load:
-            if not 'weights_only' in torch.load.__code__.co_varnames:
-                logging.warning("Warning torch.load doesn't support weights_only on this pytorch version, loading unsafely.")
-                safe_load = False
-        if safe_load:
-            pl_sd = torch.load(ckpt, map_location=device, weights_only=True)
-        else:
-            pl_sd = torch.load(ckpt, map_location=device, pickle_module=checkpoint_pickle)
-        if "global_step" in pl_sd:
-            logging.debug(f"Global Step: {pl_sd['global_step']}")
-        if "state_dict" in pl_sd:
-            sd = pl_sd["state_dict"]
-        else:
-            sd = pl_sd
+        try:
+            if safe_load:
+                if not 'weights_only' in torch.load.__code__.co_varnames:
+                    logging.warning("Warning torch.load doesn't support weights_only on this pytorch version, loading unsafely.")
+                    safe_load = False
+            if safe_load:
+                pl_sd = torch.load(ckpt, map_location=device, weights_only=True)
+            else:
+                pl_sd = torch.load(ckpt, map_location=device, pickle_module=checkpoint_pickle)
+            if "global_step" in pl_sd:
+                logging.debug(f"Global Step: {pl_sd['global_step']}")
+            if "state_dict" in pl_sd:
+                sd = pl_sd["state_dict"]
+            else:
+                sd = pl_sd
+        except UnpicklingError as exc_info:
+            try:
+                # wrong extension is most likely, try to load as safetensors anyway
+                sd = safetensors.torch.load_file(Path(ckpt).resolve(strict=True), device=device.type)
+                return sd
+            except Exception:
+                exc_info.add_note(f"The checkpoint at {ckpt} could not be loaded as a safetensor nor a torch checkpoint. The file at the path is corrupted or unexpected. Try deleting it and downloading it again")
+            raise exc_info
     return sd
 
 

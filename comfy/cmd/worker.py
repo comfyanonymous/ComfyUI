@@ -2,10 +2,11 @@ import asyncio
 import itertools
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
-from .extra_model_paths import load_extra_path_config
 from .main_pre import args
+from .extra_model_paths import load_extra_path_config
+from ..distributed.executors import ContextVarExecutor
 
 
 async def main():
@@ -43,7 +44,7 @@ async def main():
     from ..distributed.distributed_prompt_worker import DistributedPromptWorker
     async with DistributedPromptWorker(connection_uri=args.distributed_queue_connection_uri,
                                        queue_name=args.distributed_queue_name,
-                                       executor=ThreadPoolExecutor(max_workers=1) if args.executor_factory == "ThreadPoolExecutor" else ProcessPoolExecutor(max_workers=1)):
+                                       executor=ContextVarExecutor(max_workers=1) if args.executor_factory == "ThreadPoolExecutor" else ProcessPoolExecutor(max_workers=1)):
         stop = asyncio.Event()
         try:
             await stop.wait()

@@ -8,6 +8,7 @@ from typing import Optional, Literal, Protocol, Union, NamedTuple, List
 import PIL.Image
 from typing_extensions import NotRequired, TypedDict
 
+from .outputs_types import OutputsDict
 from .queue_types import BinaryEventTypes
 from ..cli_args_types import Configuration
 from ..nodes.package_typing import InputTypeSpec
@@ -205,8 +206,8 @@ class DuplicateNodeError(Exception):
 
 
 class HistoryResultDict(TypedDict, total=True):
-    outputs: dict
-    meta: dict
+    outputs: OutputsDict
+    meta: OutputsDict
 
 
 class DependencyCycleError(Exception):

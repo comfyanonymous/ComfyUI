@@ -2,13 +2,15 @@ import asyncio
 import warnings
 from pathlib import Path
 
-if __name__ == "__main__":
-    from comfy.cmd.folder_paths_pre import set_base_path
+from comfy.component_model.folder_path_types import FolderNames
 
+if __name__ == "__main__":
     warnings.warn("main.py is deprecated. Start comfyui by installing the package through the instructions in the README, not by cloning the repository.", DeprecationWarning)
     this_file_parent_dir = Path(__file__).parent
-    set_base_path(str(this_file_parent_dir))
-
     from comfy.cmd.main import main
+    from comfy.cmd.folder_paths import folder_names_and_paths  # type: FolderNames
+    fn: FolderNames = folder_names_and_paths
+    fn.base_paths.clear()
+    fn.base_paths.append(this_file_parent_dir)
 
     asyncio.run(main(from_script_dir=this_file_parent_dir))

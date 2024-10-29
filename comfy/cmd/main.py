@@ -1,4 +1,5 @@
 import asyncio
+import contextvars
 import gc
 import itertools
 import logging
@@ -193,7 +194,9 @@ async def main(from_script_dir: Optional[Path] = None):
     if not distributed or args.distributed_queue_worker:
         if distributed:
             logging.warning(f"Distributed workers started in the default thread loop cannot notify clients of progress updates. Instead of comfyui or main.py, use comfyui-worker.")
-        threading.Thread(target=prompt_worker, daemon=True, args=(q, worker_thread_server,)).start()
+        # todo: this should really be using an executor instead of doing things this jankilicious way
+        ctx = contextvars.copy_context()
+        threading.Thread(target=lambda _q, _worker_thread_server: ctx.run(prompt_worker, _q, _worker_thread_server), daemon=True, args=(q, worker_thread_server,)).start()
 
     # server has been imported and things should be looking good
     initialize_event_tracking(loop)

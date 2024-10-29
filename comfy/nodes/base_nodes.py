@@ -2,7 +2,6 @@ import torch
 
 import os
 import json
-import hashlib
 import math
 import random
 import logging
@@ -1654,7 +1653,7 @@ class LoadImageMask:
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required":
-                    {"image": (sorted(files), {"image_upload": True}),
+                    {"image": (natsorted(files), {"image_upload": True}),
                      "channel": (s._color_channels, ), }
                 }
 
