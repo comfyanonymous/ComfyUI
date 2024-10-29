@@ -3,12 +3,10 @@ from __future__ import annotations
 import asyncio
 import gc
 import json
-import os
 import threading
 import uuid
 from asyncio import get_event_loop
 from multiprocessing import RLock
-from pathlib import Path
 from typing import Optional
 
 from opentelemetry import context, propagate
@@ -18,7 +16,7 @@ from opentelemetry.trace import Status, StatusCode
 from .client_types import V1QueuePromptResponse
 from ..api.components.schema.prompt import PromptDict
 from ..cli_args_types import Configuration
-from ..cmd.folder_paths import init_default_paths
+from ..cmd.folder_paths import init_default_paths  # pylint: disable=import-error
 from ..cmd.main_pre import tracer
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.make_mutable import make_mutable

@@ -3,7 +3,7 @@ from typing import Optional
 from aiohttp import web
 
 from ...services.file_service import FileService
-from ....cmd.folder_paths import models_dir, user_directory, output_directory, folder_names_and_paths
+from ....cmd.folder_paths import models_dir, user_directory, output_directory, folder_names_and_paths  # pylint: disable=import-error
 
 
 class InternalRoutes:

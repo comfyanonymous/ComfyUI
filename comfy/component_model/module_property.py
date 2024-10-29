@@ -31,10 +31,7 @@ def create_module_properties():
                 return func()
 
             name = func.__name__
-            if name.startswith('_'):
-                properties[name[1:]] = wrapper
-            else:
-                raise ValueError("Property function names must start with an underscore")
+            properties[name[1:]] = wrapper
 
             module = sys.modules[func.__module__]
             patch_module(module)

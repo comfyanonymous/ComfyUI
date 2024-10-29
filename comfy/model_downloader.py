@@ -21,7 +21,7 @@ from safetensors.torch import save_file
 
 from .cli_args import args
 from .cmd import folder_paths
-from .cmd.folder_paths import add_model_folder_path, supported_pt_extensions
+from .cmd.folder_paths import add_model_folder_path, supported_pt_extensions  # pylint: disable=import-error
 from .component_model.deprecation import _deprecate_method
 from .component_model.files import canonicalize_path
 from .interruption import InterruptProcessingException

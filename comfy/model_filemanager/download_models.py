@@ -12,7 +12,7 @@ from typing import Callable, Any, Optional, Awaitable, Dict
 
 import aiohttp
 
-from ..cmd.folder_paths import folder_names_and_paths, get_folder_paths
+from ..cmd.folder_paths import folder_names_and_paths, get_folder_paths  # pylint: disable=import-error
 
 
 class DownloadStatusType(Enum):

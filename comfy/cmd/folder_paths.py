@@ -416,13 +416,13 @@ init_default_paths(_folder_names_and_paths())
 __all__ = [
     "supported_pt_extensions",
     "extension_mimetypes_cache",
-    "base_path",
-    "folder_names_and_paths",
-    "models_dir",
-    "user_directory",
-    "output_directory",
-    "temp_directory",
-    "input_directory",
+    "base_path",  # pylint: disable=undefined-all-variable
+    "folder_names_and_paths",  # pylint: disable=undefined-all-variable
+    "models_dir",  # pylint: disable=undefined-all-variable
+    "user_directory",  # pylint: disable=undefined-all-variable
+    "output_directory",  # pylint: disable=undefined-all-variable
+    "temp_directory",  # pylint: disable=undefined-all-variable
+    "input_directory",  # pylint: disable=undefined-all-variable
 
     # Public functions
     "init_default_paths",
