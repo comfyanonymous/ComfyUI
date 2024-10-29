@@ -6,9 +6,9 @@ import os
 import typing
 import weakref
 from abc import ABC, abstractmethod
+from pathlib import Path, PurePosixPath
 from typing import Any, NamedTuple, Optional, Iterable
 
-from pathlib import Path
 from .platform_path import construct_path
 
 supported_pt_extensions = frozenset(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft', ".index.json"])
@@ -288,7 +288,15 @@ class FolderNames:
         :param folder_paths_dict: A dictionary
         :return: A FolderNames object
         """
-        raise NotImplementedError()
+        fn = FolderNames()
+        for folder_name, (paths, extensions) in folder_paths_dict.items():
+            fn.add(
+                ModelPaths(folder_names=[folder_name],
+                           supported_extensions=set(extensions),
+                           additional_relative_directory_paths=set(path for path in paths if not Path(path).is_absolute()),
+                           additional_absolute_directory_paths=set(path for path in paths if Path(path).is_absolute()), folder_names_are_relative_directory_paths_too=False
+                           ))
+        return fn
 
     def __getitem__(self, folder_name) -> FolderPathsTuple:
         if not isinstance(folder_name, str) or folder_name is None:
