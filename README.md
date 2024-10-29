@@ -43,8 +43,8 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 > After a while we need to keep updating certain packages to keep up with the original app and certain requirements of
 > some models etc. So, torch is changed over time , but this gave gpu's prior to rdna some negative performance. 
 > So for these gpu's please use `fixforrx580.bat` if you are having memory problems too much slowdown etc. This
-> is not mandotary and it won't just make your gpu much faster but a bit less problematic then using latest torch
-> we use with other gpu's.
+> is not mandatory and it won't just make your gpu faster then before but it would be less problematic then using latest torch
+> that we use with other gpu's.
 
 ## Dependencies
 
