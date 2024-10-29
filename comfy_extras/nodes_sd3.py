@@ -3,7 +3,7 @@ import comfy.sd
 import comfy.model_management
 import nodes
 import torch
-
+import re
 class TripleCLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -106,8 +106,8 @@ class SkipLayerGuidanceSD3:
         return {"required": {"model": ("MODEL", ),
                              "layers": ("STRING", {"default": "7,8,9", "multiline": False}),
                              "scale": ("FLOAT", {"default": 3.0, "min": 0.0, "max": 10.0, "step": 0.1}),
-                             "start_percent": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0, "step": 0.001}),
-                             "end_percent": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.001})
+                             "start_percent": ("FLOAT", {"default": 0.01, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             "end_percent": ("FLOAT", {"default": 0.15, "min": 0.0, "max": 1.0, "step": 0.001})
                                 }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "skip_guidance"
@@ -122,31 +122,35 @@ class SkipLayerGuidanceSD3:
         assert layers.replace(",", "").isdigit(), "Layers must be comma separated integers"
         def skip(args, extra_args):
             return args
-        
+
+        model_sampling = model.get_model_object("model_sampling")
+
         def post_cfg_function(args):
+            model = args["model"]
             cond_pred = args["cond_denoised"]
             cond = args["cond"]
             cfg_result = args["denoised"]
             sigma = args["sigma"]
-            sigma = args["sigma"]
             x = args["input"]
-
-            percentage = 1 - (1000 ** sigma[0].item())/1000
-            if scale > 0 and percentage > start_percent and percentage < end_percent:
-                (slg,) = comfy.samplers.calc_cond_batch(m_slg.model, [cond], x, sigma, m_slg.model_options)
+            model_options = args["model_options"].copy()
+        
+            for layer in layers:
+                model_options = comfy.model_patcher.set_model_options_patch_replace(model_options, skip, "dit", "double_block", layer)
+            model_sampling.percent_to_sigma(start_percent)
+            sigma_start = model_sampling.percent_to_sigma(start_percent)
+            sigma_end = model_sampling.percent_to_sigma(end_percent)
+            sigma_ = sigma[0].item()
+            if scale > 0 and sigma_ > sigma_end and sigma_ < sigma_start:
+                (slg,) = comfy.samplers.calc_cond_batch(model, [cond], x, sigma, model_options)
                 cfg_result = cfg_result + (cond_pred - slg) * scale
             return cfg_result
-        layers = [int(x) for x in layers.split(",")]
-        m_post_cfg = model.clone()
-        m_slg = model.clone()
 
-        for layer in layers:
-            m_slg.set_model_patch_replace(skip, "dit", "double_block", layer)
+        layers = re.findall(r'\d+', layers)
+        layers = [int(i) for i in layers]
+        m = model.clone()
+        m.set_model_sampler_post_cfg_function(post_cfg_function)
 
-        m_post_cfg.set_model_sampler_post_cfg_function(post_cfg_function)
-
-
-        return (m_post_cfg, )
+        return (m, )
 
 
 NODE_CLASS_MAPPINGS = {
