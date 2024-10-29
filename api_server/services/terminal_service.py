@@ -38,7 +38,7 @@ class TerminalService:
         
         new_size = self.update_size()
         
-        for client_id in self.subscriptions:
+        for client_id in self.subscriptions.copy(): # prevent: Set changed size during iteration
             if client_id not in self.server.sockets:
                 # Automatically unsub if the socket has disconnected
                 self.unsubscribe(client_id)
