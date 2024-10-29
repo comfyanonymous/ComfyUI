@@ -46,8 +46,10 @@ def get_logs():
 
 
 def on_flush(callback):
-    stdout_interceptor.on_flush(callback)
-    stderr_interceptor.on_flush(callback)
+    if stdout_interceptor is not None:
+        stdout_interceptor.on_flush(callback)
+    if stderr_interceptor is not None:
+        stderr_interceptor.on_flush(callback)
 
 def setup_logger(log_level: str = 'INFO', capacity: int = 300):
     global logs
