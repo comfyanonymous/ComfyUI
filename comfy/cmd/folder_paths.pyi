@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 from typing import Optional, List, Literal, Tuple, Union, Dict
 
-from comfy.cli_args_types import Configuration
-from comfy.component_model.folder_path_types import FolderNames, SaveImagePathTuple
+from ..cli_args_types import Configuration
+from ..component_model.folder_path_types import FolderNames, SaveImagePathTuple
 
 # Variables
 base_path: str

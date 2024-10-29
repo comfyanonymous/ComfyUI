@@ -88,10 +88,9 @@ class LoraSave:
                              "lora_type": (tuple(LORA_TYPES.keys()),),
                              "bias_diff": ("BOOLEAN", {"default": True}),
                              },
-                "optional": {"model_diff": ("MODEL",),
-                             "text_encoder_diff": ("CLIP",)},
+                "optional": {"model_diff": ("MODEL", {"tooltip": "The ModelSubtract output to be converted to a lora."}),
+                             "text_encoder_diff": ("CLIP", {"tooltip": "The CLIPSubtract output to be converted to a lora."})},
                 }
-
     RETURN_TYPES = ()
     FUNCTION = "save"
     OUTPUT_NODE = True
@@ -120,4 +119,8 @@ class LoraSave:
 
 NODE_CLASS_MAPPINGS = {
     "LoraSave": LoraSave
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "LoraSave": "Extract and Save Lora"
 }

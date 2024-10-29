@@ -15,8 +15,25 @@ class T5XXLModel(sd1_clip.SDClipModel):
         if model_options is None:
             model_options = {}
         textmodel_json_config = files.get_path_as_dict(textmodel_json_config, "t5_config_xxl.json", package=__package__)
+        t5xxl_scaled_fp8 = model_options.get("t5xxl_scaled_fp8", None)
+        if t5xxl_scaled_fp8 is not None:
+            model_options = model_options.copy()
+            model_options["scaled_fp8"] = t5xxl_scaled_fp8
+
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5, model_options=model_options)
 
+
+def t5_xxl_detect(state_dict, prefix=""):
+    out = {}
+    t5_key = "{}encoder.final_layer_norm.weight".format(prefix)
+    if t5_key in state_dict:
+        out["dtype_t5"] = state_dict[t5_key].dtype
+
+    scaled_fp8_key = "{}scaled_fp8".format(prefix)
+    if scaled_fp8_key in state_dict:
+        out["t5xxl_scaled_fp8"] = state_dict[scaled_fp8_key].dtype
+
+    return out
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data=None):
@@ -154,10 +171,13 @@ class SD3ClipModel(torch.nn.Module):
             return self.t5xxl.load_sd(sd)
 
 
-def sd3_clip(clip_l=True, clip_g=True, t5=True, dtype_t5=None, t5_attention_mask=False):
+def sd3_clip(clip_l=True, clip_g=True, t5=True, dtype_t5=None, t5xxl_scaled_fp8=None, t5_attention_mask=False):
     class SD3ClipModel_(SD3ClipModel):
         def __init__(self, device="cpu", dtype=None, model_options=None):
             if model_options is None:
                 model_options = {}
+            if t5xxl_scaled_fp8 is not None and "t5xxl_scaled_fp8" not in model_options:
+                model_options = model_options.copy()
+                model_options["t5xxl_scaled_fp8"] = t5xxl_scaled_fp8
             super().__init__(clip_l=clip_l, clip_g=clip_g, t5=t5, dtype_t5=dtype_t5, t5_attention_mask=t5_attention_mask, device=device, dtype=dtype, model_options=model_options)
     return SD3ClipModel_

@@ -747,6 +747,9 @@ def unet_dtype(device=None, model_params=0, supported_dtypes=(torch.float16, tor
         pass
 
     if fp8_dtype is not None:
+        if supports_fp8_compute(device): #if fp8 compute is supported the casting is most likely not expensive
+            return fp8_dtype
+
         free_model_memory = maximum_vram_for_weights(device)
         if model_params * 2 > free_model_memory:
             return fp8_dtype
@@ -955,29 +958,21 @@ def force_channels_last():
     # TODO
     return False
 
+def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False):
+    if device is None or weight.device == device:
+        if not copy:
+            if dtype is None or weight.dtype == dtype:
+                return weight
+        return weight.to(dtype=dtype, copy=copy)
+
+    r = torch.empty_like(weight, dtype=dtype, device=device)
+    r.copy_(weight, non_blocking=non_blocking)
+    return r
 
 def cast_to_device(tensor, device, dtype, copy=False):
-    with model_management_lock:
-        device_supports_cast = False
-        if tensor.dtype == torch.float32 or tensor.dtype == torch.float16:
-            device_supports_cast = True
-        elif tensor.dtype == torch.bfloat16:
-            if hasattr(device, 'type') and device.type.startswith("cuda"):
-                device_supports_cast = True
-            elif is_intel_xpu():
-                device_supports_cast = True
+    non_blocking = device_supports_non_blocking(device)
+    return cast_to(tensor, dtype=dtype, device=device, non_blocking=non_blocking, copy=copy)
 
-        non_blocking = device_should_use_non_blocking(device)
-
-        if device_supports_cast:
-            if copy:
-                if tensor.device == device:
-                    return tensor.to(dtype, copy=copy, non_blocking=non_blocking)
-                return tensor.to(device, copy=copy, non_blocking=non_blocking).to(dtype, non_blocking=non_blocking)
-            else:
-                return tensor.to(device, non_blocking=non_blocking).to(dtype, non_blocking=non_blocking)
-        else:
-            return tensor.to(device, dtype, copy=copy, non_blocking=non_blocking)
 
 
 FLASH_ATTENTION_ENABLED = False

@@ -104,6 +104,31 @@ class LowVramPatch:
         return lora.calculate_weight(self.patches[self.key], weight, self.key, intermediate_dtype=intermediate_dtype)
 
 
+def get_key_weight(model, key):
+    set_func = None
+    convert_func = None
+    op_keys = key.rsplit('.', 1)
+    if len(op_keys) < 2:
+        weight = utils.get_attr(model, key)
+    else:
+        op = utils.get_attr(model, op_keys[0])
+        try:
+            set_func = getattr(op, "set_{}".format(op_keys[1]))
+        except AttributeError:
+            pass
+
+        try:
+            convert_func = getattr(op, "convert_{}".format(op_keys[1]))
+        except AttributeError:
+            pass
+
+        weight = getattr(op, op_keys[1])
+        if convert_func is not None:
+            weight = utils.get_attr(model, key)
+
+    return weight, set_func, convert_func
+
+
 class ModelPatcher(ModelManageable):
     def __init__(self, model: torch.nn.Module, load_device: torch.device, offload_device: torch.device, size=0, weight_inplace_update=False, ckpt_name: Optional[str] = None):
         self.size = size
@@ -321,14 +346,16 @@ class ModelPatcher(ModelManageable):
                 if not k.startswith(filter_prefix):
                     continue
             bk: torch.nn.Module | None = self.backup.get(k, None)
+            weight, set_func, convert_func = get_key_weight(self.model, k)
             if bk is not None:
                 weight = bk.weight
-            else:
-                weight = model_sd[k]
+            if convert_func is None:
+                convert_func = lambda a, **kwargs: a
+
             if k in self.patches:
-                p[k] = [weight] + self.patches[k]
+                p[k] = [(weight, convert_func)] + self.patches[k]
             else:
-                p[k] = (weight,)
+                p[k] = [(weight, convert_func)]
         return p
 
     def model_state_dict(self, filter_prefix=None):
@@ -344,8 +371,7 @@ class ModelPatcher(ModelManageable):
         if key not in self.patches:
             return
 
-        weight = utils.get_attr(self.model, key)
-
+        weight, set_func, convert_func = get_key_weight(self.model, key)
         inplace_update = self.weight_inplace_update or inplace_update
 
         if key not in self.backup:
@@ -355,12 +381,18 @@ class ModelPatcher(ModelManageable):
             temp_weight = model_management.cast_to_device(weight, device_to, torch.float32, copy=True)
         else:
             temp_weight = weight.to(torch.float32, copy=True)
+        if convert_func is not None:
+            temp_weight = convert_func(temp_weight, inplace=True)
+
         out_weight = lora.calculate_weight(self.patches[key], temp_weight, key)
-        out_weight = stochastic_rounding(out_weight, weight.dtype, seed=string_to_seed(key))
-        if inplace_update:
-            utils.copy_to_param(self.model, key, out_weight)
+        if set_func is None:
+            out_weight = stochastic_rounding(out_weight, weight.dtype, seed=string_to_seed(key))
+            if inplace_update:
+                utils.copy_to_param(self.model, key, out_weight)
+            else:
+                utils.set_attr_param(self.model, key, out_weight)
         else:
-            utils.set_attr_param(self.model, key, out_weight)
+            set_func(out_weight, inplace_update=inplace_update, seed=string_to_seed(key))
 
     def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
         mem_counter = 0

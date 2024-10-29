@@ -3,17 +3,9 @@ import copy
 import torch
 from transformers import T5TokenizerFast
 
-from .t5 import T5
+from .sd3_clip import T5XXLModel
 from .. import sd1_clip, model_management
 from ..component_model import files
-
-
-class T5XXLModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, model_options=None, textmodel_json_config=None):
-        if model_options is None:
-            model_options = dict()
-        textmodel_json_config = files.get_path_as_dict(textmodel_json_config, "t5_config_xxl.json", package=__package__)
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5)
 
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
@@ -83,11 +75,14 @@ class FluxClipModel(torch.nn.Module):
             return self.t5xxl.load_sd(sd)
 
 
-def flux_clip(dtype_t5=None):
+def flux_clip(dtype_t5=None, t5xxl_scaled_fp8=None):
     class FluxClipModel_(FluxClipModel):
         def __init__(self, device="cpu", dtype=None, model_options=None):
             if model_options is None:
                 model_options = {}
+            if t5xxl_scaled_fp8 is not None and "t5xxl_scaled_fp8" not in model_options:
+                model_options = model_options.copy()
+                model_options["t5xxl_scaled_fp8"] = t5xxl_scaled_fp8
             super().__init__(dtype_t5=dtype_t5, device=device, dtype=dtype, model_options=model_options)
 
     return FluxClipModel_

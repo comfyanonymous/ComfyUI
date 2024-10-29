@@ -112,11 +112,20 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         config = get_path_as_dict(textmodel_json_config, "sd1_clip_config.json", package=__package__)
 
         operations = model_options.get("custom_operations", None)
+        scaled_fp8 = None
+
         if operations is None:
-            operations = ops.manual_cast
+            scaled_fp8 = model_options.get("scaled_fp8", None)
+            if scaled_fp8 is not None:
+                operations = ops.scaled_fp8_ops(fp8_matrix_mult=False, override_dtype=scaled_fp8)
+            else:
+                operations = ops.manual_cast
 
         self.operations = operations
         self.transformer = model_class(config, dtype, device, self.operations)
+        if scaled_fp8 is not None:
+            self.transformer.scaled_fp8 = torch.nn.Parameter(torch.tensor([], dtype=scaled_fp8))
+
         self.num_layers = self.transformer.num_layers
 
         self.max_length = max_length

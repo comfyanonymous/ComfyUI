@@ -60,7 +60,7 @@ class HeuristicPath(NamedTuple):
 async def send_socket_catch_exception(function, message):
     try:
         await function(message)
-    except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError) as err:
+    except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError, BrokenPipeError, ConnectionError) as err:
         logging.warning("send error: {}".format(err))
 
 
