@@ -70,6 +70,11 @@ def detect_unet_config(state_dict, key_prefix):
         context_processor = '{}context_processor.layers.0.attn.qkv.weight'.format(key_prefix)
         if context_processor in state_dict_keys:
             unet_config["context_processor_layers"] = count_blocks(state_dict_keys, '{}context_processor.layers.'.format(key_prefix) + '{}.')
+        unet_config["x_block_self_attn_layers"] = []
+        for key in state_dict_keys:
+            if key.startswith('{}joint_blocks.'.format(key_prefix)) and key.endswith('.x_block.attn2.qkv.weight'):
+                layer = key[len('{}joint_blocks.'.format(key_prefix)):-len('.x_block.attn2.qkv.weight')]
+                unet_config["x_block_self_attn_layers"].append(int(layer))
         return unet_config
 
     if '{}clf.1.weight'.format(key_prefix) in state_dict_keys: #stable cascade
