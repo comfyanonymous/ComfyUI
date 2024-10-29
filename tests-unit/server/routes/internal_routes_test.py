@@ -8,7 +8,7 @@ from folder_paths import models_dir, user_directory, output_directory
 
 @pytest.fixture
 def internal_routes():
-    return InternalRoutes()
+    return InternalRoutes(None)
 
 @pytest.fixture
 def aiohttp_client_factory(aiohttp_client, internal_routes):
