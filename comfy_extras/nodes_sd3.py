@@ -95,11 +95,66 @@ class ControlNetApplySD3(nodes.ControlNetApplyAdvanced):
     CATEGORY = "conditioning/controlnet"
     DEPRECATED = True
 
+class SkipLayerGuidanceSD3:
+    '''
+    Enhance guidance towards detailed dtructure by having another set of CFG negative with skipped layers.
+    Inspired by Perturbed Attention Guidance (https://arxiv.org/abs/2403.17377)
+    Experimental implementation by Dango233@StabilityAI.
+    '''
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"model": ("MODEL", ),
+                             "layers": ("STRING", {"default": "7,8,9", "multiline": False}),
+                             "scale": ("FLOAT", {"default": 3.0, "min": 0.0, "max": 10.0, "step": 0.1}),
+                             "start_percent": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             "end_percent": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.001})
+                                }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "skip_guidance"
+
+    CATEGORY = "advanced/guidance"
+
+
+    def skip_guidance(self, model, layers, scale, start_percent, end_percent):
+        if layers == "" or layers == None:
+            return (model, )
+        # check if layer is comma separated integers
+        assert layers.replace(",", "").isdigit(), "Layers must be comma separated integers"
+        def skip(args, extra_args):
+            return args
+        
+        def post_cfg_function(args):
+            cond_pred = args["cond_denoised"]
+            cond = args["cond"]
+            cfg_result = args["denoised"]
+            sigma = args["sigma"]
+            sigma = args["sigma"]
+            x = args["input"]
+
+            percentage = 1 - (1000 ** sigma[0].item())/1000
+            if scale > 0 and percentage > start_percent and percentage < end_percent:
+                (slg,) = comfy.samplers.calc_cond_batch(m_slg.model, [cond], x, sigma, m_slg.model_options)
+                cfg_result = cfg_result + (cond_pred - slg) * scale
+            return cfg_result
+        layers = [int(x) for x in layers.split(",")]
+        m_post_cfg = model.clone()
+        m_slg = model.clone()
+
+        for layer in layers:
+            m_slg.set_model_patch_replace(skip, "dit", "double_block", layer)
+
+        m_post_cfg.set_model_sampler_post_cfg_function(post_cfg_function)
+
+
+        return (m_post_cfg, )
+
+
 NODE_CLASS_MAPPINGS = {
     "TripleCLIPLoader": TripleCLIPLoader,
     "EmptySD3LatentImage": EmptySD3LatentImage,
     "CLIPTextEncodeSD3": CLIPTextEncodeSD3,
     "ControlNetApplySD3": ControlNetApplySD3,
+    "SkipLayerGuidanceSD3": SkipLayerGuidanceSD3,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
