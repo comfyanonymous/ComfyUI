@@ -321,7 +321,7 @@ class HookGroup:
                 # check if is a keyframe that works for the current t_range
                 for stored_range, stored_kf in val:
                     # if stored start is less than current end, then fits - give it assigned keyframe
-                    if stored_range[0] < t_range[1]:
+                    if stored_range[0] < t_range[1] and stored_range[1] > t_range[0]:
                         keyframe = stored_kf
                         break
                 hooks_schedule.append((hook, keyframe))
