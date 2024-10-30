@@ -280,11 +280,14 @@ class VAEDecode:
     CATEGORY = "latent"
     DESCRIPTION = "Decodes latent images back into pixel space images."
 
-    def decode(self, vae, samples):
-        images = vae.decode(samples["samples"])
-        if len(images.shape) == 5: #Combine batches
-            images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
-        return (images, )
+    def decode(self, vae, samples, tile_size=512):
+        try:
+            images = vae.decode(samples["samples"])
+            if len(images.shape) == 5: #Combine batches
+                images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
+            return (images, )
+        except (MemoryError, RuntimeError) as e:
+            return (vae.decode_tiled(samples["samples"], tile_x=tile_size // 8, tile_y=tile_size // 8, ), )
 
 class VAEDecodeTiled:
     @classmethod
