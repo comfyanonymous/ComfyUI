@@ -28,6 +28,7 @@ from ... import ops
 ops = ops.disable_weight_init
 
 FORCE_UPCAST_ATTENTION_DTYPE = model_management.force_upcast_attention_dtype()
+logger = logging.getLogger(__name__)
 
 
 def get_attn_precision(attn_precision):
@@ -324,12 +325,12 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
                 model_management.soft_empty_cache(True)
                 if cleared_cache == False:
                     cleared_cache = True
-                    logging.warning("out of memory error, emptying cache and trying again")
+                    logger.warning("out of memory error, emptying cache and trying again")
                     continue
                 steps *= 2
                 if steps > 64:
                     raise e
-                logging.warning("out of memory error, increasing steps and trying again {}".format(steps))
+                logger.warning("out of memory error, increasing steps and trying again {}".format(steps))
             else:
                 raise e
 
@@ -432,20 +433,20 @@ def attention_flash_attn(q, k, v, heads, mask=None, attn_precision=None, skip_re
 optimized_attention = attention_basic
 
 if model_management.sage_attention_enabled():
-    logging.debug("Using sage attention")
+    logger.info("Using sage attention")
     optimized_attention = attention_sageattn
 elif model_management.xformers_enabled():
-    logging.debug("Using xformers cross attention")
+    logger.info("Using xformers cross attention")
     optimized_attention = attention_xformers
 elif model_management.pytorch_attention_enabled():
-    logging.debug("Using pytorch cross attention")
+    logger.info("Using pytorch cross attention")
     optimized_attention = attention_pytorch
 else:
     if args.use_split_cross_attention:
-        logging.debug("Using split optimization for cross attention")
+        logger.info("Using split optimization for cross attention")
         optimized_attention = attention_split
     else:
-        logging.debug("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
+        logger.info("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
         optimized_attention = attention_sub_quad
 
 optimized_attention_masked = optimized_attention

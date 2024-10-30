@@ -191,6 +191,7 @@ package_data = [
     '**/*'
 ]
 dev_dependencies = open(os.path.join(os.path.dirname(__file__), "requirements-dev.txt")).readlines()
+triton_dependencies = open(os.path.join(os.path.dirname(__file__), "requirements-triton.txt")).readlines()
 setup(
     name=package_name,
     description="An installable version of ComfyUI",
@@ -213,6 +214,7 @@ setup(
     extras_require={
         'withtorch': dependencies(install_torch_for_system=True),
         'withtorchnightly': dependencies(install_torch_for_system=True, force_nightly=True),
+        'withtriton': dependencies(install_torch_for_system=True) + triton_dependencies,
         'dev': dev_dependencies
     },
 )

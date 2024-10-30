@@ -18,6 +18,7 @@
 from typing import Optional
 
 import torch
+from torch import Tensor
 
 from . import model_management
 from .cli_args import args
@@ -92,7 +93,10 @@ class skip_init:
         pass
 
     class Embedding(SkipInit, torch.nn.Embedding):
-        pass
+        def forward(self, *args, **kwargs) -> Tensor:
+            if "out_dtype" in kwargs:
+                kwargs.pop("out_dtype")
+            return super().forward(*args, **kwargs)
 
     @classmethod
     def conv_nd(cls, dims, *args, **kwargs):

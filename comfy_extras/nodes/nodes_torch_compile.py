@@ -1,6 +1,10 @@
 import logging
+import os
+from pathlib import Path
+from typing import Union
 
 import torch
+import torch._inductor.codecache
 from torch.nn import LayerNorm
 
 from comfy import model_management
@@ -8,6 +12,35 @@ from comfy.model_patcher import ModelPatcher
 from comfy.nodes.package_typing import CustomNode, InputTypes
 
 DIFFUSION_MODEL = "diffusion_model"
+TORCH_COMPILE_BACKENDS = [
+    "inductor",
+    "torch_tensorrt",
+    "onnxrt",
+    "cudagraphs",
+    "openxla",
+    "tvm"
+]
+
+TORCH_COMPILE_MODES = [
+    "default",
+    "reduce-overhead",
+    "max-autotune",
+    "max-autotune-no-cudagraphs"
+]
+
+# fix torch bug on windows
+_old_write_atomic = torch._inductor.codecache.write_atomic
+
+
+def write_atomic(
+        path: str, content: Union[str, bytes], make_dirs: bool = False
+) -> None:
+    if Path(path).exists():
+        os.remove(path)
+    _old_write_atomic(path, content, make_dirs=make_dirs)
+
+
+torch._inductor.codecache.write_atomic = write_atomic
 
 
 class TorchCompileModel(CustomNode):
@@ -21,40 +54,46 @@ class TorchCompileModel(CustomNode):
                 "object_patch": ("STRING", {"default": DIFFUSION_MODEL}),
                 "fullgraph": ("BOOLEAN", {"default": False}),
                 "dynamic": ("BOOLEAN", {"default": False}),
-                "backend": ("STRING", {"default": "inductor"}),
+                "backend": (TORCH_COMPILE_BACKENDS, {"default": "inductor"}),
+                "mode": (TORCH_COMPILE_MODES, {"default": "max-autotune"})
             }
         }
 
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
-    INFERENCE_MODE = False
+    # INFERENCE_MODE = False
 
     CATEGORY = "_for_testing"
     EXPERIMENTAL = True
 
-    def patch(self, model: ModelPatcher, object_patch: str | None = DIFFUSION_MODEL, fullgraph: bool = False, dynamic: bool = False, backend: str = "inductor") -> tuple[ModelPatcher]:
+    def patch(self, model: ModelPatcher, object_patch: str | None = DIFFUSION_MODEL, fullgraph: bool = False, dynamic: bool = False, backend: str = "inductor", mode: str = "max-autotune") -> tuple[ModelPatcher]:
         if object_patch is None:
             object_patch = DIFFUSION_MODEL
         compile_kwargs = {
             "fullgraph": fullgraph,
             "dynamic": dynamic,
-            "backend": backend
+            "backend": backend,
+            "mode": mode,
         }
-        if backend == "torch_tensorrt":
-            compile_kwargs["options"] = {
-                # https://pytorch.org/TensorRT/dynamo/torch_compile.html
-                # Quantization/INT8 support is slated for a future release; currently, we support FP16 and FP32 precision layers.
-                "enabled_precisions": {torch.float, torch.half}
-            }
-        if isinstance(model, ModelPatcher):
-            m = model.clone()
-            m.add_object_patch(object_patch, torch.compile(model=m.get_model_object(object_patch), **compile_kwargs))
-            return (m,)
-        elif isinstance(model, torch.nn.Module):
-            return torch.compile(model=model, **compile_kwargs),
-        else:
-            logging.warning("Encountered a model that cannot be compiled")
-            return model,
+        try:
+            if backend == "torch_tensorrt":
+                compile_kwargs["options"] = {
+                    # https://pytorch.org/TensorRT/dynamo/torch_compile.html
+                    # Quantization/INT8 support is slated for a future release; currently, we support FP16 and FP32 precision layers.
+                    "enabled_precisions": {torch.float, torch.half}
+                }
+            if isinstance(model, ModelPatcher):
+                m = model.clone()
+                m.add_object_patch(object_patch, torch.compile(model=m.get_model_object(object_patch), **compile_kwargs))
+                return (m,)
+            elif isinstance(model, torch.nn.Module):
+                return torch.compile(model=model, **compile_kwargs),
+            else:
+                logging.warning("Encountered a model that cannot be compiled")
+                return model,
+        except OSError:
+            torch._inductor.utils.clear_inductor_caches()
+            raise
 
 
 _QUANTIZATION_STRATEGIES = [
@@ -77,7 +116,7 @@ class QuantizeModel(CustomNode):
     FUNCTION = "execute"
     CATEGORY = "_for_testing"
     EXPERIMENTAL = True
-    INFERENCE_MODE = False
+    # INFERENCE_MODE = False
 
     RETURN_TYPES = ("MODEL",)
 

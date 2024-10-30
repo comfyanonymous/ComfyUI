@@ -24,6 +24,7 @@ from typing import Optional
 
 import torch
 import torch.nn
+from humanize import naturalsize
 
 from . import model_management, lora
 from . import utils
@@ -600,10 +601,11 @@ class ModelPatcher(ModelManageable):
         return self.current_loaded_device()
 
     def __str__(self):
+        info_str = f"{self.model_dtype()} {self.model_device} {naturalsize(self._memory_measurements.model_loaded_weight_memory, binary=True)}"
         if self.ckpt_name is not None:
-            return f"<ModelPatcher for {self.ckpt_name} ({self.model.__class__.__name__})>"
+            return f"<ModelPatcher for {self.ckpt_name} ({self.model.__class__.__name__} {info_str})>"
         else:
-            return f"<ModelPatcher for {self.model.__class__.__name__}>"
+            return f"<ModelPatcher for {self.model.__class__.__name__} ({info_str})>"
 
     def calculate_weight(self, patches, weight, key, intermediate_dtype=torch.float32):
         print("WARNING the ModelPatcher.calculate_weight function is deprecated, please use: comfy.lora.calculate_weight instead")
