@@ -934,7 +934,7 @@ class CLIPLoader:
         elif type == "stable_audio":
             clip_type = sd.CLIPType.STABLE_AUDIO
         elif type == "mochi":
-            clip_type = comfy.sd.CLIPType.MOCHI
+            clip_type = sd.CLIPType.MOCHI
         else:
             logging.warning(f"Unknown clip type argument passed: {type} for model {clip_name}")
 
