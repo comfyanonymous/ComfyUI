@@ -92,7 +92,10 @@ class TorchCompileModel(CustomNode):
                 logging.warning("Encountered a model that cannot be compiled")
                 return model,
         except OSError:
-            torch._inductor.utils.clear_inductor_caches()
+            try:
+                torch._inductor.utils.clear_inductor_caches()  # pylint: disable=no-member
+            except Exception:
+                pass
             raise
 
 
