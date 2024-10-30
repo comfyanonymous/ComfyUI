@@ -316,10 +316,18 @@ MMDIT_MAP_BLOCK = {
     ("context_block.mlp.fc1.weight", "ff_context.net.0.proj.weight"),
     ("context_block.mlp.fc2.bias", "ff_context.net.2.bias"),
     ("context_block.mlp.fc2.weight", "ff_context.net.2.weight"),
+    ("context_block.attn.ln_q.weight", "attn.norm_added_q.weight"),
+    ("context_block.attn.ln_k.weight", "attn.norm_added_k.weight"),
     ("x_block.adaLN_modulation.1.bias", "norm1.linear.bias"),
     ("x_block.adaLN_modulation.1.weight", "norm1.linear.weight"),
     ("x_block.attn.proj.bias", "attn.to_out.0.bias"),
     ("x_block.attn.proj.weight", "attn.to_out.0.weight"),
+    ("x_block.attn.ln_q.weight", "attn.norm_q.weight"),
+    ("x_block.attn.ln_k.weight", "attn.norm_k.weight"),
+    ("x_block.attn2.proj.bias", "attn2.to_out.0.bias"),
+    ("x_block.attn2.proj.weight", "attn2.to_out.0.weight"),
+    ("x_block.attn2.ln_q.weight", "attn2.norm_q.weight"),
+    ("x_block.attn2.ln_k.weight", "attn2.norm_k.weight"),
     ("x_block.mlp.fc1.bias", "ff.net.0.proj.bias"),
     ("x_block.mlp.fc1.weight", "ff.net.0.proj.weight"),
     ("x_block.mlp.fc2.bias", "ff.net.2.bias"),
@@ -348,6 +356,12 @@ def mmdit_to_diffusers(mmdit_config, output_prefix=""):
             key_map["{}add_q_proj.{}".format(k, end)] = (qkv, (0, 0, offset))
             key_map["{}add_k_proj.{}".format(k, end)] = (qkv, (0, offset, offset))
             key_map["{}add_v_proj.{}".format(k, end)] = (qkv, (0, offset * 2, offset))
+
+            k = "{}.attn2.".format(block_from)
+            qkv = "{}.x_block.attn2.qkv.{}".format(block_to, end)
+            key_map["{}to_q.{}".format(k, end)] = (qkv, (0, 0, offset))
+            key_map["{}to_k.{}".format(k, end)] = (qkv, (0, offset, offset))
+            key_map["{}to_v.{}".format(k, end)] = (qkv, (0, offset * 2, offset))
 
         for k in MMDIT_MAP_BLOCK:
             key_map["{}.{}".format(block_from, k[1])] = "{}.{}".format(block_to, k[0])
