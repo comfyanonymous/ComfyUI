@@ -187,7 +187,7 @@ class SaveAnimatedPNG:
         return { "ui": { "images": results, "animated": (True,)} }
 
 NODE_CLASS_MAPPINGS = {
-    "ImageCrop": ImageCrop,
+    "Image Crop": ImageCrop,
     "RepeatImageBatch": RepeatImageBatch,
     "ImageFromBatch": ImageFromBatch,
     "SaveAnimatedWEBP": SaveAnimatedWEBP,
