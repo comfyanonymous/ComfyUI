@@ -6,7 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from comfy.cli_args_types import Configuration
 from comfy.cmd import folder_paths
+from comfy.cmd.folder_paths import init_default_paths
 from comfy.component_model.folder_path_types import FolderNames, ModelPaths
 from comfy.execution_context import context_folder_names_and_paths
 
@@ -73,3 +75,16 @@ def test_get_save_image_path(temp_dir):
         assert counter == 1
         assert subfolder == ""
         assert filename_prefix == "test"
+
+
+def test_add_output_path_absolute(temp_dir):
+    names = FolderNames()
+    config = Configuration()
+    config.cwd = str(temp_dir)
+    init_default_paths(names, config)
+    with context_folder_names_and_paths(names):
+        folder_paths.add_model_folder_path("diffusion_models", os.path.join(folder_paths.get_output_directory(), "diffusion_models"))
+        mp: ModelPaths = next(names.get_paths("diffusion_models"))
+        assert len(mp.additional_absolute_directory_paths) == 0
+        assert len(mp.additional_relative_directory_paths) == 1
+        assert list(mp.additional_relative_directory_paths)[0] == (Path("output") / "diffusion_models")

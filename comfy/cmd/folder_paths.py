@@ -46,6 +46,8 @@ def _resolve_path_with_compatibility(path: Path | str) -> PurePosixPath | Path:
     """
     if isinstance(path, PurePosixPath) and path.is_absolute():
         return path
+    if not path.is_absolute():
+        return Path.resolve(_base_path() / path)
     return Path(path).resolve()
 
 
@@ -67,16 +69,16 @@ def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optio
         folder_names_and_paths.add_base_path(base_path)
     folder_names_and_paths.add(ModelPaths(["checkpoints"], supported_extensions=set(supported_pt_extensions)))
     folder_names_and_paths.add(ModelPaths(["configs"], additional_absolute_directory_paths={get_package_as_path("comfy.configs")}, supported_extensions={".yaml"}))
-    folder_names_and_paths.add(ModelPaths(["vae"], supported_extensions={".yaml"}))
-    folder_names_and_paths.add(ModelPaths(["clip"], supported_extensions={".yaml"}))
-    folder_names_and_paths.add(ModelPaths(["loras"], supported_extensions={".yaml"}))
-    folder_names_and_paths.add(ModelPaths(["diffusion_models", "unet"], supported_extensions=set(supported_pt_extensions)))
+    folder_names_and_paths.add(ModelPaths(["vae"], supported_extensions=set(supported_pt_extensions)))
+    folder_names_and_paths.add(ModelPaths(["clip"], supported_extensions=set(supported_pt_extensions)))
+    folder_names_and_paths.add(ModelPaths(["loras"], supported_extensions=set(supported_pt_extensions)))
+    folder_names_and_paths.add(ModelPaths(folder_names=["diffusion_models", "unet"], supported_extensions=set(supported_pt_extensions), folder_names_are_relative_directory_paths_too=True))
     folder_names_and_paths.add(ModelPaths(["clip_vision"], supported_extensions=set(supported_pt_extensions)))
     folder_names_and_paths.add(ModelPaths(["style_models"], supported_extensions=set(supported_pt_extensions)))
     folder_names_and_paths.add(ModelPaths(["embeddings"], supported_extensions=set(supported_pt_extensions)))
     folder_names_and_paths.add(ModelPaths(["diffusers"], supported_extensions=set()))
     folder_names_and_paths.add(ModelPaths(["vae_approx"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(["controlnet", "t2i_adapter"], supported_extensions=set(supported_pt_extensions)))
+    folder_names_and_paths.add(ModelPaths(folder_names=["controlnet", "t2i_adapter"], supported_extensions=set(supported_pt_extensions), folder_names_are_relative_directory_paths_too=True))
     folder_names_and_paths.add(ModelPaths(["gligen"], supported_extensions=set(supported_pt_extensions)))
     folder_names_and_paths.add(ModelPaths(["upscale_models"], supported_extensions=set(supported_pt_extensions)))
     folder_names_and_paths.add(ModelPaths(["custom_nodes"], folder_name_base_path_subdir=construct_path(""), supported_extensions=set()))
@@ -228,14 +230,13 @@ def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, e
     """
     Registers a model path for the given canonical name.
     :param folder_name: the folder name
-    :param full_folder_path: When none, defaults to os.path.join(models_dir, folder_name) aka the folder as
-    a subpath to the default models directory
+    :param full_folder_path: When none, defaults to os.path.join(models_dir, folder_name) aka the folder as a subpath to the default models directory
     :param extensions: supported file extensions
     :return: the folder path
     """
     folder_names_and_paths = _folder_names_and_paths()
     if full_folder_path is None:
-        # todo: this should use the subdir patter
+        # todo: this should use the subdir pattern
 
         full_folder_path = os.path.join(_models_dir(), folder_name)
 

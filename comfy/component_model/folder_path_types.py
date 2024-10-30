@@ -240,20 +240,25 @@ class FolderNames:
             yield directory_path
 
     def file_paths(self, folder_name: str, relative=False) -> typing.Generator[Path]:
-        for file_path in itertools.chain.from_iterable([candidate.file_paths(self.base_paths, relative=relative)
-                                                        for candidate in self.contents if candidate.has_folder_name(folder_name)]):
-            yield file_path
+        for candidate in self.contents:
+            if not candidate.has_folder_name(folder_name):
+                continue
+
+            for file_path in candidate.file_paths(self.base_paths, relative=relative):
+                yield file_path
 
     def first_existing_or_none(self, folder_name: str, relative_file_path: Path) -> Optional[Path]:
-        for directory_path in itertools.chain.from_iterable([candidate.directory_paths(self.base_paths)
-                                                             for candidate in self.contents if candidate.has_folder_name(folder_name)]):
-            candidate_file_path: Path = construct_path(directory_path / relative_file_path)
-            try:
-                # todo: this should follow the symlink
-                if Path.exists(candidate_file_path):
-                    return candidate_file_path
-            except OSError:
+        for candidate in self.contents:
+            if not candidate.has_folder_name(folder_name):
                 continue
+            for directory_path in candidate.directory_paths(self.base_paths):
+                candidate_file_path: Path = construct_path(directory_path / relative_file_path)
+                try:
+                    # todo: this should follow the symlink
+                    if Path.exists(candidate_file_path):
+                        return candidate_file_path
+                except OSError:
+                    continue
         return None
 
     def add_supported_extension(self, folder_name: str, *supported_extensions: str | None):
@@ -324,6 +329,11 @@ class FolderNames:
             if candidate.has_folder_name(folder_name):
                 self._modify_model_paths(folder_name, paths, set(), candidate, index=index)
 
+    def get_paths(self, folder_name: str) -> typing.Generator[AbstractPaths]:
+        for candidate in self.contents:
+            if candidate.has_folder_name(folder_name):
+                yield candidate
+
     def _modify_model_paths(self, key: str, paths: Iterable[Path | str], supported_extensions: set[str], model_paths: AbstractPaths = None, index: Optional[int] = None) -> AbstractPaths:
         model_paths = model_paths or ModelPaths([key],
                                                 supported_extensions=set(supported_extensions),
@@ -337,34 +347,37 @@ class FolderNames:
             # when given absolute paths, try to formulate them as relative paths anyway
             if path.is_absolute():
                 for base_path in self.base_paths:
+                    did_add = False
                     try:
                         relative_to_basepath = path.relative_to(base_path)
                         potential_folder_name = relative_to_basepath.stem
                         potential_subdir = relative_to_basepath.parent
 
                         # does the folder_name so far match the key?
-                        # or have we not seen this folder before?
+                        # and have we not seen this folder before?
                         folder_name_not_already_in_contents = all(not candidate.has_folder_name(potential_folder_name) for candidate in self.contents)
-                        if potential_folder_name == key or folder_name_not_already_in_contents:
+                        if potential_folder_name == key and folder_name_not_already_in_contents:
                             # fix the subdir
                             model_paths.folder_name_base_path_subdir = potential_subdir
                             model_paths.folder_names_are_relative_directory_paths_too = True
                             if folder_name_not_already_in_contents:
                                 do_add(model_paths.folder_names, index, potential_folder_name)
+                                did_add = True
                         else:
                             # if the folder name doesn't match the key, check if we have ever seen a folder name that matches the key:
                             if model_paths.folder_names_are_relative_directory_paths_too:
                                 if potential_subdir == model_paths.folder_name_base_path_subdir:
                                     # then we want to add this to the folder name, because it's probably compatibility
                                     do_add(model_paths.folder_names, index, potential_folder_name)
+                                    did_add = True
                                 else:
-                                    # not this case
-                                    model_paths.folder_names_are_relative_directory_paths_too = False
-
-                            if not model_paths.folder_names_are_relative_directory_paths_too:
+                                    do_add(model_paths.additional_relative_directory_paths, index, relative_to_basepath)
+                                    did_add = True
+                            else:
                                 model_paths.additional_relative_directory_paths.add(relative_to_basepath)
                                 for resolve_folder_name in model_paths.folder_names:
                                     model_paths.additional_relative_directory_paths.add(model_paths.folder_name_base_path_subdir / resolve_folder_name)
+                                    did_add = True
 
                         # since this was an absolute path that was a subdirectory of one of the base paths,
                         # we are done
@@ -375,7 +388,8 @@ class FolderNames:
 
                 # if we got this far, none of the absolute paths were subdirectories of any base paths
                 # add it to our absolute paths
-                model_paths.additional_absolute_directory_paths.add(path)
+                if not did_add:
+                    model_paths.additional_absolute_directory_paths.add(path)
             else:
                 # since this is a relative path, peacefully add it to model_paths
                 potential_folder_name = path.stem
