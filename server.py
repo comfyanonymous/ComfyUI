@@ -29,7 +29,6 @@ import comfy.model_management
 import node_helpers
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
-from model_filemanager import download_model, DownloadModelStatus
 from typing import Optional
 from api_server.routes.internal.internal_routes import InternalRoutes
 
@@ -676,36 +675,6 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
-        
-        # Internal route. Should not be depended upon and is subject to change at any time.
-        # TODO(robinhuang): Move to internal route table class once we refactor PromptServer to pass around Websocket.
-        # NOTE: This was an experiment and WILL BE REMOVED
-        @routes.post("/internal/models/download")
-        async def download_handler(request):
-            async def report_progress(filename: str, status: DownloadModelStatus):
-                payload = status.to_dict()
-                payload['download_path'] = filename
-                await self.send_json("download_progress", payload)
-
-            data = await request.json()
-            url = data.get('url')
-            model_directory = data.get('model_directory')
-            folder_path = data.get('folder_path')
-            model_filename = data.get('model_filename')
-            progress_interval = data.get('progress_interval', 1.0) # In seconds, how often to report download progress.
-
-            if not url or not model_directory or not model_filename or not folder_path:
-                return web.json_response({"status": "error", "message": "Missing URL or folder path or filename"}, status=400)
-
-            session = self.client_session
-            if session is None:
-                logging.error("Client session is not initialized")
-                return web.Response(status=500)
-            
-            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, folder_path, report_progress, progress_interval))
-            await task
-
-            return web.json_response(task.result().to_dict())
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
