@@ -62,9 +62,11 @@ class CLIPTextEncode:
 
     def encode(self, clip, text):
         tokens = clip.tokenize(text)
-        output = clip.encode_from_tokens(tokens, return_pooled=True, return_dict=True)
-        cond = output.pop("cond")
-        return ([[cond, output]], )
+        if not clip.use_clip_schedule:
+            output = clip.encode_from_tokens(tokens, return_pooled=True, return_dict=True)
+            cond = output.pop("cond")
+            return ([[cond, output]], )
+        return (clip.encode_from_tokens_scheduled(tokens), )
 
 class ConditioningCombine:
     @classmethod

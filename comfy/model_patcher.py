@@ -971,7 +971,7 @@ class ModelPatcher:
             if hook.hook_ref not in self.hook_patches:
                 weight_hooks_to_register.append(hook)
         if len(weight_hooks_to_register) > 0:
-            self.hook_patches_backup = create_hook_patches_clone(self.hook_patches)
+            self.hook_patches_backup = create_hook_patches_clone(self.hook_patches_backup)
             for hook in weight_hooks_to_register:
                 hook.add_hook_patches(self, target, registered_hooks)
         for callback in self.get_all_callbacks(CallbacksMP.ON_REGISTER_ALL_HOOK_PATCHES):

@@ -195,7 +195,6 @@ def outer_calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: tor
     out_conds = []
     out_counts = []
     # separate conds by matching hooks
-    # TODO: implement default_conds support
     hooked_to_run: dict[comfy.hooks.HookGroup,list[tuple[tuple,int]]] = {}
     default_conds = []
     has_default_conds = False
@@ -557,10 +556,15 @@ def calculate_start_end_timesteps(model, conds):
 
         timestep_start = None
         timestep_end = None
-        if 'start_percent' in x:
-            timestep_start = s.percent_to_sigma(x['start_percent'])
-        if 'end_percent' in x:
-            timestep_end = s.percent_to_sigma(x['end_percent'])
+        # handle clip hook schedule, if needed
+        if 'clip_start_percent' in x:
+            timestep_start = s.percent_to_sigma(max(x['clip_start_percent'], x.get('start_percent', 0.0)))
+            timestep_end = s.percent_to_sigma(min(x['clip_end_percent'], x.get('end_percent', 1.0)))
+        else:
+            if 'start_percent' in x:
+                timestep_start = s.percent_to_sigma(x['start_percent'])
+            if 'end_percent' in x:
+                timestep_end = s.percent_to_sigma(x['end_percent'])
 
         if (timestep_start is not None) or (timestep_end is not None):
             n = x.copy()

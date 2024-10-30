@@ -228,9 +228,10 @@ class SetClipHooks:
         return {
             "required": {
                 "clip": ("CLIP",),
+                "schedule_clip": ("BOOLEAN", {"default": True})
             },
             "optional": {
-                "hooks": ("HOOKS",),
+                "hooks": ("HOOKS",)
             }
         }
     
@@ -238,9 +239,10 @@ class SetClipHooks:
     CATEGORY = "advanced/hooks/clip"
     FUNCTION = "apply_hooks"
 
-    def apply_hooks(self, clip: 'CLIP', hooks: comfy.hooks.HookGroup=None):
+    def apply_hooks(self, clip: 'CLIP', schedule_clip: bool, hooks: comfy.hooks.HookGroup=None):
         if hooks is not None:
             clip = clip.clone()
+            clip.use_clip_schedule = schedule_clip
             clip.patcher.forced_hooks = hooks
             clip.patcher.register_all_hook_patches(hooks.get_dict_repr(), comfy.hooks.EnumWeightTarget.Clip)
         return (clip,)
@@ -257,12 +259,13 @@ class ConditioningTimestepsRange:
             },
         }
     
-    RETURN_TYPES = ("TIMESTEPS_RANGE",)
+    RETURN_TYPES = ("TIMESTEPS_RANGE", "TIMESTEPS_RANGE", "TIMESTEPS_RANGE")
+    RETURN_NAMES = ("TIMESTEPS_RANGE", "BEFORE_RANGE", "AFTER_RANGE")
     CATEGORY = "advanced/hooks"
     FUNCTION = "create_range"
 
     def create_range(self, start_percent: float, end_percent: float):
-        return ((start_percent, end_percent),)
+        return ((start_percent, end_percent), (0.0, start_percent), (end_percent, 1.0))
 #------------------------------------------
 ###########################################
 
