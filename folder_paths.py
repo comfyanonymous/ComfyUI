@@ -18,6 +18,8 @@ with open(os.path.join(base_path, "min-comfyui-config.yaml"), "r") as f:
         models_folder = config["models_folder"]
     else:
         models_folder = "models"
+        
+print("models_folder", models_folder)
 models_dir = os.path.join("/".join(base_path.split("/")[:-1]), models_folder)
 print("models_dir", models_dir)
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)
