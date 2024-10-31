@@ -6,13 +6,20 @@ import mimetypes
 import logging
 from typing import Set, List, Dict, Tuple, Literal
 from collections.abc import Collection
-
+import yaml
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
 
 folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
 
 base_path = os.path.dirname(os.path.realpath(__file__))
-models_dir = "/home/minkhant/Documents/BrookAI/AI_MODELS" #os.path.join(base_path, "models")
+with open(os.path.join(base_path, "min-comfyui-config.yaml"), "r") as f:
+    config = yaml.safe_load(f)
+    if "models_folder" in config:
+        models_folder = config["models_folder"]
+    else:
+        models_folder = "models"
+models_dir = os.path.join("/".join(base_path.split("/")[:-1]), models_folder)
+print("models_dir", models_dir)
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)
 folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
 folder_names_and_paths["loras"] = ([os.path.join(models_dir, "loras")], supported_pt_extensions)
