@@ -10,6 +10,7 @@ import comfy.text_encoders.sa_t5
 import comfy.text_encoders.aura_t5
 import comfy.text_encoders.hydit
 import comfy.text_encoders.flux
+import comfy.text_encoders.genmo
 
 from . import supported_models_base
 from . import latent_formats
@@ -670,7 +671,36 @@ class FluxSchnell(Flux):
         out = model_base.Flux(self, model_type=model_base.ModelType.FLOW, device=device)
         return out
 
+class GenmoMochi(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "mochi_preview",
+    }
 
-models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, HunyuanDiT, HunyuanDiT1, Flux, FluxSchnell]
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 6.0,
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.Mochi
+
+    memory_usage_factor = 2.0 #TODO
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.GenmoMochi(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.genmo.MochiT5Tokenizer, comfy.text_encoders.genmo.mochi_te(**t5_detect))
+
+
+models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, HunyuanDiT, HunyuanDiT1, Flux, FluxSchnell, GenmoMochi]
 
 models += [SVD_img2vid]

@@ -283,7 +283,10 @@ class VAEDecode:
     DESCRIPTION = "Decodes latent images back into pixel space images."
 
     def decode(self, vae, samples):
-        return (vae.decode(samples["samples"]), )
+        images = vae.decode(samples["samples"])
+        if len(images.shape) == 5: #Combine batches
+            images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
+        return (images, )
 
 class VAEDecodeTiled:
     @classmethod
@@ -888,7 +891,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -902,6 +905,8 @@ class CLIPLoader:
             clip_type = comfy.sd.CLIPType.SD3
         elif type == "stable_audio":
             clip_type = comfy.sd.CLIPType.STABLE_AUDIO
+        elif type == "mochi":
+            clip_type = comfy.sd.CLIPType.MOCHI
         else:
             clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
 
@@ -1181,10 +1186,10 @@ class LatentUpscale:
 
             if width == 0:
                 height = max(64, height)
-                width = max(64, round(samples["samples"].shape[3] * height / samples["samples"].shape[2]))
+                width = max(64, round(samples["samples"].shape[-1] * height / samples["samples"].shape[-2]))
             elif height == 0:
                 width = max(64, width)
-                height = max(64, round(samples["samples"].shape[2] * width / samples["samples"].shape[3]))
+                height = max(64, round(samples["samples"].shape[-2] * width / samples["samples"].shape[-1]))
             else:
                 width = max(64, width)
                 height = max(64, height)
@@ -1206,8 +1211,8 @@ class LatentUpscaleBy:
 
     def upscale(self, samples, upscale_method, scale_by):
         s = samples.copy()
-        width = round(samples["samples"].shape[3] * scale_by)
-        height = round(samples["samples"].shape[2] * scale_by)
+        width = round(samples["samples"].shape[-1] * scale_by)
+        height = round(samples["samples"].shape[-2] * scale_by)
         s["samples"] = comfy.utils.common_upscale(samples["samples"], width, height, upscale_method, "disabled")
         return (s,)
 
@@ -1954,6 +1959,12 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageInvert": "Invert Image",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
     "ImageBatch": "Batch Images",
+    "ImageCrop": "Image Crop",
+    "ImageBlend": "Image Blend",
+    "ImageBlur": "Image Blur",
+    "ImageQuantize": "Image Quantize",
+    "ImageSharpen": "Image Sharpen",
+    "ImageScaleToTotalPixels": "Scale Image to Total Pixels",
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
@@ -2113,6 +2124,7 @@ def init_builtin_extra_nodes():
         "nodes_flux.py",
         "nodes_lora_extract.py",
         "nodes_torch_compile.py",
+        "nodes_mochi.py",
         "nodes_hooks.py",
     ]
 
