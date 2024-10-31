@@ -70,6 +70,11 @@ def detect_unet_config(state_dict, key_prefix):
         context_processor = '{}context_processor.layers.0.attn.qkv.weight'.format(key_prefix)
         if context_processor in state_dict_keys:
             unet_config["context_processor_layers"] = count_blocks(state_dict_keys, '{}context_processor.layers.'.format(key_prefix) + '{}.')
+        unet_config["x_block_self_attn_layers"] = []
+        for key in state_dict_keys:
+            if key.startswith('{}joint_blocks.'.format(key_prefix)) and key.endswith('.x_block.attn2.qkv.weight'):
+                layer = key[len('{}joint_blocks.'.format(key_prefix)):-len('.x_block.attn2.qkv.weight')]
+                unet_config["x_block_self_attn_layers"].append(int(layer))
         return unet_config
 
     if '{}clf.1.weight'.format(key_prefix) in state_dict_keys: #stable cascade
@@ -144,6 +149,34 @@ def detect_unet_config(state_dict, key_prefix):
         dit_config["qkv_bias"] = True
         dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
         return dit_config
+
+    if '{}t5_yproj.weight'.format(key_prefix) in state_dict_keys: #Genmo mochi preview
+        dit_config = {}
+        dit_config["image_model"] = "mochi_preview"
+        dit_config["depth"] = 48
+        dit_config["patch_size"] = 2
+        dit_config["num_heads"] = 24
+        dit_config["hidden_size_x"] = 3072
+        dit_config["hidden_size_y"] = 1536
+        dit_config["mlp_ratio_x"] = 4.0
+        dit_config["mlp_ratio_y"] = 4.0
+        dit_config["learn_sigma"] = False
+        dit_config["in_channels"] = 12
+        dit_config["qk_norm"] = True
+        dit_config["qkv_bias"] = False
+        dit_config["out_bias"] = True
+        dit_config["attn_drop"] = 0.0
+        dit_config["patch_embed_bias"] = True
+        dit_config["posenc_preserve_area"] = True
+        dit_config["timestep_mlp_bias"] = True
+        dit_config["attend_to_padding"] = False
+        dit_config["timestep_scale"] = 1000.0
+        dit_config["use_t5"] = True
+        dit_config["t5_feat_dim"] = 4096
+        dit_config["t5_token_length"] = 256
+        dit_config["rope_theta"] = 10000.0
+        return dit_config
+
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
@@ -286,9 +319,15 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
         return None
     model_config = model_config_from_unet_config(unet_config, state_dict)
     if model_config is None and use_base_if_no_match:
-        return comfy.supported_models_base.BASE(unet_config)
-    else:
-        return model_config
+        model_config = comfy.supported_models_base.BASE(unet_config)
+
+    scaled_fp8_weight = state_dict.get("{}scaled_fp8".format(unet_key_prefix), None)
+    if scaled_fp8_weight is not None:
+        model_config.scaled_fp8 = scaled_fp8_weight.dtype
+        if model_config.scaled_fp8 == torch.float32:
+            model_config.scaled_fp8 = torch.float8_e4m3fn
+
+    return model_config
 
 def unet_prefix_from_state_dict(state_dict):
     candidates = ["model.diffusion_model.", #ldm/sgm models
@@ -501,7 +540,11 @@ def model_config_from_diffusers_unet(state_dict):
 def convert_diffusers_mmdit(state_dict, output_prefix=""):
     out_sd = {}
 
-    if 'transformer_blocks.0.attn.norm_added_k.weight' in state_dict: #Flux
+    if 'joint_transformer_blocks.0.attn.add_k_proj.weight' in state_dict: #AuraFlow
+        num_joint = count_blocks(state_dict, 'joint_transformer_blocks.{}.')
+        num_single = count_blocks(state_dict, 'single_transformer_blocks.{}.')
+        sd_map = comfy.utils.auraflow_to_diffusers({"n_double_layers": num_joint, "n_layers": num_joint + num_single}, output_prefix=output_prefix)
+    elif 'x_embedder.weight' in state_dict: #Flux
         depth = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth_single_blocks = count_blocks(state_dict, 'single_transformer_blocks.{}.')
         hidden_size = state_dict["x_embedder.bias"].shape[0]
@@ -510,10 +553,6 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
         num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth = state_dict["pos_embed.proj.weight"].shape[0] // 64
         sd_map = comfy.utils.mmdit_to_diffusers({"depth": depth, "num_blocks": num_blocks}, output_prefix=output_prefix)
-    elif 'joint_transformer_blocks.0.attn.add_k_proj.weight' in state_dict: #AuraFlow
-        num_joint = count_blocks(state_dict, 'joint_transformer_blocks.{}.')
-        num_single = count_blocks(state_dict, 'single_transformer_blocks.{}.')
-        sd_map = comfy.utils.auraflow_to_diffusers({"n_double_layers": num_joint, "n_layers": num_joint + num_single}, output_prefix=output_prefix)
     else:
         return None
 

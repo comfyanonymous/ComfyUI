@@ -175,3 +175,30 @@ class Flux(SD3):
 
     def process_out(self, latent):
         return (latent / self.scale_factor) + self.shift_factor
+
+class Mochi(LatentFormat):
+    latent_channels = 12
+
+    def __init__(self):
+        self.scale_factor = 1.0
+        self.latents_mean = torch.tensor([-0.06730895953510081, -0.038011381506090416, -0.07477820912866141,
+                                          -0.05565264470995561, 0.012767231469026969, -0.04703542746246419,
+                                          0.043896967884726704, -0.09346305707025976, -0.09918314763016893,
+                                          -0.008729793427399178, -0.011931556316503654, -0.0321993391887285]).view(1, self.latent_channels, 1, 1, 1)
+        self.latents_std = torch.tensor([0.9263795028493863, 0.9248894543193766, 0.9393059390890617,
+                                         0.959253732819592, 0.8244560132752793, 0.917259975397747,
+                                         0.9294154431013696, 1.3720942357788521, 0.881393668867029,
+                                         0.9168315692124348, 0.9185249279345552, 0.9274757570805041]).view(1, self.latent_channels, 1, 1, 1)
+
+        self.latent_rgb_factors = None #TODO
+        self.taesd_decoder_name = None #TODO
+
+    def process_in(self, latent):
+        latents_mean = self.latents_mean.to(latent.device, latent.dtype)
+        latents_std = self.latents_std.to(latent.device, latent.dtype)
+        return (latent - latents_mean) * self.scale_factor / latents_std
+
+    def process_out(self, latent):
+        latents_mean = self.latents_mean.to(latent.device, latent.dtype)
+        latents_std = self.latents_std.to(latent.device, latent.dtype)
+        return latent * latents_std / self.scale_factor + latents_mean

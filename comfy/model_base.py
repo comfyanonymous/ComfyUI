@@ -24,6 +24,7 @@ from comfy.ldm.cascade.stage_b import StageB
 from comfy.ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
 from comfy.ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
 from comfy.ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
+import comfy.ldm.genmo.joint_model.asymm_models_joint
 import comfy.ldm.aura.mmdit
 import comfy.ldm.hydit.models
 import comfy.ldm.audio.dit
@@ -96,7 +97,8 @@ class BaseModel(torch.nn.Module):
 
         if not unet_config.get("disable_unet_model_creation", False):
             if model_config.custom_operations is None:
-                operations = comfy.ops.pick_operations(unet_config.get("dtype", None), self.manual_cast_dtype, fp8_optimizations=model_config.optimizations.get("fp8", False))
+                fp8 = model_config.optimizations.get("fp8", model_config.scaled_fp8 is not None)
+                operations = comfy.ops.pick_operations(unet_config.get("dtype", None), self.manual_cast_dtype, fp8_optimizations=fp8, scaled_fp8=model_config.scaled_fp8)
             else:
                 operations = model_config.custom_operations
             self.diffusion_model = unet_model(**unet_config, device=device, operations=operations)
@@ -244,6 +246,10 @@ class BaseModel(torch.nn.Module):
             extra_sds.append(self.model_config.process_clip_vision_state_dict_for_saving(clip_vision_state_dict))
 
         unet_state_dict = self.diffusion_model.state_dict()
+
+        if self.model_config.scaled_fp8 is not None:
+            unet_state_dict["scaled_fp8"] = torch.tensor([], dtype=self.model_config.scaled_fp8)
+
         unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
 
         if self.model_type == ModelType.V_PREDICTION:
@@ -712,4 +718,19 @@ class Flux(BaseModel):
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([kwargs.get("guidance", 3.5)]))
+        return out
+
+class GenmoMochi(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.genmo.joint_model.asymm_models_joint.AsymmDiTJoint)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+            out['num_tokens'] = comfy.conds.CONDConstant(max(1, torch.sum(attention_mask).item()))
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out

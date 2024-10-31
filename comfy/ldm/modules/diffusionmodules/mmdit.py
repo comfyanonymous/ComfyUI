@@ -1,11 +1,11 @@
 import logging
 import math
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import numpy as np
 import torch
 import torch.nn as nn
-from .. import attention
+from ..attention import optimized_attention
 from einops import rearrange, repeat
 from .util import timestep_embedding
 import comfy.ops
@@ -97,7 +97,7 @@ class PatchEmbed(nn.Module):
         self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
 
     def forward(self, x):
-        B, C, H, W = x.shape
+        # B, C, H, W = x.shape
         # if self.img_size is not None:
         #     if self.strict_img_size:
         #         _assert(H == self.img_size[0], f"Input height ({H}) doesn't match model ({self.img_size[0]}).")
@@ -266,8 +266,6 @@ def split_qkv(qkv, head_dim):
     qkv = qkv.reshape(qkv.shape[0], qkv.shape[1], 3, -1, head_dim).movedim(2, 0)
     return qkv[0], qkv[1], qkv[2]
 
-def optimized_attention(qkv, num_heads):
-    return attention.optimized_attention(qkv[0], qkv[1], qkv[2], num_heads)
 
 class SelfAttention(nn.Module):
     ATTENTION_MODES = ("xformers", "torch", "torch-hb", "math", "debug")
@@ -326,9 +324,9 @@ class SelfAttention(nn.Module):
         return x
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        qkv = self.pre_attention(x)
+        q, k, v = self.pre_attention(x)
         x = optimized_attention(
-            qkv, num_heads=self.num_heads
+            q, k, v, heads=self.num_heads
         )
         x = self.post_attention(x)
         return x
@@ -417,6 +415,7 @@ class DismantledBlock(nn.Module):
         scale_mod_only: bool = False,
         swiglu: bool = False,
         qk_norm: Optional[str] = None,
+        x_block_self_attn: bool = False,
         dtype=None,
         device=None,
         operations=None,
@@ -440,6 +439,24 @@ class DismantledBlock(nn.Module):
             device=device,
             operations=operations
         )
+        if x_block_self_attn:
+            assert not pre_only
+            assert not scale_mod_only
+            self.x_block_self_attn = True
+            self.attn2 = SelfAttention(
+                dim=hidden_size,
+                num_heads=num_heads,
+                qkv_bias=qkv_bias,
+                attn_mode=attn_mode,
+                pre_only=False,
+                qk_norm=qk_norm,
+                rmsnorm=rmsnorm,
+                dtype=dtype,
+                device=device,
+                operations=operations
+            )
+        else:
+            self.x_block_self_attn = False
         if not pre_only:
             if not rmsnorm:
                 self.norm2 = operations.LayerNorm(
@@ -466,7 +483,11 @@ class DismantledBlock(nn.Module):
                     multiple_of=256,
                 )
         self.scale_mod_only = scale_mod_only
-        if not scale_mod_only:
+        if x_block_self_attn:
+            assert not pre_only
+            assert not scale_mod_only
+            n_mods = 9
+        elif not scale_mod_only:
             n_mods = 6 if not pre_only else 2
         else:
             n_mods = 4 if not pre_only else 1
@@ -527,14 +548,64 @@ class DismantledBlock(nn.Module):
         )
         return x
 
+    def pre_attention_x(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
+        assert self.x_block_self_attn
+        (
+            shift_msa,
+            scale_msa,
+            gate_msa,
+            shift_mlp,
+            scale_mlp,
+            gate_mlp,
+            shift_msa2,
+            scale_msa2,
+            gate_msa2,
+        ) = self.adaLN_modulation(c).chunk(9, dim=1)
+        x_norm = self.norm1(x)
+        qkv = self.attn.pre_attention(modulate(x_norm, shift_msa, scale_msa))
+        qkv2 = self.attn2.pre_attention(modulate(x_norm, shift_msa2, scale_msa2))
+        return qkv, qkv2, (
+            x,
+            gate_msa,
+            shift_mlp,
+            scale_mlp,
+            gate_mlp,
+            gate_msa2,
+        )
+
+    def post_attention_x(self, attn, attn2, x, gate_msa, shift_mlp, scale_mlp, gate_mlp, gate_msa2):
+        assert not self.pre_only
+        attn1 = self.attn.post_attention(attn)
+        attn2 = self.attn2.post_attention(attn2)
+        out1 = gate_msa.unsqueeze(1) * attn1
+        out2 = gate_msa2.unsqueeze(1) * attn2
+        x = x + out1
+        x = x + out2
+        x = x + gate_mlp.unsqueeze(1) * self.mlp(
+            modulate(self.norm2(x), shift_mlp, scale_mlp)
+        )
+        return x
+
     def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
         assert not self.pre_only
-        qkv, intermediates = self.pre_attention(x, c)
-        attn = optimized_attention(
-            qkv,
-            num_heads=self.attn.num_heads,
-        )
-        return self.post_attention(attn, *intermediates)
+        if self.x_block_self_attn:
+            qkv, qkv2, intermediates = self.pre_attention_x(x, c)
+            attn, _ = optimized_attention(
+                qkv[0], qkv[1], qkv[2],
+                num_heads=self.attn.num_heads,
+            )
+            attn2, _ = optimized_attention(
+                qkv2[0], qkv2[1], qkv2[2],
+                num_heads=self.attn2.num_heads,
+            )
+            return self.post_attention_x(attn, attn2, *intermediates)
+        else:
+            qkv, intermediates = self.pre_attention(x, c)
+            attn = optimized_attention(
+                qkv[0], qkv[1], qkv[2],
+                heads=self.attn.num_heads,
+            )
+            return self.post_attention(attn, *intermediates)
 
 
 def block_mixing(*args, use_checkpoint=True, **kwargs):
@@ -549,7 +620,10 @@ def block_mixing(*args, use_checkpoint=True, **kwargs):
 def _block_mixing(context, x, context_block, x_block, c):
     context_qkv, context_intermediates = context_block.pre_attention(context, c)
 
-    x_qkv, x_intermediates = x_block.pre_attention(x, c)
+    if x_block.x_block_self_attn:
+        x_qkv, x_qkv2, x_intermediates = x_block.pre_attention_x(x, c)
+    else:
+        x_qkv, x_intermediates = x_block.pre_attention(x, c)
 
     o = []
     for t in range(3):
@@ -557,8 +631,8 @@ def _block_mixing(context, x, context_block, x_block, c):
     qkv = tuple(o)
 
     attn = optimized_attention(
-        qkv,
-        num_heads=x_block.attn.num_heads,
+        qkv[0], qkv[1], qkv[2],
+        heads=x_block.attn.num_heads,
     )
     context_attn, x_attn = (
         attn[:, : context_qkv[0].shape[1]],
@@ -570,7 +644,14 @@ def _block_mixing(context, x, context_block, x_block, c):
 
     else:
         context = None
-    x = x_block.post_attention(x_attn, *x_intermediates)
+    if x_block.x_block_self_attn:
+        attn2 = optimized_attention(
+                x_qkv2[0], x_qkv2[1], x_qkv2[2],
+                heads=x_block.attn2.num_heads,
+            )
+        x = x_block.post_attention_x(x_attn, attn2, *x_intermediates)
+    else:
+        x = x_block.post_attention(x_attn, *x_intermediates)
     return context, x
 
 
@@ -585,8 +666,13 @@ class JointBlock(nn.Module):
         super().__init__()
         pre_only = kwargs.pop("pre_only")
         qk_norm = kwargs.pop("qk_norm", None)
+        x_block_self_attn = kwargs.pop("x_block_self_attn", False)
         self.context_block = DismantledBlock(*args, pre_only=pre_only, qk_norm=qk_norm, **kwargs)
-        self.x_block = DismantledBlock(*args, pre_only=False, qk_norm=qk_norm, **kwargs)
+        self.x_block = DismantledBlock(*args,
+                                       pre_only=False,
+                                       qk_norm=qk_norm,
+                                       x_block_self_attn=x_block_self_attn,
+                                       **kwargs)
 
     def forward(self, *args, **kwargs):
         return block_mixing(
@@ -642,7 +728,7 @@ class SelfAttentionContext(nn.Module):
     def forward(self, x):
         qkv = self.qkv(x)
         q, k, v = split_qkv(qkv, self.dim_head)
-        x = optimized_attention((q.reshape(q.shape[0], q.shape[1], -1), k, v), self.heads)
+        x = optimized_attention(q.reshape(q.shape[0], q.shape[1], -1), k, v, heads=self.heads)
         return self.proj(x)
 
 class ContextProcessorBlock(nn.Module):
@@ -701,9 +787,12 @@ class MMDiT(nn.Module):
         qk_norm: Optional[str] = None,
         qkv_bias: bool = True,
         context_processor_layers = None,
+        x_block_self_attn: bool = False,
+        x_block_self_attn_layers: Optional[List[int]] = [],
         context_size = 4096,
         num_blocks = None,
         final_layer = True,
+        skip_blocks = False,
         dtype = None, #TODO
         device = None,
         operations = None,
@@ -718,6 +807,7 @@ class MMDiT(nn.Module):
         self.pos_embed_scaling_factor = pos_embed_scaling_factor
         self.pos_embed_offset = pos_embed_offset
         self.pos_embed_max_size = pos_embed_max_size
+        self.x_block_self_attn_layers = x_block_self_attn_layers
 
         # hidden_size = default(hidden_size, 64 * depth)
         # num_heads = default(num_heads, hidden_size // 64)
@@ -775,26 +865,28 @@ class MMDiT(nn.Module):
             self.pos_embed = None
 
         self.use_checkpoint = use_checkpoint
-        self.joint_blocks = nn.ModuleList(
-            [
-                JointBlock(
-                    self.hidden_size,
-                    num_heads,
-                    mlp_ratio=mlp_ratio,
-                    qkv_bias=qkv_bias,
-                    attn_mode=attn_mode,
-                    pre_only=(i == num_blocks - 1) and final_layer,
-                    rmsnorm=rmsnorm,
-                    scale_mod_only=scale_mod_only,
-                    swiglu=swiglu,
-                    qk_norm=qk_norm,
-                    dtype=dtype,
-                    device=device,
-                    operations=operations
-                )
-                for i in range(num_blocks)
-            ]
-        )
+        if not skip_blocks:
+            self.joint_blocks = nn.ModuleList(
+                [
+                    JointBlock(
+                        self.hidden_size,
+                        num_heads,
+                        mlp_ratio=mlp_ratio,
+                        qkv_bias=qkv_bias,
+                        attn_mode=attn_mode,
+                        pre_only=(i == num_blocks - 1) and final_layer,
+                        rmsnorm=rmsnorm,
+                        scale_mod_only=scale_mod_only,
+                        swiglu=swiglu,
+                        qk_norm=qk_norm,
+                        x_block_self_attn=(i in self.x_block_self_attn_layers) or x_block_self_attn,
+                        dtype=dtype,
+                        device=device,
+                        operations=operations,
+                    )
+                    for i in range(num_blocks)
+                ]
+            )
 
         if final_layer:
             self.final_layer = FinalLayer(self.hidden_size, patch_size, self.out_channels, dtype=dtype, device=device, operations=operations)
@@ -857,7 +949,9 @@ class MMDiT(nn.Module):
         c_mod: torch.Tensor,
         context: Optional[torch.Tensor] = None,
         control = None,
+        transformer_options = {},
     ) -> torch.Tensor:
+        patches_replace = transformer_options.get("patches_replace", {})
         if self.register_length > 0:
             context = torch.cat(
                 (
@@ -869,14 +963,25 @@ class MMDiT(nn.Module):
 
         # context is B, L', D
         # x is B, L, D
+        blocks_replace = patches_replace.get("dit", {})
         blocks = len(self.joint_blocks)
         for i in range(blocks):
-            context, x = self.joint_blocks[i](
-                context,
-                x,
-                c=c_mod,
-                use_checkpoint=self.use_checkpoint,
-            )
+            if ("double_block", i) in blocks_replace:
+                def block_wrap(args):
+                    out = {}
+                    out["txt"], out["img"] = self.joint_blocks[i](args["txt"], args["img"], c=args["vec"])
+                    return out
+
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": c_mod}, {"original_block": block_wrap})
+                context = out["txt"]
+                x = out["img"]
+            else:
+                context, x = self.joint_blocks[i](
+                    context,
+                    x,
+                    c=c_mod,
+                    use_checkpoint=self.use_checkpoint,
+                )
             if control is not None:
                 control_o = control.get("output")
                 if i < len(control_o):
@@ -894,6 +999,7 @@ class MMDiT(nn.Module):
         y: Optional[torch.Tensor] = None,
         context: Optional[torch.Tensor] = None,
         control = None,
+        transformer_options = {},
     ) -> torch.Tensor:
         """
         Forward pass of DiT.
@@ -915,7 +1021,7 @@ class MMDiT(nn.Module):
         if context is not None:
             context = self.context_embedder(context)
 
-        x = self.forward_core_with_concat(x, c, context, control)
+        x = self.forward_core_with_concat(x, c, context, control, transformer_options)
 
         x = self.unpatchify(x, hw=hw)  # (N, out_channels, H, W)
         return x[:,:,:hw[-2],:hw[-1]]
@@ -929,7 +1035,8 @@ class OpenAISignatureMMDITWrapper(MMDiT):
         context: Optional[torch.Tensor] = None,
         y: Optional[torch.Tensor] = None,
         control = None,
+        transformer_options = {},
         **kwargs,
     ) -> torch.Tensor:
-        return super().forward(x, timesteps, context=context, y=y, control=control)
+        return super().forward(x, timesteps, context=context, y=y, control=control, transformer_options=transformer_options)
 

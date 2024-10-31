@@ -358,10 +358,34 @@ def beta_scheduler(model_sampling, steps, alpha=0.6, beta=0.6):
     ts = numpy.rint(scipy.stats.beta.ppf(ts, alpha, beta) * total_timesteps)
 
     sigs = []
+    last_t = -1
     for t in ts:
-        sigs += [float(model_sampling.sigmas[int(t)])]
+        if t != last_t:
+            sigs += [float(model_sampling.sigmas[int(t)])]
+        last_t = t
     sigs += [0.0]
     return torch.FloatTensor(sigs)
+
+# from: https://github.com/genmoai/models/blob/main/src/mochi_preview/infer.py#L41
+def linear_quadratic_schedule(model_sampling, steps, threshold_noise=0.025, linear_steps=None):
+    if steps == 1:
+        sigma_schedule = [1.0, 0.0]
+    else:
+        if linear_steps is None:
+            linear_steps = steps // 2
+        linear_sigma_schedule = [i * threshold_noise / linear_steps for i in range(linear_steps)]
+        threshold_noise_step_diff = linear_steps - threshold_noise * steps
+        quadratic_steps = steps - linear_steps
+        quadratic_coef = threshold_noise_step_diff / (linear_steps * quadratic_steps ** 2)
+        linear_coef = threshold_noise / linear_steps - 2 * threshold_noise_step_diff / (quadratic_steps ** 2)
+        const = quadratic_coef * (linear_steps ** 2)
+        quadratic_sigma_schedule = [
+            quadratic_coef * (i ** 2) + linear_coef * i + const
+            for i in range(linear_steps, steps)
+        ]
+        sigma_schedule = linear_sigma_schedule + quadratic_sigma_schedule + [1.0]
+        sigma_schedule = [1.0 - x for x in sigma_schedule]
+    return torch.FloatTensor(sigma_schedule) * model_sampling.sigma_max.cpu()
 
 def get_mask_aabb(masks):
     if masks.numel() == 0:
@@ -729,7 +753,7 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     return cfg_guider.sample(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
 
 
-SCHEDULER_NAMES = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"]
+SCHEDULER_NAMES = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta", "linear_quadratic"]
 SAMPLER_NAMES = KSAMPLER_NAMES + ["ddim", "uni_pc", "uni_pc_bh2"]
 
 def calculate_sigmas(model_sampling, scheduler_name, steps):
@@ -747,6 +771,8 @@ def calculate_sigmas(model_sampling, scheduler_name, steps):
         sigmas = normal_scheduler(model_sampling, steps, sgm=True)
     elif scheduler_name == "beta":
         sigmas = beta_scheduler(model_sampling, steps)
+    elif scheduler_name == "linear_quadratic":
+        sigmas = linear_quadratic_schedule(model_sampling, steps)
     else:
         logging.error("error invalid scheduler {}".format(scheduler_name))
     return sigmas

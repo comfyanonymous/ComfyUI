@@ -7,6 +7,7 @@ from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
 from .ldm.cascade.stage_a import StageA
 from .ldm.cascade.stage_c_coder import StageC_coder
 from .ldm.audio.autoencoder import AudioOobleckVAE
+import comfy.ldm.genmo.vae.model
 import yaml
 
 import comfy.utils
@@ -25,6 +26,7 @@ import comfy.text_encoders.aura_t5
 import comfy.text_encoders.hydit
 import comfy.text_encoders.flux
 import comfy.text_encoders.long_clipl
+import comfy.text_encoders.genmo
 
 import comfy.model_patcher
 import comfy.lora
@@ -241,6 +243,13 @@ class VAE:
                 self.process_output = lambda audio: audio
                 self.process_input = lambda audio: audio
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+            elif "blocks.2.blocks.3.stack.5.weight" in sd or "decoder.blocks.2.blocks.3.stack.5.weight" in sd: #genmo mochi vae
+                if "blocks.2.blocks.3.stack.5.weight" in sd:
+                    sd = comfy.utils.state_dict_prefix_replace(sd, {"": "decoder."})
+                self.first_stage_model = comfy.ldm.genmo.vae.model.VideoVAE()
+                self.latent_channels = 12
+                self.memory_used_decode = lambda shape, dtype: (1000 * shape[2] * shape[3] * shape[4] * (6 * 8 * 8)) * model_management.dtype_size(dtype)
+                self.upscale_ratio = (lambda a: max(0, a * 6 - 5), 8, 8)
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -296,6 +305,10 @@ class VAE:
         decode_fn = lambda a: self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).float()
         return comfy.utils.tiled_scale_multidim(samples, decode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=self.upscale_ratio, out_channels=self.output_channels, output_device=self.output_device)
 
+    def decode_tiled_3d(self, samples, tile_t=999, tile_x=32, tile_y=32, overlap=(1, 8, 8)):
+        decode_fn = lambda a: self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).float()
+        return self.process_output(comfy.utils.tiled_scale_multidim(samples, decode_fn, tile=(tile_t, tile_x, tile_y), overlap=overlap, upscale_amount=self.upscale_ratio, out_channels=self.output_channels, output_device=self.output_device))
+
     def encode_tiled_(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
         steps = pixel_samples.shape[0] * comfy.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x, tile_y, overlap)
         steps += pixel_samples.shape[0] * comfy.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x // 2, tile_y * 2, overlap)
@@ -314,6 +327,7 @@ class VAE:
         return comfy.utils.tiled_scale_multidim(samples, encode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=(1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device)
 
     def decode(self, samples_in):
+        pixel_samples = None
         try:
             memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used)
@@ -321,16 +335,21 @@ class VAE:
             batch_number = int(free_memory / memory_used)
             batch_number = max(1, batch_number)
 
-            pixel_samples = torch.empty((samples_in.shape[0], self.output_channels) + tuple(map(lambda a: a * self.upscale_ratio, samples_in.shape[2:])), device=self.output_device)
             for x in range(0, samples_in.shape[0], batch_number):
                 samples = samples_in[x:x+batch_number].to(self.vae_dtype).to(self.device)
-                pixel_samples[x:x+batch_number] = self.process_output(self.first_stage_model.decode(samples).to(self.output_device).float())
+                out = self.process_output(self.first_stage_model.decode(samples).to(self.output_device).float())
+                if pixel_samples is None:
+                    pixel_samples = torch.empty((samples_in.shape[0],) + tuple(out.shape[1:]), device=self.output_device)
+                pixel_samples[x:x+batch_number] = out
         except model_management.OOM_EXCEPTION as e:
             logging.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
-            if len(samples_in.shape) == 3:
+            dims = samples_in.ndim - 2
+            if dims == 1:
                 pixel_samples = self.decode_tiled_1d(samples_in)
-            else:
+            elif dims == 2:
                 pixel_samples = self.decode_tiled_(samples_in)
+            elif dims == 3:
+                pixel_samples = self.decode_tiled_3d(samples_in)
 
         pixel_samples = pixel_samples.to(self.output_device).movedim(1,-1)
         return pixel_samples
@@ -398,6 +417,7 @@ class CLIPType(Enum):
     STABLE_AUDIO = 4
     HUNYUAN_DIT = 5
     FLUX = 6
+    MOCHI = 7
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
     clip_data = []
@@ -432,16 +452,14 @@ def detect_te_model(sd):
     return None
 
 
-def t5xxl_weight_dtype(clip_data):
+def t5xxl_detect(clip_data):
     weight_name = "encoder.block.23.layer.1.DenseReluDense.wi_1.weight"
 
-    dtype_t5 = None
     for sd in clip_data:
-        weight = sd.get(weight_name, None)
-        if weight is not None:
-            dtype_t5 = weight.dtype
-            break
-    return dtype_t5
+        if weight_name in sd:
+            return comfy.text_encoders.sd3_clip.t5_xxl_detect(sd)
+
+    return {}
 
 
 def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -475,8 +493,12 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.sd2_clip.SD2ClipModel
             clip_target.tokenizer = comfy.text_encoders.sd2_clip.SD2Tokenizer
         elif te_model == TEModel.T5_XXL:
-            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, dtype_t5=t5xxl_weight_dtype(clip_data))
-            clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
+            if clip_type == CLIPType.SD3:
+                clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, **t5xxl_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
+            else: #CLIPType.MOCHI
+                clip_target.clip = comfy.text_encoders.genmo.mochi_te(**t5xxl_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.genmo.MochiT5Tokenizer
         elif te_model == TEModel.T5_XL:
             clip_target.clip = comfy.text_encoders.aura_t5.AuraT5Model
             clip_target.tokenizer = comfy.text_encoders.aura_t5.AuraT5Tokenizer
@@ -493,19 +515,19 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
     elif len(clip_data) == 2:
         if clip_type == CLIPType.SD3:
             te_models = [detect_te_model(clip_data[0]), detect_te_model(clip_data[1])]
-            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=TEModel.CLIP_L in te_models, clip_g=TEModel.CLIP_G in te_models, t5=TEModel.T5_XXL in te_models, dtype_t5=t5xxl_weight_dtype(clip_data))
+            clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=TEModel.CLIP_L in te_models, clip_g=TEModel.CLIP_G in te_models, t5=TEModel.T5_XXL in te_models, **t5xxl_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
         elif clip_type == CLIPType.HUNYUAN_DIT:
             clip_target.clip = comfy.text_encoders.hydit.HyditModel
             clip_target.tokenizer = comfy.text_encoders.hydit.HyditTokenizer
         elif clip_type == CLIPType.FLUX:
-            clip_target.clip = comfy.text_encoders.flux.flux_clip(dtype_t5=t5xxl_weight_dtype(clip_data))
+            clip_target.clip = comfy.text_encoders.flux.flux_clip(**t5xxl_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.flux.FluxTokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer
     elif len(clip_data) == 3:
-        clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(dtype_t5=t5xxl_weight_dtype(clip_data))
+        clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(**t5xxl_detect(clip_data))
         clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
 
     parameters = 0
@@ -580,7 +602,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
         return None
 
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
-    if weight_dtype is not None:
+    if weight_dtype is not None and model_config.scaled_fp8 is None:
         unet_weight_dtype.append(weight_dtype)
 
     model_config.custom_operations = model_options.get("custom_operations", None)
@@ -649,6 +671,8 @@ def load_diffusion_model_state_dict(sd, model_options={}): #load unet in diffuse
         sd = temp_sd
 
     parameters = comfy.utils.calculate_parameters(sd)
+    weight_dtype = comfy.utils.weight_dtype(sd)
+
     load_device = model_management.get_torch_device()
     model_config = model_detection.model_config_from_unet(sd, "")
 
@@ -675,8 +699,12 @@ def load_diffusion_model_state_dict(sd, model_options={}): #load unet in diffuse
                     logging.warning("{} {}".format(diffusers_keys[k], k))
 
     offload_device = model_management.unet_offload_device()
+    unet_weight_dtype = list(model_config.supported_inference_dtypes)
+    if weight_dtype is not None and model_config.scaled_fp8 is None:
+        unet_weight_dtype.append(weight_dtype)
+
     if dtype is None:
-        unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=model_config.supported_inference_dtypes)
+        unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=unet_weight_dtype)
     else:
         unet_dtype = dtype
 
