@@ -540,7 +540,11 @@ def model_config_from_diffusers_unet(state_dict):
 def convert_diffusers_mmdit(state_dict, output_prefix=""):
     out_sd = {}
 
-    if 'transformer_blocks.0.attn.norm_added_k.weight' in state_dict: #Flux
+    if 'joint_transformer_blocks.0.attn.add_k_proj.weight' in state_dict: #AuraFlow
+        num_joint = count_blocks(state_dict, 'joint_transformer_blocks.{}.')
+        num_single = count_blocks(state_dict, 'single_transformer_blocks.{}.')
+        sd_map = comfy.utils.auraflow_to_diffusers({"n_double_layers": num_joint, "n_layers": num_joint + num_single}, output_prefix=output_prefix)
+    elif 'x_embedder.weight' in state_dict: #Flux
         depth = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth_single_blocks = count_blocks(state_dict, 'single_transformer_blocks.{}.')
         hidden_size = state_dict["x_embedder.bias"].shape[0]
@@ -549,10 +553,6 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
         num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth = state_dict["pos_embed.proj.weight"].shape[0] // 64
         sd_map = comfy.utils.mmdit_to_diffusers({"depth": depth, "num_blocks": num_blocks}, output_prefix=output_prefix)
-    elif 'joint_transformer_blocks.0.attn.add_k_proj.weight' in state_dict: #AuraFlow
-        num_joint = count_blocks(state_dict, 'joint_transformer_blocks.{}.')
-        num_single = count_blocks(state_dict, 'single_transformer_blocks.{}.')
-        sd_map = comfy.utils.auraflow_to_diffusers({"n_double_layers": num_joint, "n_layers": num_joint + num_single}, output_prefix=output_prefix)
     else:
         return None
 
