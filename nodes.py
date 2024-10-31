@@ -1957,6 +1957,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageInvert": "Invert Image",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
     "ImageBatch": "Batch Images",
+    "ImageCrop": "Image Crop",
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
