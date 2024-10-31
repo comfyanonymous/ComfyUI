@@ -20,7 +20,7 @@ class FileInfo(TypedDict):
     modified: int
 
 
-def getFileInfo(path: str, relative_to: str) -> FileInfo:
+def get_file_info(path: str, relative_to: str) -> FileInfo:
     return {
         "path": os.path.relpath(path, relative_to),
         "size": os.path.getsize(path),
@@ -180,7 +180,7 @@ class UserManager():
             def process_full_path(full_path: str) -> FileInfo | str | list[str]:
                 full_path = full_path.replace(os.sep, '/')
                 if full_info:
-                    return getFileInfo(full_path, path)
+                    return get_file_info(full_path, path)
 
                 rel_path = os.path.relpath(full_path, path)
                 if split_path:
@@ -220,20 +220,49 @@ class UserManager():
 
         @routes.post("/userdata/{file}")
         async def post_userdata(request):
+            """
+            Upload or update a user data file.
+
+            This endpoint handles file uploads to a user's data directory, with options for
+            controlling overwrite behavior and response format.
+
+            Query Parameters:
+            - overwrite (optional): If "false", prevents overwriting existing files. Defaults to "true".
+            - full_info (optional): If "true", returns detailed file information (path, size, modified time).
+                                  If "false", returns only the relative file path.
+
+            Path Parameters:
+            - file: The target file path (URL encoded if necessary).
+
+            Returns:
+            - 409: If overwrite=false and the file already exists.
+            - 200: JSON response with either:
+                  - Full file information (if full_info=true)
+                  - Relative file path (if full_info=false)
+
+            The request body should contain the raw file content to be written.
+            """
             path = get_user_data_path(request)
             if not isinstance(path, str):
                 return path
 
-            overwrite = request.query["overwrite"] != "false"
+            overwrite = request.query.get("overwrite", 'true') != "false"
+            full_info = request.query.get('full_info', 'false').lower() == "true"
+
             if not overwrite and os.path.exists(path):
-                return web.Response(status=409)
+                return web.Response(status=409, text="File already exists")
 
             body = await request.read()
 
             with open(path, "wb") as f:
                 f.write(body)
 
-            resp = os.path.relpath(path, self.get_request_user_filepath(request, None))
+            user_path = self.get_request_user_filepath(request, None)
+            if full_info:
+                resp = get_file_info(path, user_path)
+            else:
+                resp = os.path.relpath(path, user_path)
+
             return web.json_response(resp)
 
         @routes.delete("/userdata/{file}")
