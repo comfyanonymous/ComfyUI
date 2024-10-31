@@ -234,6 +234,8 @@ class UserManager():
             - file: The target file path (URL encoded if necessary).
 
             Returns:
+            - 400: If 'file' parameter is missing.
+            - 403: If the requested path is not allowed.
             - 409: If overwrite=false and the file already exists.
             - 200: JSON response with either:
                   - Full file information (if full_info=true)

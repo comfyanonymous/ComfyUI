@@ -14,7 +14,7 @@ def user_manager(tmp_path):
     um = UserManager()
     um.get_request_user_filepath = lambda req, file, **kwargs: os.path.join(
         tmp_path, file
-    )
+    ) if file else tmp_path
     return um
 
 
