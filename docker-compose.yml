@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  comfyui:
+    build: .
+    container_name: comfyui-worker-min
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - SERVE_API_LOCALLY=true
+    ports:
+      - "8000:8000"
+      - "8188:8188"
+    runtime: nvidia
+    volumes:
+      - /home/minkhant/Documents/BrookAI/AI_MODELS/output:/comfyui/output
+      - /home/minkhant/Documents/BrookAI/AI_MODELS:/runpod-volume
