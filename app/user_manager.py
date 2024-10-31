@@ -22,7 +22,7 @@ class FileInfo(TypedDict):
 
 def get_file_info(path: str, relative_to: str) -> FileInfo:
     return {
-        "path": os.path.relpath(path, relative_to),
+        "path": os.path.relpath(path, relative_to).replace(os.sep, '/'),
         "size": os.path.getsize(path),
         "modified": os.path.getmtime(path)
     }
@@ -178,11 +178,10 @@ class UserManager():
                 pattern = os.path.join(glob.escape(path), '*')
 
             def process_full_path(full_path: str) -> FileInfo | str | list[str]:
-                full_path = full_path.replace(os.sep, '/')
                 if full_info:
                     return get_file_info(full_path, path)
 
-                rel_path = os.path.relpath(full_path, path)
+                rel_path = os.path.relpath(full_path, path).replace(os.sep, '/')
                 if split_path:
                     return [rel_path] + rel_path.split('/')
 
