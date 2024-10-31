@@ -9,8 +9,23 @@ from urllib import parse
 from comfy.cli_args import args
 import folder_paths
 from .app_settings import AppSettings
+from typing import TypedDict
 
 default_user = "default"
+
+
+class FileInfo(TypedDict):
+    path: str
+    size: int
+    modified: int
+
+
+def getFileInfo(path: str, relative_to: str) -> FileInfo:
+    return {
+        "path": os.path.relpath(path, relative_to),
+        "size": os.path.getsize(path),
+        "modified": os.path.getmtime(path)
+    }
 
 
 class UserManager():
@@ -154,6 +169,7 @@ class UserManager():
 
             recurse = request.rel_url.query.get('recurse', '').lower() == "true"
             full_info = request.rel_url.query.get('full_info', '').lower() == "true"
+            split_path = request.rel_url.query.get('split', '').lower() == "true"
 
             # Use different patterns based on whether we're recursing or not
             if recurse:
@@ -161,26 +177,22 @@ class UserManager():
             else:
                 pattern = os.path.join(glob.escape(path), '*')
 
-            results = glob.glob(pattern, recursive=recurse)
+            def process_full_path(full_path: str) -> FileInfo | str | list[str]:
+                full_path = full_path.replace(os.sep, '/')
+                if full_info:
+                    return getFileInfo(full_path, path)
 
-            if full_info:
-                results = [
-                    {
-                        'path': os.path.relpath(x, path).replace(os.sep, '/'),
-                        'size': os.path.getsize(x),
-                        'modified': os.path.getmtime(x)
-                    } for x in results if os.path.isfile(x)
-                ]
-            else:
-                results = [
-                    os.path.relpath(x, path).replace(os.sep, '/')
-                    for x in results
-                    if os.path.isfile(x)
-                ]
+                rel_path = os.path.relpath(full_path, path)
+                if split_path:
+                    return [rel_path] + rel_path.split('/')
 
-            split_path = request.rel_url.query.get('split', '').lower() == "true"
-            if split_path and not full_info:
-                results = [[x] + x.split('/') for x in results]
+                return rel_path
+
+            results = [
+                process_full_path(full_path)
+                for full_path in glob.glob(pattern, recursive=recurse)
+                if os.path.isfile(full_path)
+            ]
 
             return web.json_response(results)
 
