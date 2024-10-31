@@ -4,6 +4,7 @@ import re
 import uuid
 import glob
 import shutil
+import logging
 from aiohttp import web
 from urllib import parse
 from comfy.cli_args import args
@@ -278,6 +279,30 @@ class UserManager():
 
         @routes.post("/userdata/{file}/move/{dest}")
         async def move_userdata(request):
+            """
+            Move or rename a user data file.
+
+            This endpoint handles moving or renaming files within a user's data directory, with options for
+            controlling overwrite behavior and response format.
+
+            Path Parameters:
+            - file: The source file path (URL encoded if necessary)
+            - dest: The destination file path (URL encoded if necessary)
+
+            Query Parameters:
+            - overwrite (optional): If "false", prevents overwriting existing files. Defaults to "true".
+            - full_info (optional): If "true", returns detailed file information (path, size, modified time).
+                                  If "false", returns only the relative file path.
+
+            Returns:
+            - 400: If either 'file' or 'dest' parameter is missing
+            - 403: If either requested path is not allowed
+            - 404: If the source file does not exist
+            - 409: If overwrite=false and the destination file already exists
+            - 200: JSON response with either:
+                  - Full file information (if full_info=true)
+                  - Relative file path (if full_info=false)
+            """
             source = get_user_data_path(request, check_exists=True)
             if not isinstance(source, str):
                 return source
@@ -286,12 +311,19 @@ class UserManager():
             if not isinstance(source, str):
                 return dest
 
-            overwrite = request.query["overwrite"] != "false"
-            if not overwrite and os.path.exists(dest):
-                return web.Response(status=409)
+            overwrite = request.query.get("overwrite", 'true') != "false"
+            full_info = request.query.get('full_info', 'false').lower() == "true"
 
-            print(f"moving '{source}' -> '{dest}'")
+            if not overwrite and os.path.exists(dest):
+                return web.Response(status=409, text="File already exists")
+
+            logging.info(f"moving '{source}' -> '{dest}'")
             shutil.move(source, dest)
 
-            resp = os.path.relpath(dest, self.get_request_user_filepath(request, None))
+            user_path = self.get_request_user_filepath(request, None)
+            if full_info:
+                resp = get_file_info(dest, user_path)
+            else:
+                resp = os.path.relpath(dest, user_path)
+
             return web.json_response(resp)

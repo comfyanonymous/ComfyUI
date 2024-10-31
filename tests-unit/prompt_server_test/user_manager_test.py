@@ -173,3 +173,59 @@ async def test_post_userdata_full_info(aiohttp_client, app, tmp_path):
     assert result["path"] == "test.txt"
     assert result["size"] == len(content)
     assert "modified" in result
+
+
+async def test_move_userdata(aiohttp_client, app, tmp_path):
+    # Create initial file
+    with open(tmp_path / "source.txt", "w") as f:
+        f.write("test content")
+
+    client = await aiohttp_client(app)
+    resp = await client.post("/userdata/source.txt/move/dest.txt")
+
+    assert resp.status == 200
+    assert await resp.text() == '"dest.txt"'
+
+    # Verify file was moved
+    assert not os.path.exists(tmp_path / "source.txt")
+    with open(tmp_path / "dest.txt", "r") as f:
+        assert f.read() == "test content"
+
+
+async def test_move_userdata_no_overwrite(aiohttp_client, app, tmp_path):
+    # Create source and destination files
+    with open(tmp_path / "source.txt", "w") as f:
+        f.write("source content")
+    with open(tmp_path / "dest.txt", "w") as f:
+        f.write("destination content")
+
+    client = await aiohttp_client(app)
+    resp = await client.post("/userdata/source.txt/move/dest.txt?overwrite=false")
+
+    assert resp.status == 409
+
+    # Verify files remain unchanged
+    with open(tmp_path / "source.txt", "r") as f:
+        assert f.read() == "source content"
+    with open(tmp_path / "dest.txt", "r") as f:
+        assert f.read() == "destination content"
+
+
+async def test_move_userdata_full_info(aiohttp_client, app, tmp_path):
+    # Create initial file
+    with open(tmp_path / "source.txt", "w") as f:
+        f.write("test content")
+
+    client = await aiohttp_client(app)
+    resp = await client.post("/userdata/source.txt/move/dest.txt?full_info=true")
+
+    assert resp.status == 200
+    result = await resp.json()
+    assert result["path"] == "dest.txt"
+    assert result["size"] == len("test content")
+    assert "modified" in result
+
+    # Verify file was moved
+    assert not os.path.exists(tmp_path / "source.txt")
+    with open(tmp_path / "dest.txt", "r") as f:
+        assert f.read() == "test content"
