@@ -6,7 +6,7 @@ import os
 import typing
 import weakref
 from abc import ABC, abstractmethod
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, NamedTuple, Optional, Iterable
 
 from .platform_path import construct_path
@@ -452,9 +452,16 @@ class FolderNames:
 
     def __delitem__(self, key):
         to_remove: list[AbstractPaths] = []
+        if isinstance(key, str):
+            folder_names = [key]
+        else:
+            iter(key)
+            folder_names = key
+
         for model_paths in self.contents:
-            if model_paths.has_folder_name(key):
-                to_remove.append(model_paths)
+            for folder_name in folder_names:
+                if model_paths.has_folder_name(folder_name):
+                    to_remove.append(model_paths)
 
         for model_paths in to_remove:
             self.contents.remove(model_paths)

@@ -5,6 +5,7 @@ import mimetypes
 import os
 import time
 from contextlib import nullcontext
+from functools import reduce
 from pathlib import Path, PurePosixPath
 from typing import Optional, List, Literal
 
@@ -51,46 +52,60 @@ def _resolve_path_with_compatibility(path: Path | str) -> PurePosixPath | Path:
     return Path(path).resolve()
 
 
-def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optional[Configuration] = None, create_all_directories=False):
+def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optional[Configuration] = None, create_all_directories=False, replace_existing=True):
     """
     Populates the folder names and paths object with the default, upstream model directories and custom_nodes directory.
     :param folder_names_and_paths: the object to populate with paths
     :param configuration: a configuration whose base_paths and other path settings will be used to set the values on this object
     :param create_all_directories: create all the possible directories by calling create_directories() after the object is populated
+    :param replace_existing: when true, removes existing model paths objects for the built-in folder names; and, replaces the base paths
     :return:
     """
     from ..cmd.main_pre import args
     configuration = configuration or args
+
     base_paths = [Path(configuration.cwd) if configuration.cwd is not None else None] + configuration.base_paths
-    base_paths = [path for path in base_paths if path is not None]
+    base_paths = [Path(path) for path in base_paths if path is not None]
     if len(base_paths) == 0:
         base_paths = [Path(os.getcwd())]
+    base_paths = reduce(lambda uniq_list, item: uniq_list.append(item) or uniq_list if item not in uniq_list else uniq_list, base_paths, [])
+    if replace_existing:
+        folder_names_and_paths.base_paths.clear()
     for base_path in base_paths:
         folder_names_and_paths.add_base_path(base_path)
-    folder_names_and_paths.add(ModelPaths(["checkpoints"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(["configs"], additional_absolute_directory_paths={get_package_as_path("comfy.configs")}, supported_extensions={".yaml"}))
-    folder_names_and_paths.add(ModelPaths(["vae"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(["clip"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(["loras"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(folder_names=["diffusion_models", "unet"], supported_extensions=set(supported_pt_extensions), folder_names_are_relative_directory_paths_too=True))
-    folder_names_and_paths.add(ModelPaths(["clip_vision"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(["style_models"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(["embeddings"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(["diffusers"], supported_extensions=set()))
-    folder_names_and_paths.add(ModelPaths(["vae_approx"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(folder_names=["controlnet", "t2i_adapter"], supported_extensions=set(supported_pt_extensions), folder_names_are_relative_directory_paths_too=True))
-    folder_names_and_paths.add(ModelPaths(["gligen"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(["upscale_models"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(["custom_nodes"], folder_name_base_path_subdir=construct_path(""), supported_extensions=set()))
-    folder_names_and_paths.add(ModelPaths(["hypernetworks"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(["photomaker"], supported_extensions=set(supported_pt_extensions)))
-    folder_names_and_paths.add(ModelPaths(["classifiers"], supported_extensions=set()))
-    folder_names_and_paths.add(ModelPaths(["huggingface"], supported_extensions=set()))
     hf_cache_paths = ModelPaths(["huggingface_cache"], supported_extensions=set())
     # TODO: explore if there is a better way to do this
     if "HF_HUB_CACHE" in os.environ:
         hf_cache_paths.additional_absolute_directory_paths.add(os.environ.get("HF_HUB_CACHE"))
-    folder_names_and_paths.add(hf_cache_paths)
+
+    model_paths_to_add = [
+        ModelPaths(["checkpoints"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(["configs"], additional_absolute_directory_paths={get_package_as_path("comfy.configs")}, supported_extensions={".yaml"}),
+        ModelPaths(["vae"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(["clip"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(["loras"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(folder_names=["diffusion_models", "unet"], supported_extensions=set(supported_pt_extensions), folder_names_are_relative_directory_paths_too=True),
+        ModelPaths(["clip_vision"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(["style_models"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(["embeddings"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(["diffusers"], supported_extensions=set()),
+        ModelPaths(["vae_approx"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(folder_names=["controlnet", "t2i_adapter"], supported_extensions=set(supported_pt_extensions), folder_names_are_relative_directory_paths_too=True),
+        ModelPaths(["gligen"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(["upscale_models"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(["custom_nodes"], folder_name_base_path_subdir=construct_path(""), supported_extensions=set()),
+        ModelPaths(["hypernetworks"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(["photomaker"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(["classifiers"], supported_extensions=set()),
+        ModelPaths(["huggingface"], supported_extensions=set()),
+        hf_cache_paths,
+    ]
+    for model_paths in model_paths_to_add:
+        if replace_existing:
+            for folder_name in model_paths.folder_names:
+                del folder_names_and_paths[folder_name]
+        folder_names_and_paths.add(model_paths)
+
     if create_all_directories:
         create_directories(folder_names_and_paths)
 

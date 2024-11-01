@@ -1,5 +1,6 @@
 import asyncio
 import logging
+
 logging.basicConfig(level=logging.ERROR)
 
 import uuid
@@ -22,7 +23,6 @@ from comfy.distributed.process_pool_executor import ProcessPoolExecutor
 from comfy.distributed.server_stub import ServerStub
 
 
-
 def create_test_prompt() -> QueueItem:
     from comfy.cmd.execution import validate_prompt
 
@@ -41,7 +41,7 @@ async def test_sign_jwt_auth_none():
     assert user_token["sub"] == client_id
 
 
-_executor_factories: tuple[Executor] = (ContextVarExecutor,)
+_executor_factories: tuple[Executor] = (ContextVarExecutor, ProcessPoolExecutor)
 
 
 @pytest.mark.asyncio

@@ -124,7 +124,7 @@ class Configuration(dict):
         self._observers: List[ConfigObserver] = []
         self.config_files = []
         self.cwd: Optional[str] = None
-        self.base_paths: list[Path] = []
+        self.base_paths: list[str] = []
         self.listen: str = "127.0.0.1"
         self.port: int = 8188
         self.enable_cors_header: Optional[str] = None

@@ -37,7 +37,7 @@ def _execute_prompt(
         configuration: Configuration | None) -> dict:
     execution_context = current_execution_context()
     if len(execution_context.folder_names_and_paths) == 0 or configuration is not None:
-        init_default_paths(execution_context.folder_names_and_paths, configuration)
+        init_default_paths(execution_context.folder_names_and_paths, configuration, replace_existing=True)
     span_context: Context = propagate.extract(span_context)
     token = attach(span_context)
     try:
@@ -54,6 +54,8 @@ def __execute_prompt(
         progress_handler: ExecutorToClientProgress | None,
         configuration: Configuration | None) -> dict:
     from .. import options
+    from ..cmd.execution import PromptExecutor
+
     progress_handler = progress_handler or ServerStub()
 
     try:
@@ -66,8 +68,7 @@ def __execute_prompt(
             args.clear()
             args.update(configuration)
 
-        from ..cmd.execution import PromptExecutor
-        with tracer.start_as_current_span("Initialize Prompt Executor", context=span_context) as span:
+        with tracer.start_as_current_span("Initialize Prompt Executor", context=span_context):
             prompt_executor = PromptExecutor(progress_handler, lru_size=configuration.cache_lru if configuration is not None else 0)
             prompt_executor.raise_exceptions = True
             _prompt_executor.executor = prompt_executor
