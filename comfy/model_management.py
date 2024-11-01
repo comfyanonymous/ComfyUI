@@ -399,37 +399,6 @@ def extra_reserved_memory():
 def minimum_inference_memory():
     return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
 
-def unload_model_clones(model, unload_weights_only=True, force_unload=True):
-    to_unload = []
-    for i in range(len(current_loaded_models)):
-        if model.is_clone(current_loaded_models[i].model):
-            to_unload = [i] + to_unload
-
-    if len(to_unload) == 0:
-        return True
-
-    same_weights = 0
-    for i in to_unload:
-        if model.clone_has_same_weights(current_loaded_models[i].model):
-            same_weights += 1
-
-    if same_weights == len(to_unload):
-        unload_weight = False
-    else:
-        unload_weight = True
-
-    if not force_unload:
-        if unload_weights_only and unload_weight == False:
-            return None
-    else:
-        unload_weight = True
-
-    for i in to_unload:
-        logging.debug("unload clone {} {}".format(i, unload_weight))
-        current_loaded_models.pop(i).model_unload(unpatch_weights=unload_weight)
-
-    return unload_weight
-
 def free_memory(memory_required, device, keep_loaded=[]):
     unloaded_model = []
     can_unload = []
