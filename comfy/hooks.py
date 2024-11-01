@@ -293,7 +293,7 @@ class HookGroup:
                 # find ranges of values
                 prev_keyframe = hook.hook_keyframe.keyframes[0]
                 for keyframe in hook.hook_keyframe.keyframes:
-                    if keyframe.start_percent > prev_keyframe.start_percent:
+                    if keyframe.start_percent > prev_keyframe.start_percent and not math.isclose(keyframe.strength, prev_keyframe.strength):
                         hook_schedule.append(((prev_keyframe.start_percent, keyframe.start_percent), prev_keyframe))
                         prev_keyframe = keyframe
                     elif keyframe.start_percent == prev_keyframe.start_percent:
