@@ -176,7 +176,7 @@ class QuantizeModel(CustomNode):
             _in_place_fixme = unet
         elif "torchao" in strategy:
             from torchao.quantization import quantize_, int8_dynamic_activation_int8_weight, autoquant  # pylint: disable=import-error
-            from torchao.utils import unwrap_tensor_subclass
+            from torchao.utils import unwrap_tensor_subclass  # pylint: disable=import-error
             self.warn_in_place(model)
             model_management.load_models_gpu([model])
 
