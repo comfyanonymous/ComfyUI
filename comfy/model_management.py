@@ -399,37 +399,6 @@ def extra_reserved_memory():
 def minimum_inference_memory():
     return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
 
-def unload_model_clones(model, unload_weights_only=True, force_unload=True):
-    to_unload = []
-    for i in range(len(current_loaded_models)):
-        if model.is_clone(current_loaded_models[i].model):
-            to_unload = [i] + to_unload
-
-    if len(to_unload) == 0:
-        return True
-
-    same_weights = 0
-    for i in to_unload:
-        if model.clone_has_same_weights(current_loaded_models[i].model):
-            same_weights += 1
-
-    if same_weights == len(to_unload):
-        unload_weight = False
-    else:
-        unload_weight = True
-
-    if not force_unload:
-        if unload_weights_only and unload_weight == False:
-            return None
-    else:
-        unload_weight = True
-
-    for i in to_unload:
-        logging.debug("unload clone {} {}".format(i, unload_weight))
-        current_loaded_models.pop(i).model_unload(unpatch_weights=unload_weight)
-
-    return unload_weight
-
 def free_memory(memory_required, device, keep_loaded=[]):
     unloaded_model = []
     can_unload = []
@@ -496,13 +465,13 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
                 logging.info(f"Requested to load {x.model.__class__.__name__}")
             models_to_load.append(loaded_model)
 
-    to_unload = []
     for loaded_model in models_to_load:
+        to_unload = []
         for i in range(len(current_loaded_models)):
             if loaded_model.model.is_clone(current_loaded_models[i].model):
                 to_unload = [i] + to_unload
-    for i in to_unload:
-        current_loaded_models.pop(i).model.detach(unpatch_all=False)
+        for i in to_unload:
+            current_loaded_models.pop(i).model.detach(unpatch_all=False)
 
     total_memory_required = {}
     for loaded_model in models_to_load:
