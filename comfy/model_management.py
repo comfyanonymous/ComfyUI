@@ -496,13 +496,13 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
                 logging.info(f"Requested to load {x.model.__class__.__name__}")
             models_to_load.append(loaded_model)
 
-    to_unload = []
     for loaded_model in models_to_load:
+        to_unload = []
         for i in range(len(current_loaded_models)):
             if loaded_model.model.is_clone(current_loaded_models[i].model):
                 to_unload = [i] + to_unload
-    for i in to_unload:
-        current_loaded_models.pop(i).model.detach(unpatch_all=False)
+        for i in to_unload:
+            current_loaded_models.pop(i).model.detach(unpatch_all=False)
 
     total_memory_required = {}
     for loaded_model in models_to_load:
