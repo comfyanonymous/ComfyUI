@@ -112,7 +112,7 @@ def _create_tracer():
 
 def _configure_logging():
     logging_level = args.logging_level
-    logging.basicConfig(format="%(message)s", level=logging_level)
+    logging.basicConfig(level=logging_level)
 
 
 _configure_logging()

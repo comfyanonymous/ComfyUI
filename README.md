@@ -123,16 +123,16 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
    ```shell
    pip install "comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git"
    ```
-   **Recommended**: Currently, `torch 2.4.1` is the last version that `xformers` is compatible with. On Windows, install it first, along with `xformers`, for maximum compatibility and the best performance without advanced techniques in ComfyUI:
+   **Recommended**: Currently, `torch 2.5.0` is the latest version that `xformers` is compatible with. On Windows, install it first, along with `xformers`, for maximum compatibility and the best performance without advanced techniques in ComfyUI:
    ```shell
-   pip install torch==2.4.1+cu121 torchvision --index-url https://download.pytorch.org/whl/cu121
-   pip install --no-build-isolation --no-deps xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/
+   pip install torch==2.5.1+cu121 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+   pip install --no-build-isolation --no-deps xformers==0.0.28.post3 --index-url https://download.pytorch.org/whl/
    pip install comfyui@git+https://github.com/hiddenswitch/ComfyUI.git
    ```
 
    To enable `torchaudio` support on Windows, install it directly:
    ```shell
-   pip install torchaudio==2.4.1+cu121 --index-url https://download.pytorch.org/whl/cu121
+   pip install torchaudio==2.5.0+cu121 --index-url https://download.pytorch.org/whl/cu121
    ```
    **Advanced**: If you are running in Google Collab or another environment which has already installed `torch` for you; or, if you are an application developer:
    ```shell

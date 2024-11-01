@@ -933,6 +933,8 @@ def pick_weight_dtype(dtype, fallback_dtype, device=None):
 
 
 def device_supports_non_blocking(device):
+    if torch.jit.is_tracing() or torch.jit.is_scripting():
+        return True
     if is_device_mps(device):
         return False  # pytorch bug? mps doesn't support non blocking
     if is_intel_xpu():

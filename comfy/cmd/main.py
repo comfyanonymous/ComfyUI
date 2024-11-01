@@ -24,6 +24,8 @@ from ..distributed.distributed_prompt_queue import DistributedPromptQueue
 from ..distributed.server_stub import ServerStub
 from ..nodes.package import import_all_nodes_in_workspace
 
+logger = logging.getLogger(__name__)
+
 
 def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
     from ..cmd.execution import PromptExecutor
@@ -58,7 +60,7 @@ def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
-            logging.debug("Prompt executed in {:.2f} seconds".format(execution_time))
+            logger.debug("Prompt executed in {:.2f} seconds".format(execution_time))
 
         flags = q.get_flags()
         free_memory = flags.get("free_memory", False)
@@ -109,7 +111,7 @@ def cuda_malloc_warning():
             if b in device_name:
                 cuda_malloc_warning = True
         if cuda_malloc_warning:
-            logging.warning(
+            logger.warning(
                 "\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
@@ -125,13 +127,13 @@ async def main(from_script_dir: Optional[Path] = None):
 
     if args.temp_directory:
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
-        logging.debug(f"Setting temp directory to: {temp_dir}")
+        logger.debug(f"Setting temp directory to: {temp_dir}")
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
 
     if args.user_directory:
         user_dir = os.path.abspath(args.user_directory)
-        logging.info(f"Setting user directory to: {user_dir}")
+        logger.info(f"Setting user directory to: {user_dir}")
         folder_paths.set_user_directory(user_dir)
 
     # configure extra model paths earlier
@@ -193,7 +195,7 @@ async def main(from_script_dir: Optional[Path] = None):
     worker_thread_server = server if not distributed else ServerStub()
     if not distributed or args.distributed_queue_worker:
         if distributed:
-            logging.warning(f"Distributed workers started in the default thread loop cannot notify clients of progress updates. Instead of comfyui or main.py, use comfyui-worker.")
+            logger.warning(f"Distributed workers started in the default thread loop cannot notify clients of progress updates. Instead of comfyui or main.py, use comfyui-worker.")
         # todo: this should really be using an executor instead of doing things this jankilicious way
         ctx = contextvars.copy_context()
         threading.Thread(target=lambda _q, _worker_thread_server: ctx.run(prompt_worker, _q, _worker_thread_server), daemon=True, args=(q, worker_thread_server,)).start()
@@ -203,7 +205,7 @@ async def main(from_script_dir: Optional[Path] = None):
 
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
-        logging.debug(f"Setting output directory to: {output_dir}")
+        logger.debug(f"Setting output directory to: {output_dir}")
         folder_paths.set_output_directory(output_dir)
 
     # These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
@@ -215,7 +217,7 @@ async def main(from_script_dir: Optional[Path] = None):
 
     if args.input_directory:
         input_dir = os.path.abspath(args.input_directory)
-        logging.debug(f"Setting input directory to: {input_dir}")
+        logger.debug(f"Setting input directory to: {input_dir}")
         folder_paths.set_input_directory(input_dir)
 
     if args.quick_test_for_ci:
@@ -243,7 +245,7 @@ async def main(from_script_dir: Optional[Path] = None):
         await run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server,
                   call_on_start=call_on_start)
     except (asyncio.CancelledError, KeyboardInterrupt):
-        logging.debug("\nStopped server")
+        logger.debug("\nStopped server")
     finally:
         if distributed:
             await q.close()
@@ -254,7 +256,7 @@ def entrypoint():
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logging.info(f"Gracefully shutting down due to KeyboardInterrupt")
+        logger.info(f"Gracefully shutting down due to KeyboardInterrupt")
 
 
 if __name__ == "__main__":

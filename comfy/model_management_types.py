@@ -101,7 +101,7 @@ class ModelManageable(Protocol):
         return utils.get_attr(self.model, name)
 
     @property
-    def model_options(self) -> dict:
+    def model_options(self) -> ModelOptions:
         if not hasattr(self, "_model_options"):
             setattr(self, "_model_options", {"transformer_options": {}})
         return getattr(self, "_model_options")

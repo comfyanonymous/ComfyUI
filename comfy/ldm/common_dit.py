@@ -1,6 +1,6 @@
 import torch
 
-from .. import ops
+from comfy import ops
 
 
 def pad_to_patch_size(img, patch_size=(2, 2), padding_mode="circular"):

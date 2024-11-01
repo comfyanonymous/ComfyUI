@@ -131,14 +131,14 @@ def get_key_weight(model, key):
 
 
 class ModelPatcher(ModelManageable):
-    def __init__(self, model: torch.nn.Module, load_device: torch.device, offload_device: torch.device, size=0, weight_inplace_update=False, ckpt_name: Optional[str] = None):
+    def __init__(self, model: BaseModel | torch.nn.Module, load_device: torch.device, offload_device: torch.device, size=0, weight_inplace_update=False, ckpt_name: Optional[str] = None):
         self.size = size
-        self.model: torch.nn.Module | BaseModel = model
+        self.model: BaseModel | torch.nn.Module = model
         self.patches = {}
         self.backup = {}
         self.object_patches = {}
         self.object_patches_backup = {}
-        self._model_options = {"transformer_options": {}}
+        self._model_options: ModelOptions = {"transformer_options": {}}
         self.model_size()
         self.load_device = load_device
         self.offload_device = offload_device
@@ -601,7 +601,11 @@ class ModelPatcher(ModelManageable):
         return self.current_loaded_device()
 
     def __str__(self):
-        info_str = f"{self.model_dtype()} {self.model_device} {naturalsize(self._memory_measurements.model_loaded_weight_memory, binary=True)}"
+        if hasattr(self.model, "operations"):
+            operations_str = self.model.operations.__name__
+        else:
+            operations_str = None
+        info_str = f"model_dtype={self.model_dtype()} device={self.model_device} size={naturalsize(self._memory_measurements.model_loaded_weight_memory, binary=True)} operations={operations_str}"
         if self.ckpt_name is not None:
             return f"<ModelPatcher for {self.ckpt_name} ({self.model.__class__.__name__} {info_str})>"
         else:

@@ -15,11 +15,14 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+from typing import Optional
 
 import torch
 from . import model_base
 from . import utils
 from . import latent_formats
+from .ops import Operations
+
 
 class ClipTarget:
     def __init__(self, tokenizer, clip):
@@ -36,8 +39,8 @@ class BASE:
 
     required_keys = {}
 
-    clip_prefix = []
-    clip_vision_prefix = None
+    clip_prefix: list[str] = []
+    clip_vision_prefix: Optional[str] = None
     noise_aug_config = None
     sampling_settings = {}
     latent_format = latent_formats.LatentFormat
@@ -47,9 +50,9 @@ class BASE:
 
     memory_usage_factor = 2.0
 
-    manual_cast_dtype = None
-    custom_operations = None
-    scaled_fp8 = None
+    manual_cast_dtype: Optional[torch.dtype] = None
+    custom_operations: Optional[Operations] = None
+    scaled_fp8: Optional[torch.dtype] = None
     optimizations = {"fp8": False}
 
     @classmethod

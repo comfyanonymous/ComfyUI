@@ -15,7 +15,7 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from typing import Optional
+from typing import Optional, Type, Union
 
 import torch
 from torch import Tensor
@@ -42,7 +42,7 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
             device = input.device
 
     bias = None
-    non_blocking = model_management.device_supports_non_blocking(device)
+    non_blocking = True if torch.jit.is_tracing() or torch.jit.is_scripting() else model_management.device_supports_non_blocking(device)
     if s.bias is not None:
         has_function = s.bias_function is not None
         bias = model_management.cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking, copy=has_function)
@@ -358,8 +358,12 @@ class fp8_ops(manual_cast):
             return torch.nn.functional.linear(input, weight, bias)
 
 
+class scaled_fp8_op_base(manual_cast):
+    pass
+
+
 def scaled_fp8_ops(fp8_matrix_mult=False, scale_input=False, override_dtype=None):
-    class scaled_fp8_op(manual_cast):
+    class scaled_fp8_op(scaled_fp8_op_base):
         class Linear(manual_cast.Linear):
             def __init__(self, *args, **kwargs):
                 if override_dtype is not None:
@@ -407,7 +411,10 @@ def scaled_fp8_ops(fp8_matrix_mult=False, scale_input=False, override_dtype=None
     return scaled_fp8_op
 
 
-def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, scaled_fp8=None, inference_mode: Optional[bool] = None):
+Operations = Type[Union[manual_cast, fp8_ops, disable_weight_init, skip_init, scaled_fp8_op_base]]
+
+
+def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, scaled_fp8: Optional[torch.dtype] = None, inference_mode: Optional[bool] = None) -> Operations:
     if inference_mode is None:
         # todo: check a context here, since this isn't being used by any callers yet
         inference_mode = current_execution_context().inference_mode

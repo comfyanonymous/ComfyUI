@@ -51,6 +51,7 @@ from ..model_filemanager import download_model, DownloadModelStatus
 from ..model_management import get_torch_device, get_torch_device_name, get_total_memory, get_free_memory, torch_version
 from ..nodes.package_typing import ExportedNodes
 
+logger = logging.getLogger(__name__)
 
 class HeuristicPath(NamedTuple):
     filename_heuristic: str
@@ -61,7 +62,7 @@ async def send_socket_catch_exception(function, message):
     try:
         await function(message)
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError, BrokenPipeError, ConnectionError) as err:
-        logging.warning("send error: {}".format(err))
+        logger.warning("send error: {}".format(err))
 
 
 def get_comfyui_version():
@@ -144,7 +145,7 @@ def create_origin_only_middleware():
 
             if loopback and host_domain is not None and origin_domain is not None and len(host_domain) > 0 and len(origin_domain) > 0:
                 if host_domain != origin_domain:
-                    logging.warning("WARNING: request with non matching host and origin {} != {}, returning 403".format(host_domain, origin_domain))
+                    logger.warning("WARNING: request with non matching host and origin {} != {}, returning 403".format(host_domain, origin_domain))
                     return web.Response(status=403)
 
         if request.method == "OPTIONS":
@@ -227,7 +228,7 @@ class PromptServer(ExecutorToClientProgress):
                     await self.send("executing", {"node": self.last_node_id}, sid)
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.ERROR:
-                        logging.warning('ws connection closed with exception %s' % ws.exception())
+                        logger.warning('ws connection closed with exception %s' % ws.exception())
             finally:
                 self.sockets.pop(sid, None)
             return ws
@@ -573,8 +574,8 @@ class PromptServer(ExecutorToClientProgress):
                 try:
                     out[x] = node_info(x)
                 except Exception as e:
-                    logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
-                    logging.error(traceback.format_exc())
+                    logger.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
+                    logger.error(traceback.format_exc())
             return web.json_response(out)
 
         @routes.get("/object_info/{node_class}")
@@ -638,7 +639,7 @@ class PromptServer(ExecutorToClientProgress):
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
                 else:
-                    logging.warning("invalid prompt: {}".format(valid[1]))
+                    logger.warning("invalid prompt: {}".format(valid[1]))
                     return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)
             else:
                 return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
@@ -708,7 +709,7 @@ class PromptServer(ExecutorToClientProgress):
 
             session = self.client_session
             if session is None:
-                logging.error("Client session is not initialized")
+                logger.error("Client session is not initialized")
                 return web.Response(status=500)
 
             task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, folder_path, report_progress, progress_interval))
@@ -1026,6 +1027,9 @@ class PromptServer(ExecutorToClientProgress):
         await self.start_multi_address([(address, port)], call_on_start=call_on_start, verbose=verbose)
 
     async def start_multi_address(self, addresses, call_on_start=None, verbose=True):
+        address_print = "localhost"
+        port = 8188
+        address: str = None
         runner = web.AppRunner(self.app, access_log=None, keepalive_timeout=900)
         await runner.setup()
         for addr in addresses:
@@ -1038,14 +1042,15 @@ class PromptServer(ExecutorToClientProgress):
                 self.address = address  # TODO: remove this
                 self.port = port
 
-            if ':' in address:
+            if address == '::':
+                address_print = "localhost"
+            elif ':' in address:
                 address_print = "[{}]".format(address)
             else:
                 address_print = address
 
         if verbose:
-            logging.info("Starting server")
-            logging.info("To see the GUI go to: http://{}:{}".format("localhost" if address_print == "0.0.0.0" else address, port))
+            logger.info(f"Server ready. To see the GUI go to: http://{address_print}:{port}")
         if call_on_start is not None:
             call_on_start(address, port)
 
@@ -1057,8 +1062,8 @@ class PromptServer(ExecutorToClientProgress):
             try:
                 json_data = handler(json_data)
             except Exception as e:
-                logging.warning(f"[ERROR] An error occurred during the on_prompt_handler processing")
-                logging.warning(traceback.format_exc())
+                logger.warning(f"[ERROR] An error occurred during the on_prompt_handler processing")
+                logger.warning(traceback.format_exc())
 
         return json_data
 
