@@ -888,7 +888,7 @@ class UNETLoader:
 class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),
+        return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
                               "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
@@ -908,15 +908,15 @@ class CLIPLoader:
         else:
             clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
 
-        clip_path = folder_paths.get_full_path_or_raise("clip", clip_name)
+        clip_path = folder_paths.get_full_path_or_raise("text_encoders", clip_name)
         clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)
 
 class DualCLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name1": (folder_paths.get_filename_list("clip"), ),
-                              "clip_name2": (folder_paths.get_filename_list("clip"), ),
+        return {"required": { "clip_name1": (folder_paths.get_filename_list("text_encoders"), ),
+                              "clip_name2": (folder_paths.get_filename_list("text_encoders"), ),
                               "type": (["sdxl", "sd3", "flux"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
@@ -925,8 +925,8 @@ class DualCLIPLoader:
     CATEGORY = "advanced/loaders"
 
     def load_clip(self, clip_name1, clip_name2, type):
-        clip_path1 = folder_paths.get_full_path_or_raise("clip", clip_name1)
-        clip_path2 = folder_paths.get_full_path_or_raise("clip", clip_name2)
+        clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", clip_name1)
+        clip_path2 = folder_paths.get_full_path_or_raise("text_encoders", clip_name2)
         if type == "sdxl":
             clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
         elif type == "sd3":
