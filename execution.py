@@ -480,6 +480,7 @@ class PromptExecutor:
                 if self.caches.outputs.get(node_id) is not None:
                     cached_nodes.append(node_id)
 
+            comfy.model_management.cleanup_models_gc()
             self.add_message("execution_cached",
                           { "nodes": cached_nodes, "prompt_id": prompt_id},
                           broadcast=False)
