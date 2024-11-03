@@ -11,6 +11,7 @@ import math
 import logging
 import comfy.sampler_helpers
 import comfy.model_patcher
+import comfy.patcher_extension
 import comfy.hooks
 import scipy.stats
 import numpy
@@ -185,9 +186,9 @@ def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.H
             hooked_to_run[hooks] += [(p, i)]
 
 def calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
-    executor = comfy.model_patcher.WrapperExecutor.new_executor(
+    executor = comfy.patcher_extension.WrapperExecutor.new_executor(
         outer_calc_cond_batch,
-        model.current_patcher.get_all_wrappers(comfy.model_patcher.WrappersMP.CALC_COND_BATCH)
+        model.current_patcher.get_all_wrappers(comfy.patcher_extension.WrappersMP.CALC_COND_BATCH)
     )
     return executor.execute(model, conds, x_in, timestep, model_options)
 
@@ -804,10 +805,10 @@ class CFGGuider:
 
         extra_args = {"model_options": comfy.model_patcher.create_model_options_clone(self.model_options), "seed": seed}
 
-        executor = comfy.model_patcher.WrapperExecutor.new_class_executor(
+        executor = comfy.patcher_extension.WrapperExecutor.new_class_executor(
             sampler.sample,
             sampler,
-            self.model_patcher.get_all_wrappers(comfy.model_patcher.WrappersMP.SAMPLER_SAMPLE)
+            self.model_patcher.get_all_wrappers(comfy.patcher_extension.WrappersMP.SAMPLER_SAMPLE)
         )
         samples = executor.execute(self, sigmas, extra_args, callback, noise, latent_image, denoise_mask, disable_pbar)
         return self.inner_model.process_latent_out(samples.to(torch.float32))
@@ -844,10 +845,10 @@ class CFGGuider:
 
         try:
             comfy.sampler_helpers.prepare_model_patcher(self.model_patcher, self.conds)
-            executor = comfy.model_patcher.WrapperExecutor.new_class_executor(
+            executor = comfy.patcher_extension.WrapperExecutor.new_class_executor(
                 self.outer_sample,
                 self,
-                self.model_patcher.get_all_wrappers(comfy.model_patcher.WrappersMP.OUTER_SAMPLE)
+                self.model_patcher.get_all_wrappers(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE)
             )
             output = executor.execute(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
         finally:
