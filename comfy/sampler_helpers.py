@@ -4,6 +4,7 @@ import torch
 import comfy.model_management
 import comfy.conds
 import comfy.hooks
+import comfy.patcher_extension
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
@@ -105,9 +106,13 @@ def cleanup_models(conds, models):
 
     cleanup_additional_models(set(control_cleanup))
 
-def prepare_model_patcher(model: 'ModelPatcher', conds):
+def prepare_model_patcher(model: 'ModelPatcher', conds, model_options: dict):
     # check for hooks in conds - if not registered, see if can be applied
     hooks = {}
     for k in conds:
         get_hooks_from_cond(conds[k], hooks)
     model.register_all_hook_patches(hooks, comfy.hooks.EnumWeightTarget.Model)
+    # add wrappers and callbacks from ModelPatcher to transformer_options
+    model_options["transformer_options"]["wrappers"] = comfy.patcher_extension.copy_nested_dicts(model.wrappers)
+    model_options["transformer_options"]["callbacks"] = comfy.patcher_extension.copy_nested_dicts(model.callbacks)
+    # TODO: add wrappers and callbacks from registered hooks for functions called prior to calc_batch_conds

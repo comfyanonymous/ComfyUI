@@ -32,6 +32,7 @@ import comfy.ldm.audio.embedders
 import comfy.ldm.flux.model
 
 import comfy.model_management
+import comfy.patcher_extension
 import comfy.conds
 import comfy.ops
 from enum import Enum
@@ -123,6 +124,13 @@ class BaseModel(torch.nn.Module):
         self.memory_usage_factor = model_config.memory_usage_factor
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._apply_model,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.APPLY_MODEL, transformer_options)
+        ).execute(x, t, c_concat, c_crossattn, control, transformer_options, **kwargs)
+
+    def _apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         sigma = t
         xc = self.model_sampling.calculate_input(sigma, x)
         if c_concat is not None:

@@ -31,6 +31,7 @@ import comfy.float
 import comfy.model_management
 import comfy.lora
 import comfy.hooks
+import comfy.patcher_extension
 from comfy.patcher_extension import CallbacksMP, WrappersMP, PatcherInjection
 from comfy.comfy_types import UnetWrapperFunction
 
@@ -81,15 +82,7 @@ def set_model_options_pre_cfg_function(model_options, pre_cfg_function, disable_
     return model_options
 
 def create_model_options_clone(orig_model_options: dict):
-    def copy_nested_dicts(input_dict: dict):
-        new_dict = input_dict.copy()
-        for key, value in input_dict.items():
-            if isinstance(value, dict):
-                new_dict[key] = copy_nested_dicts(value)
-            elif isinstance(value, list):
-                new_dict[key] = value.copy()
-        return new_dict
-    return copy_nested_dicts(orig_model_options)
+    return comfy.patcher_extension.copy_nested_dicts(orig_model_options)
         
 def create_hook_patches_clone(orig_hook_patches):
     new_hook_patches = {}

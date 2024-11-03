@@ -188,7 +188,7 @@ def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.H
 def calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
     executor = comfy.patcher_extension.WrapperExecutor.new_executor(
         outer_calc_cond_batch,
-        model.current_patcher.get_all_wrappers(comfy.patcher_extension.WrappersMP.CALC_COND_BATCH)
+        comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.CALC_COND_BATCH, model_options, is_model_options=True)
     )
     return executor.execute(model, conds, x_in, timestep, model_options)
 
@@ -808,7 +808,7 @@ class CFGGuider:
         executor = comfy.patcher_extension.WrapperExecutor.new_class_executor(
             sampler.sample,
             sampler,
-            self.model_patcher.get_all_wrappers(comfy.patcher_extension.WrappersMP.SAMPLER_SAMPLE)
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.SAMPLER_SAMPLE, extra_args["model_options"], is_model_options=True)
         )
         samples = executor.execute(self, sigmas, extra_args, callback, noise, latent_image, denoise_mask, disable_pbar)
         return self.inner_model.process_latent_out(samples.to(torch.float32))
@@ -844,14 +844,17 @@ class CFGGuider:
             self.conds[k] = list(map(lambda a: a.copy(), self.original_conds[k]))
 
         try:
-            comfy.sampler_helpers.prepare_model_patcher(self.model_patcher, self.conds)
+            orig_model_options = self.model_options
+            self.model_options = comfy.model_patcher.create_model_options_clone(self.model_options)
+            comfy.sampler_helpers.prepare_model_patcher(self.model_patcher, self.conds, self.model_options)
             executor = comfy.patcher_extension.WrapperExecutor.new_class_executor(
                 self.outer_sample,
                 self,
-                self.model_patcher.get_all_wrappers(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE)
+                comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, self.model_options, is_model_options=True)
             )
             output = executor.execute(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
         finally:
+            self.model_options = orig_model_options
             self.model_patcher.restore_hook_patches()
 
         del self.conds

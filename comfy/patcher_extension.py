@@ -26,6 +26,27 @@ class CallbacksMP:
             cls.ON_EJECT_MODEL: {None: []},
         }
 
+def add_callback(call_type: str, callback: Callable, transformer_options: dict, is_model_options=False):
+    add_callback_with_key(call_type, None, callback, transformer_options, is_model_options)
+
+def add_callback_with_key(call_type: str, key: str, callback: Callable, transformer_options: dict, is_model_options=False):
+    if is_model_options:
+        transformer_options = transformer_options.get("transformer_options", {})
+    callbacks: dict[str, dict[str, list]] = transformer_options.get("callbacks", {})
+    if call_type not in callbacks:
+        raise Exception(f"Callback '{call_type}' is not recognized.")
+    c = callbacks[call_type].setdefault(key, [])
+    c.append(callback)
+
+def get_all_callbacks(call_type: str, transformer_options: dict, is_model_options=False):
+    if is_model_options:
+        transformer_options = transformer_options.get("transformer_options", {})
+    c_list = []
+    callbacks: dict[str, list] = transformer_options.get("callbacks", {})
+    for c in callbacks.get(call_type, {}).values():
+        c_list.extend(c)
+    return c_list
+
 class WrappersMP:
     OUTER_SAMPLE = "outer_sample"
     SAMPLER_SAMPLE = "sampler_sample"
@@ -42,6 +63,27 @@ class WrappersMP:
             cls.APPLY_MODEL: {None: []},
             cls.DIFFUSION_MODEL: {None: []},
         }
+
+def add_wrapper(wrapper_type: str, wrapper: Callable, transformer_options: dict, is_model_options=False):
+    add_wrapper_with_key(wrapper_type, None, wrapper, transformer_options, is_model_options)
+
+def add_wrapper_with_key(wrapper_type: str, key: str, wrapper: Callable, transformer_options: dict, is_model_options=False):
+    if is_model_options:
+        transformer_options = transformer_options.get("transformer_options", {})
+    wrappers: dict[str, dict[str, list]] = transformer_options.get("wrappers", {})
+    if wrapper_type not in wrappers:
+        raise Exception(f"Wrapper '{wrapper_type}' is not recognized.")
+    w = wrappers[wrapper_type].setdefault(key, [])
+    w.append(wrapper)
+
+def get_all_wrappers(wrapper_type: str, transformer_options: dict, is_model_options=False):
+    if is_model_options:
+        transformer_options = transformer_options.get("transformer_options", {})
+    w_list = []
+    wrappers: dict[str, list] = transformer_options.get("wrappers", {})
+    for w in wrappers.get(wrapper_type, {}).values():
+        w_list.extend(w)
+    return w_list
 
 class WrapperExecutor:
     """Handles call stack of wrappers around a function in an ordered manner."""
@@ -85,3 +127,24 @@ class PatcherInjection:
     def __init__(self, inject: Callable, eject: Callable):
         self.inject = inject
         self.eject = eject
+
+def copy_nested_dicts(input_dict: dict):
+    new_dict = input_dict.copy()
+    for key, value in input_dict.items():
+        if isinstance(value, dict):
+            new_dict[key] = copy_nested_dicts(value)
+        elif isinstance(value, list):
+            new_dict[key] = value.copy()
+    return new_dict
+
+def merge_nested_dicts(dict1: dict, dict2: dict):
+    merged_dict = copy_nested_dicts(dict1)
+    for key, value in dict2.items():
+        if isinstance(value, dict):
+            curr_value = merged_dict.setdefault(key, {})
+            merged_dict[key] = merge_nested_dicts(value, curr_value)
+        elif isinstance(value, list):
+            merged_dict.setdefault(key, []).extend(value)
+        else:
+            merged_dict[key] = value
+    return merged_dict
