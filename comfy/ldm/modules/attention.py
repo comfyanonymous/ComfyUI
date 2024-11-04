@@ -395,6 +395,13 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_resh
     return out
 
 
+if model_management.is_nvidia():  # pytorch 2.3 and up seem to have this issue.
+    SDP_BATCH_LIMIT = 2 ** 15
+else:
+    # TODO: other GPUs ?
+    SDP_BATCH_LIMIT = 2 ** 31
+
+
 def pytorch_style_decl(func):
     @wraps(func)
     def wrapper(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
@@ -408,8 +415,15 @@ def pytorch_style_decl(func):
                 (q, k, v),
             )
 
-        out = func(q, k, v, heads, mask=mask, attn_precision=attn_precision, skip_reshape=skip_reshape)
-        out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+        if SDP_BATCH_LIMIT >= q.shape[0]:
+            out = func(q, k, v, heads=heads, mask=mask, attn_precision=attn_precision)
+            out = (
+                out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+            )
+        else:
+            out = torch.empty((q.shape[0], q.shape[2], heads * dim_head), dtype=q.dtype, layout=q.layout, device=q.device)
+            for i in range(0, q.shape[0], SDP_BATCH_LIMIT):
+                out[i: i + SDP_BATCH_LIMIT] = func(q[i: i + SDP_BATCH_LIMIT], k[i: i + SDP_BATCH_LIMIT], v[i: i + SDP_BATCH_LIMIT], heads=heads, mask=mask, attn_precision=attn_precision).transpose(1, 2).reshape(-1, q.shape[2], heads * dim_head)
         return out
 
     return wrapper

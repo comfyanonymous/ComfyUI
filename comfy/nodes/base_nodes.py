@@ -917,7 +917,7 @@ class UNETLoader:
 class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": (get_filename_list_with_downloadable("clip", KNOWN_CLIP_MODELS),),
+        return {"required": { "clip_name": (get_filename_list_with_downloadable("text_encoders", KNOWN_CLIP_MODELS),),
                               "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
@@ -938,15 +938,15 @@ class CLIPLoader:
         else:
             logging.warning(f"Unknown clip type argument passed: {type} for model {clip_name}")
 
-        clip_path = get_or_download("clip", clip_name, KNOWN_CLIP_MODELS)
+        clip_path = get_or_download("text_encoders", clip_name, KNOWN_CLIP_MODELS)
         clip = sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)
 
 class DualCLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name1": (get_filename_list_with_downloadable("clip"),), "clip_name2": (
-            get_filename_list_with_downloadable("clip"),),
+        return {"required": { "clip_name1": (get_filename_list_with_downloadable("text_encoders"),), "clip_name2": (
+            get_filename_list_with_downloadable("text_encoders"),),
                               "type": (["sdxl", "sd3", "flux"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
@@ -955,8 +955,8 @@ class DualCLIPLoader:
     CATEGORY = "advanced/loaders"
 
     def load_clip(self, clip_name1, clip_name2, type):
-        clip_path1 = get_or_download("clip", clip_name1)
-        clip_path2 = get_or_download("clip", clip_name2)
+        clip_path1 = get_or_download("text_encoders", clip_name1)
+        clip_path2 = get_or_download("text_encoders", clip_name2)
         if type == "sdxl":
             clip_type = sd.CLIPType.STABLE_DIFFUSION
         elif type == "sd3":
@@ -1986,6 +1986,12 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageInvert": "Invert Image",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
     "ImageBatch": "Batch Images",
+    "ImageCrop": "Image Crop",
+    "ImageBlend": "Image Blend",
+    "ImageBlur": "Image Blur",
+    "ImageQuantize": "Image Quantize",
+    "ImageSharpen": "Image Sharpen",
+    "ImageScaleToTotalPixels": "Scale Image to Total Pixels",
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
