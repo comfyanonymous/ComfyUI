@@ -35,6 +35,7 @@ def setup_logger(log_level: str = 'INFO', capacity: int = 300):
     memory_handler.setFormatter(formatter)
     logger.addHandler(memory_handler)
 
+
 def get_rich_hander(log_level: str = "INFO") -> RichHandler:
     console = Console(
         log_time=True,
