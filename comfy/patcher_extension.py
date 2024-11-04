@@ -88,6 +88,8 @@ def get_all_wrappers(wrapper_type: str, transformer_options: dict, is_model_opti
 class WrapperExecutor:
     """Handles call stack of wrappers around a function in an ordered manner."""
     def __init__(self, original: Callable, class_obj: object, wrappers: list[Callable], idx: int):
+        # NOTE: class_obj exists so that wrappers surrounding a class method can access
+        #       the class instance at runtime via executor.class_obj
         self.original = original
         self.class_obj = class_obj
         self.wrappers = wrappers.copy()
@@ -95,7 +97,7 @@ class WrapperExecutor:
         self.is_last = idx == len(wrappers)
     
     def __call__(self, *args, **kwargs):
-        """Calls the next wrapper in line or original function, whichever is appropriate."""
+        """Calls the next wrapper or original function, whichever is appropriate."""
         new_executor = self._create_next_executor()
         return new_executor.execute(*args, **kwargs)
     

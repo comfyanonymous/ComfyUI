@@ -9,6 +9,7 @@ import collections
 from comfy import model_management
 import math
 import logging
+import comfy.samplers
 import comfy.sampler_helpers
 import comfy.model_patcher
 import comfy.patcher_extension
@@ -77,6 +78,7 @@ def get_area_and_mult(conds, x_in, timestep_in):
     for c in model_conds:
         conditioning[c] = model_conds[c].process_cond(batch_size=x_in.shape[0], device=x_in.device, area=area)
 
+    hooks = conds.get('hooks', None)
     control = conds.get('control', None)
 
     patches = None
@@ -92,8 +94,8 @@ def get_area_and_mult(conds, x_in, timestep_in):
 
         patches['middle_patch'] = [gligen_patch]
 
-    cond_obj = collections.namedtuple('cond_obj', ['input_x', 'mult', 'conditioning', 'area', 'control', 'patches', 'uuid'])
-    return cond_obj(input_x, mult, conditioning, area, control, patches, conds['uuid'])
+    cond_obj = collections.namedtuple('cond_obj', ['input_x', 'mult', 'conditioning', 'area', 'control', 'patches', 'uuid', 'hooks'])
+    return cond_obj(input_x, mult, conditioning, area, control, patches, conds['uuid'], hooks)
 
 def cond_equal_size(c1, c2):
     if c1 is c2:
@@ -179,20 +181,19 @@ def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.H
                 continue
             # replace p's mult with calculated mult
             p = p._replace(mult=mult)
-            hooks: comfy.hooks.HookGroup = x.get('hooks', None)
-            if hooks is not None:
-                model.current_patcher.prepare_hook_patches_current_keyframe(timestep, hooks)
-            hooked_to_run.setdefault(hooks, list())
-            hooked_to_run[hooks] += [(p, i)]
+            if p.hooks is not None:
+                model.current_patcher.prepare_hook_patches_current_keyframe(timestep, p.hooks)
+            hooked_to_run.setdefault(p.hooks, list())
+            hooked_to_run[p.hooks] += [(p, i)]
 
 def calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
     executor = comfy.patcher_extension.WrapperExecutor.new_executor(
-        outer_calc_cond_batch,
+        _calc_cond_batch,
         comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.CALC_COND_BATCH, model_options, is_model_options=True)
     )
     return executor.execute(model, conds, x_in, timestep, model_options)
 
-def outer_calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
+def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
     out_conds = []
     out_counts = []
     # separate conds by matching hooks
@@ -215,11 +216,10 @@ def outer_calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: tor
                 p = comfy.samplers.get_area_and_mult(x, x_in, timestep)
                 if p is None:
                     continue
-                hooks: comfy.hooks.HookGroup = x.get('hooks', None)
-                if hooks is not None:
-                    model.current_patcher.prepare_hook_patches_current_keyframe(timestep, hooks)
-                hooked_to_run.setdefault(hooks, list())
-                hooked_to_run[hooks] += [(p, i)]
+                if p.hooks is not None:
+                    model.current_patcher.prepare_hook_patches_current_keyframe(timestep, p.hooks)
+                hooked_to_run.setdefault(p.hooks, list())
+                hooked_to_run[p.hooks] += [(p, i)]
         default_conds.append(default_c)
 
     if has_default_conds:
