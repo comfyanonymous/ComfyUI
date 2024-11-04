@@ -30,8 +30,11 @@ from . import model_management, lora
 from . import utils
 from .comfy_types import UnetWrapperFunction
 from .float import stochastic_rounding
+from .lora_types import PatchDict, PatchDictKey, PatchTuple, PatchWeightTuple, ModelPatchesDictValue
 from .model_base import BaseModel
 from .model_management_types import ModelManageable, MemoryMeasurements, ModelOptions
+
+logger = logging.getLogger(__name__)
 
 
 def string_to_seed(data):
@@ -134,7 +137,7 @@ class ModelPatcher(ModelManageable):
     def __init__(self, model: BaseModel | torch.nn.Module, load_device: torch.device, offload_device: torch.device, size=0, weight_inplace_update=False, ckpt_name: Optional[str] = None):
         self.size = size
         self.model: BaseModel | torch.nn.Module = model
-        self.patches = {}
+        self.patches: dict[PatchDictKey, ModelPatchesDictValue] = {}
         self.backup = {}
         self.object_patches = {}
         self.object_patches_backup = {}
@@ -143,7 +146,7 @@ class ModelPatcher(ModelManageable):
         self.load_device = load_device
         self.offload_device = offload_device
         self.weight_inplace_update = weight_inplace_update
-        self.patches_uuid = uuid.uuid4()
+        self.patches_uuid: uuid.UUID = uuid.uuid4()
         self.ckpt_name = ckpt_name
         self._memory_measurements = MemoryMeasurements(self.model)
 
@@ -202,7 +205,7 @@ class ModelPatcher(ModelManageable):
 
         if self.patches_uuid == clone.patches_uuid:
             if len(self.patches) != len(clone.patches):
-                logging.warning("WARNING: something went wrong, same patch uuid but different length of patches.")
+                logger.warning("WARNING: something went wrong, same patch uuid but different length of patches.")
             else:
                 return True
 
@@ -316,14 +319,15 @@ class ModelPatcher(ModelManageable):
         if hasattr(self.model, "get_dtype"):
             return self.model.get_dtype()
 
-    def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
-        p = set()
+    def add_patches(self, patches: PatchDict, strength_patch=1.0, strength_model=1.0) -> list[PatchDictKey]:
+        p: set[PatchDictKey] = set()
         model_sd = self.model.state_dict()
+        k: PatchDictKey
         for k in patches:
             offset = None
             function = None
             if isinstance(k, str):
-                key = k
+                key: str = k
             else:
                 offset = k[1]
                 key = k[0]
@@ -333,7 +337,7 @@ class ModelPatcher(ModelManageable):
             if key in model_sd:
                 p.add(k)
                 current_patches = self.patches.get(key, [])
-                current_patches.append((strength_patch, patches[k], strength_model, offset, function))
+                current_patches.append(PatchTuple(strength_patch, patches[k], strength_model, offset, function))
                 self.patches[key] = current_patches
 
         self.patches_uuid = uuid.uuid4()
@@ -354,9 +358,9 @@ class ModelPatcher(ModelManageable):
                 convert_func = lambda a, **kwargs: a
 
             if k in self.patches:
-                p[k] = [(weight, convert_func)] + self.patches[k]
+                p[k] = [PatchWeightTuple(weight, convert_func)] + self.patches[k]
             else:
-                p[k] = [(weight, convert_func)]
+                p[k] = [PatchWeightTuple(weight, convert_func)]
         return p
 
     def model_state_dict(self, filter_prefix=None):
@@ -460,17 +464,17 @@ class ModelPatcher(ModelManageable):
 
             self.patch_weight_to_device(weight_key, device_to=device_to)
             self.patch_weight_to_device(bias_key, device_to=device_to)
-            logging.debug("lowvram: loaded module regularly {} {}".format(n, m))
+            logger.debug("lowvram: loaded module regularly {} {}".format(n, m))
             m.comfy_patched_weights = True
 
         for x in load_completely:
             x[2].to(device_to)
 
         if lowvram_counter > 0:
-            logging.debug("loaded partially {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), patch_counter))
+            logger.debug("loaded partially {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), patch_counter))
             self._memory_measurements.model_lowvram = True
         else:
-            logging.debug("loaded completely {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
+            logger.debug("loaded completely {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
             self._memory_measurements.model_lowvram = False
             if full_load:
                 self.model.to(device_to)
@@ -574,7 +578,7 @@ class ModelPatcher(ModelManageable):
                 m.comfy_cast_weights = True
                 m.comfy_patched_weights = False
                 memory_freed += module_mem
-                logging.debug("freed {}".format(n))
+                logger.debug("freed {}".format(n))
 
         self._memory_measurements.model_lowvram = True
         self._memory_measurements.lowvram_patch_counter += patch_counter

@@ -24,6 +24,7 @@ import torch
 from . import model_base
 from . import model_management
 from . import utils
+from .lora_types import PatchDict, PatchOffset, PatchConversionFunction, PatchType, ModelPatchesDictValue
 
 LORA_CLIP_MAP = {
     "mlp.fc1": "mlp_fc1",
@@ -35,8 +36,8 @@ LORA_CLIP_MAP = {
 }
 
 
-def load_lora(lora, to_load):
-    patch_dict = {}
+def load_lora(lora, to_load) -> PatchDict:
+    patch_dict: PatchDict = {}
     loaded_keys = set()
     for x in to_load:
         alpha_name = "{}.alpha".format(x)
@@ -197,11 +198,13 @@ def load_lora(lora, to_load):
     return patch_dict
 
 
-def model_lora_keys_clip(model, key_map={}):
+def model_lora_keys_clip(model, key_map=None):
+    if key_map is None:
+        key_map = {}
     sdk = model.state_dict().keys()
     for k in sdk:
         if k.endswith(".weight"):
-            key_map["text_encoders.{}".format(k[:-len(".weight")])] = k #generic lora format without any weird key names
+            key_map["text_encoders.{}".format(k[:-len(".weight")])] = k  # generic lora format without any weird key names
 
     text_model_lora_key = "lora_te_text_model_encoder_layers_{}_{}"
     clip_l_present = False
@@ -253,7 +256,7 @@ def model_lora_keys_clip(model, key_map={}):
                 if clip_l_present:
                     t5_index += 1
                     if t5_index == 2:
-                        key_map["lora_te{}_{}".format(t5_index, l_key.replace(".", "_"))] = k #OneTrainer Flux
+                        key_map["lora_te{}_{}".format(t5_index, l_key.replace(".", "_"))] = k  # OneTrainer Flux
                         t5_index += 1
 
                 key_map["lora_te{}_{}".format(t5_index, l_key.replace(".", "_"))] = k
@@ -275,7 +278,9 @@ def model_lora_keys_clip(model, key_map={}):
     return key_map
 
 
-def model_lora_keys_unet(model, key_map={}):
+def model_lora_keys_unet(model, key_map=None):
+    if key_map is None:
+        key_map = {}
     sd = model.state_dict()
     sdk = sd.keys()
 
@@ -292,7 +297,7 @@ def model_lora_keys_unet(model, key_map={}):
             unet_key = "diffusion_model.{}".format(diffusers_keys[k])
             key_lora = k[:-len(".weight")].replace(".", "_")
             key_map["lora_unet_{}".format(key_lora)] = unet_key
-            key_map["lycoris_{}".format(key_lora)] = unet_key #simpletuner lycoris format
+            key_map["lycoris_{}".format(key_lora)] = unet_key  # simpletuner lycoris format
 
             diffusers_lora_prefix = ["", "unet."]
             for p in diffusers_lora_prefix:
@@ -315,9 +320,8 @@ def model_lora_keys_unet(model, key_map={}):
                 key_lora = "lora_transformer_{}".format(k[:-len(".weight")].replace(".", "_"))  # OneTrainer lora
                 key_map[key_lora] = to
 
-                key_lora = "lycoris_{}".format(k[:-len(".weight")].replace(".", "_")) #simpletuner lycoris format
+                key_lora = "lycoris_{}".format(k[:-len(".weight")].replace(".", "_"))  # simpletuner lycoris format
                 key_map[key_lora] = to
-
 
     if isinstance(model, model_base.AuraFlow):  # Diffusers lora AuraFlow
         diffusers_keys = utils.auraflow_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
@@ -340,7 +344,7 @@ def model_lora_keys_unet(model, key_map={}):
                 to = diffusers_keys[k]
                 key_map["transformer.{}".format(k[:-len(".weight")])] = to  # simpletrainer and probably regular diffusers flux lora format
                 key_map["lycoris_{}".format(k[:-len(".weight")].replace(".", "_"))] = to  # simpletrainer lycoris
-                key_map["lora_transformer_{}".format(k[:-len(".weight")].replace(".", "_"))] = to #onetrainer
+                key_map["lora_transformer_{}".format(k[:-len(".weight")].replace(".", "_"))] = to  # onetrainer
 
     return key_map
 
@@ -400,13 +404,13 @@ def pad_tensor_to_shape(tensor: torch.Tensor, new_shape: list[int]) -> torch.Ten
     return padded_tensor
 
 
-def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
+def calculate_weight(patches: ModelPatchesDictValue, weight, key, intermediate_dtype=torch.float32):
     for p in patches:
         strength = p[0]
         v = p[1]
         strength_model = p[2]
-        offset = p[3]
-        function = p[4]
+        offset: PatchOffset = p[3]
+        function: PatchConversionFunction = p[4]
         if function is None:
             function = lambda a: a
 
@@ -419,9 +423,9 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
             weight *= strength_model
 
         if isinstance(v, list):
-            v = (calculate_weight(v[1:], v[0][1](model_management.cast_to_device(v[0][0], weight.device, intermediate_dtype, copy=True), inplace=True), key, intermediate_dtype=intermediate_dtype), )
+            v = (calculate_weight(v[1:], v[0][1](model_management.cast_to_device(v[0][0], weight.device, intermediate_dtype, copy=True), inplace=True), key, intermediate_dtype=intermediate_dtype),)
 
-        patch_type = ""
+        patch_type: PatchType = ""
         if len(v) == 1:
             patch_type = "diff"
         elif len(v) == 2:
@@ -574,7 +578,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32):
 
             try:
                 if old_glora:
-                    lora_diff = (torch.mm(b2, b1) + torch.mm(torch.mm(weight.flatten(start_dim=1).to(dtype=intermediate_dtype), a2), a1)).reshape(weight.shape) #old lycoris glora
+                    lora_diff = (torch.mm(b2, b1) + torch.mm(torch.mm(weight.flatten(start_dim=1).to(dtype=intermediate_dtype), a2), a1)).reshape(weight.shape)  # old lycoris glora
                 else:
                     if weight.dim() > 2:
                         lora_diff = torch.einsum("o i ..., i j -> o j ...", torch.einsum("o i ..., i j -> o j ...", weight.to(dtype=intermediate_dtype), a1), a2).reshape(weight.shape)
