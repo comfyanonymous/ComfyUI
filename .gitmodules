@@ -1,0 +1,36 @@
+[submodule "custom_nodes/cg-image-picker"]
+	path = custom_nodes/cg-image-picker
+	url = https://github.com/chrisgoringe/cg-image-picker.git
+[submodule "custom_nodes/ComfyUI-GGUF"]
+	path = custom_nodes/ComfyUI-GGUF
+	url = https://github.com/city96/ComfyUI-GGUF.git
+[submodule "custom_nodes/ComfyUI-Impact-Pack"]
+	path = custom_nodes/ComfyUI-Impact-Pack
+	url = https://github.com/ltdrdata/ComfyUI-Impact-Pack.git
+[submodule "custom_nodes/ComfyUI-Manager"]
+	path = custom_nodes/ComfyUI-Manager
+	url = https://github.com/ltdrdata/ComfyUI-Manager.git
+[submodule "custom_nodes/ComfyUI_essentials"]
+	path = custom_nodes/ComfyUI_essentials
+	url = https://github.com/cubiq/ComfyUI_essentials.git
+[submodule "custom_nodes/Derfuu_ComfyUI_ModdedNodes"]
+	path = custom_nodes/Derfuu_ComfyUI_ModdedNodes
+	url = https://github.com/Derfuu/Derfuu_ComfyUI_ModdedNodes.git
+[submodule "custom_nodes/cg-use-everywhere"]
+	path = custom_nodes/cg-use-everywhere
+	url = https://github.com/chrisgoringe/cg-use-everywhere.git
+[submodule "custom_nodes/rgthree-comfy"]
+	path = custom_nodes/rgthree-comfy
+	url = https://github.com/rgthree/rgthree-comfy.git
+[submodule "custom_nodes/ComfyUI-KJNodes"]
+	path = custom_nodes/ComfyUI-KJNodes
+	url = https://github.com/kijai/ComfyUI-KJNodes.git
+[submodule "custom_nodes/ComfyUI-Advanced-ControlNet"]
+	path = custom_nodes/ComfyUI-Advanced-ControlNet
+	url = https://github.com/Kosinkadink/ComfyUI-Advanced-ControlNet.git
+[submodule "custom_nodes/ComfyUI-TiledDiffusion"]
+	path = custom_nodes/ComfyUI-TiledDiffusion
+	url = https://github.com/shiimizu/ComfyUI-TiledDiffusion.git
+[submodule "custom_nodes/comfyui-browser"]
+	path = custom_nodes/comfyui-browser
+	url = https://github.com/talesofai/comfyui-browser.git
