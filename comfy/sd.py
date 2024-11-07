@@ -362,7 +362,8 @@ class VAE:
         return pixel_samples
 
     def decode_tiled(self, samples, tile_x=None, tile_y=None, overlap=None):
-        model_management.load_model_gpu(self.patcher)
+        memory_used = self.memory_used_decode(samples.shape, self.vae_dtype) #TODO: calculate mem required for tile
+        model_management.load_models_gpu([self.patcher], memory_required=memory_used)
         dims = samples.ndim - 2
         args = {}
         if tile_x is not None:
