@@ -290,15 +290,21 @@ class VAEDecodeTiled:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"samples": ("LATENT", ), "vae": ("VAE", ),
-                             "tile_size": ("INT", {"default": 512, "min": 320, "max": 4096, "step": 64})
+                             "tile_size": ("INT", {"default": 512, "min": 128, "max": 4096, "step": 32}),
+                             "overlap": ("INT", {"default": 64, "min": 0, "max": 4096, "step": 32}),
                             }}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode"
 
     CATEGORY = "_for_testing"
 
-    def decode(self, vae, samples, tile_size):
-        return (vae.decode_tiled(samples["samples"], tile_x=tile_size // 8, tile_y=tile_size // 8, ), )
+    def decode(self, vae, samples, tile_size, overlap):
+        if tile_size < overlap * 4:
+            overlap = tile_size // 4
+        images = vae.decode_tiled(samples["samples"], tile_x=tile_size // 8, tile_y=tile_size // 8, overlap=overlap // 8)
+        if len(images.shape) == 5: #Combine batches
+            images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
+        return (images, )
 
 class VAEEncode:
     @classmethod
