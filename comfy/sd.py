@@ -361,10 +361,26 @@ class VAE:
         pixel_samples = pixel_samples.to(self.output_device).movedim(1,-1)
         return pixel_samples
 
-    def decode_tiled(self, samples, tile_x=64, tile_y=64, overlap = 16):
-        model_management.load_model_gpu(self.patcher)
-        output = self.decode_tiled_(samples, tile_x, tile_y, overlap)
-        return output.movedim(1,-1)
+    def decode_tiled(self, samples, tile_x=None, tile_y=None, overlap=None):
+        memory_used = self.memory_used_decode(samples.shape, self.vae_dtype) #TODO: calculate mem required for tile
+        model_management.load_models_gpu([self.patcher], memory_required=memory_used)
+        dims = samples.ndim - 2
+        args = {}
+        if tile_x is not None:
+            args["tile_x"] = tile_x
+        if tile_y is not None:
+            args["tile_y"] = tile_y
+        if overlap is not None:
+            args["overlap"] = overlap
+
+        if dims == 1:
+            args.pop("tile_y")
+            output = self.decode_tiled_1d(samples, **args)
+        elif dims == 2:
+            output = self.decode_tiled_(samples, **args)
+        elif dims == 3:
+            output = self.decode_tiled_3d(samples, **args)
+        return output.movedim(1, -1)
 
     def encode(self, pixel_samples):
         pixel_samples = self.vae_encode_crop_pixels(pixel_samples)
