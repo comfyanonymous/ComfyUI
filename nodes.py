@@ -478,9 +478,12 @@ class SaveLatent:
 class LoadLatent:
     @classmethod
     def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
+        input_dir = os.path.join(folder_paths.get_output_directory(), "latents")  # Adjusts to "Input/Latent"
+        if not os.path.exists(input_dir):
+            os.makedirs(input_dir, exist_ok=True)
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f)) and f.endswith(".latent")]
-        return {"required": {"latent": [sorted(files), ]}, }
+        return {"required": {"latent": (folder_paths.get_filename_list("latents"), {"tooltip": "The name of the latent from output/latents to load."})}}
+    
 
     CATEGORY = "_for_testing"
 
