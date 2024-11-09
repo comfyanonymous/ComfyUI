@@ -56,7 +56,6 @@ class IsChangedCache:
         class_type = node["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         #Initialization statistics <start>
-        # print("任务包含的节点",node_id)
         reset_node_counts()
         #Initialization statistics <end>
         if not hasattr(class_def, "IS_CHANGED"):
