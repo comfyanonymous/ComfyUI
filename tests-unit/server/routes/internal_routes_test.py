@@ -8,7 +8,7 @@ from folder_paths import models_dir, user_directory, output_directory
 
 @pytest.fixture
 def internal_routes():
-    return InternalRoutes()
+    return InternalRoutes(None)
 
 @pytest.fixture
 def aiohttp_client_factory(aiohttp_client, internal_routes):
@@ -102,7 +102,7 @@ async def test_file_service_initialization():
         # Create a mock instance
         mock_file_service_instance = MagicMock(spec=FileService)
         MockFileService.return_value = mock_file_service_instance
-        internal_routes = InternalRoutes()
+        internal_routes = InternalRoutes(None)
 
         # Check if FileService was initialized with the correct parameters
         MockFileService.assert_called_once_with({
