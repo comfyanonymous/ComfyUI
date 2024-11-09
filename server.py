@@ -152,7 +152,7 @@ class PromptServer():
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
 
         self.user_manager = UserManager()
-        self.internal_routes = InternalRoutes()
+        self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = None
         self.loop = loop
