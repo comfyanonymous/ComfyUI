@@ -47,7 +47,12 @@ class Latent2RGBPreviewer(LatentPreviewer):
         if self.latent_rgb_factors_bias is not None:
             self.latent_rgb_factors_bias = self.latent_rgb_factors_bias.to(dtype=x0.dtype, device=x0.device)
 
-        latent_image = torch.nn.functional.linear(x0[0].permute(1, 2, 0), self.latent_rgb_factors, bias=self.latent_rgb_factors_bias)
+        if x0.ndim == 5:
+            x0 = x0[0, :, 0]
+        else:
+            x0 = x0[0]
+
+        latent_image = torch.nn.functional.linear(x0.movedim(0, -1), self.latent_rgb_factors, bias=self.latent_rgb_factors_bias)
         # latent_image = x0[0].permute(1, 2, 0) @ self.latent_rgb_factors
 
         return preview_to_image(latent_image)
