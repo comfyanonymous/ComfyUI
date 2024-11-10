@@ -682,6 +682,12 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
 
     if output_model:
         model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device())
+        if model_config.ztsnr:
+            class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingDiscrete, comfy.model_sampling.V_PREDICTION):
+                pass
+            model_sampling = ModelSamplingAdvanced(model.model_config)
+            model_sampling.set_sigmas(comfy.utils.rescale_zero_terminal_snr_sigmas(model_sampling.sigmas))
+            model_patcher.add_object_patch("model_sampling", model_sampling)
         if inital_load_device != torch.device("cpu"):
             logging.info("loaded straight to GPU")
             model_management.load_models_gpu([model_patcher], force_full_load=True)

@@ -869,3 +869,22 @@ def reshape_mask(input_mask, output_shape):
         mask = mask.repeat((1, output_shape[1]) + (1,) * dims)[:,:output_shape[1]]
     mask = comfy.utils.repeat_to_batch_size(mask, output_shape[0])
     return mask
+
+def rescale_zero_terminal_snr_sigmas(sigmas):
+    alphas_cumprod = 1 / ((sigmas * sigmas) + 1)
+    alphas_bar_sqrt = alphas_cumprod.sqrt()
+
+    # Store old values.
+    alphas_bar_sqrt_0 = alphas_bar_sqrt[0].clone()
+    alphas_bar_sqrt_T = alphas_bar_sqrt[-1].clone()
+
+    # Shift so the last timestep is zero.
+    alphas_bar_sqrt -= (alphas_bar_sqrt_T)
+
+    # Scale so the first timestep is back to the old value.
+    alphas_bar_sqrt *= alphas_bar_sqrt_0 / (alphas_bar_sqrt_0 - alphas_bar_sqrt_T)
+
+    # Convert alphas_bar_sqrt to betas
+    alphas_bar = alphas_bar_sqrt**2  # Revert sqrt
+    alphas_bar[-1] = 4.8973451890853435e-08
+    return ((1 - alphas_bar) / alphas_bar) ** 0.5

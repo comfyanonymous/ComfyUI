@@ -40,6 +40,7 @@ class BASE:
     clip_vision_prefix = None
     noise_aug_config = None
     sampling_settings = {}
+    ztsnr = False
     latent_format = latent_formats.LatentFormat
     vae_key_prefix = ["first_stage_model."]
     text_encoder_key_prefix = ["cond_stage_model."]
