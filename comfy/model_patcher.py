@@ -897,10 +897,15 @@ class ModelPatcher:
                     if cached_group.contains(hook):
                         self.cached_hook_patches.pop(cached_group)
 
-    def register_all_hook_patches(self, hooks_dict: dict[comfy.hooks.EnumHookType, dict[comfy.hooks.Hook, None]], target: comfy.hooks.EnumWeightTarget):
+    def register_all_hook_patches(self, hooks_dict: dict[comfy.hooks.EnumHookType, dict[comfy.hooks.Hook, None]], target: comfy.hooks.EnumWeightTarget, model_options: dict=None):
         self.restore_hook_patches()
-        weight_hooks_to_register: list[comfy.hooks.WeightHook] = []
         registered_hooks: list[comfy.hooks.Hook] = []
+        # handle WrapperHooks, if model_options provided
+        if model_options is not None:
+            for hook in hooks_dict.get(comfy.hooks.EnumHookType.Wrappers, {}):
+                hook.add_hook_patches(self, model_options, target, registered_hooks)
+        # handle WeightHooks
+        weight_hooks_to_register: list[comfy.hooks.WeightHook] = []
         for hook in hooks_dict.get(comfy.hooks.EnumHookType.Weight, {}):
             if hook.hook_ref not in self.hook_patches:
                 weight_hooks_to_register.append(hook)
@@ -908,7 +913,7 @@ class ModelPatcher:
             # clone hook_patches to become backup so that any non-dynamic hooks will return to their original state
             self.hook_patches_backup = create_hook_patches_clone(self.hook_patches)
             for hook in weight_hooks_to_register:
-                hook.add_hook_patches(self, target, registered_hooks)
+                hook.add_hook_patches(self, model_options, target, registered_hooks)
         for callback in self.get_all_callbacks(CallbacksMP.ON_REGISTER_ALL_HOOK_PATCHES):
             callback(self, hooks_dict, target)
 

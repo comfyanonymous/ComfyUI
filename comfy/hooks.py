@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from comfy.sd import CLIP
 import comfy.lora
 import comfy.model_management
+import comfy.patcher_extension
 from node_helpers import conditioning_set_values
 
 class EnumHookMode(enum.Enum):
@@ -23,9 +24,9 @@ class EnumHookType(enum.Enum):
     Patch = "patch"
     ObjectPatch = "object_patch"
     AddModels = "add_models"
-    AddCallback = "add_callback"
+    Callbacks = "add_callback"
+    Wrappers = "add_wrapper"
     SetInjections = "add_injections"
-    AddWrapper = "add_wrapper"
 
 class EnumWeightTarget(enum.Enum):
     Model = "model"
@@ -35,15 +36,16 @@ class _HookRef:
     pass
 
 # NOTE: this is an example of how the should_register function should look
-def default_should_register(hook: 'Hook', model: 'ModelPatcher', target: EnumWeightTarget, registered: list[Hook]):
+def default_should_register(hook: 'Hook', model: 'ModelPatcher', model_options: dict, target: EnumWeightTarget, registered: list[Hook]):
     return True
 
 
 class Hook:
-    def __init__(self, hook_type: EnumHookType=None, hook_ref: _HookRef=None,
+    def __init__(self, hook_type: EnumHookType=None, hook_ref: _HookRef=None, hook_id: str=None,
                  hook_keyframe: 'HookKeyframeGroup'=None):
         self.hook_type = hook_type
         self.hook_ref = hook_ref if hook_ref else _HookRef()
+        self.hook_id = hook_id
         self.hook_keyframe = hook_keyframe if hook_keyframe else HookKeyframeGroup()
         self.custom_should_register = default_should_register
         self.auto_apply_to_nonpositive = False
@@ -65,16 +67,17 @@ class Hook:
         c: Hook = subtype()
         c.hook_type = self.hook_type
         c.hook_ref = self.hook_ref
+        c.hook_id = self.hook_id
         c.hook_keyframe = self.hook_keyframe
         c.custom_should_register = self.custom_should_register
         # TODO: make this do something
         c.auto_apply_to_nonpositive = self.auto_apply_to_nonpositive
         return c
 
-    def should_register(self, model: 'ModelPatcher', target: EnumWeightTarget, registered: list[Hook]):
-        return self.custom_should_register(self, model, target, registered)
+    def should_register(self, model: 'ModelPatcher', model_options: dict, target: EnumWeightTarget, registered: list[Hook]):
+        return self.custom_should_register(self, model, model_options, target, registered)
 
-    def add_hook_patches(self, model: 'ModelPatcher', target: EnumWeightTarget, registered: list[Hook]):
+    def add_hook_patches(self, model: 'ModelPatcher', model_options: dict, target: EnumWeightTarget, registered: list[Hook]):
         raise NotImplementedError("add_hook_patches should be defined for Hook subclasses")
 
     def on_apply(self, model: 'ModelPatcher', transformer_options: dict[str]):
@@ -107,8 +110,8 @@ class WeightHook(Hook):
     def strength_clip(self):
         return self._strength_clip * self.strength
 
-    def add_hook_patches(self, model: 'ModelPatcher', target: EnumWeightTarget, registered: list[Hook]):
-        if not self.should_register(model, target, registered):
+    def add_hook_patches(self, model: 'ModelPatcher', model_options: dict, target: EnumWeightTarget, registered: list[Hook]):
+        if not self.should_register(model, model_options, target, registered):
             return False
         weights = None
         if target == EnumWeightTarget.Model:
@@ -155,9 +158,7 @@ class PatchHook(Hook):
         c: PatchHook = super().clone(subtype)
         c.patches = self.patches
         return c
-    
-    def add_hook_patches(self, model: 'ModelPatcher'):
-        pass
+    # TODO: add functionality
 
 class ObjectPatchHook(Hook):
     def __init__(self):
@@ -170,9 +171,7 @@ class ObjectPatchHook(Hook):
         c: ObjectPatchHook = super().clone(subtype)
         c.object_patches = self.object_patches
         return c
-    
-    def add_hook_object_patches(self, model: 'ModelPatcher'):
-        pass
+    # TODO: add functionality
 
 class AddModelsHook(Hook):
     def __init__(self, key: str=None, models: list['ModelPatcher']=None):
@@ -189,13 +188,11 @@ class AddModelsHook(Hook):
         c.models = self.models.copy() if self.models else self.models
         c.append_when_same = self.append_when_same
         return c
-    
-    def add_hook_models(self, model: 'ModelPatcher'):
-        pass
+    # TODO: add functionality
 
 class CallbackHook(Hook):
     def __init__(self, key: str=None, callback: Callable=None):
-        super().__init__(hook_type=EnumHookType.AddCallback)
+        super().__init__(hook_type=EnumHookType.Callbacks)
         self.key = key
         self.callback = callback
 
@@ -206,9 +203,25 @@ class CallbackHook(Hook):
         c.key = self.key
         c.callback = self.callback
         return c
+    # TODO: add functionality
+
+class WrapperHook(Hook):
+    def __init__(self, wrappers_dict: dict[str, dict[str, list[Callable]]]=None):
+        super().__init__(hook_type=EnumHookType.Wrappers)
+        self.wrappers_dict = wrappers_dict
+
+    def clone(self, subtype: Callable=None):
+        if subtype is None:
+            subtype = type(self)
+        c: WrapperHook = super().clone(subtype)
+        c.wrappers_dict = self.wrappers_dict
+        return c
     
-    def add_hook_callback(self, model: 'ModelPatcher'):
-        pass
+    def add_hook_wrapper(self, model: 'ModelPatcher', model_options: dict, target: EnumWeightTarget, registered: list[Hook]):
+        if not self.should_register(model, model_options, target, registered):
+            return False
+        add_model_options = {"transformer_options": {"wrappers": self.wrappers_dict}}
+        comfy.patcher_extension.merge_nested_dicts(model_options, add_model_options, copy_dict1=False)
 
 class SetInjectionsHook(Hook):
     def __init__(self, key: str=None, injections: list['PatcherInjection']=None):
@@ -225,23 +238,7 @@ class SetInjectionsHook(Hook):
         return c
     
     def add_hook_injections(self, model: 'ModelPatcher'):
-        pass
-
-class WrapperHook(Hook):
-    def __init__(self, key: str=None, wrapper: Callable=None):
-        super().__init__(hook_type=EnumHookType.AddWrapper)
-        self.key = key
-        self.wrapper = wrapper
-
-    def clone(self, subtype: Callable=None):
-        if subtype is None:
-            subtype = type(self)
-        c: WrapperHook = super().clone(subtype)
-        c.key = self.key
-        c.wrapper = self.wrapper
-        return c
-    
-    def add_hook_wrapper(self, model: 'ModelPatcher'):
+        # TODO: add functionality
         pass
 
 class HookGroup:
