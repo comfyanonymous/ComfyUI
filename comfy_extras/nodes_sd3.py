@@ -14,6 +14,8 @@ class TripleCLIPLoader:
 
     CATEGORY = "advanced/loaders"
 
+    DESCRIPTION = "[Recipes]\n\nsd3: clip-l, clip-g, t5"
+
     def load_clip(self, clip_name1, clip_name2, clip_name3):
         clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", clip_name1)
         clip_path2 = folder_paths.get_full_path_or_raise("text_encoders", clip_name2)
