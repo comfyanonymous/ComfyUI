@@ -770,9 +770,7 @@ class ModelPatcher:
         self.add_callback_with_key(call_type, None, callback)
 
     def add_callback_with_key(self, call_type: str, key: str, callback: Callable):
-        if call_type not in self.callbacks:
-            raise Exception(f"Callback '{call_type}' is not recognized.")
-        c = self.callbacks[call_type].setdefault(key, [])
+        c = self.callbacks.setdefault(call_type, {}).setdefault(key, [])
         c.append(callback)
     
     def remove_callbacks_with_key(self, call_type: str, key: str):
@@ -793,9 +791,7 @@ class ModelPatcher:
         self.add_wrapper_with_key(wrapper_type, None, wrapper)
 
     def add_wrapper_with_key(self, wrapper_type: str, key: str, wrapper: Callable):
-        if wrapper_type not in self.wrappers:
-            raise Exception(f"Wrapper '{wrapper_type}' is not recognized.")
-        w = self.wrappers[wrapper_type].setdefault(key, [])
+        w = self.wrappers.setdefault(wrapper_type, {}).setdefault(key, [])
         w.append(wrapper)
     
     def remove_wrappers_with_key(self, wrapper_type: str, key: str):
