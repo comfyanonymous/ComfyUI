@@ -902,6 +902,8 @@ class CLIPLoader:
 
     CATEGORY = "advanced/loaders"
 
+    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 / clip-g / clip-l\nstable_audio: t5\nmochi: t5"
+
     def load_clip(self, clip_name, type="stable_diffusion"):
         if type == "stable_cascade":
             clip_type = comfy.sd.CLIPType.STABLE_CASCADE
@@ -929,6 +931,8 @@ class DualCLIPLoader:
     FUNCTION = "load_clip"
 
     CATEGORY = "advanced/loaders"
+
+    DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5"
 
     def load_clip(self, clip_name1, clip_name2, type):
         clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", clip_name1)
