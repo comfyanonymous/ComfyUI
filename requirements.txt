@@ -43,7 +43,7 @@ fsspec
 natsort
 OpenEXR
 opentelemetry-distro
-opentelemetry-exporter-otlp
+opentelemetry-exporter-otlp<=1.26.0
 opentelemetry-propagator-jaeger
 opentelemetry-instrumentation
 opentelemetry-util-http
