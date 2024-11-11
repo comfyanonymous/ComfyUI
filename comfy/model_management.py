@@ -331,7 +331,7 @@ class LoadedModel:
         use_more_vram = lowvram_model_memory
         if use_more_vram == 0:
             use_more_vram = 1e32
-        self.model_use_more_vram(use_more_vram)
+        self.model_use_more_vram(use_more_vram, force_patch_weights=force_patch_weights)
         real_model = self.model.model
 
         if is_intel_xpu() and not args.disable_ipex_optimize and 'ipex' in globals() and real_model is not None:
