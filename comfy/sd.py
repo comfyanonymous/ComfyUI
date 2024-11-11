@@ -218,6 +218,7 @@ class VAE:
         self.downscale_ratio = 8
         self.upscale_ratio = 8
         self.latent_channels = 4
+        self.latent_dim = 2
         self.output_channels = 3
         self.process_input = lambda image: image * 2.0 - 1.0
         self.process_output = lambda image: torch.clamp((image + 1.0) / 2.0, min=0.0, max=1.0)
@@ -287,16 +288,22 @@ class VAE:
                 self.output_channels = 2
                 self.upscale_ratio = 2048
                 self.downscale_ratio =  2048
+                self.latent_dim = 1
                 self.process_output = lambda audio: audio
                 self.process_input = lambda audio: audio
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
-            elif "blocks.2.blocks.3.stack.5.weight" in sd or "decoder.blocks.2.blocks.3.stack.5.weight" in sd: #genmo mochi vae
+            elif "blocks.2.blocks.3.stack.5.weight" in sd or "decoder.blocks.2.blocks.3.stack.5.weight" in sd or "layers.4.layers.1.attn_block.attn.qkv.weight" in sd or "encoder.layers.4.layers.1.attn_block.attn.qkv.weight" in sd: #genmo mochi vae
                 if "blocks.2.blocks.3.stack.5.weight" in sd:
                     sd = comfy.utils.state_dict_prefix_replace(sd, {"": "decoder."})
+                if "layers.4.layers.1.attn_block.attn.qkv.weight" in sd:
+                    sd = comfy.utils.state_dict_prefix_replace(sd, {"": "encoder."})
                 self.first_stage_model = comfy.ldm.genmo.vae.model.VideoVAE()
                 self.latent_channels = 12
+                self.latent_dim = 3
                 self.memory_used_decode = lambda shape, dtype: (1000 * shape[2] * shape[3] * shape[4] * (6 * 8 * 8)) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (1.5 * max(shape[2], 7) * shape[3] * shape[4] * (6 * 8 * 8)) * model_management.dtype_size(dtype)
                 self.upscale_ratio = (lambda a: max(0, a * 6 - 5), 8, 8)
+                self.working_dtypes = [torch.float16, torch.float32]
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -401,24 +408,45 @@ class VAE:
         pixel_samples = pixel_samples.to(self.output_device).movedim(1,-1)
         return pixel_samples
 
-    def decode_tiled(self, samples, tile_x=64, tile_y=64, overlap = 16):
-        model_management.load_model_gpu(self.patcher)
-        output = self.decode_tiled_(samples, tile_x, tile_y, overlap)
-        return output.movedim(1,-1)
+    def decode_tiled(self, samples, tile_x=None, tile_y=None, overlap=None):
+        memory_used = self.memory_used_decode(samples.shape, self.vae_dtype) #TODO: calculate mem required for tile
+        model_management.load_models_gpu([self.patcher], memory_required=memory_used)
+        dims = samples.ndim - 2
+        args = {}
+        if tile_x is not None:
+            args["tile_x"] = tile_x
+        if tile_y is not None:
+            args["tile_y"] = tile_y
+        if overlap is not None:
+            args["overlap"] = overlap
+
+        if dims == 1:
+            args.pop("tile_y")
+            output = self.decode_tiled_1d(samples, **args)
+        elif dims == 2:
+            output = self.decode_tiled_(samples, **args)
+        elif dims == 3:
+            output = self.decode_tiled_3d(samples, **args)
+        return output.movedim(1, -1)
 
     def encode(self, pixel_samples):
         pixel_samples = self.vae_encode_crop_pixels(pixel_samples)
-        pixel_samples = pixel_samples.movedim(-1,1)
+        pixel_samples = pixel_samples.movedim(-1, 1)
+        if self.latent_dim == 3:
+            pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
         try:
             memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used)
             free_memory = model_management.get_free_memory(self.device)
             batch_number = int(free_memory / max(1, memory_used))
             batch_number = max(1, batch_number)
-            samples = torch.empty((pixel_samples.shape[0], self.latent_channels) + tuple(map(lambda a: a // self.downscale_ratio, pixel_samples.shape[2:])), device=self.output_device)
+            samples = None
             for x in range(0, pixel_samples.shape[0], batch_number):
-                pixels_in = self.process_input(pixel_samples[x:x+batch_number]).to(self.vae_dtype).to(self.device)
-                samples[x:x+batch_number] = self.first_stage_model.encode(pixels_in).to(self.output_device).float()
+                pixels_in = self.process_input(pixel_samples[x:x + batch_number]).to(self.vae_dtype).to(self.device)
+                out = self.first_stage_model.encode(pixels_in).to(self.output_device).float()
+                if samples is None:
+                    samples = torch.empty((pixel_samples.shape[0],) + tuple(out.shape[1:]), device=self.output_device)
+                samples[x:x + batch_number] = out
 
         except model_management.OOM_EXCEPTION as e:
             logging.warning("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
