@@ -139,8 +139,11 @@ def copy_nested_dicts(input_dict: dict):
             new_dict[key] = value.copy()
     return new_dict
 
-def merge_nested_dicts(dict1: dict, dict2: dict):
-    merged_dict = copy_nested_dicts(dict1)
+def merge_nested_dicts(dict1: dict, dict2: dict, copy_dict1=True):
+    if copy_dict1:
+        merged_dict = copy_nested_dicts(dict1)
+    else:
+        merged_dict = dict1
     for key, value in dict2.items():
         if isinstance(value, dict):
             curr_value = merged_dict.setdefault(key, {})

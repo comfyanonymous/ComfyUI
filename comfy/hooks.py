@@ -54,7 +54,7 @@ class Hook:
 
     def initialize_timesteps(self, model: 'BaseModel'):
         self.reset()
-        self.hook_keyframe.initalize_timesteps(model)
+        self.hook_keyframe.initialize_timesteps(model)
 
     def reset(self):
         self.hook_keyframe.reset()
@@ -193,7 +193,7 @@ class AddModelsHook(Hook):
     def add_hook_models(self, model: 'ModelPatcher'):
         pass
 
-class AddCallbackHook(Hook):
+class CallbackHook(Hook):
     def __init__(self, key: str=None, callback: Callable=None):
         super().__init__(hook_type=EnumHookType.AddCallback)
         self.key = key
@@ -202,7 +202,7 @@ class AddCallbackHook(Hook):
     def clone(self, subtype: Callable=None):
         if subtype is None:
             subtype = type(self)
-        c: AddCallbackHook = super().clone(subtype)
+        c: CallbackHook = super().clone(subtype)
         c.key = self.key
         c.callback = self.callback
         return c
@@ -227,7 +227,7 @@ class SetInjectionsHook(Hook):
     def add_hook_injections(self, model: 'ModelPatcher'):
         pass
 
-class AddWrapperHook(Hook):
+class WrapperHook(Hook):
     def __init__(self, key: str=None, wrapper: Callable=None):
         super().__init__(hook_type=EnumHookType.AddWrapper)
         self.key = key
@@ -236,7 +236,7 @@ class AddWrapperHook(Hook):
     def clone(self, subtype: Callable=None):
         if subtype is None:
             subtype = type(self)
-        c: AddWrapperHook = super().clone(subtype)
+        c: WrapperHook = super().clone(subtype)
         c.key = self.key
         c.wrapper = self.wrapper
         return c
@@ -268,7 +268,10 @@ class HookGroup:
         return c
     
     def set_keyframes_on_hooks(self, hook_kf: 'HookKeyframeGroup'):
-        hook_kf = hook_kf.clone()
+        if hook_kf is None:
+            hook_kf = HookKeyframeGroup()
+        else:
+            hook_kf = hook_kf.clone()
         for hook in self.hooks:
             hook.hook_keyframe = hook_kf
 
@@ -330,7 +333,7 @@ class HookGroup:
 
     def reset(self):
         for hook in self.hooks:
-            hook.hook_keyframe.reset()
+            hook.reset()
 
     @staticmethod
     def combine_all_hooks(hooks_list: list['HookGroup'], require_count=0) -> 'HookGroup':
@@ -414,11 +417,11 @@ class HookKeyframeGroup:
     def clone(self):
         c = HookKeyframeGroup()
         for keyframe in self.keyframes:
-            c.keyframes.append(keyframe)
+            c.keyframes.append(keyframe.clone())
         c._set_first_as_current()
         return c
     
-    def initalize_timesteps(self, model: 'BaseModel'):
+    def initialize_timesteps(self, model: 'BaseModel'):
         for keyframe in self.keyframes:
             keyframe.start_t = model.model_sampling.percent_to_sigma(keyframe.start_percent)
 

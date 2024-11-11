@@ -118,6 +118,14 @@ class ControlBase:
         if self.previous_controlnet is not None:
             out += self.previous_controlnet.get_models()
         return out
+    
+    def get_extra_hooks(self):
+        out = []
+        if self.extra_hooks is not None:
+            out.append(self.extra_hooks)
+        if self.previous_controlnet is not None:
+            out += self.previous_controlnet.get_extra_hooks()
+        return out
 
     def copy_to(self, c):
         c.cond_hint_original = self.cond_hint_original

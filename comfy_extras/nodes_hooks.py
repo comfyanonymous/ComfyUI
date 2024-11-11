@@ -243,7 +243,9 @@ class SetClipHooks:
         if hooks is not None:
             clip = clip.clone()
             clip.use_clip_schedule = schedule_clip
-            clip.patcher.forced_hooks = hooks
+            clip.patcher.forced_hooks = hooks.clone()
+            if not clip.use_clip_schedule:
+                clip.patcher.forced_hooks.set_keyframes_on_hooks(None)
             clip.patcher.register_all_hook_patches(hooks.get_dict_repr(), comfy.hooks.EnumWeightTarget.Clip)
         return (clip,)
 

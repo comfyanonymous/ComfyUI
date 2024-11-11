@@ -1,9 +1,11 @@
+from __future__ import annotations
 from .k_diffusion import sampling as k_diffusion_sampling
 from .extra_samplers import uni_pc
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
     from comfy.model_base import BaseModel
+    from comfy.controlnet import ControlBase
 import torch
 import collections
 from comfy import model_management
@@ -248,8 +250,6 @@ def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Te
                     to_batch = batch_amount
                     break
 
-            model.current_patcher.apply_hooks(hooks=hooks)
-
             input_x = []
             mult = []
             c = []
@@ -275,11 +275,14 @@ def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Te
             c = cond_cat(c)
             timestep_ = torch.cat([timestep] * batch_chunks)
 
-            transformer_options = {}
+            transformer_options = model.current_patcher.apply_hooks(hooks=hooks)
             if 'transformer_options' in model_options:
-                transformer_options = model_options['transformer_options'].copy()
+                transformer_options = comfy.patcher_extension.merge_nested_dicts(transformer_options,
+                                                                                 model_options['transformer_options'],
+                                                                                 copy_dict1=False)
 
             if patches is not None:
+                # TODO: replace with merge_nested_dicts function
                 if "patches" in transformer_options:
                     cur_patches = transformer_options["patches"].copy()
                     for p in patches:
@@ -774,6 +777,34 @@ def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=N
 
     return conds
 
+
+def preprocess_conds_hooks(conds: dict[str, list[dict[str]]]):
+    # determine which ControlNets have extra_hooks that should be combined with normal hooks
+    hook_replacement: dict[tuple[ControlBase, comfy.hooks.HookGroup], list[dict]] = {}
+    for k in conds:
+        for kk in conds[k]:
+            if 'control' in kk:
+                control: 'ControlBase' = kk['control']
+                extra_hooks = control.get_extra_hooks()
+                if len(extra_hooks) > 0:
+                    hooks: comfy.hooks.HookGroup = kk.get('hooks', None)
+                    to_replace = hook_replacement.setdefault((control, hooks), [])
+                    to_replace.append(kk)
+    # if nothing to replace, do nothing
+    if len(hook_replacement) == 0:
+        return
+
+    # for optimal sampling performance, common ControlNets + hook combos should have identical hooks
+    # on the cond dicts
+    for key, conds_to_modify in hook_replacement.items():
+        control = key[0]
+        hooks = key[1]
+        hooks = comfy.hooks.HookGroup.combine_all_hooks(control.get_extra_hooks() + [hooks])
+        # if combined hooks are not None, set as new hooks for all relevant conds
+        if hooks is not None:
+            for cond in conds_to_modify:
+                cond['hooks'] = hooks
+
 class CFGGuider:
     def __init__(self, model_patcher):
         self.model_patcher: 'ModelPatcher' = model_patcher
@@ -842,6 +873,7 @@ class CFGGuider:
         self.conds = {}
         for k in self.original_conds:
             self.conds[k] = list(map(lambda a: a.copy(), self.original_conds[k]))
+        preprocess_conds_hooks(self.conds)
 
         try:
             orig_model_options = self.model_options

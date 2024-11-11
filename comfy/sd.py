@@ -4,6 +4,7 @@ from enum import Enum
 import logging
 
 from comfy import model_management
+from comfy.utils import ProgressBar
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
 from .ldm.cascade.stage_a import StageA
 from .ldm.cascade.stage_c_coder import StageC_coder
@@ -119,7 +120,7 @@ class CLIP:
     def tokenize(self, text, return_word_ids=False):
         return self.tokenizer.tokenize_with_weights(text, return_word_ids)
 
-    def encode_from_tokens_scheduled(self, tokens, unprojected=False, add_dict: dict[str]=None):
+    def encode_from_tokens_scheduled(self, tokens, unprojected=False, add_dict: dict[str]=None, show_pbar=True):
         all_cond_pooled: list[tuple[torch.Tensor, dict[str]]] = []
         all_hooks = self.patcher.forced_hooks
         scheduled_keyframes = all_hooks.get_hooks_for_clip_schedule()
@@ -132,6 +133,10 @@ class CLIP:
 
         self.load_model()
         all_hooks.reset()
+        self.patcher.patch_hooks(None)
+        if show_pbar:
+            pbar = ProgressBar(len(scheduled_keyframes))
+
         for scheduled_opts in scheduled_keyframes:
             t_range = scheduled_opts[0]
             hooks_keyframes = scheduled_opts[1]
@@ -150,6 +155,9 @@ class CLIP:
             if add_dict is not None:
                 pooled_dict.update(add_dict)
             all_cond_pooled.append([cond, pooled_dict])
+            if show_pbar:
+                pbar.update(1)
+            model_management.throw_exception_if_processing_interrupted()
         all_hooks.reset()
         return all_cond_pooled
 

@@ -990,12 +990,14 @@ class ModelPatcher:
                     combined_patches[key] = current_patches
         return combined_patches
 
-    def apply_hooks(self, hooks: comfy.hooks.HookGroup):
+    def apply_hooks(self, hooks: comfy.hooks.HookGroup, model_options: dict=None):
+        # TODO: return transformer_options dict with any additions from hooks
         if self.current_hooks == hooks:
-            return
+            return {}
         self.patch_hooks(hooks=hooks)
         for callback in self.get_all_callbacks(CallbacksMP.ON_APPLY_HOOKS):
             callback(self, hooks)
+        return {}
 
     def patch_hooks(self, hooks: comfy.hooks.HookGroup):
         with self.use_ejected():
