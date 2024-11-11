@@ -389,7 +389,7 @@ def create_directories(paths: FolderNames | None):
         for path in folder_path_spec.paths:
             os.makedirs(path, exist_ok=True)
     for path in paths.application_paths:
-        path.mkdir(exist_ok=True)
+        path.mkdir(exist_ok=True, parents=True)
 
 
 @_deprecate_method(version="0.2.3", message="Caching has been removed.")

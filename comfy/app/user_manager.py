@@ -23,7 +23,7 @@ class UserManager():
         self.users_file = os.path.join(user_directory, "users.json")
         self.settings = AppSettings(self)
         if not os.path.exists(user_directory):
-            os.mkdir(user_directory)
+            os.makedirs(user_directory, exist_ok=True)
 
         if args.multi_user:
             if os.path.isfile(self.get_users_file()):
