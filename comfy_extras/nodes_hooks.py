@@ -76,10 +76,9 @@ class PairConditioningSetPropertiesAndCombine:
     def set_properties(self, positive, negative, positive_NEW, negative_NEW,
                        strength: float, set_cond_area: str,
                        opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: tuple=None):
-        positive_NEW, negative_NEW = comfy.hooks.set_mask_conds(conds=[positive_NEW, negative_NEW],
-                                                                    strength=strength, set_cond_area=set_cond_area,
-                                                                    opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
-        final_positive, final_negative = comfy.hooks.combine_with_new_conds(conds=[positive, negative], new_conds=[positive_NEW, negative_NEW])
+        final_positive, final_negative = comfy.hooks.set_mask_and_combine_conds(conds=[positive, negative], new_conds=[positive_NEW, negative_NEW],
+                                                                                strength=strength, set_cond_area=set_cond_area,
+                                                                                opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
         return (final_positive, final_negative)
 
 class ConditioningSetProperties:
@@ -138,10 +137,9 @@ class ConditioningSetPropertiesAndCombine:
     def set_properties(self, cond, cond_NEW,
                        strength: float, set_cond_area: str,
                        opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: tuple=None):
-        (cond_NEW,) = comfy.hooks.set_mask_conds(conds=[cond_NEW],
-                                                   strength=strength, set_cond_area=set_cond_area,
-                                                   opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
-        (final_cond,) = comfy.hooks.combine_with_new_conds(conds=[cond], new_conds=[cond_NEW])
+        (final_cond,) = comfy.hooks.set_mask_and_combine_conds(conds=[cond], new_conds=[cond_NEW],
+                                                               strength=strength, set_cond_area=set_cond_area,
+                                                               opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
         return (final_cond,)
 
 class PairConditioningCombine:
