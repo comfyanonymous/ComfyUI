@@ -128,6 +128,9 @@ class SkipLayerGuidanceSD3:
         sigma_start = model_sampling.percent_to_sigma(start_percent)
         sigma_end = model_sampling.percent_to_sigma(end_percent)
 
+        layers = re.findall(r'\d+', layers)
+        layers = [int(i) for i in layers]
+
         def post_cfg_function(args):
             model = args["model"]
             cond_pred = args["cond_denoised"]
@@ -147,8 +150,6 @@ class SkipLayerGuidanceSD3:
                 cfg_result = cfg_result + (cond_pred - slg) * scale
             return cfg_result
 
-        layers = re.findall(r'\d+', layers)
-        layers = [int(i) for i in layers]
         m = model.clone()
         m.set_model_sampler_post_cfg_function(post_cfg_function)
 
