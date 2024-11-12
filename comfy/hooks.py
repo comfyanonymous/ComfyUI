@@ -97,7 +97,6 @@ class WeightHook(Hook):
         super().__init__(hook_type=EnumHookType.Weight)
         self.weights: dict = None
         self.weights_clip: dict = None
-        self.is_diff = False
         self.need_weight_init = True
         self._strength_model = strength_model
         self._strength_clip = strength_clip
@@ -131,7 +130,7 @@ class WeightHook(Hook):
                 weights = self.weights
             else:
                 weights = self.weights_clip
-        k = model.add_hook_patches(hook=self, patches=weights, strength_patch=strength, is_diff=self.is_diff)
+        k = model.add_hook_patches(hook=self, patches=weights, strength_patch=strength)
         return True
         # TODO: add logs about any keys that were not applied
 
@@ -142,7 +141,6 @@ class WeightHook(Hook):
         c.weights = self.weights
         c.weights_clip = self.weights_clip
         c.need_weight_init = self.need_weight_init
-        c.is_diff = self.is_diff
         c._strength_model = self._strength_model
         c._strength_clip = self._strength_clip
         return c
@@ -543,49 +541,7 @@ def get_patch_weights_from_model(model: 'ModelPatcher', discard_model_sampling=F
                 patches_model.pop(key, None)
     return patches_model
 
-def create_hook_model_as_lora_precalc(model: 'ModelPatcher', clip: 'CLIP',
-                              model_loaded: 'ModelPatcher', clip_loaded: 'CLIP',
-                              strength_model: float, strength_clip: float):
-    hook_group = HookGroup()
-    hook = WeightHook(strength_model=strength_model, strength_clip=strength_clip)
-    hook_group.add(hook)
-    if model is not None and model_loaded is not None:
-        expected_model_keys = set(model_loaded.model.state_dict().keys())
-        patches_model: dict[str, torch.Tensor] = model_loaded.model.state_dict()
-        # do not include ANY model_sampling components of the model that should act as a patch
-        for key in list(patches_model.keys()):
-            if key.startswith("model_sampling"):
-                expected_model_keys.discard(key)
-                patches_model.pop(key, None)
-        weights_model, k = model.get_weight_diffs(patches_model)
-    else:
-        weights_model = {}
-        k = ()
-
-    if clip is not None and clip_loaded is not None:
-        expected_clip_keys = clip_loaded.patcher.model.state_dict().copy()
-        patches_clip: dict[str, torch.Tensor] = clip_loaded.cond_stage_model.state_dict()
-        weights_clip, k1 = clip.patcher.get_weight_diffs(patches_clip)
-    else:
-        weights_clip = {}
-        k1 = ()
-    
-    k = set(k)
-    k1 = set(k1)
-    if model is not None and model_loaded is not None:
-        for key in expected_model_keys:
-            if key not in k:
-                print(f"MODEL-AS-LORA NOT LOADED {key}")
-    if clip is not None and clip_loaded is not None:
-        for key in expected_clip_keys:
-            if key not in k1:
-                print(f"CLIP-AS-LORA NOT LOADED {key}")
-
-    hook.weights = weights_model
-    hook.weights_clip = weights_clip
-    hook.need_weight_init = False
-    return hook_group
-
+# NOTE: this function shows how to register weight hooks directly on the ModelPatchers
 def load_hook_lora_for_models(model: 'ModelPatcher', clip: 'CLIP', lora: dict[str, torch.Tensor],
                               strength_model: float, strength_clip: float):
     key_map = {}
@@ -616,49 +572,6 @@ def load_hook_lora_for_models(model: 'ModelPatcher', clip: 'CLIP', lora: dict[st
     for x in loaded:
         if (x not in k) and (x not in k1):
             print(f"NOT LOADED {x}")
-    return (new_modelpatcher, new_clip, hook_group)
-
-def load_hook_model_as_lora_for_models(model: 'ModelPatcher', clip: 'CLIP',
-                                       model_loaded: 'ModelPatcher', clip_loaded: 'CLIP',
-                                       strength_model: float, strength_clip: float):
-    hook_group = HookGroup()
-    hook = WeightHook()
-    hook_group.add(hook)
-    if model is not None and model_loaded is not None:
-        new_modelpatcher = model.clone()
-        expected_model_keys = set(model_loaded.model.state_dict().keys())
-        patches_model: dict[str, torch.Tensor] = model_loaded.model.state_dict()
-        # do not include ANY model_sampling components of the model that should act as a patch
-        for key in list(patches_model.keys()):
-            if key.startswith("model_sampling"):
-                expected_model_keys.discard(key)
-                patches_model.pop(key, None)
-        k = new_modelpatcher.add_hook_patches(hook=hook, patches=patches_model, strength_patch=strength_model, is_diff=True)
-    else:
-        k = ()
-        new_modelpatcher = None
-    
-    if clip is not None and clip_loaded is not None:
-        new_clip = clip.clone()
-        comfy.model_management.unload_model_clones(new_clip.patcher)
-        expected_clip_keys = clip_loaded.patcher.model.state_dict().copy()
-        patches_clip: dict[str, torch.Tensor] = clip_loaded.cond_stage_model.state_dict()
-        k1 = new_clip.patcher.add_hook_patches(hook=hook, patches=patches_clip, strength_patch=strength_clip, is_diff=True)
-    else:
-        k1 = ()
-        new_clip = None
-    
-    k = set(k)
-    k1 = set(k1)
-    if model is not None and model_loaded is not None:
-        for key in expected_model_keys:
-            if key not in k:
-                print(f"MODEL-AS-LORA NOT LOADED {key}")
-    if clip is not None and clip_loaded is not None:
-        for key in expected_clip_keys:
-            if key not in k1:
-                print(f"CLIP-AS-LORA NOT LOADED {key}")
-    
     return (new_modelpatcher, new_clip, hook_group)
 
 def set_hooks_for_conditioning(cond, hooks: HookGroup):

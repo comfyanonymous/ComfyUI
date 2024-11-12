@@ -920,11 +920,9 @@ class ModelPatcher:
         for callback in self.get_all_callbacks(CallbacksMP.ON_REGISTER_ALL_HOOK_PATCHES):
             callback(self, hooks_dict, target)
 
-    def add_hook_patches(self, hook: comfy.hooks.WeightHook, patches, strength_patch=1.0, strength_model=1.0, is_diff=False):
+    def add_hook_patches(self, hook: comfy.hooks.WeightHook, patches, strength_patch=1.0, strength_model=1.0):
         with self.use_ejected():
             # NOTE: this mirrors behavior of add_patches func
-            if is_diff:
-                comfy.model_management.unload_model_clones(self)
             current_hook_patches: dict[str,list] = self.hook_patches.get(hook.hook_ref, {})
             p = set()
             model_sd = self.model.state_dict()
@@ -942,38 +940,12 @@ class ModelPatcher:
                 if key in model_sd:
                     p.add(k)
                     current_patches: list[tuple] = current_hook_patches.get(key, [])
-                    if is_diff:
-                        # take difference between desired weight and existing weight to get diff
-                        model_dtype = comfy.utils.get_attr(self.model, key).dtype
-                        if model_dtype in [torch.float8_e5m2, torch.float8_e4m3fn]:
-                            diff_weight = (patches[k].to(torch.float32)-comfy.utils.get_attr(self.model, key).to(torch.float32)).to(model_dtype)
-                        else:
-                            diff_weight = patches[k]-comfy.utils.get_attr(self.model, key)
-                        current_patches.append((strength_patch, (diff_weight,), strength_model, offset, function))
-                    else:
-                        current_patches.append((strength_patch, patches[k], strength_model, offset, function))
+                    current_patches.append((strength_patch, patches[k], strength_model, offset, function))
                     current_hook_patches[key] = current_patches
             self.hook_patches[hook.hook_ref] = current_hook_patches
             # since should care about these patches too to determine if same model, reroll patches_uuid
             self.patches_uuid = uuid.uuid4()
             return list(p)
-
-    def get_weight_diffs(self, patches):
-        with self.use_ejected():
-            comfy.model_management.unload_model_clones(self)
-            weights: dict[str, tuple] = {}
-            p = set()
-            model_sd = self.model.state_dict()
-            for k in patches:
-                if k in model_sd:
-                    p.add(k)
-                    model_dtype = comfy.utils.get_attr(self.model, k).dtype
-                    if model_dtype in [torch.float8_e5m2, torch.float8_e4m3fn]:
-                        diff_weight = (patches[k].to(torch.float32)-comfy.utils.get_attr(self.model, k).to(torch.float32)).to(model_dtype)
-                    else:
-                        diff_weight = patches[k]-comfy.utils.get_attr(self.model, k)
-                    weights[k] = (diff_weight,)
-            return weights, p
 
     def get_combined_hook_patches(self, hooks: comfy.hooks.HookGroup):
         # combined_patches will contain  weights of all relevant hooks, per key
