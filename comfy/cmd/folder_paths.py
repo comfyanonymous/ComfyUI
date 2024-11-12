@@ -382,7 +382,7 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
     return SaveImagePathTuple(full_output_folder, filename, counter, subfolder, filename_prefix)
 
 
-def create_directories(paths: FolderNames | None):
+def create_directories(paths: FolderNames | None = None):
     # all configured paths should be created
     paths = paths or _folder_names_and_paths()
     for folder_path_spec in paths.values():
