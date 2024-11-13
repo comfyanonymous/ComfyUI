@@ -310,6 +310,15 @@ def simple_scheduler(model_sampling, steps):
     sigs += [0.0]
     return torch.FloatTensor(sigs)
 
+def kl_optimal(model_sampling, steps):
+    s = model_sampling
+    device = s.sigmas.device
+    alpha_min = torch.tensor(torch.arctan(s.sigma_min), device=device)
+    alpha_max = torch.tensor(torch.arctan(s.sigma_max), device=device)
+    step_indices = torch.arange(steps+1, device=device)
+    sigs = torch.tan(step_indices / steps * alpha_min + (1.0 - step_indices / steps) * alpha_max)
+    return sigs
+
 def ddim_scheduler(model_sampling, steps):
     s = model_sampling
     sigs = []
@@ -753,7 +762,7 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     return cfg_guider.sample(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
 
 
-SCHEDULER_NAMES = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta", "linear_quadratic"]
+SCHEDULER_NAMES = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta", "linear_quadratic", "kl_optimal"]
 SAMPLER_NAMES = KSAMPLER_NAMES + ["ddim", "uni_pc", "uni_pc_bh2"]
 
 def calculate_sigmas(model_sampling, scheduler_name, steps):
@@ -773,6 +782,8 @@ def calculate_sigmas(model_sampling, scheduler_name, steps):
         sigmas = beta_scheduler(model_sampling, steps)
     elif scheduler_name == "linear_quadratic":
         sigmas = linear_quadratic_schedule(model_sampling, steps)
+    elif scheduler_name == "kl_optimal":
+        sigmas = kl_optimal(model_sampling, steps)
     else:
         logging.error("error invalid scheduler {}".format(scheduler_name))
     return sigmas
