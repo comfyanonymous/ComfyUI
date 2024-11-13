@@ -26,8 +26,8 @@ class X0(comfy.model_sampling.EPS):
 class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete):
     original_timesteps = 50
 
-    def __init__(self, model_config=None):
-        super().__init__(model_config)
+    def __init__(self, model_config=None, zsnr=None):
+        super().__init__(model_config, zsnr=zsnr)
 
         self.skip_steps = self.num_timesteps // self.original_timesteps
 
