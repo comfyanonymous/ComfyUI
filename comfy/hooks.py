@@ -24,8 +24,8 @@ class EnumHookType(enum.Enum):
     Patch = "patch"
     ObjectPatch = "object_patch"
     AddModels = "add_models"
-    Callbacks = "add_callback"
-    Wrappers = "add_wrapper"
+    Callbacks = "callbacks"
+    Wrappers = "wrappers"
     SetInjections = "add_injections"
 
 class EnumWeightTarget(enum.Enum):
@@ -131,6 +131,7 @@ class WeightHook(Hook):
             else:
                 weights = self.weights_clip
         k = model.add_hook_patches(hook=self, patches=weights, strength_patch=strength)
+        registered.append(self)
         return True
         # TODO: add logs about any keys that were not applied
 
@@ -204,7 +205,7 @@ class CallbackHook(Hook):
     # TODO: add functionality
 
 class WrapperHook(Hook):
-    def __init__(self, wrappers_dict: dict[str, dict[str, list[Callable]]]=None):
+    def __init__(self, wrappers_dict: dict[str, dict[str, dict[str, list[Callable]]]]=None):
         super().__init__(hook_type=EnumHookType.Wrappers)
         self.wrappers_dict = wrappers_dict
 
@@ -215,11 +216,13 @@ class WrapperHook(Hook):
         c.wrappers_dict = self.wrappers_dict
         return c
     
-    def add_hook_wrapper(self, model: 'ModelPatcher', model_options: dict, target: EnumWeightTarget, registered: list[Hook]):
+    def add_hook_patches(self, model: 'ModelPatcher', model_options: dict, target: EnumWeightTarget, registered: list[Hook]):
         if not self.should_register(model, model_options, target, registered):
             return False
-        add_model_options = {"transformer_options": {"wrappers": self.wrappers_dict}}
+        add_model_options = {"transformer_options": self.wrappers_dict}
         comfy.patcher_extension.merge_nested_dicts(model_options, add_model_options, copy_dict1=False)
+        registered.append(self)
+        return True
 
 class SetInjectionsHook(Hook):
     def __init__(self, key: str=None, injections: list['PatcherInjection']=None):

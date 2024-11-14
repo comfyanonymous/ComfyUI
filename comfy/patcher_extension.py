@@ -4,6 +4,7 @@ from typing import Callable
 class CallbacksMP:
     ON_CLONE = "on_clone"
     ON_LOAD = "on_load_after"
+    ON_DETACH = "on_detach_after"
     ON_CLEANUP = "on_cleanup"
     ON_PRE_RUN = "on_pre_run"
     ON_PREPARE_STATE = "on_prepare_state"
@@ -23,10 +24,18 @@ def add_callback(call_type: str, callback: Callable, transformer_options: dict, 
 
 def add_callback_with_key(call_type: str, key: str, callback: Callable, transformer_options: dict, is_model_options=False):
     if is_model_options:
-        transformer_options = transformer_options.get("transformer_options", {})
-    callbacks: dict[str, dict[str, list]] = transformer_options.get("callbacks", {})
+        transformer_options = transformer_options.setdefault("transformer_options", {})
+    callbacks: dict[str, dict[str, list]] = transformer_options.setdefault("callbacks", {})
     c = callbacks.setdefault(call_type, {}).setdefault(key, [])
     c.append(callback)
+
+def get_callbacks_with_key(call_type: str, key: str, transformer_options: dict, is_model_options=False):
+    if is_model_options:
+        transformer_options = transformer_options.get("transformer_options", {})
+    c_list = []
+    callbacks: dict[str, list] = transformer_options.get("callbacks", {})
+    c_list.extend(callbacks.get(call_type, {}).get(key, []))
+    return c_list
 
 def get_all_callbacks(call_type: str, transformer_options: dict, is_model_options=False):
     if is_model_options:
@@ -55,10 +64,18 @@ def add_wrapper(wrapper_type: str, wrapper: Callable, transformer_options: dict,
 
 def add_wrapper_with_key(wrapper_type: str, key: str, wrapper: Callable, transformer_options: dict, is_model_options=False):
     if is_model_options:
-        transformer_options = transformer_options.get("transformer_options", {})
-    wrappers: dict[str, dict[str, list]] = transformer_options.get("wrappers", {})
+        transformer_options = transformer_options.setdefault("transformer_options", {})
+    wrappers: dict[str, dict[str, list]] = transformer_options.setdefault("wrappers", {})
     w = wrappers.setdefault(wrapper_type, {}).setdefault(key, [])
     w.append(wrapper)
+
+def get_wrappers_with_key(wrapper_type: str, key: str, transformer_options: dict, is_model_options=False):
+    if is_model_options:
+        transformer_options = transformer_options.get("transformer_options", {})
+    w_list = []
+    wrappers: dict[str, list] = transformer_options.get("wrappers", {})
+    w_list.extend(wrappers.get(wrapper_type, {}).get(key, []))
+    return w_list
 
 def get_all_wrappers(wrapper_type: str, transformer_options: dict, is_model_options=False):
     if is_model_options:
