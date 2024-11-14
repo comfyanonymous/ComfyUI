@@ -14,7 +14,6 @@ from . import workflows
 
 
 @pytest.fixture(scope="module", autouse=False)
-@pytest.mark.asyncio
 async def client(tmp_path_factory) -> EmbeddedComfyClient:
     async with EmbeddedComfyClient() as client:
         yield client

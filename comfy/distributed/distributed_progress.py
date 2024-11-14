@@ -61,7 +61,12 @@ class DistributedExecutorToClientProgress(ExecutorToClientProgress):
             # todo: user_id should never be none here
             return
 
-        await self._rpc.call(_get_name(self._queue_name, user_id), {"event": event, "data": data})
+        try:
+            # we don't need to await this coroutine
+            _ = asyncio.create_task(self._rpc.call(_get_name(self._queue_name, user_id), {"event": event, "data": data}, expiration=1000))
+        except asyncio.TimeoutError:
+            # these can gracefully expire
+            pass
 
     def send_sync(self,
                   event: SendSyncEvent,

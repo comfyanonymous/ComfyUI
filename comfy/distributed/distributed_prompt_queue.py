@@ -275,7 +275,7 @@ class DistributedPromptQueue(AbstractPromptQueue, AsyncAbstractPromptQueue):
             return
         self._connection = await connect_robust(self._connection_uri, loop=self._loop)
         self._channel = await self._connection.channel()
-        self._rpc = await JsonRPC.create(channel=self._channel, auto_delete=True, durable=False)
+        self._rpc = await JsonRPC.create(channel=self._channel, auto_delete=False, durable=True)
         if self._is_caller:
             self._caller_progress_handlers = ProgressHandlers(self._rpc, self._caller_server, self._queue_name)
         # this makes the queue available to complete work items

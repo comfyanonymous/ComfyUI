@@ -197,7 +197,7 @@ async def test_queue_and_forget_prompt_api_integration(frontend_backend_worker_w
     pytest.fail("Failed to get a 200 response with valid data within the timeout period")
 
 
-class TestWorker(DistributedPromptWorker):
+class Worker(DistributedPromptWorker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.processed_workflows: set[str] = set()
@@ -215,9 +215,9 @@ async def test_two_workers_distinct_requests():
         connection_uri = f"amqp://guest:guest@127.0.0.1:{params.port}"
 
         # Start two test workers
-        workers: list[TestWorker] = []
+        workers: list[Worker] = []
         for i in range(2):
-            worker = TestWorker(connection_uri=connection_uri, health_check_port=9090 + i, executor=ProcessPoolExecutor(max_workers=1))
+            worker = Worker(connection_uri=connection_uri, health_check_port=9090 + i, executor=ProcessPoolExecutor(max_workers=1))
             await worker.init()
             workers.append(worker)
 
