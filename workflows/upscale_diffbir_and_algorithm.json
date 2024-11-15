@@ -1,0 +1,316 @@
+{
+  "last_node_id": 7,
+  "last_link_id": 13,
+  "nodes": [
+    {
+      "id": 4,
+      "type": "PreviewImage",
+      "pos": {
+        "0": 1508,
+        "1": -5
+      },
+      "size": {
+        "0": 619.78515625,
+        "1": 608.61328125
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 11
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 6,
+      "type": "Simple_load",
+      "pos": {
+        "0": 469,
+        "1": -6
+      },
+      "size": {
+        "0": 315,
+        "1": 142
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "stage1_model",
+          "type": "STAGE1",
+          "links": [
+            6
+          ],
+          "shape": 3
+        },
+        {
+          "name": "cldm",
+          "type": "CLDM",
+          "links": [
+            7
+          ],
+          "slot_index": 1,
+          "shape": 3
+        },
+        {
+          "name": "diffusion",
+          "type": "DIFFUSION",
+          "links": [
+            8
+          ],
+          "slot_index": 2,
+          "shape": 3
+        },
+        {
+          "name": "infer_type",
+          "type": "INFER_TYPE",
+          "links": [
+            9
+          ],
+          "slot_index": 3,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Simple_load"
+      },
+      "widgets_values": [
+        "cuda",
+        "float32"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "ImageScale",
+      "pos": {
+        "0": 577.2297973632812,
+        "1": 349.1929626464844
+      },
+      "size": {
+        "0": 315,
+        "1": 130
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            13
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageScale"
+      },
+      "widgets_values": [
+        "nearest-exact",
+        512,
+        512,
+        "disabled"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "DiffBIR_sample",
+      "pos": {
+        "0": 973,
+        "1": -5
+      },
+      "size": {
+        "0": 400,
+        "1": 446
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "stage1_model",
+          "type": "STAGE1",
+          "link": 6,
+          "slot_index": 0
+        },
+        {
+          "name": "cldm",
+          "type": "CLDM",
+          "link": 7
+        },
+        {
+          "name": "diffusion",
+          "type": "DIFFUSION",
+          "link": 8
+        },
+        {
+          "name": "infer_type",
+          "type": "INFER_TYPE",
+          "link": 9
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 13,
+          "slot_index": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            11
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DiffBIR_sample"
+      },
+      "widgets_values": [
+        1,
+        20,
+        4,
+        true,
+        true,
+        512,
+        480,
+        "best quality, hdr, 4k",
+        "low quality, blurry, low-resolution, noisy, unsharp, weird textures",
+        1,
+        "fixed",
+        "cuda"
+      ]
+    },
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": {
+        "0": 182,
+        "1": 272
+      },
+      "size": {
+        "0": 326.1577453613281,
+        "1": 314
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            12
+          ],
+          "slot_index": 0,
+          "shape": 3
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "3.png",
+        "image"
+      ]
+    }
+  ],
+  "links": [
+    [
+      6,
+      6,
+      0,
+      5,
+      0,
+      "STAGE1"
+    ],
+    [
+      7,
+      6,
+      1,
+      5,
+      1,
+      "CLDM"
+    ],
+    [
+      8,
+      6,
+      2,
+      5,
+      2,
+      "DIFFUSION"
+    ],
+    [
+      9,
+      6,
+      3,
+      5,
+      3,
+      "INFER_TYPE"
+    ],
+    [
+      11,
+      5,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ],
+    [
+      12,
+      1,
+      0,
+      7,
+      0,
+      "IMAGE"
+    ],
+    [
+      13,
+      7,
+      0,
+      5,
+      4,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.1671841070450018,
+      "offset": [
+        -425.58276143922296,
+        311.37119267524326
+      ]
+    }
+  },
+  "version": 0.4
+}

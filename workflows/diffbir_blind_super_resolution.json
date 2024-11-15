@@ -1,0 +1,255 @@
+{
+  "last_node_id": 6,
+  "last_link_id": 11,
+  "nodes": [
+    {
+      "id": 4,
+      "type": "PreviewImage",
+      "pos": [
+        1508,
+        -5
+      ],
+      "size": {
+        "0": 619.78515625,
+        "1": 608.61328125
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 11
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        473,
+        281
+      ],
+      "size": [
+        326.1577546081544,
+        314
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            10
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "0.png",
+        "image"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "Simple_load",
+      "pos": [
+        469,
+        -6
+      ],
+      "size": {
+        "0": 315,
+        "1": 142
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "stage1_model",
+          "type": "STAGE1",
+          "links": [
+            6
+          ],
+          "shape": 3
+        },
+        {
+          "name": "cldm",
+          "type": "CLDM",
+          "links": [
+            7
+          ],
+          "shape": 3,
+          "slot_index": 1
+        },
+        {
+          "name": "diffusion",
+          "type": "DIFFUSION",
+          "links": [
+            8
+          ],
+          "shape": 3,
+          "slot_index": 2
+        },
+        {
+          "name": "infer_type",
+          "type": "INFER_TYPE",
+          "links": [
+            9
+          ],
+          "shape": 3,
+          "slot_index": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Simple_load"
+      },
+      "widgets_values": [
+        "cuda",
+        "float32"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "DiffBIR_sample",
+      "pos": [
+        973,
+        -5
+      ],
+      "size": {
+        "0": 400,
+        "1": 446
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "stage1_model",
+          "type": "STAGE1",
+          "link": 6,
+          "slot_index": 0
+        },
+        {
+          "name": "cldm",
+          "type": "CLDM",
+          "link": 7
+        },
+        {
+          "name": "diffusion",
+          "type": "DIFFUSION",
+          "link": 8
+        },
+        {
+          "name": "infer_type",
+          "type": "INFER_TYPE",
+          "link": 9
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 10,
+          "slot_index": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            11
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DiffBIR_sample"
+      },
+      "widgets_values": [
+        2,
+        20,
+        4,
+        true,
+        true,
+        512,
+        480,
+        "best quality, hdr, 4k",
+        "low quality, blurry, low-resolution, noisy, unsharp, weird textures",
+        1,
+        "fixed",
+        "cuda"
+      ]
+    }
+  ],
+  "links": [
+    [
+      6,
+      6,
+      0,
+      5,
+      0,
+      "STAGE1"
+    ],
+    [
+      7,
+      6,
+      1,
+      5,
+      1,
+      "CLDM"
+    ],
+    [
+      8,
+      6,
+      2,
+      5,
+      2,
+      "DIFFUSION"
+    ],
+    [
+      9,
+      6,
+      3,
+      5,
+      3,
+      "INFER_TYPE"
+    ],
+    [
+      10,
+      1,
+      0,
+      5,
+      4,
+      "IMAGE"
+    ],
+    [
+      11,
+      5,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}
