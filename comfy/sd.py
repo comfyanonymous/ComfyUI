@@ -97,6 +97,7 @@ class CLIP:
         self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         self.patcher.hook_mode = comfy.hooks.EnumHookMode.MinVram
         self.patcher.is_clip = True
+        self.apply_hooks_to_conds = None
         if params['device'] == load_device:
             model_management.load_models_gpu([self.patcher], force_full_load=True)
         self.layer_idx = None
@@ -110,6 +111,7 @@ class CLIP:
         n.tokenizer = self.tokenizer
         n.layer_idx = self.layer_idx
         n.use_clip_schedule = self.use_clip_schedule
+        n.apply_hooks_to_conds = self.apply_hooks_to_conds
         return n
 
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
@@ -120,6 +122,11 @@ class CLIP:
 
     def tokenize(self, text, return_word_ids=False):
         return self.tokenizer.tokenize_with_weights(text, return_word_ids)
+
+    def add_hooks_to_dict(self, pooled_dict: dict[str]):
+        if self.apply_hooks_to_conds:
+            pooled_dict["hooks"] = self.apply_hooks_to_conds
+        return pooled_dict
 
     def encode_from_tokens_scheduled(self, tokens, unprojected=False, add_dict: dict[str]=None, show_pbar=True):
         all_cond_pooled: list[tuple[torch.Tensor, dict[str]]] = []
@@ -155,6 +162,8 @@ class CLIP:
             # add/update any keys with the provided add_dict
             if add_dict is not None:
                 pooled_dict.update(add_dict)
+            # add hooks stored on clip
+            self.add_hooks_to_dict(pooled_dict)
             all_cond_pooled.append([cond, pooled_dict])
             if show_pbar:
                 pbar.update(1)
@@ -179,6 +188,8 @@ class CLIP:
             if len(o) > 2:
                 for k in o[2]:
                     out[k] = o[2][k]
+            if self.apply_hooks_to_conds:
+                out["hooks"] = self.apply_hooks_to_conds
             return out
 
         if return_pooled:

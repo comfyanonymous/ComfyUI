@@ -20,7 +20,7 @@ class CLIPTextEncodeSDXLRefiner:
         if clip.use_clip_schedule:
             return (clip.encode_from_tokens_scheduled(tokens, add_dict={"aesthetic_score": ascore, "width": width, "height": height}), )
         cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
-        return ([[cond, {"pooled_output": pooled, "aesthetic_score": ascore, "width": width,"height": height}]], )
+        return ([[cond, clip.add_hooks_to_dict({"pooled_output": pooled, "aesthetic_score": ascore, "width": width,"height": height})]], )
 
 class CLIPTextEncodeSDXL:
     @classmethod
@@ -52,7 +52,7 @@ class CLIPTextEncodeSDXL:
         if clip.use_clip_schedule:
             return (clip.encode_from_tokens_scheduled(tokens, add_dict={"width": width, "height": height, "crop_w": crop_w, "crop_h": crop_h, "target_width": target_width, "target_height": target_height}), )
         cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
-        return ([[cond, {"pooled_output": pooled, "width": width, "height": height, "crop_w": crop_w, "crop_h": crop_h, "target_width": target_width, "target_height": target_height}]], )
+        return ([[cond, clip.add_hooks_to_dict({"pooled_output": pooled, "width": width, "height": height, "crop_w": crop_w, "crop_h": crop_h, "target_width": target_width, "target_height": target_height})]], )
 
 NODE_CLASS_MAPPINGS = {
     "CLIPTextEncodeSDXLRefiner": CLIPTextEncodeSDXLRefiner,

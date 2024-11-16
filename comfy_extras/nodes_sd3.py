@@ -81,7 +81,7 @@ class CLIPTextEncodeSD3:
         if clip.use_clip_schedule:
             return (clip.encode_from_tokens_scheduled(tokens), )
         cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
-        return ([[cond, {"pooled_output": pooled}]], )
+        return ([[cond, clip.add_hooks_to_dict({"pooled_output": pooled})]], )
 
 
 class ControlNetApplySD3(nodes.ControlNetApplyAdvanced):

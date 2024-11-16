@@ -226,7 +226,8 @@ class SetClipHooks:
         return {
             "required": {
                 "clip": ("CLIP",),
-                "schedule_clip": ("BOOLEAN", {"default": True})
+                "apply_to_conds": ("BOOLEAN", {"default": True}),
+                "schedule_clip": ("BOOLEAN", {"default": False})
             },
             "optional": {
                 "hooks": ("HOOKS",)
@@ -237,11 +238,13 @@ class SetClipHooks:
     CATEGORY = "advanced/hooks/clip"
     FUNCTION = "apply_hooks"
 
-    def apply_hooks(self, clip: 'CLIP', schedule_clip: bool, hooks: comfy.hooks.HookGroup=None):
+    def apply_hooks(self, clip: 'CLIP', schedule_clip: bool, apply_to_conds: bool, hooks: comfy.hooks.HookGroup=None):
         if hooks is not None:
             clip = clip.clone()
-            clip.use_clip_schedule = schedule_clip
+            if apply_to_conds:
+                clip.apply_hooks_to_conds = hooks
             clip.patcher.forced_hooks = hooks.clone()
+            clip.use_clip_schedule = schedule_clip
             if not clip.use_clip_schedule:
                 clip.patcher.forced_hooks.set_keyframes_on_hooks(None)
             clip.patcher.register_all_hook_patches(hooks.get_dict_repr(), comfy.hooks.EnumWeightTarget.Clip)
