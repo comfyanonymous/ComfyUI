@@ -42,7 +42,7 @@ class PairConditioningSetProperties:
     def set_properties(self, positive_NEW, negative_NEW,
                        strength: float, set_cond_area: str,
                        opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: tuple=None):
-        final_positive, final_negative = comfy.hooks.set_mask_conds(conds=[positive_NEW, negative_NEW],
+        final_positive, final_negative = comfy.hooks.set_conds_props(conds=[positive_NEW, negative_NEW],
                                                                     strength=strength, set_cond_area=set_cond_area,
                                                                     opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
         return (final_positive, final_negative)
@@ -76,7 +76,7 @@ class PairConditioningSetPropertiesAndCombine:
     def set_properties(self, positive, negative, positive_NEW, negative_NEW,
                        strength: float, set_cond_area: str,
                        opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: tuple=None):
-        final_positive, final_negative = comfy.hooks.set_mask_and_combine_conds(conds=[positive, negative], new_conds=[positive_NEW, negative_NEW],
+        final_positive, final_negative = comfy.hooks.set_conds_props_and_combine(conds=[positive, negative], new_conds=[positive_NEW, negative_NEW],
                                                                                 strength=strength, set_cond_area=set_cond_area,
                                                                                 opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
         return (final_positive, final_negative)
@@ -106,7 +106,7 @@ class ConditioningSetProperties:
     def set_properties(self, cond_NEW,
                        strength: float, set_cond_area: str,
                        opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: tuple=None):
-        (final_cond,) = comfy.hooks.set_mask_conds(conds=[cond_NEW],
+        (final_cond,) = comfy.hooks.set_conds_props(conds=[cond_NEW],
                                                    strength=strength, set_cond_area=set_cond_area,
                                                    opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
         return (final_cond,)
@@ -137,7 +137,7 @@ class ConditioningSetPropertiesAndCombine:
     def set_properties(self, cond, cond_NEW,
                        strength: float, set_cond_area: str,
                        opt_mask: torch.Tensor=None, opt_hooks: comfy.hooks.HookGroup=None, opt_timesteps: tuple=None):
-        (final_cond,) = comfy.hooks.set_mask_and_combine_conds(conds=[cond], new_conds=[cond_NEW],
+        (final_cond,) = comfy.hooks.set_conds_props_and_combine(conds=[cond], new_conds=[cond_NEW],
                                                                strength=strength, set_cond_area=set_cond_area,
                                                                opt_mask=opt_mask, opt_hooks=opt_hooks, opt_timestep_range=opt_timesteps)
         return (final_cond,)
@@ -162,7 +162,7 @@ class PairConditioningCombine:
     FUNCTION = "combine"
 
     def combine(self, positive_A, negative_A, positive_B, negative_B):
-        final_positive, final_negative = comfy.hooks.set_mask_and_combine_conds(conds=[positive_A, negative_A], new_conds=[positive_B, negative_B],)
+        final_positive, final_negative = comfy.hooks.set_conds_props_and_combine(conds=[positive_A, negative_A], new_conds=[positive_B, negative_B],)
         return (final_positive, final_negative,)
 
 class PairConditioningSetDefaultAndCombine:
@@ -189,7 +189,7 @@ class PairConditioningSetDefaultAndCombine:
 
     def set_default_and_combine(self, positive, negative, positive_DEFAULT, negative_DEFAULT,
                                 opt_hooks: comfy.hooks.HookGroup=None):
-        final_positive, final_negative = comfy.hooks.set_default_and_combine_conds(conds=[positive, negative], new_conds=[positive_DEFAULT, negative_DEFAULT],
+        final_positive, final_negative = comfy.hooks.set_default_conds_and_combine(conds=[positive, negative], new_conds=[positive_DEFAULT, negative_DEFAULT],
                                                                                    opt_hooks=opt_hooks)
         return (final_positive, final_negative)
     
@@ -214,7 +214,7 @@ class ConditioningSetDefaultAndCombine:
 
     def set_default_and_combine(self, cond, cond_DEFAULT,
                            opt_hooks: comfy.hooks.HookGroup=None):
-        (final_conditioning,) = comfy.hooks.set_default_and_combine_conds(conds=[cond], new_conds=[cond_DEFAULT],
+        (final_conditioning,) = comfy.hooks.set_default_conds_and_combine(conds=[cond], new_conds=[cond_DEFAULT],
                                                                         opt_hooks=opt_hooks)
         return (final_conditioning,)
     
