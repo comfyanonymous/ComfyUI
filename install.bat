@@ -42,11 +42,6 @@ cd custom_nodes
 git clone https://github.com/ltdrdata/ComfyUI-Manager.git --quiet
 echo  ::  %time:~0,8%  ::  - Installing ComfyUI-deepcache
 git clone https://github.com/styler00dollar/ComfyUI-deepcache.git --quiet
-echo  ::  %time:~0,8%  ::  - Installing ComfyUI-Impact-Pack
-git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git --quiet
-cd ComfyUI-Impact-Pack
-git clone https://github.com/ltdrdata/ComfyUI-Impact-Subpack impact_subpack --quiet
-cd ..
 cd ..
 echo. 
 echo  ::  %time:~0,8%  ::  - Patching ZLUDA (Zluda 3.8.4 for HIP SDK 5.7)
