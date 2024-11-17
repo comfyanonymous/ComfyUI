@@ -144,9 +144,12 @@ def prepare_callback(model, steps, x0_output_dict=None):
         if previewer:
             preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
         pbar.update_absolute(step + 1, total_steps, preview_bytes)
-        if args.xla or args.xla_fsdp:
+
+        if args.xla or args.xla_spmd:
             import torch_xla as xla
 
             xla.sync()
+
+        pbar.update_absolute(step + 1, total_steps, preview_bytes)
 
     return callback
