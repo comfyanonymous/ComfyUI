@@ -146,9 +146,7 @@ def prepare_callback(model, steps, x0_output_dict=None):
         pbar.update_absolute(step + 1, total_steps, preview_bytes)
         if args.xla or args.xla_fsdp:
             import torch_xla as xla
-            import torch_xla.core.xla_model as xm
 
-            logging.info(f"Step {step + 1}/{total_steps}")
             xla.sync()
 
     return callback

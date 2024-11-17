@@ -212,7 +212,7 @@ pip3 install --pre torch torchvision --index-url https://download.pytorch.org/wh
 pip install 'torch_xla[tpu] @ https://storage.googleapis.com/pytorch-xla-releases/wheels/tpuvm/torch_xla-2.6.0.dev-cp310-cp310-linux_x86_64.whl' -f https://storage.googleapis.com/libtpu-releases/index.html
 ```
 
-<!-- tell them to install tpu-info if memory info is needed -->
+
 To get memory info for TPU devices, install the [tpu-info](https://github.com/AI-Hypercomputer/cloud-accelerator-diagnostics/tree/main/tpu_info) package with the following command:
 
 ```pip install tpu-info```
