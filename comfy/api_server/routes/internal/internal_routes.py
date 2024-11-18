@@ -4,7 +4,9 @@ from aiohttp import web
 
 from ...services.file_service import FileService
 from ...services.terminal_service import TerminalService
-from ....cmd.folder_paths import models_dir, user_directory, output_directory, folder_names_and_paths  # pylint: disable=import-error
+from ....app import logger
+from ....cmd.folder_paths import models_dir, user_directory, output_directory, \
+    folder_names_and_paths  # pylint: disable=import-error
 
 
 class InternalRoutes:
@@ -40,16 +42,13 @@ class InternalRoutes:
 
         @self.routes.get('/logs')
         async def get_logs(request):
-            return web.json_response({})
-            # todo: enable logs
-            # return web.json_response("".join([(l["t"] + " - " + l["m"]) for l in app.logger.get_logs()]))
+            return web.json_response("".join([(l["t"] + " - " + l["m"]) for l in logger.get_logs()]))
 
         @self.routes.get('/logs/raw')
         async def get_logs(request):
             self.terminal_service.update_size()
             return web.json_response({
-                # todo: enable logs
-                # "entries": list(app.logger.get_logs()),
+                "entries": list(logger.get_logs()),
                 "size": {"cols": self.terminal_service.cols, "rows": self.terminal_service.rows}
             })
 
@@ -64,7 +63,6 @@ class InternalRoutes:
                 self.terminal_service.unsubscribe(client_id)
 
             return web.Response(status=200)
-
 
         @self.routes.get('/folder_paths')
         async def get_folder_paths(request):

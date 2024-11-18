@@ -25,6 +25,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from opentelemetry.semconv.resource import ResourceAttributes as ResAttrs
 
 from .. import options
+from ..app import logger
 from ..tracing_compatibility import ProgressSpanSampler
 from ..tracing_compatibility import patch_spanbuilder_set_channel
 from ..vendor.aiohttp_server_instrumentation import AioHttpServerInstrumentor
@@ -35,6 +36,7 @@ if os.name == "nt":
 warnings.filterwarnings("ignore", message="torch.utils._pytree._register_pytree_node is deprecated. Please use torch.utils._pytree.register_pytree_node instead.")
 warnings.filterwarnings("ignore", message="Torch was not compiled with flash attention.")
 warnings.filterwarnings("ignore", message=".*Torch was not compiled with flash attention.*")
+warnings.filterwarnings('ignore', category=FutureWarning, message=r'`torch\.cuda\.amp\.custom_fwd.*')
 
 from ..cli_args import args
 
@@ -118,7 +120,10 @@ def _create_tracer():
 
 def _configure_logging():
     logging_level = args.logging_level
-    logging.basicConfig(level=logging_level)
+    if args.distributed_queue_worker or args.distributed_queue_frontend or args.distributed_queue_connection_uri is not None:
+        logging.basicConfig(level=logging_level)
+    else:
+        logger.setup_logger(logging_level)
 
 
 _configure_logging()

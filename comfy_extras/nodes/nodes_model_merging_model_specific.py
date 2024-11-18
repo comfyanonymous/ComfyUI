@@ -80,7 +80,7 @@ class ModelMergeSD3_2B(nodes_model_merging.ModelMergeBlocks):
         return {"required": arg_dict}
 
 
-class ModelMergeAuraflow(comfy_extras.nodes_model_merging.ModelMergeBlocks):
+class ModelMergeAuraflow(nodes_model_merging.ModelMergeBlocks):
     CATEGORY = "advanced/model_merging/model_specific"
 
     @classmethod

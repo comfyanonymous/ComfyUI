@@ -1,6 +1,7 @@
+import re
+
 import comfy.model_patcher
 import comfy.samplers
-import re
 
 
 class SkipLayerGuidanceDiT:
@@ -9,15 +10,17 @@ class SkipLayerGuidanceDiT:
     Inspired by Perturbed Attention Guidance (https://arxiv.org/abs/2403.17377)
     Original experimental implementation for SD3 by Dango233@StabilityAI.
     '''
+
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"model": ("MODEL", ),
+        return {"required": {"model": ("MODEL",),
                              "double_layers": ("STRING", {"default": "7, 8, 9", "multiline": False}),
                              "single_layers": ("STRING", {"default": "7, 8, 9", "multiline": False}),
                              "scale": ("FLOAT", {"default": 3.0, "min": 0.0, "max": 10.0, "step": 0.1}),
                              "start_percent": ("FLOAT", {"default": 0.01, "min": 0.0, "max": 1.0, "step": 0.001}),
                              "end_percent": ("FLOAT", {"default": 0.15, "min": 0.0, "max": 1.0, "step": 0.001})
-                                }}
+                             }}
+
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "skip_guidance"
     EXPERIMENTAL = True
@@ -42,7 +45,7 @@ class SkipLayerGuidanceDiT:
         single_layers = [int(i) for i in single_layers]
 
         if len(double_layers) == 0 and len(single_layers) == 0:
-            return (model, )
+            return (model,)
 
         def post_cfg_function(args):
             model = args["model"]
@@ -70,7 +73,7 @@ class SkipLayerGuidanceDiT:
         m = model.clone()
         m.set_model_sampler_post_cfg_function(post_cfg_function)
 
-        return (m, )
+        return (m,)
 
 
 NODE_CLASS_MAPPINGS = {
