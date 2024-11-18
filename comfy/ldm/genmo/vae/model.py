@@ -1,19 +1,18 @@
-#original code from https://github.com/genmoai/models under apache 2.0 license
-#adapted to ComfyUI
+# original code from https://github.com/genmoai/models under apache 2.0 license
+# adapted to ComfyUI
 
-from typing import Callable, List, Optional, Tuple, Union
-from functools import partial
 import math
+from functools import partial
+from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
-from comfy.ldm.modules.attention import optimized_attention
+from ...modules.attention import optimized_attention
+from ....ops import disable_weight_init as ops
 
-import comfy.ops
-ops = comfy.ops.disable_weight_init
 
 # import mochi_preview.dit.joint_model.context_parallel as cp
 # from mochi_preview.vae.cp_conv import cp_pass_frames, gather_all_frames
@@ -34,19 +33,20 @@ class GroupNormSpatial(ops.GroupNorm):
         # Run group norm in chunks.
         output = torch.empty_like(x)
         for b in range(0, B * T, chunk_size):
-            output[b : b + chunk_size] = super().forward(x[b : b + chunk_size])
+            output[b: b + chunk_size] = super().forward(x[b: b + chunk_size])
         return rearrange(output, "(B T) C H W -> B C T H W", B=B, T=T)
+
 
 class PConv3d(ops.Conv3d):
     def __init__(
-        self,
-        in_channels,
-        out_channels,
-        kernel_size: Union[int, Tuple[int, int, int]],
-        stride: Union[int, Tuple[int, int, int]],
-        causal: bool = True,
-        context_parallel: bool = True,
-        **kwargs,
+            self,
+            in_channels,
+            out_channels,
+            kernel_size: Union[int, Tuple[int, int, int]],
+            stride: Union[int, Tuple[int, int, int]],
+            causal: bool = True,
+            context_parallel: bool = True,
+            **kwargs,
     ):
         self.causal = causal
         self.context_parallel = context_parallel
@@ -105,9 +105,9 @@ class Conv1x1(ops.Linear):
 
 class DepthToSpaceTime(nn.Module):
     def __init__(
-        self,
-        temporal_expansion: int,
-        spatial_expansion: int,
+            self,
+            temporal_expansion: int,
+            spatial_expansion: int,
     ):
         super().__init__()
         self.temporal_expansion = temporal_expansion
@@ -135,20 +135,20 @@ class DepthToSpaceTime(nn.Module):
         )
 
         # cp_rank, _ = cp.get_cp_rank_size()
-        if self.temporal_expansion > 1: # and cp_rank == 0:
+        if self.temporal_expansion > 1:  # and cp_rank == 0:
             # Drop the first self.temporal_expansion - 1 frames.
             # This is because we always want the 3x3x3 conv filter to only apply
             # to the first frame, and the first frame doesn't need to be repeated.
             assert all(x.shape)
-            x = x[:, :, self.temporal_expansion - 1 :]
+            x = x[:, :, self.temporal_expansion - 1:]
             assert all(x.shape)
 
         return x
 
 
 def norm_fn(
-    in_channels: int,
-    affine: bool = True,
+        in_channels: int,
+        affine: bool = True,
 ):
     return GroupNormSpatial(affine=affine, num_groups=32, num_channels=in_channels)
 
@@ -157,15 +157,15 @@ class ResBlock(nn.Module):
     """Residual block that preserves the spatial dimensions."""
 
     def __init__(
-        self,
-        channels: int,
-        *,
-        affine: bool = True,
-        attn_block: Optional[nn.Module] = None,
-        causal: bool = True,
-        prune_bottleneck: bool = False,
-        padding_mode: str,
-        bias: bool = True,
+            self,
+            channels: int,
+            *,
+            affine: bool = True,
+            attn_block: Optional[nn.Module] = None,
+            causal: bool = True,
+            prune_bottleneck: bool = False,
+            padding_mode: str,
+            bias: bool = True,
     ):
         super().__init__()
         self.channels = channels
@@ -214,12 +214,12 @@ class ResBlock(nn.Module):
 
 class Attention(nn.Module):
     def __init__(
-        self,
-        dim: int,
-        head_dim: int = 32,
-        qkv_bias: bool = False,
-        out_bias: bool = True,
-        qk_norm: bool = True,
+            self,
+            dim: int,
+            head_dim: int = 32,
+            qkv_bias: bool = False,
+            out_bias: bool = True,
+            qk_norm: bool = True,
     ) -> None:
         super().__init__()
         self.head_dim = head_dim
@@ -230,8 +230,8 @@ class Attention(nn.Module):
         self.out = nn.Linear(dim, dim, bias=out_bias)
 
     def forward(
-        self,
-        x: torch.Tensor,
+            self,
+            x: torch.Tensor,
     ) -> torch.Tensor:
         """Compute temporal self-attention.
 
@@ -275,9 +275,9 @@ class Attention(nn.Module):
 
 class AttentionBlock(nn.Module):
     def __init__(
-        self,
-        dim: int,
-        **attn_kwargs,
+            self,
+            dim: int,
+            **attn_kwargs,
     ) -> None:
         super().__init__()
         self.norm = norm_fn(dim)
@@ -289,14 +289,14 @@ class AttentionBlock(nn.Module):
 
 class CausalUpsampleBlock(nn.Module):
     def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        num_res_blocks: int,
-        *,
-        temporal_expansion: int = 2,
-        spatial_expansion: int = 2,
-        **block_kwargs,
+            self,
+            in_channels: int,
+            out_channels: int,
+            num_res_blocks: int,
+            *,
+            temporal_expansion: int = 2,
+            spatial_expansion: int = 2,
+            **block_kwargs,
     ):
         super().__init__()
 
@@ -311,7 +311,7 @@ class CausalUpsampleBlock(nn.Module):
         # Change channels in the final convolution layer.
         self.proj = Conv1x1(
             in_channels,
-            out_channels * temporal_expansion * (spatial_expansion**2),
+            out_channels * temporal_expansion * (spatial_expansion ** 2),
         )
 
         self.d2st = DepthToSpaceTime(
@@ -332,14 +332,14 @@ def block_fn(channels, *, affine: bool = True, has_attention: bool = False, **bl
 
 class DownsampleBlock(nn.Module):
     def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        num_res_blocks,
-        *,
-        temporal_reduction=2,
-        spatial_reduction=2,
-        **block_kwargs,
+            self,
+            in_channels: int,
+            out_channels: int,
+            num_res_blocks,
+            *,
+            temporal_reduction=2,
+            spatial_reduction=2,
+            **block_kwargs,
     ):
         """
         Downsample block for the VAE encoder.
@@ -427,21 +427,21 @@ class FourierFeatures(nn.Module):
 
 class Decoder(nn.Module):
     def __init__(
-        self,
-        *,
-        out_channels: int = 3,
-        latent_dim: int,
-        base_channels: int,
-        channel_multipliers: List[int],
-        num_res_blocks: List[int],
-        temporal_expansions: Optional[List[int]] = None,
-        spatial_expansions: Optional[List[int]] = None,
-        has_attention: List[bool],
-        output_norm: bool = True,
-        nonlinearity: str = "silu",
-        output_nonlinearity: str = "silu",
-        causal: bool = True,
-        **block_kwargs,
+            self,
+            *,
+            out_channels: int = 3,
+            latent_dim: int,
+            base_channels: int,
+            channel_multipliers: List[int],
+            num_res_blocks: List[int],
+            temporal_expansions: Optional[List[int]] = None,
+            spatial_expansions: Optional[List[int]] = None,
+            has_attention: List[bool],
+            output_norm: bool = True,
+            nonlinearity: str = "silu",
+            output_nonlinearity: str = "silu",
+            causal: bool = True,
+            **block_kwargs,
     ):
         super().__init__()
         self.input_channels = latent_dim
@@ -529,6 +529,7 @@ class Decoder(nn.Module):
 
         return self.output_proj(x).contiguous()
 
+
 class LatentDistribution:
     def __init__(self, mean: torch.Tensor, logvar: torch.Tensor):
         """Initialize latent distribution.
@@ -560,23 +561,24 @@ class LatentDistribution:
     def mode(self):
         return self.mean
 
+
 class Encoder(nn.Module):
     def __init__(
-        self,
-        *,
-        in_channels: int,
-        base_channels: int,
-        channel_multipliers: List[int],
-        num_res_blocks: List[int],
-        latent_dim: int,
-        temporal_reductions: List[int],
-        spatial_reductions: List[int],
-        prune_bottlenecks: List[bool],
-        has_attentions: List[bool],
-        affine: bool = True,
-        bias: bool = True,
-        input_is_conv_1x1: bool = False,
-        padding_mode: str,
+            self,
+            *,
+            in_channels: int,
+            base_channels: int,
+            channel_multipliers: List[int],
+            num_res_blocks: List[int],
+            latent_dim: int,
+            temporal_reductions: List[int],
+            spatial_reductions: List[int],
+            prune_bottlenecks: List[bool],
+            has_attentions: List[bool],
+            affine: bool = True,
+            bias: bool = True,
+            input_is_conv_1x1: bool = False,
+            padding_mode: str,
     ):
         super().__init__()
         self.temporal_reductions = temporal_reductions

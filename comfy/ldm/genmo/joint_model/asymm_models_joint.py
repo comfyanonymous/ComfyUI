@@ -1,14 +1,11 @@
-#original code from https://github.com/genmoai/models under apache 2.0 license
-#adapted to ComfyUI
-
-from typing import Dict, List, Optional, Tuple
+# original code from https://github.com/genmoai/models under apache 2.0 license
+# adapted to ComfyUIfrom typing import Dict, List, Optional, Tuple
+from typing import Tuple, List, Dict, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-# from flash_attn import flash_attn_varlen_qkvpacked_func
-from comfy.ldm.modules.attention import optimized_attention
 
 from .layers import (
     FeedForward,
@@ -16,7 +13,6 @@ from .layers import (
     RMSNorm,
     TimestepEmbedder,
 )
-
 from .rope_mixed import (
     compute_mixed_rotation,
     create_position_matrix,
@@ -26,14 +22,15 @@ from .utils import (
     AttentionPool,
     modulate,
 )
-
-import comfy.ldm.common_dit
-import comfy.ops
+from ...common_dit import rms_norm
+# from flash_attn import flash_attn_varlen_qkvpacked_func
+from ...modules.attention import optimized_attention
+from .... import ops
 
 
 def modulated_rmsnorm(x, scale, eps=1e-6):
     # Normalize and modulate
-    x_normed = comfy.ldm.common_dit.rms_norm(x, eps=eps)
+    x_normed = rms_norm(x, eps=eps)
     x_modulated = x_normed * (1 + scale.unsqueeze(1))
 
     return x_modulated
@@ -44,29 +41,30 @@ def residual_tanh_gated_rmsnorm(x, x_res, gate, eps=1e-6):
     tanh_gate = torch.tanh(gate).unsqueeze(1)
 
     # Normalize and apply gated scaling
-    x_normed = comfy.ldm.common_dit.rms_norm(x_res, eps=eps) * tanh_gate
+    x_normed = rms_norm(x_res, eps=eps) * tanh_gate
 
     # Apply residual connection
     output = x + x_normed
 
     return output
 
+
 class AsymmetricAttention(nn.Module):
     def __init__(
-        self,
-        dim_x: int,
-        dim_y: int,
-        num_heads: int = 8,
-        qkv_bias: bool = True,
-        qk_norm: bool = False,
-        attn_drop: float = 0.0,
-        update_y: bool = True,
-        out_bias: bool = True,
-        attend_to_padding: bool = False,
-        softmax_scale: Optional[float] = None,
-        device: Optional[torch.device] = None,
-        dtype=None,
-        operations=None,
+            self,
+            dim_x: int,
+            dim_y: int,
+            num_heads: int = 8,
+            qkv_bias: bool = True,
+            qk_norm: bool = False,
+            attn_drop: float = 0.0,
+            update_y: bool = True,
+            out_bias: bool = True,
+            attend_to_padding: bool = False,
+            softmax_scale: Optional[float] = None,
+            device: Optional[torch.device] = None,
+            dtype=None,
+            operations=None,
     ):
         super().__init__()
         self.dim_x = dim_x
@@ -104,13 +102,13 @@ class AsymmetricAttention(nn.Module):
         )
 
     def forward(
-        self,
-        x: torch.Tensor,  # (B, N, dim_x)
-        y: torch.Tensor,  # (B, L, dim_y)
-        scale_x: torch.Tensor,  # (B, dim_x), modulation for pre-RMSNorm.
-        scale_y: torch.Tensor,  # (B, dim_y), modulation for pre-RMSNorm.
-        crop_y,
-        **rope_rotation,
+            self,
+            x: torch.Tensor,  # (B, N, dim_x)
+            y: torch.Tensor,  # (B, L, dim_y)
+            scale_x: torch.Tensor,  # (B, dim_x), modulation for pre-RMSNorm.
+            scale_y: torch.Tensor,  # (B, dim_y), modulation for pre-RMSNorm.
+            crop_y,
+            **rope_rotation,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         rope_cos = rope_rotation.get("rope_cos")
         rope_sin = rope_rotation.get("rope_sin")
@@ -159,18 +157,18 @@ class AsymmetricAttention(nn.Module):
 
 class AsymmetricJointBlock(nn.Module):
     def __init__(
-        self,
-        hidden_size_x: int,
-        hidden_size_y: int,
-        num_heads: int,
-        *,
-        mlp_ratio_x: float = 8.0,  # Ratio of hidden size to d_model for MLP for visual tokens.
-        mlp_ratio_y: float = 4.0,  # Ratio of hidden size to d_model for MLP for text tokens.
-        update_y: bool = True,  # Whether to update text tokens in this block.
-        device: Optional[torch.device] = None,
-        dtype=None,
-        operations=None,
-        **block_kwargs,
+            self,
+            hidden_size_x: int,
+            hidden_size_y: int,
+            num_heads: int,
+            *,
+            mlp_ratio_x: float = 8.0,  # Ratio of hidden size to d_model for MLP for visual tokens.
+            mlp_ratio_y: float = 4.0,  # Ratio of hidden size to d_model for MLP for text tokens.
+            update_y: bool = True,  # Whether to update text tokens in this block.
+            device: Optional[torch.device] = None,
+            dtype=None,
+            operations=None,
+            **block_kwargs,
     ):
         super().__init__()
         self.update_y = update_y
@@ -221,11 +219,11 @@ class AsymmetricJointBlock(nn.Module):
             )
 
     def forward(
-        self,
-        x: torch.Tensor,
-        c: torch.Tensor,
-        y: torch.Tensor,
-        **attn_kwargs,
+            self,
+            x: torch.Tensor,
+            c: torch.Tensor,
+            y: torch.Tensor,
+            **attn_kwargs,
     ):
         """Forward pass of a block.
 
@@ -291,13 +289,13 @@ class FinalLayer(nn.Module):
     """
 
     def __init__(
-        self,
-        hidden_size,
-        patch_size,
-        out_channels,
-        device: Optional[torch.device] = None,
-        dtype=None,
-        operations=None,
+            self,
+            hidden_size,
+            patch_size,
+            out_channels,
+            device: Optional[torch.device] = None,
+            dtype=None,
+            operations=None,
     ):
         super().__init__()
         self.norm_final = operations.LayerNorm(
@@ -324,32 +322,32 @@ class AsymmDiTJoint(nn.Module):
     """
 
     def __init__(
-        self,
-        *,
-        patch_size=2,
-        in_channels=4,
-        hidden_size_x=1152,
-        hidden_size_y=1152,
-        depth=48,
-        num_heads=16,
-        mlp_ratio_x=8.0,
-        mlp_ratio_y=4.0,
-        use_t5: bool = False,
-        t5_feat_dim: int = 4096,
-        t5_token_length: int = 256,
-        learn_sigma=True,
-        patch_embed_bias: bool = True,
-        timestep_mlp_bias: bool = True,
-        attend_to_padding: bool = False,
-        timestep_scale: Optional[float] = None,
-        use_extended_posenc: bool = False,
-        posenc_preserve_area: bool = False,
-        rope_theta: float = 10000.0,
-        image_model=None,
-        device: Optional[torch.device] = None,
-        dtype=None,
-        operations=None,
-        **block_kwargs,
+            self,
+            *,
+            patch_size=2,
+            in_channels=4,
+            hidden_size_x=1152,
+            hidden_size_y=1152,
+            depth=48,
+            num_heads=16,
+            mlp_ratio_x=8.0,
+            mlp_ratio_y=4.0,
+            use_t5: bool = False,
+            t5_feat_dim: int = 4096,
+            t5_token_length: int = 256,
+            learn_sigma=True,
+            patch_embed_bias: bool = True,
+            timestep_mlp_bias: bool = True,
+            attend_to_padding: bool = False,
+            timestep_scale: Optional[float] = None,
+            use_extended_posenc: bool = False,
+            posenc_preserve_area: bool = False,
+            rope_theta: float = 10000.0,
+            image_model=None,
+            device: Optional[torch.device] = None,
+            dtype=None,
+            operations=None,
+            **block_kwargs,
     ):
         super().__init__()
 
@@ -362,7 +360,7 @@ class AsymmDiTJoint(nn.Module):
         self.hidden_size_x = hidden_size_x
         self.hidden_size_y = hidden_size_y
         self.head_dim = (
-            hidden_size_x // num_heads
+                hidden_size_x // num_heads
         )  # Head dimension and count is determined by visual.
         self.attend_to_padding = attend_to_padding
         self.use_extended_posenc = use_extended_posenc
@@ -449,11 +447,11 @@ class AsymmDiTJoint(nn.Module):
         return self.x_embedder(x)  # Convert BcTHW to BCN
 
     def prepare(
-        self,
-        x: torch.Tensor,
-        sigma: torch.Tensor,
-        t5_feat: torch.Tensor,
-        t5_mask: torch.Tensor,
+            self,
+            x: torch.Tensor,
+            sigma: torch.Tensor,
+            t5_feat: torch.Tensor,
+            t5_mask: torch.Tensor,
     ):
         """Prepare input and conditioning embeddings."""
         # Visual patch embeddings with positional encoding.
@@ -463,7 +461,6 @@ class AsymmDiTJoint(nn.Module):
         assert x.ndim == 3
         B = x.size(0)
 
-
         pH, pW = H // self.patch_size, W // self.patch_size
         N = T * pH * pW
         assert x.size(1) == N
@@ -471,7 +468,7 @@ class AsymmDiTJoint(nn.Module):
             T, pH=pH, pW=pW, device=x.device, dtype=torch.float32
         )  # (N, 3)
         rope_cos, rope_sin = compute_mixed_rotation(
-            freqs=comfy.ops.cast_to(self.pos_frequencies, dtype=x.dtype, device=x.device), pos=pos
+            freqs=ops.cast_to(self.pos_frequencies, dtype=x.dtype, device=x.device), pos=pos
         )  # Each are (N, num_heads, dim // 2)
 
         c_t = self.t_embedder(1 - sigma, out_dtype=x.dtype)  # (B, D)
@@ -485,17 +482,19 @@ class AsymmDiTJoint(nn.Module):
         return x, c, y_feat, rope_cos, rope_sin
 
     def forward(
-        self,
-        x: torch.Tensor,
-        timestep: torch.Tensor,
-        context: List[torch.Tensor],
-        attention_mask: List[torch.Tensor],
-        num_tokens=256,
-        packed_indices: Dict[str, torch.Tensor] = None,
-        rope_cos: torch.Tensor = None,
-        rope_sin: torch.Tensor = None,
-        control=None, transformer_options={}, **kwargs
+            self,
+            x: torch.Tensor,
+            timestep: torch.Tensor,
+            context: List[torch.Tensor],
+            attention_mask: List[torch.Tensor],
+            num_tokens=256,
+            packed_indices: Dict[str, torch.Tensor] = None,
+            rope_cos: torch.Tensor = None,
+            rope_sin: torch.Tensor = None,
+            control=None, transformer_options=None, **kwargs
     ):
+        if transformer_options is None:
+            transformer_options = {}
         patches_replace = transformer_options.get("patches_replace", {})
         y_feat = context
         y_mask = attention_mask
@@ -522,14 +521,15 @@ class AsymmDiTJoint(nn.Module):
                 def block_wrap(args):
                     out = {}
                     out["img"], out["txt"] = block(
-                                                    args["img"],
-                                                    args["vec"],
-                                                    args["txt"],
-                                                    rope_cos=args["rope_cos"],
-                                                    rope_sin=args["rope_sin"],
-                                                    crop_y=args["num_tokens"]
-                                                    )
+                        args["img"],
+                        args["vec"],
+                        args["txt"],
+                        rope_cos=args["rope_cos"],
+                        rope_sin=args["rope_sin"],
+                        crop_y=args["num_tokens"]
+                    )
                     return out
+
                 out = blocks_replace[("double_block", i)]({"img": x, "txt": y_feat, "vec": c, "rope_cos": rope_cos, "rope_sin": rope_sin, "num_tokens": num_tokens}, {"original_block": block_wrap})
                 y_feat = out["txt"]
                 x = out["img"]

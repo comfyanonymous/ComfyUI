@@ -333,6 +333,42 @@ pip install git+https://github.com/AppMana/appmana-comfyui-nodes-controlnet-aux.
 
 Start creating an AnimateDiff workflow. When using these packages, the appropriate models will download automatically.
 
+## SageAttention
+
+Improve the performance of your Mochi model video generation using **Sage Attention**:
+
+| Device | PyTorch 2.5.1 | SageAttention | S.A. + TorchCompileModel |
+|--------|---------------|---------------|--------------------------|
+| A5000  | 7.52s/it      | 5.81s/it      | 5.00s/it (but corrupted) |
+
+[Use the default Mochi Workflow.](https://github.com/comfyanonymous/ComfyUI_examples/raw/refs/heads/master/mochi/mochi_text_to_video_example.webp) This does not require any custom nodes or any change to your workflow. 
+
+Install the dependencies for Windows or Linux using the `withtriton` component, or install the specific dependencies you need from [requirements-triton.txt](./requirements-triton.txt):
+
+```shell
+pip install "comfyui[withtriton]@git+https://github.com/hiddenswitch/ComfyUI.git"
+```
+
+If you have `xformers` installed, disable it, as it will be preferred over Sage Attention:
+
+```shell
+comfyui --disable-xformers
+```
+
+If you want to use **TorchCompileModel** to further improve performance, do not reserve VRAM:
+
+```shell
+comfyui --disable-xformers --reserve-vram=-1.0
+```
+
+Sage Attention is not compatible with Flux. It does not appear to be compatible with Mochi when using `torch.compile`
+
+![with_sage_attention.webp](./docs/assets/with_sage_attention.webp)
+**With SageAttention**
+
+![with_pytorch_attention](./docs/assets/with_pytorch_attention.webp)
+**With PyTorch Attention**
+
 # Custom Nodes
 
 Custom Nodes can be added to ComfyUI by copying and pasting Python files into your `./custom_nodes` directory.

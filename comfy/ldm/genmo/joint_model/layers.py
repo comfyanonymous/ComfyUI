@@ -1,5 +1,5 @@
-#original code from https://github.com/genmoai/models under apache 2.0 license
-#adapted to ComfyUI
+# original code from https://github.com/genmoai/models under apache 2.0 license
+# adapted to ComfyUI
 
 import collections.abc
 import math
@@ -10,7 +10,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-import comfy.ldm.common_dit
+
+from ...common_dit import pad_to_patch_size, rms_norm
 
 
 # From PyTorch internals
@@ -28,15 +29,15 @@ to_2tuple = _ntuple(2)
 
 class TimestepEmbedder(nn.Module):
     def __init__(
-        self,
-        hidden_size: int,
-        frequency_embedding_size: int = 256,
-        *,
-        bias: bool = True,
-        timestep_scale: Optional[float] = None,
-        dtype=None,
-        device=None,
-        operations=None,
+            self,
+            hidden_size: int,
+            frequency_embedding_size: int = 256,
+            *,
+            bias: bool = True,
+            timestep_scale: Optional[float] = None,
+            dtype=None,
+            device=None,
+            operations=None,
     ):
         super().__init__()
         self.mlp = nn.Sequential(
@@ -70,14 +71,14 @@ class TimestepEmbedder(nn.Module):
 
 class FeedForward(nn.Module):
     def __init__(
-        self,
-        in_features: int,
-        hidden_size: int,
-        multiple_of: int,
-        ffn_dim_multiplier: Optional[float],
-        device: Optional[torch.device] = None,
-        dtype=None,
-        operations=None,
+            self,
+            in_features: int,
+            hidden_size: int,
+            multiple_of: int,
+            ffn_dim_multiplier: Optional[float],
+            device: Optional[torch.device] = None,
+            dtype=None,
+            operations=None,
     ):
         super().__init__()
         # keep parameter count and computation constant compared to standard FFN
@@ -99,17 +100,17 @@ class FeedForward(nn.Module):
 
 class PatchEmbed(nn.Module):
     def __init__(
-        self,
-        patch_size: int = 16,
-        in_chans: int = 3,
-        embed_dim: int = 768,
-        norm_layer: Optional[Callable] = None,
-        flatten: bool = True,
-        bias: bool = True,
-        dynamic_img_pad: bool = False,
-        dtype=None,
-        device=None,
-        operations=None,
+            self,
+            patch_size: int = 16,
+            in_chans: int = 3,
+            embed_dim: int = 768,
+            norm_layer: Optional[Callable] = None,
+            flatten: bool = True,
+            bias: bool = True,
+            dynamic_img_pad: bool = False,
+            dtype=None,
+            device=None,
+            operations=None,
     ):
         super().__init__()
         self.patch_size = to_2tuple(patch_size)
@@ -141,7 +142,7 @@ class PatchEmbed(nn.Module):
             x = F.pad(x, (0, pad_w, 0, pad_h))
 
         x = rearrange(x, "B C T H W -> (B T) C H W", B=B, T=T)
-        x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size, padding_mode='circular')
+        x = pad_to_patch_size(x, self.patch_size, padding_mode='circular')
         x = self.proj(x)
 
         # Flatten temporal and spatial dimensions.
@@ -161,4 +162,4 @@ class RMSNorm(torch.nn.Module):
         self.register_parameter("bias", None)
 
     def forward(self, x):
-        return comfy.ldm.common_dit.rms_norm(x, self.weight, self.eps)
+        return rms_norm(x, self.weight, self.eps)

@@ -103,8 +103,10 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     def __init__(self, device="cpu", max_length=77,
                  freeze=True, layer="last", layer_idx=None, textmodel_json_config: str | dict | None = None, dtype=None, model_class=clip_model.CLIPTextModel,
                  special_tokens=None, layer_norm_hidden_state=True, enable_attention_masks=False, zero_out_masked=False,
-                 return_projected_pooled=True, return_attention_masks=False, model_options={}):  # clip-vit-base-patch32
+                 return_projected_pooled=True, return_attention_masks=False, model_options=None):  # clip-vit-base-patch32
         super().__init__()
+        if model_options is None:
+            model_options = {}
         if special_tokens is None:
             special_tokens = {"start": 49406, "end": 49407, "pad": 49407}
         assert layer in self.LAYERS
@@ -663,7 +665,9 @@ SD1TokenizerT = TypeVar("SD1TokenizerT", bound="SD1Tokenizer")
 
 
 class SD1Tokenizer:
-    def __init__(self, embedding_directory=None, tokenizer_data={}, clip_name="l", tokenizer=SDTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data=None, clip_name="l", tokenizer=SDTokenizer):
+        if tokenizer_data is None:
+            tokenizer_data = {}
         self.clip_name = clip_name
         self.clip = "clip_{}".format(self.clip_name)
         tokenizer = tokenizer_data.get("{}_tokenizer_class".format(self.clip), tokenizer)
@@ -694,13 +698,18 @@ class SD1Tokenizer:
         return {}
 
 class SD1CheckpointClipModel(SDClipModel):
-    def __init__(self, device="cpu", dtype=None, model_options={}, textmodel_json_config=None):
+    def __init__(self, device="cpu", dtype=None, model_options=None, textmodel_json_config=None):
         super().__init__(device=device, return_projected_pooled=False, dtype=dtype, model_options=model_options, textmodel_json_config=textmodel_json_config)
+        if model_options is None:
+            model_options = {}
+
 
 class SD1ClipModel(torch.nn.Module):
-    def __init__(self, device="cpu", dtype=None, model_options={}, clip_name="l", clip_model=SD1CheckpointClipModel, textmodel_json_config=None, name=None, **kwargs):
+    def __init__(self, device="cpu", dtype=None, model_options=None, clip_name="l", clip_model=SD1CheckpointClipModel, textmodel_json_config=None, name=None, **kwargs):
         super().__init__()
 
+        if model_options is None:
+            model_options = {}
         if name is not None:
             self.clip_name = name
             self.clip = "{}".format(self.clip_name)

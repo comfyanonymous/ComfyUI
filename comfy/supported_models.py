@@ -697,7 +697,9 @@ class GenmoMochi(supported_models_base.BASE):
         out = model_base.GenmoMochi(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         t5_detect = sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(genmo.MochiT5Tokenizer, genmo.mochi_te(**t5_detect))
