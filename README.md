@@ -349,16 +349,22 @@ Install the dependencies for Windows or Linux using the `withtriton` component, 
 pip install "comfyui[withtriton]@git+https://github.com/hiddenswitch/ComfyUI.git"
 ```
 
+On Windows, you will need the CUDA Toolkit and Visual Studio 2022. If you do not already have this, use `chocolatey`:
+
+```powershell
+# install chocolatey
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+choco install -y visualstudio2022buildtools
+# purposefully executed separately
+choco install -y visualstudio2022-workload-vctools
+choco install -y vcredist2010 vcredist2013 vcredist140
+choco install -y cuda
+```
+
 If you have `xformers` installed, disable it, as it will be preferred over Sage Attention:
 
 ```shell
 comfyui --disable-xformers
-```
-
-If you want to use **TorchCompileModel** to further improve performance, do not reserve VRAM:
-
-```shell
-comfyui --disable-xformers --reserve-vram=-1.0
 ```
 
 Sage Attention is not compatible with Flux. It does not appear to be compatible with Mochi when using `torch.compile`
