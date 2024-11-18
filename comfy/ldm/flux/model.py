@@ -120,12 +120,12 @@ class Flux(nn.Module):
         blocks_replace = patches_replace.get("dit", {})
         for i, block in enumerate(self.double_blocks):
             if ("double_block", i) in blocks_replace:
-                def block_wrap(args):
+                def block_wrap_1(args):
                     out = {}
                     out["img"], out["txt"] = block(img=args["img"], txt=args["txt"], vec=args["vec"], pe=args["pe"])
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": img, "txt": txt, "vec": vec, "pe": pe}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": img, "txt": txt, "vec": vec, "pe": pe}, {"original_block": block_wrap_1})
                 txt = out["txt"]
                 img = out["img"]
             else:
@@ -142,12 +142,12 @@ class Flux(nn.Module):
 
         for i, block in enumerate(self.single_blocks):
             if ("single_block", i) in blocks_replace:
-                def block_wrap(args):
+                def block_wrap_2(args):
                     out = {}
                     out["img"] = block(args["img"], vec=args["vec"], pe=args["pe"])
                     return out
 
-                out = blocks_replace[("single_block", i)]({"img": img, "vec": vec, "pe": pe}, {"original_block": block_wrap})
+                out = blocks_replace[("single_block", i)]({"img": img, "vec": vec, "pe": pe}, {"original_block": block_wrap_2})
                 img = out["img"]
             else:
                 img = block(img, vec=vec, pe=pe)

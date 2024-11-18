@@ -463,13 +463,13 @@ class MMDiT(nn.Module):
         if len(self.double_layers) > 0:
             for i, layer in enumerate(self.double_layers):
                 if ("double_block", i) in blocks_replace:
-                    def block_wrap(args):
+                    def block_wrap_1(args):
                         out = {}
                         out["txt"], out["img"] = layer(args["txt"],
                                                        args["img"],
                                                        args["vec"])
                         return out
-                    out = blocks_replace[("double_block", i)]({"img": x, "txt": c, "vec": global_cond}, {"original_block": block_wrap})
+                    out = blocks_replace[("double_block", i)]({"img": x, "txt": c, "vec": global_cond}, {"original_block": block_wrap_1})
                     c = out["txt"]
                     x = out["img"]
                 else:
@@ -480,12 +480,12 @@ class MMDiT(nn.Module):
             cx = torch.cat([c, x], dim=1)
             for i, layer in enumerate(self.single_layers):
                 if ("single_block", i) in blocks_replace:
-                    def block_wrap(args):
+                    def block_wrap_2(args):
                         out = {}
                         out["img"] = layer(args["img"], args["vec"])
                         return out
 
-                    out = blocks_replace[("single_block", i)]({"img": cx, "vec": global_cond}, {"original_block": block_wrap})
+                    out = blocks_replace[("single_block", i)]({"img": cx, "vec": global_cond}, {"original_block": block_wrap_2})
                     cx = out["img"]
                 else:
                     cx = layer(cx, global_cond, **kwargs)

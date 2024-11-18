@@ -45,7 +45,7 @@ class InternalRoutes:
             return web.json_response("".join([(l["t"] + " - " + l["m"]) for l in logger.get_logs()]))
 
         @self.routes.get('/logs/raw')
-        async def get_logs(request):
+        async def get_logs_raw(request):
             self.terminal_service.update_size()
             return web.json_response({
                 "entries": list(logger.get_logs()),

@@ -1057,15 +1057,15 @@ def reshape_mask(input_mask, output_shape):
 
     if dims == 1:
         scale_mode = "linear"
-
-    if dims == 2:
+    elif dims == 2:
         input_mask = input_mask.reshape((-1, 1, input_mask.shape[-2], input_mask.shape[-1]))
         scale_mode = "bilinear"
-
-    if dims == 3:
+    elif dims == 3:
         if len(input_mask.shape) < 5:
             input_mask = input_mask.reshape((1, 1, -1, input_mask.shape[-2], input_mask.shape[-1]))
         scale_mode = "trilinear"
+    else:
+        raise ValueError(f"invalid dims={dims}")
 
     mask = torch.nn.functional.interpolate(input_mask, size=output_shape[2:], mode=scale_mode)
     if mask.shape[1] < output_shape[1]:
