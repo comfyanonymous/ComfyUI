@@ -986,7 +986,7 @@ class ModelPatcher:
                 if self.hook_mode == comfy.hooks.EnumHookMode.MaxSpeed:
                     # TODO: minimum_counter should have a minimum that conforms to loaded model requirements
                     memory_counter = MemoryCounter(initial=comfy.model_management.get_free_memory(self.load_device),
-                                                minimum=comfy.model_management.minimum_inference_memory())
+                                                minimum=comfy.model_management.minimum_inference_memory()*2)
                 # if have cached weights for hooks, use it
                 cached_weights = self.cached_hook_patches.get(hooks, None)
                 if cached_weights is not None:
