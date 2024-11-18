@@ -1,5 +1,3 @@
-import re
-
 import torch
 
 import comfy.model_management
@@ -9,6 +7,7 @@ import comfy.sd
 from comfy.cmd import folder_paths
 from comfy.model_downloader import get_or_download, get_filename_list_with_downloadable, KNOWN_CLIP_MODELS
 from comfy.nodes import base_nodes as nodes
+from . import nodes_slg
 
 
 class TripleCLIPLoader:
@@ -22,6 +21,8 @@ class TripleCLIPLoader:
     FUNCTION = "load_clip"
 
     CATEGORY = "advanced/loaders"
+
+    DESCRIPTION = "[Recipes]\n\nsd3: clip-l, clip-g, t5"
 
     def load_clip(self, clip_name1, clip_name2, clip_name3):
         clip_path1 = get_or_download("text_encoders", clip_name1, KNOWN_CLIP_MODELS)
@@ -110,7 +111,7 @@ class ControlNetApplySD3(nodes.ControlNetApplyAdvanced):
     DEPRECATED = True
 
 
-class SkipLayerGuidanceSD3:
+class SkipLayerGuidanceSD3(nodes_slg.SkipLayerGuidanceDiT):
     '''
     Enhance guidance towards detailed dtructure by having another set of CFG negative with skipped layers.
     Inspired by Perturbed Attention Guidance (https://arxiv.org/abs/2403.17377)
@@ -127,47 +128,12 @@ class SkipLayerGuidanceSD3:
                              }}
 
     RETURN_TYPES = ("MODEL",)
-    FUNCTION = "skip_guidance"
+    FUNCTION = "skip_guidance_sd3"
 
     CATEGORY = "advanced/guidance"
 
-    def skip_guidance(self, model, layers, scale, start_percent, end_percent):
-        if layers == "" or layers == None:
-            return (model,)
-
-        # check if layer is comma separated integers
-        def skip(args, extra_args):
-            return args
-
-        model_sampling = model.get_model_object("model_sampling")
-        sigma_start = model_sampling.percent_to_sigma(start_percent)
-        sigma_end = model_sampling.percent_to_sigma(end_percent)
-
-        def post_cfg_function(args):
-            model = args["model"]
-            cond_pred = args["cond_denoised"]
-            cond = args["cond"]
-            cfg_result = args["denoised"]
-            sigma = args["sigma"]
-            x = args["input"]
-            model_options = args["model_options"].copy()
-
-            for layer in layers:
-                model_options = comfy.model_patcher.set_model_options_patch_replace(model_options, skip, "dit", "double_block", layer)
-            model_sampling.percent_to_sigma(start_percent)
-
-            sigma_ = sigma[0].item()
-            if scale > 0 and sigma_ >= sigma_end and sigma_ <= sigma_start:
-                (slg,) = comfy.samplers.calc_cond_batch(model, [cond], x, sigma, model_options)
-                cfg_result = cfg_result + (cond_pred - slg) * scale
-            return cfg_result
-
-        layers = re.findall(r'\d+', layers)
-        layers = [int(i) for i in layers]
-        m = model.clone()
-        m.set_model_sampler_post_cfg_function(post_cfg_function)
-
-        return (m,)
+    def skip_guidance_sd3(self, model, layers, scale, start_percent, end_percent):
+        return self.skip_guidance(model=model, scale=scale, start_percent=start_percent, end_percent=end_percent, double_layers=layers)
 
 
 NODE_CLASS_MAPPINGS = {

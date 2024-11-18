@@ -289,15 +289,21 @@ class VAEDecodeTiled:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"samples": ("LATENT", ), "vae": ("VAE", ),
-                             "tile_size": ("INT", {"default": 512, "min": 320, "max": 4096, "step": 64})
+                             "tile_size": ("INT", {"default": 512, "min": 128, "max": 4096, "step": 32}),
+                             "overlap": ("INT", {"default": 64, "min": 0, "max": 4096, "step": 32}),
                             }}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode"
 
     CATEGORY = "_for_testing"
 
-    def decode(self, vae, samples, tile_size):
-        return (vae.decode_tiled(samples["samples"], tile_x=tile_size // 8, tile_y=tile_size // 8, ), )
+    def decode(self, vae, samples, tile_size, overlap=64):
+        if tile_size < overlap * 4:
+            overlap = tile_size // 4
+        images = vae.decode_tiled(samples["samples"], tile_x=tile_size // 8, tile_y=tile_size // 8, overlap=overlap // 8)
+        if len(images.shape) == 5: #Combine batches
+            images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
+        return (images, )
 
 class VAEEncode:
     @classmethod
@@ -925,6 +931,8 @@ class CLIPLoader:
 
     CATEGORY = "advanced/loaders"
 
+    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 / clip-g / clip-l\nstable_audio: t5\nmochi: t5"
+
     def load_clip(self, clip_name, type="stable_diffusion"):
         clip_type = sd.CLIPType.STABLE_DIFFUSION
         if type == "stable_cascade":
@@ -953,6 +961,8 @@ class DualCLIPLoader:
     FUNCTION = "load_clip"
 
     CATEGORY = "advanced/loaders"
+
+    DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5"
 
     def load_clip(self, clip_name1, clip_name2, type):
         clip_path1 = get_or_download("text_encoders", clip_name1)

@@ -5,9 +5,6 @@ from comfy.nodes.common import MAX_RESOLUTION
 
 
 class EmptyMochiLatentVideo:
-    def __init__(self):
-        self.device = comfy.model_management.intermediate_device()
-
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"width": ("INT", {"default": 848, "min": 16, "max": MAX_RESOLUTION, "step": 16}),
@@ -18,10 +15,10 @@ class EmptyMochiLatentVideo:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
 
-    CATEGORY = "latent/mochi"
+    CATEGORY = "latent/video"
 
     def generate(self, width, height, length, batch_size=1):
-        latent = torch.zeros([batch_size, 12, ((length - 1) // 6) + 1, height // 8, width // 8], device=self.device)
+        latent = torch.zeros([batch_size, 12, ((length - 1) // 6) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
         return ({"samples": latent},)
 
 

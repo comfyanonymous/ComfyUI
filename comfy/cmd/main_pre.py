@@ -40,11 +40,17 @@ from ..cli_args import args
 
 if args.cuda_device is not None:
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
+    os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
     logging.info("Set cuda device to: {}".format(args.cuda_device))
 
 if args.deterministic:
     if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
         os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
+
+try:
+    from . import cuda_malloc
+except Exception:
+    pass
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 

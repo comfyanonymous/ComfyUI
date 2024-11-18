@@ -197,6 +197,8 @@ class SDXL(supported_models_base.BASE):
                 self.sampling_settings["sigma_min"] = float(state_dict["edm_vpred.sigma_min"].item())
             return model_base.ModelType.V_PREDICTION_EDM
         elif "v_pred" in state_dict:
+            if "ztsnr" in state_dict: #Some zsnr anime checkpoints
+                self.sampling_settings["zsnr"] = True
             return model_base.ModelType.V_PREDICTION
         else:
             return model_base.ModelType.EPS

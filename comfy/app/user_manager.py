@@ -1,9 +1,13 @@
+from __future__ import annotations
+
 import glob
 import json
+import logging
 import os
 import re
 import shutil
 import uuid
+from typing import TypedDict
 from urllib import parse
 
 from aiohttp import web
@@ -15,15 +19,30 @@ from ..cmd import folder_paths
 default_user = "default"
 
 
+class FileInfo(TypedDict):
+    path: str
+    size: int
+    modified: int
+
+
+def get_file_info(path: str, relative_to: str) -> FileInfo:
+    return {
+        "path": os.path.relpath(path, relative_to).replace(os.sep, '/'),
+        "size": os.path.getsize(path),
+        "modified": os.path.getmtime(path)
+    }
+
+
 class UserManager():
     def __init__(self):
         user_directory = folder_paths.get_user_directory()
 
-        self.default_user = "default"
-        self.users_file = os.path.join(user_directory, "users.json")
         self.settings = AppSettings(self)
         if not os.path.exists(user_directory):
-            os.makedirs(user_directory, exist_ok=True)
+            os.mkdir(user_directory)
+            if not args.multi_user:
+                print("****** User settings have been changed to be stored on the server instead of browser storage. ******")
+                print("****** For multi-user setups add the --multi-user CLI argument to enable multiple user profiles. ******")
 
         if args.multi_user:
             if os.path.isfile(self.get_users_file()):
@@ -60,7 +79,7 @@ class UserManager():
 
         # prevent leaving /{type}
         if os.path.commonpath((root_dir, user_root)) != root_dir:
-            raise PermissionError()
+            return None
 
         if file is not None:
             # Check if filename is url encoded
@@ -70,7 +89,7 @@ class UserManager():
             # prevent leaving /{type}/{user}
             path = os.path.abspath(os.path.join(user_root, file))
             if os.path.commonpath((user_root, path)) != user_root:
-                raise PermissionError()
+                return None
 
         parent = os.path.split(path)[0]
 
@@ -145,13 +164,17 @@ class UserManager():
             directory = request.rel_url.query.get('dir', '')
             if not directory:
                 return web.Response(status=400, text="Directory not provided")
+
             path = self.get_request_user_filepath(request, directory)
             if not path:
                 return web.Response(status=403, text="Invalid directory")
+
             if not os.path.exists(path):
                 return web.Response(status=404, text="Directory not found")
+
             recurse = request.rel_url.query.get('recurse', '').lower() == "true"
             full_info = request.rel_url.query.get('full_info', '').lower() == "true"
+            split_path = request.rel_url.query.get('split', '').lower() == "true"
 
             # Use different patterns based on whether we're recursing or not
             if recurse:
@@ -159,25 +182,21 @@ class UserManager():
             else:
                 pattern = os.path.join(glob.escape(path), '*')
 
-            results = glob.glob(pattern, recursive=recurse)
+            def process_full_path(full_path: str) -> FileInfo | str | list[str]:
+                if full_info:
+                    return get_file_info(full_path, path)
 
-            if full_info:
-                results = [
-                    {
-                        'path': os.path.relpath(x, path).replace(os.sep, '/'),
-                        'size': os.path.getsize(x),
-                        'modified': os.path.getmtime(x)
-                    } for x in results if os.path.isfile(x)
-                ]
-            else:
-                results = [
-                    os.path.relpath(x, path).replace(os.sep, '/')
-                    for x in results
-                    if os.path.isfile(x)
-                ]
-            split_path = request.rel_url.query.get('split', '').lower() == "true"
-            if split_path and not full_info:
-                results = [[x] + x.split('/') for x in results]
+                rel_path = os.path.relpath(full_path, path).replace(os.sep, '/')
+                if split_path:
+                    return [rel_path] + rel_path.split('/')
+
+                return rel_path
+
+            results = [
+                process_full_path(full_path)
+                for full_path in glob.glob(pattern, recursive=recurse)
+                if os.path.isfile(full_path)
+            ]
 
             return web.json_response(results)
 
@@ -205,19 +224,51 @@ class UserManager():
 
         @routes.post("/userdata/{file}")
         async def post_userdata(request):
+            """
+            Upload or update a user data file.
+
+            This endpoint handles file uploads to a user's data directory, with options for
+            controlling overwrite behavior and response format.
+
+            Query Parameters:
+            - overwrite (optional): If "false", prevents overwriting existing files. Defaults to "true".
+            - full_info (optional): If "true", returns detailed file information (path, size, modified time).
+                                  If "false", returns only the relative file path.
+
+            Path Parameters:
+            - file: The target file path (URL encoded if necessary).
+
+            Returns:
+            - 400: If 'file' parameter is missing.
+            - 403: If the requested path is not allowed.
+            - 409: If overwrite=false and the file already exists.
+            - 200: JSON response with either:
+                  - Full file information (if full_info=true)
+                  - Relative file path (if full_info=false)
+
+            The request body should contain the raw file content to be written.
+            """
             path = get_user_data_path(request)
             if not isinstance(path, str):
                 return path
 
-            overwrite = request.query["overwrite"] != "false"
+            overwrite = request.query.get("overwrite", 'true') != "false"
+            full_info = request.query.get('full_info', 'false').lower() == "true"
+
             if not overwrite and os.path.exists(path):
-                return web.Response(status=409)
+                return web.Response(status=409, text="File already exists")
 
             body = await request.read()
 
             with open(path, "wb") as f:
                 f.write(body)
-            resp = os.path.relpath(path, self.get_request_user_filepath(request, None))
+
+            user_path = self.get_request_user_filepath(request, None)
+            if full_info:
+                resp = get_file_info(path, user_path)
+            else:
+                resp = os.path.relpath(path, user_path)
+
             return web.json_response(resp)
 
         @routes.delete("/userdata/{file}")
@@ -232,6 +283,30 @@ class UserManager():
 
         @routes.post("/userdata/{file}/move/{dest}")
         async def move_userdata(request):
+            """
+            Move or rename a user data file.
+
+            This endpoint handles moving or renaming files within a user's data directory, with options for
+            controlling overwrite behavior and response format.
+
+            Path Parameters:
+            - file: The source file path (URL encoded if necessary)
+            - dest: The destination file path (URL encoded if necessary)
+
+            Query Parameters:
+            - overwrite (optional): If "false", prevents overwriting existing files. Defaults to "true".
+            - full_info (optional): If "true", returns detailed file information (path, size, modified time).
+                                  If "false", returns only the relative file path.
+
+            Returns:
+            - 400: If either 'file' or 'dest' parameter is missing
+            - 403: If either requested path is not allowed
+            - 404: If the source file does not exist
+            - 409: If overwrite=false and the destination file already exists
+            - 200: JSON response with either:
+                  - Full file information (if full_info=true)
+                  - Relative file path (if full_info=false)
+            """
             source = get_user_data_path(request, check_exists=True)
             if not isinstance(source, str):
                 return source
@@ -240,12 +315,19 @@ class UserManager():
             if not isinstance(source, str):
                 return dest
 
-            overwrite = request.query["overwrite"] != "false"
-            if not overwrite and os.path.exists(dest):
-                return web.Response(status=409)
+            overwrite = request.query.get("overwrite", 'true') != "false"
+            full_info = request.query.get('full_info', 'false').lower() == "true"
 
-            print(f"moving '{source}' -> '{dest}'")
+            if not overwrite and os.path.exists(dest):
+                return web.Response(status=409, text="File already exists")
+
+            logging.info(f"moving '{source}' -> '{dest}'")
             shutil.move(source, dest)
 
-            resp = os.path.relpath(dest, self.get_request_user_filepath(request, None))
+            user_path = self.get_request_user_filepath(request, None)
+            if full_info:
+                resp = get_file_info(dest, user_path)
+            else:
+                resp = os.path.relpath(dest, user_path)
+
             return web.json_response(resp)

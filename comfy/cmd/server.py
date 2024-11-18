@@ -170,7 +170,7 @@ class PromptServer(ExecutorToClientProgress):
 
         self.address: str = "0.0.0.0"
         self.user_manager = UserManager()
-        self.internal_routes = InternalRoutes()
+        self.internal_routes = InternalRoutes(self)
         # todo: this is probably read by custom nodes elsewhere
         self.supports: List[str] = ["custom_nodes_from_web"]
         self.prompt_queue: AbstractPromptQueue | AsyncAbstractPromptQueue | None = None
