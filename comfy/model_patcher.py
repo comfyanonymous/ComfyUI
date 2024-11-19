@@ -214,9 +214,8 @@ class ModelPatcher:
         self.hook_backup: dict[str, tuple[torch.Tensor, torch.device]] = {}
         self.cached_hook_patches: dict[comfy.hooks.HookGroup, dict[str, torch.Tensor]] = {}
         self.current_hooks: Optional[comfy.hooks.HookGroup] = None
-        self.forced_hooks: Optional[comfy.hooks.HookGroup] = None  # NOTE: only used for CLIP
+        self.forced_hooks: Optional[comfy.hooks.HookGroup] = None  # NOTE: only used for CLIP at this time
         self.is_clip = False
-        # TODO: hook_mode should be entirely removed; behavior should be determined by remaining VRAM/memory
         self.hook_mode = comfy.hooks.EnumHookMode.MaxSpeed
 
         if not hasattr(self.model, 'model_loaded_weight_memory'):
@@ -1034,7 +1033,7 @@ class ModelPatcher:
                 if used:
                     target_device = weight.device
             self.hook_backup[key] = (weight.to(device=target_device, copy=True), weight.device)
-        # TODO: properly handle lowvram situations for cached hook patches
+        # TODO: properly handle LowVramPatch, if it ends up an issue
         out_weight = comfy.lora.calculate_weight(combined_patches[key],
                                                  comfy.model_management.cast_to_device(weight, weight.device, torch.float32, copy=True),
                                                  key, original_weights=original_weights)
