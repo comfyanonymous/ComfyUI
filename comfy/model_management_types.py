@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Protocol, Optional, TypeVar, runtime_checkable, Callable
+from typing import Protocol, Optional, TypeVar, runtime_checkable, Callable, Any
 
 import torch
 import torch.nn
@@ -71,11 +71,11 @@ class ModelManageable(Protocol):
     def lowvram_patch_counter(self) -> int:
         return 0
 
-    def partially_load(self, device_to: torch.device, extra_memory=0) -> int:
+    def partially_load(self, device_to: torch.device, extra_memory: int = 0, force_patch_weights: bool = False):
         self.patch_model(device_to=device_to)
         return self.model_size()
 
-    def partially_unload(self, device_to: torch.device, extra_memory=0) -> int:
+    def partially_unload(self, device_to: torch.device, memory_to_free: int = 0):
         self.unpatch_model(device_to)
         return self.model_size()
 
@@ -113,6 +113,16 @@ class ModelManageable(Protocol):
     def __del__(self):
         del self.model
 
+    @property
+    def parent(self) -> ModelManageableT | None:
+        return None
+
+    def detach(self, unpatch_all: bool = True):
+        self.model_patches_to(self.offload_device)
+        if unpatch_all:
+            self.unpatch_model(self.offload_device, unpatch_weights=unpatch_all)
+        return self.model
+
 
 @dataclasses.dataclass
 class MemoryMeasurements:
@@ -120,6 +130,7 @@ class MemoryMeasurements:
     model_loaded_weight_memory: int = 0
     lowvram_patch_counter: int = 0
     model_lowvram: bool = False
+    current_weight_patches_uuid: Any = None
     _device: torch.device | None = None
 
     @property
