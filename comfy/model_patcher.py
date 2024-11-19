@@ -1036,8 +1036,8 @@ class ModelPatcher:
             self.hook_backup[key] = (weight.to(device=target_device, copy=True), weight.device)
         # TODO: properly handle lowvram situations for cached hook patches
         out_weight = comfy.lora.calculate_weight(combined_patches[key],
-                                                comfy.model_management.cast_to_device(weight, weight.device, torch.float32, copy=True),
-                                                key, original_weights=original_weights).to(weight.dtype)
+                                                 comfy.model_management.cast_to_device(weight, weight.device, torch.float32, copy=True),
+                                                 key, original_weights=original_weights)
         del original_weights[key]
         out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=string_to_seed(key))
         if self.hook_mode == comfy.hooks.EnumHookMode.MaxSpeed:
