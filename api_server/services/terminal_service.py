@@ -1,5 +1,6 @@
 from app.logger import on_flush
 import os
+import shutil
 
 
 class TerminalService:
@@ -10,15 +11,27 @@ class TerminalService:
         self.subscriptions = set()
         on_flush(self.send_messages)
 
+    def get_terminal_size(self):
+        try:
+            size = os.get_terminal_size()
+            return (size.columns, size.lines)
+        except OSError:
+            try:
+                size = shutil.get_terminal_size()
+                return (size.columns, size.lines)
+            except OSError:
+                return (80, 24)  # fallback to 80x24
+
     def update_size(self):
-        sz = os.get_terminal_size()
+        columns, lines = self.get_terminal_size()
         changed = False
-        if sz.columns != self.cols:
-            self.cols = sz.columns
+        
+        if columns != self.cols:
+            self.cols = columns
             changed = True 
 
-        if sz.lines != self.rows:
-            self.rows = sz.lines
+        if lines != self.rows:
+            self.rows = lines
             changed = True
 
         if changed:
