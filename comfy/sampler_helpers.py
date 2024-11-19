@@ -1,14 +1,10 @@
 import torch
 import comfy.model_management
 import comfy.conds
+import comfy.utils
 
 def prepare_mask(noise_mask, shape, device):
-    """ensures noise mask is of proper dimensions"""
-    noise_mask = torch.nn.functional.interpolate(noise_mask.reshape((-1, 1, noise_mask.shape[-2], noise_mask.shape[-1])), size=(shape[2], shape[3]), mode="bilinear")
-    noise_mask = torch.cat([noise_mask] * shape[1], dim=1)
-    noise_mask = comfy.utils.repeat_to_batch_size(noise_mask, shape[0])
-    noise_mask = noise_mask.to(device)
-    return noise_mask
+    return comfy.utils.reshape_mask(noise_mask, shape).to(device)
 
 def get_models_from_cond(cond, model_type):
     models = []
