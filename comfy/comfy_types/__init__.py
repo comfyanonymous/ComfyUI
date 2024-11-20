@@ -34,7 +34,7 @@ UnetWrapperFunction = Callable[[UnetApplyFunction, UnetParams], torch.Tensor]
 
 
 __all__ = [
-    UnetWrapperFunction.__name__,
+    "UnetWrapperFunction",
     UnetApplyConds.__name__,
     UnetParams.__name__,
     UnetApplyFunction.__name__,
