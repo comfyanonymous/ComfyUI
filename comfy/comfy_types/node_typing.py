@@ -1,5 +1,6 @@
 """Comfy-specific type hinting"""
 
+from __future__ import annotations
 from typing import Literal, TypedDict
 from abc import ABC, abstractmethod
 from enum import Enum
