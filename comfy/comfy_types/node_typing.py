@@ -2,7 +2,14 @@
 
 from typing import Literal, TypedDict
 from abc import ABC, abstractmethod
-from enum import StrEnum
+from enum import Enum
+
+
+class StrEnum(str, Enum):
+    """Base class for string enums. Python's StrEnum is not available until 3.11."""
+
+    def __str__(self) -> str:
+        return self.value
 
 
 class IO(StrEnum):
