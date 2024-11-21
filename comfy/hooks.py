@@ -648,43 +648,43 @@ def combine_with_new_conds(conds: list, new_conds: list):
     return combined_conds
 
 def set_conds_props(conds: list, strength: float, set_cond_area: str,
-                   opt_mask: torch.Tensor=None, opt_hooks: HookGroup=None, opt_timestep_range: tuple[float,float]=None, append_hooks=True):
+                   mask: torch.Tensor=None, hooks: HookGroup=None, timesteps_range: tuple[float,float]=None, append_hooks=True):
     final_conds = []
     for c in conds:
         # first, apply lora_hook to conditioning, if provided
-        c = set_hooks_for_conditioning(c, opt_hooks, append_hooks=append_hooks)
+        c = set_hooks_for_conditioning(c, hooks, append_hooks=append_hooks)
         # next, apply mask to conditioning
-        c = set_mask_for_conditioning(cond=c, mask=opt_mask, strength=strength, set_cond_area=set_cond_area)
+        c = set_mask_for_conditioning(cond=c, mask=mask, strength=strength, set_cond_area=set_cond_area)
         # apply timesteps, if present
-        c = set_timesteps_for_conditioning(cond=c, timestep_range=opt_timestep_range)
+        c = set_timesteps_for_conditioning(cond=c, timestep_range=timesteps_range)
         # finally, apply mask to conditioning and store
         final_conds.append(c)
     return final_conds
 
 def set_conds_props_and_combine(conds: list, new_conds: list, strength: float=1.0, set_cond_area: str="default",
-                               opt_mask: torch.Tensor=None, opt_hooks: HookGroup=None, opt_timestep_range: tuple[float,float]=None, append_hooks=True):
+                               mask: torch.Tensor=None, hooks: HookGroup=None, timesteps_range: tuple[float,float]=None, append_hooks=True):
     combined_conds = []
     for c, masked_c in zip(conds, new_conds):
         # first, apply lora_hook to new conditioning, if provided
-        masked_c = set_hooks_for_conditioning(masked_c, opt_hooks, append_hooks=append_hooks)
+        masked_c = set_hooks_for_conditioning(masked_c, hooks, append_hooks=append_hooks)
         # next, apply mask to new conditioning, if provided
-        masked_c = set_mask_for_conditioning(cond=masked_c, mask=opt_mask, set_cond_area=set_cond_area, strength=strength)
+        masked_c = set_mask_for_conditioning(cond=masked_c, mask=mask, set_cond_area=set_cond_area, strength=strength)
         # apply timesteps, if present
-        masked_c = set_timesteps_for_conditioning(cond=masked_c, timestep_range=opt_timestep_range)
+        masked_c = set_timesteps_for_conditioning(cond=masked_c, timestep_range=timesteps_range)
         # finally, combine with existing conditioning and store
         combined_conds.append(combine_conditioning([c, masked_c]))
     return combined_conds
 
 def set_default_conds_and_combine(conds: list, new_conds: list,
-                                   opt_hooks: HookGroup=None, opt_timestep_range: tuple[float,float]=None, append_hooks=True):
+                                   hooks: HookGroup=None, timesteps_range: tuple[float,float]=None, append_hooks=True):
     combined_conds = []
     for c, new_c in zip(conds, new_conds):
         # first, apply lora_hook to new conditioning, if provided
-        new_c = set_hooks_for_conditioning(new_c, opt_hooks, append_hooks=append_hooks)
+        new_c = set_hooks_for_conditioning(new_c, hooks, append_hooks=append_hooks)
         # next, add default_cond key to cond so that during sampling, it can be identified
         new_c = conditioning_set_values(new_c, {'default': True})
         # apply timesteps, if present
-        new_c = set_timesteps_for_conditioning(cond=new_c, timestep_range=opt_timestep_range)
+        new_c = set_timesteps_for_conditioning(cond=new_c, timestep_range=timesteps_range)
         # finally, combine with existing conditioning and store
         combined_conds.append(combine_conditioning([c, new_c]))
     return combined_conds
