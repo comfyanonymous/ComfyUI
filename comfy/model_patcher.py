@@ -373,14 +373,18 @@ class ModelPatcher:
         lowvram_counter = 0
         loading = []
         for n, m in self.model.named_modules():
-            if hasattr(m, "comfy_cast_weights") or hasattr(m, "weight"):
-                loading.append((comfy.model_management.module_size(m), n, m))
+            params = []
+            for name, param in m.named_parameters(recurse=False):
+                params.append(name)
+            if hasattr(m, "comfy_cast_weights") or len(params) > 0:
+                loading.append((comfy.model_management.module_size(m), n, m, params))
 
         load_completely = []
         loading.sort(reverse=True)
         for x in loading:
             n = x[1]
             m = x[2]
+            params = x[3]
             module_mem = x[0]
 
             lowvram_weight = False
@@ -416,22 +420,21 @@ class ModelPatcher:
                     if m.comfy_cast_weights:
                         wipe_lowvram_weight(m)
 
-                if hasattr(m, "weight"):
-                    mem_counter += module_mem
-                    load_completely.append((module_mem, n, m))
+                mem_counter += module_mem
+                load_completely.append((module_mem, n, m, params))
 
         load_completely.sort(reverse=True)
         for x in load_completely:
             n = x[1]
             m = x[2]
-            weight_key = "{}.weight".format(n)
-            bias_key = "{}.bias".format(n)
+            params = x[3]
             if hasattr(m, "comfy_patched_weights"):
                 if m.comfy_patched_weights == True:
                     continue
 
-            self.patch_weight_to_device(weight_key, device_to=device_to)
-            self.patch_weight_to_device(bias_key, device_to=device_to)
+            for param in params:
+                self.patch_weight_to_device("{}.{}".format(n, param), device_to=device_to)
+
             logging.debug("lowvram: loaded module regularly {} {}".format(n, m))
             m.comfy_patched_weights = True
 
