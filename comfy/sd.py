@@ -30,8 +30,11 @@ import comfy.text_encoders.genmo
 
 import comfy.model_patcher
 import comfy.lora
+import comfy.lora_convert
 import comfy.t2i_adapter.adapter
 import comfy.taesd.taesd
+
+import comfy.ldm.flux.redux
 
 def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     key_map = {}
@@ -40,6 +43,7 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     if clip is not None:
         key_map = comfy.lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
 
+    lora = comfy.lora_convert.convert_lora(lora)
     loaded = comfy.lora.load_lora(lora, key_map)
     if model is not None:
         new_modelpatcher = model.clone()
@@ -433,6 +437,8 @@ def load_style_model(ckpt_path):
     keys = model_data.keys()
     if "style_embedding" in keys:
         model = comfy.t2i_adapter.adapter.StyleAdapter(width=1024, context_dim=768, num_head=8, n_layes=3, num_token=8)
+    elif "redux_down.weight" in keys:
+        model = comfy.ldm.flux.redux.ReduxImageEncoder()
     else:
         raise Exception("invalid style model {}".format(ckpt_path))
     model.load_state_dict(model_data)
