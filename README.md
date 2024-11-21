@@ -4,7 +4,7 @@
 
 Windows-only version of ComfyUI which uses ZLUDA to get better performance with AMD GPUs.
 
-![ComfyUI Screenshot](comfyui_screenshot.png)
+![ComfyUI Screenshot](comfyui.png)
 
 </div>
 
