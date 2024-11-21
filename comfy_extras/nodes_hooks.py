@@ -488,7 +488,7 @@ class CreateHookKeyframesFromFloats:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "floats_strength": ("FLOATS", {"default": -1, "min": -1, "step": 0.001, "forceInput": True}),
+                "floats_strength": ("FLOATS,FLOAT", {"default": -1, "min": -1, "step": 0.001, "forceInput": True}),
                 "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
                 "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001}),
                 "print_keyframes": ("BOOLEAN", {"default": False}),
