@@ -886,6 +886,7 @@ class ModelPatcher:
     
     def prepare_hook_patches_current_keyframe(self, t: torch.Tensor, hook_group: comfy.hooks.HookGroup):
         curr_t = t[0]
+        reset_current_hooks = False
         for hook in hook_group.hooks:
             changed = hook.hook_keyframe.prepare_current_keyframe(curr_t=curr_t)
             # if keyframe changed, remove any cached HookGroups that contain hook with the same hook_ref;
@@ -895,11 +896,13 @@ class ModelPatcher:
                 if self.current_hooks is not None:
                     for current_hook in self.current_hooks.hooks:
                         if current_hook == hook:
-                            self.current_hooks = None
+                            reset_current_hooks = True
                             break
                 for cached_group in list(self.cached_hook_patches.keys()):
                     if cached_group.contains(hook):
                         self.cached_hook_patches.pop(cached_group)
+        if reset_current_hooks:
+            self.patch_hooks(None)
 
     def register_all_hook_patches(self, hooks_dict: dict[comfy.hooks.EnumHookType, dict[comfy.hooks.Hook, None]], target: comfy.hooks.EnumWeightTarget, model_options: dict=None):
         self.restore_hook_patches()
@@ -1020,7 +1023,7 @@ class ModelPatcher:
 
     def clear_cached_hook_weights(self):
         self.cached_hook_patches.clear()
-        self.current_hooks = None
+        self.patch_hooks(None)
 
     def patch_hook_weight_to_device(self, hooks: comfy.hooks.HookGroup, combined_patches: dict, key: str, original_weights: dict, memory_counter: MemoryCounter):
         if key not in combined_patches:

@@ -805,6 +805,15 @@ def preprocess_conds_hooks(conds: dict[str, list[dict[str]]]):
             for cond in conds_to_modify:
                 cond['hooks'] = hooks
 
+
+def get_total_hook_groups_in_conds(conds: dict[str, list[dict[str]]]):
+    hooks_set = set()
+    for k in conds:
+        for kk in conds[k]:
+            hooks_set.add(kk.get('hooks', None))
+    return len(hooks_set)
+
+
 class CFGGuider:
     def __init__(self, model_patcher):
         self.model_patcher: 'ModelPatcher' = model_patcher
@@ -878,6 +887,10 @@ class CFGGuider:
         try:
             orig_model_options = self.model_options
             self.model_options = comfy.model_patcher.create_model_options_clone(self.model_options)
+            # if one hook type (or just None), then don't bother caching weights for hooks (will never change after first step)
+            orig_hook_mode = self.model_patcher.hook_mode
+            if get_total_hook_groups_in_conds(self.conds) <= 1:
+                self.model_patcher.hook_mode = comfy.hooks.EnumHookMode.MinVram
             comfy.sampler_helpers.prepare_model_patcher(self.model_patcher, self.conds, self.model_options)
             executor = comfy.patcher_extension.WrapperExecutor.new_class_executor(
                 self.outer_sample,
@@ -887,6 +900,7 @@ class CFGGuider:
             output = executor.execute(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
         finally:
             self.model_options = orig_model_options
+            self.model_patcher.hook_mode = orig_hook_mode
             self.model_patcher.restore_hook_patches()
 
         del self.conds
