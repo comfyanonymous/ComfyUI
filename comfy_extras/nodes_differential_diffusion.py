@@ -43,9 +43,11 @@ class DifferentialDiffusion():
         binary_mask = (denoise_mask >= threshold).to(denoise_mask.dtype)
 
         # Blend binary mask with the original denoise_mask using strength
-        blended_mask = strength * binary_mask + (1 - strength) * denoise_mask
-
-        return blended_mask
+        if strength and strength < 1:
+            blended_mask = strength * binary_mask + (1 - strength) * denoise_mask
+            return blended_mask
+        else:
+            return binary_mask
 
 
 NODE_CLASS_MAPPINGS = {
