@@ -2,6 +2,8 @@ from typing import Tuple, Union
 
 import torch
 import torch.nn as nn
+import comfy.ops
+ops = comfy.ops.disable_weight_init
 
 
 class CausalConv3d(nn.Module):
@@ -29,7 +31,7 @@ class CausalConv3d(nn.Module):
         width_pad = kernel_size[2] // 2
         padding = (0, height_pad, width_pad)
 
-        self.conv = nn.Conv3d(
+        self.conv = ops.Conv3d(
             in_channels,
             out_channels,
             kernel_size,
