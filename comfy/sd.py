@@ -8,6 +8,7 @@ from .ldm.cascade.stage_a import StageA
 from .ldm.cascade.stage_c_coder import StageC_coder
 from .ldm.audio.autoencoder import AudioOobleckVAE
 import comfy.ldm.genmo.vae.model
+import comfy.ldm.lightricks.vae.causal_video_autoencoder
 import yaml
 
 import comfy.utils
@@ -27,6 +28,7 @@ import comfy.text_encoders.hydit
 import comfy.text_encoders.flux
 import comfy.text_encoders.long_clipl
 import comfy.text_encoders.genmo
+import comfy.text_encoders.lt
 
 import comfy.model_patcher
 import comfy.lora
@@ -261,6 +263,14 @@ class VAE:
                 self.memory_used_encode = lambda shape, dtype: (1.5 * max(shape[2], 7) * shape[3] * shape[4] * (6 * 8 * 8)) * model_management.dtype_size(dtype)
                 self.upscale_ratio = (lambda a: max(0, a * 6 - 5), 8, 8)
                 self.working_dtypes = [torch.float16, torch.float32]
+            elif "decoder.up_blocks.0.res_blocks.0.conv1.conv.weight" in sd: #lightricks ltxv
+                self.first_stage_model = comfy.ldm.lightricks.vae.causal_video_autoencoder.VideoVAE()
+                self.latent_channels = 128
+                self.latent_dim = 3
+                self.memory_used_decode = lambda shape, dtype: (900 * shape[2] * shape[3] * shape[4] * (8 * 8 * 8)) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (70 * max(shape[2], 7) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
+                self.upscale_ratio = 8
+                self.working_dtypes = [torch.bfloat16, torch.float32]
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -452,6 +462,7 @@ class CLIPType(Enum):
     HUNYUAN_DIT = 5
     FLUX = 6
     MOCHI = 7
+    LTXV = 8
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
     clip_data = []
@@ -530,6 +541,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             if clip_type == CLIPType.SD3:
                 clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, **t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
+            elif clip_type == CLIPType.LTXV:
+                clip_target.clip = comfy.text_encoders.lt.ltxv_te(**t5xxl_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.lt.LTXVT5Tokenizer
             else: #CLIPType.MOCHI
                 clip_target.clip = comfy.text_encoders.genmo.mochi_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.genmo.MochiT5Tokenizer

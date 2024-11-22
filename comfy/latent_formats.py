@@ -216,3 +216,7 @@ class Mochi(LatentFormat):
         latents_mean = self.latents_mean.to(latent.device, latent.dtype)
         latents_std = self.latents_std.to(latent.device, latent.dtype)
         return latent * latents_std / self.scale_factor + latents_mean
+
+class LTXV(LatentFormat):
+    latent_channels = 128
+
