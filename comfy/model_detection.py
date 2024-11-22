@@ -137,6 +137,12 @@ def detect_unet_config(state_dict, key_prefix):
         dit_config = {}
         dit_config["image_model"] = "flux"
         dit_config["in_channels"] = 16
+        patch_size = 2
+        dit_config["patch_size"] = patch_size
+        in_key = "{}img_in.weight".format(key_prefix)
+        if in_key in state_dict_keys:
+            dit_config["in_channels"] = state_dict[in_key].shape[1] // (patch_size * patch_size)
+        dit_config["out_channels"] = 16
         dit_config["vec_in_dim"] = 768
         dit_config["context_in_dim"] = 4096
         dit_config["hidden_size"] = 3072
@@ -177,6 +183,10 @@ def detect_unet_config(state_dict, key_prefix):
         dit_config["rope_theta"] = 10000.0
         return dit_config
 
+    if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys: #Lightricks ltxv
+        dit_config = {}
+        dit_config["image_model"] = "ltxv"
+        return dit_config
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
