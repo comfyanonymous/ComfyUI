@@ -152,7 +152,6 @@ class LTXVScheduler:
         mm = (max_shift - base_shift) / (x2 - x1)
         b = base_shift - mm * x1
         sigma_shift = (tokens) * mm + b
-        print(sigma_shift)
 
         power = 1
         sigmas = torch.where(
@@ -170,7 +169,6 @@ class LTXVScheduler:
             stretched = 1.0 - (one_minus_z / scale_factor)
             sigmas[non_zero_mask] = stretched
 
-        print(sigmas)
         return (sigmas,)
 
 
