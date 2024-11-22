@@ -26,16 +26,10 @@ class TerminalService:
     def update_size(self):
         columns, lines = self.get_terminal_size()
         changed = False
-<<<<<<< HEAD:comfy/api_server/services/terminal_service.py
-        if sz.columns != self.cols:
-            self.cols = sz.columns
-            changed = True
-=======
-        
+
         if columns != self.cols:
             self.cols = columns
-            changed = True 
->>>>>>> 6e8cdcd3cb542ba9eb5a5e5a420eff06f59dd268:api_server/services/terminal_service.py
+            changed = True
 
         if lines != self.rows:
             self.rows = lines
