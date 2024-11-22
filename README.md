@@ -39,6 +39,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
 - Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/), [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/), [SD3](https://comfyanonymous.github.io/ComfyUI_examples/sd3/) and [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
+- [LTX-Video](https://comfyanonymous.github.io/ComfyUI_examples/ltxv/)
 - [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
 - [Mochi](https://comfyanonymous.github.io/ComfyUI_examples/mochi/)
 - Asynchronous Queue system

@@ -299,7 +299,10 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
                     if len(mask.shape) == 2:
                         s1 += mask[i:end]
                     else:
-                        s1 += mask[:, i:end]
+                        if mask.shape[1] == 1:
+                            s1 += mask
+                        else:
+                            s1 += mask[:, i:end]
 
                 s2 = s1.softmax(dim=-1).to(v.dtype)
                 del s1

@@ -900,7 +900,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -918,6 +918,8 @@ class CLIPLoader:
             clip_type = comfy.sd.CLIPType.STABLE_AUDIO
         elif type == "mochi":
             clip_type = comfy.sd.CLIPType.MOCHI
+        elif type == "ltxv":
+            clip_type = comfy.sd.CLIPType.LTXV
         else:
             clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
 
@@ -2139,6 +2141,7 @@ def init_builtin_extra_nodes():
         "nodes_torch_compile.py",
         "nodes_mochi.py",
         "nodes_slg.py",
+        "nodes_lt.py",
         "nodes_hooks.py",
     ]
 
