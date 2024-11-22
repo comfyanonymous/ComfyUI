@@ -30,6 +30,7 @@ import comfy.ldm.hydit.models
 import comfy.ldm.audio.dit
 import comfy.ldm.audio.embedders
 import comfy.ldm.flux.model
+import comfy.ldm.lightricks.model
 
 import comfy.model_management
 import comfy.conds
@@ -141,6 +142,7 @@ class BaseModel(torch.nn.Module):
                     extra = extra.to(dtype)
             extra_conds[o] = extra
 
+        print(t)
         model_output = self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds).float()
         return self.model_sampling.calculate_denoised(sigma, model_output, x)
 
@@ -766,4 +768,24 @@ class GenmoMochi(BaseModel):
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        return out
+
+class LTXV(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.lightricks.model.LTXVModel) #TODO
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        guiding_latent = kwargs.get("guiding_latent", None)
+        if guiding_latent is not None:
+            out['guiding_latent'] = comfy.conds.CONDRegular(guiding_latent)
+
+        out['frame_rate'] = comfy.conds.CONDConstant(kwargs.get("frame_rate", 25))
         return out
