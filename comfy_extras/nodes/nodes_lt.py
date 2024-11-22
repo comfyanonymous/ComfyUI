@@ -1,17 +1,22 @@
-import nodes
-import node_helpers
+import math
+
 import torch
+
 import comfy.model_management
 import comfy.model_sampling
-import math
+import comfy.utils
+from comfy import node_helpers
+from comfy.nodes import base_nodes as nodes
+
 
 class EmptyLTXVLatentVideo:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "width": ("INT", {"default": 768, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
-                              "length": ("INT", {"default": 97, "min": 9, "max": nodes.MAX_RESOLUTION, "step": 8}),
-                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
+        return {"required": {"width": ("INT", {"default": 768, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
+                             "height": ("INT", {"default": 512, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
+                             "length": ("INT", {"default": 97, "min": 9, "max": nodes.MAX_RESOLUTION, "step": 8}),
+                             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
+
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
 
@@ -19,14 +24,14 @@ class EmptyLTXVLatentVideo:
 
     def generate(self, width, height, length, batch_size=1):
         latent = torch.zeros([batch_size, 128, ((length - 1) // 8) + 1, height // 32, width // 32], device=comfy.model_management.intermediate_device())
-        return ({"samples": latent}, )
+        return ({"samples": latent},)
 
 
 class LTXVImgToVideo:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"positive": ("CONDITIONING", ),
-                             "negative": ("CONDITIONING", ),
+        return {"required": {"positive": ("CONDITIONING",),
+                             "negative": ("CONDITIONING",),
                              "vae": ("VAE",),
                              "image": ("IMAGE",),
                              "width": ("INT", {"default": 768, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
@@ -49,16 +54,17 @@ class LTXVImgToVideo:
 
         latent = torch.zeros([batch_size, 128, ((length - 1) // 8) + 1, height // 32, width // 32], device=comfy.model_management.intermediate_device())
         latent[:, :, :t.shape[2]] = t
-        return (positive, negative, {"samples": latent}, )
+        return (positive, negative, {"samples": latent},)
 
 
 class LTXVConditioning:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"positive": ("CONDITIONING", ),
-                             "negative": ("CONDITIONING", ),
+        return {"required": {"positive": ("CONDITIONING",),
+                             "negative": ("CONDITIONING",),
                              "frame_rate": ("FLOAT", {"default": 25.0, "min": 0.0, "max": 1000.0, "step": 0.01}),
                              }}
+
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING")
     RETURN_NAMES = ("positive", "negative")
     FUNCTION = "append"
@@ -74,10 +80,10 @@ class LTXVConditioning:
 class ModelSamplingLTXV:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "max_shift": ("FLOAT", {"default": 2.05, "min": 0.0, "max": 100.0, "step":0.01}),
-                              "base_shift": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 100.0, "step":0.01}),
-                              },
+        return {"required": {"model": ("MODEL",),
+                             "max_shift": ("FLOAT", {"default": 2.05, "min": 0.0, "max": 100.0, "step": 0.01}),
+                             "base_shift": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 100.0, "step": 0.01}),
+                             },
                 "optional": {"latent": ("LATENT",), }
                 }
 
@@ -109,7 +115,7 @@ class ModelSamplingLTXV:
         model_sampling = ModelSamplingAdvanced(model.model.model_config)
         model_sampling.set_parameters(shift=shift)
         m.add_object_patch("model_sampling", model_sampling)
-        return (m, )
+        return (m,)
 
 
 class LTXVScheduler:
@@ -117,22 +123,22 @@ class LTXVScheduler:
     def INPUT_TYPES(s):
         return {"required":
                     {"steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                     "max_shift": ("FLOAT", {"default": 2.05, "min": 0.0, "max": 100.0, "step":0.01}),
-                     "base_shift": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 100.0, "step":0.01}),
+                     "max_shift": ("FLOAT", {"default": 2.05, "min": 0.0, "max": 100.0, "step": 0.01}),
+                     "base_shift": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 100.0, "step": 0.01}),
                      "stretch": ("BOOLEAN", {
-                        "default": True,
-                        "tooltip": "Stretch the sigmas to be in the range [terminal, 1]."
-                    }),
+                         "default": True,
+                         "tooltip": "Stretch the sigmas to be in the range [terminal, 1]."
+                     }),
                      "terminal": (
-                        "FLOAT",
-                        {
-                            "default": 0.1, "min": 0.0, "max": 0.99, "step": 0.01,
-                            "tooltip": "The terminal value of the sigmas after stretching."
-                        },
-                    ),
-                    },
+                         "FLOAT",
+                         {
+                             "default": 0.1, "min": 0.0, "max": 0.99, "step": 0.01,
+                             "tooltip": "The terminal value of the sigmas after stretching."
+                         },
+                     ),
+                     },
                 "optional": {"latent": ("LATENT",), }
-               }
+                }
 
     RETURN_TYPES = ("SIGMAS",)
     CATEGORY = "sampling/custom_sampling/schedulers"
