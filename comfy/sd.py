@@ -269,7 +269,7 @@ class VAE:
                 self.latent_dim = 3
                 self.memory_used_decode = lambda shape, dtype: (900 * shape[2] * shape[3] * shape[4] * (8 * 8 * 8)) * model_management.dtype_size(dtype)
                 self.memory_used_encode = lambda shape, dtype: (70 * max(shape[2], 7) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
-                self.upscale_ratio = 8
+                self.upscale_ratio = (lambda a: max(0, a * 8 - 7), 32, 32)
                 self.working_dtypes = [torch.bfloat16, torch.float32]
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
@@ -370,7 +370,9 @@ class VAE:
             elif dims == 2:
                 pixel_samples = self.decode_tiled_(samples_in)
             elif dims == 3:
-                pixel_samples = self.decode_tiled_3d(samples_in)
+                tile = 256 // self.spacial_compression_decode()
+                overlap = tile // 4
+                pixel_samples = self.decode_tiled_3d(samples_in, tile_x=tile, tile_y=tile, overlap=(1, overlap, overlap))
 
         pixel_samples = pixel_samples.to(self.output_device).movedim(1,-1)
         return pixel_samples
@@ -433,6 +435,12 @@ class VAE:
 
     def get_sd(self):
         return self.first_stage_model.state_dict()
+
+    def spacial_compression_decode(self):
+        try:
+            return self.upscale_ratio[-1]
+        except:
+            return self.upscale_ratio
 
 class StyleModel:
     def __init__(self, model, device="cpu"):
