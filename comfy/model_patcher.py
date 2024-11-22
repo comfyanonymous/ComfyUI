@@ -419,14 +419,23 @@ class ModelPatcher(ModelManageable):
         lowvram_counter = 0
         loading = []
         for n, m in self.model.named_modules():
-            if hasattr(m, "comfy_cast_weights") or hasattr(m, "weight"):
-                loading.append((model_management.module_size(m), n, m))
+            params = []
+            skip = False
+            for name, param in m.named_parameters(recurse=False):
+                params.append(name)
+            for name, param in m.named_parameters(recurse=True):
+                if name not in params:
+                    skip = True # skip random weights in non leaf modules
+                    break
+            if not skip and (hasattr(m, "comfy_cast_weights") or len(params) > 0):
+                loading.append((model_management.module_size(m), n, m, params))
 
         load_completely = []
         loading.sort(reverse=True)
         for x in loading:
             n = x[1]
             m = x[2]
+            params = x[3]
             module_mem = x[0]
 
             lowvram_weight = False
@@ -462,22 +471,22 @@ class ModelPatcher(ModelManageable):
                     if m.comfy_cast_weights:
                         wipe_lowvram_weight(m)
 
-                if hasattr(m, "weight"):
+                if full_load or mem_counter + module_mem < lowvram_model_memory:
                     mem_counter += module_mem
-                    load_completely.append((module_mem, n, m))
+                    load_completely.append((module_mem, n, m, params))
 
         load_completely.sort(reverse=True)
         for x in load_completely:
             n = x[1]
             m = x[2]
-            weight_key = "{}.weight".format(n)
-            bias_key = "{}.bias".format(n)
+            params = x[3]
             if hasattr(m, "comfy_patched_weights"):
                 if m.comfy_patched_weights == True:
                     continue
 
-            self.patch_weight_to_device(weight_key, device_to=device_to)
-            self.patch_weight_to_device(bias_key, device_to=device_to)
+            for param in params:
+                self.patch_weight_to_device("{}.{}".format(n, param), device_to=device_to)
+
             logger.debug("lowvram: loaded module regularly {} {}".format(n, m))
             m.comfy_patched_weights = True
 

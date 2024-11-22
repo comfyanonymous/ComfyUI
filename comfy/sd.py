@@ -6,13 +6,14 @@ import os.path
 from enum import Enum
 from typing import Any, Optional
 
+import comfy.ldm.flux.redux
+import comfy.text_encoders.lt
 import torch
 import yaml
 
 from . import clip_vision
 from . import diffusers_convert
 from . import gligen
-from . import lora
 from . import model_detection
 from . import model_management
 from . import model_patcher
@@ -23,19 +24,20 @@ from . import utils
 from .ldm.audio.autoencoder import AudioOobleckVAE
 from .ldm.cascade.stage_a import StageA
 from .ldm.cascade.stage_c_coder import StageC_coder
-from .ldm.genmo.vae.model import VideoVAE
+from .ldm.genmo.vae import model as genmo
+from .ldm.lightricks.vae import causal_video_autoencoder as lightricks
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
 from .model_management import load_models_gpu
 from .t2i_adapter import adapter
 from .taesd import taesd
 from .text_encoders import aura_t5
 from .text_encoders import flux
+from .text_encoders import genmo
 from .text_encoders import hydit
 from .text_encoders import long_clipl
 from .text_encoders import sa_t5
 from .text_encoders import sd2_clip
 from .text_encoders import sd3_clip
-from .text_encoders import genmo
 
 
 def load_lora_for_models(model, clip, _lora, strength_model, strength_clip):
@@ -45,6 +47,7 @@ def load_lora_for_models(model, clip, _lora, strength_model, strength_clip):
     if clip is not None:
         key_map = lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
 
+    lora = comfy.lora_convert.convert_lora(lora)
     loaded = lora.load_lora(_lora, key_map)
     if model is not None:
         new_modelpatcher = model.clone()
@@ -257,18 +260,26 @@ class VAE:
                 self.process_output = lambda audio: audio
                 self.process_input = lambda audio: audio
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
-            elif "blocks.2.blocks.3.stack.5.weight" in sd or "decoder.blocks.2.blocks.3.stack.5.weight" in sd or "layers.4.layers.1.attn_block.attn.qkv.weight" in sd or "encoder.layers.4.layers.1.attn_block.attn.qkv.weight" in sd: #genmo mochi vae
+            elif "blocks.2.blocks.3.stack.5.weight" in sd or "decoder.blocks.2.blocks.3.stack.5.weight" in sd or "layers.4.layers.1.attn_block.attn.qkv.weight" in sd or "encoder.layers.4.layers.1.attn_block.attn.qkv.weight" in sd:  # genmo mochi vae
                 if "blocks.2.blocks.3.stack.5.weight" in sd:
                     sd = utils.state_dict_prefix_replace(sd, {"": "decoder."})
                 if "layers.4.layers.1.attn_block.attn.qkv.weight" in sd:
                     sd = utils.state_dict_prefix_replace(sd, {"": "encoder."})
-                self.first_stage_model = VideoVAE()
+                self.first_stage_model = genmo.VideoVAE()
                 self.latent_channels = 12
                 self.latent_dim = 3
                 self.memory_used_decode = lambda shape, dtype: (1000 * shape[2] * shape[3] * shape[4] * (6 * 8 * 8)) * model_management.dtype_size(dtype)
                 self.memory_used_encode = lambda shape, dtype: (1.5 * max(shape[2], 7) * shape[3] * shape[4] * (6 * 8 * 8)) * model_management.dtype_size(dtype)
                 self.upscale_ratio = (lambda a: max(0, a * 6 - 5), 8, 8)
                 self.working_dtypes = [torch.float16, torch.float32]
+            elif "decoder.up_blocks.0.res_blocks.0.conv1.conv.weight" in sd:  # lightricks ltxv
+                self.first_stage_model = lightricks.VideoVAE()
+                self.latent_channels = 128
+                self.latent_dim = 3
+                self.memory_used_decode = lambda shape, dtype: (900 * shape[2] * shape[3] * shape[4] * (8 * 8 * 8)) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (70 * max(shape[2], 7) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
+                self.upscale_ratio = (lambda a: max(0, a * 8 - 7), 32, 32)
+                self.working_dtypes = [torch.bfloat16, torch.float32]
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -359,7 +370,7 @@ class VAE:
                 out = self.process_output(self.first_stage_model.decode(samples).to(self.output_device).float())
                 if pixel_samples is None:
                     pixel_samples = torch.empty((samples_in.shape[0],) + tuple(out.shape[1:]), device=self.output_device)
-                pixel_samples[x:x+batch_number] = out
+                pixel_samples[x:x + batch_number] = out
         except model_management.OOM_EXCEPTION as e:
             logging.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
             dims = samples_in.ndim - 2
@@ -368,13 +379,15 @@ class VAE:
             elif dims == 2:
                 pixel_samples = self.decode_tiled_(samples_in)
             elif dims == 3:
-                pixel_samples = self.decode_tiled_3d(samples_in)
+                tile = 256 // self.spacial_compression_decode()
+                overlap = tile // 4
+                pixel_samples = self.decode_tiled_3d(samples_in, tile_x=tile, tile_y=tile, overlap=(1, overlap, overlap))
 
         pixel_samples = pixel_samples.to(self.output_device).movedim(1, -1)
         return pixel_samples
 
     def decode_tiled(self, samples, tile_x=None, tile_y=None, overlap=None):
-        memory_used = self.memory_used_decode(samples.shape, self.vae_dtype) #TODO: calculate mem required for tile
+        memory_used = self.memory_used_decode(samples.shape, self.vae_dtype)  # TODO: calculate mem required for tile
         load_models_gpu([self.patcher], memory_required=memory_used)
         dims = samples.ndim - 2
         args = {}
@@ -434,6 +447,12 @@ class VAE:
     def get_sd(self):
         return self.first_stage_model.state_dict()
 
+    def spacial_compression_decode(self):
+        try:
+            return self.upscale_ratio[-1]
+        except:
+            return self.upscale_ratio
+
 
 class StyleModel:
     def __init__(self, model, device="cpu"):
@@ -448,6 +467,8 @@ def load_style_model(ckpt_path):
     keys = model_data.keys()
     if "style_embedding" in keys:
         model = adapter.StyleAdapter(width=1024, context_dim=768, num_head=8, n_layes=3, num_token=8)
+    elif "redux_down.weight" in keys:
+        model = comfy.ldm.flux.redux.ReduxImageEncoder()
     else:
         raise Exception("invalid style model {}".format(ckpt_path))
     model.load_state_dict(model_data)
@@ -462,6 +483,7 @@ class CLIPType(Enum):
     HUNYUAN_DIT = 5
     FLUX = 6
     MOCHI = 7
+    LTXV = 8
 
 
 @dataclasses.dataclass
@@ -552,7 +574,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             if clip_type == CLIPType.SD3:
                 clip_target.clip = sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, **t5xxl_detect(clip_data))
                 clip_target.tokenizer = sd3_clip.SD3Tokenizer
-            else: #CLIPType.MOCHI
+            elif clip_type == CLIPType.LTXV:
+                clip_target.clip = comfy.text_encoders.lt.ltxv_te(**t5xxl_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.lt.LTXVT5Tokenizer
+            else:  # CLIPType.MOCHI
                 clip_target.clip = genmo.mochi_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = genmo.MochiT5Tokenizer
         elif te_model == TEModel.T5_XL:
