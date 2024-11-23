@@ -1,21 +1,24 @@
-from .component_model import files
-from .model_management import load_models_gpu
-from .utils import load_torch_file, transformers_convert, state_dict_prefix_replace
-import torch
 import json
 import logging
 
-from . import ops
-from . import model_patcher
-from . import model_management
+import torch
+
 from . import clip_model
+from . import model_management
+from . import model_patcher
+from . import ops
+from .component_model import files
+from .model_management import load_models_gpu
+from .utils import load_torch_file, transformers_convert, state_dict_prefix_replace
 
 
 class Output:
     def __getitem__(self, key):
         return getattr(self, key)
+
     def __setitem__(self, key, item):
         setattr(self, key, item)
+
 
 def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711]):
     mean = torch.tensor(mean, device=image.device, dtype=image.dtype)
@@ -24,11 +27,12 @@ def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], s
     if not (image.shape[2] == size and image.shape[3] == size):
         scale = (size / min(image.shape[2], image.shape[3]))
         image = torch.nn.functional.interpolate(image, size=(round(scale * image.shape[2]), round(scale * image.shape[3])), mode="bicubic", antialias=True)
-        h = (image.shape[2] - size)//2
-        w = (image.shape[3] - size)//2
-        image = image[:,:,h:h+size,w:w+size]
+        h = (image.shape[2] - size) // 2
+        w = (image.shape[3] - size) // 2
+        image = image[:, :, h:h + size, w:w + size]
     image = torch.clip((255. * image), 0, 255).round() / 255.0
-    return (image - mean.view([3,1,1])) / std.view([3,1,1])
+    return (image - mean.view([3, 1, 1])) / std.view([3, 1, 1])
+
 
 class ClipVisionModel():
     def __init__(self, json_config: dict | str):
@@ -53,6 +57,7 @@ class ClipVisionModel():
         self.model.eval()
 
         self.patcher = model_patcher.ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
+
     def load_sd(self, sd):
         return self.model.load_state_dict(sd, strict=False)
 
@@ -69,6 +74,7 @@ class ClipVisionModel():
         outputs["image_embeds"] = out[2].to(model_management.intermediate_device())
         outputs["penultimate_hidden_states"] = out[1].to(model_management.intermediate_device())
         return outputs
+
 
 def convert_to_transformers(sd, prefix):
     sd_k = sd.keys()
@@ -96,6 +102,7 @@ def convert_to_transformers(sd, prefix):
         sd = state_dict_prefix_replace(sd, replace_prefix)
     return sd
 
+
 def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
     if convert_keys:
         sd = convert_to_transformers(sd, prefix)
@@ -105,7 +112,7 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
         json_config = files.get_path_as_dict(None, "clip_vision_config_h.json")
     elif "vision_model.encoder.layers.22.layer_norm1.weight" in sd:
         if sd["vision_model.encoder.layers.0.layer_norm1.weight"].shape[0] == 1152:
-            json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_siglip_384.json")
+            json_config = files.get_path_as_dict(None, "clip_vision_siglip_384.json")
         elif sd["vision_model.embeddings.position_embedding.weight"].shape[0] == 577:
             json_config = files.get_path_as_dict(None, "clip_vision_config_vitl_336.json")
         else:
@@ -123,6 +130,7 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
         if k not in u:
             sd.pop(k)
     return clip
+
 
 def load(ckpt_path):
     sd = load_torch_file(ckpt_path)

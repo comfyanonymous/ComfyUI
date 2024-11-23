@@ -283,7 +283,8 @@ KNOWN_GLIGEN_MODELS: Final[KnownDownloadables] = KnownDownloadables([
 ], folder_name="gligen")
 
 KNOWN_CLIP_VISION_MODELS: Final[KnownDownloadables] = KnownDownloadables([
-    HuggingFile("comfyanonymous/clip_vision_g", "clip_vision_g.safetensors")
+    HuggingFile("comfyanonymous/clip_vision_g", "clip_vision_g.safetensors"),
+    HuggingFile("Comfy-Org/sigclip_vision_384", "sigclip_vision_patch14_384.safetensors"),
 ], folder_name="clip_vision")
 
 KNOWN_LORAS: Final[KnownDownloadables] = KnownDownloadables([
@@ -292,6 +293,8 @@ KNOWN_LORAS: Final[KnownDownloadables] = KnownDownloadables([
     CivitFile(model_id=47085, model_version_id=55199, filename="GoodHands-beta2.safetensors"),
     HuggingFile("ByteDance/Hyper-SD", "Hyper-SDXL-12steps-CFG-lora.safetensors"),
     HuggingFile("ByteDance/Hyper-SD", "Hyper-SD15-12steps-CFG-lora.safetensors"),
+    HuggingFile("black-forest-labs/FLUX.1-Canny-dev-lora", "flux1-canny-dev-lora.safetensors"),
+    HuggingFile("black-forest-labs/FLUX.1-Depth-dev-lora", "flux1-depth-dev-lora.safetensors"),
 ], folder_name="loras")
 
 KNOWN_CONTROLNETS: Final[KnownDownloadables] = KnownDownloadables([
@@ -434,6 +437,9 @@ KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("ByteDance/Hyper-SD", "Hyper-SDXL-1step-Unet-Comfyui.fp16.safetensors"),
     HuggingFile("black-forest-labs/FLUX.1-schnell", "flux1-schnell.safetensors"),
     HuggingFile("black-forest-labs/FLUX.1-dev", "flux1-dev.safetensors"),
+    HuggingFile("black-forest-labs/FLUX.1-Fill-dev", "flux1-fill-dev.safetensors"),
+    HuggingFile("black-forest-labs/FLUX.1-Canny-dev", "flux1-canny-dev.safetensors"),
+    HuggingFile("black-forest-labs/FLUX.1-Depth-dev", "flux1-depth-dev.safetensors"),
     HuggingFile("Kijai/flux-fp8", "flux1-dev-fp8.safetensors"),
     HuggingFile("Kijai/flux-fp8", "flux1-schnell-fp8.safetensors"),
     HuggingFile("Comfy-Org/mochi_preview_repackaged", "split_files/diffusion_models/mochi_preview_bf16.safetensors"),
@@ -452,6 +458,10 @@ KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("zer0int/CLIP-GmP-ViT-L-14", "ViT-L-14-TEXT-detail-improved-hiT-GmP-TE-only-HF.safetensors"),
 ], folder_name="clip")
 
+KNOWN_STYLE_MODELS: Final[KnownDownloadables] = KnownDownloadables([
+    HuggingFile("black-forest-labs/FLUX.1-Redux-dev", "flux1-redux-dev.safetensors"),
+], folder_name="style_models")
+
 _known_models_db: list[KnownDownloadables] = [
     KNOWN_CHECKPOINTS,
     KNOWN_VAES,
@@ -466,6 +476,7 @@ _known_models_db: list[KnownDownloadables] = [
     KNOWN_IMAGE_ONLY_CHECKPOINTS,
     KNOWN_UNCLIP_CHECKPOINTS,
     KNOWN_UPSCALERS,
+    KNOWN_STYLE_MODELS,
 ]
 
 
