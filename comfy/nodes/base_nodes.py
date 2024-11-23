@@ -391,7 +391,7 @@ class InpaintModelConditioning:
 
     CATEGORY = "conditioning/inpaint"
 
-    def encode(self, positive, negative, pixels, vae, mask, noise_mask):
+    def encode(self, positive, negative, pixels, vae, mask, noise_mask=True):
         x = (pixels.shape[1] // 8) * 8
         y = (pixels.shape[2] // 8) * 8
         mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
@@ -947,7 +947,7 @@ class CLIPLoader:
         elif type == "mochi":
             clip_type = sd.CLIPType.MOCHI
         elif type == "ltxv":
-            clip_type = comfy.sd.CLIPType.LTXV
+            clip_type = sd.CLIPType.LTXV
         else:
             logging.warning(f"Unknown clip type argument passed: {type} for model {clip_name}")
 

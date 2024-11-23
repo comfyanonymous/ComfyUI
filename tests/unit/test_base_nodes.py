@@ -81,7 +81,7 @@ def test_inpaint_model_conditioning(model, vae, clip, has_gpu):
         pytest.skip("requires gpu for performant testing")
     cond_pos, = CLIPTextEncode().encode(clip, "test prompt")
     cond_neg, = CLIPTextEncode().encode(clip, "test negative prompt")
-    pos, neg, latent = InpaintModelConditioning().encode(cond_pos, cond_neg, _image_512x512, vae, torch.ones((1, 512, 512)))
+    pos, neg, latent = InpaintModelConditioning().encode(cond_pos, cond_neg, _image_512x512, vae, torch.ones((1, 512, 512)), noise_mask=True)
     assert len(pos) == len(cond_pos)
     assert len(neg) == len(cond_neg)
     assert "samples" in latent

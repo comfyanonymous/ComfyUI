@@ -57,7 +57,6 @@ def levels_adjustment(image: ImageBatch, black_level: float = 0.0, mid_level: fl
     return result
 
 
-
 class ImageCrop:
     @classmethod
     def INPUT_TYPES(s):
@@ -272,7 +271,7 @@ class ImageResize:
             "required": {
                 "image": ("IMAGE",),
                 "resize_mode": (["cover", "contain", "auto"], {"default": "cover"}),
-                "resolutions": (["SDXL/SD3/Flux", "SD1.5"], {"default": "SDXL/SD3/Flux"}),
+                "resolutions": (["SDXL/SD3/Flux", "SD1.5", "LTXV"], {"default": "SDXL/SD3/Flux"}),
                 "interpolation": (ImageScale.upscale_methods, {"default": "bilinear"}),
             }
         }
@@ -293,6 +292,10 @@ class ImageResize:
                 (1216, 832),
                 (1344, 768),
                 (1536, 640),
+            ]
+        elif resolutions == "ltxv":
+            supported_resolutions = [
+                (768, 512)
             ]
         else:
             supported_resolutions = [

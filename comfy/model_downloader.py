@@ -260,6 +260,7 @@ KNOWN_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("lllyasviel/flux1-dev-bnb-nf4", "flux1-dev-bnb-nf4.safetensors"),
     HuggingFile("lllyasviel/flux1-dev-bnb-nf4", "flux1-dev-bnb-nf4-v2.safetensors"),
     HuggingFile("silveroxides/flux1-nf4-weights", "flux1-schnell-bnb-nf4.safetensors"),
+    HuggingFile("Lightricks/LTX-Video", "ltx-video-2b-v0.9.safetensors"),
 ], folder_name="checkpoints")
 
 KNOWN_UNCLIP_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([

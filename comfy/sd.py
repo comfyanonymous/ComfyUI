@@ -21,12 +21,14 @@ from . import model_sampling
 from . import sd1_clip
 from . import sdxl_clip
 from . import utils
+from . import lora
 from .ldm.audio.autoencoder import AudioOobleckVAE
 from .ldm.cascade.stage_a import StageA
 from .ldm.cascade.stage_c_coder import StageC_coder
-from .ldm.genmo.vae import model as genmo
+from .ldm.genmo.vae import model as genmo_model
 from .ldm.lightricks.vae import causal_video_autoencoder as lightricks
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
+from .lora_convert import convert_lora
 from .model_management import load_models_gpu
 from .t2i_adapter import adapter
 from .taesd import taesd
@@ -47,7 +49,7 @@ def load_lora_for_models(model, clip, _lora, strength_model, strength_clip):
     if clip is not None:
         key_map = lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
 
-    lora = comfy.lora_convert.convert_lora(lora)
+    _lora = convert_lora(_lora)
     loaded = lora.load_lora(_lora, key_map)
     if model is not None:
         new_modelpatcher = model.clone()
@@ -265,7 +267,7 @@ class VAE:
                     sd = utils.state_dict_prefix_replace(sd, {"": "decoder."})
                 if "layers.4.layers.1.attn_block.attn.qkv.weight" in sd:
                     sd = utils.state_dict_prefix_replace(sd, {"": "encoder."})
-                self.first_stage_model = genmo.VideoVAE()
+                self.first_stage_model = genmo_model.VideoVAE()
                 self.latent_channels = 12
                 self.latent_dim = 3
                 self.memory_used_decode = lambda shape, dtype: (1000 * shape[2] * shape[3] * shape[4] * (6 * 8 * 8)) * model_management.dtype_size(dtype)
