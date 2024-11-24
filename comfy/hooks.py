@@ -534,7 +534,7 @@ def create_hook_model_as_lora(weights_model, weights_clip, strength_model: float
     hook.need_weight_init = False
     return hook_group
 
-def get_patch_weights_from_model(model: 'ModelPatcher', discard_model_sampling=False):
+def get_patch_weights_from_model(model: 'ModelPatcher', discard_model_sampling=True):
     if model is None:
         return None
     patches_model: dict[str, torch.Tensor] = model.model.state_dict()
