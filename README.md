@@ -27,6 +27,7 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
   I recommend updating.
 
 > [!IMPORTANT]
+> 
 > 📢 ***REGARDING KEEPING THE APP UP TO DATE***
 >
 > Avoid using the update function from the manager, instead use `git pull`, which we
@@ -36,8 +37,7 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 > Only use comfy manager to update the extensions
 > (Manager -> Custom Nodes Manager -> Set Filter To Installed -> Click Check Update On The Bottom Of The Window)
 > otherwise it breaks the basic installation, and in that case run `install.bat` once again.
-
-> [!IMPORTANT]
+> 
 > 📢 ***REGARDING RX 480-580 AND SIMILAR GPUS***
 >
 > After a while we need to keep updating certain packages to keep up with the original app and certain requirements of
@@ -45,7 +45,7 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 > So for these gpu's please use `fixforrx580.bat` if you are having memory problems too much slowdown etc. This
 > is not mandatory and it won't just make your gpu faster then before but it would be less problematic then using latest torch
 > that we use with other gpu's.
-
+> 
 > 📢 ***RANDOM TIPS & TRICKS REGARDING USING AMD GPU'S***
 > 
 > * The generation speed is slower than nvidia counterparts we all know and accept it, but most of the time the out of memory situation 
