@@ -46,6 +46,12 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 > is not mandatory and it won't just make your gpu faster then before but it would be less problematic then using latest torch
 > that we use with other gpu's.
 
+> 📢 ***RANDOM TIPS & TRICKS REGARDING USING AMD GPU'S***
+> 
+> * The generation speed is slower than nvidia counterparts we all know and accept it, but most of the time the out of memory situation 
+> at the end with VAE decoding is worse. To overcome this use "--cpu-vae". Add it to commandline_args on comfyui.bat.
+> You can now decode using your system memory (the more the memory the better) and your cpu power. This might be slower but at least it works.
+
 ## Dependencies
 
 If coming from the very start, you need :
