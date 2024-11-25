@@ -1,3 +1,8 @@
+<div align="center">
+
+# ComfyUI-TPU
+**TPUs/XLA devices support for ComfyUI**
+</div>
 #### TPU/XLA Devices
 Users with TPU/XLA devices can install the PyTorch XLA stable build with the following command:
 
