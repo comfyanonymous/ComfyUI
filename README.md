@@ -24,3 +24,9 @@ To get memory info for TPU devices, install the [tpu-info](https://github.com/AI
 ```
 pip install tpu-info
 ```
+
+To monitor tpu-info 
+
+```
+watch -n0 tpu-info
+```
