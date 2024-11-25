@@ -31,3 +31,6 @@ models/
 flux_loras/
 custom_nodes/
 pysssss-workflows/
+
+comfy-venv
+comfy_venv_3.11

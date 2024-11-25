@@ -486,7 +486,7 @@ class PromptExecutor:
             self.server.client_id = extra_data["client_id"]
             if "ws_id" in extra_data:
                 self.memedeck_worker.ws_id = extra_data["ws_id"]
-                self.memedeck_worker.websocket_node_id = extra_data["websocket_node_id"]
+                self.memedeck_worker.end_node_id = extra_data["end_node_id"]
         else:
             self.server.client_id = None
             self.memedeck_worker.ws_id = None
