@@ -62,6 +62,7 @@ def load_lora(lora, to_load):
         diffusers_lora = "{}_lora.up.weight".format(x)
         diffusers2_lora = "{}.lora_B.weight".format(x)
         diffusers3_lora = "{}.lora.up.weight".format(x)
+        mochi_lora = "{}.lora_B".format(x)
         transformers_lora = "{}.lora_linear_layer.up.weight".format(x)
         A_name = None
 
@@ -80,6 +81,10 @@ def load_lora(lora, to_load):
         elif diffusers3_lora in lora.keys():
             A_name = diffusers3_lora
             B_name = "{}.lora.down.weight".format(x)
+            mid_name = None
+        elif mochi_lora in lora.keys():
+            A_name = mochi_lora
+            B_name = "{}.lora_A".format(x)
             mid_name = None
         elif transformers_lora in lora.keys():
             A_name = transformers_lora
@@ -361,6 +366,12 @@ def model_lora_keys_unet(model, key_map={}):
                 key_map["transformer.{}".format(k[:-len(".weight")])] = to #simpletrainer and probably regular diffusers flux lora format
                 key_map["lycoris_{}".format(k[:-len(".weight")].replace(".", "_"))] = to #simpletrainer lycoris
                 key_map["lora_transformer_{}".format(k[:-len(".weight")].replace(".", "_"))] = to #onetrainer
+
+    if isinstance(model, comfy.model_base.GenmoMochi):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"): #Official Mochi lora format
+                key_lora = k[len("diffusion_model."):-len(".weight")]
+                key_map["{}".format(key_lora)] = k
 
     return key_map
 
