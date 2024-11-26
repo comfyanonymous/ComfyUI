@@ -301,7 +301,8 @@ class VAEDecodeTiled:
     def decode(self, vae, samples, tile_size, overlap=64):
         if tile_size < overlap * 4:
             overlap = tile_size // 4
-        images = vae.decode_tiled(samples["samples"], tile_x=tile_size // 8, tile_y=tile_size // 8, overlap=overlap // 8)
+        compression = vae.spacial_compression_decode()
+        images = vae.decode_tiled(samples["samples"], tile_x=tile_size // compression, tile_y=tile_size // compression, overlap=overlap // compression)
         if len(images.shape) == 5: #Combine batches
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
         return (images, )
