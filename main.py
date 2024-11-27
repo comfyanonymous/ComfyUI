@@ -191,18 +191,6 @@ if __name__ == "__main__":
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
 
-    if args.windows_standalone_build:
-        try:
-            import new_updater
-            new_updater.update_windows_updater()
-        except:
-            pass
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    server = server.PromptServer(loop)
-    q = execution.PromptQueue(server)
-
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
     if os.path.isfile(extra_model_paths_config_path):
         utils.extra_config.load_extra_path_config(extra_model_paths_config_path)
@@ -210,15 +198,6 @@ if __name__ == "__main__":
     if args.extra_model_paths_config:
         for config_path in itertools.chain(*args.extra_model_paths_config):
             utils.extra_config.load_extra_path_config(config_path)
-
-    nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
-
-    cuda_malloc_warning()
-
-    server.add_routes()
-    hijack_progress(server)
-
-    threading.Thread(target=prompt_worker, daemon=True, args=(q, server,)).start()
 
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
@@ -241,6 +220,27 @@ if __name__ == "__main__":
         user_dir = os.path.abspath(args.user_directory)
         logging.info(f"Setting user directory to: {user_dir}")
         folder_paths.set_user_directory(user_dir)
+
+    if args.windows_standalone_build:
+        try:
+            import new_updater
+            new_updater.update_windows_updater()
+        except:
+            pass
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    server = server.PromptServer(loop)
+    q = execution.PromptQueue(server)
+
+    nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
+
+    cuda_malloc_warning()
+
+    server.add_routes()
+    hijack_progress(server)
+
+    threading.Thread(target=prompt_worker, daemon=True, args=(q, server,)).start()
 
     if args.quick_test_for_ci:
         exit(0)
