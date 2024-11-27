@@ -712,7 +712,13 @@ class Flux(BaseModel):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.flux.model.Flux)
 
     def concat_cond(self, **kwargs):
-        num_channels = self.diffusion_model.img_in.weight.shape[1] // (self.diffusion_model.patch_size * self.diffusion_model.patch_size)
+        try:
+            #Handle Flux control loras dynamically changing the img_in weight.
+            num_channels = self.diffusion_model.img_in.weight.shape[1] // (self.diffusion_model.patch_size * self.diffusion_model.patch_size)
+        except:
+            #Some cases like tensorrt might not have the weights accessible
+            num_channels = self.model_config.unet_config["in_channels"]
+
         out_channels = self.model_config.unet_config["out_channels"]
 
         if num_channels <= out_channels:
