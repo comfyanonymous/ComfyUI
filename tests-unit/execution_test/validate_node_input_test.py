@@ -1,5 +1,5 @@
 import pytest
-from execution import validate_node_input
+from comfy_execution.validation import validate_node_input
 
 
 def test_exact_match():
