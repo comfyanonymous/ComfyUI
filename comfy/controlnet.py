@@ -477,7 +477,6 @@ def load_controlnet_sd35(sd, model_options={}):
     canny_cnet = control_type == 1
     depth_cnet = control_type == 2
 
-    print(control_type, canny_cnet, depth_cnet)
     new_sd = {}
     for k in comfy.utils.MMDIT_MAP_BASIC:
         if k[1] in sd:
