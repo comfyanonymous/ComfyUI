@@ -9,8 +9,8 @@ on:
         type: string
         default: "124"
 
-      python_minor:
-        description: 'python minor version'
+      python_mega:
+        description: 'python major version'
         required: true
         type: string
         default: "12"
@@ -19,7 +19,7 @@ on:
         description: 'python patch version'
         required: true
         type: string
-        default: "4"
+        default: "47"
 #  push:
 #    branches:
 #      - master
