@@ -235,6 +235,16 @@ class PromptServer():
             files = folder_paths.get_filename_list(folder)
             return web.json_response(files)
 
+        @routes.get("/styles")
+        async def get_styles(request):
+            styles = list()
+            for name, dir in nodes.EXTENSION_STYLE_DIRS.items():
+                files = glob.glob(os.path.join(glob.escape(dir), '**/*.css'), recursive=True)
+                styles.extend(list(map(lambda f: "/styles/" + urllib.parse.quote(
+                    name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
+
+            return web.json_response(styles)
+
         @routes.get("/extensions")
         async def get_extensions(request):
             files = glob.glob(os.path.join(
@@ -697,6 +707,11 @@ class PromptServer():
                 api_routes.route(route.method, "/api" + route.path)(route.handler, **route.kwargs)
         self.app.add_routes(api_routes)
         self.app.add_routes(self.routes)
+
+        for name, dir in nodes.EXTENSION_STYLE_DIRS.items():
+            self.app.add_routes([
+                web.static('/styles/' + urllib.parse.quote(name), dir, follow_symlinks=True),
+            ])
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([

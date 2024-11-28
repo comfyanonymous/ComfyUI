@@ -1984,6 +1984,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 
 EXTENSION_WEB_DIRS = {}
+EXTENSION_STYLE_DIRS = {}
 
 
 def get_module_name(module_path: str) -> str:
@@ -2025,6 +2026,11 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
         module = importlib.util.module_from_spec(module_spec)
         sys.modules[module_name] = module
         module_spec.loader.exec_module(module)
+
+        if hasattr(module, "STYLE_DIRECTORY") and getattr(module, "STYLE_DIRECTORY") is not None:
+            style_dir = os.path.abspath(os.path.join(module_dir, getattr(module, "STYLE_DIRECTORY")))
+            if os.path.isdir(style_dir):
+                EXTENSION_STYLE_DIRS[module_name] = style_dir
 
         if hasattr(module, "WEB_DIRECTORY") and getattr(module, "WEB_DIRECTORY") is not None:
             web_dir = os.path.abspath(os.path.join(module_dir, getattr(module, "WEB_DIRECTORY")))
