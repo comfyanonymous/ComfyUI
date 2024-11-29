@@ -8,12 +8,12 @@ from folder_paths import map_legacy, filter_files_extensions
 
 class ModelFileManager:
     def __init__(self) -> None:
-        self.cache: dict[str, tuple[list[dict], float, float]] = {}
+        self.cache: dict[str, tuple[list[dict], dict[str, float], float]] = {}
 
-    def get_cache(self, key: str, default=None):
+    def get_cache(self, key: str, default=None) -> tuple[list[dict], dict[str, float], float] | None:
         return self.cache.get(key, default)
 
-    def set_cache(self, key: str, value: tuple[list[dict], float, float]):
+    def set_cache(self, key: str, value: tuple[list[dict], dict[str, float], float]):
         self.cache[key] = value
 
     def clear_cache(self):
@@ -72,23 +72,30 @@ class ModelFileManager:
     def cache_model_file_list_(self, folder: str):
         model_file_list_cache = self.get_cache(folder)
 
-        if model_file_list_cache is not None:
-            if not os.path.isdir(folder):
+        if model_file_list_cache is None:
+            return None
+        if not os.path.isdir(folder):
+            return None
+        if os.path.getmtime(folder) != model_file_list_cache[1]:
+            return None
+        for x in model_file_list_cache[1]:
+            time_modified = model_file_list_cache[1][x]
+            folder = x
+            if os.path.getmtime(folder) != time_modified:
                 return None
-            if os.path.getmtime(folder) != model_file_list_cache[1]:
-                return None
-            return model_file_list_cache
-        return None
 
-    def recursive_search_models_(self, directory: str, pathIndex: int) -> tuple[list[str], float, float]:
+        return model_file_list_cache
+
+    def recursive_search_models_(self, directory: str, pathIndex: int) -> tuple[list[str], dict[str, float], float]:
         if not os.path.isdir(directory):
-            return [], 0, time.perf_counter()
+            return [], {}, time.perf_counter()
 
         excluded_dir_names = [".git"]
         # TODO use settings
         include_hidden_files = False
 
         result: list[str] = []
+        dirs: dict[str, float] = {}
 
         for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
             subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]
@@ -106,7 +113,15 @@ class ModelFileManager:
                     logging.warning(f"Warning: Unable to access {file_name}. Skipping this file.")
                     continue
 
-        return [{"name": f, "pathIndex": pathIndex} for f in result], os.path.getmtime(directory), time.perf_counter()
+            for d in subdirs:
+                path: str = os.path.join(dirpath, d)
+                try:
+                    dirs[path] = os.path.getmtime(path)
+                except FileNotFoundError:
+                    logging.warning(f"Warning: Unable to access {path}. Skipping this path.")
+                    continue
+
+        return [{"name": f, "pathIndex": pathIndex} for f in result], dirs, time.perf_counter()
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.clear_cache()
