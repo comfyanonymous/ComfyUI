@@ -971,15 +971,19 @@ class CLIPVisionEncode:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_vision": ("CLIP_VISION",),
-                              "image": ("IMAGE",)
+                              "image": ("IMAGE",),
+                              "crop": (["center", "none"],)
                              }}
     RETURN_TYPES = ("CLIP_VISION_OUTPUT",)
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
 
-    def encode(self, clip_vision, image):
-        output = clip_vision.encode_image(image)
+    def encode(self, clip_vision, image, crop):
+        crop_image = True
+        if crop != "center":
+            crop_image = False
+        output = clip_vision.encode_image(image, crop=crop_image)
         return (output,)
 
 class StyleModelLoader:
