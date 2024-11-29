@@ -2,8 +2,11 @@ import os
 import time
 import logging
 import folder_paths
+import glob
 from aiohttp import web
-from folder_paths import map_legacy, filter_files_extensions
+from PIL import Image
+from io import BytesIO
+from folder_paths import map_legacy, filter_files_extensions, filter_files_content_types
 
 
 class ModelFileManager:
@@ -54,6 +57,33 @@ class ModelFileManager:
                 return web.Response(status=404)
             files = self.get_model_file_list(folder)
             return web.json_response(files)
+
+        @routes.get("/experiment/models/preview/{folder}/{path_index}/{filename:.*}")
+        async def get_model_preview(request):
+            folder_name = request.match_info.get("folder", None)
+            path_index = int(request.match_info.get("path_index", None))
+            filename = request.match_info.get("filename", None)
+
+            if not folder_name in folder_paths.folder_names_and_paths:
+                return web.Response(status=404)
+
+            folders = folder_paths.folder_names_and_paths[folder_name]
+            folder = folders[0][path_index]
+            full_filename = os.path.join(folder, filename)
+
+            preview_files = self.get_model_previews(full_filename)
+            default_preview_file = preview_files[0] if len(preview_files) > 0 else None
+            if default_preview_file is None or not os.path.isfile(default_preview_file):
+                return web.Response(status=404)
+
+            try:
+                with Image.open(default_preview_file) as img:
+                    img_bytes = BytesIO()
+                    img.save(img_bytes, format="WEBP")
+                    img_bytes.seek(0)
+                    return web.Response(body=img_bytes.getvalue(), content_type="image/webp")
+            except:
+                return web.Response(status=404)
 
     def get_model_file_list(self, folder_name: str):
         folder_name = map_legacy(folder_name)
@@ -124,6 +154,26 @@ class ModelFileManager:
                     continue
 
         return [{"name": f, "pathIndex": pathIndex} for f in result], dirs, time.perf_counter()
+
+    def get_model_previews(self, filepath: str) -> list[str]:
+        dirname = os.path.dirname(filepath)
+
+        if not os.path.exists(dirname):
+            return []
+
+        basename = os.path.splitext(filepath)[0]
+        match_files = glob.glob(f"{basename}.*", recursive=False)
+        image_files = filter_files_content_types(match_files, "image")
+
+        result: list[str] = []
+
+        for filename in image_files:
+            _basename = os.path.splitext(filename)[0]
+            if _basename == basename:
+                result.append(filename)
+            if _basename == f"{basename}.preview":
+                result.append(filename)
+        return result
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.clear_cache()
