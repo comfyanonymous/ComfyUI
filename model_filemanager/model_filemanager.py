@@ -65,7 +65,7 @@ class ModelFileManager:
             if out is None:
                 out = self.recursive_search_models_(folder, index)
                 self.set_cache(folder, out)
-                output_list.extend(out[0])
+            output_list.extend(out[0])
 
         return output_list
 
