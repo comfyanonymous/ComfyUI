@@ -16,6 +16,8 @@ load_dotenv()
 
 amqp_addr = os.getenv('AMQP_ADDR') or 'amqp://api:gacdownatravKekmy9@51.8.120.154:5672/dev'
 
+logging.getLogger().setLevel(logging.INFO)
+
 from enum import Enum
 
 class QueueProgressKind(Enum):
@@ -83,8 +85,8 @@ class MemedeckWorker:
         
         # Start the process_job_queue task **after** prompt_queue is set
         self.loop.create_task(self.process_job_queue())
-        
         parameters = pika.URLParameters(self.amqp_url)
+
         logging.getLogger('pika').setLevel(logging.WARNING) # suppress all logs from pika
         self.connection = pika.SelectConnection(parameters, on_open_callback=self.on_connection_open)
 
@@ -113,7 +115,11 @@ class MemedeckWorker:
         # Only consume one message at a time
         self.channel.basic_qos(prefetch_size=0, prefetch_count=1)
         # Declare the queue and set the callback
-        self.channel.queue_declare(queue=self.queue_name, durable=True, callback=self.on_queue_declared)
+        self.channel.queue_declare(
+            queue=self.queue_name, 
+            durable=True, 
+            callback=self.on_queue_declared
+        )
 
     def on_queue_declared(self, frame):
         self.channel.basic_consume(queue=self.queue_name, on_message_callback=self.on_message_received)
@@ -151,21 +157,36 @@ class MemedeckWorker:
             "outputs_to_execute": outputs_to_execute,
             "client_id": "memedeck-1",
             "is_memedeck": True,
-            "end_node_id": None,
+            "end_node_id": "130" if self.training_only else None,
             "ws_id": payload["source_ws_id"],
             "context": payload["req_ctx"] if "req_ctx" in payload else {},
             "current_node": None,
             "current_progress": 0,
             "delivery_tag": method.delivery_tag,
             "task_status": "waiting",
+            # based on workflow:flux_training_v1
+            "training_loop": {
+                "4": 0.1, # loop 1 start
+                "9": 0.25, # loop 1 end
+                "44": 0.25, # loop 2 start
+                "46": 0.5, # loop 2 end
+                "59": 0.5, # loop 3 start
+                "61": 0.75, # loop 3 end
+                "60": 0.75, # loop 4 start
+                "62": 1.0, # loop 4 end
+            },
+            "training_status": {
+                "4": "loop-1",
+                "44": "loop-2",
+                "59": "loop-3",
+                "60": "loop-4",
+            },
+            "training_filename": payload['filename'] if 'filename' in payload else None
         }
 
         # Find the end_node_id
         for node in prompt:
             if isinstance(prompt[node], dict) and prompt[node].get("class_type") == "SaveImageWebsocket":
-                task_info['end_node_id'] = node
-                break
-            if self.training_only and isinstance(prompt[node], dict) and prompt[node].get("class_type") == "FluxTrainEnd":
                 task_info['end_node_id'] = node
                 break
 
@@ -256,7 +277,7 @@ class MemedeckWorker:
             return
         
         if task['workflow'] == 'training':
-            return self.handle_training_send(event, task, sid)
+            return await self.handle_training_send(event=event, task=task, sid=sid, data=data)
         
         
         # this logic is for generation and faceswap (todo move to separate function)
@@ -315,12 +336,33 @@ class MemedeckWorker:
             # Update the task in tasks_by_ws_id
             self.tasks_by_ws_id[sid] = task
             
-    def handle_training_send(self, event, task, sid):
+    async def handle_training_send(self, event, task, sid, data):
+        # if event == "progress":
+        #     self.logger.info(f"[memedeck]: training progress: {data}")
+        if event == "executing":
+
+            training_progress = task['training_loop'][data['node']] if data['node'] in task['training_loop'] else None
+            status = task['training_status'][data['node']] if data['node'] in task['training_status'] else None
+
+            if training_progress is not None:
+                await self.send_to_api({
+                    "ws_id": sid,
+                    "prompt_id": data['prompt_id'],
+                    "progress": training_progress,
+                    "status": status
+                })
 
         if event == "executed":
-            if task['current_node'] == task['end_node_id']:
-                self.logger.info(f"[memedeck]: training completed for {sid}")
+            if data['node'] == task['end_node_id']:
+                await self.send_to_api({
+                    "ws_id": sid,
+                    "progress": 1.0,
+                    "status": "completed",
+                    "filename": task['training_filename']
+                })
+                # training task is done
                 del self.tasks_by_ws_id[sid]
+               
 
     async def send_preview(self, image_data, sid=None, progress=None, context=None, workflow=None):
         if sid is None:
