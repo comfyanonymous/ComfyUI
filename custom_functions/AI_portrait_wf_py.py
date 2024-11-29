@@ -1,5 +1,6 @@
 import os
 import random
+import numpy as np
 import sys
 from typing import Sequence, Mapping, Any, Union
 import torch
@@ -86,7 +87,7 @@ def add_extra_model_paths() -> None:
 
 
 add_comfyui_directory_to_sys_path()
-add_extra_model_paths()
+# add_extra_model_paths()
 
 
 def import_custom_nodes() -> None:
@@ -115,7 +116,7 @@ def import_custom_nodes() -> None:
 from nodes import LoadImage, NODE_CLASS_MAPPINGS
 
 
-def ai_portrait_infer(image_path):
+def ai_portrait_infer(image_path, abs_path=True, is_ndarray=False):
     import_custom_nodes()
     with torch.inference_mode():
         preprocbuildpipe = NODE_CLASS_MAPPINGS["PreprocBuildPipe"]()
@@ -127,7 +128,7 @@ def ai_portrait_infer(image_path):
         )
 
         loadimage = LoadImage()
-        loadimage_24 = loadimage.load_image(image=image_path)
+        loadimage_24 = loadimage.load_image(image=image_path, abs_path=abs_path, is_ndarray=is_ndarray)
 
         facewarppipebuilder = NODE_CLASS_MAPPINGS["FaceWarpPipeBuilder"]()
         facewarppipebuilder_31 = facewarppipebuilder.load_models(
@@ -300,13 +301,14 @@ def ai_portrait_infer(image_path):
             conditions=get_value_at_index(preprocgetconds_23, 0),
             src_img=get_value_at_index(faceswapmethod_53, 0),
         )
-        
-        return final_img
+        outimg = get_value_at_index(final_img, 0) * 255.
+        return outimg.cpu().numpy().astype(np.uint8)
             
-
+from PIL import Image
 import cv2
 if __name__ == "__main__":
     img_path = '/home/user/works/projs/WebServer/distributed-server-node/submodules/VisualForge/ComfyUI/input/portraitInput.jpg'
+    image = np.array(Image.open(img_path))[..., :3]
+    final_img = ai_portrait_infer(image, is_ndarray=True)
     
-    final_img = ai_portrait_infer(img_path)
     cv2.imwrite('fuckaigc.png', final_img)
