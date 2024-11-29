@@ -61,6 +61,8 @@ class ModelFileManager:
         output_list: list[dict] = []
 
         for index, folder in enumerate(folders[0]):
+            if not os.path.isdir(folder):
+                continue
             out = self.cache_model_file_list_(folder)
             if out is None:
                 out = self.recursive_search_models_(folder, index)
