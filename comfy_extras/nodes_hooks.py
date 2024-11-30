@@ -34,6 +34,7 @@ class PairConditioningSetProperties:
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING")
     RETURN_NAMES = ("positive", "negative")
     CATEGORY = "advanced/hooks/cond pair"
@@ -68,6 +69,7 @@ class PairConditioningSetPropertiesAndCombine:
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING")
     RETURN_NAMES = ("positive", "negative")
     CATEGORY = "advanced/hooks/cond pair"
@@ -99,6 +101,7 @@ class ConditioningSetProperties:
             }
         }
 
+    EXPERIMENTAL = True
     RETURN_TYPES = ("CONDITIONING",)
     CATEGORY = "advanced/hooks/cond single"
     FUNCTION = "set_properties"
@@ -130,6 +133,7 @@ class ConditioningSetPropertiesAndCombine:
             }
         }
 
+    EXPERIMENTAL = True
     RETURN_TYPES = ("CONDITIONING",)
     CATEGORY = "advanced/hooks/cond single"
     FUNCTION = "set_properties"
@@ -156,6 +160,7 @@ class PairConditioningCombine:
             },
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING")
     RETURN_NAMES = ("positive", "negative")
     CATEGORY = "advanced/hooks/cond pair"
@@ -182,6 +187,7 @@ class PairConditioningSetDefaultAndCombine:
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING")
     RETURN_NAMES = ("positive", "negative")
     CATEGORY = "advanced/hooks/cond pair"
@@ -208,6 +214,7 @@ class ConditioningSetDefaultAndCombine:
             }
         }
 
+    EXPERIMENTAL = True
     RETURN_TYPES = ("CONDITIONING",)
     CATEGORY = "advanced/hooks/cond single"
     FUNCTION = "set_default_and_combine"
@@ -234,6 +241,7 @@ class SetClipHooks:
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("CLIP",)
     CATEGORY = "advanced/hooks/clip"
     FUNCTION = "apply_hooks"
@@ -262,6 +270,7 @@ class ConditioningTimestepsRange:
             },
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("TIMESTEPS_RANGE", "TIMESTEPS_RANGE", "TIMESTEPS_RANGE")
     RETURN_NAMES = ("TIMESTEPS_RANGE", "BEFORE_RANGE", "AFTER_RANGE")
     CATEGORY = "advanced/hooks"
@@ -295,6 +304,7 @@ class CreateHookLora:
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("HOOKS",)
     CATEGORY = "advanced/hooks/create"
     FUNCTION = "create_hook"
@@ -339,6 +349,7 @@ class CreateHookLoraModelOnly(CreateHookLora):
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("HOOKS",)
     CATEGORY = "advanced/hooks/create"
     FUNCTION = "create_hook_model_only"
@@ -368,6 +379,7 @@ class CreateHookModelAsLora:
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("HOOKS",)
     CATEGORY = "advanced/hooks/create"
     FUNCTION = "create_hook"
@@ -415,6 +427,7 @@ class CreateHookModelAsLoraModelOnly(CreateHookModelAsLora):
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("HOOKS",)
     CATEGORY = "advanced/hooks/create"
     FUNCTION = "create_hook_model_only"
@@ -443,6 +456,7 @@ class SetHookKeyframes:
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("HOOKS",)
     CATEGORY = "advanced/hooks/scheduling"
     FUNCTION = "set_hook_keyframes"
@@ -468,6 +482,7 @@ class CreateHookKeyframe:
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("HOOK_KEYFRAMES",)
     RETURN_NAMES = ("HOOK_KF",)
     CATEGORY = "advanced/hooks/scheduling"
@@ -498,6 +513,7 @@ class CreateHookKeyframesFromFloats:
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("HOOK_KEYFRAMES",)
     RETURN_NAMES = ("HOOK_KF",)
     CATEGORY = "advanced/hooks/scheduling"
@@ -542,6 +558,7 @@ class SetModelHooksOnCond:
             },
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("CONDITIONING",)
     CATEGORY = "advanced/hooks/manual"
     FUNCTION = "attach_hook"
@@ -567,6 +584,7 @@ class CombineHooks:
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("HOOKS",)
     CATEGORY = "advanced/hooks/combine"
     FUNCTION = "combine_hooks"
@@ -593,6 +611,7 @@ class CombineHooksFour:
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("HOOKS",)
     CATEGORY = "advanced/hooks/combine"
     FUNCTION = "combine_hooks"
@@ -625,6 +644,7 @@ class CombineHooksEight:
             }
         }
     
+    EXPERIMENTAL = True
     RETURN_TYPES = ("HOOKS",)
     CATEGORY = "advanced/hooks/combine"
     FUNCTION = "combine_hooks"
