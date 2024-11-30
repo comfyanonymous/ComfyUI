@@ -137,8 +137,8 @@ class CLIP:
     def encode_from_tokens_scheduled(self, tokens, unprojected=False, add_dict: dict[str]={}, show_pbar=True):
         all_cond_pooled: list[tuple[torch.Tensor, dict[str]]] = []
         all_hooks = self.patcher.forced_hooks
-        if all_hooks is None:
-            # if no hooks, do unscheduled encode_from_tokens and perform add_dict
+        if all_hooks is None or not self.use_clip_schedule:
+            # if no hooks or shouldn't use clip schedule, do unscheduled encode_from_tokens and perform add_dict
             return_pooled = "unprojected" if unprojected else True
             pooled_dict = self.encode_from_tokens(tokens, return_pooled=return_pooled, return_dict=True)
             cond = pooled_dict.pop("cond")
