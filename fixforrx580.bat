@@ -1,5 +1,14 @@
 @echo off
 title Fix for RX480 - 580 and variants
+
+rem Activating venv to downgrade the proper torch installation
+Set "VIRTUAL_ENV=venv"
+If Not Exist "%VIRTUAL_ENV%\Scripts\activate.bat" Exit /B 1
+
+echo Virtual enviroment activation
+Call "%VIRTUAL_ENV%\Scripts\activate.bat"
+
+
 cls
 pip uninstall torch torchvision torchaudio -y
 pip install torch==2.2.1 torchvision==0.17.1 torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu118
