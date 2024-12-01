@@ -1,4 +1,5 @@
 import os
+import gc
 import random
 import numpy as np
 import sys
@@ -116,8 +117,7 @@ def import_custom_nodes() -> None:
 
 from nodes import LoadImage, NODE_CLASS_MAPPINGS
 
-
-def ai_portrait_infer(image_path, abs_path=True, is_ndarray=False):
+def init_portrait_pipe():
     import_custom_nodes()
     with torch.inference_mode():
         preprocbuildpipe = NODE_CLASS_MAPPINGS["PreprocBuildPipe"]()
@@ -127,9 +127,12 @@ def ai_portrait_infer(image_path, abs_path=True, is_ndarray=False):
             wd14_cgpath="wd14_tagger",
             lut_path="lut",
         )
-
-        loadimage = LoadImage()
-        loadimage_24 = loadimage.load_image(image=image_path, abs_path=abs_path, is_ndarray=is_ndarray)
+        # import debugpy
+        # debugpy.listen(("localhost", 5698))  # 更换端口
+        # print("Waiting for debugger attach...")
+        # debugpy.wait_for_client()
+        # # 你的实际代码
+        # print("Hello, world!")
 
         facewarppipebuilder = NODE_CLASS_MAPPINGS["FaceWarpPipeBuilder"]()
         facewarppipebuilder_31 = facewarppipebuilder.load_models(
@@ -189,47 +192,73 @@ def ai_portrait_infer(image_path, abs_path=True, is_ndarray=False):
         faceswapdetectpts = NODE_CLASS_MAPPINGS["FaceSwapDetectPts"]()
         faceswapmethod = NODE_CLASS_MAPPINGS["FaceSwapMethod"]()
         enhancemainprocess = NODE_CLASS_MAPPINGS["EnhanceMainProcess"]()
+        
+    return {
+        'preprocbuildpipe_22' : preprocbuildpipe_22,
+        'facewarppipebuilder_31' : facewarppipebuilder_31,
+        'pulidmodelsloader_34' : pulidmodelsloader_34,
+        'ipadapterpipebuilder_43' : ipadapterpipebuilder_43,
+        'enhancebuildpipe_46' : enhancebuildpipe_46,
+        'faceswappipebuilder_51' : faceswappipebuilder_51,
+        'preprocgetconds' : preprocgetconds,
+        'preprocsplitconds' : preprocsplitconds,
+        'facewarpdetectfacesmethod' : facewarpdetectfacesmethod,
+        'facewarpgetfaces3dinfomethod' : facewarpgetfaces3dinfomethod,
+        'facewarpwarp3dfaceimgmaskmethod' : facewarpwarp3dfaceimgmaskmethod,
+        'pulidinferclass' : pulidinferclass,
+        'ipadapterinferclass' : ipadapterinferclass,
+        'faceswapdetectpts' : faceswapdetectpts,
+        'faceswapmethod' : faceswapmethod,
+        'enhancemainprocess' : enhancemainprocess,
+    }
 
+portrait_init_packs = init_portrait_pipe()
+
+def ai_portrait_infer(image_path, abs_path=True, is_ndarray=False):
+    # import_custom_nodes()
+    with torch.inference_mode():
+        loadimage = LoadImage()
+        loadimage_24 = loadimage.load_image(image=image_path, abs_path=abs_path, is_ndarray=is_ndarray)
         # for q in range(10):
-        preprocgetconds_23 = preprocgetconds.prepare_conditions(
+        preprocgetconds_23 = portrait_init_packs['preprocgetconds'].prepare_conditions(
             style="FORMAL",
             gender="MALE",
             is_child=False,
-            model=get_value_at_index(preprocbuildpipe_22, 0),
+            model=get_value_at_index(portrait_init_packs['preprocbuildpipe_22'], 0),
             src_img=get_value_at_index(loadimage_24, 0),
         )
 
-        preprocsplitconds_27 = preprocsplitconds.split_conditions(
+        preprocsplitconds_27 = portrait_init_packs['preprocsplitconds'].split_conditions(
             pipe_conditions=get_value_at_index(preprocgetconds_23, 0)
         )
 
-        facewarpdetectfacesmethod_33 = facewarpdetectfacesmethod.detect_faces(
-            model=get_value_at_index(facewarppipebuilder_31, 0),
+        facewarpdetectfacesmethod_33 = portrait_init_packs['facewarpdetectfacesmethod'].detect_faces(
+            model=get_value_at_index(portrait_init_packs['facewarppipebuilder_31'], 0),
             image=get_value_at_index(preprocsplitconds_27, 0),
         )
 
         facewarpgetfaces3dinfomethod_32 = (
-            facewarpgetfaces3dinfomethod.get_faces_3dinfo(
-                model=get_value_at_index(facewarppipebuilder_31, 0),
+            portrait_init_packs['facewarpgetfaces3dinfomethod'].get_faces_3dinfo(
+                model=get_value_at_index(portrait_init_packs['facewarppipebuilder_31'], 0),
                 image=get_value_at_index(preprocsplitconds_27, 0),
                 faces=get_value_at_index(facewarpdetectfacesmethod_33, 0),
             )
         )
 
         facewarpwarp3dfaceimgmaskmethod_36 = (
-            facewarpwarp3dfaceimgmaskmethod.warp_3d_face(
-                model=get_value_at_index(facewarppipebuilder_31, 0),
+            portrait_init_packs['facewarpwarp3dfaceimgmaskmethod'].warp_3d_face(
+                model=get_value_at_index(portrait_init_packs['facewarppipebuilder_31'], 0),
                 user_dict=get_value_at_index(facewarpgetfaces3dinfomethod_32, 0),
                 template_image=get_value_at_index(preprocsplitconds_27, 3),
                 template_mask_img=get_value_at_index(preprocsplitconds_27, 11),
             )
         )
 
-        pulidinferclass_35 = pulidinferclass.pulid_infer(
+        pulidinferclass_35 = portrait_init_packs['pulidinferclass'].pulid_infer(
             prompt=get_value_at_index(preprocsplitconds_27, 1),
             negative_prompt=get_value_at_index(preprocsplitconds_27, 2),
             strength=0.7,
-            model=get_value_at_index(pulidmodelsloader_34, 0),
+            model=get_value_at_index(portrait_init_packs['pulidmodelsloader_34'], 0),
             template_image=get_value_at_index(
                 facewarpwarp3dfaceimgmaskmethod_36, 0
             ),
@@ -239,8 +268,8 @@ def ai_portrait_infer(image_path, abs_path=True, is_ndarray=False):
         )
 
         facewarpwarp3dfaceimgmaskmethod_41 = (
-            facewarpwarp3dfaceimgmaskmethod.warp_3d_face(
-                model=get_value_at_index(facewarppipebuilder_31, 0),
+            portrait_init_packs['facewarpwarp3dfaceimgmaskmethod'].warp_3d_face(
+                model=get_value_at_index(portrait_init_packs['facewarppipebuilder_31'], 0),
                 user_dict=get_value_at_index(facewarpgetfaces3dinfomethod_32, 0),
                 template_image=get_value_at_index(pulidinferclass_35, 0),
                 template_mask_img=get_value_at_index(
@@ -249,45 +278,45 @@ def ai_portrait_infer(image_path, abs_path=True, is_ndarray=False):
             )
         )
 
-        ipadapterinferclass_44 = ipadapterinferclass.ipadapt_process(
+        ipadapterinferclass_44 = portrait_init_packs['ipadapterinferclass'].ipadapt_process(
             prompt=get_value_at_index(preprocsplitconds_27, 1),
             negative_prompt=get_value_at_index(preprocsplitconds_27, 2),
             seed=random.randint(1, 2**64),
             strength=0.3,
-            model=get_value_at_index(ipadapterpipebuilder_43, 0),
+            model=get_value_at_index(portrait_init_packs['ipadapterpipebuilder_43'], 0),
             template=get_value_at_index(facewarpwarp3dfaceimgmaskmethod_41, 0),
             mask=get_value_at_index(facewarpwarp3dfaceimgmaskmethod_41, 1),
             croped_face=get_value_at_index(pulidinferclass_35, 1),
         )
 
-        faceswapdetectpts_56 = faceswapdetectpts.detect_face_pts(
+        faceswapdetectpts_56 = portrait_init_packs['faceswapdetectpts'].detect_face_pts(
             ptstype="5",
-            model=get_value_at_index(faceswappipebuilder_51, 0),
+            model=get_value_at_index(portrait_init_packs['faceswappipebuilder_51'], 0),
             src_image=get_value_at_index(preprocsplitconds_27, 0),
             src_faces=get_value_at_index(facewarpdetectfacesmethod_33, 0),
         )
 
-        facewarpdetectfacesmethod_55 = facewarpdetectfacesmethod.detect_faces(
-            model=get_value_at_index(facewarppipebuilder_31, 0),
+        facewarpdetectfacesmethod_55 = portrait_init_packs['facewarpdetectfacesmethod'].detect_faces(
+            model=get_value_at_index(portrait_init_packs['facewarppipebuilder_31'], 0),
             image=get_value_at_index(ipadapterinferclass_44, 0),
         )
 
-        faceswapdetectpts_54 = faceswapdetectpts.detect_face_pts(
+        faceswapdetectpts_54 = portrait_init_packs['faceswapdetectpts'].detect_face_pts(
             ptstype="5",
-            model=get_value_at_index(faceswappipebuilder_51, 0),
+            model=get_value_at_index(portrait_init_packs['faceswappipebuilder_51'], 0),
             src_image=get_value_at_index(ipadapterinferclass_44, 0),
             src_faces=get_value_at_index(facewarpdetectfacesmethod_55, 0),
         )
 
-        faceswapdetectpts_52 = faceswapdetectpts.detect_face_pts(
+        faceswapdetectpts_52 = portrait_init_packs['faceswapdetectpts'].detect_face_pts(
             ptstype="256",
-            model=get_value_at_index(faceswappipebuilder_51, 0),
+            model=get_value_at_index(portrait_init_packs['faceswappipebuilder_51'], 0),
             src_image=get_value_at_index(ipadapterinferclass_44, 0),
             src_faces=get_value_at_index(facewarpdetectfacesmethod_55, 0),
         )
 
-        faceswapmethod_53 = faceswapmethod.swap_face(
-            model=get_value_at_index(faceswappipebuilder_51, 0),
+        faceswapmethod_53 = portrait_init_packs['faceswapmethod'].swap_face(
+            model=get_value_at_index(portrait_init_packs['faceswappipebuilder_51'], 0),
             src_image=get_value_at_index(preprocsplitconds_27, 0),
             two_stage_image=get_value_at_index(ipadapterinferclass_44, 0),
             source_5pts=get_value_at_index(faceswapdetectpts_56, 0),
@@ -295,13 +324,17 @@ def ai_portrait_infer(image_path, abs_path=True, is_ndarray=False):
             target_256pts=get_value_at_index(faceswapdetectpts_52, 0),
         )
 
-        _, _, final_img = enhancemainprocess.enhance_process(
+        _, _, final_img = portrait_init_packs['enhancemainprocess'].enhance_process(
             style="FORMAL",
             is_front="False",
-            model=get_value_at_index(enhancebuildpipe_46, 0),
+            model=get_value_at_index(portrait_init_packs['enhancebuildpipe_46'], 0),
             conditions=get_value_at_index(preprocgetconds_23, 0),
             src_img=get_value_at_index(faceswapmethod_53, 0),
         )
+        
+        gc.collect()
+        torch.cuda.empty_cache()
+        
         outimg = get_value_at_index(final_img, 0) * 255.
         return outimg.cpu().numpy().astype(np.uint8)
             
@@ -310,6 +343,7 @@ import cv2
 if __name__ == "__main__":
     img_path = '/home/user/works/projs/WebServer/distributed-server-node/submodules/VisualForge/ComfyUI/input/portraitInput.jpg'
     image = np.array(Image.open(img_path))[..., :3]
-    final_img = ai_portrait_infer(image, is_ndarray=True)
+    for i in range(10):
+        final_img = ai_portrait_infer(image, is_ndarray=True)
     
     cv2.imwrite('fuckaigc.png', final_img)
