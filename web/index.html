@@ -8,6 +8,47 @@
     <link rel="stylesheet" type="text/css" href="materialdesignicons.min.css" />
     <script type="module" crossorigin src="./assets/index-CoOvI8ZH.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-U_o182q3.css">
+    <script>
+      // Read the localstorage for "workflow" field
+			let storedApiJson = null;
+			// Function to check if any change has been made to the stored workflow
+			function checkForChanges() {
+				app.graphToPrompt().then(p=>{
+					if(storedApiJson === null) {
+						storedApiJson = JSON.stringify(p.output, null, 2);
+					}
+					const apiJson = JSON.stringify(p.output, null, 2);
+					if (apiJson !== storedApiJson) {
+						// Send a message to the parent window if change is detected
+						window.parent.postMessage({ type: 'workflowChanged', data: {currentApiJson: apiJson, storedApiJson: storedApiJson} }, '*');
+						storedApiJson = apiJson; // Update the stored workflow
+					}
+				});
+			}
+			// Call the checkForChanges function every second
+			setInterval(checkForChanges, 1000);
+
+			window.addEventListener('message', (event) => {
+        console.log(app, window);
+				if (event.data.type === 'promptWorkflow') {
+					const button = document.getElementById('queue-button');
+					if (button) {
+						button.click();
+					}
+				}
+				if (event.data.type === 'loadGraphData') {
+					app.loadGraphData(event.data.data);
+          window.parent.postMessage({ type: 'newWorkflowLoaded', data: event.data.data }, '*');
+				}
+				if (event.data.type === 'saveWorkflow') {
+					app.graphToPrompt().then(p=>{
+						const json = JSON.stringify(p.workflow, null, 2);
+						const apiJson = JSON.stringify(p.output, null, 2);
+						window.parent.postMessage({ type: 'workflowSaved', data: {normal: json, api: apiJson} }, '*');
+					});
+				}
+			});
+		</script>
   </head>
   <body class="litegraph grid">
     <div id="vue-app"></div>

@@ -2763,7 +2763,7 @@ body {
   text-align: center;
   z-index: 999;
   width: 190px;
-  display: flex;
+  display: none;
   flex-direction: column;
   align-items: center;
   color: var(--descrip-text);
