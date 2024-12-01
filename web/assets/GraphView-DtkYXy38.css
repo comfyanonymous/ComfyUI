@@ -46,7 +46,7 @@
 }
 
 .side-tool-bar-container[data-v-e0812a25] {
-  display: flex;
+  display: none;
   flex-direction: column;
   align-items: center;
 
@@ -249,6 +249,7 @@
   order: 0;
   grid-column: 1/-1;
   max-height: 90vh;
+  display: none;
 }
 .comfyui-menu.dropzone[data-v-d84a704d] {
   background: var(--p-highlight-background);
