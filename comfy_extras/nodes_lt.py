@@ -1,9 +1,11 @@
+import io
 import nodes
 import node_helpers
 import torch
 import comfy.model_management
 import comfy.model_sampling
 import math
+import PIL
 
 class EmptyLTXVLatentVideo:
     @classmethod
@@ -32,7 +34,8 @@ class LTXVImgToVideo:
                              "width": ("INT", {"default": 768, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
                              "height": ("INT", {"default": 512, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
                              "length": ("INT", {"default": 97, "min": 9, "max": nodes.MAX_RESOLUTION, "step": 8}),
-                             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
+                             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
+                             "image_compression": ("INT", {"default": 60, "min": 0, "max": 100, "tooltip": "Quality of the input image compression to use."})}}
 
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
     RETURN_NAMES = ("positive", "negative", "latent")
@@ -40,9 +43,31 @@ class LTXVImgToVideo:
     CATEGORY = "conditioning/video_models"
     FUNCTION = "generate"
 
-    def generate(self, positive, negative, image, vae, width, height, length, batch_size):
+    def compress(self, images: torch.Tensor, quality=60):
+        result = torch.zeros_like(images)
+        for i, image in enumerate(images):
+            tensor = (image * 255).byte().cpu().numpy()
+            image = PIL.Image.fromarray(tensor)
+
+            buffer = io.BytesIO()
+            image.save(buffer, format="JPEG", quality=quality)
+            buffer.seek(0)
+
+            decompressed_image = PIL.Image.open(buffer)
+            decompressed_tensor = torch.tensor(
+                list(decompressed_image.getdata()), dtype=torch.uint8
+            ).view(*decompressed_image.size[::-1], -1)
+
+            decompressed_tensor = decompressed_tensor.unsqueeze(0).float() / 255
+            result[i] = decompressed_tensor
+
+        return result
+
+    def generate(self, positive, negative, image, vae, width, height, length, batch_size, image_compression):
         pixels = comfy.utils.common_upscale(image.movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
         encode_pixels = pixels[:, :, :, :3]
+        if image_compression < 100:
+            encode_pixels = self.compress(encode_pixels)
         t = vae.encode(encode_pixels)
         positive = node_helpers.conditioning_set_values(positive, {"guiding_latent": t})
         negative = node_helpers.conditioning_set_values(negative, {"guiding_latent": t})
