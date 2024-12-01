@@ -228,6 +228,12 @@ Just execute the command below:
 
 ```LISTEN_IP``` - IP address for ComfyUI to listen
 
+### AMD ROCm Tips
+
+You can enable experimental memory efficient attention on pytorch 2.5 in ComfyUI on RDNA3 and potentially other AMD GPUs using this command:
+
+```TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention```
+
 # Notes
 
 Only parts of the graph that have an output with all the correct inputs will be executed.

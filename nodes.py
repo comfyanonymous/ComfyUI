@@ -392,7 +392,7 @@ class InpaintModelConditioning:
 
     CATEGORY = "conditioning/inpaint"
 
-    def encode(self, positive, negative, pixels, vae, mask, noise_mask):
+    def encode(self, positive, negative, pixels, vae, mask, noise_mask=True):
         x = (pixels.shape[1] // 8) * 8
         y = (pixels.shape[2] // 8) * 8
         mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
@@ -971,15 +971,19 @@ class CLIPVisionEncode:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_vision": ("CLIP_VISION",),
-                              "image": ("IMAGE",)
+                              "image": ("IMAGE",),
+                              "crop": (["center", "none"],)
                              }}
     RETURN_TYPES = ("CLIP_VISION_OUTPUT",)
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
 
-    def encode(self, clip_vision, image):
-        output = clip_vision.encode_image(image)
+    def encode(self, clip_vision, image, crop):
+        crop_image = True
+        if crop != "center":
+            crop_image = False
+        output = clip_vision.encode_image(image, crop=crop_image)
         return (output,)
 
 class StyleModelLoader:
@@ -1004,14 +1008,19 @@ class StyleModelApply:
         return {"required": {"conditioning": ("CONDITIONING", ),
                              "style_model": ("STYLE_MODEL", ),
                              "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
+                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.001}),
+                             "strength_type": (["multiply"], ),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_stylemodel"
 
     CATEGORY = "conditioning/style_model"
 
-    def apply_stylemodel(self, clip_vision_output, style_model, conditioning):
+    def apply_stylemodel(self, clip_vision_output, style_model, conditioning, strength, strength_type):
         cond = style_model.get_cond(clip_vision_output).flatten(start_dim=0, end_dim=1).unsqueeze(dim=0)
+        if strength_type == "multiply":
+            cond *= strength
+
         c = []
         for t in conditioning:
             n = [torch.cat((t[0], cond), dim=1), t[1].copy()]
