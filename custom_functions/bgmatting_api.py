@@ -37,7 +37,8 @@ def find_path(name: str, path: str = None) -> str:
     """
     # If no path is given, use the current working directory
     if path is None:
-        path = os.getcwd()
+        # path = os.getcwd()
+        path = os.path.dirname(__file__)
 
     # Check if the current directory contains the name
     if name in os.listdir(path):
