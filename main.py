@@ -7,9 +7,20 @@ import folder_paths
 import time
 from comfy.cli_args import args
 from app.logger import setup_logger
+import itertools
+import utils.extra_config
 
 
 setup_logger(log_level=args.verbose)
+
+def apply_extra_model_paths():
+    extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
+    if os.path.isfile(extra_model_paths_config_path):
+        utils.extra_config.load_extra_path_config(extra_model_paths_config_path)
+
+    if args.extra_model_paths_config:
+        for config_path in itertools.chain(*args.extra_model_paths_config):
+            utils.extra_config.load_extra_path_config(config_path)
 
 
 def execute_prestartup_script():
@@ -52,18 +63,17 @@ def execute_prestartup_script():
             print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
         print()
 
+apply_extra_model_paths()
 execute_prestartup_script()
 
 
 # Main code
 import asyncio
-import itertools
 import shutil
 import threading
 import gc
 
 import logging
-import utils.extra_config
 
 if os.name == "nt":
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
@@ -202,14 +212,6 @@ if __name__ == "__main__":
     asyncio.set_event_loop(loop)
     server = server.PromptServer(loop)
     q = execution.PromptQueue(server)
-
-    extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
-    if os.path.isfile(extra_model_paths_config_path):
-        utils.extra_config.load_extra_path_config(extra_model_paths_config_path)
-
-    if args.extra_model_paths_config:
-        for config_path in itertools.chain(*args.extra_model_paths_config):
-            utils.extra_config.load_extra_path_config(config_path)
 
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
 
