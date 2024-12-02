@@ -18,10 +18,7 @@ class CLIPTextEncodeFlux:
         tokens = clip.tokenize(clip_l)
         tokens["t5xxl"] = clip.tokenize(t5xxl)["t5xxl"]
 
-        output = clip.encode_from_tokens(tokens, return_pooled=True, return_dict=True)
-        cond = output.pop("cond")
-        output["guidance"] = guidance
-        return ([[cond, output]], )
+        return (clip.encode_from_tokens_scheduled(tokens, add_dict={"guidance": guidance}), )
 
 class FluxGuidance:
     @classmethod
