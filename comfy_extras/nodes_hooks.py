@@ -183,7 +183,7 @@ class PairConditioningSetDefaultAndCombine:
                 "negative_DEFAULT": ("CONDITIONING",),
             },
             "optional": {
-                "opt_hooks": ("HOOKS",),
+                "hooks": ("HOOKS",),
             }
         }
     
@@ -194,9 +194,9 @@ class PairConditioningSetDefaultAndCombine:
     FUNCTION = "set_default_and_combine"
 
     def set_default_and_combine(self, positive, negative, positive_DEFAULT, negative_DEFAULT,
-                                opt_hooks: comfy.hooks.HookGroup=None):
+                                hooks: comfy.hooks.HookGroup=None):
         final_positive, final_negative = comfy.hooks.set_default_conds_and_combine(conds=[positive, negative], new_conds=[positive_DEFAULT, negative_DEFAULT],
-                                                                                   hooks=opt_hooks)
+                                                                                   hooks=hooks)
         return (final_positive, final_negative)
     
 class ConditioningSetDefaultAndCombine:
@@ -210,7 +210,7 @@ class ConditioningSetDefaultAndCombine:
                 "cond_DEFAULT": ("CONDITIONING",),
             },
             "optional": {
-                "opt_hooks": ("HOOKS",),
+                "hooks": ("HOOKS",),
             }
         }
 
@@ -220,9 +220,9 @@ class ConditioningSetDefaultAndCombine:
     FUNCTION = "set_default_and_combine"
 
     def set_default_and_combine(self, cond, cond_DEFAULT,
-                           opt_hooks: comfy.hooks.HookGroup=None):
+                                hooks: comfy.hooks.HookGroup=None):
         (final_conditioning,) = comfy.hooks.set_default_conds_and_combine(conds=[cond], new_conds=[cond_DEFAULT],
-                                                                        hooks=opt_hooks)
+                                                                        hooks=hooks)
         return (final_conditioning,)
     
 class SetClipHooks:
