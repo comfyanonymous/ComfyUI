@@ -15,9 +15,7 @@ class CLIPTextEncodeHunyuanDiT:
         tokens = clip.tokenize(bert)
         tokens["mt5xl"] = clip.tokenize(mt5xl)["mt5xl"]
 
-        output = clip.encode_from_tokens(tokens, return_pooled=True, return_dict=True)
-        cond = output.pop("cond")
-        return ([[cond, output]], )
+        return (clip.encode_from_tokens_scheduled(tokens), )
 
 
 NODE_CLASS_MAPPINGS = {
