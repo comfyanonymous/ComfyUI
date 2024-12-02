@@ -283,7 +283,6 @@ class ModelPatcher:
         # hooks
         n.hook_patches = create_hook_patches_clone(self.hook_patches)
         n.hook_patches_backup = create_hook_patches_clone(self.hook_patches_backup)
-        # TODO: do we really need to clone cached_hook_patches/current_hooks?
         for group in self.cached_hook_patches:
             n.cached_hook_patches[group] = {}
             for k in self.cached_hook_patches[group]:
@@ -307,8 +306,6 @@ class ModelPatcher:
         if not self.is_clone(clone):
             return False
 
-        if len(self.hook_patches) > 0:  # TODO: check if this workaround is necessary
-            return False
         if self.current_hooks != clone.current_hooks:
             return False
         if self.forced_hooks != clone.forced_hooks:
