@@ -1,8 +1,10 @@
+from __future__ import annotations
 import torch
 from enum import Enum
 import logging
 
 from comfy import model_management
+from comfy.utils import ProgressBar
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
 from .ldm.cascade.stage_a import StageA
 from .ldm.cascade.stage_c_coder import StageC_coder
@@ -33,6 +35,7 @@ import comfy.text_encoders.lt
 import comfy.model_patcher
 import comfy.lora
 import comfy.lora_convert
+import comfy.hooks
 import comfy.t2i_adapter.adapter
 import comfy.taesd.taesd
 
@@ -98,9 +101,13 @@ class CLIP:
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
+        self.patcher.hook_mode = comfy.hooks.EnumHookMode.MinVram
+        self.patcher.is_clip = True
+        self.apply_hooks_to_conds = None
         if params['device'] == load_device:
             model_management.load_models_gpu([self.patcher], force_full_load=True)
         self.layer_idx = None
+        self.use_clip_schedule = False
         logging.debug("CLIP model load device: {}, offload device: {}, current: {}".format(load_device, offload_device, params['device']))
 
     def clone(self):
@@ -109,6 +116,8 @@ class CLIP:
         n.cond_stage_model = self.cond_stage_model
         n.tokenizer = self.tokenizer
         n.layer_idx = self.layer_idx
+        n.use_clip_schedule = self.use_clip_schedule
+        n.apply_hooks_to_conds = self.apply_hooks_to_conds
         return n
 
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
@@ -119,6 +128,69 @@ class CLIP:
 
     def tokenize(self, text, return_word_ids=False):
         return self.tokenizer.tokenize_with_weights(text, return_word_ids)
+
+    def add_hooks_to_dict(self, pooled_dict: dict[str]):
+        if self.apply_hooks_to_conds:
+            pooled_dict["hooks"] = self.apply_hooks_to_conds
+        return pooled_dict
+
+    def encode_from_tokens_scheduled(self, tokens, unprojected=False, add_dict: dict[str]={}, show_pbar=True):
+        all_cond_pooled: list[tuple[torch.Tensor, dict[str]]] = []
+        all_hooks = self.patcher.forced_hooks
+        if all_hooks is None or not self.use_clip_schedule:
+            # if no hooks or shouldn't use clip schedule, do unscheduled encode_from_tokens and perform add_dict
+            return_pooled = "unprojected" if unprojected else True
+            pooled_dict = self.encode_from_tokens(tokens, return_pooled=return_pooled, return_dict=True)
+            cond = pooled_dict.pop("cond")
+            # add/update any keys with the provided add_dict
+            pooled_dict.update(add_dict)
+            all_cond_pooled.append([cond, pooled_dict])
+        else:
+            scheduled_keyframes = all_hooks.get_hooks_for_clip_schedule()
+
+            self.cond_stage_model.reset_clip_options()
+            if self.layer_idx is not None:
+                self.cond_stage_model.set_clip_options({"layer": self.layer_idx})
+            if unprojected:
+                self.cond_stage_model.set_clip_options({"projected_pooled": False})
+
+            self.load_model()
+            all_hooks.reset()
+            self.patcher.patch_hooks(None)
+            if show_pbar:
+                pbar = ProgressBar(len(scheduled_keyframes))
+
+            for scheduled_opts in scheduled_keyframes:
+                t_range = scheduled_opts[0]
+                # don't bother encoding any conds outside of start_percent and end_percent bounds
+                if "start_percent" in add_dict:
+                    if t_range[1] < add_dict["start_percent"]:
+                        continue
+                if "end_percent" in add_dict:
+                    if t_range[0] > add_dict["end_percent"]:
+                        continue
+                hooks_keyframes = scheduled_opts[1]
+                for hook, keyframe in hooks_keyframes:
+                    hook.hook_keyframe._current_keyframe = keyframe
+                # apply appropriate hooks with values that match new hook_keyframe
+                self.patcher.patch_hooks(all_hooks)
+                # perform encoding as normal
+                o = self.cond_stage_model.encode_token_weights(tokens)
+                cond, pooled = o[:2]
+                pooled_dict = {"pooled_output": pooled}
+                # add clip_start_percent and clip_end_percent in pooled
+                pooled_dict["clip_start_percent"] = t_range[0]
+                pooled_dict["clip_end_percent"] = t_range[1]
+                # add/update any keys with the provided add_dict
+                pooled_dict.update(add_dict)
+                # add hooks stored on clip
+                self.add_hooks_to_dict(pooled_dict)
+                all_cond_pooled.append([cond, pooled_dict])
+                if show_pbar:
+                    pbar.update(1)
+                model_management.throw_exception_if_processing_interrupted()
+            all_hooks.reset()
+        return all_cond_pooled
 
     def encode_from_tokens(self, tokens, return_pooled=False, return_dict=False):
         self.cond_stage_model.reset_clip_options()
@@ -137,6 +209,7 @@ class CLIP:
             if len(o) > 2:
                 for k in o[2]:
                     out[k] = o[2][k]
+            self.add_hooks_to_dict(out)
             return out
 
         if return_pooled:
