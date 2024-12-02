@@ -2061,6 +2061,9 @@ def init_external_custom_nodes():
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
     for custom_node_path in node_paths:
+        if not os.path.isdir(custom_node_path):
+            logging.warning(f"Custom node path {custom_node_path} not found or is not a directory, ignoring")
+            continue
         possible_modules = os.listdir(os.path.realpath(custom_node_path))
         if "__pycache__" in possible_modules:
             possible_modules.remove("__pycache__")
