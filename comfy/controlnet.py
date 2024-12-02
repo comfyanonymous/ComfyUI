@@ -36,10 +36,6 @@ import comfy.cldm.mmdit
 import comfy.ldm.hydit.controlnet
 import comfy.ldm.flux.controlnet
 import comfy.cldm.dit_embedder
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from comfy.hooks import HookGroup
-
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
     current_batch_size = tensor.shape[0]
@@ -82,7 +78,6 @@ class ControlBase:
         self.concat_mask = False
         self.extra_concat_orig = []
         self.extra_concat = None
-        self.extra_hooks: HookGroup = None
         self.preprocess_image = lambda a: a
 
     def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(0.0, 1.0), vae=None, extra_concat=[]):
@@ -120,14 +115,6 @@ class ControlBase:
         if self.previous_controlnet is not None:
             out += self.previous_controlnet.get_models()
         return out
-    
-    def get_extra_hooks(self):
-        out = []
-        if self.extra_hooks is not None:
-            out.append(self.extra_hooks)
-        if self.previous_controlnet is not None:
-            out += self.previous_controlnet.get_extra_hooks()
-        return out
 
     def copy_to(self, c):
         c.cond_hint_original = self.cond_hint_original
@@ -143,7 +130,6 @@ class ControlBase:
         c.strength_type = self.strength_type
         c.concat_mask = self.concat_mask
         c.extra_concat_orig = self.extra_concat_orig.copy()
-        c.extra_hooks = self.extra_hooks.clone() if self.extra_hooks else None
         c.preprocess_image = self.preprocess_image
 
     def inference_memory_requirements(self, dtype):
@@ -214,10 +200,10 @@ class ControlNet(ControlBase):
         self.concat_mask = concat_mask
         self.preprocess_image = preprocess_image
 
-    def get_control(self, x_noisy, t, cond, batched_number, transformer_options):
+    def get_control(self, x_noisy, t, cond, batched_number):
         control_prev = None
         if self.previous_controlnet is not None:
-            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number, transformer_options)
+            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number)
 
         if self.timestep_range is not None:
             if t[0] > self.timestep_range[0] or t[0] < self.timestep_range[1]:
@@ -772,10 +758,10 @@ class T2IAdapter(ControlBase):
         height = math.ceil(height / unshuffle_amount) * unshuffle_amount
         return width, height
 
-    def get_control(self, x_noisy, t, cond, batched_number, transformer_options):
+    def get_control(self, x_noisy, t, cond, batched_number):
         control_prev = None
         if self.previous_controlnet is not None:
-            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number, transformer_options)
+            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number)
 
         if self.timestep_range is not None:
             if t[0] > self.timestep_range[0] or t[0] < self.timestep_range[1]:

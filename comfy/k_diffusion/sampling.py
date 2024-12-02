@@ -317,6 +317,7 @@ def sample_dpm_2_ancestral_RF(model, x, sigmas, extra_args=None, callback=None, 
     s_in = x.new_ones([x.shape[0]])
     for i in trange(len(sigmas) - 1, disable=disable):
         denoised = model(x, sigmas[i] * s_in, **extra_args)
+        sigma_down, sigma_up = get_ancestral_step(sigmas[i], sigmas[i + 1], eta=eta)
         downstep_ratio = 1 + (sigmas[i+1]/sigmas[i] - 1) * eta
         sigma_down = sigmas[i+1] * downstep_ratio
         alpha_ip1 = 1 - sigmas[i+1]

@@ -62,8 +62,9 @@ class CLIPTextEncode:
 
     def encode(self, clip, text):
         tokens = clip.tokenize(text)
-        return (clip.encode_from_tokens_scheduled(tokens), )
-        
+        output = clip.encode_from_tokens(tokens, return_pooled=True, return_dict=True)
+        cond = output.pop("cond")
+        return ([[cond, output]], )
 
 class ConditioningCombine:
     @classmethod
@@ -2148,7 +2149,6 @@ def init_builtin_extra_nodes():
         "nodes_mochi.py",
         "nodes_slg.py",
         "nodes_lt.py",
-        "nodes_hooks.py",
     ]
 
     import_failed = []
