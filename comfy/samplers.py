@@ -162,7 +162,11 @@ def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.H
                 continue
             area: list[int] = cond_obj.area
             if area is not None:
-                default_mults[i][:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]] -= cond_obj.mult
+                curr_default_mult: torch.Tensor = default_mults[i]
+                dims = len(area) // 2
+                for i in range(dims):
+                    curr_default_mult = curr_default_mult.narrow(i + 2, area[i + dims], area[i])
+                curr_default_mult -= cond_obj.mult
             else:
                 default_mults[i] -= cond_obj.mult
     # for each default_mult, ReLU to make negatives=0, and then check for any nonzeros
