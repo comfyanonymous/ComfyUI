@@ -273,9 +273,7 @@ def get_torch_device_name(device):
 
 try:
     torch_device_name = get_torch_device_name(get_torch_device())
-
-
-    
+   
     if "[ZLUDA]" in torch_device_name:
         print(" ")
         print("***----------------------ZLUDA--------------------------***")
@@ -288,6 +286,7 @@ try:
         print("***-----------------------------------------------------***")
     print("  ::  Device:", torch_device_name)
     print(" ")
+
 except:
     print("Could not pick default device.") 
 
