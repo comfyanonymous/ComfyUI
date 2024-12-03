@@ -223,6 +223,20 @@ class PromptServer():
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
 
+        @routes.get("/models")
+        def list_model_types(request):
+            model_types = list(folder_paths.folder_names_and_paths.keys())
+
+            return web.json_response(model_types)
+
+        @routes.get("/models/{folder}")
+        async def get_models(request):
+            folder = request.match_info.get("folder", None)
+            if not folder in folder_paths.folder_names_and_paths:
+                return web.Response(status=404)
+            files = folder_paths.get_filename_list(folder)
+            return web.json_response(files)
+
         @routes.get("/extensions")
         async def get_extensions(request):
             files = glob.glob(os.path.join(
