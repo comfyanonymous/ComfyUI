@@ -1,47 +1,111 @@
-#Rename this to extra_model_paths.yaml and ComfyUI will load it
+# Copy this to extra_model_paths.yaml and ComfyUI will load it, or pass
+# --extra-model-paths-config file.yaml
 
+# Config for ComfyUI
+#
+# In all paths below:
+#    - ~ will expand out to the current user's home directory (typically C:\Users\username on Windows,
+#      /home/username on Linux, /Users/username on MacOS).
+#    - $ENV_VAR will expand out to the value of the environment variable ENV_VAR. However, if
+#      ENV_VAR is not set, the path will be ignored ($ENV_VAR will not expand out to an empty string).
+#    - environment variables are expanded before ~, so ENV_VAR=~/foo will work properly
+#    - if a path beings with @ it is treated as an explicit path, and no base_path will be
+#      prepended to it (but environment variable and ~ expansion still apply)
+#
+comfyui:
+    # If is_default is set to true, all the directories below will be prepended
+    # instead of appended to the default ComfyUI lists.
+    # instead of appending
+    is_default: true
 
-#config for a1111 ui
-#all you have to do is change the base_path to where yours is installed
-a111:
-    base_path: path/to/stable-diffusion-webui/
+    # If base_path is specified, all the directories referenced below will be
+    # relative to this path. For example, if you want to move comfy's models etc
+    # to ~/comfy_data, set base_path to ~/comfy_data
+    #base_path: ~/comfy_data
 
-    checkpoints: models/Stable-diffusion
-    configs: models/Stable-diffusion
-    vae: models/VAE
-    loras: |
-         models/Lora
-         models/LyCORIS
-    upscale_models: |
-                  models/ESRGAN
-                  models/RealESRGAN
-                  models/SwinIR
-    embeddings: embeddings
-    hypernetworks: models/hypernetworks
-    controlnet: models/ControlNet
+    # If base_paths is specified, it's treated as a multiple set of base_paths. Each
+    # path in following entries is appended to each element of base_paths. If base_path is
+    # also present, it will be included as the first element.
+    #
+    # This is useful to be able to easily specify multiple roots -- for example,
+    # you could have one /shared_comfy_data that is a large network mount with
+    # models shared amongst many users/machines, and then ~/local_comfy_data
+    # where you can place models you're locally experimenting with. Specifying
+    #   base_paths: ~/local_comfy_data /shared_comfy_data
+    # will let Comfy search both paths.
+    #
+    #base_paths: |
+    #    $LOCAL_COMFY_ROOT
+    #    $COMFY_ROOT
 
-#config for comfyui
-#your base path should be either an existing comfy install or a central folder where you store all of your models, loras, etc.
+    # The singular models/output/temp/input/user directories can be overriden as well.
+    # These are single paths; they can't be a list. Base path handling still applies, but the
+    # first directory that exists will be used. If none exist, the value isn't touched.
+    #
+    # For example, if base_paths is set to "~/local_comfy_data /shared_comfy_data",
+    # and output_directory is set to "output", Comfy will look for for ~/local_comfy_data/output
+    # first. If it exists, it will be used as the output directory. If models_dir is set to "models",
+    # Comfy will look for ~/local_comfy_data/models -- if that doesn't exist, it will look for
+    # /shared_comfy_data/models next.
 
-#comfyui:
-#     base_path: path/to/comfyui/
-#     # You can use is_default to mark that these folders should be listed first, and used as the default dirs for eg downloads
-#     #is_default: true
-#     checkpoints: models/checkpoints/
-#     clip: models/clip/
-#     clip_vision: models/clip_vision/
-#     configs: models/configs/
-#     controlnet: models/controlnet/
-#     diffusion_models: |
-#                  models/diffusion_models
-#                  models/unet
-#     embeddings: models/embeddings/
-#     loras: models/loras/
-#     upscale_models: models/upscale_models/
-#     vae: models/vae/
+    # The `models_dir`. This is used by some custom nodes to find the "models" directory
+    # into which to place downloads (e.g. CogVideoX does this).
+    #models_dir: models
+    #output_directory: output
+    #temp_directory: temp
+    #input_directory: input
+    #user_directory: user
+
+    # Where to look for custom nodes. The @custom_nodes ensures that the custom_nodes
+    # directory relative to the comfy install will be searched. The custom_nodes without
+    # the @ means a directory called custom_nodes will also be searched in each of the base
+    # paths.
+    custom_nodes: |
+        @custom_nodes
+        custom_nodes
+
+    # Different model types in use by Comfy. These are the defaults.
+    # If you want the "base path" handling you _must_ respecify these here,
+    # even if you want to keep the default suffix values. Specifying
+    # just base_path (or base_paths) is not enough.
+    #
+    # Other model types can be added to this list, and some Comfy custom
+    # nodes may add their own model types.
+    checkpoints: models/checkpoints
+    clip: models/clip
+    text_encodings: models/text_encodings
+    clip_vision: models/clip_vision
+    configs: models/configs
+    controlnet: models/controlnet
+    diffusion_models: |
+                  models/diffusion_models
+                  models/unet
+    embeddings: models/embeddings
+    loras: models/loras
+    upscale_models: models/upscale_models
+    vae: models/vae
 
 #other_ui:
 #    base_path: path/to/ui
 #    checkpoints: models/checkpoints
 #    gligen: models/gligen
 #    custom_nodes: path/custom_nodes
+#config for a1111 ui
+#all you have to do is change the base_path to where yours is installed
+#a111:
+#    base_path: path/to/stable-diffusion-webui/
+#
+#    checkpoints: models/Stable-diffusion
+#    configs: models/Stable-diffusion
+#    vae: models/VAE
+#    loras: |
+#         models/Lora
+#         models/LyCORIS
+#    upscale_models: |
+#                  models/ESRGAN
+#                  models/RealESRGAN
+#                  models/SwinIR
+#    embeddings: embeddings
+#    hypernetworks: models/hypernetworks
+#    controlnet: models/ControlNet
+#
