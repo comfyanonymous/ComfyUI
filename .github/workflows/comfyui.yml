@@ -45,7 +45,7 @@ jobs:
         with:
           file: ./Dockerfile
           platforms: linux/amd64
-          context: comfyui
+          context: .
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/comfyui:${{ github.sha }}
