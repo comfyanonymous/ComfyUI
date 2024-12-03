@@ -144,12 +144,12 @@ class MemedeckWorker:
         prompt = payload["nodes"]
         valid = self.validate_prompt(prompt)
         
+        routing_key = method.routing_key
         workflow = 'training' if self.training_only else 'faceswap' if routing_key == 'faceswap-queue' else 'generation'
 
         # Prepare task_info
         prompt_id = str(uuid.uuid4())
         outputs_to_execute = valid[2]
-        routing_key = method.routing_key
         task_info = {
             "workflow": workflow,
             "prompt_id": prompt_id,
@@ -431,8 +431,8 @@ class MemedeckWorker:
             return
         
         api_endpoint = '/generation/update' if task['workflow'] != 'training' else '/training/update'
-        self.logger.info(f"[memedeck]: sending to api: {api_endpoint}")
-        self.logger.info(f"[memedeck]: data: {data}")
+        # self.logger.info(f"[memedeck]: sending to api: {api_endpoint}")
+        # self.logger.info(f"[memedeck]: data: {data}")
         try:
             # this request is not sending properly for faceswap
             post_func = partial(requests.post, f"{self.api_url}{api_endpoint}", json=data)        
