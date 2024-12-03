@@ -16,6 +16,10 @@ def validate_node_input(
       For example, if received_type is "STRING,BOOLEAN" and input_type is "STRING,INT",
       this will return True.
     """
+    # If either type is *, we allow any type
+    if any(t == "*" for t in [received_type, input_type]):
+        return True
+
     # If the types are exactly the same, we can return immediately
     if received_type == input_type:
         return True

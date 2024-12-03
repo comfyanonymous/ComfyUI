@@ -73,3 +73,27 @@ def test_single_vs_multiple():
 def test_parametrized_cases(received, input_type, strict, expected):
     """Parametrized test cases for various scenarios"""
     assert validate_node_input(received, input_type, strict) == expected
+
+
+# https://github.com/FredBill1/comfyui-fb-utils/blob/main/core/types.py
+class AnyType(str):
+    """A special class that is always equal in not equal comparisons."""
+
+    def __eq__(self, _) -> bool:
+        return True
+
+    def __ne__(self, __value: object) -> bool:
+        return False
+
+
+def test_wildcard():
+    """Test behavior with wildcard"""
+    assert validate_node_input("*", "STRING,INT")
+    assert validate_node_input("STRING,INT", "*")
+    assert validate_node_input("*", "*")
+
+    # AnyType was previous wildcard hack used by many custom nodes.
+    # AnyType should be treated as a wildcard.
+    assert validate_node_input(AnyType(), "STRING,INT")
+    assert validate_node_input("STRING,INT", AnyType())
+    assert validate_node_input(AnyType(), AnyType())
