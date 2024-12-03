@@ -39,6 +39,7 @@ class IsChangedCache:
         node = self.dynprompt.get_node(node_id)
         class_type = node["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+        print("Class def: ", class_def)
         if not hasattr(class_def, "IS_CHANGED"):
             self.is_changed[node_id] = False
             return self.is_changed[node_id]

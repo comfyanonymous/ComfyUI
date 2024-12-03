@@ -7,7 +7,7 @@ import logging
 from typing import Set, List, Dict, Tuple, Literal
 from collections.abc import Collection
 
-supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
+supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft', '.xml'}
 
 folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
 
@@ -38,6 +38,8 @@ folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetwo
 folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")], supported_pt_extensions)
 
 folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
+
+folder_names_and_paths["openvino"] = ([os.path.join(models_dir, "openvino")], supported_pt_extensions)
 
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
 temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
