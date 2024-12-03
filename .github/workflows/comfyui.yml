@@ -1,0 +1,53 @@
+# See: https://github.com/cubeofcube-dev/docker-library
+
+name: Build and push `comfyui` docker image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ./**
+      - .github/workflows/comfyui.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ./**
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up qemu
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to docker hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Get current date
+        id: date
+        run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
+
+      - name: Build and push docker image
+        uses: docker/build-push-action@v6
+        with:
+          file: ./Dockerfile
+          platforms: linux/amd64
+          context: comfyui
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/comfyui:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/comfyui:${{ env.DATE }}
+            ${{ secrets.DOCKER_USERNAME }}/comfyui:latest
