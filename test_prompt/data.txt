@@ -1,0 +1,120 @@
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 21 攝氏度, 積雨雲, 紅色, 春天早上, 
+{'angry': 1, 'disgust': 0, 'fear': 1, 'happy': 3, 'sad': 5, 'surprise': 0, 'neutral': 5}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 28 攝氏度, 積雲, 暗紅色, 夏天早上, 
+{'angry': 0, 'disgust': 0, 'fear': 1, 'happy': 2, 'sad': 1, 'surprise': 3, 'neutral': 1}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 24 攝氏度, 卷積雲, 亮綠色, 春天早上, 
+{'angry': 5, 'disgust': 3, 'fear': 1, 'happy': 0, 'sad': 5, 'surprise': 4, 'neutral': 5}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 28 攝氏度, 雨層雲, 黑色, 春天傍晚, 
+{'angry': 1, 'disgust': 5, 'fear': 4, 'happy': 2, 'sad': 5, 'surprise': 5, 'neutral': 4}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 27 攝氏度, 層雲, 深黃色, 夏天早上, 
+{'angry': 4, 'disgust': 1, 'fear': 2, 'happy': 0, 'sad': 4, 'surprise': 2, 'neutral': 3}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 20 攝氏度, 卷積雲, 亮綠色, 夏天傍晚, 
+{'angry': 2, 'disgust': 4, 'fear': 4, 'happy': 3, 'sad': 3, 'surprise': 5, 'neutral': 3}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 21 攝氏度, 積雨雲, 黑色, 夏天早上, 
+{'angry': 0, 'disgust': 1, 'fear': 1, 'happy': 0, 'sad': 2, 'surprise': 3, 'neutral': 4}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 30 攝氏度, 積雲, 紅色, 春天中午, 
+{'angry': 0, 'disgust': 1, 'fear': 1, 'happy': 4, 'sad': 5, 'surprise': 0, 'neutral': 2}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 37 攝氏度, 高層雲, 灰色, 冬天中午, 
+{'angry': 0, 'disgust': 5, 'fear': 4, 'happy': 1, 'sad': 2, 'surprise': 1, 'neutral': 1}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 37 攝氏度, 高層雲, 黑色, 冬天中午, 
+{'angry': 4, 'disgust': 3, 'fear': 5, 'happy': 3, 'sad': 3, 'surprise': 3, 'neutral': 0}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 31 攝氏度, 層雲, 深黃色, 冬天中午, 
+{'angry': 3, 'disgust': 1, 'fear': 0, 'happy': 3, 'sad': 2, 'surprise': 3, 'neutral': 3}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 36 攝氏度, 積雲, 暗紅色, 春天中午, 
+{'angry': 1, 'disgust': 4, 'fear': 5, 'happy': 4, 'sad': 2, 'surprise': 5, 'neutral': 3}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 40 攝氏度, 卷積雲, 亮綠色, 春天中午, 
+{'angry': 2, 'disgust': 4, 'fear': 4, 'happy': 2, 'sad': 3, 'surprise': 0, 'neutral': 0}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 33 攝氏度, 層積雲沒有顏色, 秋天中午, 
+{'angry': 5, 'disgust': 1, 'fear': 4, 'happy': 5, 'sad': 4, 'surprise': 0, 'neutral': 0}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 30 攝氏度, 積雨雲, 黑色, 秋天中午, 
+{'angry': 1, 'disgust': 1, 'fear': 1, 'happy': 1, 'sad': 4, 'surprise': 5, 'neutral': 5}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 37 攝氏度, 捲雲, 深黃色, 夏天中午, 
+{'angry': 4, 'disgust': 3, 'fear': 2, 'happy': 5, 'sad': 0, 'surprise': 4, 'neutral': 4}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 9 攝氏度, 卷積雲, 黃色, 秋天晚上, 
+{'angry': 3, 'disgust': 4, 'fear': 1, 'happy': 2, 'sad': 1, 'surprise': 4, 'neutral': 2}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 9 攝氏度, 層雲, 深黃色, 夏天晚上, 
+{'angry': 0, 'disgust': 3, 'fear': 2, 'happy': 2, 'sad': 5, 'surprise': 4, 'neutral': 5}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 9 攝氏度, 捲雲, 深黃色, 春天晚上, 
+{'angry': 1, 'disgust': 0, 'fear': 2, 'happy': 5, 'sad': 1, 'surprise': 5, 'neutral': 0}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 3 攝氏度, 積雲, 紅色, 秋天晚上, 
+{'angry': 2, 'disgust': 4, 'fear': 5, 'happy': 4, 'sad': 2, 'surprise': 3, 'neutral': 3}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 8 攝氏度, 高積雲, 亮粉色, 夏天晚上, 
+{'angry': 0, 'disgust': 5, 'fear': 3, 'happy': 3, 'sad': 0, 'surprise': 1, 'neutral': 0}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 4 攝氏度, 層積雲沒有顏色, 夏天晚上, 
+{'angry': 3, 'disgust': 5, 'fear': 3, 'happy': 3, 'sad': 0, 'surprise': 0, 'neutral': 5}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 10 攝氏度, 層雲, 棕色, 冬天傍晚, 
+{'angry': 5, 'disgust': 5, 'fear': 0, 'happy': 4, 'sad': 3, 'surprise': 1, 'neutral': 4}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 10 攝氏度, 層雲, 棕色, 冬天傍晚, 
+{'angry': 3, 'disgust': 1, 'fear': 1, 'happy': 2, 'sad': 2, 'surprise': 4, 'neutral': 5}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 19 攝氏度, 卷積雲, 深黃色, 冬天傍晚, 
+{'angry': 0, 'disgust': 1, 'fear': 3, 'happy': 3, 'sad': 1, 'surprise': 3, 'neutral': 4}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 12 攝氏度, 層雲, 棕色, 秋天早上, 
+{'angry': 2, 'disgust': 3, 'fear': 2, 'happy': 3, 'sad': 4, 'surprise': 0, 'neutral': 1}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 10 攝氏度, 卷積雲, 亮綠色, 冬天傍晚, 
+{'angry': 5, 'disgust': 3, 'fear': 1, 'happy': 0, 'sad': 4, 'surprise': 3, 'neutral': 2}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 16 攝氏度, 積雨雲, 黑色, 冬天傍晚, 
+{'angry': 0, 'disgust': 1, 'fear': 2, 'happy': 2, 'sad': 2, 'surprise': 1, 'neutral': 4}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 13 攝氏度, 積雨雲, 黑色, 冬天傍晚, 
+{'angry': 2, 'disgust': 4, 'fear': 1, 'happy': 5, 'sad': 0, 'surprise': 4, 'neutral': 5}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 13 攝氏度, 層積雲沒有顏色, 冬天早上, 
+{'angry': 3, 'disgust': 4, 'fear': 2, 'happy': 4, 'sad': 3, 'surprise': 4, 'neutral': 5}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 22 攝氏度, 積雨雲, 紅色, 夏天傍晚, 
+{'angry': 2, 'disgust': 0, 'fear': 3, 'happy': 1, 'sad': 0, 'surprise': 0, 'neutral': 0}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 29 攝氏度, 積雲, 紅色, 春天早上, 
+{'angry': 5, 'disgust': 1, 'fear': 3, 'happy': 3, 'sad': 4, 'surprise': 4, 'neutral': 5}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 29 攝氏度, 卷積雲, 亮綠色, 夏天傍晚, 
+{'angry': 5, 'disgust': 2, 'fear': 3, 'happy': 1, 'sad': 1, 'surprise': 5, 'neutral': 2}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 28 攝氏度, 層雲, 棕色, 夏天傍晚, 
+{'angry': 4, 'disgust': 3, 'fear': 0, 'happy': 0, 'sad': 0, 'surprise': 3, 'neutral': 1}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 20 攝氏度, 積雨雲, 黑色, 夏天傍晚, 
+{'angry': 1, 'disgust': 2, 'fear': 4, 'happy': 5, 'sad': 4, 'surprise': 5, 'neutral': 5}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 23 攝氏度, 層雲, 棕色, 夏天傍晚, 
+{'angry': 0, 'disgust': 1, 'fear': 1, 'happy': 1, 'sad': 5, 'surprise': 1, 'neutral': 2}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 30 攝氏度, 積雲, 暗紅色, 冬天中午, 
+{'angry': 1, 'disgust': 2, 'fear': 4, 'happy': 3, 'sad': 3, 'surprise': 0, 'neutral': 5}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 37 攝氏度, 積雲, 紅色, 春天中午, 
+{'angry': 1, 'disgust': 4, 'fear': 1, 'happy': 0, 'sad': 0, 'surprise': 4, 'neutral': 1}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 31 攝氏度, 積雲, 紅色, 秋天中午, 
+{'angry': 5, 'disgust': 2, 'fear': 1, 'happy': 0, 'sad': 1, 'surprise': 5, 'neutral': 3}
+Loaded v3.x HD model.
+天氣預報, 沒有人物, 只顯示雲層, 奇幻風格, 30 攝氏度, 積雲, 紅色, 春天中午, 
+{'angry': 1, 'disgust': 3, 'fear': 5, 'happy': 1, 'sad': 4, 'surprise': 3, 'neutral': 5}

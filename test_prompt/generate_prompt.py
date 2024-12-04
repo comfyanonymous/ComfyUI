@@ -3,17 +3,28 @@ import requests
 import time
 import random
 
+emotions: dict = {}
+temperature_r = 0
+count_t = 0
+
 def fetch_data():
+    global count_t
     # Function to continuously fetch temperature data
     while True:
-        url = "http://140.119.108.248:89/ComfyUI_Data/"
-        response = requests.get(url)
-        data = response.json()
-        time.sleep(1)  # Fetch temperature every 1 second
-        if data:
-            temperature = data['temperature']
-            emotions_vec = data['dominant_emotion']
-            yield temperature, emotions_vec
+        count_t = count_t+1
+        emotions_vec = tuple(random. choices (range (1, 6), k=7))
+        if count_t < 20:
+            temperature = random. randint (0,10)
+        elif count_t < 40:
+            temperature = random. randint (10,21)
+        elif count_t < 60:
+            temperature = random. randint (20,31)
+        elif count_t < 80:
+            temperature = random. randint (30,41)
+        else:
+            temperature = 0
+            count_t = 0
+        yield temperature, emotions_vec
             
 
 def get_dominant_emotion(emotions_vec):
@@ -123,7 +134,10 @@ def choose_date(temperature):
 
 def generate_prompt():
 
+    global emotions, temperature_r
     for temperature, emotions_vec in fetch_data():
+        emotions = tran_dict(emotions_vec)
+        temperature_r = temperature
         # print(f"Temperature: {temperature}, Emotions: {emotions_vec}")
         temperature_str = str(temperature) #str
         dominant_emotion = get_dominant_emotion(emotions_vec)
@@ -134,17 +148,23 @@ def generate_prompt():
 
         prompt = "weather forecast, no people, only show the sky, fantasy style, " + temperature_str + " degrees Celsius, " + cloud_types + color + season + timing 
 
-        print(prompt)
+        # print(prompt)
 
         # weather forecast, no people, only show the sky, fantasy style, 33 degrees Celsius, cirrus, Bright green, spring noon, 
         return prompt
 
-def generate_chinese_prompt():
+def tran_dict(emotions_vec):
+    b = {}
+    for key, value in zip(["angry", "disgust", "fear", "happy", "sad", "surprise", "neutral"],emotions_vec):
+        b[key] = value
+    return b
 
+def generate_chinese_prompt():
     for temperature, emotions_vec in fetch_data():
         # print(f"Temperature: {temperature}, Emotions: {emotions_vec}")
         temperature_str = str(temperature) #str
         dominant_emotion = get_dominant_emotion(emotions_vec)
+
         cloud_types, color = choose_cloud_and_color_chinese(dominant_emotion) # str
         season_num, timing_num = choose_date(temperature) 
         season = season_chinese[season_num] #str
@@ -157,6 +177,11 @@ def generate_chinese_prompt():
         # weather forecast, no people, only show the sky, fantasy style, 33 degrees Celsius, cirrus, Bright green, spring noon, 
         return prompt
 
+def get_emotion():
+    return emotions
 
-# if __name__ == "__main__":
-#     generate_prompt()
+def get_temperature():
+    return temperature_r
+
+if __name__ == "__main__":
+    print(generate_prompt())
