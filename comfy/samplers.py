@@ -1,11 +1,21 @@
+from __future__ import annotations
 from .k_diffusion import sampling as k_diffusion_sampling
 from .extra_samplers import uni_pc
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from comfy.model_patcher import ModelPatcher
+    from comfy.model_base import BaseModel
+    from comfy.controlnet import ControlBase
 import torch
 import collections
 from comfy import model_management
 import math
 import logging
+import comfy.samplers
 import comfy.sampler_helpers
+import comfy.model_patcher
+import comfy.patcher_extension
+import comfy.hooks
 import scipy.stats
 import numpy
 
@@ -70,6 +80,7 @@ def get_area_and_mult(conds, x_in, timestep_in):
     for c in model_conds:
         conditioning[c] = model_conds[c].process_cond(batch_size=x_in.shape[0], device=x_in.device, area=area)
 
+    hooks = conds.get('hooks', None)
     control = conds.get('control', None)
 
     patches = None
@@ -85,8 +96,8 @@ def get_area_and_mult(conds, x_in, timestep_in):
 
         patches['middle_patch'] = [gligen_patch]
 
-    cond_obj = collections.namedtuple('cond_obj', ['input_x', 'mult', 'conditioning', 'area', 'control', 'patches'])
-    return cond_obj(input_x, mult, conditioning, area, control, patches)
+    cond_obj = collections.namedtuple('cond_obj', ['input_x', 'mult', 'conditioning', 'area', 'control', 'patches', 'uuid', 'hooks'])
+    return cond_obj(input_x, mult, conditioning, area, control, patches, conds['uuid'], hooks)
 
 def cond_equal_size(c1, c2):
     if c1 is c2:
@@ -138,110 +149,184 @@ def cond_cat(c_list):
 
     return out
 
-def calc_cond_batch(model, conds, x_in, timestep, model_options):
+def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.HookGroup,list[tuple[tuple,int]]], default_conds: list[list[dict]], x_in, timestep):
+    # need to figure out remaining unmasked area for conds
+    default_mults = []
+    for _ in default_conds:
+        default_mults.append(torch.ones_like(x_in))
+    # look through each finalized cond in hooked_to_run for 'mult' and subtract it from each cond
+    for lora_hooks, to_run in hooked_to_run.items():
+        for cond_obj, i in to_run:
+            # if no default_cond for cond_type, do nothing
+            if len(default_conds[i]) == 0:
+                continue
+            area: list[int] = cond_obj.area
+            if area is not None:
+                curr_default_mult: torch.Tensor = default_mults[i]
+                dims = len(area) // 2
+                for i in range(dims):
+                    curr_default_mult = curr_default_mult.narrow(i + 2, area[i + dims], area[i])
+                curr_default_mult -= cond_obj.mult
+            else:
+                default_mults[i] -= cond_obj.mult
+    # for each default_mult, ReLU to make negatives=0, and then check for any nonzeros
+    for i, mult in enumerate(default_mults):
+        # if no default_cond for cond type, do nothing
+        if len(default_conds[i]) == 0:
+            continue
+        torch.nn.functional.relu(mult, inplace=True)
+        # if mult is all zeros, then don't add default_cond
+        if torch.max(mult) == 0.0:
+            continue
+
+        cond = default_conds[i]
+        for x in cond:
+            # do get_area_and_mult to get all the expected values
+            p = comfy.samplers.get_area_and_mult(x, x_in, timestep)
+            if p is None:
+                continue
+            # replace p's mult with calculated mult
+            p = p._replace(mult=mult)
+            if p.hooks is not None:
+                model.current_patcher.prepare_hook_patches_current_keyframe(timestep, p.hooks)
+            hooked_to_run.setdefault(p.hooks, list())
+            hooked_to_run[p.hooks] += [(p, i)]
+
+def calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
+    executor = comfy.patcher_extension.WrapperExecutor.new_executor(
+        _calc_cond_batch,
+        comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.CALC_COND_BATCH, model_options, is_model_options=True)
+    )
+    return executor.execute(model, conds, x_in, timestep, model_options)
+
+def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
     out_conds = []
     out_counts = []
-    to_run = []
+    # separate conds by matching hooks
+    hooked_to_run: dict[comfy.hooks.HookGroup,list[tuple[tuple,int]]] = {}
+    default_conds = []
+    has_default_conds = False
 
     for i in range(len(conds)):
         out_conds.append(torch.zeros_like(x_in))
         out_counts.append(torch.ones_like(x_in) * 1e-37)
 
         cond = conds[i]
+        default_c = []
         if cond is not None:
             for x in cond:
-                p = get_area_and_mult(x, x_in, timestep)
+                if 'default' in x:
+                    default_c.append(x)
+                    has_default_conds = True
+                    continue
+                p = comfy.samplers.get_area_and_mult(x, x_in, timestep)
                 if p is None:
                     continue
+                if p.hooks is not None:
+                    model.current_patcher.prepare_hook_patches_current_keyframe(timestep, p.hooks)
+                hooked_to_run.setdefault(p.hooks, list())
+                hooked_to_run[p.hooks] += [(p, i)]
+        default_conds.append(default_c)
 
-                to_run += [(p, i)]
+    if has_default_conds:
+        finalize_default_conds(model, hooked_to_run, default_conds, x_in, timestep)
 
-    while len(to_run) > 0:
-        first = to_run[0]
-        first_shape = first[0][0].shape
-        to_batch_temp = []
-        for x in range(len(to_run)):
-            if can_concat_cond(to_run[x][0], first[0]):
-                to_batch_temp += [x]
+    model.current_patcher.prepare_state(timestep)
 
-        to_batch_temp.reverse()
-        to_batch = to_batch_temp[:1]
+    # run every hooked_to_run separately
+    for hooks, to_run in hooked_to_run.items():
+        while len(to_run) > 0:
+            first = to_run[0]
+            first_shape = first[0][0].shape
+            to_batch_temp = []
+            for x in range(len(to_run)):
+                if can_concat_cond(to_run[x][0], first[0]):
+                    to_batch_temp += [x]
 
-        free_memory = model_management.get_free_memory(x_in.device)
-        for i in range(1, len(to_batch_temp) + 1):
-            batch_amount = to_batch_temp[:len(to_batch_temp)//i]
-            input_shape = [len(batch_amount) * first_shape[0]] + list(first_shape)[1:]
-            if model.memory_required(input_shape) * 1.5 < free_memory:
-                to_batch = batch_amount
-                break
+            to_batch_temp.reverse()
+            to_batch = to_batch_temp[:1]
 
-        input_x = []
-        mult = []
-        c = []
-        cond_or_uncond = []
-        area = []
-        control = None
-        patches = None
-        for x in to_batch:
-            o = to_run.pop(x)
-            p = o[0]
-            input_x.append(p.input_x)
-            mult.append(p.mult)
-            c.append(p.conditioning)
-            area.append(p.area)
-            cond_or_uncond.append(o[1])
-            control = p.control
-            patches = p.patches
+            free_memory = model_management.get_free_memory(x_in.device)
+            for i in range(1, len(to_batch_temp) + 1):
+                batch_amount = to_batch_temp[:len(to_batch_temp)//i]
+                input_shape = [len(batch_amount) * first_shape[0]] + list(first_shape)[1:]
+                if model.memory_required(input_shape) * 1.5 < free_memory:
+                    to_batch = batch_amount
+                    break
 
-        batch_chunks = len(cond_or_uncond)
-        input_x = torch.cat(input_x)
-        c = cond_cat(c)
-        timestep_ = torch.cat([timestep] * batch_chunks)
+            input_x = []
+            mult = []
+            c = []
+            cond_or_uncond = []
+            uuids = []
+            area = []
+            control = None
+            patches = None
+            for x in to_batch:
+                o = to_run.pop(x)
+                p = o[0]
+                input_x.append(p.input_x)
+                mult.append(p.mult)
+                c.append(p.conditioning)
+                area.append(p.area)
+                cond_or_uncond.append(o[1])
+                uuids.append(p.uuid)
+                control = p.control
+                patches = p.patches
 
-        if control is not None:
-            c['control'] = control.get_control(input_x, timestep_, c, len(cond_or_uncond))
+            batch_chunks = len(cond_or_uncond)
+            input_x = torch.cat(input_x)
+            c = cond_cat(c)
+            timestep_ = torch.cat([timestep] * batch_chunks)
 
-        transformer_options = {}
-        if 'transformer_options' in model_options:
-            transformer_options = model_options['transformer_options'].copy()
+            transformer_options = model.current_patcher.apply_hooks(hooks=hooks)
+            if 'transformer_options' in model_options:
+                transformer_options = comfy.patcher_extension.merge_nested_dicts(transformer_options,
+                                                                                 model_options['transformer_options'],
+                                                                                 copy_dict1=False)
 
-        if patches is not None:
-            if "patches" in transformer_options:
-                cur_patches = transformer_options["patches"].copy()
-                for p in patches:
-                    if p in cur_patches:
-                        cur_patches[p] = cur_patches[p] + patches[p]
-                    else:
-                        cur_patches[p] = patches[p]
-                transformer_options["patches"] = cur_patches
+            if patches is not None:
+                # TODO: replace with merge_nested_dicts function
+                if "patches" in transformer_options:
+                    cur_patches = transformer_options["patches"].copy()
+                    for p in patches:
+                        if p in cur_patches:
+                            cur_patches[p] = cur_patches[p] + patches[p]
+                        else:
+                            cur_patches[p] = patches[p]
+                    transformer_options["patches"] = cur_patches
+                else:
+                    transformer_options["patches"] = patches
+
+            transformer_options["cond_or_uncond"] = cond_or_uncond[:]
+            transformer_options["uuids"] = uuids[:]
+            transformer_options["sigmas"] = timestep
+
+            c['transformer_options'] = transformer_options
+
+            if control is not None:
+                c['control'] = control.get_control(input_x, timestep_, c, len(cond_or_uncond), transformer_options)
+
+            if 'model_function_wrapper' in model_options:
+                output = model_options['model_function_wrapper'](model.apply_model, {"input": input_x, "timestep": timestep_, "c": c, "cond_or_uncond": cond_or_uncond}).chunk(batch_chunks)
             else:
-                transformer_options["patches"] = patches
+                output = model.apply_model(input_x, timestep_, **c).chunk(batch_chunks)
 
-        transformer_options["cond_or_uncond"] = cond_or_uncond[:]
-        transformer_options["sigmas"] = timestep
-
-        c['transformer_options'] = transformer_options
-
-        if 'model_function_wrapper' in model_options:
-            output = model_options['model_function_wrapper'](model.apply_model, {"input": input_x, "timestep": timestep_, "c": c, "cond_or_uncond": cond_or_uncond}).chunk(batch_chunks)
-        else:
-            output = model.apply_model(input_x, timestep_, **c).chunk(batch_chunks)
-
-        for o in range(batch_chunks):
-            cond_index = cond_or_uncond[o]
-            a = area[o]
-            if a is None:
-                out_conds[cond_index] += output[o] * mult[o]
-                out_counts[cond_index] += mult[o]
-            else:
-                out_c = out_conds[cond_index]
-                out_cts = out_counts[cond_index]
-                dims = len(a) // 2
-                for i in range(dims):
-                    out_c = out_c.narrow(i + 2, a[i + dims], a[i])
-                    out_cts = out_cts.narrow(i + 2, a[i + dims], a[i])
-                out_c += output[o] * mult[o]
-                out_cts += mult[o]
+            for o in range(batch_chunks):
+                cond_index = cond_or_uncond[o]
+                a = area[o]
+                if a is None:
+                    out_conds[cond_index] += output[o] * mult[o]
+                    out_counts[cond_index] += mult[o]
+                else:
+                    out_c = out_conds[cond_index]
+                    out_cts = out_counts[cond_index]
+                    dims = len(a) // 2
+                    for i in range(dims):
+                        out_c = out_c.narrow(i + 2, a[i + dims], a[i])
+                        out_cts = out_cts.narrow(i + 2, a[i + dims], a[i])
+                    out_c += output[o] * mult[o]
+                    out_cts += mult[o]
 
     for i in range(len(out_conds)):
         out_conds[i] /= out_counts[i]
@@ -500,10 +585,15 @@ def calculate_start_end_timesteps(model, conds):
 
         timestep_start = None
         timestep_end = None
-        if 'start_percent' in x:
-            timestep_start = s.percent_to_sigma(x['start_percent'])
-        if 'end_percent' in x:
-            timestep_end = s.percent_to_sigma(x['end_percent'])
+        # handle clip hook schedule, if needed
+        if 'clip_start_percent' in x:
+            timestep_start = s.percent_to_sigma(max(x['clip_start_percent'], x.get('start_percent', 0.0)))
+            timestep_end = s.percent_to_sigma(min(x['clip_end_percent'], x.get('end_percent', 1.0)))
+        else:
+            if 'start_percent' in x:
+                timestep_start = s.percent_to_sigma(x['start_percent'])
+            if 'end_percent' in x:
+                timestep_end = s.percent_to_sigma(x['end_percent'])
 
         if (timestep_start is not None) or (timestep_end is not None):
             n = x.copy()
@@ -674,6 +764,12 @@ def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=N
                     create_cond_with_same_area_if_none(conds[kk], c)
 
     for k in conds:
+        for c in conds[k]:
+            if 'hooks' in c:
+                for hook in c['hooks'].hooks:
+                    hook.initialize_timesteps(model)
+
+    for k in conds:
         pre_run_control(model, conds[k])
 
     if "positive" in conds:
@@ -685,9 +781,46 @@ def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=N
 
     return conds
 
+
+def preprocess_conds_hooks(conds: dict[str, list[dict[str]]]):
+    # determine which ControlNets have extra_hooks that should be combined with normal hooks
+    hook_replacement: dict[tuple[ControlBase, comfy.hooks.HookGroup], list[dict]] = {}
+    for k in conds:
+        for kk in conds[k]:
+            if 'control' in kk:
+                control: 'ControlBase' = kk['control']
+                extra_hooks = control.get_extra_hooks()
+                if len(extra_hooks) > 0:
+                    hooks: comfy.hooks.HookGroup = kk.get('hooks', None)
+                    to_replace = hook_replacement.setdefault((control, hooks), [])
+                    to_replace.append(kk)
+    # if nothing to replace, do nothing
+    if len(hook_replacement) == 0:
+        return
+
+    # for optimal sampling performance, common ControlNets + hook combos should have identical hooks
+    # on the cond dicts
+    for key, conds_to_modify in hook_replacement.items():
+        control = key[0]
+        hooks = key[1]
+        hooks = comfy.hooks.HookGroup.combine_all_hooks(control.get_extra_hooks() + [hooks])
+        # if combined hooks are not None, set as new hooks for all relevant conds
+        if hooks is not None:
+            for cond in conds_to_modify:
+                cond['hooks'] = hooks
+
+
+def get_total_hook_groups_in_conds(conds: dict[str, list[dict[str]]]):
+    hooks_set = set()
+    for k in conds:
+        for kk in conds[k]:
+            hooks_set.add(kk.get('hooks', None))
+    return len(hooks_set)
+
+
 class CFGGuider:
     def __init__(self, model_patcher):
-        self.model_patcher = model_patcher
+        self.model_patcher: 'ModelPatcher' = model_patcher
         self.model_options = model_patcher.model_options
         self.original_conds = {}
         self.cfg = 1.0
@@ -714,19 +847,17 @@ class CFGGuider:
 
         self.conds = process_conds(self.inner_model, noise, self.conds, device, latent_image, denoise_mask, seed)
 
-        extra_args = {"model_options": self.model_options, "seed":seed}
+        extra_args = {"model_options": comfy.model_patcher.create_model_options_clone(self.model_options), "seed": seed}
 
-        samples = sampler.sample(self, sigmas, extra_args, callback, noise, latent_image, denoise_mask, disable_pbar)
+        executor = comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            sampler.sample,
+            sampler,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.SAMPLER_SAMPLE, extra_args["model_options"], is_model_options=True)
+        )
+        samples = executor.execute(self, sigmas, extra_args, callback, noise, latent_image, denoise_mask, disable_pbar)
         return self.inner_model.process_latent_out(samples.to(torch.float32))
 
-    def sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
-        if sigmas.shape[-1] == 0:
-            return latent_image
-
-        self.conds = {}
-        for k in self.original_conds:
-            self.conds[k] = list(map(lambda a: a.copy(), self.original_conds[k]))
-
+    def outer_sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
         self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds)
         device = self.model_patcher.load_device
 
@@ -737,12 +868,46 @@ class CFGGuider:
         latent_image = latent_image.to(device)
         sigmas = sigmas.to(device)
 
-        output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+        try:
+            self.model_patcher.pre_run()
+            output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+        finally:
+            self.model_patcher.cleanup()
 
         comfy.sampler_helpers.cleanup_models(self.conds, self.loaded_models)
         del self.inner_model
-        del self.conds
         del self.loaded_models
+        return output
+
+    def sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
+        if sigmas.shape[-1] == 0:
+            return latent_image
+
+        self.conds = {}
+        for k in self.original_conds:
+            self.conds[k] = list(map(lambda a: a.copy(), self.original_conds[k]))
+        preprocess_conds_hooks(self.conds)
+
+        try:
+            orig_model_options = self.model_options
+            self.model_options = comfy.model_patcher.create_model_options_clone(self.model_options)
+            # if one hook type (or just None), then don't bother caching weights for hooks (will never change after first step)
+            orig_hook_mode = self.model_patcher.hook_mode
+            if get_total_hook_groups_in_conds(self.conds) <= 1:
+                self.model_patcher.hook_mode = comfy.hooks.EnumHookMode.MinVram
+            comfy.sampler_helpers.prepare_model_patcher(self.model_patcher, self.conds, self.model_options)
+            executor = comfy.patcher_extension.WrapperExecutor.new_class_executor(
+                self.outer_sample,
+                self,
+                comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, self.model_options, is_model_options=True)
+            )
+            output = executor.execute(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+        finally:
+            self.model_options = orig_model_options
+            self.model_patcher.hook_mode = orig_hook_mode
+            self.model_patcher.restore_hook_patches()
+
+        del self.conds
         return output
 
 
