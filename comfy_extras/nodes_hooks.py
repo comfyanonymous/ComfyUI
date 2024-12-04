@@ -495,7 +495,54 @@ class CreateHookKeyframe:
         keyframe = comfy.hooks.HookKeyframe(strength=strength_mult, start_percent=start_percent)
         prev_hook_kf.add(keyframe)
         return (prev_hook_kf,)
+
+class CreateHookKeyframesInterpolated:
+    NodeId = 'CreateHookKeyframesInterpolated'
+    NodeName = 'Create Hook Keyframes Interp.'
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "strength_start": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.001}, ),
+                "strength_end": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.001}, ),
+                "interpolation": (comfy.hooks.InterpolationMethod._LIST, ),
+                "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                "keyframes_count": ("INT", {"default": 5, "min": 2, "max": 100, "step": 1}),
+                "print_keyframes": ("BOOLEAN", {"default": False}),
+            },
+            "optional": {
+                "prev_hook_kf": ("HOOK_KEYFRAMES",),
+            },
+        }
     
+    EXPERIMENTAL = True
+    RETURN_TYPES = ("HOOK_KEYFRAMES",)
+    RETURN_NAMES = ("HOOK_KF",)
+    CATEGORY = "advanced/hooks/scheduling"
+    FUNCTION = "create_hook_keyframes"
+
+    def create_hook_keyframes(self, strength_start: float, strength_end: float, interpolation: str,
+                              start_percent: float, end_percent: float, keyframes_count: int,
+                              print_keyframes=False, prev_hook_kf: comfy.hooks.HookKeyframeGroup=None):
+        if prev_hook_kf is None:
+            prev_hook_kf = comfy.hooks.HookKeyframeGroup()
+        prev_hook_kf = prev_hook_kf.clone()
+        percents = comfy.hooks.InterpolationMethod.get_weights(num_from=start_percent, num_to=end_percent, length=keyframes_count,
+                                                               method=comfy.hooks.InterpolationMethod.LINEAR)
+        strengths = comfy.hooks.InterpolationMethod.get_weights(num_from=strength_start, num_to=strength_end, length=keyframes_count, method=interpolation)
+
+        is_first = True
+        for percent, strength in zip(percents, strengths):
+            guarantee_steps = 0
+            if is_first:
+                guarantee_steps = 1
+                is_first = False
+            prev_hook_kf.add(comfy.hooks.HookKeyframe(strength=strength, start_percent=percent, guarantee_steps=guarantee_steps))
+            if print_keyframes:
+                print(f"Hook Keyframe - start_percent:{percent} = {strength}")
+        return (prev_hook_kf,)
+
 class CreateHookKeyframesFromFloats:
     NodeId = 'CreateHookKeyframesFromFloats'
     NodeName = 'Create Hook Keyframes From Floats'
@@ -672,6 +719,7 @@ node_list = [
     # Scheduling
     SetHookKeyframes,
     CreateHookKeyframe,
+    CreateHookKeyframesInterpolated,
     CreateHookKeyframesFromFloats,
     # Combine
     CombineHooks,
