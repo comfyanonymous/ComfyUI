@@ -15,10 +15,17 @@ def validate_node_input(
     If strict is False, the input_type must have overlap with the received_type.
       For example, if received_type is "STRING,BOOLEAN" and input_type is "STRING,INT",
       this will return True.
+
+    Supports pre-union type extension behaviour of ``__ne__`` overrides.
     """
     # If the types are exactly the same, we can return immediately
-    if received_type == input_type:
+    # Use pre-union behaviour: inverse of `__ne__`
+    if not received_type != input_type:
         return True
+
+    # Not equal, and not strings
+    if not isinstance(received_type, str) or not isinstance(input_type, str):
+        return False
 
     # Split the type strings into sets for comparison
     received_types = set(t.strip() for t in received_type.split(","))
