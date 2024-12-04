@@ -59,6 +59,14 @@ def test_single_vs_multiple():
     assert not validate_node_input("STRING,INT,BOOLEAN", "STRING", strict=True)
 
 
+def test_non_string():
+    """Test non-string types"""
+    obj1 = object()
+    obj2 = object()
+    assert validate_node_input(obj1, obj1)
+    assert not validate_node_input(obj1, obj2)
+
+
 @pytest.mark.parametrize(
     "received,input_type,strict,expected",
     [
