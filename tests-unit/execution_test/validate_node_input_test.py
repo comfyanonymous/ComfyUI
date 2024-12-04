@@ -1,6 +1,5 @@
 import pytest
 from comfy_execution.validation import validate_node_input
-from enum import StrEnum
 
 
 def test_exact_match():
@@ -66,11 +65,8 @@ def test_non_string():
     assert not validate_node_input(obj1, obj2)
 
 
-class NotEqualsOverrideTest(StrEnum):
+class NotEqualsOverrideTest(str):
     """Test class for ``__ne__`` override."""
-
-    ANY = "*"
-    LONGER_THAN_2 = "LONGER_THAN_2"
 
     def __ne__(self, value: object) -> bool:
         if self == "*" or value == "*":
@@ -82,7 +78,7 @@ class NotEqualsOverrideTest(StrEnum):
 
 def test_ne_override():
     """Test ``__ne__`` any override"""
-    any = NotEqualsOverrideTest.ANY
+    any = NotEqualsOverrideTest("*")
     invalid_type = "INVALID_TYPE"
     obj = object()
     assert validate_node_input(any, any)
@@ -95,7 +91,7 @@ def test_ne_override():
 
 def test_ne_custom_override():
     """Test ``__ne__`` custom override"""
-    special = NotEqualsOverrideTest.LONGER_THAN_2
+    special = NotEqualsOverrideTest("LONGER_THAN_2")
 
     assert validate_node_input(special, special)
     assert validate_node_input(special, "*")
