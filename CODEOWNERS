@@ -8,15 +8,12 @@
 /notebooks/ @Comfy-Org/comfy_maintainers
 /script_examples/ @Comfy-Org/comfy_maintainers
 
-# Execution engine
-/execution.py @Comfy-Org/comfy_execution_devs
-/comfy_execution/ @Comfy-Org/comfy_execution_devs
-
-# Web server
-/server.py @Comfy-Org/comfy_web_server_devs
-/folder_paths.py @Comfy-Org/comfy_web_server_devs
+# Python web server
 /api_server/ @Comfy-Org/comfy_web_server_devs
 /app/ @Comfy-Org/comfy_web_server_devs
+
+# Frontend assets
+/web/ @Comfy-Org/comfy_frontend_devs
 
 # Extra nodes
 /comfy_extras/ @Comfy-Org/comfy_extra_nodes_devs
