@@ -7,13 +7,13 @@ import time
 import traceback
 from enum import Enum
 import inspect
-from typing import List, Literal, NamedTuple, Optional
+from typing import List, Literal, NamedTuple, Optional, Dict, Tuple
 
 import torch
 import nodes
 
 import comfy.model_management
-from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
+from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker, node_class_info
 from comfy_execution.graph_utils import is_link, GraphBuilder
 from comfy_execution.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID
 from comfy.cli_args import args
@@ -37,8 +37,8 @@ class IsChangedCache:
             return self.is_changed[node_id]
 
         node = self.dynprompt.get_node(node_id)
-        class_type = node["class_type"]
-        class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+        class_def = nodes.NODE_CLASS_MAPPINGS[node["class_type"]]
+        node_def = self.dynprompt.get_node_definition(node_id)
         if not hasattr(class_def, "IS_CHANGED"):
             self.is_changed[node_id] = False
             return self.is_changed[node_id]
@@ -48,7 +48,7 @@ class IsChangedCache:
             return self.is_changed[node_id]
 
         # Intentionally do not use cached outputs here. We only want constants in IS_CHANGED
-        input_data_all, _ = get_input_data(node["inputs"], class_def, node_id, None)
+        input_data_all, _ = get_input_data(node["inputs"], node_def, node_id, None)
         try:
             is_changed = _map_node_over_list(class_def, input_data_all, "IS_CHANGED")
             node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
@@ -87,13 +87,13 @@ class CacheSet:
         }
         return result
 
-def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, extra_data={}):
-    valid_inputs = class_def.INPUT_TYPES()
+def get_input_data(inputs, node_def, unique_id, outputs=None, dynprompt=None, extra_data={}):
+    valid_inputs = node_def['input']
     input_data_all = {}
     missing_keys = {}
     for x in inputs:
         input_data = inputs[x]
-        input_type, input_category, input_info = get_input_info(class_def, x)
+        input_type, input_category, input_info = get_input_info(node_def, x)
         def mark_missing():
             missing_keys[x] = True
             input_data_all[x] = (None,)
@@ -126,6 +126,8 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
                 input_data_all[x] = [extra_data.get('extra_pnginfo', None)]
             if h[x] == "UNIQUE_ID":
                 input_data_all[x] = [unique_id]
+            if h[x] == "NODE_DEFINITION":
+                input_data_all[x] = [node_def]
     return input_data_all, missing_keys
 
 map_node_over_list = None #Don't hook this please
@@ -169,12 +171,12 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
             process_inputs(input_dict, i)
     return results
 
-def merge_result_data(results, obj):
+def merge_result_data(results, node_def):
     # check which outputs need concatenating
     output = []
-    output_is_list = [False] * len(results[0])
-    if hasattr(obj, "OUTPUT_IS_LIST"):
-        output_is_list = obj.OUTPUT_IS_LIST
+    output_is_list = node_def['output_is_list']
+    if len(output_is_list) < len(results[0]):
+        output_is_list = output_is_list + [False] * (len(results[0]) - len(output_is_list))
 
     # merge node execution results
     for i, is_list in zip(range(len(results[0])), output_is_list):
@@ -190,13 +192,14 @@ def merge_result_data(results, obj):
             output.append([o[i] for o in results])
     return output
 
-def get_output_data(obj, input_data_all, execution_block_cb=None, pre_execute_cb=None):
+def get_output_data(obj, node_def, input_data_all, execution_block_cb=None, pre_execute_cb=None):
     
     results = []
     uis = []
     subgraph_results = []
     return_values = _map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb)
     has_subgraph = False
+    num_outputs = len(node_def['output'])
     for i in range(len(return_values)):
         r = return_values[i]
         if isinstance(r, dict):
@@ -208,24 +211,24 @@ def get_output_data(obj, input_data_all, execution_block_cb=None, pre_execute_cb
                 new_graph = r['expand']
                 result = r.get("result", None)
                 if isinstance(result, ExecutionBlocker):
-                    result = tuple([result] * len(obj.RETURN_TYPES))
+                    result = tuple([result] * num_outputs)
                 subgraph_results.append((new_graph, result))
             elif 'result' in r:
                 result = r.get("result", None)
                 if isinstance(result, ExecutionBlocker):
-                    result = tuple([result] * len(obj.RETURN_TYPES))
+                    result = tuple([result] * num_outputs)
                 results.append(result)
                 subgraph_results.append((None, result))
         else:
             if isinstance(r, ExecutionBlocker):
-                r = tuple([r] * len(obj.RETURN_TYPES))
+                r = tuple([r] * num_outputs)
             results.append(r)
             subgraph_results.append((None, r))
     
     if has_subgraph:
         output = subgraph_results
     elif len(results) > 0:
-        output = merge_result_data(results, obj)
+        output = merge_result_data(results, node_def)
     else:
         output = []
     ui = dict()    
@@ -249,6 +252,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
     inputs = dynprompt.get_node(unique_id)['inputs']
     class_type = dynprompt.get_node(unique_id)['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+    node_def = dynprompt.get_node_definition(unique_id)
     if caches.outputs.get(unique_id) is not None:
         if server.client_id is not None:
             cached_output = caches.ui.get(unique_id) or {}
@@ -275,11 +279,11 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                         else:
                             resolved_output.append(r)
                     resolved_outputs.append(tuple(resolved_output))
-            output_data = merge_result_data(resolved_outputs, class_def)
+            output_data = merge_result_data(resolved_outputs, node_def)
             output_ui = []
             has_subgraph = False
         else:
-            input_data_all, missing_keys = get_input_data(inputs, class_def, unique_id, caches.outputs, dynprompt, extra_data)
+            input_data_all, missing_keys = get_input_data(inputs, node_def, unique_id, caches.outputs, dynprompt, extra_data)
             if server.client_id is not None:
                 server.last_node_id = display_node_id
                 server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, server.client_id)
@@ -320,7 +324,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                     return block
             def pre_execute_cb(call_index):
                 GraphBuilder.set_default_prefix(unique_id, call_index, 0)
-            output_data, output_ui, has_subgraph = get_output_data(obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb)
+            output_data, output_ui, has_subgraph = get_output_data(obj, node_def, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb)
         if len(output_ui) > 0:
             caches.ui.set(unique_id, {
                 "meta": {
@@ -351,10 +355,11 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                         new_node_ids.append(node_id)
                         display_id = node_info.get("override_display_id", unique_id)
                         dynprompt.add_ephemeral_node(node_id, node_info, unique_id, display_id)
-                        # Figure out if the newly created node is an output node
-                        class_type = node_info["class_type"]
-                        class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-                        if hasattr(class_def, 'OUTPUT_NODE') and class_def.OUTPUT_NODE == True:
+                    dynprompt.node_definitions.resolve_dynamic_definitions(set(new_graph.keys()))
+                    # Figure out if the newly created node is an output node
+                    for node_id, node_info in new_graph.items():
+                        node_def = dynprompt.get_node_definition(node_id)
+                        if node_def['output_node']:
                             new_output_ids.append(node_id)
                     for i in range(len(node_outputs)):
                         if is_link(node_outputs[i]):
@@ -470,6 +475,7 @@ class PromptExecutor:
 
         with torch.inference_mode():
             dynamic_prompt = DynamicPrompt(prompt)
+            dynamic_prompt.node_definitions.resolve_dynamic_definitions(set(dynamic_prompt.all_node_ids()))
             is_changed_cache = IsChangedCache(dynamic_prompt, self.caches.outputs)
             for cache in self.caches.all:
                 cache.set_prompt(dynamic_prompt, prompt.keys(), is_changed_cache)
@@ -528,7 +534,7 @@ class PromptExecutor:
 
 
 
-def validate_inputs(prompt, item, validated):
+def validate_inputs(dynprompt, prompt, item, validated):
     unique_id = item
     if unique_id in validated:
         return validated[unique_id]
@@ -536,8 +542,9 @@ def validate_inputs(prompt, item, validated):
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
     obj_class = nodes.NODE_CLASS_MAPPINGS[class_type]
+    node_def = dynprompt.get_node_definition(unique_id)
 
-    class_inputs = obj_class.INPUT_TYPES()
+    class_inputs = node_def['input']
     valid_inputs = set(class_inputs.get('required',{})).union(set(class_inputs.get('optional',{})))
 
     errors = []
@@ -552,7 +559,7 @@ def validate_inputs(prompt, item, validated):
     received_types = {}
 
     for x in valid_inputs:
-        type_input, input_category, extra_info = get_input_info(obj_class, x)
+        type_input, input_category, extra_info = get_input_info(node_def, x)
         assert extra_info is not None
         if x not in inputs:
             if input_category == "required":
@@ -585,8 +592,9 @@ def validate_inputs(prompt, item, validated):
                 continue
 
             o_id = val[0]
-            o_class_type = prompt[o_id]['class_type']
-            r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
+            o_node_def = dynprompt.get_node_definition(o_id)
+            r = o_node_def['output']
+            assert r is not None
             received_type = r[val[1]]
             received_types[x] = received_type
             if 'input_types' not in validate_function_inputs and received_type != type_input:
@@ -605,7 +613,7 @@ def validate_inputs(prompt, item, validated):
                 errors.append(error)
                 continue
             try:
-                r = validate_inputs(prompt, o_id, validated)
+                r = validate_inputs(dynprompt, prompt, o_id, validated)
                 if r[0] is False:
                     # `r` will be set in `validated[o_id]` already
                     valid = False
@@ -713,7 +721,7 @@ def validate_inputs(prompt, item, validated):
                         continue
 
     if len(validate_function_inputs) > 0 or validate_has_kwargs:
-        input_data_all, _ = get_input_data(inputs, obj_class, unique_id)
+        input_data_all, _ = get_input_data(inputs, node_def, unique_id)
         input_filtered = {}
         for x in input_data_all:
             if x in validate_function_inputs or validate_has_kwargs:
@@ -756,6 +764,8 @@ def full_type_name(klass):
     return module + '.' + klass.__qualname__
 
 def validate_prompt(prompt):
+    dynprompt = DynamicPrompt(prompt)
+    dynprompt.node_definitions.resolve_dynamic_definitions(set(dynprompt.all_node_ids()))
     outputs = set()
     for x in prompt:
         if 'class_type' not in prompt[x]:
@@ -768,8 +778,8 @@ def validate_prompt(prompt):
             return (False, error, [], [])
 
         class_type = prompt[x]['class_type']
-        class_ = nodes.NODE_CLASS_MAPPINGS.get(class_type, None)
-        if class_ is None:
+        node_def = dynprompt.get_node_definition(x)
+        if node_def is None:
             error = {
                 "type": "invalid_prompt",
                 "message": f"Cannot execute because node {class_type} does not exist.",
@@ -778,7 +788,7 @@ def validate_prompt(prompt):
             }
             return (False, error, [], [])
 
-        if hasattr(class_, 'OUTPUT_NODE') and class_.OUTPUT_NODE is True:
+        if node_def['output_node']:
             outputs.add(x)
 
     if len(outputs) == 0:
@@ -798,7 +808,7 @@ def validate_prompt(prompt):
         valid = False
         reasons = []
         try:
-            m = validate_inputs(prompt, o, validated)
+            m = validate_inputs(dynprompt, prompt, o, validated)
             valid = m[0]
             reasons = m[1]
         except Exception as ex:
