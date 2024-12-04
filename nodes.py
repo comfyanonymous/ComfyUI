@@ -1,3 +1,4 @@
+from __future__ import annotations
 import torch
 
 import os
@@ -24,6 +25,7 @@ import comfy.sample
 import comfy.sd
 import comfy.utils
 import comfy.controlnet
+from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict
 
 import comfy.clip_vision
 
@@ -44,16 +46,16 @@ def interrupt_processing(value=True):
 
 MAX_RESOLUTION=16384
 
-class CLIPTextEncode:
+class CLIPTextEncode(ComfyNodeABC):
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(s) -> InputTypeDict:
         return {
             "required": {
-                "text": ("STRING", {"multiline": True, "dynamicPrompts": True, "tooltip": "The text to be encoded."}), 
-                "clip": ("CLIP", {"tooltip": "The CLIP model used for encoding the text."})
+                "text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The text to be encoded."}), 
+                "clip": (IO.CLIP, {"tooltip": "The CLIP model used for encoding the text."})
             }
         }
-    RETURN_TYPES = ("CONDITIONING",)
+    RETURN_TYPES = (IO.CONDITIONING,)
     OUTPUT_TOOLTIPS = ("A conditioning containing the embedded text used to guide the diffusion model.",)
     FUNCTION = "encode"
 
