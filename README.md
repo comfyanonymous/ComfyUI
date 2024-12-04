@@ -219,6 +219,8 @@ You can enable experimental memory efficient attention on pytorch 2.5 in ComfyUI
 
 ```TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention```
 
+You can also try setting this env variable `PYTORCH_TUNABLEOP_ENABLED=1` which might speed things up at the cost of a very slow initial run.
+
 # Notes
 
 Only parts of the graph that have an output with all the correct inputs will be executed.
