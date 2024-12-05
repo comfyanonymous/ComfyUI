@@ -72,7 +72,7 @@ class _ReduxAttnWrapper:
                 x, c = self.previous(img=args["img"], txt=args["txt"],vec=args["vec"], pe=args["pe"], attn_mask=mask)
                 return {"img": x, "txt": c}
             case SingleStreamBlock():
-                x = self.previous(img=args["img"], vec=args["vec"], pe=args["pe"], attn_mask=mask)
+                x = self.previous(args["img"], vec=args["vec"], pe=args["pe"], attn_mask=mask)
                 return {"img": x}
             case _ReduxAttnWrapper():
                 # pass along the mask, and tell the next redux what its part of the mask is
