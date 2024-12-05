@@ -87,7 +87,7 @@ class ReduxApplyWithAttnMask:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
-            "model": ("CONDITIONING", ),
+            "model": ("MODEL", ),
             "conditioning": ("CONDITIONING", ),
             "style_model": ("STYLE_MODEL", ),
             "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
