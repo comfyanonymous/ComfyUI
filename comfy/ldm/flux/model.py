@@ -102,7 +102,6 @@ class Flux(nn.Module):
         transformer_options={},
     ) -> Tensor:
         patches_replace = transformer_options.get("patches_replace", {})
-        attn_masks = transformer_options.get("attn_masks", {})
         if img.ndim != 3 or txt.ndim != 3:
             raise ValueError("Input img and txt tensors must have 3 dimensions.")
 
@@ -122,18 +121,17 @@ class Flux(nn.Module):
 
         blocks_replace = patches_replace.get("dit", {})
         for i, block in enumerate(self.double_blocks):
-            mask = attn_masks.get(("double_block", i), None)
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["img"], out["txt"] = block(img=args["img"], txt=args["txt"], vec=args["vec"], pe=args["pe"], mask=args["mask"])
+                    out["img"], out["txt"] = block(img=args["img"], txt=args["txt"], vec=args["vec"], pe=args["pe"])
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": img, "txt": txt, "vec": vec, "pe": pe, "mask": mask}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": img, "txt": txt, "vec": vec, "pe": pe}, {"original_block": block_wrap})
                 txt = out["txt"]
                 img = out["img"]
             else:
-                img, txt = block(img=img, txt=txt, vec=vec, pe=pe, mask=mask)
+                img, txt = block(img=img, txt=txt, vec=vec, pe=pe)
 
             if control is not None: # Controlnet
                 control_i = control.get("input")
@@ -145,17 +143,16 @@ class Flux(nn.Module):
         img = torch.cat((txt, img), 1)
 
         for i, block in enumerate(self.single_blocks):
-            mask = attn_masks.get(("single_block", i), None)
             if ("single_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["img"] = block(args["img"], vec=args["vec"], pe=args["pe"], mask=args["mask"])
+                    out["img"] = block(args["img"], vec=args["vec"], pe=args["pe"])
                     return out
 
-                out = blocks_replace[("single_block", i)]({"img": img, "vec": vec, "pe": pe, "mask": mask}, {"original_block": block_wrap})
+                out = blocks_replace[("single_block", i)]({"img": img, "vec": vec, "pe": pe}, {"original_block": block_wrap})
                 img = out["img"]
             else:
-                img = block(img, vec=vec, pe=pe, mask=mask)
+                img = block(img, vec=vec, pe=pe)
 
             if control is not None: # Controlnet
                 control_o = control.get("output")
