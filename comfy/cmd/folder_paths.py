@@ -251,9 +251,12 @@ def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, e
     """
     folder_names_and_paths = _folder_names_and_paths()
     if full_folder_path is None:
-        # todo: this should use the subdir pattern
-
-        full_folder_path = os.path.join(_models_dir(), folder_name)
+        if folder_name not in folder_names_and_paths:
+            folder_names_and_paths.add(ModelPaths(folder_names=[folder_name], supported_extensions=extensions or _supported_pt_extensions()))
+            return [p for p in folder_names_and_paths.directory_paths(folder_name)][0]
+        else:
+            # todo: this should use the subdir pattern
+            full_folder_path = construct_path(folder_names_and_paths.base_paths[0]) / "models" / folder_name
 
     folder_path = folder_names_and_paths[folder_name]
     if full_folder_path not in folder_path.paths:
@@ -387,6 +390,9 @@ def create_directories(paths: FolderNames | None = None):
     paths = paths or _folder_names_and_paths()
     for folder_path_spec in paths.values():
         for path in folder_path_spec.paths:
+            # only create resolved paths
+            if not Path(path).is_absolute():
+                continue
             os.makedirs(path, exist_ok=True)
     for path in paths.application_paths:
         path.mkdir(exist_ok=True, parents=True)

@@ -151,6 +151,7 @@ async def main(from_script_dir: Optional[Path] = None):
     # create the default directories if we're instructed to, then exit
     # or, if it's a windows standalone build, the single .exe file should have its side-by-side directories always created
     if args.create_directories:
+        import_all_nodes_in_workspace(raise_on_failure=False)
         folder_paths.create_directories()
         return
 
