@@ -125,7 +125,7 @@ class ReduxApplyWithAttnMask:
                 m.set_model_patch_replace(wrapper, "dit", "double_blocks", i)
         else:
             m = model
-        return (c, m)
+        return (m, c)
 
 NODE_CLASS_MAPPINGS = {
     "CLIPTextEncodeFlux": CLIPTextEncodeFlux,
