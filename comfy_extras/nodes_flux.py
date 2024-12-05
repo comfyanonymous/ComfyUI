@@ -76,7 +76,7 @@ class _ReduxAttnWrapper:
                 return {"img": x}
             case _ReduxAttnWrapper():
                 # pass along the mask, and tell the next redux what its part of the mask is
-                extra_args["mask"] = mask
+                extra_args["attn_mask"] = mask
                 extra_args["redux_end"] = redux_start
                 return self.previous(args, extra_args)
             case _:
