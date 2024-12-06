@@ -1,4 +1,3 @@
-import io
 import nodes
 import node_helpers
 import torch
@@ -33,7 +32,9 @@ class LTXVImgToVideo:
                              "width": ("INT", {"default": 768, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
                              "height": ("INT", {"default": 512, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
                              "length": ("INT", {"default": 97, "min": 9, "max": nodes.MAX_RESOLUTION, "step": 8}),
-                             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
+                             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
+                             "image_noise_scale": ("FLOAT", {"default": 0.15, "min": 0, "max": 1.0, "step": 0.01, "tooltip": "Amount of noise to apply on conditioning image latent."})
+                             }}
 
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
     RETURN_NAMES = ("positive", "negative", "latent")
@@ -41,12 +42,12 @@ class LTXVImgToVideo:
     CATEGORY = "conditioning/video_models"
     FUNCTION = "generate"
 
-    def generate(self, positive, negative, image, vae, width, height, length, batch_size):
+    def generate(self, positive, negative, image, vae, width, height, length, batch_size, image_noise_scale):
         pixels = comfy.utils.common_upscale(image.movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
         encode_pixels = pixels[:, :, :, :3]
         t = vae.encode(encode_pixels)
-        positive = node_helpers.conditioning_set_values(positive, {"guiding_latent": t})
-        negative = node_helpers.conditioning_set_values(negative, {"guiding_latent": t})
+        positive = node_helpers.conditioning_set_values(positive, {"guiding_latent": t, "guiding_latent_noise_scale": image_noise_scale})
+        negative = node_helpers.conditioning_set_values(negative, {"guiding_latent": t, "guiding_latent_noise_scale": image_noise_scale})
 
         latent = torch.zeros([batch_size, 128, ((length - 1) // 8) + 1, height // 32, width // 32], device=comfy.model_management.intermediate_device())
         latent[:, :, :t.shape[2]] = t
@@ -78,7 +79,6 @@ class ModelSamplingLTXV:
         return {"required": { "model": ("MODEL",),
                               "max_shift": ("FLOAT", {"default": 2.05, "min": 0.0, "max": 100.0, "step":0.01}),
                               "base_shift": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 100.0, "step":0.01}),
-                              "image_noise_scale": ("FLOAT", {"default": 0.15, "min": 0, "max": 100, "step": 0.01, "tooltip": "Amount of noise to apply on conditioning image latent."})
                               },
                 "optional": {"latent": ("LATENT",), }
                 }
@@ -88,7 +88,7 @@ class ModelSamplingLTXV:
 
     CATEGORY = "advanced/model"
 
-    def patch(self, model, max_shift, base_shift, image_noise_scale, latent=None):
+    def patch(self, model, max_shift, base_shift, latent=None):
         m = model.clone()
 
         if latent is None:
@@ -111,7 +111,6 @@ class ModelSamplingLTXV:
         model_sampling = ModelSamplingAdvanced(model.model.model_config)
         model_sampling.set_parameters(shift=shift)
         m.add_object_patch("model_sampling", model_sampling)
-        m.model_options.setdefault("transformer_options", {})["image_noise_scale"] = image_noise_scale
 
         return (m, )
 

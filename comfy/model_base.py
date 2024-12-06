@@ -804,5 +804,9 @@ class LTXV(BaseModel):
         if guiding_latent is not None:
             out['guiding_latent'] = comfy.conds.CONDRegular(guiding_latent)
 
+        guiding_latent_noise_scale = kwargs.get("guiding_latent_noise_scale", None)
+        if guiding_latent_noise_scale is not None:
+            out["guiding_latent_noise_scale"] = comfy.conds.CONDConstant(guiding_latent_noise_scale)
+
         out['frame_rate'] = comfy.conds.CONDConstant(kwargs.get("frame_rate", 25))
         return out
