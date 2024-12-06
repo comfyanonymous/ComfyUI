@@ -1,3 +1,4 @@
+import io
 import nodes
 import node_helpers
 import torch
@@ -77,6 +78,7 @@ class ModelSamplingLTXV:
         return {"required": { "model": ("MODEL",),
                               "max_shift": ("FLOAT", {"default": 2.05, "min": 0.0, "max": 100.0, "step":0.01}),
                               "base_shift": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 100.0, "step":0.01}),
+                              "image_noise_scale": ("FLOAT", {"default": 0.15, "min": 0, "max": 100, "step": 0.01, "tooltip": "Amount of noise to apply on conditioning image latent."})
                               },
                 "optional": {"latent": ("LATENT",), }
                 }
@@ -86,7 +88,7 @@ class ModelSamplingLTXV:
 
     CATEGORY = "advanced/model"
 
-    def patch(self, model, max_shift, base_shift, latent=None):
+    def patch(self, model, max_shift, base_shift, image_noise_scale, latent=None):
         m = model.clone()
 
         if latent is None:
@@ -109,6 +111,8 @@ class ModelSamplingLTXV:
         model_sampling = ModelSamplingAdvanced(model.model.model_config)
         model_sampling.set_parameters(shift=shift)
         m.add_object_patch("model_sampling", model_sampling)
+        m.model_options.setdefault("transformer_options", {})["image_noise_scale"] = image_noise_scale
+
         return (m, )
 
 
