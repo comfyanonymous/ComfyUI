@@ -1,19 +1,26 @@
 # Admins
 * @comfyanonymous
 
+# Note: Github teams syntax cannot be used here as the repo is not owned by Comfy-Org.
+# Inlined the team members for now.
+
 # Maintainers
-*.md @Comfy-Org/comfy_maintainers
-/tests/ @Comfy-Org/comfy_maintainers
-/tests-unit/ @Comfy-Org/comfy_maintainers
-/notebooks/ @Comfy-Org/comfy_maintainers
-/script_examples/ @Comfy-Org/comfy_maintainers
+# https://github.com/orgs/Comfy-Org/teams/comfy_maintainer
+*.md @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
+/tests/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
+/tests-unit/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
+/notebooks/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
+/script_examples/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 
 # Python web server
-/api_server/ @Comfy-Org/comfy_web_server_devs
-/app/ @Comfy-Org/comfy_web_server_devs
+# https://github.com/orgs/Comfy-Org/teams/comfy_web_server_devs
+/api_server/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
+/app/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 
 # Frontend assets
-/web/ @Comfy-Org/comfy_frontend_devs
+# https://github.com/orgs/Comfy-Org/teams/comfy_frontend_devs
+/web/ @huchenlei @webfiltered @pythongosssss
 
 # Extra nodes
-/comfy_extras/ @Comfy-Org/comfy_extra_nodes_devs
+# https://github.com/orgs/Comfy-Org/teams/comfy_extra_nodes_devs
+/comfy_extras/ @yoland68 @robinjhuang @huchenlei @pythongosssss @ltdrdata
