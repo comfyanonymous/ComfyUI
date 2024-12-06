@@ -9,7 +9,7 @@ paths:
   /:
     get:
       summary: (UI) index.html
-      operationId: get_root
+      operationId: get_root_ui
       responses:
         200:
           description: the index.html of the website
@@ -21,7 +21,7 @@ paths:
   /embeddings:
     get:
       summary: (UI) Get embeddings
-      operationId: get_embeddings
+      operationId: get_embeddings_ui
       responses:
         200:
           description: |
@@ -38,7 +38,7 @@ paths:
   /extensions:
     get:
       summary: (UI) Get extensions
-      operationId: get_extensions
+      operationId: get_extensions_ui
       responses:
         200:
           description: Returns a list of files located in extensions/**/*.js
@@ -55,7 +55,7 @@ paths:
         Uploads an image to the input/ directory.
         
         Never replaces files. The method will return a renamed file name if it would have overwritten an existing file.
-      operationId: upload_image
+      operationId: upload_image_ui
       requestBody:
         content:
           multipart/form-data:
@@ -85,7 +85,7 @@ paths:
   /view:
     get:
       summary: (UI) View image
-      operationId: view_image
+      operationId: view_image_ui
       description: |
         Reads the image with the specified file name and located in the specified subfolder.
       parameters:
@@ -149,7 +149,7 @@ paths:
   /prompt:
     get:
       summary: (UI) Get queue info
-      operationId: get_prompt
+      operationId: get_prompt_ui
       responses:
         200:
           description: The current queue information
@@ -165,7 +165,7 @@ paths:
                         type: integer
     post:
       summary: (UI) Post prompt
-      operationId: post_prompt
+      operationId: post_prompt_ui
       requestBody:
         content:
           application/json:
@@ -197,7 +197,7 @@ paths:
   /object_info:
     get:
       summary: (UI) Get object info
-      operationId: get_object_info
+      operationId: get_object_info_ui
       responses:
         '200':
           description: The list of supported nodes
@@ -210,7 +210,7 @@ paths:
   /history:
     get:
       summary: (UI) Get history
-      operationId: get_history
+      operationId: get_history_ui
       responses:
         "200":
           description: History
@@ -238,7 +238,7 @@ paths:
                             type: string
     post:
       summary: (UI) Post history
-      operationId: post_history
+      operationId: post_history_ui
       requestBody:
         content:
           application/json:
@@ -257,7 +257,7 @@ paths:
   /queue:
     get:
       summary: (UI) Get queue
-      operationId: get_queue
+      operationId: get_queue_ui
       responses:
         "200":
           description: the queue state
@@ -276,7 +276,7 @@ paths:
                       $ref: "#/components/schemas/QueueTuple"
     post:
       summary: (UI) Post queue
-      operationId: post_queue
+      operationId: post_queue_ui
       requestBody:
         content:
           application/json:
@@ -295,7 +295,7 @@ paths:
   /interrupt:
     post:
       summary: (UI) Post interrupt
-      operationId: post_interrupt
+      operationId: post_interrupt_ui
       responses:
         '200':
           description: OK
@@ -303,7 +303,7 @@ paths:
     # from 6d281b4ff4ad3918a4f3b4ca4a8b547a2ba3bf80
     post:
       summary: (UI) Unload models or free memory
-      operationId: free
+      operationId: free_ui
       responses:
         200:
           description: The free request was accepted. No content body.
