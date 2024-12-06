@@ -5,7 +5,6 @@
 # Inlined the team members for now.
 
 # Maintainers
-# https://github.com/orgs/Comfy-Org/teams/comfy_maintainer
 *.md @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 /tests/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 /tests-unit/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
@@ -13,14 +12,11 @@
 /script_examples/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 
 # Python web server
-# https://github.com/orgs/Comfy-Org/teams/comfy_web_server_devs
 /api_server/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 /app/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 
 # Frontend assets
-# https://github.com/orgs/Comfy-Org/teams/comfy_frontend_devs
 /web/ @huchenlei @webfiltered @pythongosssss
 
 # Extra nodes
-# https://github.com/orgs/Comfy-Org/teams/comfy_extra_nodes_devs
 /comfy_extras/ @yoland68 @robinjhuang @huchenlei @pythongosssss @ltdrdata
