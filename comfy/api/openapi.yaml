@@ -868,7 +868,7 @@ components:
             - "success"
             - "error"
         completed:
-          type: bool
+          type: boolean
         messages:
           type: array
           items:
