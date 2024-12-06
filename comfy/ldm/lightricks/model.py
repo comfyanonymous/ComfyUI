@@ -379,6 +379,7 @@ class LTXVModel(torch.nn.Module):
                  positional_embedding_max_pos=[20, 2048, 2048],
                  dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
+        self.generator = None
         self.dtype = dtype
         self.out_channels = in_channels
         self.inner_dim = num_attention_heads * attention_head_dim
@@ -415,7 +416,7 @@ class LTXVModel(torch.nn.Module):
 
         self.patchifier = SymmetricPatchifier(1)
 
-    def forward(self, x, timestep, context, attention_mask, frame_rate=25, guiding_latent=None, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, attention_mask, frame_rate=25, guiding_latent=None, guiding_latent_noise_scale=0, transformer_options={}, **kwargs):
         patches_replace = transformer_options.get("patches_replace", {})
 
         indices_grid = self.patchifier.get_grid(
@@ -431,10 +432,22 @@ class LTXVModel(torch.nn.Module):
             ts = torch.ones([x.shape[0], 1, x.shape[2], x.shape[3], x.shape[4]], device=x.device, dtype=x.dtype)
             input_ts = timestep.view([timestep.shape[0]] + [1] * (x.ndim - 1))
             ts *= input_ts
-            ts[:, :, 0] = 0.0
+            ts[:, :, 0] = guiding_latent_noise_scale * (input_ts[:, :, 0] ** 2)
             timestep = self.patchifier.patchify(ts)
             input_x = x.clone()
             x[:, :, 0] = guiding_latent[:, :, 0]
+            if guiding_latent_noise_scale > 0:
+                if self.generator is None:
+                    self.generator = torch.Generator(device=x.device).manual_seed(42)
+                elif self.generator.device != x.device:
+                    self.generator = torch.Generator(device=x.device).set_state(self.generator.get_state())
+
+                noise_shape = [guiding_latent.shape[0], guiding_latent.shape[1], 1, guiding_latent.shape[3], guiding_latent.shape[4]]
+                scale = guiding_latent_noise_scale * (input_ts ** 2)
+                guiding_noise = scale * torch.randn(size=noise_shape, device=x.device, generator=self.generator)
+
+                x[:, :, 0] = guiding_noise[:, :, 0] + x[:, :, 0] *  (1.0 - scale[:, :, 0])
+
 
         orig_shape = list(x.shape)
 
