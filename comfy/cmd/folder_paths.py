@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 
 @_module_properties.getter
-def _supported_pt_extensions() -> frozenset[str]:
-    return supported_pt_extensions
+def _supported_pt_extensions() -> set[str]:
+    return set(supported_pt_extensions)
 
 
 @_module_properties.getter
@@ -252,7 +252,7 @@ def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, e
     folder_names_and_paths = _folder_names_and_paths()
     if full_folder_path is None:
         if folder_name not in folder_names_and_paths:
-            folder_names_and_paths.add(ModelPaths(folder_names=[folder_name], supported_extensions=extensions or _supported_pt_extensions()))
+            folder_names_and_paths.add(ModelPaths(folder_names=[folder_name], supported_extensions=set(extensions) if extensions is not None else _supported_pt_extensions()))
             return [p for p in folder_names_and_paths.directory_paths(folder_name)][0]
         else:
             # todo: this should use the subdir pattern
