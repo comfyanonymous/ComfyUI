@@ -238,12 +238,13 @@ async def main(from_script_dir: Optional[Path] = None):
 
         call_on_start = startup_server
 
-    server.address = args.listen
+    first_listen_addr = args.listen.split(',')[0] if ',' in args.listen else args.listen
+    server.address = first_listen_addr
     server.port = args.port
 
     try:
         await server.setup()
-        await run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server,
+        await run(server, address=first_listen_addr, port=args.port, verbose=not args.dont_print_server,
                   call_on_start=call_on_start)
     except (asyncio.CancelledError, KeyboardInterrupt):
         logger.debug("\nStopped server")
