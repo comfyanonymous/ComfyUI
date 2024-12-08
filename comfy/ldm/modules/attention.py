@@ -376,7 +376,13 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_resh
 
     if mask is not None:
         pad = 8 - mask.shape[-1] % 8
-        mask_out = torch.empty([q.shape[0], q.shape[2], q.shape[1], mask.shape[-1] + pad], dtype=q.dtype, device=q.device)
+        # if skip_reshape, then q, k, v have merged heads and batch size
+        if skip_reshape:
+            mask_out = torch.empty([q.shape[0], q.shape[1], mask.shape[-1] + pad], dtype=q.dtype, device=q.device)
+        # otherwise, we have separate heads and batch size
+        else:
+            mask_out = torch.empty([q.shape[0], q.shape[2], q.shape[1], mask.shape[-1] + pad], dtype=q.dtype, device=q.device)
+
         mask_out[..., :mask.shape[-1]] = mask
         mask = mask_out[..., :mask.shape[-1]]
 
