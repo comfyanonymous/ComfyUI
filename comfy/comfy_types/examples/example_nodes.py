@@ -1,4 +1,4 @@
-from comfy_types import IO, ComfyNodeABC, InputTypeDict
+from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict
 from inspect import cleandoc
 
 
