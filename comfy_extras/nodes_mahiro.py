@@ -10,6 +10,7 @@ class Mahiro:
     RETURN_NAMES = ("patched_model",)
     FUNCTION = "patch"
     CATEGORY = "_for_testing"
+    DESCRIPTION = "Modify the guidance to scale more on the 'direction' of the positive prompt rather than the difference between the negative prompt."
     def patch(self, model):
         m = model.clone()
         def mahiro_normd(args):
@@ -27,8 +28,8 @@ class Mahiro:
             sim = F.cosine_similarity(normu, normm).mean()
             simsc = 2 * (sim+1)
             wm = (simsc*cfg + (4-simsc)*leap) / 4
-            return args['input'] - wm
-        m.set_model_sampler_cfg_function(mahiro_normd)
+            return wm
+        m.set_model_sampler_post_cfg_function(mahiro_normd)
         return (m, )
 
 NODE_CLASS_MAPPINGS = {
