@@ -1,4 +1,3 @@
-import os
 import logging
 from spandrel import ModelLoader, ImageModelDescriptor
 from comfy import model_management
