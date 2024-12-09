@@ -7,6 +7,23 @@ import folder_paths
 import time
 from comfy.cli_args import args
 from app.logger import setup_logger
+from packaging.version import Version
+
+
+# Security: Hard-pin ultralytics to 8.3.40, enforce as a test during ComfyUI startup. If ultralytics exists, 8.3.40 is last "okay" version.
+# Refer to following:
+# - https://github.com/ultralytics/ultralytics/issues/18027
+# - https://blog.comfy.org/comfyui-statement-on-the-ultralytics-crypto-miner-situation/
+try:
+    from ultralytics import __version__ as ultralytics_version
+    if Version(ultralytics_version) > Version('8.3.40'):
+        raise EnvironmentError("[SECURITY ALERT] Unsafe malicious versions of Ultralytics detected, last known good version 8.3.40.")
+except ModuleNotFound:
+    pass
+except Exception:
+    raise
+    
+    
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI which should already have no communication with the internet, they are for custom nodes.
