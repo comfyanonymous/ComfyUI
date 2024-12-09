@@ -9,7 +9,6 @@ import logging
 from .util import (
     checkpoint,
     avg_pool_nd,
-    zero_module,
     timestep_embedding,
     AlphaBlender,
 )

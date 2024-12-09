@@ -87,7 +87,8 @@ if __name__ == "__main__":
 
 if args.windows_standalone_build:
     try:
-        import fix_torch
+        from fix_torch import fix_pytorch_libomp
+        fix_pytorch_libomp()
     except:
         pass
 
