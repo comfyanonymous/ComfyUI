@@ -17,7 +17,6 @@ from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, 
 from comfy_execution.graph_utils import is_link, GraphBuilder
 from comfy_execution.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID
 from comfy_execution.validation import validate_node_input
-from comfy.cli_args import args
 
 class ExecutionResult(Enum):
     SUCCESS = 0

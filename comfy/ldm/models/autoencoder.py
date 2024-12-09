@@ -1,6 +1,6 @@
 import torch
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Tuple, Union
 
 from comfy.ldm.modules.distributions.distributions import DiagonalGaussianDistribution
 
