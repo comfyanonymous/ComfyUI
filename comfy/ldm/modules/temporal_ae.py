@@ -1,5 +1,5 @@
 import functools
-from typing import Callable, Iterable, Union
+from typing import Iterable, Union
 
 import torch
 from einops import rearrange, repeat

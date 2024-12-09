@@ -1,8 +1,6 @@
-from typing import Any
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 import comfy.ops
 from comfy.ldm.modules.diffusionmodules.mmdit import Mlp, TimestepEmbedder, PatchEmbed, RMSNorm

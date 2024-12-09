@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
 if args.windows_standalone_build:
     try:
-        import fix_torch
+        pass
     except:
         pass
 

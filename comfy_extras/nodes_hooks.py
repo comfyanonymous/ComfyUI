@@ -4,7 +4,6 @@ import torch
 from collections.abc import Iterable
 
 if TYPE_CHECKING:
-    from comfy.model_patcher import ModelPatcher
     from comfy.sd import CLIP
 
 import comfy.hooks

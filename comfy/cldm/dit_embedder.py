@@ -1,10 +1,8 @@
 import math
 from typing import List, Optional, Tuple
 
-import numpy as np
 import torch
 import torch.nn as nn
-from einops import rearrange
 from torch import Tensor
 
 from comfy.ldm.modules.diffusionmodules.mmdit import DismantledBlock, PatchEmbed, VectorEmbedder, TimestepEmbedder, get_2d_sincos_pos_embed_torch

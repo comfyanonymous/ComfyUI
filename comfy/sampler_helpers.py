@@ -1,6 +1,5 @@
 from __future__ import annotations
 import uuid
-import torch
 import comfy.model_management
 import comfy.conds
 import comfy.utils

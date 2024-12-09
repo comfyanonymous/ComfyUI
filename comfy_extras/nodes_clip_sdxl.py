@@ -1,4 +1,3 @@
-import torch
 from nodes import MAX_RESOLUTION
 
 class CLIPTextEncodeSDXLRefiner:
