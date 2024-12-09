@@ -86,8 +86,9 @@ if __name__ == "__main__":
     import cuda_malloc
 
 if args.windows_standalone_build:
+    # TODO: Convert fix_torch to a function.
     try:
-        pass
+        import fix_torch # noqa: F401
     except:
         pass
 
