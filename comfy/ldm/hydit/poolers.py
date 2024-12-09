@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from ..modules.attention import optimized_attention
 from ... import ops
 

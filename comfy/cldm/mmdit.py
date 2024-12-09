@@ -1,6 +1,6 @@
-import torch
-from typing import Dict, Optional, List
+from typing import Optional, List
 
+import torch
 from einops import einops
 from torch import Tensor
 
@@ -12,15 +12,16 @@ def default(x, y):
         return x
     return y
 
+
 class ControlNet(MMDiT):
     def __init__(
-        self,
-        num_blocks = None,
-        control_latent_channels = None,
-        dtype = None,
-        device = None,
-        operations = None,
-        **kwargs,
+            self,
+            num_blocks=None,
+            control_latent_channels=None,
+            dtype=None,
+            device=None,
+            operations=None,
+            **kwargs,
     ):
         super().__init__(dtype=dtype, device=device, operations=operations, final_layer=False, num_blocks=num_blocks, **kwargs)
         # controlnet_blocks
@@ -44,15 +45,15 @@ class ControlNet(MMDiT):
         )
 
     def forward(
-        self,
-        x: torch.Tensor,
-        timesteps: torch.Tensor,
-        y: Optional[torch.Tensor] = None,
-        context: Optional[torch.Tensor] = None,
-        hint = None,
-    ) -> Dict[str, List[Tensor]]:
+            self,
+            x: torch.Tensor,
+            timesteps: torch.Tensor,
+            y: Optional[torch.Tensor] = None,
+            context: Optional[torch.Tensor] = None,
+            hint=None,
+    ) -> dict[str, List[Tensor]]:
 
-        #weird sd3 controlnet specific stuff
+        # weird sd3 controlnet specific stuff
         y = torch.zeros_like(y)
 
         if self.context_processor is not None:

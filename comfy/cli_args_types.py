@@ -60,8 +60,10 @@ class Configuration(dict):
         force_bf16 (bool): Force using BF16 precision.
         bf16_unet (bool): Use BF16 precision for UNet.
         fp16_unet (bool): Use FP16 precision for UNet.
-        fp8_e4m3fn_unet (bool): Use FP8 precision (e4m3fn variant) for UNet.
-        fp8_e5m2_unet (bool): Use FP8 precision (e5m2 variant) for UNet.
+        fp32_unet (bool): Run the diffusion model in fp32.
+        fp64_unet (bool): Run the diffusion model in fp64.
+        fp8_e4m3fn_unet (bool): Store unet weights in fp8_e4m3fn
+        fp8_e5m2_unet (bool): Store unet weights in fp8_e5m2.
         fp16_vae (bool): Run the VAE in FP16 precision.
         fp32_vae (bool): Run the VAE in FP32 precision.
         bf16_vae (bool): Run the VAE in BF16 precision.
@@ -145,6 +147,8 @@ class Configuration(dict):
         self.force_bf16: bool = False
         self.bf16_unet: bool = False
         self.fp16_unet: bool = False
+        self.fp32_unet: bool = False
+        self.fp64_unet: bool = False
         self.fp8_e4m3fn_unet: bool = False
         self.fp8_e5m2_unet: bool = False
         self.fp16_vae: bool = False

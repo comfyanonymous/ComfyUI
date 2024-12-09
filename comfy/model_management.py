@@ -425,6 +425,9 @@ class LoadedModel:
         if self._patcher_finalizer is not None:
             self._patcher_finalizer.detach()
 
+    def is_dead(self):
+        return self.real_model() is not None and self.model is None
+
 
 def use_more_memory(extra_memory, loaded_models, device):
     for m in loaded_models:
@@ -480,7 +483,7 @@ def _free_memory(memory_required, device, keep_loaded=[]):
     for i in range(len(current_loaded_models) - 1, -1, -1):
         shift_model = current_loaded_models[i]
         if shift_model.device == device:
-            if shift_model not in keep_loaded:
+            if shift_model not in keep_loaded and not shift_model.is_dead():
                 can_unload.append((-shift_model.model_offloaded_memory(), sys.getrefcount(shift_model.model), shift_model.model_memory(), i))
                 shift_model.currently_used = False
 
@@ -621,7 +624,7 @@ def cleanup_models_gc():
     do_gc = False
     for i in range(len(current_loaded_models)):
         cur = current_loaded_models[i]
-        if cur.real_model() is not None and cur.model is None:
+        if cur.is_dead():
             logging.info("Potential memory leak detected with model {}, doing a full garbage collect, for maximum performance avoid circular references in the model code.".format(cur.real_model().__class__.__name__))
             do_gc = True
             break
@@ -632,7 +635,7 @@ def cleanup_models_gc():
 
         for i in range(len(current_loaded_models)):
             cur = current_loaded_models[i]
-            if cur.real_model() is not None and cur.model is None:
+            if cur.is_dead():
                 logging.warning("WARNING, memory leak with model {}. Please make sure it is not being referenced from somewhere.".format(cur.real_model().__class__.__name__))
 
 
@@ -694,6 +697,10 @@ def maximum_vram_for_weights(device=None) -> int:
 def unet_dtype(device=None, model_params=0, supported_dtypes=(torch.float16, torch.bfloat16, torch.float32)):
     if model_params < 0:
         model_params = 1000000000000000000000
+    if args.fp32_unet:
+        return torch.float32
+    if args.fp64_unet:
+        return torch.float64
     if args.bf16_unet:
         return torch.bfloat16
     if args.fp16_unet:
@@ -741,7 +748,7 @@ def unet_dtype(device=None, model_params=0, supported_dtypes=(torch.float16, tor
 
 # None means no manual cast
 def unet_manual_cast(weight_dtype, inference_device, supported_dtypes=(torch.float16, torch.bfloat16, torch.float32)):
-    if weight_dtype == torch.float32:
+    if weight_dtype == torch.float32 or weight_dtype == torch.float64:
         return None
 
     fp16_supported = should_use_fp16(inference_device, prioritize_performance=False)

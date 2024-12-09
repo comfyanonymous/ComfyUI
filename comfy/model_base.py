@@ -34,14 +34,16 @@ from .ldm.aura.mmdit import MMDiT as AuraMMDiT
 from .ldm.cascade.stage_b import StageB
 from .ldm.cascade.stage_c import StageC
 from .ldm.flux import model as flux_model
-from .ldm.lightricks.model import LTXVModel
 from .ldm.genmo.joint_model.asymm_models_joint import AsymmDiTJoint
 from .ldm.hydit.models import HunYuanDiT
+from .ldm.lightricks.model import LTXVModel
 from .ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
 from .ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
 from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
+from .model_management_types import ModelManageable
 from .ops import Operations
+from .patcher_extension import WrapperExecutor, WrappersMP, get_all_wrappers
 
 
 class ModelType(Enum):
@@ -109,6 +111,8 @@ class BaseModel(torch.nn.Module):
         self.manual_cast_dtype = model_config.manual_cast_dtype
         self.device: torch.device = device
         self.operations: Optional[Operations]
+        self.current_patcher: Optional[ModelManageable] = None
+
         if not unet_config.get("disable_unet_model_creation", False):
             if model_config.custom_operations is None:
                 fp8 = model_config.optimizations.get("fp8", model_config.scaled_fp8 is not None)
@@ -137,6 +141,13 @@ class BaseModel(torch.nn.Module):
         self.training = False
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
+        return WrapperExecutor.new_class_executor(
+            self._apply_model,
+            self,
+            get_all_wrappers(WrappersMP.APPLY_MODEL, transformer_options)
+        ).execute(x, t, c_concat, c_crossattn, control, transformer_options, **kwargs)
+
+    def _apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         sigma = t
         xc = self.model_sampling.calculate_input(sigma, x)
         if c_concat is not None:
@@ -576,7 +587,6 @@ class IP2P(BaseModel):
         return self.process_ip2p_image_in(image)
 
 
-
 class SD15_instructpix2pix(IP2P, BaseModel):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None):
         super().__init__(model_config, model_type, device=device)
@@ -746,7 +756,13 @@ class Flux(BaseModel):
         super().__init__(model_config, model_type, device=device, unet_model=flux_model.Flux)
 
     def concat_cond(self, **kwargs):
-        num_channels = self.diffusion_model.img_in.weight.shape[1] // (self.diffusion_model.patch_size * self.diffusion_model.patch_size)
+        try:
+            # Handle Flux control loras dynamically changing the img_in weight.
+            num_channels = self.diffusion_model.img_in.weight.shape[1] // (self.diffusion_model.patch_size * self.diffusion_model.patch_size)
+        except:
+            # Some cases like tensorrt might not have the weights accessible
+            num_channels = self.model_config.unet_config["in_channels"]
+
         out_channels = self.model_config.unet_config["out_channels"]
 
         if num_channels <= out_channels:
@@ -765,7 +781,7 @@ class Flux(BaseModel):
         if num_channels <= out_channels * 2:
             return image
 
-        #inpaint model
+        # inpaint model
         mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
         if mask is None:
             mask = torch.ones_like(noise)[:, :1]
@@ -788,6 +804,7 @@ class Flux(BaseModel):
         out['guidance'] = conds.CONDRegular(torch.FloatTensor([kwargs.get("guidance", 3.5)]))
         return out
 
+
 class GenmoMochi(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=AsymmDiTJoint)
@@ -803,9 +820,10 @@ class GenmoMochi(BaseModel):
             out['c_crossattn'] = conds.CONDRegular(cross_attn)
         return out
 
+
 class LTXV(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=LTXVModel) #TODO
+        super().__init__(model_config, model_type, device=device, unet_model=LTXVModel)  # TODO
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -819,6 +837,10 @@ class LTXV(BaseModel):
         guiding_latent = kwargs.get("guiding_latent", None)
         if guiding_latent is not None:
             out['guiding_latent'] = conds.CONDRegular(guiding_latent)
+
+        guiding_latent_noise_scale = kwargs.get("guiding_latent_noise_scale", None)
+        if guiding_latent_noise_scale is not None:
+            out["guiding_latent_noise_scale"] = conds.CONDConstant(guiding_latent_noise_scale)
 
         out['frame_rate'] = conds.CONDConstant(kwargs.get("frame_rate", 25))
         return out

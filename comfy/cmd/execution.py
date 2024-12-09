@@ -39,6 +39,7 @@ nodes: ExportedNodes = lazy_object_proxy.Proxy(import_all_nodes_in_workspace)
 from ..graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
 from ..graph_utils import is_link, GraphBuilder
 from ..caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID
+from ..validation import validate_node_input
 
 
 class IsChangedCache:
@@ -699,7 +700,8 @@ def validate_inputs(prompt, item, validated: typing.Dict[str, ValidateInputsTupl
             received_type = r[val[1]]
             received_types[x] = received_type
             any_enum = received_type == [] and (isinstance(type_input, list) or isinstance(type_input, tuple))
-            if 'input_types' not in validate_function_inputs and received_type != type_input and not any_enum:
+
+            if 'input_types' not in validate_function_inputs and not validate_node_input(received_type, type_input) and not any_enum:
                 details = f"{x}, {received_type} != {type_input}"
                 error = {
                     "type": "return_type_mismatch",

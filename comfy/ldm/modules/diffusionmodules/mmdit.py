@@ -1,16 +1,16 @@
-import logging
-import math
 from functools import partial
-from typing import Dict, Optional, List
+from typing import Dict, Optional
 
 import numpy as np
 import torch
 import torch.nn as nn
-from ..attention import optimized_attention
 from einops import rearrange, repeat
+
 from .util import timestep_embedding
-from .... import ops
+from ..attention import optimized_attention
 from ... import common_dit
+from .... import ops
+
 
 def default(x, y):
     if x is not None:

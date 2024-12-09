@@ -659,6 +659,15 @@ class Flux(supported_models_base.BASE):
         t5_detect = sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(flux.FluxTokenizer, flux.flux_clip(**t5_detect))
 
+class FluxInpaint(Flux):
+    unet_config = {
+        "image_model": "flux",
+        "guidance_embed": True,
+        "in_channels": 96,
+    }
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
 class FluxSchnell(Flux):
     unet_config = {
         "image_model": "flux",
@@ -733,6 +742,6 @@ class LTXV(supported_models_base.BASE):
         t5_detect = sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(lt.LTXVT5Tokenizer, lt.ltxv_te(**t5_detect))
 
-models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, HunyuanDiT, HunyuanDiT1, Flux, FluxSchnell, GenmoMochi, LTXV]
+models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV]
 
 models += [SVD_img2vid]

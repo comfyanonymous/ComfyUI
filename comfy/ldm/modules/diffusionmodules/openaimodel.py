@@ -1,22 +1,24 @@
+import logging
 from abc import abstractmethod
 
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-import logging
 
 from .util import (
     checkpoint,
     avg_pool_nd,
-    zero_module,
     timestep_embedding,
     AlphaBlender,
 )
 from ..attention import SpatialTransformer, SpatialVideoTransformer, default
 from ...util import exists
 from .... import ops
+from .... import patcher_extension
+
 ops = ops.disable_weight_init
+
 
 class TimestepBlock(nn.Module):
     """
@@ -29,7 +31,8 @@ class TimestepBlock(nn.Module):
         Apply the module to `x` given `emb` timestep embeddings.
         """
 
-#This is needed because accelerate makes a copy of transformer_options which breaks "transformer_index"
+
+# This is needed because accelerate makes a copy of transformer_options which breaks "transformer_index"
 def forward_timestep_embed(ts, x, emb, context=None, transformer_options={}, output_shape=None, time_context=None, num_video_frames=None, image_only_indicator=None):
     for layer in ts:
         if isinstance(layer, VideoResBlock):
@@ -47,8 +50,18 @@ def forward_timestep_embed(ts, x, emb, context=None, transformer_options={}, out
         elif isinstance(layer, Upsample):
             x = layer(x, output_shape=output_shape)
         else:
+            if "patches" in transformer_options and "forward_timestep_embed_patch" in transformer_options["patches"]:
+                found_patched = False
+                for class_type, handler in transformer_options["patches"]["forward_timestep_embed_patch"]:
+                    if isinstance(layer, class_type):
+                        x = handler(layer, x, emb, context, transformer_options, output_shape, time_context, num_video_frames, image_only_indicator)
+                        found_patched = True
+                        break
+                if found_patched:
+                    continue
             x = layer(x)
     return x
+
 
 class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     """
@@ -58,6 +71,7 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
 
     def forward(self, *args, **kwargs):
         return forward_timestep_embed(self, *args, **kwargs)
+
 
 class Upsample(nn.Module):
     """
@@ -94,6 +108,7 @@ class Upsample(nn.Module):
         if self.use_conv:
             x = self.conv(x)
         return x
+
 
 class Downsample(nn.Module):
     """
@@ -141,23 +156,23 @@ class ResBlock(TimestepBlock):
     """
 
     def __init__(
-        self,
-        channels,
-        emb_channels,
-        dropout,
-        out_channels=None,
-        use_conv=False,
-        use_scale_shift_norm=False,
-        dims=2,
-        use_checkpoint=False,
-        up=False,
-        down=False,
-        kernel_size=3,
-        exchange_temb_dims=False,
-        skip_t_emb=False,
-        dtype=None,
-        device=None,
-        operations=ops
+            self,
+            channels,
+            emb_channels,
+            dropout,
+            out_channels=None,
+            use_conv=False,
+            use_scale_shift_norm=False,
+            dims=2,
+            use_checkpoint=False,
+            up=False,
+            down=False,
+            kernel_size=3,
+            exchange_temb_dims=False,
+            skip_t_emb=False,
+            dtype=None,
+            device=None,
+            operations=ops
     ):
         super().__init__()
         self.channels = channels
@@ -231,7 +246,6 @@ class ResBlock(TimestepBlock):
             self._forward, (x, emb), self.parameters(), self.use_checkpoint
         )
 
-
     def _forward(self, x, emb):
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
@@ -266,23 +280,23 @@ class ResBlock(TimestepBlock):
 
 class VideoResBlock(ResBlock):
     def __init__(
-        self,
-        channels: int,
-        emb_channels: int,
-        dropout: float,
-        video_kernel_size=3,
-        merge_strategy: str = "fixed",
-        merge_factor: float = 0.5,
-        out_channels=None,
-        use_conv: bool = False,
-        use_scale_shift_norm: bool = False,
-        dims: int = 2,
-        use_checkpoint: bool = False,
-        up: bool = False,
-        down: bool = False,
-        dtype=None,
-        device=None,
-        operations=ops
+            self,
+            channels: int,
+            emb_channels: int,
+            dropout: float,
+            video_kernel_size=3,
+            merge_strategy: str = "fixed",
+            merge_factor: float = 0.5,
+            out_channels=None,
+            use_conv: bool = False,
+            use_scale_shift_norm: bool = False,
+            dims: int = 2,
+            use_checkpoint: bool = False,
+            up: bool = False,
+            down: bool = False,
+            dtype=None,
+            device=None,
+            operations=ops
     ):
         super().__init__(
             channels,
@@ -324,11 +338,11 @@ class VideoResBlock(ResBlock):
         )
 
     def forward(
-        self,
-        x: th.Tensor,
-        emb: th.Tensor,
-        num_video_frames: int,
-        image_only_indicator = None,
+            self,
+            x: th.Tensor,
+            emb: th.Tensor,
+            num_video_frames: int,
+            image_only_indicator=None,
     ) -> th.Tensor:
         x = super().forward(x, emb)
 
@@ -353,6 +367,7 @@ class Timestep(nn.Module):
     def forward(self, t):
         return timestep_embedding(t, self.dim)
 
+
 def apply_control(h, control, name):
     if control is not None and name in control and len(control[name]) > 0:
         ctrl = control[name].pop()
@@ -362,6 +377,7 @@ def apply_control(h, control, name):
             except:
                 logging.warning("warning control could not be applied {} {}".format(h.shape, ctrl.shape))
     return h
+
 
 class UNetModel(nn.Module):
     """
@@ -390,50 +406,50 @@ class UNetModel(nn.Module):
     """
 
     def __init__(
-        self,
-        image_size,
-        in_channels,
-        model_channels,
-        out_channels,
-        num_res_blocks,
-        dropout=0,
-        channel_mult=(1, 2, 4, 8),
-        conv_resample=True,
-        dims=2,
-        num_classes=None,
-        use_checkpoint=False,
-        dtype=th.float32,
-        num_heads=-1,
-        num_head_channels=-1,
-        num_heads_upsample=-1,
-        use_scale_shift_norm=False,
-        resblock_updown=False,
-        use_new_attention_order=False,
-        use_spatial_transformer=False,    # custom transformer support
-        transformer_depth=1,              # custom transformer support
-        context_dim=None,                 # custom transformer support
-        n_embed=None,                     # custom support for prediction of discrete ids into codebook of first stage vq model
-        legacy=True,
-        disable_self_attentions=None,
-        num_attention_blocks=None,
-        disable_middle_self_attn=False,
-        use_linear_in_transformer=False,
-        adm_in_channels=None,
-        transformer_depth_middle=None,
-        transformer_depth_output=None,
-        use_temporal_resblock=False,
-        use_temporal_attention=False,
-        time_context_dim=None,
-        extra_ff_mix_layer=False,
-        use_spatial_context=False,
-        merge_strategy=None,
-        merge_factor=0.0,
-        video_kernel_size=None,
-        disable_temporal_crossattention=False,
-        max_ddpm_temb_period=10000,
-        attn_precision=None,
-        device=None,
-        operations=ops,
+            self,
+            image_size,
+            in_channels,
+            model_channels,
+            out_channels,
+            num_res_blocks,
+            dropout=0,
+            channel_mult=(1, 2, 4, 8),
+            conv_resample=True,
+            dims=2,
+            num_classes=None,
+            use_checkpoint=False,
+            dtype=th.float32,
+            num_heads=-1,
+            num_head_channels=-1,
+            num_heads_upsample=-1,
+            use_scale_shift_norm=False,
+            resblock_updown=False,
+            use_new_attention_order=False,
+            use_spatial_transformer=False,  # custom transformer support
+            transformer_depth=1,  # custom transformer support
+            context_dim=None,  # custom transformer support
+            n_embed=None,  # custom support for prediction of discrete ids into codebook of first stage vq model
+            legacy=True,
+            disable_self_attentions=None,
+            num_attention_blocks=None,
+            disable_middle_self_attn=False,
+            use_linear_in_transformer=False,
+            adm_in_channels=None,
+            transformer_depth_middle=None,
+            transformer_depth_output=None,
+            use_temporal_resblock=False,
+            use_temporal_attention=False,
+            time_context_dim=None,
+            extra_ff_mix_layer=False,
+            use_spatial_context=False,
+            merge_strategy=None,
+            merge_factor=0.0,
+            video_kernel_size=None,
+            disable_temporal_crossattention=False,
+            max_ddpm_temb_period=10000,
+            attn_precision=None,
+            device=None,
+            operations=ops,
     ):
         super().__init__()
 
@@ -525,13 +541,13 @@ class UNetModel(nn.Module):
         ds = 1
 
         def get_attention_layer(
-            ch,
-            num_heads,
-            dim_head,
-            depth=1,
-            context_dim=None,
-            use_checkpoint=False,
-            disable_self_attn=False,
+                ch,
+                num_heads,
+                dim_head,
+                depth=1,
+                context_dim=None,
+                use_checkpoint=False,
+                disable_self_attn=False,
         ):
             if use_temporal_attention:
                 return SpatialVideoTransformer(
@@ -556,27 +572,27 @@ class UNetModel(nn.Module):
                 )
             else:
                 return SpatialTransformer(
-                                ch, num_heads, dim_head, depth=depth, context_dim=context_dim,
-                                disable_self_attn=disable_self_attn, use_linear=use_linear_in_transformer,
-                                use_checkpoint=use_checkpoint, attn_precision=attn_precision, dtype=self.dtype, device=device, operations=operations
-                            )
+                    ch, num_heads, dim_head, depth=depth, context_dim=context_dim,
+                    disable_self_attn=disable_self_attn, use_linear=use_linear_in_transformer,
+                    use_checkpoint=use_checkpoint, attn_precision=attn_precision, dtype=self.dtype, device=device, operations=operations
+                )
 
         def get_resblock(
-            merge_factor,
-            merge_strategy,
-            video_kernel_size,
-            ch,
-            time_embed_dim,
-            dropout,
-            out_channels,
-            dims,
-            use_checkpoint,
-            use_scale_shift_norm,
-            down=False,
-            up=False,
-            dtype=None,
-            device=None,
-            operations=ops
+                merge_factor,
+                merge_strategy,
+                video_kernel_size,
+                ch,
+                time_embed_dim,
+                dropout,
+                out_channels,
+                dims,
+                use_checkpoint,
+                use_scale_shift_norm,
+                down=False,
+                up=False,
+                dtype=None,
+                device=None,
+                operations=ops
         ):
             if self.use_temporal_resblocks:
                 return VideoResBlock(
@@ -640,7 +656,7 @@ class UNetModel(nn.Module):
                         num_heads = ch // num_head_channels
                         dim_head = num_head_channels
                     if legacy:
-                        #num_heads = 1
+                        # num_heads = 1
                         dim_head = ch // num_heads if use_spatial_transformer else num_head_channels
                     if exists(disable_self_attentions):
                         disabled_sa = disable_self_attentions[level]
@@ -649,8 +665,8 @@ class UNetModel(nn.Module):
 
                     if not exists(num_attention_blocks) or nr < num_attention_blocks[level]:
                         layers.append(get_attention_layer(
-                                ch, num_heads, dim_head, depth=num_transformers, context_dim=context_dim,
-                                disable_self_attn=disabled_sa, use_checkpoint=use_checkpoint)
+                            ch, num_heads, dim_head, depth=num_transformers, context_dim=context_dim,
+                            disable_self_attn=disabled_sa, use_checkpoint=use_checkpoint)
                         )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
                 self._feature_size += ch
@@ -692,7 +708,7 @@ class UNetModel(nn.Module):
             num_heads = ch // num_head_channels
             dim_head = num_head_channels
         if legacy:
-            #num_heads = 1
+            # num_heads = 1
             dim_head = ch // num_heads if use_spatial_transformer else num_head_channels
         mid_block = [
             get_resblock(
@@ -715,24 +731,24 @@ class UNetModel(nn.Module):
         if transformer_depth_middle >= -1:
             if transformer_depth_middle >= 0:
                 mid_block += [get_attention_layer(  # always uses a self-attn
-                                ch, num_heads, dim_head, depth=transformer_depth_middle, context_dim=context_dim,
-                                disable_self_attn=disable_middle_self_attn, use_checkpoint=use_checkpoint
-                            ),
-                get_resblock(
-                    merge_factor=merge_factor,
-                    merge_strategy=merge_strategy,
-                    video_kernel_size=video_kernel_size,
-                    ch=ch,
-                    time_embed_dim=time_embed_dim,
-                    dropout=dropout,
-                    out_channels=None,
-                    dims=dims,
-                    use_checkpoint=use_checkpoint,
-                    use_scale_shift_norm=use_scale_shift_norm,
-                    dtype=self.dtype,
-                    device=device,
-                    operations=operations
-                )]
+                    ch, num_heads, dim_head, depth=transformer_depth_middle, context_dim=context_dim,
+                    disable_self_attn=disable_middle_self_attn, use_checkpoint=use_checkpoint
+                ),
+                    get_resblock(
+                        merge_factor=merge_factor,
+                        merge_strategy=merge_strategy,
+                        video_kernel_size=video_kernel_size,
+                        ch=ch,
+                        time_embed_dim=time_embed_dim,
+                        dropout=dropout,
+                        out_channels=None,
+                        dims=dims,
+                        use_checkpoint=use_checkpoint,
+                        use_scale_shift_norm=use_scale_shift_norm,
+                        dtype=self.dtype,
+                        device=device,
+                        operations=operations
+                    )]
             self.middle_block = TimestepEmbedSequential(*mid_block)
         self._feature_size += ch
 
@@ -766,7 +782,7 @@ class UNetModel(nn.Module):
                         num_heads = ch // num_head_channels
                         dim_head = num_head_channels
                     if legacy:
-                        #num_heads = 1
+                        # num_heads = 1
                         dim_head = ch // num_heads if use_spatial_transformer else num_head_channels
                     if exists(disable_self_attentions):
                         disabled_sa = disable_self_attentions[level]
@@ -813,12 +829,19 @@ class UNetModel(nn.Module):
         )
         if self.predict_codebook_ids:
             self.id_predictor = nn.Sequential(
-            operations.GroupNorm(32, ch, dtype=self.dtype, device=device),
-            operations.conv_nd(dims, model_channels, n_embed, 1, dtype=self.dtype, device=device),
-            #nn.LogSoftmax(dim=1)  # change to cross_entropy and produce non-normalized logits
-        )
+                operations.GroupNorm(32, ch, dtype=self.dtype, device=device),
+                operations.conv_nd(dims, model_channels, n_embed, 1, dtype=self.dtype, device=device),
+                # nn.LogSoftmax(dim=1)  # change to cross_entropy and produce non-normalized logits
+            )
 
     def forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}, **kwargs):
+        return patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            patcher_extension.get_all_wrappers(patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timesteps, context, y, control, transformer_options, **kwargs)
+
+    def _forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}, **kwargs):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -836,7 +859,7 @@ class UNetModel(nn.Module):
         time_context = kwargs.get("time_context", None)
 
         assert (y is not None) == (
-            self.num_classes is not None
+                self.num_classes is not None
         ), "must specify y if and only if the model is class-conditional"
         hs = []
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False).to(x.dtype)
@@ -871,7 +894,6 @@ class UNetModel(nn.Module):
         if self.middle_block is not None:
             h = forward_timestep_embed(self.middle_block, h, emb, context, transformer_options, time_context=time_context, num_video_frames=num_video_frames, image_only_indicator=image_only_indicator)
         h = apply_control(h, control, 'middle')
-
 
         for id, module in enumerate(self.output_blocks):
             transformer_options["block"] = ("output", id)

@@ -1,6 +1,5 @@
 from typing import Tuple, Union
 
-import torch
 
 from .dual_conv3d import DualConv3d
 from .causal_conv3d import CausalConv3d

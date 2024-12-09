@@ -1,10 +1,10 @@
-import torch
-import torch.nn as nn
-import numpy as np
 from functools import partial
 
+import numpy as np
+import torch
+import torch.nn as nn
+
 from .util import extract_into_tensor, make_beta_schedule
-from ...util import default
 
 
 class AbstractLowScaleModel(nn.Module):
@@ -80,6 +80,3 @@ class ImageConcatWithNoiseAugmentation(AbstractLowScaleModel):
             assert isinstance(noise_level, torch.Tensor)
         z = self.q_sample(x, noise_level, seed=seed)
         return z, noise_level
-
-
-

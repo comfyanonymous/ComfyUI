@@ -265,7 +265,7 @@ class ModelSamplingDiscreteFlow(torch.nn.Module):
             return 1.0
         if percent >= 1.0:
             return 0.0
-        return 1.0 - percent
+        return time_snr_shift(self.shift, 1.0 - percent)
 
 
 class StableCascadeSampling(ModelSamplingDiscrete):
@@ -360,4 +360,4 @@ class ModelSamplingFlux(torch.nn.Module):
             return 1.0
         if percent >= 1.0:
             return 0.0
-        return 1.0 - percent
+        return flux_time_shift(self.shift, 1.0, 1.0 - percent)

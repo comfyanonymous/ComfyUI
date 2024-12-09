@@ -21,8 +21,8 @@ MAX_PREVIEW_RESOLUTION = args.preview_size
 
 def preview_to_image(latent_image) -> Image:
     latents_ubyte = (((latent_image + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
-                        .mul(0xFF)  # to 0..255
-                        ).to(device="cpu", dtype=torch.uint8, non_blocking=model_management.device_supports_non_blocking(latent_image.device))
+                     .mul(0xFF)  # to 0..255
+                     ).to(device="cpu", dtype=torch.uint8, non_blocking=model_management.device_supports_non_blocking(latent_image.device))
 
     return Image.fromarray(latents_ubyte.numpy())
 
@@ -78,7 +78,7 @@ def get_previewer(device, latent_format):
         if latent_format.taesd_decoder_name is not None:
             taesd_decoder_path = next(
                 (fn for fn in folder_paths.get_filename_list("vae_approx")
-                    if fn.startswith(latent_format.taesd_decoder_name)),
+                 if fn.startswith(latent_format.taesd_decoder_name)),
                 ""
             )
             taesd_decoder_path = get_or_download("vae_approx", taesd_decoder_path, KNOWN_APPROX_VAES)
@@ -98,6 +98,7 @@ def get_previewer(device, latent_format):
                 previewer = Latent2RGBPreviewer(latent_format.latent_rgb_factors, latent_format.latent_rgb_factors_bias)
     return previewer
 
+
 def prepare_callback(model, steps, x0_output_dict=None):
     preview_format = "JPEG"
     if preview_format not in ["JPEG", "PNG"]:
@@ -115,5 +116,5 @@ def prepare_callback(model, steps, x0_output_dict=None):
         if previewer:
             preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
         pbar.update_absolute(step + 1, total_steps, preview_bytes)
-    return callback
 
+    return callback

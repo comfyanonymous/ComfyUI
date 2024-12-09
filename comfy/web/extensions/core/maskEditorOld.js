@@ -1,2 +1,2 @@
-// Shim for extensions\core\maskEditorOld.ts
+// Shim for extensions/core/maskEditorOld.ts
 export const MaskEditorDialogOld = window.comfyAPI.maskEditorOld.MaskEditorDialogOld;

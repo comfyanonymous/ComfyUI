@@ -1,7 +1,7 @@
 import torch
 import math
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Tuple, Union
 import logging as logpy
 
 from ..modules.distributions.distributions import DiagonalGaussianDistribution

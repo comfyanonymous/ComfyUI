@@ -6,14 +6,13 @@ import os.path
 from enum import Enum
 from typing import Any, Optional
 
-import comfy.ldm.flux.redux
-import comfy.text_encoders.lt
 import torch
 import yaml
 
 from . import clip_vision
 from . import diffusers_convert
 from . import gligen
+from . import lora
 from . import model_detection
 from . import model_management
 from . import model_patcher
@@ -21,10 +20,11 @@ from . import model_sampling
 from . import sd1_clip
 from . import sdxl_clip
 from . import utils
-from . import lora
+from . import hooks
 from .ldm.audio.autoencoder import AudioOobleckVAE
 from .ldm.cascade.stage_a import StageA
 from .ldm.cascade.stage_c_coder import StageC_coder
+from .ldm.flux.redux import ReduxImageEncoder
 from .ldm.genmo.vae import model as genmo_model
 from .ldm.lightricks.vae import causal_video_autoencoder as lightricks
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
@@ -37,6 +37,7 @@ from .text_encoders import flux
 from .text_encoders import genmo
 from .text_encoders import hydit
 from .text_encoders import long_clipl
+from .text_encoders import lt
 from .text_encoders import sa_t5
 from .text_encoders import sd2_clip
 from .text_encoders import sd3_clip
@@ -107,9 +108,13 @@ class CLIP:
 
         self.tokenizer: "sd1_clip.SD1Tokenizer" = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
+        self.patcher.hook_mode = hooks.EnumHookMode.MinVram
+        self.patcher.is_clip = True
+        self.apply_hooks_to_conds = None
         if params['device'] == load_device:
             model_management.load_models_gpu([self.patcher], force_full_load=True)
         self.layer_idx = None
+        self.use_clip_schedule = False
         logging.debug("CLIP model load device: {}, offload device: {}, current: {}".format(load_device, offload_device, params['device']))
 
     def clone(self):
@@ -119,6 +124,8 @@ class CLIP:
         # cloning the tokenizer allows the vocab updates to work more idiomatically
         n.tokenizer = self.tokenizer.clone()
         n.layer_idx = self.layer_idx
+        n.use_clip_schedule = self.use_clip_schedule
+        n.apply_hooks_to_conds = self.apply_hooks_to_conds
         return n
 
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
@@ -129,6 +136,69 @@ class CLIP:
 
     def tokenize(self, text, return_word_ids=False):
         return self.tokenizer.tokenize_with_weights(text, return_word_ids)
+
+    def add_hooks_to_dict(self, pooled_dict: dict[str]):
+        if self.apply_hooks_to_conds:
+            pooled_dict["hooks"] = self.apply_hooks_to_conds
+        return pooled_dict
+
+    def encode_from_tokens_scheduled(self, tokens, unprojected=False, add_dict: dict[str] = {}, show_pbar=True):
+        all_cond_pooled: list[tuple[torch.Tensor, dict[str]]] = []
+        all_hooks = self.patcher.forced_hooks
+        if all_hooks is None or not self.use_clip_schedule:
+            # if no hooks or shouldn't use clip schedule, do unscheduled encode_from_tokens and perform add_dict
+            return_pooled = "unprojected" if unprojected else True
+            pooled_dict = self.encode_from_tokens(tokens, return_pooled=return_pooled, return_dict=True)
+            cond = pooled_dict.pop("cond")
+            # add/update any keys with the provided add_dict
+            pooled_dict.update(add_dict)
+            all_cond_pooled.append([cond, pooled_dict])
+        else:
+            scheduled_keyframes = all_hooks.get_hooks_for_clip_schedule()
+
+            self.cond_stage_model.reset_clip_options()
+            if self.layer_idx is not None:
+                self.cond_stage_model.set_clip_options({"layer": self.layer_idx})
+            if unprojected:
+                self.cond_stage_model.set_clip_options({"projected_pooled": False})
+
+            self.load_model()
+            all_hooks.reset()
+            self.patcher.patch_hooks(None)
+            if show_pbar:
+                pbar = ProgressBar(len(scheduled_keyframes))
+
+            for scheduled_opts in scheduled_keyframes:
+                t_range = scheduled_opts[0]
+                # don't bother encoding any conds outside of start_percent and end_percent bounds
+                if "start_percent" in add_dict:
+                    if t_range[1] < add_dict["start_percent"]:
+                        continue
+                if "end_percent" in add_dict:
+                    if t_range[0] > add_dict["end_percent"]:
+                        continue
+                hooks_keyframes = scheduled_opts[1]
+                for hook, keyframe in hooks_keyframes:
+                    hook.hook_keyframe._current_keyframe = keyframe
+                # apply appropriate hooks with values that match new hook_keyframe
+                self.patcher.patch_hooks(all_hooks)
+                # perform encoding as normal
+                o = self.cond_stage_model.encode_token_weights(tokens)
+                cond, pooled = o[:2]
+                pooled_dict = {"pooled_output": pooled}
+                # add clip_start_percent and clip_end_percent in pooled
+                pooled_dict["clip_start_percent"] = t_range[0]
+                pooled_dict["clip_end_percent"] = t_range[1]
+                # add/update any keys with the provided add_dict
+                pooled_dict.update(add_dict)
+                # add hooks stored on clip
+                self.add_hooks_to_dict(pooled_dict)
+                all_cond_pooled.append([cond, pooled_dict])
+                if show_pbar:
+                    pbar.update(1)
+                model_management.throw_exception_if_processing_interrupted()
+            all_hooks.reset()
+        return all_cond_pooled
 
     def encode_from_tokens(self, tokens, return_pooled=False, return_dict=False):
         self.cond_stage_model.reset_clip_options()
@@ -147,6 +217,7 @@ class CLIP:
             if len(o) > 2:
                 for k in o[2]:
                     out[k] = o[2][k]
+            self.add_hooks_to_dict(out)
             return out
 
         if return_pooled:
@@ -470,7 +541,7 @@ def load_style_model(ckpt_path):
     if "style_embedding" in keys:
         model = adapter.StyleAdapter(width=1024, context_dim=768, num_head=8, n_layes=3, num_token=8)
     elif "redux_down.weight" in keys:
-        model = comfy.ldm.flux.redux.ReduxImageEncoder()
+        model = ReduxImageEncoder()
     else:
         raise Exception("invalid style model {}".format(ckpt_path))
     model.load_state_dict(model_data)
@@ -577,8 +648,8 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.clip = sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, **t5xxl_detect(clip_data))
                 clip_target.tokenizer = sd3_clip.SD3Tokenizer
             elif clip_type == CLIPType.LTXV:
-                clip_target.clip = comfy.text_encoders.lt.ltxv_te(**t5xxl_detect(clip_data))
-                clip_target.tokenizer = comfy.text_encoders.lt.LTXVT5Tokenizer
+                clip_target.clip = lt.ltxv_te(**t5xxl_detect(clip_data))
+                clip_target.tokenizer = lt.LTXVT5Tokenizer
             else:  # CLIPType.MOCHI
                 clip_target.clip = genmo.mochi_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = genmo.MochiT5Tokenizer
