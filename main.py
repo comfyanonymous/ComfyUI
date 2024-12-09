@@ -18,7 +18,7 @@ try:
     from ultralytics import __version__ as ultralytics_version
     if Version(ultralytics_version) > Version('8.3.40'):
         raise EnvironmentError("[SECURITY ALERT] Unsafe malicious versions of Ultralytics detected, last known good version 8.3.40.")
-except ModuleNotFound:
+except ModuleNotFoundError:
     pass
 except Exception:
     raise
