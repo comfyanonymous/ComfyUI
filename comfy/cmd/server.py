@@ -687,36 +687,6 @@ class PromptServer(ExecutorToClientProgress):
 
             return web.Response(status=200)
 
-        # Internal route. Should not be depended upon and is subject to change at any time.
-        # TODO(robinhuang): Move to internal route table class once we refactor PromptServer to pass around Websocket.
-        # NOTE: This was an experiment and WILL BE REMOVED
-        @routes.post("/internal/models/download")
-        async def download_handler(request):
-            async def report_progress(filename: str, status: DownloadModelStatus):
-                payload = status.to_dict()
-                payload['download_path'] = filename
-                await self.send_json("download_progress", payload)
-
-            data = await request.json()
-            url = data.get('url')
-            model_directory = data.get('model_directory')
-            folder_path = data.get('folder_path')
-            model_filename = data.get('model_filename')
-            progress_interval = data.get('progress_interval', 1.0)  # In seconds, how often to report download progress.
-
-            if not url or not model_directory or not model_filename or not folder_path:
-                return web.json_response({"status": "error", "message": "Missing URL or folder path or filename"}, status=400)
-
-            session = self.client_session
-            if session is None:
-                logger.error("Client session is not initialized")
-                return web.Response(status=500)
-
-            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, folder_path, report_progress, progress_interval))
-            await task
-
-            return web.json_response(task.result().to_dict())
-
         @routes.get("/api/v1/prompts/{prompt_id}")
         async def get_api_v1_prompts_prompt_id(request: web.Request) -> web.Response | web.FileResponse:
             prompt_id: str = request.match_info.get("prompt_id", "")
