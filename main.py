@@ -9,11 +9,13 @@ from comfy.cli_args import args
 from app.logger import setup_logger
 import itertools
 import utils.extra_config
+import logging
 
 
 setup_logger(log_level=args.verbose)
 
-def apply_extra_model_paths():
+def apply_custom_paths():
+    # extra model paths
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
     if os.path.isfile(extra_model_paths_config_path):
         utils.extra_config.load_extra_path_config(extra_model_paths_config_path)
@@ -21,6 +23,30 @@ def apply_extra_model_paths():
     if args.extra_model_paths_config:
         for config_path in itertools.chain(*args.extra_model_paths_config):
             utils.extra_config.load_extra_path_config(config_path)
+
+    # --output-directory, --input-directory, --user-directory
+    if args.output_directory:
+        output_dir = os.path.abspath(args.output_directory)
+        logging.info(f"Setting output directory to: {output_dir}")
+        folder_paths.set_output_directory(output_dir)
+
+    # These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
+    folder_paths.add_model_folder_path("checkpoints", os.path.join(folder_paths.get_output_directory(), "checkpoints"))
+    folder_paths.add_model_folder_path("clip", os.path.join(folder_paths.get_output_directory(), "clip"))
+    folder_paths.add_model_folder_path("vae", os.path.join(folder_paths.get_output_directory(), "vae"))
+    folder_paths.add_model_folder_path("diffusion_models",
+                                       os.path.join(folder_paths.get_output_directory(), "diffusion_models"))
+    folder_paths.add_model_folder_path("loras", os.path.join(folder_paths.get_output_directory(), "loras"))
+
+    if args.input_directory:
+        input_dir = os.path.abspath(args.input_directory)
+        logging.info(f"Setting input directory to: {input_dir}")
+        folder_paths.set_input_directory(input_dir)
+
+    if args.user_directory:
+        user_dir = os.path.abspath(args.user_directory)
+        logging.info(f"Setting user directory to: {user_dir}")
+        folder_paths.set_user_directory(user_dir)
 
 
 def execute_prestartup_script():
@@ -63,7 +89,7 @@ def execute_prestartup_script():
             print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
         print()
 
-apply_extra_model_paths()
+apply_custom_paths()
 execute_prestartup_script()
 
 
@@ -73,7 +99,6 @@ import shutil
 import threading
 import gc
 
-import logging
 
 if os.name == "nt":
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
@@ -221,28 +246,6 @@ if __name__ == "__main__":
     hijack_progress(server)
 
     threading.Thread(target=prompt_worker, daemon=True, args=(q, server,)).start()
-
-    if args.output_directory:
-        output_dir = os.path.abspath(args.output_directory)
-        logging.info(f"Setting output directory to: {output_dir}")
-        folder_paths.set_output_directory(output_dir)
-
-    #These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
-    folder_paths.add_model_folder_path("checkpoints", os.path.join(folder_paths.get_output_directory(), "checkpoints"))
-    folder_paths.add_model_folder_path("clip", os.path.join(folder_paths.get_output_directory(), "clip"))
-    folder_paths.add_model_folder_path("vae", os.path.join(folder_paths.get_output_directory(), "vae"))
-    folder_paths.add_model_folder_path("diffusion_models", os.path.join(folder_paths.get_output_directory(), "diffusion_models"))
-    folder_paths.add_model_folder_path("loras", os.path.join(folder_paths.get_output_directory(), "loras"))
-
-    if args.input_directory:
-        input_dir = os.path.abspath(args.input_directory)
-        logging.info(f"Setting input directory to: {input_dir}")
-        folder_paths.set_input_directory(input_dir)
-    
-    if args.user_directory:
-        user_dir = os.path.abspath(args.user_directory)
-        logging.info(f"Setting user directory to: {user_dir}")
-        folder_paths.set_user_directory(user_dir)
 
     if args.quick_test_for_ci:
         exit(0)
