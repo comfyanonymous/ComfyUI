@@ -21,7 +21,7 @@ class Mahiro:
             leap = cond_p * scale
             #sim with uncond leap
             u_leap = uncond_p * scale
-            cfg = uncond_p + (cond_p - uncond_p) * scale
+            cfg = args["denoised"]
             merge = (leap + cfg) / 2
             normu = torch.sqrt(u_leap.abs()) * u_leap.sign()
             normm = torch.sqrt(merge.abs()) * merge.sign()
