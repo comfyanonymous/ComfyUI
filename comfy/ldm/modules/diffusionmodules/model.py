@@ -218,7 +218,7 @@ def xformers_attention(q, k, v):
     try:
         out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None)
         out = out.transpose(1, 2).reshape(B, C, H, W)
-    except NotImplementedError as e:
+    except NotImplementedError:
         out = slice_attention(q.view(B, -1, C), k.view(B, -1, C).transpose(1, 2), v.view(B, -1, C).transpose(1, 2)).reshape(B, C, H, W)
     return out
 
@@ -233,7 +233,7 @@ def pytorch_attention(q, k, v):
     try:
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
         out = out.transpose(2, 3).reshape(B, C, H, W)
-    except model_management.OOM_EXCEPTION as e:
+    except model_management.OOM_EXCEPTION:
         logging.warning("scaled_dot_product_attention OOMed: switched to slice attention")
         out = slice_attention(q.view(B, -1, C), k.view(B, -1, C).transpose(1, 2), v.view(B, -1, C).transpose(1, 2)).reshape(B, C, H, W)
     return out

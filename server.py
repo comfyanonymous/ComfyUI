@@ -561,7 +561,7 @@ class PromptServer():
                 for x in nodes.NODE_CLASS_MAPPINGS:
                     try:
                         out[x] = node_info(x)
-                    except Exception as e:
+                    except Exception:
                         logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
                         logging.error(traceback.format_exc())
                 return web.json_response(out)
@@ -829,7 +829,7 @@ class PromptServer():
         for handler in self.on_prompt_handlers:
             try:
                 json_data = handler(json_data)
-            except Exception as e:
+            except Exception:
                 logging.warning(f"[ERROR] An error occurred during the on_prompt_handler processing")
                 logging.warning(traceback.format_exc())
 
