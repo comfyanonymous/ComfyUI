@@ -157,8 +157,6 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None,
         b, _, dim_head = query.shape
         dim_head //= heads
 
-    scale = dim_head ** -0.5
-
     if skip_reshape:
         query = query.reshape(b * heads, -1, dim_head)
         value = value.reshape(b * heads, -1, dim_head)
@@ -177,9 +175,8 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None,
         bytes_per_token = torch.finfo(query.dtype).bits//8
     batch_x_heads, q_tokens, _ = query.shape
     _, _, k_tokens = key.shape
-    qk_matmul_size_bytes = batch_x_heads * bytes_per_token * q_tokens * k_tokens
 
-    mem_free_total, mem_free_torch = model_management.get_free_memory(query.device, True)
+    mem_free_total, _ = model_management.get_free_memory(query.device, True)
 
     kv_chunk_size_min = None
     kv_chunk_size = None
@@ -230,7 +227,6 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
 
     scale = dim_head ** -0.5
 
-    h = heads
     if skip_reshape:
          q, k, v = map(
             lambda t: t.reshape(b * heads, -1, dim_head),

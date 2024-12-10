@@ -326,7 +326,6 @@ def expand_directory_list(directories):
     return list(dirs)
 
 def bundled_embed(embed, prefix, suffix): #bundled embedding in lora format
-    i = 0
     out_list = []
     for k in embed:
         if k.startswith(prefix) and k.endswith(suffix):

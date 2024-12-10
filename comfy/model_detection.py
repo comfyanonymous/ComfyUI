@@ -216,7 +216,6 @@ def detect_unet_config(state_dict, key_prefix):
 
     num_res_blocks = []
     channel_mult = []
-    attention_resolutions = []
     transformer_depth = []
     transformer_depth_output = []
     context_dim = None
@@ -388,7 +387,6 @@ def convert_config(unet_config):
             t_out += [d] * (res + 1)
             s *= 2
         transformer_depth = t_in
-        transformer_depth_output = t_out
         new_config["transformer_depth"] = t_in
         new_config["transformer_depth_output"] = t_out
         new_config["transformer_depth_middle"] = transformer_depth_middle

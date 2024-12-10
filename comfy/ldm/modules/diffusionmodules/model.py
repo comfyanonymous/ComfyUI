@@ -162,7 +162,6 @@ def slice_attention(q, k, v):
 
     mem_free_total = model_management.get_free_memory(q.device)
 
-    gb = 1024 ** 3
     tensor_size = q.shape[0] * q.shape[1] * k.shape[2] * q.element_size()
     modifier = 3 if q.element_size() == 2 else 2.5
     mem_required = tensor_size * modifier
@@ -546,7 +545,6 @@ class Decoder(nn.Module):
                  attn_op=AttnBlock,
                 **ignorekwargs):
         super().__init__()
-        if use_linear_attn: attn_type = "linear"
         self.ch = ch
         self.temb_ch = 0
         self.num_resolutions = len(ch_mult)
@@ -556,8 +554,7 @@ class Decoder(nn.Module):
         self.give_pre_end = give_pre_end
         self.tanh_out = tanh_out
 
-        # compute in_ch_mult, block_in and curr_res at lowest res
-        in_ch_mult = (1,)+tuple(ch_mult)
+        # compute block_in and curr_res at lowest res
         block_in = ch*ch_mult[self.num_resolutions-1]
         curr_res = resolution // 2**(self.num_resolutions-1)
         self.z_shape = (1,z_channels,curr_res,curr_res)

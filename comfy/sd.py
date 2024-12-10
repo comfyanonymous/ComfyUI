@@ -691,7 +691,6 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
             config = yaml.safe_load(stream)
     model_config_params = config['model']['params']
     clip_config = model_config_params['cond_stage_config']
-    scale_factor = model_config_params['scale_factor']
 
     if "parameterization" in model_config_params:
         if model_config_params["parameterization"] == "v":
