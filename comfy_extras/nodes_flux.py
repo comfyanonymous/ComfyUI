@@ -1,5 +1,4 @@
 import node_helpers
-import torch
 
 class CLIPTextEncodeFlux:
     @classmethod

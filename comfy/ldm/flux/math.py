@@ -1,7 +1,6 @@
 import torch
 from einops import rearrange
 from torch import Tensor
-from torch.nn.functional import interpolate
 
 from comfy.ldm.modules.attention import optimized_attention
 import comfy.model_management
