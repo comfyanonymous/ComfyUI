@@ -1,9 +1,6 @@
 import node_helpers
 import torch
 
-from comfy.ldm.flux.layers import SingleStreamBlock, DoubleStreamBlock
-from comfy.model_patcher import ModelPatcher
-
 class CLIPTextEncodeFlux:
     @classmethod
     def INPUT_TYPES(s):
