@@ -3,8 +3,8 @@ name: Python Linting
 on: [push, pull_request]
 
 jobs:
-  pylint:
-    name: Run Pylint
+  ruff:
+    name: Run Ruff
     runs-on: ubuntu-latest
 
     steps:
@@ -16,8 +16,8 @@ jobs:
       with:
         python-version: 3.x
 
-    - name: Install Pylint
-      run: pip install pylint
+    - name: Install Ruff
+      run: pip install ruff
 
-    - name: Run Pylint
-      run: pylint --rcfile=.pylintrc $(find . -type f -name "*.py")
+    - name: Run Ruff
+      run: ruff check .
