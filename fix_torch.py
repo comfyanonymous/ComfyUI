@@ -22,7 +22,7 @@ def fix_pytorch_libomp():
             if b"libomp140.x86_64.dll" not in contents:
                 break
         try:
-            mydll = ctypes.cdll.LoadLibrary(test_file)
-        except FileNotFoundError as e:
+            ctypes.cdll.LoadLibrary(test_file)
+        except FileNotFoundError:
             logging.warning("Detected pytorch version with libomp issue, patching.")
             shutil.copyfile(os.path.join(lib_folder, "libiomp5md.dll"), dest)

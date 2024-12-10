@@ -248,9 +248,6 @@ class HunYuanDiT(nn.Module):
             operations.Linear(hidden_size * 4, hidden_size, bias=True, dtype=dtype, device=device),
         )
 
-        # Image embedding
-        num_patches = self.x_embedder.num_patches
-
         # HUnYuanDiT Blocks
         self.blocks = nn.ModuleList([
             HunYuanDiTBlock(hidden_size=hidden_size,

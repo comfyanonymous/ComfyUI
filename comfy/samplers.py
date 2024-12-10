@@ -130,11 +130,6 @@ def can_concat_cond(c1, c2):
     return cond_equal_size(c1.conditioning, c2.conditioning)
 
 def cond_cat(c_list):
-    c_crossattn = []
-    c_concat = []
-    c_adm = []
-    crossattn_max_len = 0
-
     temp = {}
     for x in c_list:
         for k in x:
@@ -608,8 +603,6 @@ def pre_run_control(model, conds):
     for t in range(len(conds)):
         x = conds[t]
 
-        timestep_start = None
-        timestep_end = None
         percent_to_timestep_function = lambda a: s.percent_to_sigma(a)
         if 'control' in x:
             x['control'].pre_run(model, percent_to_timestep_function)
