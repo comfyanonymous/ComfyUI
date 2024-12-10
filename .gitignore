@@ -1,6 +1,7 @@
 main.exp
 main.lib
 main.obj
+tests/inference/output/
 .DS_Store
 /[Oo]utput/
 /[Ii]nput/

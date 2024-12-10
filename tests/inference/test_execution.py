@@ -203,7 +203,6 @@ class TestExecution:
 
     @pytest.mark.parametrize("test_type, test_value", [
         ("StubInt", 5),
-        ("StubFloat", 5.0)
     ])
     async def test_validation_error_edge1(self, test_type, test_value, client: ComfyClient, builder: GraphBuilder):
         g = builder

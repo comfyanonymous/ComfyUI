@@ -13,17 +13,19 @@ import sys
 import traceback
 import urllib
 import uuid
-from asyncio import AbstractEventLoop, Task
+from asyncio import Future, AbstractEventLoop, Task
 from enum import Enum
 from io import BytesIO
+from posixpath import join as urljoin
 from typing import List, Optional
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 import aiofiles
 import aiohttp
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from aiohttp import web
+from can_ada import URL, parse as urlparse  # pylint: disable=no-name-in-module
 from typing_extensions import NamedTuple
 
 from .latent_preview_image_encoding import encode_preview_image
@@ -35,12 +37,15 @@ from ..api_server.routes.internal.internal_routes import InternalRoutes
 from ..app.frontend_management import FrontendManager
 from ..app.user_manager import UserManager
 from ..cli_args import args
+from ..client.client_types import FileOutput
 from ..cmd import execution
 from ..cmd import folder_paths
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue, AsyncAbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, StatusMessage, QueueInfo, ExecInfo
 from ..component_model.file_output_path import file_output_path
-from ..component_model.queue_types import QueueItem, BinaryEventTypes
+from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation, ExecutionError, \
+    ExecutionStatus
+from ..digest import digest
 from ..images import open_image
 from ..model_management import get_torch_device, get_torch_device_name, get_total_memory, get_free_memory, torch_version
 from ..nodes.package_typing import ExportedNodes
@@ -681,6 +686,248 @@ class PromptServer(ExecutorToClientProgress):
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
+
+        # Internal route. Should not be depended upon and is subject to change at any time.
+        # TODO(robinhuang): Move to internal route table class once we refactor PromptServer to pass around Websocket.
+        # NOTE: This was an experiment and WILL BE REMOVED
+        @routes.post("/internal/models/download")
+        async def download_handler(request):
+            async def report_progress(filename: str, status: DownloadModelStatus):
+                payload = status.to_dict()
+                payload['download_path'] = filename
+                await self.send_json("download_progress", payload)
+
+            data = await request.json()
+            url = data.get('url')
+            model_directory = data.get('model_directory')
+            folder_path = data.get('folder_path')
+            model_filename = data.get('model_filename')
+            progress_interval = data.get('progress_interval', 1.0)  # In seconds, how often to report download progress.
+
+            if not url or not model_directory or not model_filename or not folder_path:
+                return web.json_response({"status": "error", "message": "Missing URL or folder path or filename"}, status=400)
+
+            session = self.client_session
+            if session is None:
+                logger.error("Client session is not initialized")
+                return web.Response(status=500)
+
+            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, folder_path, report_progress, progress_interval))
+            await task
+
+            return web.json_response(task.result().to_dict())
+
+        @routes.get("/api/v1/prompts/{prompt_id}")
+        async def get_api_v1_prompts_prompt_id(request: web.Request) -> web.Response | web.FileResponse:
+            prompt_id: str = request.match_info.get("prompt_id", "")
+            if prompt_id == "":
+                return web.json_response(status=404)
+
+            history_items = self.prompt_queue.get_history(prompt_id)
+            if len(history_items) == 0 or prompt_id not in history_items:
+                # todo: this should really be moved to a stateful queue abstraction
+                if prompt_id in self.background_tasks:
+                    return web.json_response(status=204)
+                else:
+                    # todo: this should check a stateful queue abstraction
+                    return web.json_response(status=404)
+            elif prompt_id in history_items:
+                history_entry = history_items[prompt_id]
+                return web.json_response(history_entry["outputs"])
+            else:
+                return web.json_response(status=500)
+
+        @routes.post("/api/v1/prompts")
+        async def post_api_prompt(request: web.Request) -> web.Response | web.FileResponse:
+            accept = request.headers.get("accept", "application/json")
+            if accept == '*/*':
+                accept = "application/json"
+            content_type = request.headers.get("content-type", "application/json")
+            preferences = request.headers.get("prefer", "") + request.query.get("prefer", "") + " " + content_type
+            if "+" in content_type:
+                content_type = content_type.split("+")[0]
+
+            wait = not "respond-async" in preferences
+
+            if accept not in ("application/json", "image/png"):
+                return web.json_response(status=400, reason=f"invalid accept content type, expected application/json or image/png, got {accept}")
+
+            # check if the queue is too long
+            queue_size = self.prompt_queue.size()
+            queue_too_busy_size = PromptServer.get_too_busy_queue_size()
+            if queue_size > queue_too_busy_size:
+                return web.json_response(status=429,
+                                         reason=f"the queue has {queue_size} elements and {queue_too_busy_size} is the limit for this worker")
+            # read the request
+            prompt_dict: dict = {}
+            if content_type == 'application/json':
+                prompt_dict = await request.json()
+            elif content_type == 'multipart/form-data':
+                try:
+                    reader = await request.multipart()
+                    async for part in reader:
+                        if part is None:
+                            break
+                        if part.headers[aiohttp.hdrs.CONTENT_TYPE] == 'application/json':
+                            prompt_dict = await part.json()
+                            if 'prompt' in prompt_dict:
+                                prompt_dict = prompt_dict['prompt']
+                        elif part.filename:
+                            file_data = await part.read(decode=True)
+                            # overwrite existing files
+                            upload_dir = PromptServer.get_upload_dir()
+                            async with aiofiles.open(os.path.join(upload_dir, part.filename), mode='wb') as file:
+                                await file.write(file_data)
+                except IOError as ioError:
+                    return web.Response(status=507, reason=str(ioError))
+                except MemoryError as memoryError:
+                    return web.Response(status=507, reason=str(memoryError))
+                except Exception as ex:
+                    return web.Response(status=400, reason=str(ex))
+
+            if len(prompt_dict) == 0:
+                return web.Response(status=400, reason="no prompt was specified")
+
+            content_digest = digest(prompt_dict)
+
+            valid = execution.validate_prompt(prompt_dict)
+            if not valid[0]:
+                return web.Response(status=400, content_type="application/json", body=json.dumps(valid[1]))
+
+            # convert a valid prompt to the queue tuple this expects
+            number = self.number
+            self.number += 1
+
+            result: TaskInvocation
+            completed: Future[TaskInvocation | dict] = self.loop.create_future()
+            # todo: actually implement idempotency keys
+            # we would need some kind of more durable, distributed task queue
+            task_id = str(uuid.uuid4())
+            item = QueueItem(queue_tuple=(number, task_id, prompt_dict, {}, valid[2]), completed=completed)
+
+            try:
+                if hasattr(self.prompt_queue, "put_async") or isinstance(self.prompt_queue, AsyncAbstractPromptQueue):
+                    # this enables span propagation seamlessly
+                    fut = self.prompt_queue.put_async(item)
+                    if wait:
+                        result = await fut
+                        if result is None:
+                            return web.Response(body="the queue is shutting down", status=503)
+                    else:
+                        return await self._schedule_background_task_with_web_response(fut, task_id)
+                else:
+                    self.prompt_queue.put(item)
+                    if wait:
+                        await completed
+                    else:
+                        return await self._schedule_background_task_with_web_response(completed, task_id)
+                    task_invocation_or_dict: TaskInvocation | dict = completed.result()
+                    if isinstance(task_invocation_or_dict, dict):
+                        result = TaskInvocation(item_id=item.prompt_id, outputs=task_invocation_or_dict, status=ExecutionStatus("success", True, []))
+                    else:
+                        result = task_invocation_or_dict
+            except ExecutionError as exec_exc:
+                result = exec_exc.as_task_invocation()
+            except Exception as ex:
+                return web.Response(body=str(ex), status=500)
+
+            if result.status is not None and result.status.status_str == "error":
+                return web.Response(body=json.dumps(result.status._asdict()), status=500, content_type="application/json")
+            # find images and read them
+            output_images: List[FileOutput] = []
+            for node_id, node in result.outputs.items():
+                images: List[FileOutput] = []
+                if 'images' in node:
+                    images = node['images']
+                    # todo: does this ever occur?
+                elif (isinstance(node, dict)
+                      and 'ui' in node and isinstance(node['ui'], dict)
+                      and 'images' in node['ui']):
+                    images = node['ui']['images']
+                for image_tuple in images:
+                    output_images.append(image_tuple)
+
+            if len(output_images) > 0:
+                main_image = output_images[0]
+                filename = main_image["filename"]
+                digest_headers_ = {
+                    "Digest": f"SHA-256={content_digest}",
+                }
+                urls_ = []
+                if len(output_images) == 1:
+                    digest_headers_.update({
+                        "Content-Disposition": f"filename=\"{filename}\""
+                    })
+
+                for image_indv_ in output_images:
+                    local_address = f"http://{self.address}:{self.port}"
+                    external_address = self.external_address
+
+                    for base in (local_address, external_address):
+                        try:
+                            url: URL = urlparse(urljoin(base, "view"))
+                        except ValueError:
+                            continue
+                        url_search_dict: FileOutput = dict(image_indv_)
+                        del url_search_dict["abs_path"]
+                        if "name" in url_search_dict:
+                            del url_search_dict["name"]
+                        if url_search_dict["subfolder"] == "":
+                            del url_search_dict["subfolder"]
+                        url.search = f"?{urlencode(url_search_dict)}"
+                        urls_.append(str(url))
+
+                if accept == "application/json":
+                    return web.Response(status=200,
+                                        content_type="application/json",
+                                        headers=digest_headers_,
+                                        body=json.dumps({
+                                            'urls': urls_,
+                                            'outputs': result.outputs
+                                        }))
+                elif accept == "image/png" or accept == "image/jpeg":
+                    return web.FileResponse(main_image["abs_path"],
+                                            headers=digest_headers_)
+                else:
+                    return web.Response(status=500,
+                                        reason="unreachable")
+            else:
+                return web.Response(status=204)
+
+        @routes.get("/api/v1/prompts")
+        async def get_api_prompt(_: web.Request) -> web.Response:
+            history = self.prompt_queue.get_history()
+            history_items = list(history.values())
+            if len(history_items) == 0:
+                return web.Response(status=404)
+
+            last_history_item: HistoryEntry = history_items[-1]
+            prompt = last_history_item['prompt'][2]
+            return web.json_response(prompt, status=200)
+
+    async def _schedule_background_task_with_web_response(self, fut, task_id):
+        task = asyncio.create_task(fut, name=task_id)
+        self.background_tasks[task_id] = task
+        task.add_done_callback(lambda _: self.background_tasks.pop(task_id))
+        # todo: type this from the OpenAPI spec
+        return web.json_response({
+            "prompt_id": task_id
+        }, status=202, headers={
+            "Location": f"api/v1/prompts/{task_id}",
+            "Retry-After": "60"
+        })
+
+    @property
+    def external_address(self):
+        return self._external_address if self._external_address is not None else f"http://{'localhost' if self.address == '0.0.0.0' else self.address}:{self.port}"
+
+    @external_address.setter
+    def external_address(self, value):
+        self._external_address = value
+
+    @property
+    def receive_all_progress_notifications(self) -> bool:
+        return True
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None)  # no timeout

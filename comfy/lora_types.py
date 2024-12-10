@@ -7,7 +7,7 @@ import torch
 PatchOffset = tuple[int, int, int]
 PatchFunction = Any
 PatchDictKey = str | tuple[str, PatchOffset] | tuple[str, PatchOffset, PatchFunction]
-PatchType = Literal["lora", "loha", "lokr", "glora", "diff", ""]
+PatchType = Literal["lora", "loha", "lokr", "glora", "diff", "set", ""]
 PatchDictValue = tuple[PatchType, tuple]
 PatchDict = dict[PatchDictKey, PatchDictValue]
 

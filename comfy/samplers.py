@@ -8,7 +8,6 @@ import numpy
 import scipy.stats
 import torch
 
-from . import hooks
 from . import model_management
 from . import model_patcher
 from . import patcher_extension
@@ -16,6 +15,7 @@ from . import sampler_helpers
 from .component_model.deprecation import _deprecate_method
 from .controlnet import ControlBase
 from .extra_samplers import uni_pc
+from .hooks import EnumHookMode, HookGroup
 from .k_diffusion import sampling as k_diffusion_sampling
 from .model_base import BaseModel
 from .model_management_types import ModelOptions
@@ -157,7 +157,7 @@ def cond_cat(c_list):
     return out
 
 
-def finalize_default_conds(model: BaseModel, hooked_to_run: dict[hooks.HookGroup, list[tuple[tuple, int]]], default_conds: list[list[dict]], x_in, timestep):
+def finalize_default_conds(model: BaseModel, hooked_to_run: dict[HookGroup, list[tuple[tuple, int]]], default_conds: list[list[dict]], x_in, timestep):
     # need to figure out remaining unmasked area for conds
     default_mults = []
     for _ in default_conds:
@@ -213,7 +213,7 @@ def _calc_cond_batch(model: BaseModel, conds, x_in: torch.Tensor, timestep: torc
     out_conds = []
     out_counts = []
     # separate conds by matching hooks
-    hooked_to_run: dict[hooks.HookGroup, list[tuple[tuple, int]]] = {}
+    hooked_to_run: dict[HookGroup, list[tuple[tuple, int]]] = {}
     default_conds = []
     has_default_conds = False
 
@@ -822,14 +822,14 @@ def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=N
 
 def preprocess_conds_hooks(conds: dict[str, list[dict[str]]]):
     # determine which ControlNets have extra_hooks that should be combined with normal hooks
-    hook_replacement: dict[tuple[ControlBase, hooks.HookGroup], list[dict]] = {}
+    hook_replacement: dict[tuple[ControlBase, HookGroup], list[dict]] = {}
     for k in conds:
         for kk in conds[k]:
             if 'control' in kk:
                 control: 'ControlBase' = kk['control']
                 extra_hooks = control.get_extra_hooks()
                 if len(extra_hooks) > 0:
-                    hooks: hooks.HookGroup = kk.get('hooks', None)
+                    hooks: HookGroup = kk.get('hooks', None)
                     to_replace = hook_replacement.setdefault((control, hooks), [])
                     to_replace.append(kk)
     # if nothing to replace, do nothing
@@ -841,7 +841,7 @@ def preprocess_conds_hooks(conds: dict[str, list[dict[str]]]):
     for key, conds_to_modify in hook_replacement.items():
         control = key[0]
         hooks = key[1]
-        hooks = hooks.HookGroup.combine_all_hooks(control.get_extra_hooks() + [hooks])
+        hooks = HookGroup.combine_all_hooks(control.get_extra_hooks() + [hooks])
         # if combined hooks are not None, set as new hooks for all relevant conds
         if hooks is not None:
             for cond in conds_to_modify:
@@ -925,14 +925,14 @@ class CFGGuider:
         for k in self.original_conds:
             self.conds[k] = list(map(lambda a: a.copy(), self.original_conds[k]))
         preprocess_conds_hooks(self.conds)
-
+        assert self.model_patcher is not None
+        orig_model_options = self.model_options
+        orig_hook_mode = self.model_patcher.hook_mode
         try:
-            orig_model_options = self.model_options
             self.model_options = model_patcher.create_model_options_clone(self.model_options)
             # if one hook type (or just None), then don't bother caching weights for hooks (will never change after first step)
-            orig_hook_mode = self.model_patcher.hook_mode
             if get_total_hook_groups_in_conds(self.conds) <= 1:
-                self.model_patcher.hook_mode = hooks.EnumHookMode.MinVram
+                self.model_patcher.hook_mode = EnumHookMode.MinVram
             sampler_helpers.prepare_model_patcher(self.model_patcher, self.conds, self.model_options)
             executor = patcher_extension.WrapperExecutor.new_class_executor(
                 self.outer_sample,

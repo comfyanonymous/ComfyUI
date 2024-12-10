@@ -1,11 +1,11 @@
+import numpy as np
 import torch
+
 from . import model_management
 from . import samplers
 from . import utils
-from . import conds
-import math
-import numpy as np
-import logging
+from .component_model.deprecation import _deprecate_method
+
 
 def prepare_noise(latent_image, seed, noise_inds=None):
     """
@@ -32,12 +32,14 @@ def fix_empty_latent_channels(model, latent_image):
         latent_image = utils.repeat_to_batch_size(latent_image, latent_channels, dim=1)
     return latent_image
 
+@_deprecate_method(version="0.3.2", message="Warning: comfy.sample.prepare_sampling isn't used anymore and can be removed")
 def prepare_sampling(model, noise_shape, positive, negative, noise_mask):
-    logging.warning("Warning: comfy.sample.prepare_sampling isn't used anymore and can be removed")
+    pass
     return model, positive, negative, noise_mask, []
 
+@_deprecate_method(version="0.3.2", message="Warning: comfy.sample.cleanup_additional_models isn't used anymore and can be removed")
 def cleanup_additional_models(models):
-    logging.warning("Warning: comfy.sample.cleanup_additional_models isn't used anymore and can be removed")
+    pass
 
 def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
     sampler = samplers.KSampler(model, steps=steps, device=model.load_device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)

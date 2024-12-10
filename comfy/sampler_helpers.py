@@ -2,10 +2,10 @@ import uuid
 
 from .controlnet import ControlBase
 from . import conds
-from . import hooks
 from . import model_management
 from . import patcher_extension
 from . import utils
+from .hooks import EnumHookType, EnumWeightTarget, HookGroup, Hook
 from .model_base import BaseModel
 from .model_patcher import ModelPatcher
 
@@ -25,13 +25,13 @@ def get_models_from_cond(cond, model_type):
     return models
 
 
-def get_hooks_from_cond(cond, hooks_dict: dict[hooks.EnumHookType, dict[hooks.Hook, None]]):
+def get_hooks_from_cond(cond, hooks_dict: dict[EnumHookType, dict[Hook, None]]):
     # get hooks from conds, and collect cnets so they can be checked for extra_hooks
     cnets: list[ControlBase] = []
     for c in cond:
         if 'hooks' in c:
             for hook in c['hooks'].hooks:
-                hook: hooks.Hook
+                hook: Hook
                 with_type = hooks_dict.setdefault(hook.hook_type, {})
                 with_type[hook] = None
         if 'control' in c:
@@ -48,7 +48,7 @@ def get_hooks_from_cond(cond, hooks_dict: dict[hooks.EnumHookType, dict[hooks.Ho
     cnets = set(cnets)
     for base_cnet in cnets:
         get_extra_hooks_from_cnet(base_cnet, hooks_list)
-    extra_hooks = hooks.HookGroup.combine_all_hooks(hooks_list)
+    extra_hooks = HookGroup.combine_all_hooks(hooks_list)
     if extra_hooks is not None:
         for hook in extra_hooks.hooks:
             with_type = hooks_dict.setdefault(hook.hook_type, {})
@@ -76,7 +76,7 @@ def get_additional_models(conds, dtype):
     cnets: list[ControlBase] = []
     gligen = []
     add_models = []
-    hooks: dict[hooks.EnumHookType, dict[hooks.Hook, None]] = {}
+    hooks: dict[EnumHookType, dict[Hook, None]] = {}
 
     for k in conds:
         cnets += get_models_from_cond(conds[k], "control")
@@ -93,7 +93,7 @@ def get_additional_models(conds, dtype):
         inference_memory += m.inference_memory_requirements(dtype)
 
     gligen = [x[1] for x in gligen]
-    hook_models = [x.model for x in hooks.get(hooks.EnumHookType.AddModels, {}).keys()]
+    hook_models = [x.model for x in hooks.get(EnumHookType.AddModels, {}).keys()]
     models = control_models + gligen + add_models + hook_models
 
     return models, inference_memory
@@ -138,4 +138,4 @@ def prepare_model_patcher(model: 'ModelPatcher', conds, model_options: dict):
     model_options["transformer_options"]["wrappers"] = patcher_extension.copy_nested_dicts(model.wrappers)
     model_options["transformer_options"]["callbacks"] = patcher_extension.copy_nested_dicts(model.callbacks)
     # register hooks on model/model_options
-    model.register_all_hook_patches(hooks, hooks.EnumWeightTarget.Model, model_options)
+    model.register_all_hook_patches(hooks, EnumWeightTarget.Model, model_options)

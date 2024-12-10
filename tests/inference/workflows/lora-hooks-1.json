@@ -1,0 +1,207 @@
+{
+  "2": {
+    "inputs": {
+      "text": "worst quality, low quality",
+      "clip": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "4": {
+    "inputs": {
+      "text": "rock in a river, outdoors, forest, sky, clouds, best quality",
+      "clip": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "5": {
+    "inputs": {
+      "width": 768,
+      "height": 768,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "9": {
+    "inputs": {
+      "samples": [
+        "23",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "10": {
+    "inputs": {
+      "vae_name": "vae-ft-mse-840000-ema-pruned.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "12": {
+    "inputs": {
+      "stop_at_clip_layer": -2,
+      "clip": [
+        "13",
+        1
+      ]
+    },
+    "class_type": "CLIPSetLastLayer",
+    "_meta": {
+      "title": "CLIP Set Last Layer"
+    }
+  },
+  "13": {
+    "inputs": {
+      "ckpt_name": "cardosAnime_v20.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "16": {
+    "inputs": {
+      "strength": 1,
+      "set_cond_area": "default",
+      "positive_NEW": [
+        "4",
+        0
+      ],
+      "negative_NEW": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "PairConditioningSetProperties",
+    "_meta": {
+      "title": "Cond Pair Set Props"
+    }
+  },
+  "20": {
+    "inputs": {
+      "lora_name": "PixelArtRedmond15V-PixelArt-PIXARFK.safetensors",
+      "strength_model": 1,
+      "strength_clip": 1
+    },
+    "class_type": "CreateHookLora",
+    "_meta": {
+      "title": "Create Hook LoRA"
+    }
+  },
+  "21": {
+    "inputs": {
+      "apply_to_conds": true,
+      "schedule_clip": false,
+      "clip": [
+        "12",
+        0
+      ],
+      "hooks": [
+        "75",
+        0
+      ]
+    },
+    "class_type": "SetClipHooks",
+    "_meta": {
+      "title": "Set CLIP Hooks"
+    }
+  },
+  "22": {
+    "inputs": {
+      "filename_prefix": "lorahooks/img",
+      "images": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "23": {
+    "inputs": {
+      "seed": 12345678,
+      "steps": 30,
+      "cfg": 8,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": [
+        "13",
+        0
+      ],
+      "positive": [
+        "16",
+        0
+      ],
+      "negative": [
+        "16",
+        1
+      ],
+      "latent_image": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "75": {
+    "inputs": {
+      "hooks": [
+        "20",
+        0
+      ],
+      "hook_kf": [
+        "76",
+        0
+      ]
+    },
+    "class_type": "SetHookKeyframes",
+    "_meta": {
+      "title": "Set Hook Keyframes"
+    }
+  },
+  "76": {
+    "inputs": {
+      "strength_start": 0,
+      "strength_end": 1,
+      "interpolation": "linear",
+      "start_percent": 0,
+      "end_percent": 0.5,
+      "keyframes_count": 5,
+      "print_keyframes": true
+    },
+    "class_type": "CreateHookKeyframesInterpolated",
+    "_meta": {
+      "title": "Create Hook Keyframes Interp."
+    }
+  }
+}

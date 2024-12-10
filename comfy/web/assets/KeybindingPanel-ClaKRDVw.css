@@ -1,0 +1,8 @@
+
+[data-v-8cf0326b] .p-datatable-tbody > tr > td {
+  padding: 0.25rem;
+  min-height: 2rem
+}
+[data-v-8cf0326b] .p-datatable-row-selected .actions,[data-v-8cf0326b] .p-datatable-selectable-row:hover .actions {
+  visibility: visible
+}

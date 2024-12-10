@@ -1003,14 +1003,16 @@ class CLIPVisionEncode:
     def INPUT_TYPES(s):
         return {"required": { "clip_vision": ("CLIP_VISION",),
                               "image": ("IMAGE",),
-                              "crop": (["center", "none"],)
-                             }}
+                              },
+                "optional": {
+                    "crop": (["center", "none"], {"default": "center"})
+                }}
     RETURN_TYPES = ("CLIP_VISION_OUTPUT",)
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
 
-    def encode(self, clip_vision, image, crop):
+    def encode(self, clip_vision, image, crop="center"):
         crop_image = True
         if crop != "center":
             crop_image = False
@@ -1040,14 +1042,16 @@ class StyleModelApply:
                              "style_model": ("STYLE_MODEL", ),
                              "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.001}),
-                             "strength_type": (["multiply"], ),
+                             },
+                "optional": {
+                             "strength_type": (["multiply"], {"default": "multiply"}),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_stylemodel"
 
     CATEGORY = "conditioning/style_model"
 
-    def apply_stylemodel(self, clip_vision_output, style_model, conditioning, strength, strength_type):
+    def apply_stylemodel(self, clip_vision_output, style_model, conditioning, strength=1.0, strength_type="multiply"):
         cond = style_model.get_cond(clip_vision_output).flatten(start_dim=0, end_dim=1).unsqueeze(dim=0)
         if strength_type == "multiply":
             cond *= strength

@@ -20,7 +20,7 @@ from . import model_sampling
 from . import sd1_clip
 from . import sdxl_clip
 from . import utils
-from . import hooks
+from .hooks import EnumHookMode
 from .ldm.audio.autoencoder import AudioOobleckVAE
 from .ldm.cascade.stage_a import StageA
 from .ldm.cascade.stage_c_coder import StageC_coder
@@ -41,6 +41,7 @@ from .text_encoders import lt
 from .text_encoders import sa_t5
 from .text_encoders import sd2_clip
 from .text_encoders import sd3_clip
+from .utils import ProgressBar
 
 
 def load_lora_for_models(model, clip, _lora, strength_model, strength_clip):
@@ -108,7 +109,7 @@ class CLIP:
 
         self.tokenizer: "sd1_clip.SD1Tokenizer" = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
-        self.patcher.hook_mode = hooks.EnumHookMode.MinVram
+        self.patcher.hook_mode = EnumHookMode.MinVram
         self.patcher.is_clip = True
         self.apply_hooks_to_conds = None
         if params['device'] == load_device:

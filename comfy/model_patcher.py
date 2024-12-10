@@ -29,13 +29,13 @@ import torch
 import torch.nn
 from humanize import naturalsize
 
-from . import hooks
 from . import model_management, lora
 from . import patcher_extension
 from . import utils
 from .component_model.deprecation import _deprecate_method
 from .comfy_types import UnetWrapperFunction
 from .float import stochastic_rounding
+from .hooks import EnumHookMode, _HookRef, HookGroup, EnumHookType, Hook, WeightHook, EnumWeightTarget
 from .lora_types import PatchDict, PatchDictKey, PatchTuple, PatchWeightTuple, ModelPatchesDictValue
 from .model_base import BaseModel
 from .model_management_types import ModelManageable, MemoryMeasurements, ModelOptions
@@ -224,14 +224,14 @@ class ModelPatcher(ModelManageable):
         self.skip_injection = False
         self.injections: dict[str, list[PatcherInjection]] = {}
 
-        self.hook_patches: dict[hooks._HookRef] = {}
-        self.hook_patches_backup: dict[hooks._HookRef] = {}
+        self.hook_patches: dict[_HookRef] = {}
+        self.hook_patches_backup: dict[_HookRef] = {}
         self.hook_backup: dict[str, tuple[torch.Tensor, torch.device]] = {}
-        self.cached_hook_patches: dict[hooks.HookGroup, dict[str, torch.Tensor]] = {}
-        self.current_hooks: Optional[hooks.HookGroup] = None
-        self.forced_hooks: Optional[hooks.HookGroup] = None  # NOTE: only used for CLIP at this time
+        self.cached_hook_patches: dict[HookGroup, dict[str, torch.Tensor | tuple[torch.Tensor, torch.device]]] = {}
+        self.current_hooks: Optional[HookGroup] = None
+        self.forced_hooks: Optional[HookGroup] = None  # NOTE: only used for CLIP at this time
         self.is_clip = False
-        self.hook_mode = hooks.EnumHookMode.MaxSpeed
+        self.hook_mode = EnumHookMode.MaxSpeed
 
     @property
     def model_options(self) -> ModelOptions:
@@ -980,10 +980,10 @@ class ModelPatcher(ModelManageable):
             self.hook_patches = self.hook_patches_backup
             self.hook_patches_backup = {}
 
-    def set_hook_mode(self, hook_mode: hooks.EnumHookMode):
+    def set_hook_mode(self, hook_mode: EnumHookMode):
         self.hook_mode = hook_mode
 
-    def prepare_hook_patches_current_keyframe(self, t: torch.Tensor, hook_group: hooks.HookGroup):
+    def prepare_hook_patches_current_keyframe(self, t: torch.Tensor, hook_group: HookGroup):
         curr_t = t[0]
         reset_current_hooks = False
         for hook in hook_group.hooks:
@@ -1003,16 +1003,16 @@ class ModelPatcher(ModelManageable):
         if reset_current_hooks:
             self.patch_hooks(None)
 
-    def register_all_hook_patches(self, hooks_dict: dict[hooks.EnumHookType, dict[hooks.Hook, None]], target: hooks.EnumWeightTarget, model_options: dict = None):
+    def register_all_hook_patches(self, hooks_dict: dict[EnumHookType, dict[Hook, None]], target: EnumWeightTarget, model_options: dict = None):
         self.restore_hook_patches()
-        registered_hooks: list[hooks.Hook] = []
+        registered_hooks: list[Hook] = []
         # handle WrapperHooks, if model_options provided
         if model_options is not None:
-            for hook in hooks_dict.get(hooks.EnumHookType.Wrappers, {}):
+            for hook in hooks_dict.get(EnumHookType.Wrappers, {}):
                 hook.add_hook_patches(self, model_options, target, registered_hooks)
         # handle WeightHooks
-        weight_hooks_to_register: list[hooks.WeightHook] = []
-        for hook in hooks_dict.get(hooks.EnumHookType.Weight, {}):
+        weight_hooks_to_register: list[WeightHook] = []
+        for hook in hooks_dict.get(EnumHookType.Weight, {}):
             if hook.hook_ref not in self.hook_patches:
                 weight_hooks_to_register.append(hook)
         if len(weight_hooks_to_register) > 0:
@@ -1023,7 +1023,7 @@ class ModelPatcher(ModelManageable):
         for callback in self.get_all_callbacks(CallbacksMP.ON_REGISTER_ALL_HOOK_PATCHES):
             callback(self, hooks_dict, target)
 
-    def add_hook_patches(self, hook: hooks.WeightHook, patches, strength_patch=1.0, strength_model=1.0):
+    def add_hook_patches(self, hook: WeightHook, patches, strength_patch=1.0, strength_model=1.0):
         with self.use_ejected():
             # NOTE: this mirrors behavior of add_patches func
             current_hook_patches: dict[str, list] = self.hook_patches.get(hook.hook_ref, {})
@@ -1050,7 +1050,7 @@ class ModelPatcher(ModelManageable):
             self.patches_uuid = uuid.uuid4()
             return list(p)
 
-    def get_combined_hook_patches(self, hooks: hooks.HookGroup):
+    def get_combined_hook_patches(self, hooks: HookGroup):
         # combined_patches will contain  weights of all relevant hooks, per key
         combined_patches = {}
         if hooks is not None:
@@ -1069,7 +1069,7 @@ class ModelPatcher(ModelManageable):
                     combined_patches[key] = current_patches
         return combined_patches
 
-    def apply_hooks(self, hooks: hooks.HookGroup, transformer_options: dict = None, force_apply=False):
+    def apply_hooks(self, hooks: HookGroup, transformer_options: dict = None, force_apply=False):
         # TODO: return transformer_options dict with any additions from hooks
         if self.current_hooks == hooks and (not force_apply or (not self.is_clip and hooks is None)):
             return {}
@@ -1078,13 +1078,13 @@ class ModelPatcher(ModelManageable):
             callback(self, hooks)
         return {}
 
-    def patch_hooks(self, hooks: hooks.HookGroup):
+    def patch_hooks(self, hooks: HookGroup | None):
         with self.use_ejected():
             self.unpatch_hooks()
             if hooks is not None:
                 model_sd_keys = list(self.model_state_dict().keys())
                 memory_counter = None
-                if self.hook_mode == hooks.EnumHookMode.MaxSpeed:
+                if self.hook_mode == EnumHookMode.MaxSpeed:
                     # TODO: minimum_counter should have a minimum that conforms to loaded model requirements
                     memory_counter = MemoryCounter(initial=model_management.get_free_memory(self.load_device),
                                                    minimum=model_management.minimum_inference_memory() * 2)
@@ -1113,7 +1113,7 @@ class ModelPatcher(ModelManageable):
         if key not in self.hook_backup:
             weight: torch.Tensor = utils.get_attr(self.model, key)
             target_device = self.offload_device
-            if self.hook_mode == hooks.EnumHookMode.MaxSpeed:
+            if self.hook_mode == EnumHookMode.MaxSpeed:
                 used = memory_counter.use(weight)
                 if used:
                     target_device = weight.device
@@ -1124,7 +1124,7 @@ class ModelPatcher(ModelManageable):
         self.cached_hook_patches.clear()
         self.patch_hooks(None)
 
-    def patch_hook_weight_to_device(self, hooks: hooks.HookGroup, combined_patches: dict, key: str, original_weights: dict, memory_counter: MemoryCounter):
+    def patch_hook_weight_to_device(self, hooks: HookGroup, combined_patches: dict, key: str, original_weights: dict, memory_counter: MemoryCounter):
         if key not in combined_patches:
             return
 
@@ -1132,7 +1132,7 @@ class ModelPatcher(ModelManageable):
         weight: torch.Tensor
         if key not in self.hook_backup:
             target_device = self.offload_device
-            if self.hook_mode == hooks.EnumHookMode.MaxSpeed:
+            if self.hook_mode == EnumHookMode.MaxSpeed:
                 used = memory_counter.use(weight)
                 if used:
                     target_device = weight.device
@@ -1151,7 +1151,7 @@ class ModelPatcher(ModelManageable):
             utils.copy_to_param(self.model, key, out_weight)
         else:
             set_func(out_weight, inplace_update=True, seed=string_to_seed(key))
-        if self.hook_mode == hooks.EnumHookMode.MaxSpeed:
+        if self.hook_mode == EnumHookMode.MaxSpeed:
             # TODO: disable caching if not enough system RAM to do so
             target_device = self.offload_device
             used = memory_counter.use(weight)

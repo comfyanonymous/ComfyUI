@@ -1,0 +1,374 @@
+{
+  "1": {
+    "inputs": {
+      "ckpt_name": "cardosAnime_v20.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "2": {
+    "inputs": {
+      "stop_at_clip_layer": -2,
+      "clip": [
+        "1",
+        1
+      ]
+    },
+    "class_type": "CLIPSetLastLayer",
+    "_meta": {
+      "title": "CLIP Set Last Layer"
+    }
+  },
+  "3": {
+    "inputs": {
+      "text": "rock in a river, outdoors, forest, sky, clouds, best quality",
+      "clip": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "5": {
+    "inputs": {
+      "text": "worst quality, low quality",
+      "clip": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "rock in a river, outdoors, forest, sky, clouds, best quality",
+      "clip": [
+        "22",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "worst quality, low quality",
+      "clip": [
+        "22",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "9": {
+    "inputs": {
+      "apply_to_conds": true,
+      "schedule_clip": false,
+      "clip": [
+        "2",
+        0
+      ],
+      "hooks": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "SetClipHooks",
+    "_meta": {
+      "title": "Set CLIP Hooks"
+    }
+  },
+  "10": {
+    "inputs": {
+      "seed": 12345678,
+      "steps": 30,
+      "cfg": 8,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": [
+        "1",
+        0
+      ],
+      "positive": [
+        "17",
+        0
+      ],
+      "negative": [
+        "17",
+        1
+      ],
+      "latent_image": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "11": {
+    "inputs": {
+      "width": 768,
+      "height": 768,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "12": {
+    "inputs": {
+      "samples": [
+        "10",
+        0
+      ],
+      "vae": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "13": {
+    "inputs": {
+      "filename_prefix": "lorahooksboth/img",
+      "images": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "14": {
+    "inputs": {
+      "vae_name": "vae-ft-mse-840000-ema-pruned.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "17": {
+    "inputs": {
+      "strength": 1,
+      "set_cond_area": "default",
+      "positive": [
+        "18",
+        0
+      ],
+      "negative": [
+        "18",
+        1
+      ],
+      "positive_NEW": [
+        "6",
+        0
+      ],
+      "negative_NEW": [
+        "7",
+        0
+      ],
+      "mask": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "PairConditioningSetPropertiesAndCombine",
+    "_meta": {
+      "title": "Cond Pair Set Props Combine"
+    }
+  },
+  "18": {
+    "inputs": {
+      "strength": 1,
+      "set_cond_area": "default",
+      "positive_NEW": [
+        "3",
+        0
+      ],
+      "negative_NEW": [
+        "5",
+        0
+      ],
+      "mask": [
+        "42",
+        0
+      ]
+    },
+    "class_type": "PairConditioningSetProperties",
+    "_meta": {
+      "title": "Cond Pair Set Props"
+    }
+  },
+  "20": {
+    "inputs": {
+      "mask": [
+        "42",
+        0
+      ]
+    },
+    "class_type": "InvertMask",
+    "_meta": {
+      "title": "InvertMask"
+    }
+  },
+  "22": {
+    "inputs": {
+      "apply_to_conds": true,
+      "schedule_clip": false,
+      "clip": [
+        "2",
+        0
+      ],
+      "hooks": [
+        "34",
+        0
+      ]
+    },
+    "class_type": "SetClipHooks",
+    "_meta": {
+      "title": "Set CLIP Hooks"
+    }
+  },
+  "33": {
+    "inputs": {
+      "ckpt_name": "dreamshaper_8.safetensors",
+      "strength_model": 1,
+      "strength_clip": 1
+    },
+    "class_type": "CreateHookModelAsLora",
+    "_meta": {
+      "title": "Create Hook Model as LoRA"
+    }
+  },
+  "34": {
+    "inputs": {
+      "hooks": [
+        "33",
+        0
+      ],
+      "hook_kf": [
+        "36",
+        0
+      ]
+    },
+    "class_type": "SetHookKeyframes",
+    "_meta": {
+      "title": "Set Hook Keyframes"
+    }
+  },
+  "36": {
+    "inputs": {
+      "strength_start": 0,
+      "strength_end": 1,
+      "interpolation": "linear",
+      "start_percent": 0,
+      "end_percent": 0.5,
+      "keyframes_count": 5,
+      "print_keyframes": true
+    },
+    "class_type": "CreateHookKeyframesInterpolated",
+    "_meta": {
+      "title": "Create Hook Keyframes Interp."
+    }
+  },
+  "37": {
+    "inputs": {
+      "lora_name": "PixelArtRedmond15V-PixelArt-PIXARFK.safetensors",
+      "strength_model": 1,
+      "strength_clip": 1
+    },
+    "class_type": "CreateHookLora",
+    "_meta": {
+      "title": "Create Hook LoRA"
+    }
+  },
+  "38": {
+    "inputs": {
+      "hooks": [
+        "37",
+        0
+      ],
+      "hook_kf": [
+        "36",
+        0
+      ]
+    },
+    "class_type": "SetHookKeyframes",
+    "_meta": {
+      "title": "Set Hook Keyframes"
+    }
+  },
+  "39": {
+    "inputs": {
+      "hooks_A": [
+        "38",
+        0
+      ]
+    },
+    "class_type": "CombineHooks2",
+    "_meta": {
+      "title": "Combine Hooks [2]"
+    }
+  },
+  "41": {
+    "inputs": {
+      "width": 768,
+      "height": 768,
+      "direction": "horizontal",
+      "tolerance": 0,
+      "gradient_stops": "0:255,255,255\n100:0,0,0"
+    },
+    "class_type": "ImageGenerateGradient",
+    "_meta": {
+      "title": "Image Generate Gradient"
+    }
+  },
+  "42": {
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "41",
+        0
+      ]
+    },
+    "class_type": "ImageToMask",
+    "_meta": {
+      "title": "Convert Image to Mask"
+    }
+  },
+  "43": {
+    "inputs": {
+      "images": [
+        "41",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  }
+}

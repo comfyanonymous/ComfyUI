@@ -286,7 +286,7 @@ def sample_dpm_2(model, x, sigmas, extra_args=None, callback=None, disable=None,
 
 @torch.no_grad()
 def sample_dpm_2_ancestral(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
-    if isinstance(model.inner_model.inner_model.model_sampling, comfy.model_sampling.CONST):
+    if isinstance(model.inner_model.inner_model.model_sampling, model_sampling.CONST):
         return sample_dpm_2_ancestral_RF(model, x, sigmas, extra_args, callback, disable, eta, s_noise, noise_sampler)
 
     """Ancestral sampling with DPM-Solver second-order steps."""

@@ -36,7 +36,8 @@ class LTXVImgToVideo:
                              "width": ("INT", {"default": 768, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
                              "height": ("INT", {"default": 512, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
                              "length": ("INT", {"default": 97, "min": 9, "max": nodes.MAX_RESOLUTION, "step": 8}),
-                             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
+                             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),},
+                "optional": {
                              "image_noise_scale": ("FLOAT", {"default": 0.15, "min": 0, "max": 1.0, "step": 0.01, "tooltip": "Amount of noise to apply on conditioning image latent."})
                              }}
 
@@ -46,7 +47,7 @@ class LTXVImgToVideo:
     CATEGORY = "conditioning/video_models"
     FUNCTION = "generate"
 
-    def generate(self, positive, negative, image, vae, width, height, length, batch_size, image_noise_scale):
+    def generate(self, positive, negative, image, vae, width, height, length, batch_size, image_noise_scale=0.15):
         pixels = comfy.utils.common_upscale(image.movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
         encode_pixels = pixels[:, :, :, :3]
         t = vae.encode(encode_pixels)
