@@ -5,7 +5,6 @@ import logging
 import uuid
 from PIL import Image, ImageOps
 from functools import partial
-
 import pika
 import json
 
@@ -63,6 +62,13 @@ class MemedeckWorker:
         self.api_key = os.getenv('API_KEY') or 'eb46e20a-cc25-4ed4-a39b-f47ca8ff3383'
         
         self.training_only = os.getenv('TRAINING_ONLY') or False
+        self.video_gen_only = False
+        
+        self.azure_storage = MemedeckAzureStorage()
+        
+        if self.queue_name == 'video-gen-queue':
+            print(f"[memedeck]: video gen only mode enabled")
+            self.video_gen_only = True
         
         if self.training_only:
             self.queue_name = 'training-queue'
@@ -145,10 +151,35 @@ class MemedeckWorker:
         valid = self.validate_prompt(prompt)
         
         routing_key = method.routing_key
-        workflow = 'training' if self.training_only else 'faceswap' if routing_key == 'faceswap-queue' else 'generation'
+        workflow = 'faceswap' if routing_key == 'faceswap-queue' else 'generation'
+        user_id = None
+        
+        if self.video_gen_only:
+            workflow = 'video_gen'
+            user_id = payload["user_id"]
+        
+        if self.training_only:
+            workflow = 'training'
+        
+        end_node_id = None
+        video_source_image_id = None
+        
+        # Find the end_node_id
+        if not self.video_gen_only and not self.training_only:
+            for node in prompt:
+                if isinstance(prompt[node], dict) and prompt[node].get("class_type") == "SaveImageWebsocket":
+                    end_node_id = node
+                    break
+        elif self.video_gen_only:
+            end_node_id = payload['end_node_id']
+            video_source_image_id = payload['image_id']
+        elif self.training_only:
+            end_node_id = "130"
+            
+        self.logger.info(f"[memedeck]: end_node_id: {end_node_id}")
 
         # Prepare task_info
-        prompt_id = str(uuid.uuid4())
+        prompt_id = str(uuid.uuid4()).replace("-", "_")
         outputs_to_execute = valid[2]
         task_info = {
             "workflow": workflow,
@@ -157,7 +188,7 @@ class MemedeckWorker:
             "outputs_to_execute": outputs_to_execute,
             "client_id": "memedeck-1",
             "is_memedeck": True,
-            "end_node_id": "130" if self.training_only else None,
+            "end_node_id": end_node_id,
             "ws_id": payload["source_ws_id"],
             "context": payload["req_ctx"] if "req_ctx" in payload else {},
             "current_node": None,
@@ -181,14 +212,11 @@ class MemedeckWorker:
                 "59": "loop-3",
                 "60": "loop-4",
             },
-            "training_filename": payload['filename'] if 'filename' in payload else None
+            "training_filename": payload['filename'] if 'filename' in payload else None,
+            # video data
+            "image_id": video_source_image_id,
+            "user_id": user_id,
         }
-
-        # Find the end_node_id
-        for node in prompt:
-            if isinstance(prompt[node], dict) and prompt[node].get("class_type") == "SaveImageWebsocket":
-                task_info['end_node_id'] = node
-                break
 
         if valid[0]:
             # Enqueue the task into the internal job queue
@@ -218,7 +246,7 @@ class MemedeckWorker:
                 'context': task_info['context'] 
             }, task_info['outputs_to_execute']))
         
-        if task_info['workflow'] != 'training':
+        if task_info['workflow'] != 'training' and task_info['workflow'] != 'video_gen':
             if 'faceswap_strength' not in task_info['context']['prompt_config']:
                 # pretty print the prompt config
                 self.logger.info(f"[memedeck]: prompt: {task_info['context']['prompt_config']['character']['id']} {task_info['context']['prompt_config']['positive_prompt']}")
@@ -279,6 +307,8 @@ class MemedeckWorker:
         if task['workflow'] == 'training':
             return await self.handle_training_send(event=event, task=task, sid=sid, data=data)
         
+        if task['workflow'] == 'video_gen':
+            return await self.handle_video_gen_send(event=event, task=task, sid=sid, data=data)
         
         # this logic is for generation and faceswap (todo move to separate function)
         if event == MemedeckWorker.BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
@@ -340,7 +370,6 @@ class MemedeckWorker:
         # if event == "progress":
         #     self.logger.info(f"[memedeck]: training progress: {data}")
         if event == "executing":
-
             training_progress = task['training_loop'][data['node']] if data['node'] in task['training_loop'] else None
             status = task['training_status'][data['node']] if data['node'] in task['training_status'] else None
 
@@ -362,9 +391,54 @@ class MemedeckWorker:
                 })
                 # training task is done
                 del self.tasks_by_ws_id[sid]
+                
+    async def handle_video_gen_send(self, event, task, sid, data):
+        if event == "progress":
+            if data['max'] > 1:
+                progress = data['value']
+                max_progress = data['max']
+                # calculate the percentage
+                percentage = (progress / max_progress)
+                await self.send_to_api({
+                    "ws_id": sid,
+                    "image_id": task['image_id'],
+                    "user_id": task['user_id'],
+                    "status": "generating",
+                    "progress": percentage * 0.9 # 90% of the progress is the gen step, 10% is the video encode step
+                })
+            
+        if event == "executed":
+            if data['node'] == task['end_node_id']:
+                filename = data['output']['images'][0]['filename']
+
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                file_path = os.path.join(current_dir, "output", filename)
+                blob_name = f"{task['user_id']}/video_gen/video_{task['image_id'].replace('image:', '')}_{task['prompt_id']}.webp"
+
+                # TODO: take the file path and upload to azure blob storage
+                # load image bytes
+                with open(file_path, "rb") as image_file:
+                    image_bytes = image_file.read()
+                    
+                self.logger.info(f"[memedeck]: video gen completed for {sid}, file={file_path}, blob={blob_name}")
+                
+                url = await self.azure_storage.save_image(blob_name, "image/webp", image_bytes)
+
+                self.logger.info(f"[memedeck]: video gen completed for {sid}, {url}")
+                await self.send_to_api({
+                    "ws_id": sid,
+                    "progress": 1.0,
+                    "image_id": task['image_id'],
+                    "user_id": task['user_id'],
+                    "status": "completed",
+                    "output_video_url": url
+                })
+                # video gen task is done
+                del self.tasks_by_ws_id[sid]
                
 
     async def send_preview(self, image_data, sid=None, progress=None, context=None, workflow=None):
+        self.logger.info(f"[memedeck]: send_preview: {sid}")
         if sid is None:
             self.logger.warning("Received preview without sid")
             return
@@ -406,6 +480,8 @@ class MemedeckWorker:
             "context": context
         }
         
+        self.logger.info(f"[memedeck]: progress kind: {kind}")
+        self.logger.info(f"[memedeck]: progress: {progress}")
         # set the kind to faceswap_generated if workflow is faceswap
         if workflow == 'faceswap':
             ai_queue_progress['kind'] = "faceswap_generated"
@@ -430,7 +506,13 @@ class MemedeckWorker:
             self.logger.error(f"[memedeck]: end_node_id is None for {ws_id}")
             return
         
-        api_endpoint = '/generation/update' if task['workflow'] != 'training' else '/training/update'
+        api_endpoint = '/generation/update' 
+        if task['workflow'] == 'training':
+            api_endpoint = '/training/update'
+            
+        if task['workflow'] == 'video_gen':
+            api_endpoint = '/generation/video/update'
+            
         # self.logger.info(f"[memedeck]: sending to api: {api_endpoint}")
         # self.logger.info(f"[memedeck]: data: {data}")
         try:
@@ -443,250 +525,188 @@ class MemedeckWorker:
 # --------------------------------------------------------------------------
 # MemedeckAzureStorage
 # --------------------------------------------------------------------------
-# from azure.storage.blob.aio import BlobClient, BlobServiceClient
-# from azure.storage.blob import ContentSettings  
-# from typing import Optional, Tuple
-# import cairosvg
+from azure.storage.blob.aio import BlobClient, BlobServiceClient
+from azure.storage.blob import ContentSettings  
+from typing import Optional, Tuple
+import cairosvg
 
-# WATERMARK = '<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M60.0859 196.8C65.9526 179.067 71.5526 161.667 76.8859 144.6C79.1526 137.4 81.4859 129.867 83.8859 122C86.2859 114.133 88.6859 106.333 91.0859 98.6C93.4859 90.8667 95.6859 83.4 97.6859 76.2C99.8193 69 101.686 62.3333 103.286 56.2C110.619 56.2 117.553 55.8 124.086 55C130.619 54.2 137.686 53.4667 145.286 52.8C144.886 55.7333 144.419 59.0667 143.886 62.8C143.486 66.4 142.953 70.2 142.286 74.2C141.753 78.2 141.153 82.3333 140.486 86.6C139.819 90.8667 139.019 96.3333 138.086 103C137.153 109.667 135.886 118 134.286 128H136.886C140.753 117.867 143.953 109.467 146.486 102.8C149.019 96 151.086 90.4667 152.686 86.2C154.286 81.9333 155.886 77.8 157.486 73.8C159.219 69.6667 160.819 65.8 162.286 62.2C163.886 58.4667 165.353 55.2 166.686 52.4C170.019 52.1333 173.153 51.8 176.086 51.4C179.019 51 181.953 50.6 184.886 50.2C187.819 49.6667 190.753 49.2 193.686 48.8C196.753 48.2667 200.086 47.6667 203.686 47C202.353 54.7333 201.086 62.6667 199.886 70.8C198.686 78.9333 197.619 87.0667 196.686 95.2C195.753 103.2 194.819 111.133 193.886 119C193.086 126.867 192.353 134.333 191.686 141.4C190.086 157.933 188.686 174.067 187.486 189.8L152.686 196C152.686 195.333 152.753 193.533 152.886 190.6C153.153 187.667 153.419 184.067 153.686 179.8C154.086 175.533 154.553 170.8 155.086 165.6C155.753 160.4 156.353 155.2 156.886 150C157.553 144.8 158.219 139.8 158.886 135C159.553 130.067 160.219 125.867 160.886 122.4H159.086C157.219 128 155.153 133.933 152.886 140.2C150.619 146.333 148.286 152.6 145.886 159C143.619 165.4 141.353 171.667 139.086 177.8C136.819 183.933 134.819 189.8 133.086 195.4C128.419 195.533 124.419 195.733 121.086 196C117.753 196.133 113.886 196.333 109.486 196.6L115.886 122.4H112.886C112.619 124.133 111.953 127.067 110.886 131.2C109.819 135.2 108.553 139.867 107.086 145.2C105.753 150.4 104.286 155.867 102.686 161.6C101.086 167.2 99.5526 172.467 98.0859 177.4C96.7526 182.2 95.6193 186.2 94.6859 189.4C93.7526 192.467 93.2193 194.2 93.0859 194.6L60.0859 196.8Z" fill="white"/></svg>'
-# WATERMARK_SIZE = 40 
+WATERMARK = '<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M60.0859 196.8C65.9526 179.067 71.5526 161.667 76.8859 144.6C79.1526 137.4 81.4859 129.867 83.8859 122C86.2859 114.133 88.6859 106.333 91.0859 98.6C93.4859 90.8667 95.6859 83.4 97.6859 76.2C99.8193 69 101.686 62.3333 103.286 56.2C110.619 56.2 117.553 55.8 124.086 55C130.619 54.2 137.686 53.4667 145.286 52.8C144.886 55.7333 144.419 59.0667 143.886 62.8C143.486 66.4 142.953 70.2 142.286 74.2C141.753 78.2 141.153 82.3333 140.486 86.6C139.819 90.8667 139.019 96.3333 138.086 103C137.153 109.667 135.886 118 134.286 128H136.886C140.753 117.867 143.953 109.467 146.486 102.8C149.019 96 151.086 90.4667 152.686 86.2C154.286 81.9333 155.886 77.8 157.486 73.8C159.219 69.6667 160.819 65.8 162.286 62.2C163.886 58.4667 165.353 55.2 166.686 52.4C170.019 52.1333 173.153 51.8 176.086 51.4C179.019 51 181.953 50.6 184.886 50.2C187.819 49.6667 190.753 49.2 193.686 48.8C196.753 48.2667 200.086 47.6667 203.686 47C202.353 54.7333 201.086 62.6667 199.886 70.8C198.686 78.9333 197.619 87.0667 196.686 95.2C195.753 103.2 194.819 111.133 193.886 119C193.086 126.867 192.353 134.333 191.686 141.4C190.086 157.933 188.686 174.067 187.486 189.8L152.686 196C152.686 195.333 152.753 193.533 152.886 190.6C153.153 187.667 153.419 184.067 153.686 179.8C154.086 175.533 154.553 170.8 155.086 165.6C155.753 160.4 156.353 155.2 156.886 150C157.553 144.8 158.219 139.8 158.886 135C159.553 130.067 160.219 125.867 160.886 122.4H159.086C157.219 128 155.153 133.933 152.886 140.2C150.619 146.333 148.286 152.6 145.886 159C143.619 165.4 141.353 171.667 139.086 177.8C136.819 183.933 134.819 189.8 133.086 195.4C128.419 195.533 124.419 195.733 121.086 196C117.753 196.133 113.886 196.333 109.486 196.6L115.886 122.4H112.886C112.619 124.133 111.953 127.067 110.886 131.2C109.819 135.2 108.553 139.867 107.086 145.2C105.753 150.4 104.286 155.867 102.686 161.6C101.086 167.2 99.5526 172.467 98.0859 177.4C96.7526 182.2 95.6193 186.2 94.6859 189.4C93.7526 192.467 93.2193 194.2 93.0859 194.6L60.0859 196.8Z" fill="white"/></svg>'
+WATERMARK_SIZE = 40 
 
-# class MemedeckAzureStorage:
-#     def __init__(self, connection_string):
-#         # get environment variables
-#         self.storage_account = os.getenv('STORAGE_ACCOUNT')
-#         self.storage_access_key = os.getenv('STORAGE_ACCESS_KEY')
-#         self.storage_container = os.getenv('STORAGE_CONTAINER')
-#         self.logger = logging.getLogger(__name__)
+class MemedeckAzureStorage:
+    def __init__(self):
+        # get environment variables
+        self.account = os.getenv('STORAGE_ACCOUNT')
+        self.access_key = os.getenv('STORAGE_ACCESS_KEY')
+        self.container = os.getenv('STORAGE_CONTAINER')
+        self.logger = logging.getLogger(__name__)
 
-#         self.blob_service_client = BlobServiceClient.from_connection_string(conn_str=connection_string)
+        if not all([self.account, self.access_key, self.container]):
+            raise EnvironmentError("Missing STORAGE_ACCOUNT, STORAGE_ACCESS_KEY, or STORAGE_CONTAINER environment variables")
 
-#     async def upload_image(
-#         self,
-#         by: str,
-#         image_id: str,
-#         source_url: Optional[str],
-#         bytes_data: Optional[bytes],
-#         filetype: Optional[str],
-#     ) -> Tuple[str, Tuple[int, int]]:
-#         """
-#         Uploads an image to Azure Blob Storage.
+        # Initialize BlobServiceClient
+        self.blob_service_client = BlobServiceClient(
+            account_url=f"https://{self.account}.blob.core.windows.net",
+            credential=self.access_key
+        )
+        self.logger.info(f"[memedeck]: Azure Storage connected.")
 
-#         Args:
-#             by (str): Identifier for the uploader.
-#             image_id (str): Unique identifier for the image.
-#             source_url (Optional[str]): URL to fetch the image from.
-#             bytes_data (Optional[bytes]): Image data in bytes.
-#             filetype (Optional[str]): Desired file type (e.g., 'jpeg', 'png').
+    async def save_image(
+        self,
+        blob_name: str,
+        content_type: str,
+        bytes_data: bytes
+    ) -> str:
+        """
+        Saves image bytes to Azure Blob Storage.
 
-#         Returns:
-#             Tuple[str, Tuple[int, int]]: URL of the uploaded image and its dimensions.
-#         """
-#         # Retrieve image bytes either from the provided bytes_data or by fetching from source_url
-#         if source_url is None:
-#             if bytes_data is None:
-#                 raise ValueError("Could not get image bytes")
-#             image_bytes = bytes_data
-#         else:
-#             self.logger.info(f"Requesting image from URL: {source_url}")
-#             async with aiohttp.ClientSession() as session:
-#                 try:
-#                     async with session.get(source_url) as response:
-#                         if response.status != 200:
-#                             raise Exception(f"Failed to fetch image, status code {response.status}")
-#                         image_bytes = await response.read()
-#                 except Exception as e:
-#                     raise Exception(f"Error fetching image from URL: {e}")
+        Args:
+            blob_name (str): Name of the blob in Azure Storage.
+            content_type (str): MIME type of the content.
+            bytes_data (bytes): Image data in bytes.
 
-#         # Open image using Pillow to get dimensions and format
-#         try:
-#             img = Image.open(BytesIO(image_bytes))
-#             width, height = img.size
-#             inferred_filetype = img.format.lower()
-#         except Exception as e:
-#             raise Exception(f"Failed to decode image: {e}")
+        Returns:
+            str: URL of the uploaded blob.
+        """
 
-#         # Determine the final file type
-#         final_filetype = filetype.lower() if filetype else inferred_filetype
+        blob_client = self.blob_service_client.get_blob_client(container=self.container, blob=blob_name)
 
-#         # Construct the blob name
-#         blob_name = f"{by}/{image_id.replace('image:', '')}.{final_filetype}"
+        # Upload the blob
+        try:
+            await blob_client.upload_blob(
+                bytes_data,
+                overwrite=True,
+                content_settings=ContentSettings(content_type=content_type)
+            )
+        except Exception as e:
+            raise Exception(f"Failed to upload blob: {e}")
+        
+        # close the blob client
+        blob_client.close()
 
-#         # Upload the image to Azure Blob Storage
-#         try:
-#             image_url = await self.save_image(blob_name, img.format, image_bytes)
-#             return image_url, (width, height)
-#         except Exception as e:
-#             self.logger.error(f"Trouble saving image: {e}")
-#             raise Exception(f"Trouble saving image: {e}")
+        # Construct and return the blob URL
+        blob_url = f"https://media.memedeck.xyz/{self.container}/{blob_name}"
+        return blob_url
 
-#     async def save_image(
-#         self,
-#         blob_name: str,
-#         content_type: str,
-#         bytes_data: bytes
-#     ) -> str:
-#         """
-#         Saves image bytes to Azure Blob Storage.
+    # async def add_watermark(
+    #     self,
+    #     base_blob_name: str,
+    #     base_image: bytes
+    # ) -> str:
+    #     """
+    #     Adds a watermark to the provided image and uploads the watermarked image.
 
-#         Args:
-#             blob_name (str): Name of the blob in Azure Storage.
-#             content_type (str): MIME type of the content.
-#             bytes_data (bytes): Image data in bytes.
+    #     Args:
+    #         base_blob_name (str): Original blob name of the image.
+    #         base_image (bytes): Image data in bytes.
 
-#         Returns:
-#             str: URL of the uploaded blob.
-#         """
-#         # Retrieve environment variables
-#         account = os.getenv("STORAGE_ACCOUNT")
-#         access_key = os.getenv("STORAGE_ACCESS_KEY")
-#         container = os.getenv("STORAGE_CONTAINER")
+    #     Returns:
+    #         str: URL of the watermarked image.
+    #     """
+    #     # Load the input image
+    #     try:
+    #         img = Image.open(BytesIO(base_image)).convert("RGBA")
+    #     except Exception as e:
+    #         raise Exception(f"Failed to load image: {e}")
 
-#         if not all([account, access_key, container]):
-#             raise EnvironmentError("Missing STORAGE_ACCOUNT, STORAGE_ACCESS_KEY, or STORAGE_CONTAINER environment variables")
+    #     # Calculate position for the watermark (bottom right corner with padding)
+    #     padding = 12
+    #     x = img.width - WATERMARK_SIZE - padding
+    #     y = img.height - WATERMARK_SIZE - padding
 
-#         # Initialize BlobServiceClient
-#         blob_service_client = BlobServiceClient(
-#             account_url=f"https://{account}.blob.core.windows.net",
-#             credential=access_key
-#         )
-#         blob_client = blob_service_client.get_blob_client(container=container, blob=blob_name)
+    #     # Analyze background brightness where the watermark will be placed
+    #     background_brightness = self.analyze_background_brightness(img, x, y, WATERMARK_SIZE)
+    #     self.logger.info(f"Background brightness: {background_brightness}")
 
-#         # Upload the blob
-#         try:
-#             await blob_client.upload_blob(
-#                 bytes_data,
-#                 overwrite=True,
-#                 content_settings=ContentSettings(content_type=content_type)
-#             )
-#         except Exception as e:
-#             raise Exception(f"Failed to upload blob: {e}")
+    #     # Render SVG watermark to PNG bytes using cairosvg
+    #     try:
+    #         watermark_png_bytes = cairosvg.svg2png(bytestring=WATERMARK.encode('utf-8'), output_width=WATERMARK_SIZE, output_height=WATERMARK_SIZE)
+    #         watermark = Image.open(BytesIO(watermark_png_bytes)).convert("RGBA")
+    #     except Exception as e:
+    #         raise Exception(f"Failed to render watermark SVG: {e}")
 
-#         self.logger.debug(f"Blob uploaded: name={blob_name}, content_type={content_type}")
+    #     # Determine watermark color based on background brightness
+    #     if background_brightness > 128:
+    #         # Dark watermark for light backgrounds
+    #         watermark_color = (0, 0, 0, int(255 * 0.65))  # Black with 65% opacity
+    #     else:
+    #         # Light watermark for dark backgrounds
+    #         watermark_color = (255, 255, 255, int(255 * 0.65))  # White with 65% opacity
 
-#         # Construct and return the blob URL
-#         blob_url = f"https://media.memedeck.xyz//{container}/{blob_name}"
-#         return blob_url
+    #     # Apply the watermark color by blending
+    #     solid_color = Image.new("RGBA", watermark.size, watermark_color)
+    #     watermark = Image.alpha_composite(watermark, solid_color)
 
-#     async def add_watermark(
-#         self,
-#         base_blob_name: str,
-#         base_image: bytes
-#     ) -> str:
-#         """
-#         Adds a watermark to the provided image and uploads the watermarked image.
+    #     # Overlay the watermark onto the original image
+    #     img.paste(watermark, (x, y), watermark)
 
-#         Args:
-#             base_blob_name (str): Original blob name of the image.
-#             base_image (bytes): Image data in bytes.
+    #     # Save the watermarked image to bytes
+    #     buffer = BytesIO()
+    #     img = img.convert("RGB")  # Convert back to RGB for JPEG format
+    #     img.save(buffer, format="JPEG")
+    #     buffer.seek(0)
+    #     jpeg_bytes = buffer.read()
 
-#         Returns:
-#             str: URL of the watermarked image.
-#         """
-#         # Load the input image
-#         try:
-#             img = Image.open(BytesIO(base_image)).convert("RGBA")
-#         except Exception as e:
-#             raise Exception(f"Failed to load image: {e}")
+    #     # Modify the blob name to include '_watermarked'
+    #     try:
+    #         if "memes/" in base_blob_name:
+    #             base_blob_name_right = base_blob_name.split("memes/", 1)[1]
+    #         else:
+    #             base_blob_name_right = base_blob_name
+    #         base_blob_name_split = base_blob_name_right.rsplit(".", 1)
+    #         base_blob_name_without_extension = base_blob_name_split[0]
+    #         extension = base_blob_name_split[1]
+    #     except Exception as e:
+    #         raise Exception(f"Failed to process blob name: {e}")
 
-#         # Calculate position for the watermark (bottom right corner with padding)
-#         padding = 12
-#         x = img.width - WATERMARK_SIZE - padding
-#         y = img.height - WATERMARK_SIZE - padding
+    #     watermarked_blob_name = f"{base_blob_name_without_extension}_watermarked.{extension}"
 
-#         # Analyze background brightness where the watermark will be placed
-#         background_brightness = self.analyze_background_brightness(img, x, y, WATERMARK_SIZE)
-#         self.logger.info(f"Background brightness: {background_brightness}")
+    #     # Upload the watermarked image
+    #     try:
+    #         watermarked_blob_url = await self.save_image(
+    #             watermarked_blob_name,
+    #             "image/jpeg",
+    #             jpeg_bytes
+    #         )
+    #         return watermarked_blob_url
+    #     except Exception as e:
+    #         raise Exception(f"Failed to upload watermarked image: {e}")
 
-#         # Render SVG watermark to PNG bytes using cairosvg
-#         try:
-#             watermark_png_bytes = cairosvg.svg2png(bytestring=WATERMARK.encode('utf-8'), output_width=WATERMARK_SIZE, output_height=WATERMARK_SIZE)
-#             watermark = Image.open(BytesIO(watermark_png_bytes)).convert("RGBA")
-#         except Exception as e:
-#             raise Exception(f"Failed to render watermark SVG: {e}")
+    # def analyze_background_brightness(
+    #     self,
+    #     img: Image.Image,
+    #     x: int,
+    #     y: int,
+    #     size: int
+    # ) -> int:
+    #     """
+    #     Analyzes the brightness of a specific region in the image.
 
-#         # Determine watermark color based on background brightness
-#         if background_brightness > 128:
-#             # Dark watermark for light backgrounds
-#             watermark_color = (0, 0, 0, int(255 * 0.65))  # Black with 65% opacity
-#         else:
-#             # Light watermark for dark backgrounds
-#             watermark_color = (255, 255, 255, int(255 * 0.65))  # White with 65% opacity
+    #     Args:
+    #         img (Image.Image): The image to analyze.
+    #         x (int): X-coordinate of the top-left corner of the region.
+    #         y (int): Y-coordinate of the top-left corner of the region.
+    #         size (int): Size of the square region to analyze.
 
-#         # Apply the watermark color by blending
-#         solid_color = Image.new("RGBA", watermark.size, watermark_color)
-#         watermark = Image.alpha_composite(watermark, solid_color)
+    #     Returns:
+    #         int: Average brightness (0-255) of the region.
+    #     """
+    #     # Crop the specified region
+    #     sub_image = img.crop((x, y, x + size, y + size)).convert("RGB")
 
-#         # Overlay the watermark onto the original image
-#         img.paste(watermark, (x, y), watermark)
+    #     # Calculate average brightness using the luminance formula
+    #     total_brightness = 0
+    #     pixel_count = 0
+    #     for pixel in sub_image.getdata():
+    #         r, g, b = pixel
+    #         brightness = (r * 299 + g * 587 + b * 114) // 1000
+    #         total_brightness += brightness
+    #         pixel_count += 1
 
-#         # Save the watermarked image to bytes
-#         buffer = BytesIO()
-#         img = img.convert("RGB")  # Convert back to RGB for JPEG format
-#         img.save(buffer, format="JPEG")
-#         buffer.seek(0)
-#         jpeg_bytes = buffer.read()
+    #     if pixel_count == 0:
+    #         return 0
 
-#         # Modify the blob name to include '_watermarked'
-#         try:
-#             if "memes/" in base_blob_name:
-#                 base_blob_name_right = base_blob_name.split("memes/", 1)[1]
-#             else:
-#                 base_blob_name_right = base_blob_name
-#             base_blob_name_split = base_blob_name_right.rsplit(".", 1)
-#             base_blob_name_without_extension = base_blob_name_split[0]
-#             extension = base_blob_name_split[1]
-#         except Exception as e:
-#             raise Exception(f"Failed to process blob name: {e}")
-
-#         watermarked_blob_name = f"{base_blob_name_without_extension}_watermarked.{extension}"
-
-#         # Upload the watermarked image
-#         try:
-#             watermarked_blob_url = await self.save_image(
-#                 watermarked_blob_name,
-#                 "image/jpeg",
-#                 jpeg_bytes
-#             )
-#             return watermarked_blob_url
-#         except Exception as e:
-#             raise Exception(f"Failed to upload watermarked image: {e}")
-
-#     def analyze_background_brightness(
-#         self,
-#         img: Image.Image,
-#         x: int,
-#         y: int,
-#         size: int
-#     ) -> int:
-#         """
-#         Analyzes the brightness of a specific region in the image.
-
-#         Args:
-#             img (Image.Image): The image to analyze.
-#             x (int): X-coordinate of the top-left corner of the region.
-#             y (int): Y-coordinate of the top-left corner of the region.
-#             size (int): Size of the square region to analyze.
-
-#         Returns:
-#             int: Average brightness (0-255) of the region.
-#         """
-#         # Crop the specified region
-#         sub_image = img.crop((x, y, x + size, y + size)).convert("RGB")
-
-#         # Calculate average brightness using the luminance formula
-#         total_brightness = 0
-#         pixel_count = 0
-#         for pixel in sub_image.getdata():
-#             r, g, b = pixel
-#             brightness = (r * 299 + g * 587 + b * 114) // 1000
-#             total_brightness += brightness
-#             pixel_count += 1
-
-#         if pixel_count == 0:
-#             return 0
-
-#         average_brightness = total_brightness // pixel_count
-#         return average_brightness
+    #     average_brightness = total_brightness // pixel_count
+    #     return average_brightness
 
 
