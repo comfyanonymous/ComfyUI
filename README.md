@@ -81,7 +81,7 @@ If coming from the very start, you need :
 
 ## Setup (Windows-Only)
 
-Open a cmd prompt.
+Open a cmd prompt. (Powershell doesn't work, you have to use command prompt.)
 
 ```bash
 git clone https://github.com/patientx/ComfyUI-Zluda
