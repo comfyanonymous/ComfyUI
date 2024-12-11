@@ -461,8 +461,6 @@ class AsymmDiTJoint(nn.Module):
         pH, pW = H // self.patch_size, W // self.patch_size
         x = self.embed_x(x)  # (B, N, D), where N = T * H * W / patch_size ** 2
         assert x.ndim == 3
-        B = x.size(0)
-
 
         pH, pW = H // self.patch_size, W // self.patch_size
         N = T * pH * pW

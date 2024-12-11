@@ -5,4 +5,5 @@ lint.ignore = ["ALL"]
 lint.select = [
     "S307",  # suspicious-eval-usage
     "F401",  # unused-import
+    "F841",  # unused-local-variable
 ]

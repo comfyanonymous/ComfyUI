@@ -336,7 +336,6 @@ def expand_directory_list(directories):
     return list(dirs)
 
 def bundled_embed(embed, prefix, suffix): #bundled embedding in lora format
-    i = 0
     out_list = []
     for k in embed:
         if k.startswith(prefix) and k.endswith(suffix):
@@ -392,7 +391,7 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
                     embed_out = safe_load_embed_zip(embed_path)
             else:
                 embed = torch.load(embed_path, map_location="cpu")
-    except Exception as e:
+    except Exception:
         logging.warning("{}\n\nerror loading embedding, skipping loading: {}".format(traceback.format_exc(), embedding_name))
         return None
 

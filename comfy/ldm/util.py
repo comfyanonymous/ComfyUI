@@ -133,7 +133,6 @@ class AdamWwithEMAandWings(optim.Optimizer):
             exp_avgs = []
             exp_avg_sqs = []
             ema_params_with_grad = []
-            state_sums = []
             max_exp_avg_sqs = []
             state_steps = []
             amsgrad = group['amsgrad']
