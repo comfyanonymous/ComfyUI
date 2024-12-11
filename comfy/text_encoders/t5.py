@@ -209,6 +209,11 @@ class T5Stack(torch.nn.Module):
         intermediate = None
         optimized_attention = optimized_attention_for_device(x.device, mask=attention_mask is not None, small_input=True)
         past_bias = None
+
+        if intermediate_output is not None:
+            if intermediate_output < 0:
+                intermediate_output = len(self.block) + intermediate_output
+
         for i, l in enumerate(self.block):
             x, past_bias = l(x, mask, past_bias, optimized_attention)
             if i == intermediate_output:

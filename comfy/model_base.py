@@ -33,12 +33,16 @@ import comfy.ldm.flux.model
 import comfy.ldm.lightricks.model
 
 import comfy.model_management
+import comfy.patcher_extension
 import comfy.conds
 import comfy.ops
 from enum import Enum
 from . import utils
 import comfy.latent_formats
 import math
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from comfy.model_patcher import ModelPatcher
 
 class ModelType(Enum):
     EPS = 1
@@ -95,6 +99,7 @@ class BaseModel(torch.nn.Module):
         self.model_config = model_config
         self.manual_cast_dtype = model_config.manual_cast_dtype
         self.device = device
+        self.current_patcher: 'ModelPatcher' = None
 
         if not unet_config.get("disable_unet_model_creation", False):
             if model_config.custom_operations is None:
@@ -120,6 +125,13 @@ class BaseModel(torch.nn.Module):
         self.memory_usage_factor = model_config.memory_usage_factor
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._apply_model,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.APPLY_MODEL, transformer_options)
+        ).execute(x, t, c_concat, c_crossattn, control, transformer_options, **kwargs)
+
+    def _apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         sigma = t
         xc = self.model_sampling.calculate_input(sigma, x)
         if c_concat is not None:
@@ -712,7 +724,13 @@ class Flux(BaseModel):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.flux.model.Flux)
 
     def concat_cond(self, **kwargs):
-        num_channels = self.diffusion_model.img_in.weight.shape[1] // (self.diffusion_model.patch_size * self.diffusion_model.patch_size)
+        try:
+            #Handle Flux control loras dynamically changing the img_in weight.
+            num_channels = self.diffusion_model.img_in.weight.shape[1] // (self.diffusion_model.patch_size * self.diffusion_model.patch_size)
+        except:
+            #Some cases like tensorrt might not have the weights accessible
+            num_channels = self.model_config.unet_config["in_channels"]
+
         out_channels = self.model_config.unet_config["out_channels"]
 
         if num_channels <= out_channels:
@@ -785,6 +803,10 @@ class LTXV(BaseModel):
         guiding_latent = kwargs.get("guiding_latent", None)
         if guiding_latent is not None:
             out['guiding_latent'] = comfy.conds.CONDRegular(guiding_latent)
+
+        guiding_latent_noise_scale = kwargs.get("guiding_latent_noise_scale", None)
+        if guiding_latent_noise_scale is not None:
+            out["guiding_latent_noise_scale"] = comfy.conds.CONDConstant(guiding_latent_noise_scale)
 
         out['frame_rate'] = comfy.conds.CONDConstant(kwargs.get("frame_rate", 25))
         return out

@@ -1,0 +1,8 @@
+# Disable all rules by default
+lint.ignore = ["ALL"]
+
+# Enable specific rules
+lint.select = [
+    "S307",  # suspicious-eval-usage
+    "F401",  # unused-import
+]
