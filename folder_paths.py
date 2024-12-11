@@ -200,6 +200,10 @@ def add_model_folder_path(folder_name: str, full_folder_path: str, is_default: b
     global folder_names_and_paths
     folder_name = map_legacy(folder_name)
     if folder_name in folder_names_and_paths:
+        current_paths = folder_names_and_paths[folder_name][0]
+        if full_folder_path in current_paths:
+            current_paths.remove(full_folder_path)  # Remove the path if it exists
+
         if is_default:
             folder_names_and_paths[folder_name][0].insert(0, full_folder_path)
         else:
