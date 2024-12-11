@@ -2147,6 +2147,7 @@ def init_builtin_extra_nodes():
         "nodes_torch_compile.py",
         "nodes_mochi.py",
         "nodes_slg.py",
+        "nodes_mahiro.py",
         "nodes_lt.py",
         "nodes_hooks.py",
     ]
