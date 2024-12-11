@@ -101,6 +101,8 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | `Q`                                 | Toggle visibility of the queue                                                                                     |
 | `H`                                  | Toggle visibility of history                                                                                       |
 | `R`                                  | Refresh graph                                                                                                      |
+| `F`                                  | Show/Hide menu                                                                                                      |
+| `.`                                  | Fit view to selection (Whole graph when nothing is selected)                                                        |
 | Double-Click LMB                   | Open node quick search palette                                                                                     |
 | `Shift` + Drag                       | Move multiple wires at once                                                                                        |
 | `Ctrl` + `Alt` + LMB                   | Disconnect all wires from clicked slot                                                                             |
