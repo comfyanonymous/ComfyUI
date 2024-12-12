@@ -4,7 +4,7 @@ from typing import Any, Dict, Tuple, Union
 
 from comfy.ldm.modules.distributions.distributions import DiagonalGaussianDistribution
 
-from comfy.ldm.util import instantiate_from_config
+from comfy.ldm.util import get_obj_from_str, instantiate_from_config
 from comfy.ldm.modules.ema import LitEma
 import comfy.ops
 
