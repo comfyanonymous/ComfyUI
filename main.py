@@ -8,6 +8,11 @@ import time
 from comfy.cli_args import args
 from app.logger import setup_logger
 
+if __name__ == "__main__":
+    #NOTE: These do not do anything on core ComfyUI which should already have no communication with the internet, they are for custom nodes.
+    os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
+    os.environ['DO_NOT_TRACK'] = '1'
+
 
 setup_logger(log_level=args.verbose)
 
@@ -82,7 +87,8 @@ if __name__ == "__main__":
 
 if args.windows_standalone_build:
     try:
-        import fix_torch
+        from fix_torch import fix_pytorch_libomp
+        fix_pytorch_libomp()
     except:
         pass
 
@@ -154,7 +160,6 @@ def prompt_worker(q, server):
         if need_gc:
             current_time = time.perf_counter()
             if (current_time - last_gc_collect) > gc_collect_interval:
-                comfy.model_management.cleanup_models()
                 gc.collect()
                 comfy.model_management.soft_empty_cache()
                 last_gc_collect = current_time

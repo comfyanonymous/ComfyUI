@@ -82,8 +82,7 @@ class CLIPTextEncodeSD3:
                 tokens["l"] += empty["l"]
             while len(tokens["l"]) > len(tokens["g"]):
                 tokens["g"] += empty["g"]
-        cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
-        return ([[cond, {"pooled_output": pooled}]], )
+        return (clip.encode_from_tokens_scheduled(tokens), )
 
 
 class ControlNetApplySD3(nodes.ControlNetApplyAdvanced):

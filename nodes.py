@@ -1,3 +1,4 @@
+from __future__ import annotations
 import torch
 
 import os
@@ -10,7 +11,7 @@ import time
 import random
 import logging
 
-from PIL import Image, ImageOps, ImageSequence, ImageFile
+from PIL import Image, ImageOps, ImageSequence
 from PIL.PngImagePlugin import PngInfo
 
 import numpy as np
@@ -24,6 +25,7 @@ import comfy.sample
 import comfy.sd
 import comfy.utils
 import comfy.controlnet
+from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict
 
 import comfy.clip_vision
 
@@ -44,16 +46,16 @@ def interrupt_processing(value=True):
 
 MAX_RESOLUTION=16384
 
-class CLIPTextEncode:
+class CLIPTextEncode(ComfyNodeABC):
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(s) -> InputTypeDict:
         return {
             "required": {
-                "text": ("STRING", {"multiline": True, "dynamicPrompts": True, "tooltip": "The text to be encoded."}), 
-                "clip": ("CLIP", {"tooltip": "The CLIP model used for encoding the text."})
+                "text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The text to be encoded."}), 
+                "clip": (IO.CLIP, {"tooltip": "The CLIP model used for encoding the text."})
             }
         }
-    RETURN_TYPES = ("CONDITIONING",)
+    RETURN_TYPES = (IO.CONDITIONING,)
     OUTPUT_TOOLTIPS = ("A conditioning containing the embedded text used to guide the diffusion model.",)
     FUNCTION = "encode"
 
@@ -62,9 +64,8 @@ class CLIPTextEncode:
 
     def encode(self, clip, text):
         tokens = clip.tokenize(text)
-        output = clip.encode_from_tokens(tokens, return_pooled=True, return_dict=True)
-        cond = output.pop("cond")
-        return ([[cond, output]], )
+        return (clip.encode_from_tokens_scheduled(tokens), )
+        
 
 class ConditioningCombine:
     @classmethod
@@ -301,7 +302,8 @@ class VAEDecodeTiled:
     def decode(self, vae, samples, tile_size, overlap=64):
         if tile_size < overlap * 4:
             overlap = tile_size // 4
-        images = vae.decode_tiled(samples["samples"], tile_x=tile_size // 8, tile_y=tile_size // 8, overlap=overlap // 8)
+        compression = vae.spacial_compression_decode()
+        images = vae.decode_tiled(samples["samples"], tile_x=tile_size // compression, tile_y=tile_size // compression, overlap=overlap // compression)
         if len(images.shape) == 5: #Combine batches
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
         return (images, )
@@ -382,6 +384,7 @@ class InpaintModelConditioning:
                              "vae": ("VAE", ),
                              "pixels": ("IMAGE", ),
                              "mask": ("MASK", ),
+                             "noise_mask": ("BOOLEAN", {"default": True, "tooltip": "Add a noise mask to the latent so sampling will only happen within the mask. Might improve results or completely break things depending on the model."}),
                              }}
 
     RETURN_TYPES = ("CONDITIONING","CONDITIONING","LATENT")
@@ -390,7 +393,7 @@ class InpaintModelConditioning:
 
     CATEGORY = "conditioning/inpaint"
 
-    def encode(self, positive, negative, pixels, vae, mask):
+    def encode(self, positive, negative, pixels, vae, mask, noise_mask=True):
         x = (pixels.shape[1] // 8) * 8
         y = (pixels.shape[2] // 8) * 8
         mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
@@ -414,7 +417,8 @@ class InpaintModelConditioning:
         out_latent = {}
 
         out_latent["samples"] = orig_latent
-        out_latent["noise_mask"] = mask
+        if noise_mask:
+            out_latent["noise_mask"] = mask
 
         out = []
         for conditioning in [positive, negative]:
@@ -640,9 +644,7 @@ class LoraLoader:
             if self.loaded_lora[0] == lora_path:
                 lora = self.loaded_lora[1]
             else:
-                temp = self.loaded_lora
                 self.loaded_lora = None
-                del temp
 
         if lora is None:
             lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
@@ -895,7 +897,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -913,6 +915,8 @@ class CLIPLoader:
             clip_type = comfy.sd.CLIPType.STABLE_AUDIO
         elif type == "mochi":
             clip_type = comfy.sd.CLIPType.MOCHI
+        elif type == "ltxv":
+            clip_type = comfy.sd.CLIPType.LTXV
         else:
             clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
 
@@ -966,15 +970,19 @@ class CLIPVisionEncode:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_vision": ("CLIP_VISION",),
-                              "image": ("IMAGE",)
+                              "image": ("IMAGE",),
+                              "crop": (["center", "none"],)
                              }}
     RETURN_TYPES = ("CLIP_VISION_OUTPUT",)
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
 
-    def encode(self, clip_vision, image):
-        output = clip_vision.encode_image(image)
+    def encode(self, clip_vision, image, crop):
+        crop_image = True
+        if crop != "center":
+            crop_image = False
+        output = clip_vision.encode_image(image, crop=crop_image)
         return (output,)
 
 class StyleModelLoader:
@@ -999,14 +1007,19 @@ class StyleModelApply:
         return {"required": {"conditioning": ("CONDITIONING", ),
                              "style_model": ("STYLE_MODEL", ),
                              "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
+                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.001}),
+                             "strength_type": (["multiply"], ),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_stylemodel"
 
     CATEGORY = "conditioning/style_model"
 
-    def apply_stylemodel(self, clip_vision_output, style_model, conditioning):
+    def apply_stylemodel(self, clip_vision_output, style_model, conditioning, strength, strength_type):
         cond = style_model.get_cond(clip_vision_output).flatten(start_dim=0, end_dim=1).unsqueeze(dim=0)
+        if strength_type == "multiply":
+            cond *= strength
+
         c = []
         for t in conditioning:
             n = [torch.cat((t[0], cond), dim=1), t[1].copy()]
@@ -2134,6 +2147,9 @@ def init_builtin_extra_nodes():
         "nodes_torch_compile.py",
         "nodes_mochi.py",
         "nodes_slg.py",
+        "nodes_mahiro.py",
+        "nodes_lt.py",
+        "nodes_hooks.py",
     ]
 
     import_failed = []

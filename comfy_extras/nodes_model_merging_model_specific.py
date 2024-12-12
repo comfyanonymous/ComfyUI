@@ -174,6 +174,28 @@ class ModelMergeMochiPreview(comfy_extras.nodes_model_merging.ModelMergeBlocks):
 
         return {"required": arg_dict}
 
+class ModelMergeLTXV(comfy_extras.nodes_model_merging.ModelMergeBlocks):
+    CATEGORY = "advanced/model_merging/model_specific"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        arg_dict = { "model1": ("MODEL",),
+                              "model2": ("MODEL",)}
+
+        argument = ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01})
+
+        arg_dict["patchify_proj."] = argument
+        arg_dict["adaln_single."] = argument
+        arg_dict["caption_projection."] = argument
+
+        for i in range(28):
+            arg_dict["transformer_blocks.{}.".format(i)] = argument
+
+        arg_dict["scale_shift_table"] = argument
+        arg_dict["proj_out."] = argument
+
+        return {"required": arg_dict}
+
 NODE_CLASS_MAPPINGS = {
     "ModelMergeSD1": ModelMergeSD1,
     "ModelMergeSD2": ModelMergeSD1, #SD1 and SD2 have the same blocks
@@ -183,4 +205,5 @@ NODE_CLASS_MAPPINGS = {
     "ModelMergeFlux1": ModelMergeFlux1,
     "ModelMergeSD35_Large": ModelMergeSD35_Large,
     "ModelMergeMochiPreview": ModelMergeMochiPreview,
+    "ModelMergeLTXV": ModelMergeLTXV,
 }

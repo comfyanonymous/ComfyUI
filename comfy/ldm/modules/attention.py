@@ -299,7 +299,10 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
                     if len(mask.shape) == 2:
                         s1 += mask[i:end]
                     else:
-                        s1 += mask[:, i:end]
+                        if mask.shape[1] == 1:
+                            s1 += mask
+                        else:
+                            s1 += mask[:, i:end]
 
                 s2 = s1.softmax(dim=-1).to(v.dtype)
                 del s1
@@ -372,10 +375,10 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_resh
         )
 
     if mask is not None:
-        pad = 8 - q.shape[1] % 8
-        mask_out = torch.empty([q.shape[0], q.shape[1], q.shape[1] + pad], dtype=q.dtype, device=q.device)
-        mask_out[:, :, :mask.shape[-1]] = mask
-        mask = mask_out[:, :, :mask.shape[-1]]
+        pad = 8 - mask.shape[-1] % 8
+        mask_out = torch.empty([q.shape[0], q.shape[2], q.shape[1], mask.shape[-1] + pad], dtype=q.dtype, device=q.device)
+        mask_out[..., :mask.shape[-1]] = mask
+        mask = mask_out[..., :mask.shape[-1]]
 
     out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=mask)
 
