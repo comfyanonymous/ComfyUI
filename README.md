@@ -136,15 +136,6 @@ patchzluda.bat
 
 ___
 
-## Credits
-
-- [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
-- [Zluda Wiki from SdNext](https://github.com/vladmandic/automatic/wiki/ZLUDA)
-- [Brknsoul for Rocm Libraries](https://github.com/brknsoul/ROCmLibs)
-- [Lshqqytiger](https://github.com/lshqqytiger/ZLUDA)
-- [LeagueRaINi](https://github.com/LeagueRaINi/ComfyUI)
-- [ComfyUI-Manager](https://github.com/ltdrdata/ComfyUI-Manager)
-
 ## Shortcuts
 
 | Keybind                            | Explanation                                                                                                        |
@@ -180,4 +171,12 @@ ___
 | Double-Click LMB                   | Open node quick search palette                                                                                     |
 | `Shift` + Drag                       | Move multiple wires at once                                                                                        |
 | `Ctrl` + `Alt` + LMB                   | Disconnect all wires from clicked slot                                                                             |
-|------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+
+## Credits
+
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
+- [Zluda Wiki from SdNext](https://github.com/vladmandic/automatic/wiki/ZLUDA)
+- [Brknsoul for Rocm Libraries](https://github.com/brknsoul/ROCmLibs)
+- [Lshqqytiger](https://github.com/lshqqytiger/ZLUDA)
+- [LeagueRaINi](https://github.com/LeagueRaINi/ComfyUI)
+- [ComfyUI-Manager](https://github.com/ltdrdata/ComfyUI-Manager)
