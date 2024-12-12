@@ -147,7 +147,6 @@ class DoubleAttention(nn.Module):
 
         bsz, seqlen1, _ = c.shape
         bsz, seqlen2, _ = x.shape
-        seqlen = seqlen1 + seqlen2
 
         cq, ck, cv = self.w1q(c), self.w1k(c), self.w1v(c)
         cq = cq.view(bsz, seqlen1, self.n_heads, self.head_dim)
