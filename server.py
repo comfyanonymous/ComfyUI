@@ -29,6 +29,7 @@ import comfy.model_management
 import node_helpers
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
+from app.model_manager import ModelFileManager
 from typing import Optional
 from api_server.routes.internal.internal_routes import InternalRoutes
 
@@ -151,6 +152,7 @@ class PromptServer():
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
 
         self.user_manager = UserManager()
+        self.model_file_manager = ModelFileManager()
         self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = None
@@ -220,7 +222,7 @@ class PromptServer():
         def get_embeddings(self):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
-        
+
         @routes.get("/models")
         def list_model_types(request):
             model_types = list(folder_paths.folder_names_and_paths.keys())
@@ -682,6 +684,7 @@ class PromptServer():
 
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
+        self.model_file_manager.add_routes(self.routes)
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
