@@ -228,9 +228,9 @@ class FeedForward(nn.Module):
             linear_in = GLU(dim, inner_dim, activation, dtype=dtype, device=device, operations=operations)
         else:
             linear_in = nn.Sequential(
-                Rearrange('b n d -> b d n') if use_conv else nn.Identity(),
+                rearrange('b n d -> b d n') if use_conv else nn.Identity(),
                 operations.Linear(dim, inner_dim, bias = not no_bias, dtype=dtype, device=device) if not use_conv else operations.Conv1d(dim, inner_dim, conv_kernel_size, padding = (conv_kernel_size // 2), bias = not no_bias, dtype=dtype, device=device),
-                Rearrange('b n d -> b d n') if use_conv else nn.Identity(),
+                rearrange('b n d -> b d n') if use_conv else nn.Identity(),
                 activation
             )
 
@@ -245,9 +245,9 @@ class FeedForward(nn.Module):
 
         self.ff = nn.Sequential(
             linear_in,
-            Rearrange('b d n -> b n d') if use_conv else nn.Identity(),
+            rearrange('b d n -> b n d') if use_conv else nn.Identity(),
             linear_out,
-            Rearrange('b n d -> b d n') if use_conv else nn.Identity(),
+            rearrange('b n d -> b d n') if use_conv else nn.Identity(),
         )
 
     def forward(self, x):
