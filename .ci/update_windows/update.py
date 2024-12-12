@@ -33,12 +33,12 @@ def pull(repo, remote_name='origin', branch='master'):
 
                 user = repo.default_signature
                 tree = repo.index.write_tree()
-                commit = repo.create_commit('HEAD',
-                                            user,
-                                            user,
-                                            'Merge!',
-                                            tree,
-                                            [repo.head.target, remote_master_id])
+                repo.create_commit('HEAD',
+                                    user,
+                                    user,
+                                    'Merge!',
+                                    tree,
+                                    [repo.head.target, remote_master_id])
                 # We need to do this or git CLI will think we are still merging.
                 repo.state_cleanup()
             else:

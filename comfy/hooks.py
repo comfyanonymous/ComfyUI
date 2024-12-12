@@ -130,7 +130,7 @@ class WeightHook(Hook):
                 weights = self.weights
             else:
                 weights = self.weights_clip
-        k = model.add_hook_patches(hook=self, patches=weights, strength_patch=strength)
+        model.add_hook_patches(hook=self, patches=weights, strength_patch=strength)
         registered.append(self)
         return True
         # TODO: add logs about any keys that were not applied

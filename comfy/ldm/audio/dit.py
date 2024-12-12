@@ -158,7 +158,6 @@ class RotaryEmbedding(nn.Module):
     def forward(self, t):
         # device = self.inv_freq.device
         device = t.device
-        dtype = t.dtype
 
         # t = t.to(torch.float32)
 
@@ -346,18 +345,13 @@ class Attention(nn.Module):
 
         # determine masking
         masks = []
-        final_attn_mask = None # The mask that will be applied to the attention matrix, taking all masks into account
 
         if input_mask is not None:
             input_mask = rearrange(input_mask, 'b j -> b 1 1 j')
             masks.append(~input_mask)
 
         # Other masks will be added here later
-
-        if len(masks) > 0:
-            final_attn_mask = ~or_reduce(masks)
-
-        n, device = q.shape[-2], q.device
+        n = q.shape[-2]
 
         causal = self.causal if causal is None else causal
 

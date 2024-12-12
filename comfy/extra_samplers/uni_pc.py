@@ -703,7 +703,6 @@ class UniPC:
     ):
         # t_0 = 1. / self.noise_schedule.total_N if t_end is None else t_end
         # t_T = self.noise_schedule.T if t_start is None else t_start
-        device = x.device
         steps = len(timesteps) - 1
         if method == 'multistep':
             assert steps >= order

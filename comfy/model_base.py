@@ -427,7 +427,6 @@ class SVD_img2vid(BaseModel):
 
         latent_image = kwargs.get("concat_latent_image", None)
         noise = kwargs.get("noise", None)
-        device = kwargs["device"]
 
         if latent_image is None:
             latent_image = torch.zeros_like(noise)
@@ -711,8 +710,6 @@ class HunyuanDiT(BaseModel):
 
         width = kwargs.get("width", 768)
         height = kwargs.get("height", 768)
-        crop_w = kwargs.get("crop_w", 0)
-        crop_h = kwargs.get("crop_h", 0)
         target_width = kwargs.get("target_width", width)
         target_height = kwargs.get("target_height", height)
 
