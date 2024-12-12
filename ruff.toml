@@ -6,4 +6,6 @@ lint.select = [
     "S307",  # suspicious-eval-usage
     "F401",  # unused-import
     "F841",  # unused-local-variable
+    # TODO: Enable F821 after all errors has been fixed. Remaining errors: 7.
+    # "F821",  # undefined-name
 ]
