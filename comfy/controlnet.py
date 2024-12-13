@@ -821,7 +821,7 @@ def load_t2i_adapter(t2i_data, model_options={}): #TODO: model_options
         for i in range(4):
             for j in range(2):
                 prefix_replace["adapter.body.{}.resnets.{}.".format(i, j)] = "body.{}.".format(i * 2 + j)
-            prefix_replace["adapter.body.{}.".format(i, j)] = "body.{}.".format(i * 2)
+            prefix_replace["adapter.body.{}.".format(i, )] = "body.{}.".format(i * 2)
         prefix_replace["adapter."] = ""
         t2i_data = comfy.utils.state_dict_prefix_replace(t2i_data, prefix_replace)
     keys = t2i_data.keys()
