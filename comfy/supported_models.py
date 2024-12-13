@@ -224,7 +224,6 @@ class SDXL(supported_models_base.BASE):
 
     def process_clip_state_dict_for_saving(self, state_dict):
         replace_prefix = {}
-        keys_to_replace = {}
         state_dict_g = diffusers_convert.convert_text_enc_state_dict_v20(state_dict, "clip_g")
         for k in state_dict:
             if k.startswith("clip_l"):
@@ -527,7 +526,6 @@ class SD3(supported_models_base.BASE):
         clip_l = False
         clip_g = False
         t5 = False
-        dtype_t5 = None
         pref = self.text_encoder_key_prefix[0]
         if "{}clip_l.transformer.text_model.final_layer_norm.weight".format(pref) in state_dict:
             clip_l = True

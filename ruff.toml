@@ -4,5 +4,7 @@ lint.ignore = ["ALL"]
 # Enable specific rules
 lint.select = [
     "S307",  # suspicious-eval-usage
-    "F401",  # unused-import
+    # The "F" series in Ruff stands for "Pyflakes" rules, which catch various Python syntax errors and undefined names.
+    # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
+    "F",
 ]

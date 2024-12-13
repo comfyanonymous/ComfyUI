@@ -158,7 +158,6 @@ class RotaryEmbedding(nn.Module):
     def forward(self, t):
         # device = self.inv_freq.device
         device = t.device
-        dtype = t.dtype
 
         # t = t.to(torch.float32)
 
@@ -170,7 +169,7 @@ class RotaryEmbedding(nn.Module):
         if self.scale is None:
             return freqs, 1.
 
-        power = (torch.arange(seq_len, device = device) - (seq_len // 2)) / self.scale_base
+        power = (torch.arange(seq_len, device = device) - (seq_len // 2)) / self.scale_base  # noqa: F821 seq_len is not defined
         scale = comfy.ops.cast_to_input(self.scale, t) ** rearrange(power, 'n -> n 1')
         scale = torch.cat((scale, scale), dim = -1)
 
@@ -229,9 +228,9 @@ class FeedForward(nn.Module):
             linear_in = GLU(dim, inner_dim, activation, dtype=dtype, device=device, operations=operations)
         else:
             linear_in = nn.Sequential(
-                Rearrange('b n d -> b d n') if use_conv else nn.Identity(),
+                rearrange('b n d -> b d n') if use_conv else nn.Identity(),
                 operations.Linear(dim, inner_dim, bias = not no_bias, dtype=dtype, device=device) if not use_conv else operations.Conv1d(dim, inner_dim, conv_kernel_size, padding = (conv_kernel_size // 2), bias = not no_bias, dtype=dtype, device=device),
-                Rearrange('b n d -> b d n') if use_conv else nn.Identity(),
+                rearrange('b n d -> b d n') if use_conv else nn.Identity(),
                 activation
             )
 
@@ -246,9 +245,9 @@ class FeedForward(nn.Module):
 
         self.ff = nn.Sequential(
             linear_in,
-            Rearrange('b d n -> b n d') if use_conv else nn.Identity(),
+            rearrange('b d n -> b n d') if use_conv else nn.Identity(),
             linear_out,
-            Rearrange('b n d -> b d n') if use_conv else nn.Identity(),
+            rearrange('b n d -> b d n') if use_conv else nn.Identity(),
         )
 
     def forward(self, x):
@@ -346,18 +345,13 @@ class Attention(nn.Module):
 
         # determine masking
         masks = []
-        final_attn_mask = None # The mask that will be applied to the attention matrix, taking all masks into account
 
         if input_mask is not None:
             input_mask = rearrange(input_mask, 'b j -> b 1 1 j')
             masks.append(~input_mask)
 
         # Other masks will be added here later
-
-        if len(masks) > 0:
-            final_attn_mask = ~or_reduce(masks)
-
-        n, device = q.shape[-2], q.device
+        n = q.shape[-2]
 
         causal = self.causal if causal is None else causal
 
