@@ -760,7 +760,7 @@ def validate_prompt(prompt):
         if 'class_type' not in prompt[x]:
             error = {
                 "type": "invalid_prompt",
-                "message": f"Cannot execute because a node is missing the class_type property.",
+                "message": "Cannot execute because a node is missing the class_type property.",
                 "details": f"Node ID '#{x}'",
                 "extra_info": {}
             }

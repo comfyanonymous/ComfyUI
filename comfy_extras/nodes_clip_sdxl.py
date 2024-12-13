@@ -22,14 +22,15 @@ class CLIPTextEncodeSDXL:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
+            "clip": ("CLIP", ),
             "width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
             "height": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
             "crop_w": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION}),
             "crop_h": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION}),
             "target_width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
             "target_height": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
-            "text_g": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", ),
-            "text_l": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", ),
+            "text_g": ("STRING", {"multiline": True, "dynamicPrompts": True}),
+            "text_l": ("STRING", {"multiline": True, "dynamicPrompts": True}),
             }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"

@@ -22,7 +22,6 @@ except ImportError:
 	from typing import Optional, NamedTuple, List
 	from typing_extensions import Protocol
 
-from torch import Tensor
 from typing import List
 
 from comfy import model_management
