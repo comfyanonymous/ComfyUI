@@ -7,6 +7,14 @@ from unittest.mock import patch
 
 import folder_paths
 
+@pytest.fixture()
+def clear_folder_paths():
+    # Clear the global dictionary before each test to ensure isolation
+    original = folder_paths.folder_names_and_paths.copy()
+    folder_paths.folder_names_and_paths.clear()
+    yield
+    folder_paths.folder_names_and_paths = original
+
 @pytest.fixture
 def temp_dir():
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -30,9 +38,33 @@ def test_get_annotated_filepath():
     assert folder_paths.get_annotated_filepath("test.txt", default_dir) == os.path.join(default_dir, "test.txt")
     assert folder_paths.get_annotated_filepath("test.txt [output]") == os.path.join(folder_paths.get_output_directory(), "test.txt")
 
-def test_add_model_folder_path():
-    folder_paths.add_model_folder_path("test_folder", "/test/path")
-    assert "/test/path" in folder_paths.get_folder_paths("test_folder")
+def test_add_model_folder_path_append(clear_folder_paths):
+    folder_paths.add_model_folder_path("test_folder", "/default/path", is_default=True)
+    folder_paths.add_model_folder_path("test_folder", "/test/path", is_default=False)
+    assert folder_paths.get_folder_paths("test_folder") == ["/default/path", "/test/path"]
+
+
+def test_add_model_folder_path_insert(clear_folder_paths):
+    folder_paths.add_model_folder_path("test_folder", "/test/path", is_default=False)
+    folder_paths.add_model_folder_path("test_folder", "/default/path", is_default=True)
+    assert folder_paths.get_folder_paths("test_folder") == ["/default/path", "/test/path"]
+
+
+def test_add_model_folder_path_re_add_existing_default(clear_folder_paths):
+    folder_paths.add_model_folder_path("test_folder", "/test/path", is_default=False)
+    folder_paths.add_model_folder_path("test_folder", "/old_default/path", is_default=True)
+    assert folder_paths.get_folder_paths("test_folder") == ["/old_default/path", "/test/path"]
+    folder_paths.add_model_folder_path("test_folder", "/test/path", is_default=True)
+    assert folder_paths.get_folder_paths("test_folder") == ["/test/path", "/old_default/path"]
+
+
+def test_add_model_folder_path_re_add_existing_non_default(clear_folder_paths):
+    folder_paths.add_model_folder_path("test_folder", "/test/path", is_default=False)
+    folder_paths.add_model_folder_path("test_folder", "/default/path", is_default=True)
+    assert folder_paths.get_folder_paths("test_folder") == ["/default/path", "/test/path"]
+    folder_paths.add_model_folder_path("test_folder", "/test/path", is_default=False)
+    assert folder_paths.get_folder_paths("test_folder") == ["/default/path", "/test/path"]
+
 
 def test_recursive_search(temp_dir):
     os.makedirs(os.path.join(temp_dir, "subdir"))
