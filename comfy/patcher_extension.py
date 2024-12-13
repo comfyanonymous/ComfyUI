@@ -113,7 +113,7 @@ class WrapperExecutor:
     def _create_next_executor(self) -> 'WrapperExecutor':
         new_idx = self.idx + 1
         if new_idx > len(self.wrappers):
-            raise Exception(f"Wrapper idx exceeded available wrappers; something went very wrong.")
+            raise Exception("Wrapper idx exceeded available wrappers; something went very wrong.")
         if self.class_obj is None:
             return WrapperExecutor.new_executor(self.original, self.wrappers, new_idx)
         return WrapperExecutor.new_class_executor(self.original, self.class_obj, self.wrappers, new_idx)

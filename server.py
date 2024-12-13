@@ -584,7 +584,7 @@ class PromptServer():
             return web.json_response(self.prompt_queue.get_history(max_items=max_items))
 
         @routes.get("/history/{prompt_id}")
-        async def get_history(request):
+        async def get_history_prompt_id(request):
             prompt_id = request.match_info.get("prompt_id", None)
             return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
 
@@ -831,7 +831,7 @@ class PromptServer():
             try:
                 json_data = handler(json_data)
             except Exception:
-                logging.warning(f"[ERROR] An error occurred during the on_prompt_handler processing")
+                logging.warning("[ERROR] An error occurred during the on_prompt_handler processing")
                 logging.warning(traceback.format_exc())
 
         return json_data
