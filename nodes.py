@@ -2150,6 +2150,7 @@ def init_builtin_extra_nodes():
         "nodes_mahiro.py",
         "nodes_lt.py",
         "nodes_hooks.py",
+        "nodes_load_3d.py",
     ]
 
     import_failed = []
