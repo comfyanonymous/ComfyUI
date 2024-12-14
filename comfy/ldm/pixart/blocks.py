@@ -1,7 +1,6 @@
 # Based on:
 # https://github.com/PixArt-alpha/PixArt-alpha [Apache 2.0 license]
 # https://github.com/PixArt-alpha/PixArt-sigma [Apache 2.0 license]
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,6 +8,7 @@ from einops import rearrange
 
 from comfy import model_management
 from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder, Mlp
+from comfy.ldm.modules.attention import optimized_attention
 
 if model_management.xformers_enabled():
     import xformers.ops
@@ -46,14 +46,14 @@ class MultiHeadCrossAttention(nn.Module):
         kv = self.kv_linear(cond).view(1, -1, 2, self.num_heads, self.head_dim)
         k, v = kv.unbind(2)
 
-        # TODO: figure out mask logic and use optimized_attention instead
+        # TODO: xformers needs separate mask logic here
         if model_management.xformers_enabled():
             attn_bias = None
             if mask is not None:
                 attn_bias = block_diagonal_mask_from_seqlens([N] * B, mask)
             x = xformers.ops.memory_efficient_attention(q, k, v, p=0, attn_bias=attn_bias)
         else:
-            q, k, v = map(lambda t: t.permute(0, 2, 1, 3),(q, k, v),)
+            q, k, v = map(lambda t: t.transpose(1, 2), (q, k, v),)
             attn_mask = None
             if mask is not None and len(mask) > 1:
                 # Create equivalent of xformer diagonal block mask, still only correct for square masks
@@ -66,9 +66,11 @@ class MultiHeadCrossAttention(nn.Module):
                 attn_mask = torch.block_diag(attn_mask_template)
 
                 # create a mask on the diagonal for each mask in the batch
-                for n in range(B - 1):
+                for _ in range(B - 1):
                     attn_mask = torch.block_diag(attn_mask, attn_mask_template)
-            x = torch.nn.functional.scaled_dot_product_attention(q, k, v, dropout_p=0, attn_mask=attn_mask).permute(0, 2, 1, 3).contiguous()
+
+            x = optimized_attention(q, k, v, self.num_heads, mask=attn_mask, skip_reshape=True)
+
         x = x.view(B, -1, C)
         x = self.proj(x)
         x = self.proj_drop(x)
@@ -157,24 +159,19 @@ class AttentionKVCompress(nn.Module):
         k = k.reshape(B, new_N, self.num_heads, C // self.num_heads).to(dtype)
         v = v.reshape(B, new_N, self.num_heads, C // self.num_heads).to(dtype)
 
-        attn_bias = None
         if mask is not None:
-            attn_bias = torch.zeros([B * self.num_heads, q.shape[1], k.shape[1]], dtype=q.dtype, device=q.device)
-            attn_bias.masked_fill_(mask.squeeze(1).repeat(self.num_heads, 1, 1) == 0, float('-inf'))
-        # Switch between torch / xformers attention
-        if model_management.xformers_enabled():
-            x = xformers.ops.memory_efficient_attention(
-                q, k, v,
-                p=0,
-                attn_bias=attn_bias
-            )
-        else:
-            q, k, v = map(lambda t: t.transpose(1, 2),(q, k, v),)
-            x = torch.nn.functional.scaled_dot_product_attention(
-                q, k, v,
-                dropout_p=0,
-                attn_mask=attn_bias
-            ).transpose(1, 2).contiguous()
+            raise NotImplementedError("Attn mask logic not added for self attention")
+
+        # This is never called at the moment
+        # attn_bias = None
+        # if mask is not None:
+        #     attn_bias = torch.zeros([B * self.num_heads, q.shape[1], k.shape[1]], dtype=q.dtype, device=q.device)
+        #     attn_bias.masked_fill_(mask.squeeze(1).repeat(self.num_heads, 1, 1) == 0, float('-inf'))
+
+        # attention 2
+        q, k, v = map(lambda t: t.transpose(1, 2), (q, k, v),)
+        x = optimized_attention(q, k, v, self.num_heads, mask=None, skip_reshape=True)
+
         x = x.view(B, N, C)
         x = self.proj(x)
         return x
