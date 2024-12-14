@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from einops import rearrange
 
 from comfy import model_management
-from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder, Mlp
+from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder, Mlp, timestep_embedding
 from comfy.ldm.modules.attention import optimized_attention
 
 if model_management.xformers_enabled():
@@ -276,7 +276,7 @@ class SizeEmbedder(TimestepEmbedder):
             assert s.shape[0] == bs
         b, dims = s.shape[0], s.shape[1]
         s = rearrange(s, "b d -> (b d)")
-        s_freq = self.timestep_embedding(s, self.frequency_embedding_size)
+        s_freq = timestep_embedding(s, self.frequency_embedding_size)
         s_emb = self.mlp(s_freq.to(s.dtype))
         s_emb = rearrange(s_emb, "(b d) d2 -> b (d d2)", b=b, d=dims, d2=self.outdim)
         return s_emb

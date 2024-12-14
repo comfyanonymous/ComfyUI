@@ -120,7 +120,6 @@ class PixArtMS(PixArt):
 
         self.micro_conditioning = micro_condition
         if self.micro_conditioning:
-
             self.csize_embedder = SizeEmbedder(hidden_size//3, dtype=dtype, device=device, operations=operations)
             self.ar_embedder = SizeEmbedder(hidden_size//3, dtype=dtype, device=device, operations=operations)
 
@@ -223,7 +222,7 @@ class PixArtMS(PixArt):
             context = context.unsqueeze(1)
 
         ## run original forward pass
-        out = self.forward_orig(x, timesteps, context, c_size=c_size, ar=c_ar)
+        out = self.forward_orig(x, timesteps, context, c_size=c_size, c_ar=c_ar)
 
         ## only return EPS
         if self.pred_sigma:

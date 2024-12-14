@@ -728,7 +728,7 @@ class PixArt(BaseModel):
         height = kwargs.get("height", None)
         if width is not None and height is not None:
             out["c_size"] = comfy.conds.CONDRegular(torch.FloatTensor([[height, width]]))
-            out["ar"] = comfy.conds.CONDRegular(torch.FloatTensor([[kwargs.get("ar", height/width)]]))
+            out["c_ar"] = comfy.conds.CONDRegular(torch.FloatTensor([[kwargs.get("aspect_ratio", height/width)]]))
 
         return out
 
