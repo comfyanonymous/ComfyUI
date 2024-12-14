@@ -12,9 +12,8 @@ from .blocks import (
     MultiHeadCrossAttention,
     T2IFinalLayer,
     TimestepEmbedder,
-    Mlp
 )
-from comfy.ldm.modules.diffusionmodules.mmdit import PatchEmbed, get_1d_sincos_pos_embed_from_grid_torch
+from comfy.ldm.modules.diffusionmodules.mmdit import PatchEmbed, TimestepEmbedder, Mlp, get_1d_sincos_pos_embed_from_grid_torch
 
 
 class PixArtBlock(nn.Module):
@@ -196,63 +195,9 @@ def get_2d_sincos_pos_embed_torch(embed_dim, w, h, pe_interpolation=1.0, base_si
     grid_h, grid_w = torch.meshgrid(
         torch.arange(h, device=device, dtype=dtype) / (h/base_size) / pe_interpolation,
         torch.arange(w, device=device, dtype=dtype) / (w/base_size) / pe_interpolation,
-        # torch.linspace(-val_h + val_center, val_h + val_center, h, device=device, dtype=dtype),
-        # torch.linspace(-val_w + val_center, val_w + val_center, w, device=device, dtype=dtype),
         indexing='ij'
     )
     emb_h = get_1d_sincos_pos_embed_from_grid_torch(embed_dim // 2, grid_h, device=device, dtype=dtype)
     emb_w = get_1d_sincos_pos_embed_from_grid_torch(embed_dim // 2, grid_w, device=device, dtype=dtype)
     emb = torch.cat([emb_w, emb_h], dim=1)  # (H*W, D)
-    return emb
-
-# Unused
-def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False, extra_tokens=0, pe_interpolation=1.0, base_size=16):
-    """
-    grid_size: int of the grid height and width
-    return:
-    pos_embed: [grid_size*grid_size, embed_dim] or [1+grid_size*grid_size, embed_dim] (w/ or w/o cls_token)
-    """
-    if isinstance(grid_size, int):
-        grid_size = (grid_size, grid_size)
-    grid_h = np.arange(grid_size[0], dtype=np.float32) / (grid_size[0]/base_size) / pe_interpolation
-    grid_w = np.arange(grid_size[1], dtype=np.float32) / (grid_size[1]/base_size) / pe_interpolation
-    grid = np.meshgrid(grid_w, grid_h)  # here w goes first
-    grid = np.stack(grid, axis=0)
-    grid = grid.reshape([2, 1, grid_size[1], grid_size[0]])
-
-    pos_embed = get_2d_sincos_pos_embed_from_grid(embed_dim, grid)
-    if cls_token and extra_tokens > 0:
-        pos_embed = np.concatenate([np.zeros([extra_tokens, embed_dim]), pos_embed], axis=0)
-    return pos_embed.astype(np.float32)
-
-
-def get_2d_sincos_pos_embed_from_grid(embed_dim, grid):
-    assert embed_dim % 2 == 0
-
-    # use half of dimensions to encode grid_h
-    emb_h = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[0])  # (H*W, D/2)
-    emb_w = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[1])  # (H*W, D/2)
-
-    emb = np.concatenate([emb_h, emb_w], axis=1)  # (H*W, D)
-    return emb
-
-
-def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
-    """
-    embed_dim: output dimension for each position
-    pos: a list of positions to be encoded: size (M,)
-    out: (M, D)
-    """
-    assert embed_dim % 2 == 0
-    omega = np.arange(embed_dim // 2, dtype=np.float64)
-    omega /= embed_dim / 2.
-    omega = 1. / 10000 ** omega  # (D/2,)
-
-    pos = pos.reshape(-1)  # (M,)
-    out = np.einsum('m,d->md', pos, omega)  # (M, D/2), outer product
-
-    emb_sin = np.sin(out)  # (M, D/2)
-    emb_cos = np.cos(out)  # (M, D/2)
-
-    emb = np.concatenate([emb_sin, emb_cos], axis=1)  # (M, D)
     return emb

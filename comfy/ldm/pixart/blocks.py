@@ -8,6 +8,8 @@ import torch.nn.functional as F
 from einops import rearrange
 
 from comfy import model_management
+from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder, Mlp
+
 if model_management.xformers_enabled():
     import xformers.ops
     if int((xformers.__version__).split(".")[2]) >= 28:
@@ -254,48 +256,6 @@ class DecoderLayer(nn.Module):
         return x
 
 
-#################################################################################
-#               Embedding Layers for Timesteps and Class Labels                 #
-#################################################################################
-class TimestepEmbedder(nn.Module):
-    """
-    Embeds scalar timesteps into vector representations.
-    """
-    def __init__(self, hidden_size, frequency_embedding_size=256, dtype=None, device=None, operations=None):
-        super().__init__()
-        self.mlp = nn.Sequential(
-            operations.Linear(frequency_embedding_size, hidden_size, bias=True, dtype=dtype, device=device),
-            nn.SiLU(),
-            operations.Linear(hidden_size, hidden_size, bias=True, dtype=dtype, device=device),
-        )
-        self.frequency_embedding_size = frequency_embedding_size
-
-    @staticmethod
-    def timestep_embedding(t, dim, max_period=10000):
-        """
-        Create sinusoidal timestep embeddings.
-        :param t: a 1-D Tensor of N indices, one per batch element.
-                          These may be fractional.
-        :param dim: the dimension of the output.
-        :param max_period: controls the minimum frequency of the embeddings.
-        :return: an (N, D) Tensor of positional embeddings.
-        """
-        # https://github.com/openai/glide-text2im/blob/main/glide_text2im/nn.py
-        half = dim // 2
-        freqs = torch.exp(
-            -math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32, device=t.device) / half)
-        args = t[:, None].float() * freqs[None]
-        embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
-        if dim % 2:
-            embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
-        return embedding
-
-    def forward(self, t, dtype):
-        t_freq = self.timestep_embedding(t, self.frequency_embedding_size)
-        t_emb = self.mlp(t_freq.to(dtype))
-        return t_emb
-
-
 class SizeEmbedder(TimestepEmbedder):
     """
     Embeds scalar timesteps into vector representations.
@@ -353,27 +313,6 @@ class LabelEmbedder(nn.Module):
             labels = self.token_drop(labels, force_drop_ids)
         embeddings = self.embedding_table(labels)
         return embeddings
-
-
-class Mlp(nn.Module):
-    """
-    Adapted from timm
-    """
-    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, bias=True, drop=None, dtype=None, device=None, operations=None) -> None:
-        super().__init__()
-        out_features = out_features or in_features
-        hidden_features = hidden_features or in_features
-
-        self.fc1 = operations.Linear(in_features, hidden_features, bias=bias, dtype=dtype, device=device)
-        self.act = act_layer()
-        self.fc2 = operations.Linear(hidden_features, out_features, bias=bias, dtype=dtype, device=device)
-
-        self.drop1 = nn.Identity()
-        self.drop2 = nn.Identity()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.act(self.fc1(x))
-        return self.fc2(x)
 
 
 class CaptionEmbedder(nn.Module):

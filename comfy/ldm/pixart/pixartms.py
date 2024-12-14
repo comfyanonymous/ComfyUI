@@ -4,38 +4,16 @@
 import torch
 import torch.nn as nn
 
-from .blocks import t2i_modulate, CaptionEmbedder, AttentionKVCompress, MultiHeadCrossAttention, T2IFinalLayer, TimestepEmbedder, SizeEmbedder, Mlp
-from .pixart import PixArt, get_2d_sincos_pos_embed, get_2d_sincos_pos_embed_torch
-
-class PatchEmbed(nn.Module):
-    """
-    2D Image to Patch Embedding
-    """
-    def __init__(
-            self,
-            patch_size=16,
-            in_chans=3,
-            embed_dim=768,
-            norm_layer=None,
-            flatten=True,
-            bias=True,
-            dtype=None,
-            device=None,
-            operations=None
-    ):
-        super().__init__()
-        patch_size = (patch_size, patch_size)
-        self.patch_size = patch_size
-        self.flatten = flatten
-        self.proj = operations.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size, bias=bias, dtype=dtype, device=device)
-        self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
-
-    def forward(self, x):
-        x = self.proj(x)
-        if self.flatten:
-            x = x.flatten(2).transpose(1, 2)  # BCHW -> BNC
-        x = self.norm(x)
-        return x
+from .blocks import (
+    t2i_modulate,
+    CaptionEmbedder,
+    AttentionKVCompress,
+    MultiHeadCrossAttention,
+    T2IFinalLayer,
+    SizeEmbedder,
+)
+from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder, PatchEmbed, Mlp
+from .pixart import PixArt, get_2d_sincos_pos_embed_torch
 
 
 class PixArtMSBlock(nn.Module):
@@ -123,8 +101,13 @@ class PixArtMS(PixArt):
             operations.Linear(hidden_size, 6 * hidden_size, bias=True, dtype=dtype, device=device)
         )
         self.x_embedder = PatchEmbed(
-            patch_size, in_channels, hidden_size, bias=True,
-            dtype=dtype, device=device, operations=operations
+            patch_size=patch_size,
+            in_chans=in_channels,
+            embed_dim=hidden_size,
+            bias=True,
+            dtype=dtype,
+            device=device,
+            operations=operations
         )
         self.t_embedder = TimestepEmbedder(
             hidden_size, dtype=dtype, device=device, operations=operations,
