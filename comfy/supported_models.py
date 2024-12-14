@@ -619,7 +619,7 @@ class PixArtAlpha(supported_models_base.BASE):
 
 class PixArtSigma(PixArtAlpha):
     unet_config = {
-        "image_model": "pixart_alpha",
+        "image_model": "pixart_sigma",
     }
     latent_format = latent_formats.SDXL
 

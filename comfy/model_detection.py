@@ -183,6 +183,10 @@ def detect_unet_config(state_dict, key_prefix):
         dit_config["rope_theta"] = 10000.0
         return dit_config
 
+    if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys and '{}pos_embed.proj.bias'.format(key_prefix) in state_dict_keys:
+        # PixArt diffusers
+        return None
+
     if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys: #Lightricks ltxv
         dit_config = {}
         dit_config["image_model"] = "ltxv"
@@ -205,6 +209,9 @@ def detect_unet_config(state_dict, key_prefix):
         if pe_key in state_dict_keys:
             dit_config["input_size"] = int(math.sqrt(state_dict[pe_key].shape[1])) * patch_size
             dit_config["pe_interpolation"] = dit_config["input_size"] // (512//8) # guess
+        else:
+            dit_config["input_size"] = 128 # 1024
+            dit_config["pe_interpolation"] = 2
         
         ar_key = "{}ar_embedder.mlp.0.weight".format(key_prefix)
         if ar_key in state_dict_keys:
@@ -580,6 +587,9 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
         num_joint = count_blocks(state_dict, 'joint_transformer_blocks.{}.')
         num_single = count_blocks(state_dict, 'single_transformer_blocks.{}.')
         sd_map = comfy.utils.auraflow_to_diffusers({"n_double_layers": num_joint, "n_layers": num_joint + num_single}, output_prefix=output_prefix)
+    elif 'adaln_single.emb.timestep_embedder.linear_2.weight' in state_dict: # PixArt
+        num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
+        sd_map = comfy.utils.pixart_to_diffusers({"depth": num_blocks}, output_prefix=output_prefix)
     elif 'x_embedder.weight' in state_dict: #Flux
         depth = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth_single_blocks = count_blocks(state_dict, 'single_transformer_blocks.{}.')

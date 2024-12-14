@@ -384,6 +384,87 @@ def mmdit_to_diffusers(mmdit_config, output_prefix=""):
 
     return key_map
 
+PIXART_MAP_BASIC = {
+    # Resolution
+    ("csize_embedder.mlp.0.weight", "adaln_single.emb.resolution_embedder.linear_1.weight"),
+    ("csize_embedder.mlp.0.bias",   "adaln_single.emb.resolution_embedder.linear_1.bias"),
+    ("csize_embedder.mlp.2.weight", "adaln_single.emb.resolution_embedder.linear_2.weight"),
+    ("csize_embedder.mlp.2.bias",   "adaln_single.emb.resolution_embedder.linear_2.bias"),
+    # Aspect ratio
+    ("ar_embedder.mlp.0.weight", "adaln_single.emb.aspect_ratio_embedder.linear_1.weight"),
+    ("ar_embedder.mlp.0.bias",   "adaln_single.emb.aspect_ratio_embedder.linear_1.bias"),
+    ("ar_embedder.mlp.2.weight", "adaln_single.emb.aspect_ratio_embedder.linear_2.weight"),
+    ("ar_embedder.mlp.2.bias",   "adaln_single.emb.aspect_ratio_embedder.linear_2.bias"),
+    # Patch embeddings
+    ("x_embedder.proj.weight", "pos_embed.proj.weight"),
+    ("x_embedder.proj.bias", "pos_embed.proj.bias"),
+    # Caption projection
+    ("y_embedder.y_embedding", "caption_projection.y_embedding"),
+    ("y_embedder.y_proj.fc1.weight", "caption_projection.linear_1.weight"),
+    ("y_embedder.y_proj.fc1.bias", "caption_projection.linear_1.bias"),
+    ("y_embedder.y_proj.fc2.weight", "caption_projection.linear_2.weight"),
+    ("y_embedder.y_proj.fc2.bias", "caption_projection.linear_2.bias"),
+    # AdaLN-single LN
+    ("t_embedder.mlp.0.weight", "adaln_single.emb.timestep_embedder.linear_1.weight"),
+    ("t_embedder.mlp.0.bias", "adaln_single.emb.timestep_embedder.linear_1.bias"),
+    ("t_embedder.mlp.2.weight", "adaln_single.emb.timestep_embedder.linear_2.weight"),
+    ("t_embedder.mlp.2.bias", "adaln_single.emb.timestep_embedder.linear_2.bias"),
+    # Shared norm
+    ("t_block.1.weight", "adaln_single.linear.weight"),
+    ("t_block.1.bias", "adaln_single.linear.bias"),
+    # Final block
+    ("final_layer.linear.weight", "proj_out.weight"),
+    ("final_layer.linear.bias", "proj_out.bias"),
+    ("final_layer.scale_shift_table", "scale_shift_table"),
+}
+
+PIXART_MAP_BLOCK = {
+    (f"scale_shift_table", f"scale_shift_table"),
+    # Projection
+    (f"attn.proj.weight", f"attn1.to_out.0.weight"),
+    (f"attn.proj.bias",   f"attn1.to_out.0.bias"),
+    # Feed-forward
+    (f"mlp.fc1.weight", f"ff.net.0.proj.weight"),
+    (f"mlp.fc1.bias",   f"ff.net.0.proj.bias"),
+    (f"mlp.fc2.weight", f"ff.net.2.weight"),
+    (f"mlp.fc2.bias",   f"ff.net.2.bias"),
+    # Cross-attention (proj)
+    (f"cross_attn.proj.weight" ,f"attn2.to_out.0.weight"),
+    (f"cross_attn.proj.bias"   ,f"attn2.to_out.0.bias"),
+}
+
+def pixart_to_diffusers(mmdit_config, output_prefix=""):
+    key_map = {}
+
+    depth = mmdit_config.get("depth", 0)
+    offset = mmdit_config.get("hidden_size", 1152)
+
+    for i in range(depth):
+        block_from = "transformer_blocks.{}".format(i)
+        block_to = "{}blocks.{}".format(output_prefix, i)
+
+        for end in ("weight", "bias"):
+            s = "{}.attn1.".format(block_from)
+            qkv = "{}.attn.qkv.{}".format(block_to, end)
+            key_map["{}to_q.{}".format(s, end)] = (qkv, (0, 0, offset))
+            key_map["{}to_k.{}".format(s, end)] = (qkv, (0, offset, offset))
+            key_map["{}to_v.{}".format(s, end)] = (qkv, (0, offset * 2, offset))
+
+            s = "{}.attn2.".format(block_from)
+            q = "{}.cross_attn.q_linear.{}".format(block_to, end)
+            kv = "{}.cross_attn.kv_linear.{}".format(block_to, end)
+
+            key_map["{}to_q.{}".format(s, end)] = q
+            key_map["{}to_k.{}".format(s, end)] = (kv, (0, 0, offset))
+            key_map["{}to_v.{}".format(s, end)] = (kv, (0, offset, offset))
+
+        for k in PIXART_MAP_BLOCK:
+            key_map["{}.{}".format(block_from, k[1])] = "{}.{}".format(block_to, k[0])
+
+    for k in PIXART_MAP_BASIC:
+        key_map[k[1]] = "{}{}".format(output_prefix, k[0])
+    
+    return key_map
 
 def auraflow_to_diffusers(mmdit_config, output_prefix=""):
     n_double_layers = mmdit_config.get("n_double_layers", 0)
