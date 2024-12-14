@@ -3,7 +3,6 @@
 # https://github.com/PixArt-alpha/PixArt-sigma [Apache 2.0 license]
 import torch
 import torch.nn as nn
-import numpy as np
 
 from .blocks import (
     t2i_modulate,
@@ -11,7 +10,6 @@ from .blocks import (
     AttentionKVCompress,
     MultiHeadCrossAttention,
     T2IFinalLayer,
-    TimestepEmbedder,
 )
 from comfy.ldm.modules.diffusionmodules.mmdit import PatchEmbed, TimestepEmbedder, Mlp, get_1d_sincos_pos_embed_from_grid_torch
 

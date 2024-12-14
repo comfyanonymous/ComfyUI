@@ -385,52 +385,42 @@ def mmdit_to_diffusers(mmdit_config, output_prefix=""):
     return key_map
 
 PIXART_MAP_BASIC = {
-    # Resolution
     ("csize_embedder.mlp.0.weight", "adaln_single.emb.resolution_embedder.linear_1.weight"),
-    ("csize_embedder.mlp.0.bias",   "adaln_single.emb.resolution_embedder.linear_1.bias"),
+    ("csize_embedder.mlp.0.bias", "adaln_single.emb.resolution_embedder.linear_1.bias"),
     ("csize_embedder.mlp.2.weight", "adaln_single.emb.resolution_embedder.linear_2.weight"),
-    ("csize_embedder.mlp.2.bias",   "adaln_single.emb.resolution_embedder.linear_2.bias"),
-    # Aspect ratio
+    ("csize_embedder.mlp.2.bias", "adaln_single.emb.resolution_embedder.linear_2.bias"),
     ("ar_embedder.mlp.0.weight", "adaln_single.emb.aspect_ratio_embedder.linear_1.weight"),
-    ("ar_embedder.mlp.0.bias",   "adaln_single.emb.aspect_ratio_embedder.linear_1.bias"),
+    ("ar_embedder.mlp.0.bias", "adaln_single.emb.aspect_ratio_embedder.linear_1.bias"),
     ("ar_embedder.mlp.2.weight", "adaln_single.emb.aspect_ratio_embedder.linear_2.weight"),
-    ("ar_embedder.mlp.2.bias",   "adaln_single.emb.aspect_ratio_embedder.linear_2.bias"),
-    # Patch embeddings
+    ("ar_embedder.mlp.2.bias", "adaln_single.emb.aspect_ratio_embedder.linear_2.bias"),
     ("x_embedder.proj.weight", "pos_embed.proj.weight"),
     ("x_embedder.proj.bias", "pos_embed.proj.bias"),
-    # Caption projection
     ("y_embedder.y_embedding", "caption_projection.y_embedding"),
     ("y_embedder.y_proj.fc1.weight", "caption_projection.linear_1.weight"),
     ("y_embedder.y_proj.fc1.bias", "caption_projection.linear_1.bias"),
     ("y_embedder.y_proj.fc2.weight", "caption_projection.linear_2.weight"),
     ("y_embedder.y_proj.fc2.bias", "caption_projection.linear_2.bias"),
-    # AdaLN-single LN
     ("t_embedder.mlp.0.weight", "adaln_single.emb.timestep_embedder.linear_1.weight"),
     ("t_embedder.mlp.0.bias", "adaln_single.emb.timestep_embedder.linear_1.bias"),
     ("t_embedder.mlp.2.weight", "adaln_single.emb.timestep_embedder.linear_2.weight"),
     ("t_embedder.mlp.2.bias", "adaln_single.emb.timestep_embedder.linear_2.bias"),
-    # Shared norm
     ("t_block.1.weight", "adaln_single.linear.weight"),
     ("t_block.1.bias", "adaln_single.linear.bias"),
-    # Final block
     ("final_layer.linear.weight", "proj_out.weight"),
     ("final_layer.linear.bias", "proj_out.bias"),
     ("final_layer.scale_shift_table", "scale_shift_table"),
 }
 
 PIXART_MAP_BLOCK = {
-    (f"scale_shift_table", f"scale_shift_table"),
-    # Projection
-    (f"attn.proj.weight", f"attn1.to_out.0.weight"),
-    (f"attn.proj.bias",   f"attn1.to_out.0.bias"),
-    # Feed-forward
-    (f"mlp.fc1.weight", f"ff.net.0.proj.weight"),
-    (f"mlp.fc1.bias",   f"ff.net.0.proj.bias"),
-    (f"mlp.fc2.weight", f"ff.net.2.weight"),
-    (f"mlp.fc2.bias",   f"ff.net.2.bias"),
-    # Cross-attention (proj)
-    (f"cross_attn.proj.weight" ,f"attn2.to_out.0.weight"),
-    (f"cross_attn.proj.bias"   ,f"attn2.to_out.0.bias"),
+    ("scale_shift_table", "scale_shift_table"),
+    ("attn.proj.weight", "attn1.to_out.0.weight"),
+    ("attn.proj.bias", "attn1.to_out.0.bias"),
+    ("mlp.fc1.weight", "ff.net.0.proj.weight"),
+    ("mlp.fc1.bias", "ff.net.0.proj.bias"),
+    ("mlp.fc2.weight", "ff.net.2.weight"),
+    ("mlp.fc2.bias", "ff.net.2.bias"),
+    ("cross_attn.proj.weight" ,"attn2.to_out.0.weight"),
+    ("cross_attn.proj.bias"   ,"attn2.to_out.0.bias"),
 }
 
 def pixart_to_diffusers(mmdit_config, output_prefix=""):
