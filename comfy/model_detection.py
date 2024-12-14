@@ -188,6 +188,33 @@ def detect_unet_config(state_dict, key_prefix):
         dit_config["image_model"] = "ltxv"
         return dit_config
 
+    if '{}t_block.1.weight'.format(key_prefix) in state_dict_keys: # PixArt
+        patch_size = 2
+        dit_config = {}
+        dit_config["num_heads"] = 16
+        dit_config["patch_size"] = patch_size
+        dit_config["hidden_size"] = 1152
+        dit_config["in_channels"] = 4
+        dit_config["depth"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
+
+        y_key = "{}y_embedder.y_embedding".format(key_prefix)
+        if y_key in state_dict_keys:
+            dit_config["model_max_length"] = state_dict[y_key].shape[0]
+
+        pe_key = "{}pos_embed".format(key_prefix)
+        if pe_key in state_dict_keys:
+            dit_config["input_size"] = int(math.sqrt(state_dict[pe_key].shape[1])) * patch_size
+            dit_config["pe_interpolation"] = dit_config["input_size"] // (512//8) # guess
+        
+        ar_key = "{}ar_embedder.mlp.0.weight".format(key_prefix)
+        if ar_key in state_dict_keys:
+            dit_config["image_model"] = "pixart_alpha"
+            dit_config["micro_condition"] = True
+        else:
+            dit_config["image_model"] = "pixart_sigma"
+            dit_config["micro_condition"] = False
+        return dit_config
+
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
 
