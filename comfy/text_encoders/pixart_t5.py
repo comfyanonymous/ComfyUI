@@ -3,14 +3,19 @@ import os
 from comfy import sd1_clip
 import comfy.text_encoders.t5
 import comfy.text_encoders.sd3_clip
+from comfy.sd1_clip import gen_empty_tokens
 
 from transformers import T5TokenizerFast
 
 class T5XXLModel(comfy.text_encoders.sd3_clip.T5XXLModel):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # TODO: hacky, should adjust new empty logic instead to make weights work
-        self.special_tokens.pop("end")
+
+    def gen_empty_tokens(self, special_tokens, *args, **kwargs):
+        # PixArt expects the negative to be all pad tokens
+        special_tokens = special_tokens.copy()
+        special_tokens.pop("end")
+        return gen_empty_tokens(special_tokens, *args, **kwargs)
 
 class PixArtT5XXL(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", dtype=None, model_options={}):
@@ -25,7 +30,6 @@ class PixArtTokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, clip_name="t5xxl", tokenizer=T5XXLTokenizer)
 
-# TODO: don't duplicate this?
 def pixart_te(dtype_t5=None, t5xxl_scaled_fp8=None):
     class PixArtTEModel_(PixArtT5XXL):
         def __init__(self, device="cpu", dtype=None, model_options={}):
