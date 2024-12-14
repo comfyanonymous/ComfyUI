@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 
 from .blocks import t2i_modulate, CaptionEmbedder, AttentionKVCompress, MultiHeadCrossAttention, T2IFinalLayer, TimestepEmbedder, SizeEmbedder, Mlp
-from .pixart import PixArt, get_2d_sincos_pos_embed
+from .pixart import PixArt, get_2d_sincos_pos_embed, get_2d_sincos_pos_embed_torch
 
 class PatchEmbed(nn.Module):
     """
@@ -117,7 +117,6 @@ class PixArtMS(PixArt):
         self.hidden_size = hidden_size
         self.depth = depth
 
-        self.h = self.w = 0
         approx_gelu = lambda: nn.GELU(approximate="tanh")
         self.t_block = nn.Sequential(
             nn.SiLU(),
@@ -142,10 +141,10 @@ class PixArtMS(PixArt):
             self.csize_embedder = SizeEmbedder(hidden_size//3, dtype=dtype, device=device, operations=operations)
             self.ar_embedder = SizeEmbedder(hidden_size//3, dtype=dtype, device=device, operations=operations)
 
-        # Will use fixed sin-cos embedding:
-        num_patches = (input_size // patch_size) * (input_size // patch_size)
-        self.base_size = input_size // self.patch_size
-        self.register_buffer("pos_embed", torch.zeros(1, num_patches, hidden_size))
+        # For fixed sin-cos embedding:
+        # num_patches = (input_size // patch_size) * (input_size // patch_size)
+        # self.base_size = input_size // self.patch_size
+        # self.register_buffer("pos_embed", torch.zeros(1, num_patches, hidden_size))
 
         drop_path = [x.item() for x in torch.linspace(0, drop_path, depth)]  # stochastic depth decay rule
         if kv_compress_config is None:
@@ -157,7 +156,6 @@ class PixArtMS(PixArt):
         self.blocks = nn.ModuleList([
             PixArtMSBlock(
                 hidden_size, num_heads, mlp_ratio=mlp_ratio, drop_path=drop_path[i],
-                input_size=(input_size // patch_size, input_size // patch_size),
                 sampling=kv_compress_config['sampling'],
                 sr_ratio=int(kv_compress_config['scale_factor']) if i in kv_compress_config['kv_compress_layer'] else 1,
                 qk_norm=qk_norm,
@@ -180,18 +178,22 @@ class PixArtMS(PixArt):
         ar: (N, 1): aspect ratio
         cs: (N ,2) size conditioning for height/width
         """
+        B, C, H, W = x.shape
+        c_res = (H + W) // 2
         pe_interpolation = self.pe_interpolation
         if pe_interpolation is None or self.pe_precision is not None:
             # calculate pe_interpolation on-the-fly
-            pe_interpolation = round((x.shape[-1]+x.shape[-2])/2.0 / (512/8.0), self.pe_precision or 0)
+            pe_interpolation = round(c_res / (512/8.0), self.pe_precision or 0)
 
-        self.h, self.w = x.shape[-2]//self.patch_size, x.shape[-1]//self.patch_size
-        pos_embed = torch.from_numpy(
-            get_2d_sincos_pos_embed(
-                self.hidden_size, (self.h, self.w), pe_interpolation=pe_interpolation,
-                base_size=self.base_size
-            )
-        ).to(device=x.device, dtype=x.dtype).unsqueeze(0)
+        pos_embed = get_2d_sincos_pos_embed_torch(
+            self.hidden_size,
+            h=(H // self.patch_size),
+            w=(W // self.patch_size),
+            pe_interpolation=pe_interpolation,
+            base_size=((round(c_res / 64) * 64) // self.patch_size),
+            device=x.device,
+            dtype=x.dtype,
+        ).unsqueeze(0)
 
         x = self.x_embedder(x) + pos_embed  # (N, T, D), where T = H * W / patch_size ** 2
         t = self.t_embedder(timestep, x.dtype)  # (N, D)
@@ -215,10 +217,10 @@ class PixArtMS(PixArt):
             y_lens = [y.shape[2]] * y.shape[0]
             y = y.squeeze(1).view(1, -1, x.shape[-1])
         for block in self.blocks:
-            x = block(x, y, t0, y_lens, (self.h, self.w), **kwargs)  # (N, T, D)
+            x = block(x, y, t0, y_lens, (H, W), **kwargs)  # (N, T, D)
 
         x = self.final_layer(x, t)  # (N, T, patch_size ** 2 * out_channels)
-        x = self.unpatchify(x)  # (N, out_channels, H, W)
+        x = self.unpatchify(x, H, W)  # (N, out_channels, H, W)
 
         return x
 
@@ -245,16 +247,18 @@ class PixArtMS(PixArt):
             return out[:, :self.in_channels]
         return out
 
-    def unpatchify(self, x):
+    def unpatchify(self, x, h, w):
         """
         x: (N, T, patch_size**2 * C)
         imgs: (N, H, W, C)
         """
         c = self.out_channels
         p = self.x_embedder.patch_size[0]
-        assert self.h * self.w == x.shape[1]
+        h = h // self.patch_size
+        w = w // self.patch_size
+        assert h * w == x.shape[1]
 
-        x = x.reshape(shape=(x.shape[0], self.h, self.w, p, p, c))
+        x = x.reshape(shape=(x.shape[0], h, w, p, p, c))
         x = torch.einsum('nhwpqc->nchpwq', x)
-        imgs = x.reshape(shape=(x.shape[0], c, self.h * p, self.w * p))
+        imgs = x.reshape(shape=(x.shape[0], c, h * p, w * p))
         return imgs

@@ -209,9 +209,6 @@ def detect_unet_config(state_dict, key_prefix):
         if pe_key in state_dict_keys:
             dit_config["input_size"] = int(math.sqrt(state_dict[pe_key].shape[1])) * patch_size
             dit_config["pe_interpolation"] = dit_config["input_size"] // (512//8) # guess
-        else:
-            dit_config["input_size"] = 128 # 1024
-            dit_config["pe_interpolation"] = 2
         
         ar_key = "{}ar_embedder.mlp.0.weight".format(key_prefix)
         if ar_key in state_dict_keys:

@@ -14,7 +14,7 @@ from .blocks import (
     TimestepEmbedder,
     Mlp
 )
-from comfy.ldm.modules.diffusionmodules.mmdit import PatchEmbed
+from comfy.ldm.modules.diffusionmodules.mmdit import PatchEmbed, get_1d_sincos_pos_embed_from_grid_torch
 
 
 class PixArtBlock(nn.Module):
@@ -134,7 +134,6 @@ class PixArt(nn.Module):
         timestep = t.to(self.dtype)
         y = y.to(self.dtype)
         pos_embed = self.pos_embed.to(self.dtype)
-        self.h, self.w = x.shape[-2]//self.patch_size, x.shape[-1]//self.patch_size
         x = self.x_embedder(x) + pos_embed  # (N, T, D), where T = H * W / patch_size ** 2
         t = self.t_embedder(timestep.to(x.dtype))  # (N, D)
         t0 = self.t_block(t)
@@ -193,7 +192,20 @@ class PixArt(nn.Module):
         imgs = x.reshape(shape=(x.shape[0], c, h * p, h * p))
         return imgs
 
+def get_2d_sincos_pos_embed_torch(embed_dim, w, h, pe_interpolation=1.0, base_size=16, device=None, dtype=torch.float32):
+    grid_h, grid_w = torch.meshgrid(
+        torch.arange(h, device=device, dtype=dtype) / (h/base_size) / pe_interpolation,
+        torch.arange(w, device=device, dtype=dtype) / (w/base_size) / pe_interpolation,
+        # torch.linspace(-val_h + val_center, val_h + val_center, h, device=device, dtype=dtype),
+        # torch.linspace(-val_w + val_center, val_w + val_center, w, device=device, dtype=dtype),
+        indexing='ij'
+    )
+    emb_h = get_1d_sincos_pos_embed_from_grid_torch(embed_dim // 2, grid_h, device=device, dtype=dtype)
+    emb_w = get_1d_sincos_pos_embed_from_grid_torch(embed_dim // 2, grid_w, device=device, dtype=dtype)
+    emb = torch.cat([emb_w, emb_h], dim=1)  # (H*W, D)
+    return emb
 
+# Unused
 def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False, extra_tokens=0, pe_interpolation=1.0, base_size=16):
     """
     grid_size: int of the grid height and width
