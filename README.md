@@ -143,11 +143,11 @@ Put your VAE in: models/vae
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-   ```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2```
 
 This is the command to install the nightly with ROCm 6.2 which might have some performance improvements:
 
-   ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.2```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.2```
 
 ### Intel GPUs (Windows and Linux)
 
