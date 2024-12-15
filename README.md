@@ -133,6 +133,8 @@ patchzluda.bat
 - Problems with `caffe2_nvrtc.dll`: if you are sure you properly installed hip and can see it on path, please DON'T use
   python from windows store, use the link provided or 3.11 from the official website. After uninstalling python from
   windows store and installing the one from the website, be sure the delete venv folder, and run install.bat once again.
+- `rocBLAS`-error: If you have an integrated GPU by AMD (e.g. AMD Radeon(TM) Graphics) you need to add `HIP_VISIBLE_DEVICES=1` to your
+  environment variables. Otherwise it will default to using your iGPU, which will most likely not work. This behavior is caused by a bug in the ROCm-driver.
 
 ___
 
