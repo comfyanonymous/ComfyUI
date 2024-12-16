@@ -151,18 +151,18 @@ This is the command to install the nightly with ROCm 6.2 which might have some p
 
 ### Intel GPUs (Windows and Linux)
 
-1. Intel Arc GPU users can install native PyTorch with torch.xpu support using pip (currently available in PyTorch nightly builds). More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
+(Option 1) Intel Arc GPU users can install native PyTorch with torch.xpu support using pip (currently available in PyTorch nightly builds). More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
   
-2. To install PyTorch nightly, use the following command:
+1. To install PyTorch nightly, use the following command:
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/xpu```
 
-3. Launch ComfyUI by running `python main.py`
+2. Launch ComfyUI by running `python main.py`
 
 
-Alternatively, Intel GPUs supported by Intel's Extension for PyTorch (IPEX) can leverage IPEX for improved performance.
+(Option 2) Alternatively, Intel GPUs supported by Intel's Extension for PyTorch (IPEX) can leverage IPEX for improved performance.
 
-For Intel® Arc™ A-Series Graphics utilizing IPEX, create a conda environment and use the commands below:
+1. For Intel® Arc™ A-Series Graphics utilizing IPEX, create a conda environment and use the commands below:
 
 ```
 conda install libuv
