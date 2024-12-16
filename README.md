@@ -160,7 +160,7 @@ This is the command to install the nightly with ROCm 6.2 which might have some p
 2. Launch ComfyUI by running `python main.py`
 
 
-(Option 2) Alternatively, Intel GPUs supported by Intel's Extension for PyTorch (IPEX) can leverage IPEX for improved performance.
+(Option 2) Alternatively, Intel GPUs supported by Intel Extension for PyTorch (IPEX) can leverage IPEX for improved performance.
 
 1. For Intel® Arc™ A-Series Graphics utilizing IPEX, create a conda environment and use the commands below:
 
