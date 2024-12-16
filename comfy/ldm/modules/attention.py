@@ -378,17 +378,16 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_resh
         # add a singleton batch dimension
         if mask.ndim == 2:
             mask = mask.unsqueeze(0)
-        if mask.ndim != 3:
-            raise ValueError(f"Bad mask shape {list(mask.shape)}. Valid shapes are [b, Nq, Nk], [1, Nq, Nk], or [Nq, Nk].")
         # add a singleton heads dimension
-        mask = mask.unsqueeze(1)
+        if mask.ndim == 3:
+            mask = mask.unsqueeze(1)
         # pad to a multiple of 8
         pad = 8 - mask.shape[-1] % 8
         # the xformers docs says that it's allowed to have a mask of shape (1, Nq, Nk)
         # but when using separated heads, the shape has to be (B, H, Nq, Nk)
         # in flux, this matrix ends up being over 1GB
-        # Therefore we create a mask with a singleton heads dimension, and then expand it (ie, create a view)
-        mask_out = torch.empty([mask.shape[0], 1, q.shape[1], mask.shape[-1] + pad], dtype=q.dtype, device=q.device)
+        # here, we create a mask with the same batch/head size as the input mask (potentially singleton or full)
+        mask_out = torch.empty([mask.shape[0], mask.shape[1], q.shape[1], mask.shape[-1] + pad], dtype=q.dtype, device=q.device)
 
         mask_out[..., :mask.shape[-1]] = mask
         # doesn't this remove the padding again??
