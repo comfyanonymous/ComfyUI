@@ -1,142 +1,75 @@
 <div align="center">
 
-# ComfyUI-ZLUDA
+# ComfyUI
+**The most powerful and modular diffusion model GUI and backend.**
 
-Windows-only version of ComfyUI which uses ZLUDA to get better performance with AMD GPUs.
 
-![ComfyUI Screenshot](comfyui.png)
+[![Website][website-shield]][website-url]
+[![Dynamic JSON Badge][discord-shield]][discord-url]
+[![Matrix][matrix-shield]][matrix-url]
+<br>
+[![][github-release-shield]][github-release-link]
+[![][github-release-date-shield]][github-release-link]
+[![][github-downloads-shield]][github-downloads-link]
+[![][github-downloads-latest-shield]][github-downloads-link]
 
+[matrix-shield]: https://img.shields.io/badge/Matrix-000000?style=flat&logo=matrix&logoColor=white
+[matrix-url]: https://app.element.io/#/room/%23comfyui_space%3Amatrix.org
+[website-shield]: https://img.shields.io/badge/ComfyOrg-4285F4?style=flat
+[website-url]: https://www.comfy.org/
+<!-- Workaround to display total user from https://github.com/badges/shields/issues/4500#issuecomment-2060079995 -->
+[discord-shield]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2Fcomfyorg%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&logo=discord&logoColor=white&label=Discord&color=green&suffix=%20total
+[discord-url]: https://www.comfy.org/discord
+
+[github-release-shield]: https://img.shields.io/github/v/release/comfyanonymous/ComfyUI?style=flat&sort=semver
+[github-release-link]: https://github.com/comfyanonymous/ComfyUI/releases
+[github-release-date-shield]: https://img.shields.io/github/release-date/comfyanonymous/ComfyUI?style=flat
+[github-downloads-shield]: https://img.shields.io/github/downloads/comfyanonymous/ComfyUI/total?style=flat
+[github-downloads-latest-shield]: https://img.shields.io/github/downloads/comfyanonymous/ComfyUI/latest/total?style=flat&label=downloads%40latest
+[github-downloads-link]: https://github.com/comfyanonymous/ComfyUI/releases
+
+![ComfyUI Screenshot](https://github.com/user-attachments/assets/7ccaf2c1-9b72-41ae-9a89-5688c94b7abe)
 </div>
 
-## Table of Contents
+This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
+### [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
 
-- [What's New?](#whats-new)
-- [Dependencies](#dependencies)
-- [Setup (Windows-Only)](#setup-windows-only)
-- [Troubleshooting](#troubleshooting)
-- [Credits](#credits)
+### [Installing ComfyUI](#installing)
 
-## What's New?
+## Features
+- Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
+- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/), [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/), [SD3](https://comfyanonymous.github.io/ComfyUI_examples/sd3/) and [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
+- [LTX-Video](https://comfyanonymous.github.io/ComfyUI_examples/ltxv/)
+- [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
+- [Mochi](https://comfyanonymous.github.io/ComfyUI_examples/mochi/)
+- Asynchronous Queue system
+- Many optimizations: Only re-executes the parts of the workflow that changes between executions.
+- Smart memory management: can automatically run models on GPUs with as low as 1GB vram.
+- Works even if you don't have a GPU with: ```--cpu``` (slow)
+- Can load ckpt, safetensors and diffusers models/checkpoints. Standalone VAEs and CLIP models.
+- Embeddings/Textual inversion
+- [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
+- [Hypernetworks](https://comfyanonymous.github.io/ComfyUI_examples/hypernetworks/)
+- Loading full workflows (with seeds) from generated PNG, WebP and FLAC files.
+- Saving/Loading workflows as Json files.
+- Nodes interface can be used to create complex workflows like one for [Hires fix](https://comfyanonymous.github.io/ComfyUI_examples/2_pass_txt2img/) or much more advanced ones.
+- [Area Composition](https://comfyanonymous.github.io/ComfyUI_examples/area_composition/)
+- [Inpainting](https://comfyanonymous.github.io/ComfyUI_examples/inpaint/) with both regular and inpainting models.
+- [ControlNet and T2I-Adapter](https://comfyanonymous.github.io/ComfyUI_examples/controlnet/)
+- [Upscale Models (ESRGAN, ESRGAN variants, SwinIR, Swin2SR, etc...)](https://comfyanonymous.github.io/ComfyUI_examples/upscale_models/)
+- [unCLIP Models](https://comfyanonymous.github.io/ComfyUI_examples/unclip/)
+- [GLIGEN](https://comfyanonymous.github.io/ComfyUI_examples/gligen/)
+- [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
+- [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
+- [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
+- [AuraFlow](https://comfyanonymous.github.io/ComfyUI_examples/aura_flow/)
+- [HunyuanDiT](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_dit/)
+- Latent previews with [TAESD](#how-to-show-high-quality-previews)
+- Starts up very fast.
+- Works fully offline: will never download anything.
+- [Config file](extra_model_paths.yaml.example) to set the search paths for models.
 
-* Changed `start.bat` to `comfyui.bat` because there is already a windows command by that name, which
-  creates some problems. Also added  `fix-update.bat` which solves the problem that causes not being able to
-  update to the latest version.
-* Updated ZLUDA to 3.8.4, thanks to lshqqytiger for still supporting HIP SDK 5.7. Install will install that version from
-  now on, and if you are already on the previous one please run `patchzluda.bat` once. Of course, remember the
-  first time for every type of model would take extra time. You can still use both zluda's on the same machine btw. But
-  I recommend updating.
-
-> [!IMPORTANT]
-> 
-> 📢 ***REGARDING KEEPING THE APP UP TO DATE***
->
-> Avoid using the update function from the manager, instead use `git pull`, which we
-> are doing on every start if `start.bat` is used. (App Already Does It Every Time You Open It, If You Are Using
-> `comfyui.bat`, So This Way It Is Always Up To Date With Whatever Is On My GitHub Page)
->
-> Only use comfy manager to update the extensions
-> (Manager -> Custom Nodes Manager -> Set Filter To Installed -> Click Check Update On The Bottom Of The Window)
-> otherwise it breaks the basic installation, and in that case run `install.bat` once again.
-> 
-> 📢 ***REGARDING RX 480-580 AND SIMILAR GPUS***
->
-> After a while we need to keep updating certain packages to keep up with the original app and certain requirements of
-> some models etc. So, torch is changed over time , but this gave gpu's prior to rdna some negative performance. 
-> So for these gpu's please use `fixforrx580.bat` if you are having memory problems too much slowdown etc. This
-> is not mandatory and it won't just make your gpu faster then before but it would be less problematic then using latest torch
-> that we use with other gpu's.
-> 
-> 📢 ***RANDOM TIPS & TRICKS REGARDING USING AMD GPU'S***
-> 
-> * The generation speed is slower than nvidia counterparts we all know and accept it, but most of the time the out of memory situation 
-> at the end with VAE decoding is worse. To overcome this use "--cpu-vae". Add it to commandline_args on comfyui.bat.
-> You can now decode using your system memory (the more the memory the better) and your cpu power. This might be slower but at least it works.
-
-## Dependencies
-
-If coming from the very start, you need :
-
-1. **Git**: Download from https://git-scm.com/download/win.
-   During installation don't forget to check the box for "Use Git from the Windows Command line and also from
-   3rd-party-software" to add Git to your system's PATH.
-2. **Python** (3.10.11 or 3.11 from the official website): Install the latest release from python.org. **Don't Use
-   Windows Store Version**. If you have that installed, uninstall and please install from python.org. During
-   installation remember to check the box for "Add Python to PATH when you are at the "Customize Python" screen.
-3. **Visual C++ Runtime**: Download [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe) and install it.
-4. Install **HIP SDK 5.7.1** from [HERE](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html)
-    - **Update**: HIP 6.1.2 released now, but there are problems so no need to use that one, please be careful about
-      selecting the correct version, "Windows 10 & 11 5.7.1 HIP SDK"
-5. Add the system variable HIP_PATH, value: `C:\\Program Files\\AMD\\ROCm\\5.7\\` (This is the default folder, if you
-   have installed it on another drive, change if necessary)
-    1. Check the variables on the lower part (System Variables), there should be a variable called: HIP_PATH.
-    2. Also check the variables on the lower part (System Variables), there should be a variable called: "Path".
-       Double-click it and click "New" add this: C:\Program Files\AMD\ROCm\5.7\bin
-6. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
-   from [Brknsoul Repository](https://github.com/brknsoul/ROCmLibs)
-    1. Go to folder "C:\Program Files\AMD\ROCm\5.7\bin\rocblas", there would be a "library" folder, backup the files
-       inside to somewhere else.
-    2. Open your downloaded optimized library archive and put them inside the library folder (overwriting if
-       necessary): "C:\\Program Files\\AMD\\ROCm\\5.7\\bin\\rocblas\\library"
-7. Reboot your system.
-
-## Setup (Windows-Only)
-
-Open a cmd prompt. (Powershell doesn't work, you have to use command prompt.)
-
-```bash
-git clone https://github.com/patientx/ComfyUI-Zluda
-```
-
-```bash
-cd ComfyUI-Zluda
-```
-
-```bash
-install.bat
-```
-
-to start for later use (or create a shortcut to) :
-
-```bash
-comfyui.bat
-```
-
-also for later when you need to repatch zluda (maybe a torch update etc.) you can use:
-
-```bash
-patchzluda.bat
-```
-
-- The first generation would take around 10-15 minutes, there won't be any progress or indicator on the webui or cmd
-  window, just wait. Zluda creates a database for use with generation with your gpu.
-
-> [!NOTE]
-> **This might happen with torch changes , zluda version changes and / or gpu driver changes.**
-
-## Troubleshooting
-
-- Wipe your pip cache "C:\Users\USERNAME\AppData\Local\pip\cache" You can also do this when venv is active with :
-  `pip cache purge`
-- `xformers` isn't usable with zluda so any nodes / packages that require it doesn't work. `Flash attention`
-  doesn't work. And lastly using `codeformer` for face restoration gives "Failed inference: CUDA driver error:
-  unknown error" You should use gfpgan / gpen / restoreformer or other face restoration models.
-- Have the latest drivers installed for your amd gpu. **Also, Remove Any Nvidia Drivers** you might have from previous
-  nvidia
-  gpu's.
-- If you see zluda errors make sure these three files are inside "ComfyUI-Zluda\venv\Lib\site-packages\torch\lib\"
-  `cublas64_11.dll (196kb)` `cusparse64_11.dll (193kb)` `nvrtc64_112_0.dll (125kb)` If they are there but bigger files
-  run : `patchzluda.bat`
-- If for some reason you can't solve with these and want to start from zero, delete "venv" folder and re-run
-  `install.bat`
-- If you can't git pull to the latest version, run these commands, `git fetch --all` and then
-  `git reset --hard origin/master` now you can git pull
-- Problems with `caffe2_nvrtc.dll`: if you are sure you properly installed hip and can see it on path, please DON'T use
-  python from windows store, use the link provided or 3.11 from the official website. After uninstalling python from
-  windows store and installing the one from the website, be sure the delete venv folder, and run install.bat once again.
-- `rocBLAS`-error: If you have an integrated GPU by AMD (e.g. AMD Radeon(TM) Graphics) you need to add `HIP_VISIBLE_DEVICES=1` to your
-  environment variables. Otherwise it will default to using your iGPU, which will most likely not work. This behavior is caused by a bug in the ROCm-driver.
-
-___
+Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 
 ## Shortcuts
 
@@ -174,11 +107,204 @@ ___
 | `Shift` + Drag                       | Move multiple wires at once                                                                                        |
 | `Ctrl` + `Alt` + LMB                   | Disconnect all wires from clicked slot                                                                             |
 
-## Credits
+`Ctrl` can also be replaced with `Cmd` instead for macOS users
 
-- [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
-- [Zluda Wiki from SdNext](https://github.com/vladmandic/automatic/wiki/ZLUDA)
-- [Brknsoul for Rocm Libraries](https://github.com/brknsoul/ROCmLibs)
-- [Lshqqytiger](https://github.com/lshqqytiger/ZLUDA)
-- [LeagueRaINi](https://github.com/LeagueRaINi/ComfyUI)
-- [ComfyUI-Manager](https://github.com/ltdrdata/ComfyUI-Manager)
+# Installing
+
+## Windows
+
+There is a portable standalone build for Windows that should work for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
+
+### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z)
+
+Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
+
+If you have trouble extracting it, right click the file -> properties -> unblock
+
+#### How do I share models between another UI and ComfyUI?
+
+See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
+
+## Jupyter Notebook
+
+To run it on services like paperspace, kaggle or colab you can use my [Jupyter Notebook](notebooks/comfyui_colab.ipynb)
+
+## Manual Install (Windows, Linux)
+
+Note that some dependencies do not yet support python 3.13 so using 3.12 is recommended.
+
+Git clone this repo.
+
+Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
+
+Put your VAE in: models/vae
+
+
+### AMD GPUs (Linux only)
+AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
+
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2```
+
+This is the command to install the nightly with ROCm 6.2 which might have some performance improvements:
+
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.2.4```
+
+### NVIDIA
+
+Nvidia users should install stable pytorch using this command:
+
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu124```
+
+This is the command to install pytorch nightly instead which might have performance improvements:
+
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu124```
+
+#### Troubleshooting
+
+If you get the "Torch not compiled with CUDA enabled" error, uninstall torch with:
+
+```pip uninstall torch```
+
+And install it again with the command above.
+
+### Dependencies
+
+Install the dependencies by opening your terminal inside the ComfyUI folder and:
+
+```pip install -r requirements.txt```
+
+After this you should have everything installed and can proceed to running ComfyUI.
+
+### Others:
+
+#### Intel GPUs
+
+Intel GPU support is available for all Intel GPUs supported by Intel's Extension for Pytorch (IPEX) with the support requirements listed in the [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) page. Choose your platform and method of install and follow the instructions. The steps are as follows:
+
+1. Start by installing the drivers or kernel listed or newer in the Installation page of IPEX linked above for Windows and Linux if needed.
+1. Follow the instructions to install [Intel's oneAPI Basekit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html) for your platform.
+1. Install the packages for IPEX using the instructions provided in the Installation page for your platform.
+1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux and run ComfyUI normally as described above after everything is installed.
+
+Additional discussion and help can be found [here](https://github.com/comfyanonymous/ComfyUI/discussions/476).
+
+#### Apple Mac silicon
+
+You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS version.
+
+1. Install pytorch nightly. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide (make sure to install the latest pytorch nightly).
+1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
+1. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI [you might be able to reuse the dependencies](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
+1. Launch ComfyUI by running `python main.py`
+
+> **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
+
+#### DirectML (AMD Cards on Windows)
+
+```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
+
+# Running
+
+```python main.py```
+
+### For AMD cards not officially supported by ROCm
+
+Try running it with this command if you have issues:
+
+For 6700, 6600 and maybe other RDNA2 or older: ```HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py```
+
+For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 python main.py```
+
+### AMD ROCm Tips
+
+You can enable experimental memory efficient attention on pytorch 2.5 in ComfyUI on RDNA3 and potentially other AMD GPUs using this command:
+
+```TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention```
+
+You can also try setting this env variable `PYTORCH_TUNABLEOP_ENABLED=1` which might speed things up at the cost of a very slow initial run.
+
+# Notes
+
+Only parts of the graph that have an output with all the correct inputs will be executed.
+
+Only parts of the graph that change from each execution to the next will be executed, if you submit the same graph twice only the first will be executed. If you change the last part of the graph only the part you changed and the part that depends on it will be executed.
+
+Dragging a generated png on the webpage or loading one will give you the full workflow including seeds that were used to create it.
+
+You can use () to change emphasis of a word or phrase like: (good code:1.2) or (bad code:0.8). The default emphasis for () is 1.1. To use () characters in your actual prompt escape them like \\( or \\).
+
+You can use {day|night}, for wildcard/dynamic prompts. With this syntax "{wild|card|test}" will be randomly replaced by either "wild", "card" or "test" by the frontend every time you queue the prompt. To use {} characters in your actual prompt escape them like: \\{ or \\}.
+
+Dynamic prompts also support C-style comments, like `// comment` or `/* comment */`.
+
+To use a textual inversion concepts/embeddings in a text prompt put them in the models/embeddings directory and use them in the CLIPTextEncode node like this (you can omit the .pt extension):
+
+```embedding:embedding_filename.pt```
+
+
+## How to show high-quality previews?
+
+Use ```--preview-method auto``` to enable previews.
+
+The default installation includes a fast latent preview method that's low-resolution. To enable higher-quality previews with [TAESD](https://github.com/madebyollin/taesd), download the [taesd_decoder.pth, taesdxl_decoder.pth, taesd3_decoder.pth and taef1_decoder.pth](https://github.com/madebyollin/taesd/) and place them in the `models/vae_approx` folder. Once they're installed, restart ComfyUI and launch it with `--preview-method taesd` to enable high-quality previews.
+
+## How to use TLS/SSL?
+Generate a self-signed certificate (not appropriate for shared/production use) and key by running the command: `openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 3650 -nodes -subj "/C=XX/ST=StateName/L=CityName/O=CompanyName/OU=CompanySectionName/CN=CommonNameOrHostname"`
+
+Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app will now be accessible with `https://...` instead of `http://...`.
+
+> Note: Windows users can use [alexisrolland/docker-openssl](https://github.com/alexisrolland/docker-openssl) or one of the [3rd party binary distributions](https://wiki.openssl.org/index.php/Binaries) to run the command example above. 
+<br/><br/>If you use a container, note that the volume mount `-v` can be a relative path so `... -v ".\:/openssl-certs" ...` would create the key & cert files in the current directory of your command prompt or powershell terminal.
+
+## Support and dev channel
+
+[Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
+
+See also: [https://www.comfy.org/](https://www.comfy.org/)
+
+## Frontend Development
+
+As of August 15, 2024, we have transitioned to a new frontend, which is now hosted in a separate repository: [ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend). This repository now hosts the compiled JS (from TS/Vue) under the `web/` directory.
+
+### Reporting Issues and Requesting Features
+
+For any bugs, issues, or feature requests related to the frontend, please use the [ComfyUI Frontend repository](https://github.com/Comfy-Org/ComfyUI_frontend). This will help us manage and address frontend-specific concerns more efficiently.
+
+### Using the Latest Frontend
+
+The new frontend is now the default for ComfyUI. However, please note:
+
+1. The frontend in the main ComfyUI repository is updated weekly.
+2. Daily releases are available in the separate frontend repository.
+
+To use the most up-to-date frontend version:
+
+1. For the latest daily release, launch ComfyUI with this command line argument:
+
+   ```
+   --front-end-version Comfy-Org/ComfyUI_frontend@latest
+   ```
+
+2. For a specific version, replace `latest` with the desired version number:
+
+   ```
+   --front-end-version Comfy-Org/ComfyUI_frontend@1.2.2
+   ```
+
+This approach allows you to easily switch between the stable weekly release and the cutting-edge daily updates, or even specific versions for testing purposes.
+
+### Accessing the Legacy Frontend
+
+If you need to use the legacy frontend for any reason, you can access it using the following command line argument:
+
+```
+--front-end-version Comfy-Org/ComfyUI_legacy_frontend@latest
+```
+
+This will use a snapshot of the legacy frontend preserved in the [ComfyUI Legacy Frontend repository](https://github.com/Comfy-Org/ComfyUI_legacy_frontend).
+
+# QA
+
+### Which GPU should I buy for this?
+
+[See this page for some recommendations](https://github.com/comfyanonymous/ComfyUI/wiki/Which-GPU-should-I-buy-for-ComfyUI)
