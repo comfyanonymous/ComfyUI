@@ -1,8 +1,0 @@
-
-[data-v-9d7e362e] .p-datatable-tbody > tr > td {
-  padding: 0.25rem;
-  min-height: 2rem
-}
-[data-v-9d7e362e] .p-datatable-row-selected .actions,[data-v-9d7e362e] .p-datatable-selectable-row:hover .actions {
-  visibility: visible
-}
