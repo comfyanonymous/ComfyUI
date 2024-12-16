@@ -23,7 +23,7 @@ class Load3D():
             "camera_type": (["perspective", "orthographic"],),
             "view": (["front", "right", "top", "isometric"],),
             "material": (["original", "normal", "wireframe", "depth"],),
-            "bg_color": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFF, "step": 1, "display": "color"}),
+            "bg_color": ("STRING", {"default": "#000000", "multiline": False}),
             "light_intensity": ("INT", {"default": 10, "min": 1, "max": 20, "step": 1}),
             "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
         }}
@@ -62,7 +62,7 @@ class Load3DAnimation():
             "camera_type": (["perspective", "orthographic"],),
             "view": (["front", "right", "top", "isometric"],),
             "material": (["original", "normal", "wireframe", "depth"],),
-            "bg_color": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFF, "step": 1, "display": "color"}),
+            "bg_color": ("STRING", {"default": "#000000", "multiline": False}),
             "light_intensity": ("INT", {"default": 10, "min": 1, "max": 20, "step": 1}),
             "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
             "animation_speed": (["0.1", "0.5", "1", "1.5", "2"], {"default": "1"}),
