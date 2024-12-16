@@ -686,6 +686,7 @@ class StableAudio1(BaseModel):
                 sd["{}{}".format(k, l)] = s[l]
         return sd
 
+
 class HunyuanDiT(BaseModel):
     def __init__(self, model_config, model_type=ModelType.V_PREDICTION, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hydit.models.HunYuanDiT)
@@ -766,6 +767,16 @@ class Flux(BaseModel):
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        # upscale the attention mask, since now we 
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            shape = kwargs["noise"].shape
+            mask_ref_size = kwargs["attention_mask_img_shape"]
+            # the model will pad to the patch size, and then divide
+            # essentially dividing and rounding up
+            (h_tok, w_tok) = (math.ceil(shape[2] / self.diffusion_model.patch_size), math.ceil(shape[3] / self.diffusion_model.patch_size))
+            attention_mask = utils.upscale_dit_mask(attention_mask, mask_ref_size, (h_tok, w_tok))
+            out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
         out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([kwargs.get("guidance", 3.5)]))
         return out
 
