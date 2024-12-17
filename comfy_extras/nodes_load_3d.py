@@ -32,6 +32,7 @@ class Load3D():
     RETURN_NAMES = ("image", "mask", "mesh_path")
 
     FUNCTION = "process"
+    EXPERIMENTAL = True
 
     CATEGORY = "3d"
 
@@ -72,6 +73,7 @@ class Load3DAnimation():
     RETURN_NAMES = ("image", "mask", "mesh_path")
 
     FUNCTION = "process"
+    EXPERIMENTAL = True
 
     CATEGORY = "3d"
 
@@ -104,6 +106,7 @@ class Preview3D():
     CATEGORY = "3d"
 
     FUNCTION = "process"
+    EXPERIMENTAL = True
 
     def process(self, model_file, **kwargs):
         return {"ui": {"model_file": [model_file]}, "result": ()}
