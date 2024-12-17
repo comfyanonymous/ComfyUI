@@ -114,7 +114,7 @@ class Modulation(nn.Module):
 
 
 class DoubleStreamBlock(nn.Module):
-    def __init__(self, hidden_size: int, num_heads: int, mlp_ratio: float, qkv_bias: bool = False, dtype=None, device=None, operations=None):
+    def __init__(self, hidden_size: int, num_heads: int, mlp_ratio: float, qkv_bias: bool = False, flipped_img_txt=False, dtype=None, device=None, operations=None):
         super().__init__()
 
         mlp_hidden_dim = int(hidden_size * mlp_ratio)
@@ -141,6 +141,7 @@ class DoubleStreamBlock(nn.Module):
             nn.GELU(approximate="tanh"),
             operations.Linear(mlp_hidden_dim, hidden_size, bias=True, dtype=dtype, device=device),
         )
+        self.flipped_img_txt = flipped_img_txt
 
     def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor, attn_mask=None):
         img_mod1, img_mod2 = self.img_mod(vec)
@@ -160,13 +161,22 @@ class DoubleStreamBlock(nn.Module):
         txt_q, txt_k, txt_v = txt_qkv.view(txt_qkv.shape[0], txt_qkv.shape[1], 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         txt_q, txt_k = self.txt_attn.norm(txt_q, txt_k, txt_v)
 
-        # run actual attention
-        attn = attention(torch.cat((txt_q, img_q), dim=2),
-                         torch.cat((txt_k, img_k), dim=2),
-                         torch.cat((txt_v, img_v), dim=2),
-                         pe=pe, mask=attn_mask)
+        if self.flipped_img_txt:
+            # run actual attention
+            attn = attention(torch.cat((img_q, txt_q), dim=2),
+                             torch.cat((img_k, txt_k), dim=2),
+                             torch.cat((img_v, txt_v), dim=2),
+                             pe=pe, mask=attn_mask)
 
-        txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1] :]
+            img_attn, txt_attn = attn[:, : img.shape[1]], attn[:, img.shape[1]:]
+        else:
+            # run actual attention
+            attn = attention(torch.cat((txt_q, img_q), dim=2),
+                             torch.cat((txt_k, img_k), dim=2),
+                             torch.cat((txt_v, img_v), dim=2),
+                             pe=pe, mask=attn_mask)
+
+            txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1]:]
 
         # calculate the img bloks
         img = img + img_mod1.gate * self.img_attn.proj(img_attn)
