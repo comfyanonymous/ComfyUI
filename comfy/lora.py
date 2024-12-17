@@ -374,6 +374,17 @@ def model_lora_keys_unet(model, key_map={}):
                 key_lora = k[len("diffusion_model."):-len(".weight")]
                 key_map["{}".format(key_lora)] = k
 
+    if isinstance(model, comfy.model_base.HunyuanVideo):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"):
+                # diffusion-pipe lora format
+                key_lora = k
+                key_lora = key_lora.replace("_mod.lin.", "_mod.linear.").replace("_attn.qkv.", "_attn_qkv.").replace("_attn.proj.", "_attn_proj.")
+                key_lora = key_lora.replace("mlp.0.", "mlp.fc1.").replace("mlp.2.", "mlp.fc2.")
+                key_lora = key_lora.replace(".modulation.lin.", ".modulation.linear.")
+                key_lora = key_lora[len("diffusion_model."):-len(".weight")]
+                key_map["transformer.{}".format(key_lora)] = k
+
     return key_map
 
 
