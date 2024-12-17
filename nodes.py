@@ -929,7 +929,7 @@ class DualCLIPLoader:
     def INPUT_TYPES(s):
         return {"required": { "clip_name1": (folder_paths.get_filename_list("text_encoders"), ),
                               "clip_name2": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["sdxl", "sd3", "flux"], ),
+                              "type": (["sdxl", "sd3", "flux", "hunyuan_video"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -947,6 +947,8 @@ class DualCLIPLoader:
             clip_type = comfy.sd.CLIPType.SD3
         elif type == "flux":
             clip_type = comfy.sd.CLIPType.FLUX
+        elif type == "hunyuan_video":
+            clip_type = comfy.sd.CLIPType.HUNYUAN_VIDEO
 
         clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)
@@ -1008,23 +1010,58 @@ class StyleModelApply:
                              "style_model": ("STYLE_MODEL", ),
                              "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.001}),
-                             "strength_type": (["multiply"], ),
+                             "strength_type": (["multiply", "attn_bias"], ),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_stylemodel"
 
     CATEGORY = "conditioning/style_model"
 
-    def apply_stylemodel(self, clip_vision_output, style_model, conditioning, strength, strength_type):
+    def apply_stylemodel(self, conditioning, style_model, clip_vision_output, strength, strength_type):
         cond = style_model.get_cond(clip_vision_output).flatten(start_dim=0, end_dim=1).unsqueeze(dim=0)
         if strength_type == "multiply":
             cond *= strength
 
-        c = []
+        n = cond.shape[1]
+        c_out = []
         for t in conditioning:
-            n = [torch.cat((t[0], cond), dim=1), t[1].copy()]
-            c.append(n)
-        return (c, )
+            (txt, keys) = t
+            keys = keys.copy()
+            if strength_type == "attn_bias" and strength != 1.0:
+                # math.log raises an error if the argument is zero
+                # torch.log returns -inf, which is what we want
+                attn_bias = torch.log(torch.Tensor([strength]))
+                # get the size of the mask image
+                mask_ref_size = keys.get("attention_mask_img_shape", (1, 1))
+                n_ref = mask_ref_size[0] * mask_ref_size[1]
+                n_txt = txt.shape[1]
+                # grab the existing mask
+                mask = keys.get("attention_mask", None)
+                # create a default mask if it doesn't exist
+                if mask is None:
+                    mask = torch.zeros((txt.shape[0], n_txt + n_ref, n_txt + n_ref), dtype=torch.float16)
+                # convert the mask dtype, because it might be boolean
+                # we want it to be interpreted as a bias
+                if mask.dtype == torch.bool:
+                    # log(True) = log(1) = 0
+                    # log(False) = log(0) = -inf
+                    mask = torch.log(mask.to(dtype=torch.float16))
+                # now we make the mask bigger to add space for our new tokens
+                new_mask = torch.zeros((txt.shape[0], n_txt + n + n_ref, n_txt + n + n_ref), dtype=torch.float16)
+                # copy over the old mask, in quandrants
+                new_mask[:, :n_txt, :n_txt] = mask[:, :n_txt, :n_txt]
+                new_mask[:, :n_txt, n_txt+n:] = mask[:, :n_txt, n_txt:]
+                new_mask[:, n_txt+n:, :n_txt] = mask[:, n_txt:, :n_txt]
+                new_mask[:, n_txt+n:, n_txt+n:] = mask[:, n_txt:, n_txt:]
+                # now fill in the attention bias to our redux tokens
+                new_mask[:, :n_txt, n_txt:n_txt+n] = attn_bias
+                new_mask[:, n_txt+n:, n_txt:n_txt+n] = attn_bias
+                keys["attention_mask"] = new_mask.to(txt.device)
+                keys["attention_mask_img_shape"] = mask_ref_size
+
+            c_out.append([torch.cat((txt, cond), dim=1), keys])
+
+        return (c_out,)
 
 class unCLIPConditioning:
     @classmethod

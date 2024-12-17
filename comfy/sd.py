@@ -31,6 +31,7 @@ import comfy.text_encoders.flux
 import comfy.text_encoders.long_clipl
 import comfy.text_encoders.genmo
 import comfy.text_encoders.lt
+import comfy.text_encoders.hunyuan_video
 
 import comfy.model_patcher
 import comfy.lora
@@ -306,8 +307,8 @@ class VAE:
                     self.upscale_ratio = 4
 
                 self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
-                if 'quant_conv.weight' in sd:
-                    self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=4)
+                if 'post_quant_conv.weight' in sd:
+                    self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=sd['post_quant_conv.weight'].shape[1])
                 else:
                     self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
                                                                 encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': ddconfig},
@@ -344,6 +345,17 @@ class VAE:
                 self.memory_used_encode = lambda shape, dtype: (70 * max(shape[2], 7) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
                 self.upscale_ratio = (lambda a: max(0, a * 8 - 7), 32, 32)
                 self.working_dtypes = [torch.bfloat16, torch.float32]
+            elif "decoder.conv_in.conv.weight" in sd:
+                ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
+                ddconfig["conv3d"] = True
+                ddconfig["time_compress"] = 4
+                self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
+                self.latent_dim = 3
+                self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.conv.weight"].shape[1]
+                self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=sd['post_quant_conv.weight'].shape[1])
+                self.memory_used_decode = lambda shape, dtype: (1500 * shape[2] * shape[3] * shape[4] * (4 * 8 * 8)) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (900 * max(shape[2], 2) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
+                self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -544,6 +556,7 @@ class CLIPType(Enum):
     FLUX = 6
     MOCHI = 7
     LTXV = 8
+    HUNYUAN_VIDEO = 9
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
     clip_data = []
@@ -559,6 +572,7 @@ class TEModel(Enum):
     T5_XXL = 4
     T5_XL = 5
     T5_BASE = 6
+    LLAMA3_8 = 7
 
 def detect_te_model(sd):
     if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
@@ -575,6 +589,8 @@ def detect_te_model(sd):
             return TEModel.T5_XL
     if "encoder.block.0.layer.0.SelfAttention.k.weight" in sd:
         return TEModel.T5_BASE
+    if "model.layers.0.post_attention_layernorm.weight" in sd:
+        return TEModel.LLAMA3_8
     return None
 
 
@@ -587,6 +603,14 @@ def t5xxl_detect(clip_data):
 
     return {}
 
+def llama_detect(clip_data):
+    weight_name = "model.layers.0.self_attn.k_proj.weight"
+
+    for sd in clip_data:
+        if weight_name in sd:
+            return comfy.text_encoders.hunyuan_video.llama_detect(sd)
+
+    return {}
 
 def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
     clip_data = state_dicts
@@ -652,6 +676,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif clip_type == CLIPType.FLUX:
             clip_target.clip = comfy.text_encoders.flux.flux_clip(**t5xxl_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.flux.FluxTokenizer
+        elif clip_type == CLIPType.HUNYUAN_VIDEO:
+            clip_target.clip = comfy.text_encoders.hunyuan_video.hunyuan_video_clip(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.hunyuan_video.HunyuanVideoTokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer

@@ -162,12 +162,19 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
             },
             **kwargs,
         )
-        self.quant_conv = comfy.ops.disable_weight_init.Conv2d(
+
+        if ddconfig.get("conv3d", False):
+            conv_op = comfy.ops.disable_weight_init.Conv3d
+        else:
+            conv_op = comfy.ops.disable_weight_init.Conv2d
+
+        self.quant_conv = conv_op(
             (1 + ddconfig["double_z"]) * ddconfig["z_channels"],
             (1 + ddconfig["double_z"]) * embed_dim,
             1,
         )
-        self.post_quant_conv = comfy.ops.disable_weight_init.Conv2d(embed_dim, ddconfig["z_channels"], 1)
+
+        self.post_quant_conv = conv_op(embed_dim, ddconfig["z_channels"], 1)
         self.embed_dim = embed_dim
 
     def get_autoencoder_params(self) -> list:
