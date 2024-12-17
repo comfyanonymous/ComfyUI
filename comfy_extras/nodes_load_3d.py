@@ -32,6 +32,7 @@ class Load3D():
     RETURN_NAMES = ("image", "mask", "mesh_path")
 
     FUNCTION = "process"
+    EXPERIMENTAL = True
 
     CATEGORY = "3d"
 
@@ -72,6 +73,7 @@ class Load3DAnimation():
     RETURN_NAMES = ("image", "mask", "mesh_path")
 
     FUNCTION = "process"
+    EXPERIMENTAL = True
 
     CATEGORY = "3d"
 
@@ -84,12 +86,39 @@ class Load3DAnimation():
 
         return output_image, output_mask, model_file,
 
+class Preview3D():
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "model_file": ("STRING", {"default": "", "multiline": False}),
+            "show_grid": ([True, False],),
+            "camera_type": (["perspective", "orthographic"],),
+            "view": (["front", "right", "top", "isometric"],),
+            "material": (["original", "normal", "wireframe", "depth"],),
+            "bg_color": ("STRING", {"default": "#000000", "multiline": False}),
+            "light_intensity": ("INT", {"default": 10, "min": 1, "max": 20, "step": 1}),
+            "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
+        }}
+
+    OUTPUT_NODE = True
+    RETURN_TYPES = ()
+
+    CATEGORY = "3d"
+
+    FUNCTION = "process"
+    EXPERIMENTAL = True
+
+    def process(self, model_file, **kwargs):
+        return {"ui": {"model_file": [model_file]}, "result": ()}
+
 NODE_CLASS_MAPPINGS = {
     "Load3D": Load3D,
-    "Load3DAnimation": Load3DAnimation
+    "Load3DAnimation": Load3DAnimation,
+    "Preview3D": Preview3D
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "Load3D": "Load 3D",
-    "Load3DAnimation": "Load 3D - Animation"
+    "Load3DAnimation": "Load 3D - Animation",
+    "Preview3D": "Preview 3D"
 }
