@@ -10,6 +10,7 @@ import comfy.clip_model
 import json
 import logging
 import numbers
+import re
 
 def gen_empty_tokens(special_tokens, length):
     start_token = special_tokens.get("start", None)
@@ -429,13 +430,14 @@ class SDTokenizer:
         self.end_token = None
 
         empty = self.tokenizer('')["input_ids"]
+        self.tokenizer_adds_end_token = has_end_token
         if has_start_token:
             self.tokens_start = 1
             self.start_token = empty[0]
-            if has_end_token:
-                if end_token is not None:
-                    self.end_token = end_token
-                else:
+            if end_token is not None:
+                self.end_token = end_token
+            else:
+                if has_end_token:
                     self.end_token = empty[1]
         else:
             self.tokens_start = 0
@@ -468,7 +470,7 @@ class SDTokenizer:
         Takes a potential embedding name and tries to retrieve it.
         Returns a Tuple consisting of the embedding and any leftover string, embedding can be None.
         '''
-        split_embed = embedding_name.split(' ')
+        split_embed = embedding_name.split()
         embedding_name = split_embed[0]
         leftover = ' '.join(split_embed[1:])
         embed = load_embed(embedding_name, self.embedding_directory, self.embedding_size, self.embedding_key)
@@ -491,18 +493,18 @@ class SDTokenizer:
         text = escape_important(text)
         parsed_weights = token_weights(text, 1.0)
 
-        #tokenize words
+        # tokenize words
         tokens = []
         for weighted_segment, weight in parsed_weights:
-            to_tokenize = unescape_important(weighted_segment).replace("\n", " ")
-            split = to_tokenize.split(' {}'.format(self.embedding_identifier))
+            to_tokenize = unescape_important(weighted_segment)
+            split = re.split(' {0}|\n{0}'.format(self.embedding_identifier), to_tokenize)
             to_tokenize = [split[0]]
             for i in range(1, len(split)):
                 to_tokenize.append("{}{}".format(self.embedding_identifier, split[i]))
 
             to_tokenize = [x for x in to_tokenize if x != ""]
             for word in to_tokenize:
-                #if we find an embedding, deal with the embedding
+                # if we find an embedding, deal with the embedding
                 if word.startswith(self.embedding_identifier) and self.embedding_directory is not None:
                     embedding_name = word[len(self.embedding_identifier):].strip('\n')
                     embed, leftover = self._try_get_embedding(embedding_name)
@@ -519,7 +521,7 @@ class SDTokenizer:
                     else:
                         continue
                 end = 999999999999
-                if self.end_token is not None:
+                if self.tokenizer_adds_end_token:
                     end = -1
                 #parse word
                 tokens.append([(t, weight) for t in self.tokenizer(word)["input_ids"][self.tokens_start:end]])
