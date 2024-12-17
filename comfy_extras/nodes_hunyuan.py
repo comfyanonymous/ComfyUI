@@ -1,3 +1,8 @@
+import nodes
+import torch
+import comfy.model_management
+
+
 class CLIPTextEncodeHunyuanDiT:
     @classmethod
     def INPUT_TYPES(s):
