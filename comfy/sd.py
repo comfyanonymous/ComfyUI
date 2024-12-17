@@ -603,6 +603,14 @@ def t5xxl_detect(clip_data):
 
     return {}
 
+def llama_detect(clip_data):
+    weight_name = "model.layers.0.self_attn.k_proj.weight"
+
+    for sd in clip_data:
+        if weight_name in sd:
+            return comfy.text_encoders.hunyuan_video.llama_detect(sd)
+
+    return {}
 
 def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
     clip_data = state_dicts
@@ -669,7 +677,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.flux.flux_clip(**t5xxl_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.flux.FluxTokenizer
         elif clip_type == CLIPType.HUNYUAN_VIDEO:
-            clip_target.clip = comfy.text_encoders.hunyuan_video.hunyuan_video_clip() #TODO
+            clip_target.clip = comfy.text_encoders.hunyuan_video.hunyuan_video_clip(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.hunyuan_video.HunyuanVideoTokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
