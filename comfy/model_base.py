@@ -31,6 +31,7 @@ import comfy.ldm.audio.dit
 import comfy.ldm.audio.embedders
 import comfy.ldm.flux.model
 import comfy.ldm.lightricks.model
+import comfy.ldm.hunyuan_video.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -817,4 +818,22 @@ class LTXV(BaseModel):
             out["guiding_latent_noise_scale"] = comfy.conds.CONDConstant(guiding_latent_noise_scale)
 
         out['frame_rate'] = comfy.conds.CONDConstant(kwargs.get("frame_rate", 25))
+        return out
+
+class HunyuanVideo(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hunyuan_video.model.HunyuanVideo)
+
+    def encode_adm(self, **kwargs):
+        return kwargs["pooled_output"]
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([kwargs.get("guidance", 6.0)]))
         return out

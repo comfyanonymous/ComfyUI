@@ -12,6 +12,7 @@ import comfy.text_encoders.hydit
 import comfy.text_encoders.flux
 import comfy.text_encoders.genmo
 import comfy.text_encoders.lt
+import comfy.text_encoders.hunyuan_video
 
 from . import supported_models_base
 from . import latent_formats
@@ -738,6 +739,54 @@ class LTXV(supported_models_base.BASE):
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.lt.LTXVT5Tokenizer, comfy.text_encoders.lt.ltxv_te(**t5_detect))
 
-models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV]
+class HunyuanVideo(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "hunyuan_video",
+    }
+
+    sampling_settings = {
+        "shift": 7.0,
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.HunyuanVideo
+
+    memory_usage_factor = 2.0 #TODO
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.HunyuanVideo(self, device=device)
+        return out
+
+    def process_unet_state_dict(self, state_dict):
+        out_sd = {}
+        for k in list(state_dict.keys()):
+            key_out = k
+            key_out = key_out.replace("txt_in.t_embedder.mlp.0.", "txt_in.t_embedder.in_layer.").replace("txt_in.t_embedder.mlp.2.", "txt_in.t_embedder.out_layer.")
+            key_out = key_out.replace("txt_in.c_embedder.linear_1.", "txt_in.c_embedder.in_layer.").replace("txt_in.c_embedder.linear_2.", "txt_in.c_embedder.out_layer.")
+            key_out = key_out.replace("_mod.linear.", "_mod.lin.").replace("_attn_qkv.", "_attn.qkv.")
+            key_out = key_out.replace("mlp.fc1.", "mlp.0.").replace("mlp.fc2.", "mlp.2.")
+            key_out = key_out.replace("_attn_q_norm.weight", "_attn.norm.query_norm.scale").replace("_attn_k_norm.weight", "_attn.norm.key_norm.scale")
+            key_out = key_out.replace(".q_norm.weight", ".norm.query_norm.scale").replace(".k_norm.weight", ".norm.key_norm.scale")
+            key_out = key_out.replace("_attn_proj.", "_attn.proj.")
+            key_out = key_out.replace(".modulation.linear.", ".modulation.lin.")
+            key_out = key_out.replace("_in.mlp.2.", "_in.out_layer.").replace("_in.mlp.0.", "_in.in_layer.")
+            out_sd[key_out] = state_dict[k]
+        return out_sd
+
+    def process_unet_state_dict_for_saving(self, state_dict):
+        replace_prefix = {"": "model.model."}
+        return utils.state_dict_prefix_replace(state_dict, replace_prefix)
+
+    def clip_target(self, state_dict={}):
+        # pref = self.text_encoder_key_prefix[0]
+        # t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.hunyuan_video.HunyuanVideoTokenizer, comfy.text_encoders.hunyuan_video.hunyuan_video_clip()) #TODO
+
+models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideo]
 
 models += [SVD_img2vid]

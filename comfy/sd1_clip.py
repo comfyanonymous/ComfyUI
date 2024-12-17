@@ -420,7 +420,7 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
     return embed_out
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, tokenizer_data={}):
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, tokenizer_data={}):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path)
@@ -433,11 +433,16 @@ class SDTokenizer:
             self.tokens_start = 1
             self.start_token = empty[0]
             if has_end_token:
-                self.end_token = empty[1]
+                if end_token is not None:
+                    self.end_token = end_token
+                else:
+                    self.end_token = empty[1]
         else:
             self.tokens_start = 0
             self.start_token = None
-            if has_end_token:
+            if end_token is not None:
+                self.end_token = end_token
+            else:
                 self.end_token = empty[0]
 
         if pad_token is not None:
