@@ -22,7 +22,6 @@ except ImportError:
 	from typing import Optional, NamedTuple, List
 	from typing_extensions import Protocol
 
-from torch import Tensor
 from typing import List
 
 from comfy import model_management
@@ -172,7 +171,7 @@ def _get_attention_scores_no_kv_chunking(
         del attn_scores
     except model_management.OOM_EXCEPTION:
         logging.warning("ran out of memory while running softmax in  _get_attention_scores_no_kv_chunking, trying slower in place softmax instead")
-        attn_scores -= attn_scores.max(dim=-1, keepdim=True).values
+        attn_scores -= attn_scores.max(dim=-1, keepdim=True).values # noqa: F821 attn_scores is not defined
         torch.exp(attn_scores, out=attn_scores)
         summed = torch.sum(attn_scores, dim=-1, keepdim=True)
         attn_scores /= summed

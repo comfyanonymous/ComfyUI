@@ -352,3 +352,7 @@ class LTXV(LatentFormat):
         ]
 
         self.latent_rgb_factors_bias = [-0.0571, -0.1657, -0.2512]
+
+class HunyuanVideo(LatentFormat):
+    latent_channels = 16
+    scale_factor = 0.476986

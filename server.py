@@ -460,7 +460,21 @@ class PromptServer():
                             return web.Response(body=alpha_buffer.read(), content_type='image/png',
                                                 headers={"Content-Disposition": f"filename=\"{filename}\""})
                     else:
-                        return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
+                        # Get content type from mimetype, defaulting to 'application/octet-stream'
+                        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+                        # For security, force certain extensions to download instead of display
+                        file_extension = os.path.splitext(filename)[1].lower()
+                        if file_extension in {'.html', '.htm', '.js', '.css'}:
+                            content_type = 'application/octet-stream'  # Forces download
+
+                        return web.FileResponse(
+                            file,
+                            headers={
+                                "Content-Disposition": f"filename=\"{filename}\"",
+                                "Content-Type": content_type
+                            }
+                        )
 
             return web.Response(status=404)
 
@@ -563,7 +577,7 @@ class PromptServer():
                 for x in nodes.NODE_CLASS_MAPPINGS:
                     try:
                         out[x] = node_info(x)
-                    except Exception as e:
+                    except Exception:
                         logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
                         logging.error(traceback.format_exc())
                 return web.json_response(out)
@@ -584,7 +598,7 @@ class PromptServer():
             return web.json_response(self.prompt_queue.get_history(max_items=max_items))
 
         @routes.get("/history/{prompt_id}")
-        async def get_history(request):
+        async def get_history_prompt_id(request):
             prompt_id = request.match_info.get("prompt_id", None)
             return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
 
@@ -599,8 +613,6 @@ class PromptServer():
         @routes.post("/prompt")
         async def post_prompt(request):
             logging.info("got prompt")
-            resp_code = 200
-            out_string = ""
             json_data =  await request.json()
             json_data = self.trigger_on_prompt(json_data)
 
@@ -832,8 +844,8 @@ class PromptServer():
         for handler in self.on_prompt_handlers:
             try:
                 json_data = handler(json_data)
-            except Exception as e:
-                logging.warning(f"[ERROR] An error occurred during the on_prompt_handler processing")
+            except Exception:
+                logging.warning("[ERROR] An error occurred during the on_prompt_handler processing")
                 logging.warning(traceback.format_exc())
 
         return json_data
