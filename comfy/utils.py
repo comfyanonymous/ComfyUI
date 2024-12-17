@@ -805,6 +805,8 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_
 
             for d in range(2, dims + 2):
                 feather = round(get_upscale(d - 2, overlap[d - 2]))
+                if feather >= mask.shape[d]:
+                    continue
                 for t in range(feather):
                     a = (t + 1) / feather
                     mask.narrow(d, t, 1).mul_(a)
