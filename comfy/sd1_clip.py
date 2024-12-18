@@ -10,6 +10,7 @@ import comfy.clip_model
 import json
 import logging
 import numbers
+import re
 
 def gen_empty_tokens(special_tokens, length):
     start_token = special_tokens.get("start", None)
@@ -424,7 +425,7 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
     return embed_out
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, tokenizer_data={}):
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, tokenizer_data={}):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path)
@@ -433,15 +434,21 @@ class SDTokenizer:
         self.end_token = None
 
         empty = self.tokenizer('')["input_ids"]
+        self.tokenizer_adds_end_token = has_end_token
         if has_start_token:
             self.tokens_start = 1
             self.start_token = empty[0]
-            if has_end_token:
-                self.end_token = empty[1]
+            if end_token is not None:
+                self.end_token = end_token
+            else:
+                if has_end_token:
+                    self.end_token = empty[1]
         else:
             self.tokens_start = 0
             self.start_token = None
-            if has_end_token:
+            if end_token is not None:
+                self.end_token = end_token
+            else:
                 self.end_token = empty[0]
 
         if pad_token is not None:
@@ -467,7 +474,7 @@ class SDTokenizer:
         Takes a potential embedding name and tries to retrieve it.
         Returns a Tuple consisting of the embedding and any leftover string, embedding can be None.
         '''
-        split_embed = embedding_name.split(' ')
+        split_embed = embedding_name.split()
         embedding_name = split_embed[0]
         leftover = ' '.join(split_embed[1:])
         embed = load_embed(embedding_name, self.embedding_directory, self.embedding_size, self.embedding_key)
@@ -490,18 +497,18 @@ class SDTokenizer:
         text = escape_important(text)
         parsed_weights = token_weights(text, 1.0)
 
-        #tokenize words
+        # tokenize words
         tokens = []
         for weighted_segment, weight in parsed_weights:
-            to_tokenize = unescape_important(weighted_segment).replace("\n", " ")
-            split = to_tokenize.split(' {}'.format(self.embedding_identifier))
+            to_tokenize = unescape_important(weighted_segment)
+            split = re.split(' {0}|\n{0}'.format(self.embedding_identifier), to_tokenize)
             to_tokenize = [split[0]]
             for i in range(1, len(split)):
                 to_tokenize.append("{}{}".format(self.embedding_identifier, split[i]))
 
             to_tokenize = [x for x in to_tokenize if x != ""]
             for word in to_tokenize:
-                #if we find an embedding, deal with the embedding
+                # if we find an embedding, deal with the embedding
                 if word.startswith(self.embedding_identifier) and self.embedding_directory is not None:
                     embedding_name = word[len(self.embedding_identifier):].strip('\n')
                     embed, leftover = self._try_get_embedding(embedding_name)
@@ -518,7 +525,7 @@ class SDTokenizer:
                     else:
                         continue
                 end = 999999999999
-                if self.end_token is not None:
+                if self.tokenizer_adds_end_token:
                     end = -1
                 #parse word
                 tokens.append([(t, weight) for t in self.tokenizer(word)["input_ids"][self.tokens_start:end]])
