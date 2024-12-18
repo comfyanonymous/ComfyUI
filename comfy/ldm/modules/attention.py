@@ -15,6 +15,9 @@ if model_management.xformers_enabled():
     import xformers
     import xformers.ops
 
+if model_management.sage_attention_enabled():
+    from sageattention import sageattn
+
 from comfy.cli_args import args
 import comfy.ops
 ops = comfy.ops.disable_weight_init
@@ -447,20 +450,54 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
     return out
 
 
+def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
+    if skip_reshape:
+        b, _, _, dim_head = q.shape
+        tensor_layout="HND"
+    else:
+        b, _, dim_head = q.shape
+        dim_head //= heads
+        q, k, v = map(
+            lambda t: t.view(b, -1, heads, dim_head),
+            (q, k, v),
+        )
+        tensor_layout="NHD"
+
+    if mask is not None:
+        # add a batch dimension if there isn't already one
+        if mask.ndim == 2:
+            mask = mask.unsqueeze(0)
+        # add a heads dimension if there isn't already one
+        if mask.ndim == 3:
+            mask = mask.unsqueeze(1)
+
+    out = sageattn(q, k, v, attn_mask=mask, is_causal=False, tensor_layout=tensor_layout)
+    if tensor_layout == "HND":
+        out = (
+            out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+        )
+    else:
+        out = out.reshape(b, -1, heads * dim_head)
+    return out
+
+
 optimized_attention = attention_basic
 
-if model_management.xformers_enabled():
-    logging.info("Using xformers cross attention")
+if model_management.sage_attention_enabled():
+    logging.info("Using sage attention")
+    optimized_attention = attention_sage
+elif model_management.xformers_enabled():
+    logging.info("Using xformers attention")
     optimized_attention = attention_xformers
 elif model_management.pytorch_attention_enabled():
-    logging.info("Using pytorch cross attention")
+    logging.info("Using pytorch attention")
     optimized_attention = attention_pytorch
 else:
     if args.use_split_cross_attention:
-        logging.info("Using split optimization for cross attention")
+        logging.info("Using split optimization for attention")
         optimized_attention = attention_split
     else:
-        logging.info("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
+        logging.info("Using sub quadratic optimization for attention, if you have memory or speed issues try using: --use-split-cross-attention")
         optimized_attention = attention_sub_quad
 
 optimized_attention_masked = optimized_attention
