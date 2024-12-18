@@ -43,6 +43,7 @@ from .text_encoders import sd2_clip
 from .text_encoders import sd3_clip
 from .utils import ProgressBar
 
+logger = logging.getLogger(__name__)
 
 def load_lora_for_models(model, clip, _lora, strength_model, strength_clip):
     key_map = {}
@@ -70,7 +71,7 @@ def load_lora_for_models(model, clip, _lora, strength_model, strength_clip):
     k1 = set(k1)
     for x in loaded:
         if (x not in k) and (x not in k1):
-            logging.warning("NOT LOADED {}".format(x))
+            logger.warning("NOT LOADED {}".format(x))
 
     return (new_modelpatcher, new_clip)
 
@@ -105,7 +106,7 @@ class CLIP:
                 load_device = offload_device
                 if params['device'] != offload_device:
                     self.cond_stage_model.to(offload_device)
-                    logging.warning("Had to shift TE back.")
+                    logger.warning("Had to shift TE back.")
 
         self.tokenizer: "sd1_clip.SD1Tokenizer" = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
@@ -116,7 +117,7 @@ class CLIP:
             model_management.load_models_gpu([self.patcher], force_full_load=True)
         self.layer_idx = None
         self.use_clip_schedule = False
-        logging.debug("CLIP model load device: {}, offload device: {}, current: {}".format(load_device, offload_device, params['device']))
+        logger.debug("CLIP model load device: {}, offload device: {}, current: {}".format(load_device, offload_device, params['device']))
 
     def clone(self):
         n = CLIP(no_init=True)
@@ -355,7 +356,7 @@ class VAE:
                 self.upscale_ratio = (lambda a: max(0, a * 8 - 7), 32, 32)
                 self.working_dtypes = [torch.bfloat16, torch.float32]
             else:
-                logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
+                logger.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
                 return
         else:
@@ -364,10 +365,10 @@ class VAE:
 
         m, u = self.first_stage_model.load_state_dict(sd, strict=False)
         if len(m) > 0:
-            logging.warning("Missing VAE keys {}".format(m))
+            logger.warning("Missing VAE keys {}".format(m))
 
         if len(u) > 0:
-            logging.debug("Leftover VAE keys {}".format(u))
+            logger.debug("Leftover VAE keys {}".format(u))
 
         if device is None:
             device = model_management.vae_device()
@@ -380,7 +381,7 @@ class VAE:
         self.output_device = model_management.intermediate_device()
 
         self.patcher = model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
-        logging.debug("VAE load device: {}, offload device: {}, dtype: {}".format(self.device, offload_device, self.vae_dtype))
+        logger.debug("VAE load device: {}, offload device: {}, dtype: {}".format(self.device, offload_device, self.vae_dtype))
 
     def vae_encode_crop_pixels(self, pixels):
         dims = pixels.shape[1:-1]
@@ -446,7 +447,7 @@ class VAE:
                     pixel_samples = torch.empty((samples_in.shape[0],) + tuple(out.shape[1:]), device=self.output_device)
                 pixel_samples[x:x + batch_number] = out
         except model_management.OOM_EXCEPTION as e:
-            logging.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
+            logger.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
             dims = samples_in.ndim - 2
             if dims == 1:
                 pixel_samples = self.decode_tiled_1d(samples_in)
@@ -503,7 +504,7 @@ class VAE:
                 samples[x:x + batch_number] = out
 
         except model_management.OOM_EXCEPTION as e:
-            logging.warning("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
+            logger.warning("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
             if len(pixel_samples.shape) == 3:
                 samples = self.encode_tiled_1d(pixel_samples)
             else:
@@ -695,10 +696,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
     for c in clip_data:
         m, u = clip.load_sd(c)
         if len(m) > 0:
-            logging.warning("clip missing: {}".format(m))
+            logger.warning("clip missing: {}".format(m))
 
         if len(u) > 0:
-            logging.debug("clip unexpected: {}".format(u))
+            logger.debug("clip unexpected: {}".format(u))
     return clip
 
 
@@ -711,7 +712,7 @@ def load_gligen(ckpt_path):
 
 
 def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_clip=True, embedding_directory=None, state_dict=None, config=None):
-    logging.warning("Warning: The load checkpoint with config function is deprecated and will eventually be removed, please use the other one.")
+    logger.warning("Warning: The load checkpoint with config function is deprecated and will eventually be removed, please use the other one.")
     model, clip, vae, _ = load_checkpoint_guess_config(ckpt_path, output_vae=output_vae, output_clip=output_clip, output_clipvision=False, embedding_directory=embedding_directory, output_model=True)
     # TODO: this function is a mess and should be removed eventually
     if config is None:
@@ -809,18 +810,18 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
                 if len(m) > 0:
                     m_filter = list(filter(lambda a: ".logit_scale" not in a and ".transformer.text_projection.weight" not in a, m))
                     if len(m_filter) > 0:
-                        logging.warning("clip missing: {}".format(m))
+                        logger.warning("clip missing: {}".format(m))
                     else:
-                        logging.debug("clip missing: {}".format(m))
+                        logger.debug("clip missing: {}".format(m))
 
                 if len(u) > 0:
-                    logging.debug("clip unexpected {}:".format(u))
+                    logger.debug("clip unexpected {}:".format(u))
             else:
-                logging.warning("no CLIP/text encoder weights in checkpoint, the text encoder model will not be loaded.")
+                logger.warning(f"no CLIP/text encoder weights in checkpoint {ckpt_path}, the text encoder model will not be loaded.")
 
     left_over = sd.keys()
     if len(left_over) > 0:
-        logging.debug("left over keys: {}".format(left_over))
+        logger.debug("left over keys: {}".format(left_over))
 
     if output_model:
         _model_patcher = model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device(), ckpt_name=os.path.basename(ckpt_path))
@@ -866,7 +867,7 @@ def load_diffusion_model_state_dict(sd, model_options: dict = None, ckpt_path: O
                 if k in sd:
                     new_sd[diffusers_keys[k]] = sd.pop(k)
                 else:
-                    logging.warning("{} {}".format(diffusers_keys[k], k))
+                    logger.warning("{} {}".format(diffusers_keys[k], k))
 
     offload_device = model_management.unet_offload_device()
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
@@ -889,7 +890,7 @@ def load_diffusion_model_state_dict(sd, model_options: dict = None, ckpt_path: O
     model.load_model_weights(new_sd, "")
     left_over = sd.keys()
     if len(left_over) > 0:
-        logging.info("left over keys in unet: {}".format(left_over))
+        logger.info("left over keys in unet: {}".format(left_over))
     return model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device, ckpt_name=os.path.basename(ckpt_path))
 
 
@@ -899,7 +900,7 @@ def load_diffusion_model(unet_path, model_options: dict = None):
     sd = utils.load_torch_file(unet_path)
     model = load_diffusion_model_state_dict(sd, model_options=model_options, ckpt_path=unet_path)
     if model is None:
-        logging.error("ERROR UNSUPPORTED UNET {}".format(unet_path))
+        logger.error("ERROR UNSUPPORTED UNET {}".format(unet_path))
         raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
     return model
 

@@ -178,8 +178,14 @@ def get_temp_directory() -> str:
     return str(_resolve_path_with_compatibility(_folder_names_and_paths().application_paths.temp_directory))
 
 
-def get_input_directory() -> str:
-    return str(_resolve_path_with_compatibility(_folder_names_and_paths().application_paths.input_directory))
+def get_input_directory(mkdirs=True) -> str:
+    res = str(_resolve_path_with_compatibility(_folder_names_and_paths().application_paths.input_directory))
+    if mkdirs:
+        try:
+            os.makedirs(res, exist_ok=True)
+        except Exception as exc_info:
+            logger.warning(f"could not create directory {res} when trying to access input directory", exc_info)
+    return res
 
 
 def get_user_directory() -> str:

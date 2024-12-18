@@ -5,11 +5,12 @@ import logging
 import operator
 import os
 import shutil
+from collections.abc import Sequence, MutableSequence
 from functools import reduce
 from itertools import chain
 from os.path import join
 from pathlib import Path
-from typing import List, Optional, Sequence, Final, Set, MutableSequence
+from typing import List, Optional, Final, Set
 
 import tqdm
 from huggingface_hub import hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem
@@ -204,18 +205,31 @@ Visit the repository, accept the terms, and then do one of the following:
 
 
 class KnownDownloadables(collections.UserList[Downloadable]):
-    def __init__(self, data, folder_name: Optional[str] = None):
+    # we're not invoking the constructor because we want a reference to the passed list
+    # noinspection PyMissingConstructor
+    def __init__(self, data, folder_name: Optional[str | Sequence[str]] = None, folder_names: Optional[Sequence[str]] = None):
         # this should be a view
         self.data = data
-        self._folder_name = folder_name
+        folder_names = folder_names or []
+        if isinstance(folder_name, str):
+            folder_names.append(folder_name)
+        elif folder_name is not None and hasattr(folder_name, "__getitem__") and len(folder_name[0]) > 1:
+            folder_names += folder_name
+        self._folder_names = folder_names
 
     @property
-    def folder_name(self) -> str:
-        return self._folder_name
+    def folder_names(self) -> list[str]:
+        return self._folder_names
 
-    @folder_name.setter
-    def folder_name(self, value: str):
-        self._folder_name = value
+    @folder_names.setter
+    def folder_names(self, value: list[str]):
+        self._folder_names = value
+
+    def __contains__(self, item):
+        if isinstance(item, str):
+            return item in self._folder_names
+        else:
+            return item in self.data
 
 
 KNOWN_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
@@ -445,7 +459,7 @@ KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Kijai/flux-fp8", "flux1-schnell-fp8.safetensors"),
     HuggingFile("Comfy-Org/mochi_preview_repackaged", "split_files/diffusion_models/mochi_preview_bf16.safetensors"),
     HuggingFile("Comfy-Org/mochi_preview_repackaged", "split_files/diffusion_models/mochi_preview_fp8_scaled.safetensors"),
-], folder_name="diffusion_models")
+], folder_names=["diffusion_models", "unet"])
 
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     # todo: is this correct?
@@ -457,7 +471,7 @@ KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     # uses names from https://comfyanonymous.github.io/ComfyUI_examples/audio/
     HuggingFile("google-t5/t5-base", "model.safetensors", save_with_filename="t5_base.safetensors"),
     HuggingFile("zer0int/CLIP-GmP-ViT-L-14", "ViT-L-14-TEXT-detail-improved-hiT-GmP-TE-only-HF.safetensors"),
-], folder_name="clip")
+], folder_names=["clip", "text_encoders"])
 
 KNOWN_STYLE_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("black-forest-labs/FLUX.1-Redux-dev", "flux1-redux-dev.safetensors"),
@@ -486,7 +500,7 @@ def _is_known_model_in_models_db(obj: list[Downloadable] | KnownDownloadables):
 
 
 def _get_known_models_for_folder_name(folder_name: str) -> List[Downloadable]:
-    return list(chain.from_iterable([candidate for candidate in _known_models_db if candidate.folder_name == folder_name]))
+    return list(chain.from_iterable([candidate for candidate in _known_models_db if folder_name in candidate]))
 
 
 def add_known_models(folder_name: str, known_models: Optional[List[Downloadable]] | Downloadable = None, *models: Downloadable) -> MutableSequence[Downloadable]:
@@ -496,7 +510,7 @@ def add_known_models(folder_name: str, known_models: Optional[List[Downloadable]
 
     if known_models is None:
         try:
-            known_models = next(candidate for candidate in _known_models_db if candidate.folder_name == folder_name)
+            known_models = next(candidate for candidate in _known_models_db if folder_name in candidate)
         except StopIteration:
             add_model_folder_path(folder_name, extensions=supported_pt_extensions)
             known_models = KnownDownloadables([], folder_name=folder_name)

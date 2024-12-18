@@ -97,66 +97,59 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 
 ## Installing
 
-You must have Python 3.10, 3.11 or 3.12 installed. On Windows, download the latest Python from the Python website.
+These instructions will install an interactive ComfyUI using the command line.
 
-On macOS, you will need Python 3.10, 3.11 or 3.12, which is easy to install using [`brew`](https://brew.sh): `brew install python@3.12`. You can check which version of Python you have installed using `python --version`.
+### Windows
 
 When using Windows, open the **Windows Powershell** app. Then observe you are at a command line, and it is printing "where" you are in your file system: your user directory (e.g., `C:\Users\doctorpangloss`). This is where a bunch of files will go. If you want files to go somewhere else, consult a chat bot for the basics of using command lines, because it is beyond the scope of this document. Then:
 
-1. Create a virtual environment:
-     ```shell
-     python -m venv venv
-     ```
-2. Activate it on
+1. Install Python 3.12, 3.11 or 3.10. You can do this from the Python website; or, you can use `chocolatey`, a Windows package manager:
+
+   ```shell
+   Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+   choco install -y python --version 3.12.6
+   ```
+
+2. Install `uv`, which makes subsequent installation of Python packages much faster:
+
+    ```shell
+    choco install -y uv
+    ```
+
+3. Switch into a directory that you want to store your outputs, custom nodes and models in. This is your ComfyUI workspace. For example, if you want to store your workspace in a directory called `ComfyUI_Workspace` in your Documents folder:
+
+   ```powershell
+   mkdir ~/Documents/ComfyUI_Workspace
+   cd ~/Documents/ComfyUI_Workspace
+   ```
+
+4. Create a virtual environment:
+   ```shell
+   uv venv --seed --python 3.12
+   ```
+5. Activate it on
    **Windows (PowerShell):**
 
-   ```pwsh
+   ```powershell
    Set-ExecutionPolicy Unrestricted -Scope Process
-   & .\venv\Scripts\activate.ps1
+   & .\.venv\Scripts\activate.ps1
    ```
 
-   **Linux and macOS**
-
-   ```shell
-   source ./venv/bin/activate
+6. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
+   ```powershell
+   uv pip install setuptools wheel
+   uv pip install "comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git"
    ```
-
-3. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
-   ```shell
-   pip install "comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git"
-   ```
-   **Recommended**: Currently, `torch 2.5.0` is the latest version that `xformers` is compatible with. On Windows, install it first, along with `xformers`, for maximum compatibility and the best performance without advanced techniques in ComfyUI:
-   ```shell
-   pip install torch==2.5.1+cu121 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-   pip install --no-build-isolation --no-deps xformers==0.0.28.post3 --index-url https://download.pytorch.org/whl/
-   pip install comfyui@git+https://github.com/hiddenswitch/ComfyUI.git
+   **Recommended**: Install `xformers`:
+   ```powershell
+   uv pip install --no-build-isolation --no-deps xformers==0.0.28.post3 --index-url https://download.pytorch.org/whl/
    ```
 
    To enable `torchaudio` support on Windows, install it directly:
-   ```shell
-   pip install torchaudio==2.5.0+cu121 --index-url https://download.pytorch.org/whl/cu121
+   ```powershell
+   uv pip install torchaudio==2.5.1+cu121 --index-url https://download.pytorch.org/whl/cu121
    ```
-   **Advanced**: If you are running in Google Collab or another environment which has already installed `torch` for you; or, if you are an application developer:
-   ```shell
-   # You will need wheel, which isn't included in Python 3.11 or later
-   pip install wheel
-   pip install --no-build-isolation comfyui@git+https://github.com/hiddenswitch/ComfyUI.git
-   ```
-   This will use your pre-installed torch. This is also the appropriate dependency for packages, and is the one published to `pypi`. To automatically install with `torch` nightlies, use:
-   ```shell
-   pip install comfyui[withtorchnightlies]@git+https://github.com/hiddenswitch/ComfyUI.git
-   ```
-4. Create the directories you can fill with checkpoints:
-   ```shell
-   comfyui --create-directories
-   ```
-   Your current working directory is wherever you started running `comfyui`. You don't need to clone this repository, observe it is omitted from the instructions.
-   You can `cd` into a different directory containing `models/`, or if the models are located somehwere else, like `C:/some directory/models`, do:
-   ```shell
-   comfyui --cwd="C:/some directory/"
-   ```
-   You can see all the command line options with hints using `comfyui --help`.
-5. To run the web server:
+7. To run the web server:
    ```shell
    comfyui
    ```
@@ -167,31 +160,113 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
    comfyui --listen
    ```
 
+**Running**
+
 On Windows, you will need to open PowerShell and activate your virtual environment whenever you want to run `comfyui`.
 
 ```powershell
-& .\venv\Scripts\activate.ps1
+cd ~\Documents\ComfyUI_Workspace\
+& .venv\Scripts\activate.ps1
 comfyui
 ```
 
 Upgrades are delivered frequently and automatically. To force one immediately, run pip upgrade like so:
 
 ```shell
-pip install --no-build-isolation --no-deps --upgrade comfyui@git+https://github.com/hiddenswitch/ComfyUI.git
+uv pip install --no-build-isolation --upgrade "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
 ```
 
-**Advanced: Using `uv`**:
+### macOS
 
-`uv` is a significantly faster and improved Python package manager. On Windows, use the following commands to install the package from scratch about 6x faster than vanilla `pip`:
+1. Install Python 3.10, 3.11 or 3.12. This should be achieved by installing `brew`, a macOS package manager, first:
+   ```shell
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+   Then, install `python` and `uv`:
+   ```shell
+   HOMEBREW_NO_AUTO_UPDATE=1 brew install python@3.12 uv
+   ```
+3. Switch into a directory that you want to store your outputs, custom nodes and models in. This is your ComfyUI workspace. For example, if you want to store your workspace in a directory called `ComfyUI_Workspace` in your Documents folder:
 
-```powershell
-uv venv --seed
-& .\venv\Scripts\activate.ps1
-uv pip install comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git
-python -m comfy.cmd.main
+   ```shell
+   mkdir -pv ~/Documents/ComfyUI_Workspace
+   cd ~/Documents/ComfyUI_Workspace
+   ```
+
+4. Create a virtual environment:
+   ```shell
+   uv venv --seed --python 3.12
+   ```
+5. Activate it on
+   **macOS**
+
+   ```shell
+   source .venv/bin/activate
+   ```
+
+6. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
+   ```shell
+   uv pip install setuptools wheel
+   uv pip install "comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git"
+   ```
+
+   To enable `torchaudio` support, install it directly:
+   ```shell
+   uv pip install torchaudio --index-url https://download.pytorch.org/whl/
+   ```
+7. To run the web server:
+   ```shell
+   comfyui
+   ```
+   When you run workflows that use well-known models, this will download them automatically.
+
+   To make it accessible over the network:
+   ```shell
+   comfyui --listen
+   ```
+
+**Running**
+
+On macOS, you will need to open the terminal and activate your virtual environment whenever you want to run `comfyui`.
+
+```shell
+cd ~/Documents/ComfyUI_Workspace/
+source .venv/bin/activate
+comfyui
 ```
 
-### LTS Custom Nodes
+## Model Downloading
+
+ComfyUI LTS supports downloading models on demand.
+
+Known models will be downloaded from Hugging Face or CivitAI.
+
+To support licensed models like Flux, you will need to login to Hugging Face from the command line.
+
+1. Activate your Python environment by `cd` followed by your workspace directory. For example, if your workspace is located in `~/Documents/ComfyUI_Workspace`, do:
+
+```shell
+cd ~/Documents/ComfyUI_Workspace
+```
+
+Then, on Windows: `& .venv/scripts/activate.ps1`; on macOS: `source .venv/bin/activate`.
+
+2. Login with Huggingface:
+
+```shell
+uv pip install huggingface-cli
+huggingface-cli login
+```
+
+3. Agree to the terms for a repository. For example, visit https://huggingface.co/black-forest-labs/FLUX.1-dev, login with your HuggingFace account, then choose **Agree**.
+
+To disable model downloading, start with the command line argument `--disable-known-models`: `comfyui --disable-known-models`. However, this will generally only increase your toil for no return.
+
+### Saving Space on Windows
+
+To save space, you will need to enable Developer Mode in the Windows Settings, then reboot your computer. This way, Hugging Face can download models into a common place for all your apps, and place small "link" files that ComfyUI and others can read instead of whole copies of models.
+
+## LTS Custom Nodes
 
 These packages have been adapted to be installable with `pip` and download models to the correct places:
 
@@ -241,16 +316,6 @@ You can enable experimental memory efficient attention on pytorch 2.5 in ComfyUI
 ```TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention```
 
 You can also try setting this env variable `PYTORCH_TUNABLEOP_ENABLED=1` which might speed things up at the cost of a very slow initial run.
-
-### Model Downloading
-
-ComfyUI LTS supports downloading models on demand. Its list of known models includes the most notable and common Stable Diffusion architecture checkpoints, slider LoRAs, all the notable ControlNets for SD1.5 and SDXL, and a small selection of LLM models. Additionally, all other supported LTS nodes will download models using the same mechanisms. This means that you will save storage space and time: you won't have to ever figure out the "right name" for a model, where to download it from, or where to put it ever again.
-
-Known models will be downloaded from Hugging Face or CivitAI. Hugging Face has a thoughtful approach to file downloading and organization. This means you do not have to toil about having one, or many, files, or worry about where to put them.
-
-On Windows platforms, symbolic links should be enabled to minimize the amount of space used: Enable Developer Mode in the Windows Settings, then reboot your computer. This way, Hugging Face can download models into a common place for all your apps, and place small "link" files that ComfyUI and others can read instead of whole copies of models.
-
-To disable model downloading, start with the command line argument `--disable-known-models`: `comfyui --disable-known-models`. However, this will generally only increase your toil for no return.
 
 ## Manual Install (Windows, Linux, macOS) For Development
 

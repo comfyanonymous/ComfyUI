@@ -148,12 +148,8 @@ async def main(from_script_dir: Optional[Path] = None):
         for config_path in itertools.chain(*args.extra_model_paths_config):
             load_extra_path_config(config_path)
 
-    # create the default directories if we're instructed to, then exit
-    # or, if it's a windows standalone build, the single .exe file should have its side-by-side directories always created
-    if args.create_directories:
-        import_all_nodes_in_workspace(raise_on_failure=False)
-        folder_paths.create_directories()
-        return
+    # always create directories when started interactively
+    folder_paths.create_directories()
 
     if args.windows_standalone_build:
         folder_paths.create_directories()
@@ -225,6 +221,11 @@ async def main(from_script_dir: Optional[Path] = None):
         # for CI purposes, try importing all the nodes
         import_all_nodes_in_workspace(raise_on_failure=True)
         exit(0)
+    else:
+        # we no longer lazily load nodes. we'll do it now for the sake of creating directories
+        import_all_nodes_in_workspace(raise_on_failure=False)
+        # now that nodes are loaded, create more directories if appropriate
+        folder_paths.create_directories()
 
     call_on_start = None
     if args.auto_launch:
