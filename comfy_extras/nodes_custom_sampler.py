@@ -90,6 +90,27 @@ class PolyexponentialScheduler:
         sigmas = k_diffusion_sampling.get_sigmas_polyexponential(n=steps, sigma_min=sigma_min, sigma_max=sigma_max, rho=rho)
         return (sigmas, )
 
+class LaplaceScheduler:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
+                     "sigma_max": ("FLOAT", {"default": 14.614642, "min": 0.0, "max": 5000.0, "step":0.01, "round": False}),
+                     "sigma_min": ("FLOAT", {"default": 0.0291675, "min": 0.0, "max": 5000.0, "step":0.01, "round": False}),
+                     "mu": ("FLOAT", {"default": 0.0, "min": -10.0, "max": 10.0, "step":0.1, "round": False}),
+                     "beta": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 10.0, "step":0.1, "round": False}),
+                    }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "sampling/custom_sampling/schedulers"
+
+    FUNCTION = "get_sigmas"
+
+    def get_sigmas(self, steps, sigma_max, sigma_min, mu, beta):
+        sigmas = k_diffusion_sampling.get_sigmas_laplace(n=steps, sigma_min=sigma_min, sigma_max=sigma_max, mu=mu, beta=beta)
+        return (sigmas, )
+
+
 class SDTurboScheduler:
     @classmethod
     def INPUT_TYPES(s):
@@ -673,6 +694,7 @@ NODE_CLASS_MAPPINGS = {
     "KarrasScheduler": KarrasScheduler,
     "ExponentialScheduler": ExponentialScheduler,
     "PolyexponentialScheduler": PolyexponentialScheduler,
+    "LaplaceScheduler": LaplaceScheduler,
     "VPScheduler": VPScheduler,
     "BetaSamplingScheduler": BetaSamplingScheduler,
     "SDTurboScheduler": SDTurboScheduler,

@@ -26,6 +26,8 @@ import numpy as np
 from PIL import Image
 import logging
 import itertools
+from torch.nn.functional import interpolate
+from einops import rearrange
 
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
@@ -46,7 +48,13 @@ def load_torch_file(ckpt, safe_load=False, device=None):
         if "state_dict" in pl_sd:
             sd = pl_sd["state_dict"]
         else:
-            sd = pl_sd
+            if len(pl_sd) == 1:
+                key = list(pl_sd.keys())[0]
+                sd = pl_sd[key]
+                if not isinstance(sd, dict):
+                    sd = pl_sd
+            else:
+                sd = pl_sd
     return sd
 
 def save_torch_file(sd, ckpt, metadata=None):
@@ -68,7 +76,7 @@ def weight_dtype(sd, prefix=""):
     for k in sd.keys():
         if k.startswith(prefix):
             w = sd[k]
-            dtypes[w.dtype] = dtypes.get(w.dtype, 0) + 1
+            dtypes[w.dtype] = dtypes.get(w.dtype, 0) + w.numel()
 
     if len(dtypes) == 0:
         return None
@@ -316,10 +324,18 @@ MMDIT_MAP_BLOCK = {
     ("context_block.mlp.fc1.weight", "ff_context.net.0.proj.weight"),
     ("context_block.mlp.fc2.bias", "ff_context.net.2.bias"),
     ("context_block.mlp.fc2.weight", "ff_context.net.2.weight"),
+    ("context_block.attn.ln_q.weight", "attn.norm_added_q.weight"),
+    ("context_block.attn.ln_k.weight", "attn.norm_added_k.weight"),
     ("x_block.adaLN_modulation.1.bias", "norm1.linear.bias"),
     ("x_block.adaLN_modulation.1.weight", "norm1.linear.weight"),
     ("x_block.attn.proj.bias", "attn.to_out.0.bias"),
     ("x_block.attn.proj.weight", "attn.to_out.0.weight"),
+    ("x_block.attn.ln_q.weight", "attn.norm_q.weight"),
+    ("x_block.attn.ln_k.weight", "attn.norm_k.weight"),
+    ("x_block.attn2.proj.bias", "attn2.to_out.0.bias"),
+    ("x_block.attn2.proj.weight", "attn2.to_out.0.weight"),
+    ("x_block.attn2.ln_q.weight", "attn2.norm_q.weight"),
+    ("x_block.attn2.ln_k.weight", "attn2.norm_k.weight"),
     ("x_block.mlp.fc1.bias", "ff.net.0.proj.bias"),
     ("x_block.mlp.fc1.weight", "ff.net.0.proj.weight"),
     ("x_block.mlp.fc2.bias", "ff.net.2.bias"),
@@ -348,6 +364,12 @@ def mmdit_to_diffusers(mmdit_config, output_prefix=""):
             key_map["{}add_q_proj.{}".format(k, end)] = (qkv, (0, 0, offset))
             key_map["{}add_k_proj.{}".format(k, end)] = (qkv, (0, offset, offset))
             key_map["{}add_v_proj.{}".format(k, end)] = (qkv, (0, offset * 2, offset))
+
+            k = "{}.attn2.".format(block_from)
+            qkv = "{}.x_block.attn2.qkv.{}".format(block_to, end)
+            key_map["{}to_q.{}".format(k, end)] = (qkv, (0, 0, offset))
+            key_map["{}to_k.{}".format(k, end)] = (qkv, (0, offset, offset))
+            key_map["{}to_v.{}".format(k, end)] = (qkv, (0, offset * 2, offset))
 
         for k in MMDIT_MAP_BLOCK:
             key_map["{}.{}".format(block_from, k[1])] = "{}.{}".format(block_to, k[0])
@@ -690,9 +712,14 @@ def lanczos(samples, width, height):
     return result.to(samples.device, samples.dtype)
 
 def common_upscale(samples, width, height, upscale_method, crop):
+        orig_shape = tuple(samples.shape)
+        if len(orig_shape) > 4:
+            samples = samples.reshape(samples.shape[0], samples.shape[1], -1, samples.shape[-2], samples.shape[-1])
+            samples = samples.movedim(2, 1)
+            samples = samples.reshape(-1, orig_shape[1], orig_shape[-2], orig_shape[-1])
         if crop == "center":
-            old_width = samples.shape[3]
-            old_height = samples.shape[2]
+            old_width = samples.shape[-1]
+            old_height = samples.shape[-2]
             old_aspect = old_width / old_height
             new_aspect = width / height
             x = 0
@@ -701,48 +728,89 @@ def common_upscale(samples, width, height, upscale_method, crop):
                 x = round((old_width - old_width * (new_aspect / old_aspect)) / 2)
             elif old_aspect < new_aspect:
                 y = round((old_height - old_height * (old_aspect / new_aspect)) / 2)
-            s = samples[:,:,y:old_height-y,x:old_width-x]
+            s = samples.narrow(-2, y, old_height - y * 2).narrow(-1, x, old_width - x * 2)
         else:
             s = samples
 
         if upscale_method == "bislerp":
-            return bislerp(s, width, height)
+            out = bislerp(s, width, height)
         elif upscale_method == "lanczos":
-            return lanczos(s, width, height)
+            out = lanczos(s, width, height)
         else:
-            return torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
+            out = torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
+
+        if len(orig_shape) == 4:
+            return out
+
+        out = out.reshape((orig_shape[0], -1, orig_shape[1]) + (height, width))
+        return out.movedim(2, 1).reshape(orig_shape[:-2] + (height, width))
 
 def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
-    return math.ceil((height / (tile_y - overlap))) * math.ceil((width / (tile_x - overlap)))
+    rows = 1 if height <= tile_y else math.ceil((height - overlap) / (tile_y - overlap))
+    cols = 1 if width <= tile_x else math.ceil((width - overlap) / (tile_x - overlap))
+    return rows * cols
 
 @torch.inference_mode()
 def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
     dims = len(tile)
-    output = torch.empty([samples.shape[0], out_channels] + list(map(lambda a: round(a * upscale_amount), samples.shape[2:])), device=output_device)
+
+    if not (isinstance(upscale_amount, (tuple, list))):
+        upscale_amount = [upscale_amount] * dims
+
+    if not (isinstance(overlap, (tuple, list))):
+        overlap = [overlap] * dims
+
+    def get_upscale(dim, val):
+        up = upscale_amount[dim]
+        if callable(up):
+            return up(val)
+        else:
+            return up * val
+
+    def mult_list_upscale(a):
+        out = []
+        for i in range(len(a)):
+            out.append(round(get_upscale(i, a[i])))
+        return out
+
+    output = torch.empty([samples.shape[0], out_channels] + mult_list_upscale(samples.shape[2:]), device=output_device)
 
     for b in range(samples.shape[0]):
         s = samples[b:b+1]
-        out = torch.zeros([s.shape[0], out_channels] + list(map(lambda a: round(a * upscale_amount), s.shape[2:])), device=output_device)
-        out_div = torch.zeros([s.shape[0], out_channels] + list(map(lambda a: round(a * upscale_amount), s.shape[2:])), device=output_device)
 
-        for it in itertools.product(*map(lambda a: range(0, a[0], a[1] - overlap), zip(s.shape[2:], tile))):
+        # handle entire input fitting in a single tile
+        if all(s.shape[d+2] <= tile[d] for d in range(dims)):
+            output[b:b+1] = function(s).to(output_device)
+            if pbar is not None:
+                pbar.update(1)
+            continue
+
+        out = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
+        out_div = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
+
+        positions = [range(0, s.shape[d+2], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
+
+        for it in itertools.product(*positions):
             s_in = s
             upscaled = []
 
             for d in range(dims):
-                pos = max(0, min(s.shape[d + 2] - overlap, it[d]))
+                pos = max(0, min(s.shape[d + 2] - (overlap[d] + 1), it[d]))
                 l = min(tile[d], s.shape[d + 2] - pos)
                 s_in = s_in.narrow(d + 2, pos, l)
-                upscaled.append(round(pos * upscale_amount))
+                upscaled.append(round(get_upscale(d, pos)))
+
             ps = function(s_in).to(output_device)
             mask = torch.ones_like(ps)
-            feather = round(overlap * upscale_amount)
-            for t in range(feather):
-                for d in range(2, dims + 2):
-                    m = mask.narrow(d, t, 1)
-                    m *= ((1.0/feather) * (t + 1))
-                    m = mask.narrow(d, mask.shape[d] -1 -t, 1)
-                    m *= ((1.0/feather) * (t + 1))
+
+            for d in range(2, dims + 2):
+                feather = round(get_upscale(d - 2, overlap[d - 2]))
+                if feather >= mask.shape[d]:
+                    continue
+                for t in range(feather):
+                    a = (t + 1) / feather
+                    mask.narrow(d, t, 1).mul_(a)
+                    mask.narrow(d, mask.shape[d] - 1 - t, 1).mul_(a)
 
             o = out
             o_d = out_div
@@ -750,8 +818,8 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_
                 o = o.narrow(d + 2, upscaled[d], mask.shape[d + 2])
                 o_d = o_d.narrow(d + 2, upscaled[d], mask.shape[d + 2])
 
-            o += ps * mask
-            o_d += mask
+            o.add_(ps * mask)
+            o_d.add_(mask)
 
             if pbar is not None:
                 pbar.update(1)
@@ -790,3 +858,65 @@ class ProgressBar:
 
     def update(self, value):
         self.update_absolute(self.current + value)
+
+def reshape_mask(input_mask, output_shape):
+    dims = len(output_shape) - 2
+
+    if dims == 1:
+        scale_mode = "linear"
+
+    if dims == 2:
+        input_mask = input_mask.reshape((-1, 1, input_mask.shape[-2], input_mask.shape[-1]))
+        scale_mode = "bilinear"
+
+    if dims == 3:
+        if len(input_mask.shape) < 5:
+            input_mask = input_mask.reshape((1, 1, -1, input_mask.shape[-2], input_mask.shape[-1]))
+        scale_mode = "trilinear"
+
+    mask = torch.nn.functional.interpolate(input_mask, size=output_shape[2:], mode=scale_mode)
+    if mask.shape[1] < output_shape[1]:
+        mask = mask.repeat((1, output_shape[1]) + (1,) * dims)[:,:output_shape[1]]
+    mask = repeat_to_batch_size(mask, output_shape[0])
+    return mask
+
+def upscale_dit_mask(mask: torch.Tensor, img_size_in, img_size_out):
+        hi, wi = img_size_in
+        ho, wo = img_size_out
+        # if it's already the correct size, no need to do anything
+        if (hi, wi) == (ho, wo):
+            return mask
+        if mask.ndim == 2:
+            mask = mask.unsqueeze(0)
+        if mask.ndim != 3:
+            raise ValueError(f"Got a mask of shape {list(mask.shape)}, expected [b, q, k] or [q, k]")
+        txt_tokens = mask.shape[1] - (hi * wi)
+        # quadrants of the mask
+        txt_to_txt = mask[:, :txt_tokens, :txt_tokens]
+        txt_to_img = mask[:, :txt_tokens, txt_tokens:]
+        img_to_img = mask[:, txt_tokens:, txt_tokens:]
+        img_to_txt = mask[:, txt_tokens:, :txt_tokens]
+
+        # convert to 1d x 2d, interpolate, then back to 1d x 1d
+        txt_to_img = rearrange  (txt_to_img, "b t (h w) -> b t h w", h=hi, w=wi)
+        txt_to_img = interpolate(txt_to_img, size=img_size_out, mode="bilinear")
+        txt_to_img = rearrange  (txt_to_img, "b t h w -> b t (h w)")
+        # this one is hard because we have to do it twice
+        # convert to 1d x 2d, interpolate, then to 2d x 1d, interpolate, then 1d x 1d
+        img_to_img = rearrange  (img_to_img, "b hw (h w) -> b hw h w", h=hi, w=wi)
+        img_to_img = interpolate(img_to_img, size=img_size_out, mode="bilinear")
+        img_to_img = rearrange  (img_to_img, "b (hk wk) hq wq -> b (hq wq) hk wk", hk=hi, wk=wi)
+        img_to_img = interpolate(img_to_img, size=img_size_out, mode="bilinear")
+        img_to_img = rearrange  (img_to_img, "b (hq wq) hk wk -> b (hk wk) (hq wq)", hq=ho, wq=wo)
+        # convert to 2d x 1d, interpolate, then back to 1d x 1d
+        img_to_txt = rearrange  (img_to_txt, "b (h w) t -> b t h w", h=hi, w=wi)
+        img_to_txt = interpolate(img_to_txt, size=img_size_out, mode="bilinear")
+        img_to_txt = rearrange  (img_to_txt, "b t h w -> b (h w) t")
+
+        # reassemble the mask from blocks
+        out = torch.cat([
+            torch.cat([txt_to_txt, txt_to_img], dim=2),
+            torch.cat([img_to_txt, img_to_img], dim=2)],
+            dim=1
+        )
+        return out

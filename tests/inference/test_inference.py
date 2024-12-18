@@ -1,6 +1,5 @@
 from copy import deepcopy
 from io import BytesIO
-from urllib import request
 import numpy
 import os
 from PIL import Image

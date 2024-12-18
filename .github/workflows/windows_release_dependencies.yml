@@ -12,7 +12,7 @@ on:
         description: 'extra dependencies'
         required: false
         type: string
-        default: "\"numpy<2\""
+        default: ""
       cu:
         description: 'cuda version'
         required: true
@@ -23,13 +23,13 @@ on:
         description: 'python minor version'
         required: true
         type: string
-        default: "11"
+        default: "12"
 
       python_patch:
         description: 'python patch version'
         required: true
         type: string
-        default: "9"
+        default: "7"
 #  push:
 #    branches:
 #      - master

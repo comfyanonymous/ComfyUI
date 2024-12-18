@@ -12,17 +12,17 @@ on:
         description: 'CUDA version'
         required: true
         type: string
-        default: "121"
+        default: "124"
       python_minor:
         description: 'Python minor version'
         required: true
         type: string
-        default: "11"
+        default: "12"
       python_patch:
         description: 'Python patch version'
         required: true
         type: string
-        default: "9"
+        default: "7"
 
 
 jobs:

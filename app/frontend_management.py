@@ -151,6 +151,15 @@ class FrontendManager:
             return cls.DEFAULT_FRONTEND_PATH
 
         repo_owner, repo_name, version = cls.parse_version_string(version_string)
+
+        if version.startswith("v"):
+            expected_path = str(Path(cls.CUSTOM_FRONTENDS_ROOT) / f"{repo_owner}_{repo_name}" / version.lstrip("v"))
+            if os.path.exists(expected_path):
+                logging.info(f"Using existing copy of specific frontend version tag: {repo_owner}/{repo_name}@{version}")
+                return expected_path
+
+        logging.info(f"Initializing frontend: {repo_owner}/{repo_name}@{version}, requesting version details from GitHub...")
+
         provider = provider or FrontEndProvider(repo_owner, repo_name)
         release = provider.get_release(version)
 

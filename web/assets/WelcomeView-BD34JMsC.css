@@ -1,0 +1,36 @@
+
+.animated-gradient-text[data-v-c4d014c5] {
+  font-weight: 700;
+  font-size: clamp(2rem, 8vw, 4rem);
+  background: linear-gradient(to right, #12c2e9, #c471ed, #f64f59, #12c2e9);
+  background-size: 300% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-c4d014c5 8s linear infinite;
+}
+.text-glow[data-v-c4d014c5] {
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
+}
+@keyframes gradient-c4d014c5 {
+0% {
+    background-position: 0% center;
+}
+100% {
+    background-position: 300% center;
+}
+}
+.fade-in-up[data-v-c4d014c5] {
+  animation: fadeInUp-c4d014c5 1.5s ease-out;
+  animation-fill-mode: both;
+}
+@keyframes fadeInUp-c4d014c5 {
+0% {
+    opacity: 0;
+    transform: translateY(20px);
+}
+100% {
+    opacity: 1;
+    transform: translateY(0);
+}
+}

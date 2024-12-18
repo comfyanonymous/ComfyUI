@@ -2,7 +2,7 @@
 
 import torch
 from torch import nn
-from typing import Literal, Dict, Any
+from typing import Literal
 import math
 import comfy.ops
 ops = comfy.ops.disable_weight_init
@@ -97,7 +97,7 @@ def get_activation(activation: Literal["elu", "snake", "none"], antialias=False,
         raise ValueError(f"Unknown activation {activation}")
 
     if antialias:
-        act = Activation1d(act)
+        act = Activation1d(act)  # noqa: F821 Activation1d is not defined
 
     return act
 

@@ -1,10 +1,9 @@
 #code taken from: https://github.com/wl-zhao/UniPC and modified
 
 import torch
-import torch.nn.functional as F
 import math
 
-from tqdm.auto import trange, tqdm
+from tqdm.auto import trange
 
 
 class NoiseScheduleVP:
@@ -16,7 +15,7 @@ class NoiseScheduleVP:
             continuous_beta_0=0.1,
             continuous_beta_1=20.,
         ):
-        """Create a wrapper class for the forward SDE (VP type).
+        r"""Create a wrapper class for the forward SDE (VP type).
 
         ***
         Update: We support discrete-time diffusion models by implementing a picewise linear interpolation for log_alpha_t.
@@ -704,7 +703,6 @@ class UniPC:
     ):
         # t_0 = 1. / self.noise_schedule.total_N if t_end is None else t_end
         # t_T = self.noise_schedule.T if t_start is None else t_start
-        device = x.device
         steps = len(timesteps) - 1
         if method == 'multistep':
             assert steps >= order

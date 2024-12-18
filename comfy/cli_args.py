@@ -36,7 +36,7 @@ class EnumAction(argparse.Action):
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("--listen", type=str, default="127.0.0.1", metavar="IP", nargs="?", const="0.0.0.0", help="Specify the IP address to listen on (default: 127.0.0.1). If --listen is provided without an argument, it defaults to 0.0.0.0. (listens on all)")
+parser.add_argument("--listen", type=str, default="127.0.0.1", metavar="IP", nargs="?", const="0.0.0.0,::", help="Specify the IP address to listen on (default: 127.0.0.1). You can give a list of ip addresses by separating them with a comma like: 127.2.2.2,127.3.3.3 If --listen is provided without an argument, it defaults to 0.0.0.0,:: (listens on all ipv4 and ipv6)")
 parser.add_argument("--port", type=int, default=8188, help="Set the listen port.")
 parser.add_argument("--tls-keyfile", type=str, help="Path to TLS (SSL) key file. Enables TLS, makes app accessible at https://... requires --tls-certfile to function")
 parser.add_argument("--tls-certfile", type=str, help="Path to TLS (SSL) certificate file. Enables TLS, makes app accessible at https://... requires --tls-keyfile to function")
@@ -60,8 +60,10 @@ fp_group.add_argument("--force-fp32", action="store_true", help="Force fp32 (If 
 fp_group.add_argument("--force-fp16", action="store_true", help="Force fp16.")
 
 fpunet_group = parser.add_mutually_exclusive_group()
-fpunet_group.add_argument("--bf16-unet", action="store_true", help="Run the UNET in bf16. This should only be used for testing stuff.")
-fpunet_group.add_argument("--fp16-unet", action="store_true", help="Store unet weights in fp16.")
+fpunet_group.add_argument("--fp32-unet", action="store_true", help="Run the diffusion model in fp32.")
+fpunet_group.add_argument("--fp64-unet", action="store_true", help="Run the diffusion model in fp64.")
+fpunet_group.add_argument("--bf16-unet", action="store_true", help="Run the diffusion model in bf16.")
+fpunet_group.add_argument("--fp16-unet", action="store_true", help="Run the diffusion model in fp16")
 fpunet_group.add_argument("--fp8_e4m3fn-unet", action="store_true", help="Store unet weights in fp8_e4m3fn.")
 fpunet_group.add_argument("--fp8_e5m2-unet", action="store_true", help="Store unet weights in fp8_e5m2.")
 
@@ -91,6 +93,8 @@ class LatentPreviewMethod(enum.Enum):
     TAESD = "taesd"
 
 parser.add_argument("--preview-method", type=LatentPreviewMethod, default=LatentPreviewMethod.NoPreviews, help="Default preview method for sampler nodes.", action=EnumAction)
+
+parser.add_argument("--preview-size", type=int, default=512, help="Sets the maximum preview size for sampler nodes.")
 
 cache_group = parser.add_mutually_exclusive_group()
 cache_group.add_argument("--cache-classic", action="store_true", help="Use the old style (aggressive) caching.")
@@ -134,7 +138,7 @@ parser.add_argument("--disable-all-custom-nodes", action="store_true", help="Dis
 
 parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
-parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
+parser.add_argument("--verbose", default='INFO', const='DEBUG', nargs="?", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set the logging level')
 
 # The default built-in provider hosted under web/
 DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
@@ -169,6 +173,8 @@ parser.add_argument(
     help="The local filesystem path to the directory where the frontend is located. Overrides --front-end-version.",
 )
 
+parser.add_argument("--user-directory", type=is_valid_directory, default=None, help="Set the ComfyUI user directory with an absolute path.")
+
 if comfy.options.args_parsing:
     args = parser.parse_args()
 else:
@@ -179,10 +185,3 @@ if args.windows_standalone_build:
 
 if args.disable_auto_launch:
     args.auto_launch = False
-
-import logging
-logging_level = logging.INFO
-if args.verbose:
-    logging_level = logging.DEBUG
-
-logging.basicConfig(format="%(message)s", level=logging_level)

@@ -2,8 +2,7 @@ import comfy.samplers
 import comfy.utils
 import torch
 import numpy as np
-from tqdm.auto import trange, tqdm
-import math
+from tqdm.auto import trange
 
 
 @torch.no_grad()

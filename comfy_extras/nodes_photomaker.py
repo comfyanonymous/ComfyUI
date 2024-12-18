@@ -16,6 +16,7 @@ VISION_CONFIG_DICT = {
     "patch_size": 14,
     "projection_dim": 768,
     "hidden_act": "quick_gelu",
+    "model_type": "clip_vision_model",
 }
 
 class MLP(nn.Module):
@@ -126,7 +127,7 @@ class PhotoMakerLoader:
     CATEGORY = "_for_testing/photomaker"
 
     def load_photomaker_model(self, photomaker_model_name):
-        photomaker_model_path = folder_paths.get_full_path("photomaker", photomaker_model_name)
+        photomaker_model_path = folder_paths.get_full_path_or_raise("photomaker", photomaker_model_name)
         photomaker_model = PhotoMakerIDEncoder()
         data = comfy.utils.load_torch_file(photomaker_model_path, safe_load=True)
         if "id_encoder" in data:

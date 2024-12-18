@@ -1,0 +1,23 @@
+name: Python Linting
+
+on: [push, pull_request]
+
+jobs:
+  ruff:
+    name: Run Ruff
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.x
+
+    - name: Install Ruff
+      run: pip install ruff
+
+    - name: Run Ruff
+      run: ruff check .
