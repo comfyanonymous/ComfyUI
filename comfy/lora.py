@@ -384,6 +384,7 @@ def model_lora_keys_unet(model, key_map={}):
                 key_lora = key_lora.replace(".modulation.lin.", ".modulation.linear.")
                 key_lora = key_lora[len("diffusion_model."):-len(".weight")]
                 key_map["transformer.{}".format(key_lora)] = k
+                key_map["diffusion_model.{}".format(key_lora)] = k  # Old loras
 
     return key_map
 
