@@ -837,6 +837,8 @@ def cast_to_device(tensor, device, dtype, copy=False):
     non_blocking = device_supports_non_blocking(device)
     return cast_to(tensor, dtype=dtype, device=device, non_blocking=non_blocking, copy=copy)
 
+def sage_attention_enabled():
+    return args.use_sage_attention
 
 def xformers_enabled():
     global directml_enabled
