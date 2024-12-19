@@ -25,6 +25,11 @@ import sys
 import platform
 import weakref
 import gc
+import os
+
+
+FORCE_SOFT_EMPTY_CACHE = os.getenv("FORCE_SOFT_EMPTY_CACHE", "0") == "1"
+
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -1061,7 +1066,7 @@ def supports_fp8_compute(device=None):
 
     return True
 
-def soft_empty_cache(force=False):
+def soft_empty_cache(force: bool = FORCE_SOFT_EMPTY_CACHE):
     global cpu_state
     if cpu_state == CPUState.MPS:
         torch.mps.empty_cache()
