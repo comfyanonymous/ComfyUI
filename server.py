@@ -750,6 +750,10 @@ class PromptServer():
         image_type = image_data[0]
         image = image_data[1]
         max_size = image_data[2]
+        if len(image_data) > 3:
+            event = image_data[3]
+            while not event.query():
+                await asyncio.sleep(.01)
         if max_size is not None:
             if hasattr(Image, 'Resampling'):
                 resampling = Image.Resampling.BILINEAR
