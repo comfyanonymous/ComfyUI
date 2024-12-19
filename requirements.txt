@@ -34,3 +34,4 @@ aio_pika
 torchao
 insightface
 onnxruntime-gpu
+cairosvg

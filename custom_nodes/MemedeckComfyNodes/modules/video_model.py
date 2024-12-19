@@ -16,23 +16,52 @@ class GenesisModifiedCrossAttention(nn.Module):
         total_steps = transformer_options.get('total_steps', 0)
         attn_bank = transformer_options.get('attn_bank', None)
         sample_mode = transformer_options.get('sample_mode', None)
+
         if attn_bank is not None and self.idx in attn_bank['block_map']:
             len_conds = len(transformer_options['cond_or_uncond'])
             pred_order = transformer_options['pred_order']
-            if sample_mode == 'forward' and total_steps-step-1 < attn_bank['save_steps']:
-                step_idx = f'{pred_order}_{total_steps-step-1}'
-                attn_bank['block_map'][self.idx][step_idx] = x.cpu()
+            block_map_entry = attn_bank['block_map'][self.idx]  # Pre-compute lookup
+
+            if sample_mode == 'forward' and total_steps - step - 1 < attn_bank['save_steps']:
+                step_idx = f'{pred_order}_{total_steps - step - 1}'
+                block_map_entry[step_idx] = x.cpu()  
             elif sample_mode == 'reverse' and step < attn_bank['inject_steps']:
                 step_idx = f'{pred_order}_{step}'
                 inject_settings = attn_bank.get('inject_settings', {})
-                if len(inject_settings) > 0:
-                    inj = attn_bank['block_map'][self.idx][step_idx].to(x.device).repeat(len_conds, 1, 1)
-                if 'q' in inject_settings:
-                    x = inj
-                if 'k' in inject_settings:
-                    context = inj
-                if 'v' in inject_settings:
-                    context_v = inj
+                if inject_settings:
+                    inj = block_map_entry[step_idx].to(x.device).repeat(len_conds, 1, 1)
+                    # Use a dictionary or function to map settings to actions
+                    if 'q' in inject_settings:
+                        x = inj
+                    if 'k' in inject_settings:
+                        context = inj
+                    if 'v' in inject_settings:
+                        context_v = inj
+    # def forward(self, x, context=None, mask=None, pe=None, transformer_options={}):
+    #     context = x if context is None else context
+    #     context_v = x if context is None else context
+
+    #     step = transformer_options.get('step', -1)
+    #     total_steps = transformer_options.get('total_steps', 0)
+    #     attn_bank = transformer_options.get('attn_bank', None)
+    #     sample_mode = transformer_options.get('sample_mode', None)
+    #     if attn_bank is not None and self.idx in attn_bank['block_map']:
+    #         len_conds = len(transformer_options['cond_or_uncond'])
+    #         pred_order = transformer_options['pred_order']
+    #         if sample_mode == 'forward' and total_steps-step-1 < attn_bank['save_steps']:
+    #             step_idx = f'{pred_order}_{total_steps-step-1}'
+    #             attn_bank['block_map'][self.idx][step_idx] = x.cpu()
+    #         elif sample_mode == 'reverse' and step < attn_bank['inject_steps']:
+    #             step_idx = f'{pred_order}_{step}'
+    #             inject_settings = attn_bank.get('inject_settings', {})
+    #             if len(inject_settings) > 0:
+    #                 inj = attn_bank['block_map'][self.idx][step_idx].to(x.device).repeat(len_conds, 1, 1)
+    #             if 'q' in inject_settings:
+    #                 x = inj
+    #             if 'k' in inject_settings:
+    #                 context = inj
+    #             if 'v' in inject_settings:
+    #                 context_v = inj
 
         q = self.to_q(x)
         k = self.to_k(context)

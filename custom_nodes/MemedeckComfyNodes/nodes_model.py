@@ -112,6 +112,7 @@ class MD_ImgToVideo:
                 }),
                 "terminal": ("FLOAT", {
                     "default": 0.1,
+                    "step": 0.01,
                     "description": "The terminal values of the sigmas after stretching."
                 }),
                 # ATTENTION OVERRIDE INPUTS
@@ -192,7 +193,16 @@ class MD_ImgToVideo:
         image_latent = image_latent['samples']
         latent = latent['samples'].clone()
         
-        # Convert negative index to positive
+        # # Convert negative index to positive
+        # if insert:
+        #     index = max(0, min(index, latent.shape[2]))  # Clamp index
+        #     latent = torch.cat([
+        #         latent[:,:,:index],
+        #         image_latent[:,:,0:1],
+        #         latent[:,:,index:]
+        #     ], dim=2)
+        # else:
+        #     latent[:,:,index] = image_latent[:,:,0]
         if insert:
             # Handle insertion
             if index == 0:
@@ -227,13 +237,19 @@ class MD_ImgToVideo:
             return False
     
     def attention_override(self, layers: str = "14"):
-        layers_map = set([])
-        for block in layers.split(','):
-            block = block.strip()
-            if self.is_integer(block):
-                layers_map.add(block)
+        try:
+            return set(map(int, layers.split(','))) 
+        except ValueError:
+            return set()
+        
+        # layers_map = set([])
+        # return set(map(int, layers.split(','))) 
+        # for block in layers.split(','):
+        #     block = block.strip()
+        #     if self.is_integer(block):
+        #         layers_map.add(block)
 
-        return layers_map
+        # return layers_map
     
     def apply_attention_override(self, model, scale, rescale, cfg, attention_override: set):
         m = model.clone()

@@ -60,6 +60,7 @@ class MemedeckWorker:
         self.queue_name = os.getenv('QUEUE_NAME') or 'generic-queue'
         self.api_url = os.getenv('API_ADDRESS') or 'http://0.0.0.0:8079/v2'
         self.api_key = os.getenv('API_KEY') or 'eb46e20a-cc25-4ed4-a39b-f47ca8ff3383'
+        self.is_dev = os.getenv('IS_DEV') or False
         
         self.training_only = os.getenv('TRAINING_ONLY') or False
         self.video_gen_only = False
@@ -163,6 +164,7 @@ class MemedeckWorker:
         
         end_node_id = None
         video_source_image_id = None
+        output_asset_id = None # output asset id
         
         # Find the end_node_id
         if not self.video_gen_only and not self.training_only:
@@ -173,6 +175,7 @@ class MemedeckWorker:
         elif self.video_gen_only:
             end_node_id = payload['end_node_id']
             video_source_image_id = payload['image_id']
+            output_asset_id = payload['output_asset_id']
         elif self.training_only:
             end_node_id = "130"
             
@@ -216,6 +219,7 @@ class MemedeckWorker:
             # video data
             "image_id": video_source_image_id,
             "user_id": user_id,
+            "output_asset_id": output_asset_id,
         }
 
         if valid[0]:
@@ -404,12 +408,16 @@ class MemedeckWorker:
                     "image_id": task['image_id'],
                     "user_id": task['user_id'],
                     "status": "generating",
+                    "output_asset_id": task['output_asset_id'],
                     "progress": percentage * 0.9 # 90% of the progress is the gen step, 10% is the video encode step
                 })
             
         if event == "executed":
             if data['node'] == task['end_node_id']:
                 filename = data['output']['images'][0]['filename']
+                metadata = json.loads(data['output']['metadata'][0])
+                
+                self.logger.info(f"[memedeck]: video gen completed {metadata}")
 
                 current_dir = os.path.dirname(os.path.abspath(__file__))
                 file_path = os.path.join(current_dir, "output", filename)
@@ -431,7 +439,9 @@ class MemedeckWorker:
                     "image_id": task['image_id'],
                     "user_id": task['user_id'],
                     "status": "completed",
-                    "output_video_url": url
+                    "output_video_url": url,
+                    "output_asset_id": task['output_asset_id'],
+                    "metadata": metadata
                 })
                 # video gen task is done
                 del self.tasks_by_ws_id[sid]
@@ -513,14 +523,37 @@ class MemedeckWorker:
         if task['workflow'] == 'video_gen':
             api_endpoint = '/generation/video/update'
             
-        # self.logger.info(f"[memedeck]: sending to api: {api_endpoint}")
-        # self.logger.info(f"[memedeck]: data: {data}")
         try:
             # this request is not sending properly for faceswap
             post_func = partial(requests.post, f"{self.api_url}{api_endpoint}", json=data)        
+            # run a second time on another port
             await self.loop.run_in_executor(None, post_func)
         except Exception as e:
-            self.logger.info(f"[memedeck]: error sending to api: {e}")
+            if not self.is_dev:
+                self.logger.info(f"[memedeck]: error sending to api: {e}")
+            
+        if self.is_dev:
+            try:
+                # this request is not sending properly for faceswap
+                post_func_2 = partial(requests.post, f"http://0.0.0.0:9091/v2{api_endpoint}", json=data)        
+                # run a second time on another port
+                await self.loop.run_in_executor(None, post_func_2)
+            except Exception as e:
+                if not self.is_dev:
+                    self.logger.info(f"[memedeck]: error sending to api: {e}")
+            
+            try:
+                # this request is not sending properly for faceswap
+                post_func_3 = partial(requests.post, f"http://0.0.0.0:9092/v2{api_endpoint}", json=data)        
+                # run a second time on another port
+                await self.loop.run_in_executor(None, post_func_3)
+            except Exception as e:
+                if not self.is_dev:
+                    self.logger.info(f"[memedeck]: error sending to api: {e}")
+                    
+        
+        
+        
     
 # --------------------------------------------------------------------------
 # MemedeckAzureStorage
