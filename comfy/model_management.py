@@ -75,7 +75,7 @@ if args.directml is not None:
 try:
     import intel_extension_for_pytorch as ipex
     _ = torch.xpu.device_count()
-    xpu_available = torch.xpu.is_available()
+    xpu_available = xpu_available or torch.xpu.is_available()
 except:
     xpu_available = xpu_available or (hasattr(torch, "xpu") and torch.xpu.is_available())
 
@@ -214,11 +214,13 @@ if is_intel_xpu():
 if args.cpu_vae:
     VAE_DTYPES = [torch.float32]
 
-
 if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_math_sdp(True)
     torch.backends.cuda.enable_flash_sdp(True)
     torch.backends.cuda.enable_mem_efficient_sdp(True)
+
+if int(torch_version[0]) == 2 and int(torch_version[2]) <= 5:
+    torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
 
 if args.lowvram:
     set_vram_to = VRAMState.LOW_VRAM
