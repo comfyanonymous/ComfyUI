@@ -751,7 +751,7 @@ def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
     return rows * cols
 
 @torch.inference_mode()
-def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
+def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_amount=4, out_channels=3, output_device="cpu", downscale=False, pbar=None):
     dims = len(tile)
 
     if not (isinstance(upscale_amount, (tuple, list))):
@@ -767,10 +767,22 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_
         else:
             return up * val
 
+    def get_downscale(dim, val):
+        up = upscale_amount[dim]
+        if callable(up):
+            return up(val)
+        else:
+            return val / up
+
+    if downscale:
+        get_scale = get_downscale
+    else:
+        get_scale = get_upscale
+
     def mult_list_upscale(a):
         out = []
         for i in range(len(a)):
-            out.append(round(get_upscale(i, a[i])))
+            out.append(round(get_scale(i, a[i])))
         return out
 
     output = torch.empty([samples.shape[0], out_channels] + mult_list_upscale(samples.shape[2:]), device=output_device)
@@ -798,13 +810,13 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_
                 pos = max(0, min(s.shape[d + 2] - (overlap[d] + 1), it[d]))
                 l = min(tile[d], s.shape[d + 2] - pos)
                 s_in = s_in.narrow(d + 2, pos, l)
-                upscaled.append(round(get_upscale(d, pos)))
+                upscaled.append(round(get_scale(d, pos)))
 
             ps = function(s_in).to(output_device)
             mask = torch.ones_like(ps)
 
             for d in range(2, dims + 2):
-                feather = round(get_upscale(d - 2, overlap[d - 2]))
+                feather = round(get_scale(d - 2, overlap[d - 2]))
                 if feather >= mask.shape[d]:
                     continue
                 for t in range(feather):
@@ -828,7 +840,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_
     return output
 
 def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
-    return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap, upscale_amount, out_channels, output_device, pbar)
+    return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=output_device, pbar=pbar)
 
 PROGRESS_BAR_ENABLED = True
 def set_progress_bar_enabled(enabled):
