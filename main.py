@@ -228,10 +228,10 @@ def cleanup_temp():
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def start_comfyui():
+def start_comfyui(asyncio_loop=None):
     """
-    Start the ComfyUI server. This function sets up the event loop, the server,
-    and runs until completion. It returns references that can be used elsewhere.
+    Starts the ComfyUI server using the provided asyncio event loop or creates a new one.
+    Returns the event loop, server instance, and a function to start the server asynchronously.
     """
     if args.temp_directory:
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
@@ -246,8 +246,9 @@ def start_comfyui():
         except:
             pass
 
-    asyncio_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(asyncio_loop)
+    if not asyncio_loop:
+        asyncio_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(asyncio_loop)
     prompt_server = server.PromptServer(asyncio_loop)
     q = execution.PromptQueue(prompt_server)
 
@@ -280,12 +281,12 @@ def start_comfyui():
         await run(prompt_server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start)
 
     # Returning these so that other code can integrate with the ComfyUI loop and server
-    return asyncio_loop, start_all
+    return asyncio_loop, prompt_server, start_all
 
 
 if __name__ == "__main__":
     # Running directly, just start ComfyUI.
-    event_loop, start_all_func = start_comfyui()
+    event_loop, _, start_all_func = start_comfyui()
     try:
         event_loop.run_until_complete(start_all_func())
     except KeyboardInterrupt:
