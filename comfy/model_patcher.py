@@ -19,6 +19,23 @@
 from __future__ import annotations
 from typing import Optional, Callable
 import torch
+import torch.nn as nn
+
+try:
+    from torch._dynamo import OptimizedModule
+except ImportError:
+    class OptimizedModule(nn.Module):
+        """Mock OptimizedModule if torch._dynamo is not available."""
+
+        def __init__(self, *args, **kwargs):
+            super().__init__()
+            # Initialize any additional attributes if necessary
+
+        def forward(self, *inputs, **kwargs):
+            raise NotImplementedError(
+                "OptimizedModule is not available. Please install a version of PyTorch with torch._dynamo support."
+            )
+
 import copy
 import inspect
 import logging
@@ -673,7 +690,8 @@ class ModelPatcher:
 
             for m in self.model.modules():
                 if hasattr(m, "comfy_patched_weights"):
-                    del m.comfy_patched_weights
+                    if not isinstance(m, OptimizedModule):
+                        del m.comfy_patched_weights
 
         keys = list(self.object_patches_backup.keys())
         for k in keys:
