@@ -344,13 +344,26 @@ def model_lora_keys_unet(model, key_map={}):
                 key_lora = "lycoris_{}".format(k[:-len(".weight")].replace(".", "_")) #simpletuner lycoris format
                 key_map[key_lora] = to
 
-
     if isinstance(model, comfy.model_base.AuraFlow): #Diffusers lora AuraFlow
         diffusers_keys = comfy.utils.auraflow_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
         for k in diffusers_keys:
             if k.endswith(".weight"):
                 to = diffusers_keys[k]
                 key_lora = "transformer.{}".format(k[:-len(".weight")]) #simpletrainer and probably regular diffusers lora format
+                key_map[key_lora] = to
+
+    if isinstance(model, comfy.model_base.PixArt):
+        diffusers_keys = comfy.utils.pixart_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
+        for k in diffusers_keys:
+            if k.endswith(".weight"):
+                to = diffusers_keys[k]
+                key_lora = "transformer.{}".format(k[:-len(".weight")]) #default format
+                key_map[key_lora] = to
+
+                key_lora = "base_model.model.{}".format(k[:-len(".weight")]) #diffusers training script
+                key_map[key_lora] = to
+
+                key_lora = "unet.base_model.model.{}".format(k[:-len(".weight")]) #old reference peft script
                 key_map[key_lora] = to
 
     if isinstance(model, comfy.model_base.HunyuanDiT):
