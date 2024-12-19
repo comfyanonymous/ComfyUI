@@ -1,9 +1,16 @@
+from typing import Tuple
+from math import ceil
+
 import nodes
 import folder_paths
 from comfy.cli_args import args
 
-from PIL import Image
+from torch import Tensor
+from torchvision.transforms.v2.functional import to_pil_image, to_image  # type: ignore
+from PIL import Image, ImageDraw
 from PIL.PngImagePlugin import PngInfo
+
+from comfy.fonts import FontCollection, AnyFont
 
 import numpy as np
 import json
@@ -32,6 +39,163 @@ class ImageCrop:
         to_y = height + y
         img = image[:,y:to_y, x:to_x, :]
         return (img,)
+
+class ImageLabel:
+    fonts = FontCollection()
+
+    @classmethod
+    def INPUT_TYPES(s):
+        font_names = list(s.fonts.keys())
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "font": (font_names, {"default": s.fonts.default_font_name}),
+                "label": ("STRING", {"multiline": True}),
+                "position": (["top", "bottom"],),
+                "text_size": ("INT", {"default": 48, "min": 4}),
+                "padding": ("INT", {"default": 24}),
+                "line_spacing": ("INT", {"default": 5}),
+                "text_color": ("STRING", {"default": "#fff"}),
+                "background_color": ("STRING", {"default": "#000"}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "label"
+
+    CATEGORY = "image/transform"
+
+    def label(
+        self,
+        image: Tensor,
+        font: str,
+        label: str,
+        text_size: int,
+        padding: int,
+        line_spacing: int,
+        position: str,
+        text_color: str,
+        background_color: str,
+    ):
+        """
+        Extends an image at the top or bottom to add a label.
+
+        Args:
+            image (Tensor): The input image as a tensor with shape [1, H, W, C].
+            font (str): The font name to be used for the label.
+            label (str): The text of the label.
+            text_size (int): The size of the label text in pixels.
+            padding (int): Padding around the label text in pixels.
+            line_spacing (int): Spacing between lines of the label.
+            position (str): Position of the label, either 'top' or 'bottom'.
+            text_color (str): Color of the label text as a hex reference.
+            background_color (str): Background color of the label area as a hex reference.
+
+        Returns:
+            Tensor: The image with the label added, as a tensor with shape [1, H, W, C].
+
+        Raises:
+            ValueError: If an invalid position is provided.
+        """
+
+        original_image = to_pil_image(image.squeeze(0).permute(2, 0, 1))
+        width, height = original_image.size
+        font_obj: AnyFont = self.fonts[font].font_variant(size=text_size)
+
+        _, label_height, text_size = self.calculate_label_dimensions(
+            font_obj, label, text_size, line_spacing, padding, width
+        )
+
+        label_image = self.draw_label(
+            font_obj, label, width, label_height, line_spacing, text_color, background_color
+        )
+
+        combined_image = Image.new("RGB", (width, height + label_height + line_spacing), (0, 0, 0))
+        if position == "top":
+            combined_image.paste(original_image, (0, label_height))
+            combined_image.paste(label_image, (0, 0))
+        elif position == "bottom":
+            combined_image.paste(label_image, (0, height))
+            combined_image.paste(original_image, (0, 0))
+        else:
+            raise ValueError(f"Unknown position: {position}")
+
+        return (to_image(combined_image) / 255.0).permute(1, 2, 0)[None, None, ...]
+
+    def calculate_label_dimensions(
+        self, font: AnyFont, label: str, text_size: int, line_spacing: int, padding: int, max_width: float
+    ) -> Tuple[int, int, int]:
+        """
+        Calculate the dimensions needed to draw a label within an image.
+
+        This will reduce the font size where necessary to make the text fit.
+
+        Args:
+            font (AnyFont): The Pillow font to use.
+            label (str): The text to calculate dimensions for.
+            text_size (int): Starting font size for the label.
+            line_spacing (int): Spacing between lines of text.
+            padding (int): Padding around the text.
+            max_width (float): Maximum allowed width for the text box.
+
+        Returns:
+            tuple[int, int, int]: The calculated width, height, and final font size.
+        """
+
+        while True:
+            temp_image = Image.new("RGB", (1, 1))
+            x1, y1, x2, y2 = ImageDraw.Draw(temp_image).textbbox(
+                xy=(0, 0), text=label, font=font, spacing=line_spacing, align="center"
+            )
+            width = ceil(x2 - x1 + padding * 2)
+            height = ceil(y2 - y1 + padding * 2)
+            if width <= max_width:
+                break
+            text_size -= 1
+            if text_size <= 8:
+                break
+
+        return width, height, text_size
+
+    def draw_label(
+        self,
+        font: AnyFont,
+        label: str,
+        width: int,
+        height: int,
+        line_spacing: int,
+        text_color: str,
+        background_color: str,
+    ) -> Image.Image:
+        """
+        Draws an image containing a label.
+
+        Args:
+            font (AnyFont): The Pillow font to use for text rendering.
+            label (str): The text to use as the label.
+            width (int): Width of the image in pixels.
+            height (int): Height of the image in pixels.
+            line_spacing (int): Spacing between lines of text.
+            text_color (str): Color of the text as a hex reference.
+            background_color (str): Background color of the image as a hex reference.
+
+        Returns:
+            Image: An image object with the label drawn on it.
+        """
+
+        image = Image.new("RGB", (width, height), background_color)
+        draw = ImageDraw.Draw(image)
+        draw.multiline_text(
+            xy=(width / 2, height / 2),
+            text=label,
+            fill=text_color,
+            font=font,
+            anchor="mm",
+            spacing=line_spacing,
+            align="center",
+        )
+        return image
 
 class RepeatImageBatch:
     @classmethod
@@ -188,6 +352,7 @@ class SaveAnimatedPNG:
 
 NODE_CLASS_MAPPINGS = {
     "ImageCrop": ImageCrop,
+    "ImageLabel": ImageLabel,
     "RepeatImageBatch": RepeatImageBatch,
     "ImageFromBatch": ImageFromBatch,
     "SaveAnimatedWEBP": SaveAnimatedWEBP,
