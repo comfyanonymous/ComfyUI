@@ -726,6 +726,10 @@ class PixArt(BaseModel):
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
 
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
         width = kwargs.get("width", None)
         height = kwargs.get("height", None)
         if width is not None and height is not None:

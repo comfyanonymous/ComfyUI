@@ -44,7 +44,7 @@ class PixArtMSBlock(nn.Module):
     def forward(self, x, y, t, mask=None, HW=None, **kwargs):
         B, N, C = x.shape
 
-        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.scale_shift_table[None].to(x.dtype) + t.reshape(B, 6, -1)).chunk(6, dim=1)
+        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.scale_shift_table[None].to(dtype=x.dtype, device=x.device) + t.reshape(B, 6, -1)).chunk(6, dim=1)
         x = x + (gate_msa * self.attn(t2i_modulate(self.norm1(x), shift_msa, scale_msa), HW=HW))
         x = x + self.cross_attn(x, y, mask)
         x = x + (gate_mlp * self.mlp(t2i_modulate(self.norm2(x), shift_mlp, scale_mlp)))
@@ -196,7 +196,7 @@ class PixArtMS(PixArt):
             y = y.squeeze(1).masked_select(mask.unsqueeze(-1) != 0).view(1, -1, x.shape[-1])
             y_lens = mask.sum(dim=1).tolist()
         else:
-            y_lens = [y.shape[2]] * y.shape[0]
+            y_lens = None
             y = y.squeeze(1).view(1, -1, x.shape[-1])
         for block in self.blocks:
             x = block(x, y, t0, y_lens, (H, W), **kwargs)  # (N, T, D)
