@@ -63,7 +63,7 @@ def execute_prestartup_script():
             spec.loader.exec_module(module)
             return True
         except Exception as e:
-            print(f"Failed to execute startup-script: {script_path} / {e}")
+            logging.error(f"Failed to execute startup-script: {script_path} / {e}")
         return False
 
     if args.disable_all_custom_nodes:
@@ -85,14 +85,14 @@ def execute_prestartup_script():
                 success = execute_script(script_path)
                 node_prestartup_times.append((time.perf_counter() - time_before, module_path, success))
     if len(node_prestartup_times) > 0:
-        print("\nPrestartup times for custom nodes:")
+        logging.info("\nPrestartup times for custom nodes:")
         for n in sorted(node_prestartup_times):
             if n[2]:
                 import_message = ""
             else:
                 import_message = " (PRESTARTUP FAILED)"
-            print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
-        print()
+            logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
+        logging.info("")
 
 apply_custom_paths()
 execute_prestartup_script()

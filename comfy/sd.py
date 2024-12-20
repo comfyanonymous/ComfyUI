@@ -940,11 +940,11 @@ def load_diffusion_model(unet_path, model_options={}):
     return model
 
 def load_unet(unet_path, dtype=None):
-    print("WARNING: the load_unet function has been deprecated and will be removed please switch to: load_diffusion_model")
+    logging.warning("The load_unet function has been deprecated and will be removed please switch to: load_diffusion_model")
     return load_diffusion_model(unet_path, model_options={"dtype": dtype})
 
 def load_unet_state_dict(sd, dtype=None):
-    print("WARNING: the load_unet_state_dict function has been deprecated and will be removed please switch to: load_diffusion_model_state_dict")
+    logging.warning("The load_unet_state_dict function has been deprecated and will be removed please switch to: load_diffusion_model_state_dict")
     return load_diffusion_model_state_dict(sd, model_options={"dtype": dtype})
 
 def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, metadata=None, extra_keys={}):

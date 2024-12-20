@@ -41,8 +41,7 @@ class ClipTokenWeightEncoder:
                 to_encode.append(self.gen_empty_tokens(self.special_tokens, max_token_len))
             else:
                 to_encode.append(gen_empty_tokens(self.special_tokens, max_token_len))
-            print(to_encode)
-                
+
         o = self.encode(to_encode)
         out, pooled = o[:2]
 
