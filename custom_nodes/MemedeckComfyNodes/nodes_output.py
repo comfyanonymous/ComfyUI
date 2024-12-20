@@ -21,7 +21,7 @@ WATERMARK = """
   <path d="M60.0859 196.8C65.9526 179.067 71.5526 161.667 76.8859 144.6C79.1526 137.4 81.4859 129.867 83.8859 122C86.2859 114.133 88.6859 106.333 91.0859 98.6C93.4859 90.8667 95.6859 83.4 97.6859 76.2C99.8193 69 101.686 62.3333 103.286 56.2C110.619 56.2 117.553 55.8 124.086 55C130.619 54.2 137.686 53.4667 145.286 52.8C144.886 55.7333 144.419 59.0667 143.886 62.8C143.486 66.4 142.953 70.2 142.286 74.2C141.753 78.2 141.153 82.3333 140.486 86.6C139.819 90.8667 139.019 96.3333 138.086 103C137.153 109.667 135.886 118 134.286 128H136.886C140.753 117.867 143.953 109.467 146.486 102.8C149.019 96 151.086 90.4667 152.686 86.2C154.286 81.9333 155.886 77.8 157.486 73.8C159.219 69.6667 160.819 65.8 162.286 62.2C163.886 58.4667 165.353 55.2 166.686 52.4C170.019 52.1333 173.153 51.8 176.086 51.4C179.019 51 181.953 50.6 184.886 50.2C187.819 49.6667 190.753 49.2 193.686 48.8C196.753 48.2667 200.086 47.6667 203.686 47C202.353 54.7333 201.086 62.6667 199.886 70.8C198.686 78.9333 197.619 87.0667 196.686 95.2C195.753 103.2 194.819 111.133 193.886 119C193.086 126.867 192.353 134.333 191.686 141.4C190.086 157.933 188.686 174.067 187.486 189.8L152.686 196C152.686 195.333 152.753 193.533 152.886 190.6C153.153 187.667 153.419 184.067 153.686 179.8C154.086 175.533 154.553 170.8 155.086 165.6C155.753 160.4 156.353 155.2 156.886 150C157.553 144.8 158.219 139.8 158.886 135C159.553 130.067 160.219 125.867 160.886 122.4H159.086C157.219 128 155.153 133.933 152.886 140.2C150.619 146.333 148.286 152.6 145.886 159C143.619 165.4 141.353 171.667 139.086 177.8C136.819 183.933 134.819 189.8 133.086 195.4C128.419 195.533 124.419 195.733 121.086 196C117.753 196.133 113.886 196.333 109.486 196.6L115.886 122.4H112.886C112.619 124.133 111.953 127.067 110.886 131.2C109.819 135.2 108.553 139.867 107.086 145.2C105.753 150.4 104.286 155.867 102.686 161.6C101.086 167.2 99.5526 172.467 98.0859 177.4C96.7526 182.2 95.6193 186.2 94.6859 189.4C93.7526 192.467 93.2193 194.2 93.0859 194.6L60.0859 196.8Z" fill="white"/>
 </svg>
 """
-WATERMARK_SIZE = 32
+WATERMARK_SIZE = 28
 
 class MD_SaveAnimatedWEBP:
     def __init__(self):
@@ -40,7 +40,7 @@ class MD_SaveAnimatedWEBP:
                     "lossless": ("BOOLEAN", {"default": False}),
                     "quality": ("INT", {"default": 90, "min": 0, "max": 100}),
                     "method": (list(s.methods.keys()),),
-                    "crf": ("INT",),
+                    "crf": ("FLOAT",),
                     "motion_prompt": ("STRING", ),
                     "negative_prompt": ("STRING", ),
                     "img2vid_metadata": ("STRING", ),
@@ -67,7 +67,7 @@ class MD_SaveAnimatedWEBP:
         pil_images = [Image.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8)) for image in images]
         
         first_image = pil_images[0]
-        padding = 12
+        padding = 8
         x = first_image.width - WATERMARK_SIZE - padding
         y = first_image.height - WATERMARK_SIZE - padding
         first_image_background_brightness = self.analyze_background_brightness(first_image, x, y, WATERMARK_SIZE)
@@ -116,6 +116,66 @@ class MD_SaveAnimatedWEBP:
             },
         }
         
+    # def save_images(self, images, fps, filename_prefix, lossless, quality, method, crf=None, motion_prompt=None, negative_prompt=None, img2vid_metadata=None, sampler_metadata=None):
+    #     start_time = time.time()
+    #     method = self.methods.get(method)
+    #     filename_prefix += self.prefix_append
+    #     full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
+    #     results = []
+
+    #     # Vectorized conversion to PIL images
+    #     pil_images = [Image.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8)) for image in images]
+        
+    #     first_image = pil_images[0]
+    #     padding = 12
+    #     x = first_image.width - WATERMARK_SIZE - padding
+    #     y = first_image.height - WATERMARK_SIZE - padding
+    #     first_image_background_brightness = self.analyze_background_brightness(first_image, x, y, WATERMARK_SIZE)
+        
+    #     watermarked_images = [self.add_watermark_to_image(img, first_image_background_brightness) for img in pil_images]
+
+    #     metadata = pil_images[0].getexif()
+    #     num_frames = len(pil_images)
+
+    #     json_metadata = {
+    #         "crf": crf,
+    #         "motion_prompt": motion_prompt,
+    #         "negative_prompt": negative_prompt,
+    #         "img2vid_metadata": json.loads(img2vid_metadata),
+    #         "sampler_metadata": json.loads(sampler_metadata),
+    #     }
+
+    #     # Optimized saving logic
+    #     if num_frames == 1:  # Single image, save once
+    #         file = f"{filename}_{counter:05}_.webp"
+    #         watermarked_images[0].save(os.path.join(full_output_folder, file), exif=metadata, lossless=lossless, quality=quality, method=method)
+    #         results.append({
+    #             "filename": file,
+    #             "subfolder": subfolder,
+    #             "type": self.type,
+    #         })
+    #     else: # multiple images, save as animation
+    #         file = f"{filename}_{counter:05}_.webp"
+    #         watermarked_images[0].save(os.path.join(full_output_folder, file), save_all=True, duration=int(1000.0 / fps), append_images=watermarked_images[1:], exif=metadata, lossless=lossless, quality=quality, method=method)
+    #         results.append({
+    #             "filename": file,
+    #             "subfolder": subfolder,
+    #             "type": self.type,
+    #         })
+
+    #     animated = num_frames != 1
+
+    #     end_time = time.time()
+    #     logger.info(f"Save images took: {end_time - start_time} seconds")
+
+    #     return {
+    #         "ui": {
+    #             "images": results,
+    #             "animated": (animated,),
+    #             "metadata": (json.dumps(json_metadata),)
+    #         },
+    #     }
+        
     def add_watermark_to_image(self, img, background_brightness=None):
         """
         Adds a watermark to a single PIL Image.
@@ -127,7 +187,7 @@ class MD_SaveAnimatedWEBP:
         A PIL Image object with the watermark added.
         """
 
-        padding = 12
+        padding = 8
         x = img.width - WATERMARK_SIZE - padding
         y = img.height - WATERMARK_SIZE - padding
 

@@ -143,7 +143,7 @@ class MD_CompressAdjustNode:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "INT", "INT", "INT")
+    RETURN_TYPES = ("IMAGE", "FLOAT", "INT", "INT")
     RETURN_NAMES = ("adjusted_image", "crf", "width", "height")
     FUNCTION = "tensor_to_video_and_back"
     CATEGORY = "MemeDeck"
@@ -291,11 +291,11 @@ class MD_CompressAdjustNode:
         image_cv2 = cv2.cvtColor(np.array(tensor2pil(image)), cv2.COLOR_RGB2BGR)
         # calculate the crf based on the image
         analysis_results = self.analyze_compression_artifacts(image_cv2, width=width, height=height)
-        desired_crf = self.calculate_crf(analysis_results, self.ideal_blockiness, self.ideal_edge_density, 
+        calculated_crf = self.calculate_crf(analysis_results, self.ideal_blockiness, self.ideal_edge_density, 
                   self.ideal_color_variation, self.blockiness_weight, 
                   self.edge_density_weight, self.color_variation_weight)
         
-        logger.info(f"detected crf: {desired_crf}")
+        logger.info(f"detected crf: {calculated_crf}")
         args = [
             utils.ffmpeg_path, 
             "-v", "error", 
