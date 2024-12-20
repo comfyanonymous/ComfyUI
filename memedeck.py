@@ -414,23 +414,24 @@ class MemedeckWorker:
             
         if event == "executed":
             if data['node'] == task['end_node_id']:
-                filename = data['output']['images'][0]['filename']
+                # self.logger.info(f"[memedeck]: video gen completed {data}")
+                file_path = data['output']['gifs'][0]['filename']
                 metadata = json.loads(data['output']['metadata'][0])
                 
                 self.logger.info(f"[memedeck]: video gen completed {metadata}")
 
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                file_path = os.path.join(current_dir, "output", filename)
-                blob_name = f"{task['user_id']}/video_gen/video_{task['image_id'].replace('image:', '')}_{task['prompt_id']}.webp"
+                # current_dir = os.path.dirname(os.path.abspath(__file__))
+                # file_path = os.path.join(current_dir, "output", filename)
+                blob_name = f"{task['user_id']}/video_gen/video_{task['image_id'].replace('image:', '')}_{task['prompt_id']}.mp4"
 
                 # TODO: take the file path and upload to azure blob storage
                 # load image bytes
-                with open(file_path, "rb") as image_file:
-                    image_bytes = image_file.read()
+                with open(file_path, "rb") as video_file:
+                    video_bytes = video_file.read()
                     
                 self.logger.info(f"[memedeck]: video gen completed for {sid}, file={file_path}, blob={blob_name}")
                 
-                url = await self.azure_storage.save_image(blob_name, "image/webp", image_bytes)
+                url = await self.azure_storage.save_image(blob_name, "video/mp4", video_bytes)
 
                 self.logger.info(f"[memedeck]: video gen completed for {sid}, {url}")
                 await self.send_to_api({

@@ -4,3 +4,7 @@ torch
 Pillow
 opencv-python
 torchvision
+lxml
+cairosvg
+
+ltx-video@git+https://github.com/Lightricks/LTX-Video@ltx-video-0.9.1

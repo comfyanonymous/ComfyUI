@@ -23,6 +23,29 @@ import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+def ffmpeg_process(args, file_path, env):
+    res = None
+    frame_data = yield
+    total_frames_output = 0
+    if res != b'':
+        with subprocess.Popen(args + [file_path], stderr=subprocess.PIPE,
+                            stdin=subprocess.PIPE, env=env) as proc:
+            try:
+                while frame_data is not None:
+                    proc.stdin.write(frame_data)
+                    frame_data = yield
+                    total_frames_output+=1
+                proc.stdin.flush()
+                proc.stdin.close()
+                res = proc.stderr.read()
+            except BrokenPipeError as e:
+                res = proc.stderr.read()
+                raise Exception("An error occurred in the ffmpeg subprocess:\n" \
+                        + res.decode("utf-8"))
+    yield total_frames_output
+    if len(res) > 0:
+        print(res.decode("utf-8"), end="", file=sys.stderr)
+
 class MD_LoadImageFromUrl:
     """Load an image from the given URL"""
 
@@ -66,6 +89,13 @@ class MD_ImageToMotionPrompt:
                         "default": "masterpiece, 4k, HDR, cinematic,",
                     },
                 ),
+                "post_prompt": (
+                    "STRING",
+                    {
+                        "multiline": False,
+                        "default": "The scene appears to be from a movie or TV show.",
+                    },
+                ),
                 "prompt": (
                     "STRING",
                     {
@@ -91,7 +121,7 @@ class MD_ImageToMotionPrompt:
     CATEGORY = "MemeDeck"
 
     def generate_completion(
-        self, pre_prompt: str, Image: torch.Tensor, clip, prompt: str, negative_prompt: str, max_tokens: int
+        self, pre_prompt: str, post_prompt: str, Image: torch.Tensor, clip, prompt: str, negative_prompt: str, max_tokens: int
     ) -> Tuple[str]:
         # start a timer
         start_time = time.time()
@@ -104,7 +134,7 @@ class MD_ImageToMotionPrompt:
         end_time = time.time()
         
         logger.info(f"Motion prompt took: {end_time - start_time} seconds")
-        full_prompt = f"{pre_prompt}\n{response.json()['result']}"
+        full_prompt = f"{pre_prompt}\n{response.json()['result']} {post_prompt}"
         
         pos_tokens = clip.tokenize(full_prompt)
         pos_output = clip.encode_from_tokens(pos_tokens, return_pooled=True, return_dict=True)
@@ -165,29 +195,6 @@ class MD_CompressAdjustNode:
 
     def tensor_to_bytes(self, tensor):
         return self.tensor_to_int(tensor, 8).astype(np.uint8)
-
-    def ffmpeg_process(self, args, file_path, env):
-        res = None
-        frame_data = yield
-        total_frames_output = 0
-        if res != b'':
-            with subprocess.Popen(args + [file_path], stderr=subprocess.PIPE,
-                                stdin=subprocess.PIPE, env=env) as proc:
-                try:
-                    while frame_data is not None:
-                        proc.stdin.write(frame_data)
-                        frame_data = yield
-                        total_frames_output+=1
-                    proc.stdin.flush()
-                    proc.stdin.close()
-                    res = proc.stderr.read()
-                except BrokenPipeError as e:
-                    res = proc.stderr.read()
-                    raise Exception("An error occurred in the ffmpeg subprocess:\n" \
-                            + res.decode("utf-8"))
-        yield total_frames_output
-        if len(res) > 0:
-            print(res.decode("utf-8"), end="", file=sys.stderr)
             
     def detect_image_clarity(self, image):
         # detect the clarity of the image
@@ -286,7 +293,7 @@ class MD_CompressAdjustNode:
             i_pix_fmt = 'rgb24'
         
         # default bitrate and frame rate
-        frame_rate = 25
+        frame_rate = 24
 
         image_cv2 = cv2.cvtColor(np.array(tensor2pil(image)), cv2.COLOR_RGB2BGR)
         # calculate the crf based on the image
@@ -295,7 +302,11 @@ class MD_CompressAdjustNode:
                   self.ideal_color_variation, self.blockiness_weight, 
                   self.edge_density_weight, self.color_variation_weight)
         
-        logger.info(f"detected crf: {calculated_crf}")
+        if desired_crf is 0:
+            desired_crf = calculated_crf
+        
+        logger.info(f"calculated_crf: {calculated_crf}")
+        logger.info(f"desired_crf: {desired_crf}")
         args = [
             utils.ffmpeg_path, 
             "-v", "error", 
@@ -312,7 +323,7 @@ class MD_CompressAdjustNode:
         
         video_path = os.path.abspath(str(Path(temp_dir) / f"{filename}.mp4"))
         env = os.environ.copy()
-        output_process = self.ffmpeg_process(args, video_path, env)
+        output_process = ffmpeg_process(args, video_path, env)
         
         # Proceed to first yield
         output_process.send(None)

@@ -1,5 +1,8 @@
 from io import BytesIO
+import subprocess
 import time
+import uuid
+from custom_nodes.MemedeckComfyNodes.nodes_preprocessing import ffmpeg_process
 import folder_paths
 from comfy.cli_args import args
 import torch
@@ -11,6 +14,7 @@ import numpy as np
 import json
 import os
 import logging
+from .lib import utils
 
 # setup logger
 logger = logging.getLogger(__name__)
@@ -23,7 +27,7 @@ WATERMARK = """
 """
 WATERMARK_SIZE = 28
 
-class MD_SaveAnimatedWEBP:
+class MD_SaveMP4:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
@@ -37,9 +41,9 @@ class MD_SaveAnimatedWEBP:
                     "images": ("IMAGE", ),
                     "filename_prefix": ("STRING", {"default": "memedeck_video"}),
                     "fps": ("FLOAT", {"default": 24.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
-                    "lossless": ("BOOLEAN", {"default": False}),
-                    "quality": ("INT", {"default": 90, "min": 0, "max": 100}),
-                    "method": (list(s.methods.keys()),),
+                    # "lossless": ("BOOLEAN", {"default": False}),
+                    # "quality": ("INT", {"default": 90, "min": 0, "max": 100}),
+                    # "method": (list(s.methods.keys()),),
                     "crf": ("FLOAT",),
                     "motion_prompt": ("STRING", ),
                     "negative_prompt": ("STRING", ),
@@ -56,9 +60,8 @@ class MD_SaveAnimatedWEBP:
 
     CATEGORY = "MemeDeck"
     
-    def save_images(self, images, fps, filename_prefix, lossless, quality, method, crf=None, motion_prompt=None, negative_prompt=None, img2vid_metadata=None, sampler_metadata=None):
+    def save_images(self, images, fps, filename_prefix, crf=None, motion_prompt=None, negative_prompt=None, img2vid_metadata=None, sampler_metadata=None):
         start_time = time.time()
-        method = self.methods.get(method)
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = []
@@ -67,15 +70,18 @@ class MD_SaveAnimatedWEBP:
         pil_images = [Image.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8)) for image in images]
         
         first_image = pil_images[0]
+        width = first_image.width
+        height = first_image.height
+        
         padding = 8
-        x = first_image.width - WATERMARK_SIZE - padding
-        y = first_image.height - WATERMARK_SIZE - padding
+        x = width - WATERMARK_SIZE - padding
+        y = height - WATERMARK_SIZE - padding
         first_image_background_brightness = self.analyze_background_brightness(first_image, x, y, WATERMARK_SIZE)
         
         watermarked_images = [self.add_watermark_to_image(img, first_image_background_brightness) for img in pil_images]
 
-        metadata = pil_images[0].getexif()
-        num_frames = len(pil_images)
+        # metadata = pil_images[0].getexif()
+        # num_frames = len(pil_images)
 
         json_metadata = {
             "crf": crf,
@@ -83,98 +89,63 @@ class MD_SaveAnimatedWEBP:
             "negative_prompt": negative_prompt,
             "img2vid_metadata": json.loads(img2vid_metadata),
             "sampler_metadata": json.loads(sampler_metadata),
-        }
+        }            
 
-        # Optimized saving logic
-        if num_frames == 1:  # Single image, save once
-            file = f"{filename}_{counter:05}_.webp"
-            watermarked_images[0].save(os.path.join(full_output_folder, file), exif=metadata, lossless=lossless, quality=quality, method=method)
-            results.append({
-                "filename": file,
-                "subfolder": subfolder,
-                "type": self.type,
-            })
-        else: # multiple images, save as animation
-            file = f"{filename}_{counter:05}_.webp"
-            watermarked_images[0].save(os.path.join(full_output_folder, file), save_all=True, duration=int(1000.0 / fps), append_images=watermarked_images[1:], exif=metadata, lossless=lossless, quality=quality, method=method)
-            results.append({
-                "filename": file,
-                "subfolder": subfolder,
-                "type": self.type,
-            })
+        # Use ffmpeg to create MP4 with watermark
+        output_file = f"{filename}_{counter:05}_.mp4"
+        output_path = os.path.join(full_output_folder, output_file)
+        ffmpeg_cmd = [
+            utils.ffmpeg_path, 
+            "-v", "error",
+            '-f', 'rawvideo',
+            '-pix_fmt', 'rgb24',
+            "-r", str(fps),  # Set frame rate
+            "-s", f"{width}x{height}",
+            "-i", "-",
+            "-y",  # Overwrite output file if it exists
+            "-c:v", "libx264",  # Use x264 encoder
+            "-crf", "19",  # Set CRF (quality)
+            "-pix_fmt", "yuv420p",  # Set pixel format
+        ]
 
-        animated = num_frames != 1
+        env = os.environ.copy()
+        output_process = ffmpeg_process(ffmpeg_cmd, output_path, env)
+       
+        # Proceed to first yield
+        output_process.send(None)
+        output_process.send(first_image.tobytes())
+        for image in watermarked_images:
+            output_process.send(image.tobytes())
+        try:
+            output_process.send(None)  # Signal end of input
+            next(output_process)  # Get the final yield
+        except StopIteration:
+            pass
+
+        results.append({
+            "filename": output_file,
+            "subfolder": subfolder,
+            "type": self.type,
+        })
 
         end_time = time.time()
         logger.info(f"Save images took: {end_time - start_time} seconds")
+        
+        preview = {
+            "filename": output_path,
+            "subfolder": subfolder,
+            "type": "output",
+            "format": "video/mp4",
+            "frame_rate": fps,
+        }
 
         return {
             "ui": {
-                "images": results,
-                "animated": (animated,),
+                "gifs": [preview],
                 "metadata": (json.dumps(json_metadata),)
             },
+            "result": ((True, [output_path]),)
         }
-        
-    # def save_images(self, images, fps, filename_prefix, lossless, quality, method, crf=None, motion_prompt=None, negative_prompt=None, img2vid_metadata=None, sampler_metadata=None):
-    #     start_time = time.time()
-    #     method = self.methods.get(method)
-    #     filename_prefix += self.prefix_append
-    #     full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
-    #     results = []
-
-    #     # Vectorized conversion to PIL images
-    #     pil_images = [Image.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8)) for image in images]
-        
-    #     first_image = pil_images[0]
-    #     padding = 12
-    #     x = first_image.width - WATERMARK_SIZE - padding
-    #     y = first_image.height - WATERMARK_SIZE - padding
-    #     first_image_background_brightness = self.analyze_background_brightness(first_image, x, y, WATERMARK_SIZE)
-        
-    #     watermarked_images = [self.add_watermark_to_image(img, first_image_background_brightness) for img in pil_images]
-
-    #     metadata = pil_images[0].getexif()
-    #     num_frames = len(pil_images)
-
-    #     json_metadata = {
-    #         "crf": crf,
-    #         "motion_prompt": motion_prompt,
-    #         "negative_prompt": negative_prompt,
-    #         "img2vid_metadata": json.loads(img2vid_metadata),
-    #         "sampler_metadata": json.loads(sampler_metadata),
-    #     }
-
-    #     # Optimized saving logic
-    #     if num_frames == 1:  # Single image, save once
-    #         file = f"{filename}_{counter:05}_.webp"
-    #         watermarked_images[0].save(os.path.join(full_output_folder, file), exif=metadata, lossless=lossless, quality=quality, method=method)
-    #         results.append({
-    #             "filename": file,
-    #             "subfolder": subfolder,
-    #             "type": self.type,
-    #         })
-    #     else: # multiple images, save as animation
-    #         file = f"{filename}_{counter:05}_.webp"
-    #         watermarked_images[0].save(os.path.join(full_output_folder, file), save_all=True, duration=int(1000.0 / fps), append_images=watermarked_images[1:], exif=metadata, lossless=lossless, quality=quality, method=method)
-    #         results.append({
-    #             "filename": file,
-    #             "subfolder": subfolder,
-    #             "type": self.type,
-    #         })
-
-    #     animated = num_frames != 1
-
-    #     end_time = time.time()
-    #     logger.info(f"Save images took: {end_time - start_time} seconds")
-
-    #     return {
-    #         "ui": {
-    #             "images": results,
-    #             "animated": (animated,),
-    #             "metadata": (json.dumps(json_metadata),)
-    #         },
-    #     }
         
     def add_watermark_to_image(self, img, background_brightness=None):
         """
@@ -402,63 +373,63 @@ class MD_VAEDecode:
         return (images,)
       
       
-class MD_SaveMP4:
-  def __init__(self):
-      # Get absolute path of the output directory
-      self.output_dir = os.path.abspath("output/video_gen")
-      self.type = "output"
-      self.prefix_append = ""
+# class MD_SaveMP4:
+#   def __init__(self):
+#       # Get absolute path of the output directory
+#       self.output_dir = os.path.abspath("output/video_gen")
+#       self.type = "output"
+#       self.prefix_append = ""
 
-  methods = {"default": 4, "fastest": 0, "slowest": 6}
+#   methods = {"default": 4, "fastest": 0, "slowest": 6}
 
-  @classmethod
-  def INPUT_TYPES(s):
-      return {"required":
-                  {"images": ("IMAGE", ),
-                    "filename_prefix": ("STRING", {"default": "ComfyUI"}),
-                    "fps": ("FLOAT", {"default": 24.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
-                    "quality": ("INT", {"default": 80, "min": 0, "max": 100}),
-                    },
-              "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
-              }
+#   @classmethod
+#   def INPUT_TYPES(s):
+#       return {"required":
+#                   {"images": ("IMAGE", ),
+#                     "filename_prefix": ("STRING", {"default": "ComfyUI"}),
+#                     "fps": ("FLOAT", {"default": 24.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
+#                     "quality": ("INT", {"default": 80, "min": 0, "max": 100}),
+#                     },
+#               "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+#               }
 
-  RETURN_TYPES = ()
-  FUNCTION = "save_video"
+#   RETURN_TYPES = ()
+#   FUNCTION = "save_video"
 
-  OUTPUT_NODE = True
+#   OUTPUT_NODE = True
 
-  CATEGORY = "MemeDeck"
+#   CATEGORY = "MemeDeck"
 
-  def save_video(self, images, fps, filename_prefix, quality, prompt=None, extra_pnginfo=None):
-      filename_prefix += self.prefix_append
-      full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
-          filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0]
-      )
-      results = list()
-      video_path = os.path.join(full_output_folder, f"{filename}_{counter:05}.mp4")
+#   def save_video(self, images, fps, filename_prefix, quality, prompt=None, extra_pnginfo=None):
+#       filename_prefix += self.prefix_append
+#       full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+#           filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0]
+#       )
+#       results = list()
+#       video_path = os.path.join(full_output_folder, f"{filename}_{counter:05}.mp4")
 
-      # Determine video resolution
-      height, width = images[0].shape[1], images[0].shape[2]
-      video_writer = cv2.VideoWriter(
-          video_path,
-          cv2.VideoWriter_fourcc(*'mp4v'),
-          fps,
-          (width, height)
-      )
+#       # Determine video resolution
+#       height, width = images[0].shape[1], images[0].shape[2]
+#       video_writer = cv2.VideoWriter(
+#           video_path,
+#           cv2.VideoWriter_fourcc(*'mp4v'),
+#           fps,
+#           (width, height)
+#       )
 
-      # Write each frame to the video
-      for image in images:
-          i = 255. * image.cpu().numpy()
-          frame = np.clip(i, 0, 255).astype(np.uint8)
-          frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
-          video_writer.write(frame)
+#       # Write each frame to the video
+#       for image in images:
+#           i = 255. * image.cpu().numpy()
+#           frame = np.clip(i, 0, 255).astype(np.uint8)
+#           frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
+#           video_writer.write(frame)
 
-      video_writer.release()
+#       video_writer.release()
 
-      results.append({
-          "filename": os.path.basename(video_path),
-          "subfolder": subfolder,
-          "type": self.type
-      })
+#       results.append({
+#           "filename": os.path.basename(video_path),
+#           "subfolder": subfolder,
+#           "type": self.type
+#       })
 
-      return {"ui": {"videos": results}}
+#       return {"ui": {"videos": results}}

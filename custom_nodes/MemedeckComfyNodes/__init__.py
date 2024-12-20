@@ -1,6 +1,9 @@
 from .nodes_preprocessing import MD_LoadImageFromUrl, MD_CompressAdjustNode, MD_ImageToMotionPrompt
 from .nodes_model import MD_LoadVideoModel, MD_ImgToVideo, MD_VideoSampler
-from .nodes_output import MD_SaveAnimatedWEBP, MD_SaveMP4
+from .nodes_output import MD_SaveMP4
+
+from .nodes_input import MD_VideoInputs
+
 NODE_CLASS_MAPPINGS = {
     # PREPROCESSING
     "Memedeck_ImageToMotionPrompt": MD_ImageToMotionPrompt,
@@ -12,7 +15,9 @@ NODE_CLASS_MAPPINGS = {
     "Memedeck_VideoSampler": MD_VideoSampler,
     # POSTPROCESSING
     "Memedeck_SaveMP4": MD_SaveMP4,
-    "Memedeck_SaveAnimatedWEBP": MD_SaveAnimatedWEBP
+    # "Memedeck_SaveAnimatedWEBP": MD_SaveAnimatedWEBP,
+    # INPUT NODES
+    "Memedeck_VideoInputs": MD_VideoInputs
     # "Memedeck_SaveAnimatedGIF": MD_SaveAnimatedGIF
 }
 
@@ -27,6 +32,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Memedeck_ImgToVideo": "MemeDeck: Image To Video",
     "Memedeck_VideoSampler": "MemeDeck: Video Sampler",
     # POSTPROCESSING
-    "Memedeck_SaveMP4": "MemeDeck: Save MP4"
+    "Memedeck_SaveMP4": "MemeDeck: Save MP4",
+    # INPUT NODES
+    "Memedeck_VideoInputs": "MemeDeck: Video Inputs"
     # "Memedeck_SaveAnimatedGIF": "MemeDeck: Save Animated GIF"
 }
