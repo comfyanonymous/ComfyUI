@@ -18,6 +18,7 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 
 ## What's New?
 
+* Added --reserve-vram with the value of 0.9 to commandline options that run with the app on startup. Greatly helps reduce using too much memory on generations.
 * Changed `start.bat` to `comfyui.bat` because there is already a windows command by that name, which
   creates some problems. Also added  `fix-update.bat` which solves the problem that causes not being able to
   update to the latest version.
@@ -70,7 +71,7 @@ If coming from the very start, you need :
    have installed it on another drive, change if necessary)
     1. Check the variables on the lower part (System Variables), there should be a variable called: HIP_PATH.
     2. Also check the variables on the lower part (System Variables), there should be a variable called: "Path".
-       Double-click it and click "New" add this: C:\Program Files\AMD\ROCm\5.7\bin
+       Double-click it and click "New" add this: `C:\Program Files\AMD\ROCm\5.7\bin`
 6. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
    from [Brknsoul Repository](https://github.com/brknsoul/ROCmLibs)
     1. Go to folder "C:\Program Files\AMD\ROCm\5.7\bin\rocblas", there would be a "library" folder, backup the files
