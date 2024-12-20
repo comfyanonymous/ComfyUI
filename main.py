@@ -91,8 +91,7 @@ def execute_prestartup_script():
                 import_message = ""
             else:
                 import_message = " (PRESTARTUP FAILED)"
-            logging.info("{:6.1f} seconds{}:".format(n[0], import_message))
-            logging.info(n[1])
+            logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
         logging.info("")
 
 apply_custom_paths()
