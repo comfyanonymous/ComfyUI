@@ -898,7 +898,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -918,6 +918,8 @@ class CLIPLoader:
             clip_type = comfy.sd.CLIPType.MOCHI
         elif type == "ltxv":
             clip_type = comfy.sd.CLIPType.LTXV
+        elif type == "pixart":
+            clip_type = comfy.sd.CLIPType.PIXART
         else:
             clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
 
@@ -2164,6 +2166,7 @@ def init_builtin_extra_nodes():
         "nodes_stable3d.py",
         "nodes_sdupscale.py",
         "nodes_photomaker.py",
+        "nodes_pixart.py",
         "nodes_cond.py",
         "nodes_morphology.py",
         "nodes_stable_cascade.py",
