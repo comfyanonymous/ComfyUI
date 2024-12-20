@@ -381,7 +381,6 @@ class MMDiT(nn.Module):
         pe_new = pe_as_2d.squeeze(0).permute(1, 2, 0).flatten(0, 1)
         self.positional_encoding.data = pe_new.unsqueeze(0).contiguous()
         self.h_max, self.w_max = target_dim
-        print("PE extended to", target_dim)
 
     def pe_selection_index_based_on_dim(self, h, w):
         h_p, w_p = h // self.patch_size, w // self.patch_size

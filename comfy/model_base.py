@@ -770,7 +770,6 @@ class Flux(BaseModel):
             mask = torch.ones_like(noise)[:, :1]
 
         mask = torch.mean(mask, dim=1, keepdim=True)
-        print(mask.shape)
         mask = utils.common_upscale(mask.to(device), noise.shape[-1] * 8, noise.shape[-2] * 8, "bilinear", "center")
         mask = mask.view(mask.shape[0], mask.shape[2] // 8, 8, mask.shape[3] // 8, 8).permute(0, 2, 4, 1, 3).reshape(mask.shape[0], -1, mask.shape[2] // 8, mask.shape[3] // 8)
         mask = utils.resize_to_batch_size(mask, noise.shape[0])

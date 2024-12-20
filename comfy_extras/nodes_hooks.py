@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Union
+import logging
 import torch
 from collections.abc import Iterable
 
@@ -539,7 +540,7 @@ class CreateHookKeyframesInterpolated:
                 is_first = False
             prev_hook_kf.add(comfy.hooks.HookKeyframe(strength=strength, start_percent=percent, guarantee_steps=guarantee_steps))
             if print_keyframes:
-                print(f"Hook Keyframe - start_percent:{percent} = {strength}")
+                logging.info(f"Hook Keyframe - start_percent:{percent} = {strength}")
         return (prev_hook_kf,)
 
 class CreateHookKeyframesFromFloats:
@@ -588,7 +589,7 @@ class CreateHookKeyframesFromFloats:
                 is_first = False
             prev_hook_kf.add(comfy.hooks.HookKeyframe(strength=strength, start_percent=percent, guarantee_steps=guarantee_steps))
             if print_keyframes:
-                print(f"Hook Keyframe - start_percent:{percent} = {strength}")
+                logging.info(f"Hook Keyframe - start_percent:{percent} = {strength}")
         return (prev_hook_kf,)
 #------------------------------------------
 ###########################################
