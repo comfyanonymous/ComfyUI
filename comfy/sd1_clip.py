@@ -37,7 +37,10 @@ class ClipTokenWeightEncoder:
 
         sections = len(to_encode)
         if has_weights or sections == 0:
-            to_encode.append(gen_empty_tokens(self.special_tokens, max_token_len))
+            if hasattr(self, "gen_empty_tokens"):
+                to_encode.append(self.gen_empty_tokens(self.special_tokens, max_token_len))
+            else:
+                to_encode.append(gen_empty_tokens(self.special_tokens, max_token_len))
 
         o = self.encode(to_encode)
         out, pooled = o[:2]
