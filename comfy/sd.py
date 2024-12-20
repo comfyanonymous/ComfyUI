@@ -340,7 +340,13 @@ class VAE:
                 self.downscale_ratio = (lambda a: max(0, math.floor((a + 5) / 6)), 8, 8)
                 self.working_dtypes = [torch.float16, torch.float32]
             elif "decoder.up_blocks.0.res_blocks.0.conv1.conv.weight" in sd: #lightricks ltxv
-                self.first_stage_model = comfy.ldm.lightricks.vae.causal_video_autoencoder.VideoVAE()
+                tensor_conv1 = sd["decoder.up_blocks.0.res_blocks.0.conv1.conv.weight"]
+                version = 0
+                if tensor_conv1.shape[0] == 512:
+                    version = 0
+                elif tensor_conv1.shape[0] == 1024:
+                    version = 1
+                self.first_stage_model = comfy.ldm.lightricks.vae.causal_video_autoencoder.VideoVAE(version=version)
                 self.latent_channels = 128
                 self.latent_dim = 3
                 self.memory_used_decode = lambda shape, dtype: (900 * shape[2] * shape[3] * shape[4] * (8 * 8 * 8)) * model_management.dtype_size(dtype)
