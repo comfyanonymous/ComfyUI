@@ -807,7 +807,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
             upscaled = []
 
             for d in range(dims):
-                pos = max(0, min(s.shape[d + 2] - (overlap[d] + 1), it[d]))
+                pos = max(0, min(s.shape[d + 2] - overlap[d], it[d]))
                 l = min(tile[d], s.shape[d + 2] - pos)
                 s_in = s_in.narrow(d + 2, pos, l)
                 upscaled.append(round(get_scale(d, pos)))
