@@ -147,7 +147,6 @@ class AttentionKVCompress(nn.Module):
         qkv = self.qkv(x).reshape(B, N, 3, C)
 
         q, k, v = qkv.unbind(2)
-        dtype = q.dtype
         q = self.q_norm(q)
         k = self.k_norm(k)
 
@@ -209,7 +208,6 @@ class T2IFinalLayer(nn.Module):
         self.out_channels = out_channels
 
     def forward(self, x, t):
-        dtype = x.dtype
         shift, scale = (self.scale_shift_table[None].to(dtype=x.dtype, device=x.device) + t[:, None]).chunk(2, dim=1)
         x = t2i_modulate(self.norm_final(x), shift, scale)
         x = self.linear(x)
