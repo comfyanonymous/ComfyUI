@@ -9,3 +9,5 @@ lint.select = [
     # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
     "F",
 ]
+
+exclude = ["*.ipynb"]
