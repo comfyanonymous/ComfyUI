@@ -12,9 +12,19 @@ from .blocks import (
     T2IFinalLayer,
     SizeEmbedder,
 )
-from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder, PatchEmbed, Mlp
-from .pixart import PixArt, get_2d_sincos_pos_embed_torch
+from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder, PatchEmbed, Mlp, get_1d_sincos_pos_embed_from_grid_torch
 
+
+def get_2d_sincos_pos_embed_torch(embed_dim, w, h, pe_interpolation=1.0, base_size=16, device=None, dtype=torch.float32):
+    grid_h, grid_w = torch.meshgrid(
+        torch.arange(h, device=device, dtype=dtype) / (h/base_size) / pe_interpolation,
+        torch.arange(w, device=device, dtype=dtype) / (w/base_size) / pe_interpolation,
+        indexing='ij'
+    )
+    emb_h = get_1d_sincos_pos_embed_from_grid_torch(embed_dim // 2, grid_h, device=device, dtype=dtype)
+    emb_w = get_1d_sincos_pos_embed_from_grid_torch(embed_dim // 2, grid_w, device=device, dtype=dtype)
+    emb = torch.cat([emb_w, emb_h], dim=1)  # (H*W, D)
+    return emb
 
 class PixArtMSBlock(nn.Module):
     """
@@ -53,7 +63,7 @@ class PixArtMSBlock(nn.Module):
 
 
 ### Core PixArt Model ###
-class PixArtMS(PixArt):
+class PixArtMS(nn.Module):
     """
     Diffusion model with a Transformer backbone.
     """
