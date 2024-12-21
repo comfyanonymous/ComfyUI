@@ -18,3 +18,4 @@ psutil
 kornia>=0.7.1
 spandrel
 soundfile
+rich>=13.9.3
