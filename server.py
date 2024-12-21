@@ -714,9 +714,7 @@ class PromptServer():
         self.app.add_routes(self.routes)
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
-            self.app.add_routes([
-                web.static('/extensions/' + urllib.parse.quote(name), dir),
-            ])
+            self.app.add_routes([web.static('/extensions/' + name, dir)])
 
         self.app.add_routes([
             web.static('/', self.web_root),
