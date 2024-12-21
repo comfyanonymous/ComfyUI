@@ -1,0 +1,15 @@
+[project]
+name = "comfyui"
+description = ""
+version = "1.0.0"
+license = {file = "LICENSE"}
+dependencies = ["torch", "torchsde", "torchvision", "torchaudio", "einops", "transformers>=4.28.1", "tokenizers>=0.13.3", "sentencepiece", "safetensors>=0.4.2", "aiohttp", "pyyaml", "Pillow", "scipy", "tqdm", "psutil", "#non essential dependencies:", "kornia>=0.7.1", "spandrel", "soundfile"]
+
+[project.urls]
+Repository = "https://github.com/comfyanonymous/ComfyUI"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "ComfyUI"
+Icon = ""
