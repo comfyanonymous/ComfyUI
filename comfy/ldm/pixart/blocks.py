@@ -12,7 +12,7 @@ from comfy.ldm.modules.attention import optimized_attention
 
 if model_management.xformers_enabled():
     import xformers.ops
-    if int((xformers.__version__).split(".")[2]) >= 28:
+    if int((xformers.__version__).split(".")[2].split("+")[0]) >= 28:
         block_diagonal_mask_from_seqlens = xformers.ops.fmha.attn_bias.BlockDiagonalMask.from_seqlens
     else:
         block_diagonal_mask_from_seqlens = xformers.ops.fmha.BlockDiagonalMask.from_seqlens
