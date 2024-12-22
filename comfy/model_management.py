@@ -188,6 +188,11 @@ def is_nvidia():
             return True
     return False
 
+
+MIN_WEIGHT_MEMORY_RATIO = 0.4
+if is_nvidia():
+    MIN_WEIGHT_MEMORY_RATIO = 0.2
+
 ENABLE_PYTORCH_ATTENTION = False
 if args.use_pytorch_cross_attention:
     ENABLE_PYTORCH_ATTENTION = True
@@ -509,7 +514,8 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             model_size = loaded_model.model_memory_required(torch_dev)
             loaded_memory = loaded_model.model_loaded_memory()
             current_free_mem = get_free_memory(torch_dev) + loaded_memory
-            lowvram_model_memory = max(64 * 1024 * 1024, (current_free_mem - minimum_memory_required), min(current_free_mem * 0.4, current_free_mem - minimum_inference_memory()))
+
+            lowvram_model_memory = max(64 * 1024 * 1024, (current_free_mem - minimum_memory_required), min(current_free_mem * MIN_WEIGHT_MEMORY_RATIO, current_free_mem - minimum_inference_memory()))
             lowvram_model_memory = max(0.1, lowvram_model_memory - loaded_memory)
             if model_size <= lowvram_model_memory: #only switch to lowvram if really necessary
                 lowvram_model_memory = 0
