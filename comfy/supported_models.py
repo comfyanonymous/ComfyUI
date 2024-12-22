@@ -757,7 +757,7 @@ class LTXV(supported_models_base.BASE):
 
     memory_usage_factor = 2.7
 
-    supported_inference_dtypes = [torch.float16, torch.float32] #changed bfloat16 to float16 ZLUDA
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
     vae_key_prefix = ["vae."]
     text_encoder_key_prefix = ["text_encoders."]
