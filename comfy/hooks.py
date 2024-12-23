@@ -432,8 +432,12 @@ class HookKeyframeGroup:
             return False
         prev_index = self._current_index
         prev_strength = self._current_strength
-        # if met guaranteed steps, look for next keyframe in case need to switch
-        if self._current_used_steps >= self._current_keyframe.guarantee_steps:
+        if (
+            # if met guaranteed steps, look for next keyframe in case need to switch
+            self._current_used_steps >= self._current_keyframe.guarantee_steps
+            # handle case where guarantee_steps is 1 at first keyframe, but later steps have already occurred
+            or bool(self._current_keyframe == self.keyframes[0] and self.keyframes[1].start_t >= curr_t)
+        ):
             # if has next index, loop through and see if need to switch
             if self.has_index(self._current_index+1):
                 for i in range(self._current_index+1, len(self.keyframes)):
