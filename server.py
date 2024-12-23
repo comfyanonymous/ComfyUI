@@ -723,6 +723,13 @@ class PromptServer():
         self.app.add_routes(api_routes)
         self.app.add_routes(self.routes)
 
+        # Add routes for workflow templates in custom nodes.
+        for module_name, module_dir in nodes.LOADED_MODULE_DIRS.items():
+            workflows_dir = os.path.join(module_dir, 'example_workflows')
+            if os.path.exists(workflows_dir):
+                self.app.add_routes([web.static('/workflow_templates/' + module_name, workflows_dir)])
+
+        # Add routes from web extensions.
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([web.static('/extensions/' + name, dir)])
 
