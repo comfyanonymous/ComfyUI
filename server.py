@@ -250,6 +250,16 @@ class PromptServer():
                     name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
 
             return web.json_response(extensions)
+        
+        @routes.get("/workflow_templates")
+        async def get_workflow_templates(request):
+            files = glob.glob(os.path.join(folder_paths.custom_nodes_directory, '*/example_workflows/*.json'))
+            workflow_templates_dict = {} # custom_nodes folder name -> example workflow names
+            for file in files:
+                custom_nodes_name = os.path.basename(os.path.dirname(os.path.dirname(file)))
+                workflow_name = os.path.splitext(os.path.basename(file))[0]
+                workflow_templates_dict.setdefault(custom_nodes_name, []).append(workflow_name)
+            return web.json_response(workflow_templates_dict)
 
         def get_dir_by_type(dir_type):
             if dir_type is None:
