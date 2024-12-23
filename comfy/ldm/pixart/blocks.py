@@ -6,7 +6,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
-from comfy import model_management
 from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder, Mlp, timestep_embedding
 from comfy.ldm.modules.attention import optimized_attention
 
