@@ -224,8 +224,11 @@ if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_flash_sdp(True)
     torch.backends.cuda.enable_mem_efficient_sdp(True)
 
-if int(torch_version[0]) == 2 and int(torch_version[2]) >= 5:
-    torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
+try:
+    if int(torch_version[0]) == 2 and int(torch_version[2]) >= 5:
+        torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
+except:
+    logging.warning("Warning, could not set allow_fp16_bf16_reduction_math_sdp")
 
 if args.lowvram:
     set_vram_to = VRAMState.LOW_VRAM
