@@ -521,7 +521,7 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
                 lowvram_model_memory = 0
 
         if vram_set_state == VRAMState.NO_VRAM:
-            lowvram_model_memory = 64 * 1024 * 1024
+            lowvram_model_memory = 0.1
 
         loaded_model.model_load(lowvram_model_memory, force_patch_weights=force_patch_weights)
         current_loaded_models.insert(0, loaded_model)
