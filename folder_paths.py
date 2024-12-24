@@ -4,7 +4,7 @@ import os
 import time
 import mimetypes
 import logging
-from typing import Set, List, Dict, Tuple, Literal
+from typing import Literal
 from collections.abc import Collection
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
@@ -18,7 +18,7 @@ folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".y
 
 folder_names_and_paths["loras"] = ([os.path.join(models_dir, "loras")], supported_pt_extensions)
 folder_names_and_paths["vae"] = ([os.path.join(models_dir, "vae")], supported_pt_extensions)
-folder_names_and_paths["clip"] = ([os.path.join(models_dir, "clip")], supported_pt_extensions)
+folder_names_and_paths["text_encoders"] = ([os.path.join(models_dir, "text_encoders"), os.path.join(models_dir, "clip")], supported_pt_extensions)
 folder_names_and_paths["diffusion_models"] = ([os.path.join(models_dir, "unet"), os.path.join(models_dir, "diffusion_models")], supported_pt_extensions)
 folder_names_and_paths["clip_vision"] = ([os.path.join(models_dir, "clip_vision")], supported_pt_extensions)
 folder_names_and_paths["style_models"] = ([os.path.join(models_dir, "style_models")], supported_pt_extensions)
@@ -81,7 +81,8 @@ extension_mimetypes_cache = {
 }
 
 def map_legacy(folder_name: str) -> str:
-    legacy = {"unet": "diffusion_models"}
+    legacy = {"unet": "diffusion_models",
+              "clip": "text_encoders"}
     return legacy.get(folder_name, folder_name)
 
 if not os.path.exists(input_directory):
@@ -132,7 +133,7 @@ def get_directory_by_type(type_name: str) -> str | None:
         return get_input_directory()
     return None
 
-def filter_files_content_types(files: List[str], content_types: Literal["image", "video", "audio"]) -> List[str]:
+def filter_files_content_types(files: list[str], content_types: Literal["image", "video", "audio"]) -> list[str]:
     """
     Example:
         files = os.listdir(folder_paths.get_input_directory())
@@ -199,10 +200,17 @@ def add_model_folder_path(folder_name: str, full_folder_path: str, is_default: b
     global folder_names_and_paths
     folder_name = map_legacy(folder_name)
     if folder_name in folder_names_and_paths:
-        if is_default:
-            folder_names_and_paths[folder_name][0].insert(0, full_folder_path)
+        paths, _exts = folder_names_and_paths[folder_name]
+        if full_folder_path in paths:
+            if is_default and paths[0] != full_folder_path:
+                # If the path to the folder is not the first in the list, move it to the beginning.
+                paths.remove(full_folder_path)
+                paths.insert(0, full_folder_path)
         else:
-            folder_names_and_paths[folder_name][0].append(full_folder_path)
+            if is_default:
+                paths.insert(0, full_folder_path)
+            else:
+                paths.append(full_folder_path)
     else:
         folder_names_and_paths[folder_name] = ([full_folder_path], set())
 

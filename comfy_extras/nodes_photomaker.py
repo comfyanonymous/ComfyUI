@@ -16,6 +16,7 @@ VISION_CONFIG_DICT = {
     "patch_size": 14,
     "projection_dim": 768,
     "hidden_act": "quick_gelu",
+    "model_type": "clip_vision_model",
 }
 
 class MLP(nn.Module):

@@ -28,7 +28,7 @@ jobs:
     - name: Start ComfyUI server
       run: |
         python main.py --cpu 2>&1 | tee console_output.log &
-        wait-for-it --service 127.0.0.1:8188 -t 600
+        wait-for-it --service 127.0.0.1:8188 -t 30
       working-directory: ComfyUI
     - name: Check for unhandled exceptions in server log
       run: |

@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import comfy.utils
 from enum import Enum

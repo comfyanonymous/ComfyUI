@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 import torch
 from torch import Tensor, nn
+from einops import rearrange, repeat
+import comfy.ldm.common_dit
 
 from .layers import (
     DoubleStreamBlock,
@@ -14,12 +16,10 @@ from .layers import (
     timestep_embedding,
 )
 
-from einops import rearrange, repeat
-import comfy.ldm.common_dit
-
 @dataclass
 class FluxParams:
     in_channels: int
+    out_channels: int
     vec_in_dim: int
     context_in_dim: int
     hidden_size: int
@@ -29,6 +29,7 @@ class FluxParams:
     depth_single_blocks: int
     axes_dim: list
     theta: int
+    patch_size: int
     qkv_bias: bool
     guidance_embed: bool
 
@@ -43,8 +44,9 @@ class Flux(nn.Module):
         self.dtype = dtype
         params = FluxParams(**kwargs)
         self.params = params
-        self.in_channels = params.in_channels * 2 * 2
-        self.out_channels = self.in_channels
+        self.patch_size = params.patch_size
+        self.in_channels = params.in_channels * params.patch_size * params.patch_size
+        self.out_channels = params.out_channels * params.patch_size * params.patch_size
         if params.hidden_size % params.num_heads != 0:
             raise ValueError(
                 f"Hidden size {params.hidden_size} must be divisible by num_heads {params.num_heads}"
@@ -95,8 +97,11 @@ class Flux(nn.Module):
         timesteps: Tensor,
         y: Tensor,
         guidance: Tensor = None,
-        control=None,
+        control = None,
+        transformer_options={},
+        attn_mask: Tensor = None,
     ) -> Tensor:
+        patches_replace = transformer_options.get("patches_replace", {})
         if img.ndim != 3 or txt.ndim != 3:
             raise ValueError("Input img and txt tensors must have 3 dimensions.")
 
@@ -114,8 +119,32 @@ class Flux(nn.Module):
         ids = torch.cat((txt_ids, img_ids), dim=1)
         pe = self.pe_embedder(ids)
 
+        blocks_replace = patches_replace.get("dit", {})
         for i, block in enumerate(self.double_blocks):
-            img, txt = block(img=img, txt=txt, vec=vec, pe=pe)
+            if ("double_block", i) in blocks_replace:
+                def block_wrap(args):
+                    out = {}
+                    out["img"], out["txt"] = block(img=args["img"],
+                                                   txt=args["txt"],
+                                                   vec=args["vec"],
+                                                   pe=args["pe"],
+                                                   attn_mask=args.get("attn_mask"))
+                    return out
+
+                out = blocks_replace[("double_block", i)]({"img": img,
+                                                           "txt": txt,
+                                                           "vec": vec,
+                                                           "pe": pe,
+                                                           "attn_mask": attn_mask},
+                                                          {"original_block": block_wrap})
+                txt = out["txt"]
+                img = out["img"]
+            else:
+                img, txt = block(img=img,
+                                 txt=txt,
+                                 vec=vec,
+                                 pe=pe,
+                                 attn_mask=attn_mask)
 
             if control is not None: # Controlnet
                 control_i = control.get("input")
@@ -127,7 +156,23 @@ class Flux(nn.Module):
         img = torch.cat((txt, img), 1)
 
         for i, block in enumerate(self.single_blocks):
-            img = block(img, vec=vec, pe=pe)
+            if ("single_block", i) in blocks_replace:
+                def block_wrap(args):
+                    out = {}
+                    out["img"] = block(args["img"],
+                                       vec=args["vec"],
+                                       pe=args["pe"],
+                                       attn_mask=args.get("attn_mask"))
+                    return out
+
+                out = blocks_replace[("single_block", i)]({"img": img,
+                                                           "vec": vec,
+                                                           "pe": pe,
+                                                           "attn_mask": attn_mask}, 
+                                                          {"original_block": block_wrap})
+                img = out["img"]
+            else:
+                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask)
 
             if control is not None: # Controlnet
                 control_o = control.get("output")
@@ -141,9 +186,9 @@ class Flux(nn.Module):
         img = self.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
         return img
 
-    def forward(self, x, timestep, context, y, guidance, control=None, **kwargs):
+    def forward(self, x, timestep, context, y, guidance, control=None, transformer_options={}, **kwargs):
         bs, c, h, w = x.shape
-        patch_size = 2
+        patch_size = self.patch_size
         x = comfy.ldm.common_dit.pad_to_patch_size(x, (patch_size, patch_size))
 
         img = rearrange(x, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=patch_size, pw=patch_size)
@@ -151,10 +196,10 @@ class Flux(nn.Module):
         h_len = ((h + (patch_size // 2)) // patch_size)
         w_len = ((w + (patch_size // 2)) // patch_size)
         img_ids = torch.zeros((h_len, w_len, 3), device=x.device, dtype=x.dtype)
-        img_ids[:, :, 1] = torch.linspace(0, h_len - 1, steps=h_len, device=x.device, dtype=x.dtype).unsqueeze(1)
-        img_ids[:, :, 2] = torch.linspace(0, w_len - 1, steps=w_len, device=x.device, dtype=x.dtype).unsqueeze(0)
+        img_ids[:, :, 1] = img_ids[:, :, 1] + torch.linspace(0, h_len - 1, steps=h_len, device=x.device, dtype=x.dtype).unsqueeze(1)
+        img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(0, w_len - 1, steps=w_len, device=x.device, dtype=x.dtype).unsqueeze(0)
         img_ids = repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
         txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)
-        out = self.forward_orig(img, img_ids, context, txt_ids, timestep, y, guidance, control)
+        out = self.forward_orig(img, img_ids, context, txt_ids, timestep, y, guidance, control, transformer_options, attn_mask=kwargs.get("attention_mask", None))
         return rearrange(out, "b (h w) (c ph pw) -> b c (h ph) (w pw)", h=h_len, w=w_len, ph=2, pw=2)[:,:,:h,:w]

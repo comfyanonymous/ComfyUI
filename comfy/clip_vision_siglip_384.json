@@ -1,0 +1,13 @@
+{
+  "num_channels": 3,
+  "hidden_act": "gelu_pytorch_tanh",
+  "hidden_size": 1152,
+  "image_size": 384,
+  "intermediate_size": 4304,
+  "model_type": "siglip_vision_model",
+  "num_attention_heads": 16,
+  "num_hidden_layers": 27,
+  "patch_size": 14,
+  "image_mean": [0.5, 0.5, 0.5],
+  "image_std": [0.5, 0.5, 0.5]
+}

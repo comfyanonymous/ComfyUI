@@ -1,6 +1,5 @@
 from copy import deepcopy
 from io import BytesIO
-from urllib import request
 import numpy
 import os
 from PIL import Image
@@ -172,8 +171,8 @@ class TestInference:
             try:
                 comfy_client.connect(listen=listen, port=port)
             except ConnectionRefusedError as e:
-                print(e)
-                print(f"({i+1}/{n_tries}) Retrying...")
+                print(e)  # noqa: T201
+                print(f"({i+1}/{n_tries}) Retrying...")  # noqa: T201
             else:
                 break
         return comfy_client

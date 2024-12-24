@@ -133,10 +133,36 @@ def detect_unet_config(state_dict, key_prefix):
             unet_config["image_model"] = "hydit1"
         return unet_config
 
+    if '{}txt_in.individual_token_refiner.blocks.0.norm1.weight'.format(key_prefix) in state_dict_keys: #Hunyuan Video
+        dit_config = {}
+        dit_config["image_model"] = "hunyuan_video"
+        dit_config["in_channels"] = 16
+        dit_config["patch_size"] = [1, 2, 2]
+        dit_config["out_channels"] = 16
+        dit_config["vec_in_dim"] = 768
+        dit_config["context_in_dim"] = 4096
+        dit_config["hidden_size"] = 3072
+        dit_config["mlp_ratio"] = 4.0
+        dit_config["num_heads"] = 24
+        dit_config["depth"] = count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.')
+        dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
+        dit_config["axes_dim"] = [16, 56, 56]
+        dit_config["theta"] = 256
+        dit_config["qkv_bias"] = True
+        guidance_keys = list(filter(lambda a: a.startswith("{}guidance_in.".format(key_prefix)), state_dict_keys))
+        dit_config["guidance_embed"] = len(guidance_keys) > 0
+        return dit_config
+
     if '{}double_blocks.0.img_attn.norm.key_norm.scale'.format(key_prefix) in state_dict_keys: #Flux
         dit_config = {}
         dit_config["image_model"] = "flux"
         dit_config["in_channels"] = 16
+        patch_size = 2
+        dit_config["patch_size"] = patch_size
+        in_key = "{}img_in.weight".format(key_prefix)
+        if in_key in state_dict_keys:
+            dit_config["in_channels"] = state_dict[in_key].shape[1] // (patch_size * patch_size)
+        dit_config["out_channels"] = 16
         dit_config["vec_in_dim"] = 768
         dit_config["context_in_dim"] = 4096
         dit_config["hidden_size"] = 3072
@@ -177,6 +203,41 @@ def detect_unet_config(state_dict, key_prefix):
         dit_config["rope_theta"] = 10000.0
         return dit_config
 
+    if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys and '{}pos_embed.proj.bias'.format(key_prefix) in state_dict_keys:
+        # PixArt diffusers
+        return None
+
+    if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys: #Lightricks ltxv
+        dit_config = {}
+        dit_config["image_model"] = "ltxv"
+        return dit_config
+
+    if '{}t_block.1.weight'.format(key_prefix) in state_dict_keys: # PixArt
+        patch_size = 2
+        dit_config = {}
+        dit_config["num_heads"] = 16
+        dit_config["patch_size"] = patch_size
+        dit_config["hidden_size"] = 1152
+        dit_config["in_channels"] = 4
+        dit_config["depth"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
+
+        y_key = "{}y_embedder.y_embedding".format(key_prefix)
+        if y_key in state_dict_keys:
+            dit_config["model_max_length"] = state_dict[y_key].shape[0]
+
+        pe_key = "{}pos_embed".format(key_prefix)
+        if pe_key in state_dict_keys:
+            dit_config["input_size"] = int(math.sqrt(state_dict[pe_key].shape[1])) * patch_size
+            dit_config["pe_interpolation"] = dit_config["input_size"] // (512//8) # guess
+        
+        ar_key = "{}ar_embedder.mlp.0.weight".format(key_prefix)
+        if ar_key in state_dict_keys:
+            dit_config["image_model"] = "pixart_alpha"
+            dit_config["micro_condition"] = True
+        else:
+            dit_config["image_model"] = "pixart_sigma"
+            dit_config["micro_condition"] = False
+        return dit_config
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
@@ -206,7 +267,6 @@ def detect_unet_config(state_dict, key_prefix):
 
     num_res_blocks = []
     channel_mult = []
-    attention_resolutions = []
     transformer_depth = []
     transformer_depth_output = []
     context_dim = None
@@ -321,8 +381,9 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
     if model_config is None and use_base_if_no_match:
         model_config = comfy.supported_models_base.BASE(unet_config)
 
-    scaled_fp8_weight = state_dict.get("{}scaled_fp8".format(unet_key_prefix), None)
-    if scaled_fp8_weight is not None:
+    scaled_fp8_key = "{}scaled_fp8".format(unet_key_prefix)
+    if scaled_fp8_key in state_dict:
+        scaled_fp8_weight = state_dict.pop(scaled_fp8_key)
         model_config.scaled_fp8 = scaled_fp8_weight.dtype
         if model_config.scaled_fp8 == torch.float32:
             model_config.scaled_fp8 = torch.float8_e4m3fn
@@ -377,7 +438,6 @@ def convert_config(unet_config):
             t_out += [d] * (res + 1)
             s *= 2
         transformer_depth = t_in
-        transformer_depth_output = t_out
         new_config["transformer_depth"] = t_in
         new_config["transformer_depth_output"] = t_out
         new_config["transformer_depth_middle"] = transformer_depth_middle
@@ -540,7 +600,14 @@ def model_config_from_diffusers_unet(state_dict):
 def convert_diffusers_mmdit(state_dict, output_prefix=""):
     out_sd = {}
 
-    if 'transformer_blocks.0.attn.norm_added_k.weight' in state_dict: #Flux
+    if 'joint_transformer_blocks.0.attn.add_k_proj.weight' in state_dict: #AuraFlow
+        num_joint = count_blocks(state_dict, 'joint_transformer_blocks.{}.')
+        num_single = count_blocks(state_dict, 'single_transformer_blocks.{}.')
+        sd_map = comfy.utils.auraflow_to_diffusers({"n_double_layers": num_joint, "n_layers": num_joint + num_single}, output_prefix=output_prefix)
+    elif 'adaln_single.emb.timestep_embedder.linear_1.bias' in state_dict and 'pos_embed.proj.bias' in state_dict: # PixArt
+        num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
+        sd_map = comfy.utils.pixart_to_diffusers({"depth": num_blocks}, output_prefix=output_prefix)
+    elif 'x_embedder.weight' in state_dict: #Flux
         depth = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth_single_blocks = count_blocks(state_dict, 'single_transformer_blocks.{}.')
         hidden_size = state_dict["x_embedder.bias"].shape[0]
@@ -549,10 +616,6 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
         num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth = state_dict["pos_embed.proj.weight"].shape[0] // 64
         sd_map = comfy.utils.mmdit_to_diffusers({"depth": depth, "num_blocks": num_blocks}, output_prefix=output_prefix)
-    elif 'joint_transformer_blocks.0.attn.add_k_proj.weight' in state_dict: #AuraFlow
-        num_joint = count_blocks(state_dict, 'joint_transformer_blocks.{}.')
-        num_single = count_blocks(state_dict, 'single_transformer_blocks.{}.')
-        sd_map = comfy.utils.auraflow_to_diffusers({"n_double_layers": num_joint, "n_layers": num_joint + num_single}, output_prefix=output_prefix)
     else:
         return None
 

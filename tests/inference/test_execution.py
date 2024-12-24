@@ -134,7 +134,7 @@ class TestExecution:
         use_lru, lru_size = request.param
         if use_lru:
             pargs += ['--cache-lru', str(lru_size)]
-        print("Running server with args:", pargs)
+        print("Running server with args:", pargs)  # noqa: T201
         p = subprocess.Popen(pargs)
         yield
         p.kill()
@@ -150,8 +150,8 @@ class TestExecution:
             try:
                 comfy_client.connect(listen=listen, port=port)
             except ConnectionRefusedError as e:
-                print(e)
-                print(f"({i+1}/{n_tries}) Retrying...")
+                print(e)  # noqa: T201
+                print(f"({i+1}/{n_tries}) Retrying...")  # noqa: T201
             else:
                 break
         return comfy_client

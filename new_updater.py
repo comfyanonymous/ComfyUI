@@ -32,4 +32,4 @@ def update_windows_updater():
     except:
         pass
     shutil.copy(bat_path, dest_bat_path)
-    print("Updated the windows standalone package updater.")
+    print("Updated the windows standalone package updater.")  # noqa: T201

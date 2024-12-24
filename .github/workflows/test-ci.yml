@@ -20,7 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos, linux, windows]
+        # os: [macos, linux, windows]
+        os: [macos, linux]
         python_version: ["3.9", "3.10", "3.11", "3.12"]
         cuda_version: ["12.1"]
         torch_version: ["stable"]
@@ -31,9 +32,9 @@ jobs:
           - os: linux
             runner_label: [self-hosted, Linux]
             flags: ""
-          - os: windows
-            runner_label: [self-hosted, Windows]
-            flags: ""
+          # - os: windows
+          #   runner_label: [self-hosted, Windows]
+          #   flags: ""
     runs-on: ${{ matrix.runner_label }}
     steps:
       - name: Test Workflows
@@ -45,28 +46,28 @@ jobs:
           google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
           comfyui_flags: ${{ matrix.flags }}
 
-  test-win-nightly:
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [windows]
-        python_version: ["3.9", "3.10", "3.11", "3.12"]
-        cuda_version: ["12.1"]
-        torch_version: ["nightly"]
-        include:
-          - os: windows
-            runner_label: [self-hosted, Windows]
-            flags: ""
-    runs-on: ${{ matrix.runner_label }}
-    steps:
-      - name: Test Workflows
-        uses: comfy-org/comfy-action@main
-        with:
-          os: ${{ matrix.os }}
-          python_version: ${{ matrix.python_version }}
-          torch_version: ${{ matrix.torch_version }}
-          google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
-          comfyui_flags: ${{ matrix.flags }}
+  # test-win-nightly:
+  #   strategy:
+  #     fail-fast: true
+  #     matrix:
+  #       os: [windows]
+  #       python_version: ["3.9", "3.10", "3.11", "3.12"]
+  #       cuda_version: ["12.1"]
+  #       torch_version: ["nightly"]
+  #       include:
+  #         - os: windows
+  #           runner_label: [self-hosted, Windows]
+  #           flags: ""
+  #   runs-on: ${{ matrix.runner_label }}
+  #   steps:
+  #     - name: Test Workflows
+  #       uses: comfy-org/comfy-action@main
+  #       with:
+  #         os: ${{ matrix.os }}
+  #         python_version: ${{ matrix.python_version }}
+  #         torch_version: ${{ matrix.torch_version }}
+  #         google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
+  #         comfyui_flags: ${{ matrix.flags }}
 
   test-unix-nightly:
     strategy:

@@ -29,7 +29,7 @@ import comfy.model_management
 import node_helpers
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
-from model_filemanager import download_model, DownloadModelStatus
+from app.model_manager import ModelFileManager
 from typing import Optional
 from api_server.routes.internal.internal_routes import InternalRoutes
 
@@ -152,7 +152,8 @@ class PromptServer():
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
 
         self.user_manager = UserManager()
-        self.internal_routes = InternalRoutes()
+        self.model_file_manager = ModelFileManager()
+        self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = None
         self.loop = loop
@@ -221,7 +222,7 @@ class PromptServer():
         def get_embeddings(self):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
-        
+
         @routes.get("/models")
         def list_model_types(request):
             model_types = list(folder_paths.folder_names_and_paths.keys())
@@ -459,7 +460,21 @@ class PromptServer():
                             return web.Response(body=alpha_buffer.read(), content_type='image/png',
                                                 headers={"Content-Disposition": f"filename=\"{filename}\""})
                     else:
-                        return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
+                        # Get content type from mimetype, defaulting to 'application/octet-stream'
+                        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+                        # For security, force certain extensions to download instead of display
+                        file_extension = os.path.splitext(filename)[1].lower()
+                        if file_extension in {'.html', '.htm', '.js', '.css'}:
+                            content_type = 'application/octet-stream'  # Forces download
+
+                        return web.FileResponse(
+                            file,
+                            headers={
+                                "Content-Disposition": f"filename=\"{filename}\"",
+                                "Content-Type": content_type
+                            }
+                        )
 
             return web.Response(status=404)
 
@@ -562,7 +577,7 @@ class PromptServer():
                 for x in nodes.NODE_CLASS_MAPPINGS:
                     try:
                         out[x] = node_info(x)
-                    except Exception as e:
+                    except Exception:
                         logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
                         logging.error(traceback.format_exc())
                 return web.json_response(out)
@@ -583,7 +598,7 @@ class PromptServer():
             return web.json_response(self.prompt_queue.get_history(max_items=max_items))
 
         @routes.get("/history/{prompt_id}")
-        async def get_history(request):
+        async def get_history_prompt_id(request):
             prompt_id = request.match_info.get("prompt_id", None)
             return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
 
@@ -598,8 +613,6 @@ class PromptServer():
         @routes.post("/prompt")
         async def post_prompt(request):
             logging.info("got prompt")
-            resp_code = 200
-            out_string = ""
             json_data =  await request.json()
             json_data = self.trigger_on_prompt(json_data)
 
@@ -676,36 +689,6 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
-        
-        # Internal route. Should not be depended upon and is subject to change at any time.
-        # TODO(robinhuang): Move to internal route table class once we refactor PromptServer to pass around Websocket.
-        # NOTE: This was an experiment and WILL BE REMOVED
-        @routes.post("/internal/models/download")
-        async def download_handler(request):
-            async def report_progress(filename: str, status: DownloadModelStatus):
-                payload = status.to_dict()
-                payload['download_path'] = filename
-                await self.send_json("download_progress", payload)
-
-            data = await request.json()
-            url = data.get('url')
-            model_directory = data.get('model_directory')
-            folder_path = data.get('folder_path')
-            model_filename = data.get('model_filename')
-            progress_interval = data.get('progress_interval', 1.0) # In seconds, how often to report download progress.
-
-            if not url or not model_directory or not model_filename or not folder_path:
-                return web.json_response({"status": "error", "message": "Missing URL or folder path or filename"}, status=400)
-
-            session = self.client_session
-            if session is None:
-                logging.error("Client session is not initialized")
-                return web.Response(status=500)
-            
-            task = asyncio.create_task(download_model(lambda url: session.get(url), model_filename, url, model_directory, folder_path, report_progress, progress_interval))
-            await task
-
-            return web.json_response(task.result().to_dict())
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
@@ -713,6 +696,7 @@ class PromptServer():
 
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
+        self.model_file_manager.add_routes(self.routes)
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
@@ -730,9 +714,7 @@ class PromptServer():
         self.app.add_routes(self.routes)
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
-            self.app.add_routes([
-                web.static('/extensions/' + urllib.parse.quote(name), dir),
-            ])
+            self.app.add_routes([web.static('/extensions/' + name, dir)])
 
         self.app.add_routes([
             web.static('/', self.web_root),
@@ -860,8 +842,8 @@ class PromptServer():
         for handler in self.on_prompt_handlers:
             try:
                 json_data = handler(json_data)
-            except Exception as e:
-                logging.warning(f"[ERROR] An error occurred during the on_prompt_handler processing")
+            except Exception:
+                logging.warning("[ERROR] An error occurred during the on_prompt_handler processing")
                 logging.warning(traceback.format_exc())
 
         return json_data

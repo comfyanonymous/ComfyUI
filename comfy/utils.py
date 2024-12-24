@@ -26,6 +26,8 @@ import numpy as np
 from PIL import Image
 import logging
 import itertools
+from torch.nn.functional import interpolate
+from einops import rearrange
 
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
@@ -46,7 +48,13 @@ def load_torch_file(ckpt, safe_load=False, device=None):
         if "state_dict" in pl_sd:
             sd = pl_sd["state_dict"]
         else:
-            sd = pl_sd
+            if len(pl_sd) == 1:
+                key = list(pl_sd.keys())[0]
+                sd = pl_sd[key]
+                if not isinstance(sd, dict):
+                    sd = pl_sd
+            else:
+                sd = pl_sd
     return sd
 
 def save_torch_file(sd, ckpt, metadata=None):
@@ -316,10 +324,18 @@ MMDIT_MAP_BLOCK = {
     ("context_block.mlp.fc1.weight", "ff_context.net.0.proj.weight"),
     ("context_block.mlp.fc2.bias", "ff_context.net.2.bias"),
     ("context_block.mlp.fc2.weight", "ff_context.net.2.weight"),
+    ("context_block.attn.ln_q.weight", "attn.norm_added_q.weight"),
+    ("context_block.attn.ln_k.weight", "attn.norm_added_k.weight"),
     ("x_block.adaLN_modulation.1.bias", "norm1.linear.bias"),
     ("x_block.adaLN_modulation.1.weight", "norm1.linear.weight"),
     ("x_block.attn.proj.bias", "attn.to_out.0.bias"),
     ("x_block.attn.proj.weight", "attn.to_out.0.weight"),
+    ("x_block.attn.ln_q.weight", "attn.norm_q.weight"),
+    ("x_block.attn.ln_k.weight", "attn.norm_k.weight"),
+    ("x_block.attn2.proj.bias", "attn2.to_out.0.bias"),
+    ("x_block.attn2.proj.weight", "attn2.to_out.0.weight"),
+    ("x_block.attn2.ln_q.weight", "attn2.norm_q.weight"),
+    ("x_block.attn2.ln_k.weight", "attn2.norm_k.weight"),
     ("x_block.mlp.fc1.bias", "ff.net.0.proj.bias"),
     ("x_block.mlp.fc1.weight", "ff.net.0.proj.weight"),
     ("x_block.mlp.fc2.bias", "ff.net.2.bias"),
@@ -349,6 +365,12 @@ def mmdit_to_diffusers(mmdit_config, output_prefix=""):
             key_map["{}add_k_proj.{}".format(k, end)] = (qkv, (0, offset, offset))
             key_map["{}add_v_proj.{}".format(k, end)] = (qkv, (0, offset * 2, offset))
 
+            k = "{}.attn2.".format(block_from)
+            qkv = "{}.x_block.attn2.qkv.{}".format(block_to, end)
+            key_map["{}to_q.{}".format(k, end)] = (qkv, (0, 0, offset))
+            key_map["{}to_k.{}".format(k, end)] = (qkv, (0, offset, offset))
+            key_map["{}to_v.{}".format(k, end)] = (qkv, (0, offset * 2, offset))
+
         for k in MMDIT_MAP_BLOCK:
             key_map["{}.{}".format(block_from, k[1])] = "{}.{}".format(block_to, k[0])
 
@@ -364,6 +386,77 @@ def mmdit_to_diffusers(mmdit_config, output_prefix=""):
 
     return key_map
 
+PIXART_MAP_BASIC = {
+    ("csize_embedder.mlp.0.weight", "adaln_single.emb.resolution_embedder.linear_1.weight"),
+    ("csize_embedder.mlp.0.bias", "adaln_single.emb.resolution_embedder.linear_1.bias"),
+    ("csize_embedder.mlp.2.weight", "adaln_single.emb.resolution_embedder.linear_2.weight"),
+    ("csize_embedder.mlp.2.bias", "adaln_single.emb.resolution_embedder.linear_2.bias"),
+    ("ar_embedder.mlp.0.weight", "adaln_single.emb.aspect_ratio_embedder.linear_1.weight"),
+    ("ar_embedder.mlp.0.bias", "adaln_single.emb.aspect_ratio_embedder.linear_1.bias"),
+    ("ar_embedder.mlp.2.weight", "adaln_single.emb.aspect_ratio_embedder.linear_2.weight"),
+    ("ar_embedder.mlp.2.bias", "adaln_single.emb.aspect_ratio_embedder.linear_2.bias"),
+    ("x_embedder.proj.weight", "pos_embed.proj.weight"),
+    ("x_embedder.proj.bias", "pos_embed.proj.bias"),
+    ("y_embedder.y_embedding", "caption_projection.y_embedding"),
+    ("y_embedder.y_proj.fc1.weight", "caption_projection.linear_1.weight"),
+    ("y_embedder.y_proj.fc1.bias", "caption_projection.linear_1.bias"),
+    ("y_embedder.y_proj.fc2.weight", "caption_projection.linear_2.weight"),
+    ("y_embedder.y_proj.fc2.bias", "caption_projection.linear_2.bias"),
+    ("t_embedder.mlp.0.weight", "adaln_single.emb.timestep_embedder.linear_1.weight"),
+    ("t_embedder.mlp.0.bias", "adaln_single.emb.timestep_embedder.linear_1.bias"),
+    ("t_embedder.mlp.2.weight", "adaln_single.emb.timestep_embedder.linear_2.weight"),
+    ("t_embedder.mlp.2.bias", "adaln_single.emb.timestep_embedder.linear_2.bias"),
+    ("t_block.1.weight", "adaln_single.linear.weight"),
+    ("t_block.1.bias", "adaln_single.linear.bias"),
+    ("final_layer.linear.weight", "proj_out.weight"),
+    ("final_layer.linear.bias", "proj_out.bias"),
+    ("final_layer.scale_shift_table", "scale_shift_table"),
+}
+
+PIXART_MAP_BLOCK = {
+    ("scale_shift_table", "scale_shift_table"),
+    ("attn.proj.weight", "attn1.to_out.0.weight"),
+    ("attn.proj.bias", "attn1.to_out.0.bias"),
+    ("mlp.fc1.weight", "ff.net.0.proj.weight"),
+    ("mlp.fc1.bias", "ff.net.0.proj.bias"),
+    ("mlp.fc2.weight", "ff.net.2.weight"),
+    ("mlp.fc2.bias", "ff.net.2.bias"),
+    ("cross_attn.proj.weight" ,"attn2.to_out.0.weight"),
+    ("cross_attn.proj.bias"   ,"attn2.to_out.0.bias"),
+}
+
+def pixart_to_diffusers(mmdit_config, output_prefix=""):
+    key_map = {}
+
+    depth = mmdit_config.get("depth", 0)
+    offset = mmdit_config.get("hidden_size", 1152)
+
+    for i in range(depth):
+        block_from = "transformer_blocks.{}".format(i)
+        block_to = "{}blocks.{}".format(output_prefix, i)
+
+        for end in ("weight", "bias"):
+            s = "{}.attn1.".format(block_from)
+            qkv = "{}.attn.qkv.{}".format(block_to, end)
+            key_map["{}to_q.{}".format(s, end)] = (qkv, (0, 0, offset))
+            key_map["{}to_k.{}".format(s, end)] = (qkv, (0, offset, offset))
+            key_map["{}to_v.{}".format(s, end)] = (qkv, (0, offset * 2, offset))
+
+            s = "{}.attn2.".format(block_from)
+            q = "{}.cross_attn.q_linear.{}".format(block_to, end)
+            kv = "{}.cross_attn.kv_linear.{}".format(block_to, end)
+
+            key_map["{}to_q.{}".format(s, end)] = q
+            key_map["{}to_k.{}".format(s, end)] = (kv, (0, 0, offset))
+            key_map["{}to_v.{}".format(s, end)] = (kv, (0, offset, offset))
+
+        for k in PIXART_MAP_BLOCK:
+            key_map["{}.{}".format(block_from, k[1])] = "{}.{}".format(block_to, k[0])
+
+    for k in PIXART_MAP_BASIC:
+        key_map[k[1]] = "{}{}".format(output_prefix, k[0])
+    
+    return key_map
 
 def auraflow_to_diffusers(mmdit_config, output_prefix=""):
     n_double_layers = mmdit_config.get("n_double_layers", 0)
@@ -729,7 +822,7 @@ def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
     return rows * cols
 
 @torch.inference_mode()
-def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
+def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_amount=4, out_channels=3, output_device="cpu", downscale=False, index_formulas=None, pbar=None):
     dims = len(tile)
 
     if not (isinstance(upscale_amount, (tuple, list))):
@@ -738,6 +831,12 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_
     if not (isinstance(overlap, (tuple, list))):
         overlap = [overlap] * dims
 
+    if index_formulas is None:
+        index_formulas = upscale_amount
+
+    if not (isinstance(index_formulas, (tuple, list))):
+        index_formulas = [index_formulas] * dims
+
     def get_upscale(dim, val):
         up = upscale_amount[dim]
         if callable(up):
@@ -745,10 +844,38 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_
         else:
             return up * val
 
+    def get_downscale(dim, val):
+        up = upscale_amount[dim]
+        if callable(up):
+            return up(val)
+        else:
+            return val / up
+
+    def get_upscale_pos(dim, val):
+        up = index_formulas[dim]
+        if callable(up):
+            return up(val)
+        else:
+            return up * val
+
+    def get_downscale_pos(dim, val):
+        up = index_formulas[dim]
+        if callable(up):
+            return up(val)
+        else:
+            return val / up
+
+    if downscale:
+        get_scale = get_downscale
+        get_pos = get_downscale_pos
+    else:
+        get_scale = get_upscale
+        get_pos = get_upscale_pos
+
     def mult_list_upscale(a):
         out = []
         for i in range(len(a)):
-            out.append(round(get_upscale(i, a[i])))
+            out.append(round(get_scale(i, a[i])))
         return out
 
     output = torch.empty([samples.shape[0], out_channels] + mult_list_upscale(samples.shape[2:]), device=output_device)
@@ -773,16 +900,18 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_
             upscaled = []
 
             for d in range(dims):
-                pos = max(0, min(s.shape[d + 2] - (overlap[d] + 1), it[d]))
+                pos = max(0, min(s.shape[d + 2] - overlap[d], it[d]))
                 l = min(tile[d], s.shape[d + 2] - pos)
                 s_in = s_in.narrow(d + 2, pos, l)
-                upscaled.append(round(get_upscale(d, pos)))
+                upscaled.append(round(get_pos(d, pos)))
 
             ps = function(s_in).to(output_device)
             mask = torch.ones_like(ps)
 
             for d in range(2, dims + 2):
-                feather = round(get_upscale(d - 2, overlap[d - 2]))
+                feather = round(get_scale(d - 2, overlap[d - 2]))
+                if feather >= mask.shape[d]:
+                    continue
                 for t in range(feather):
                     a = (t + 1) / feather
                     mask.narrow(d, t, 1).mul_(a)
@@ -804,7 +933,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_
     return output
 
 def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
-    return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap, upscale_amount, out_channels, output_device, pbar)
+    return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=output_device, pbar=pbar)
 
 PROGRESS_BAR_ENABLED = True
 def set_progress_bar_enabled(enabled):
@@ -834,3 +963,65 @@ class ProgressBar:
 
     def update(self, value):
         self.update_absolute(self.current + value)
+
+def reshape_mask(input_mask, output_shape):
+    dims = len(output_shape) - 2
+
+    if dims == 1:
+        scale_mode = "linear"
+
+    if dims == 2:
+        input_mask = input_mask.reshape((-1, 1, input_mask.shape[-2], input_mask.shape[-1]))
+        scale_mode = "bilinear"
+
+    if dims == 3:
+        if len(input_mask.shape) < 5:
+            input_mask = input_mask.reshape((1, 1, -1, input_mask.shape[-2], input_mask.shape[-1]))
+        scale_mode = "trilinear"
+
+    mask = torch.nn.functional.interpolate(input_mask, size=output_shape[2:], mode=scale_mode)
+    if mask.shape[1] < output_shape[1]:
+        mask = mask.repeat((1, output_shape[1]) + (1,) * dims)[:,:output_shape[1]]
+    mask = repeat_to_batch_size(mask, output_shape[0])
+    return mask
+
+def upscale_dit_mask(mask: torch.Tensor, img_size_in, img_size_out):
+        hi, wi = img_size_in
+        ho, wo = img_size_out
+        # if it's already the correct size, no need to do anything
+        if (hi, wi) == (ho, wo):
+            return mask
+        if mask.ndim == 2:
+            mask = mask.unsqueeze(0)
+        if mask.ndim != 3:
+            raise ValueError(f"Got a mask of shape {list(mask.shape)}, expected [b, q, k] or [q, k]")
+        txt_tokens = mask.shape[1] - (hi * wi)
+        # quadrants of the mask
+        txt_to_txt = mask[:, :txt_tokens, :txt_tokens]
+        txt_to_img = mask[:, :txt_tokens, txt_tokens:]
+        img_to_img = mask[:, txt_tokens:, txt_tokens:]
+        img_to_txt = mask[:, txt_tokens:, :txt_tokens]
+
+        # convert to 1d x 2d, interpolate, then back to 1d x 1d
+        txt_to_img = rearrange  (txt_to_img, "b t (h w) -> b t h w", h=hi, w=wi)
+        txt_to_img = interpolate(txt_to_img, size=img_size_out, mode="bilinear")
+        txt_to_img = rearrange  (txt_to_img, "b t h w -> b t (h w)")
+        # this one is hard because we have to do it twice
+        # convert to 1d x 2d, interpolate, then to 2d x 1d, interpolate, then 1d x 1d
+        img_to_img = rearrange  (img_to_img, "b hw (h w) -> b hw h w", h=hi, w=wi)
+        img_to_img = interpolate(img_to_img, size=img_size_out, mode="bilinear")
+        img_to_img = rearrange  (img_to_img, "b (hk wk) hq wq -> b (hq wq) hk wk", hk=hi, wk=wi)
+        img_to_img = interpolate(img_to_img, size=img_size_out, mode="bilinear")
+        img_to_img = rearrange  (img_to_img, "b (hq wq) hk wk -> b (hk wk) (hq wq)", hq=ho, wq=wo)
+        # convert to 2d x 1d, interpolate, then back to 1d x 1d
+        img_to_txt = rearrange  (img_to_txt, "b (h w) t -> b t h w", h=hi, w=wi)
+        img_to_txt = interpolate(img_to_txt, size=img_size_out, mode="bilinear")
+        img_to_txt = rearrange  (img_to_txt, "b t h w -> b (h w) t")
+
+        # reassemble the mask from blocks
+        out = torch.cat([
+            torch.cat([txt_to_txt, txt_to_img], dim=2),
+            torch.cat([img_to_txt, img_to_img], dim=2)],
+            dim=1
+        )
+        return out

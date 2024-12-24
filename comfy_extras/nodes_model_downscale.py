@@ -1,4 +1,3 @@
-import torch
 import comfy.utils
 
 class PatchModelAddDownscale:

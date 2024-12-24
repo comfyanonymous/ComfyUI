@@ -1,1 +1,23 @@
-*       @comfyanonymous
+# Admins
+* @comfyanonymous
+
+# Note: Github teams syntax cannot be used here as the repo is not owned by Comfy-Org.
+# Inlined the team members for now.
+
+# Maintainers
+*.md @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata @Kosinkadink
+/tests/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata @Kosinkadink
+/tests-unit/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata @Kosinkadink
+/notebooks/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata @Kosinkadink
+/script_examples/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata @Kosinkadink
+/.github/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata @Kosinkadink
+
+# Python web server
+/api_server/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
+/app/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
+
+# Frontend assets
+/web/ @huchenlei @webfiltered @pythongosssss
+
+# Extra nodes
+/comfy_extras/ @yoland68 @robinjhuang @huchenlei @pythongosssss @ltdrdata @Kosinkadink

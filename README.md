@@ -28,7 +28,7 @@
 [github-downloads-latest-shield]: https://img.shields.io/github/downloads/comfyanonymous/ComfyUI/latest/total?style=flat&label=downloads%40latest
 [github-downloads-link]: https://github.com/comfyanonymous/ComfyUI/releases
 
-![ComfyUI Screenshot](comfyui_screenshot.png)
+![ComfyUI Screenshot](https://github.com/user-attachments/assets/7ccaf2c1-9b72-41ae-9a89-5688c94b7abe)
 </div>
 
 This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
@@ -38,8 +38,21 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
-- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/), [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/), [SD3](https://comfyanonymous.github.io/ComfyUI_examples/sd3/) and [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
-- [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
+- Image Models
+   - SD1.x, SD2.x,
+   - [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
+   - [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/)
+   - [SD3 and SD3.5](https://comfyanonymous.github.io/ComfyUI_examples/sd3/)
+   - Pixart Alpha and Sigma
+   - [AuraFlow](https://comfyanonymous.github.io/ComfyUI_examples/aura_flow/)
+   - [HunyuanDiT](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_dit/)
+   - [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
+- Video Models
+   - [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
+   - [Mochi](https://comfyanonymous.github.io/ComfyUI_examples/mochi/)
+   - [LTX-Video](https://comfyanonymous.github.io/ComfyUI_examples/ltxv/)
+   - [Hunyuan Video](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_video/)
+- [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Smart memory management: can automatically run models on GPUs with as low as 1GB vram.
@@ -59,9 +72,6 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - [GLIGEN](https://comfyanonymous.github.io/ComfyUI_examples/gligen/)
 - [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
 - [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
-- [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
-- [AuraFlow](https://comfyanonymous.github.io/ComfyUI_examples/aura_flow/)
-- [HunyuanDiT](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_dit/)
 - Latent previews with [TAESD](#how-to-show-high-quality-previews)
 - Starts up very fast.
 - Works fully offline: will never download anything.
@@ -73,37 +83,39 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 
 | Keybind                            | Explanation                                                                                                        |
 |------------------------------------|--------------------------------------------------------------------------------------------------------------------|
-| Ctrl + Enter                       | Queue up current graph for generation                                                                              |
-| Ctrl + Shift + Enter               | Queue up current graph as first for generation                                                                     |
-| Ctrl + Alt + Enter                 | Cancel current generation                                                                                          |
-| Ctrl + Z/Ctrl + Y                  | Undo/Redo                                                                                                          |
-| Ctrl + S                           | Save workflow                                                                                                      |
-| Ctrl + O                           | Load workflow                                                                                                      |
-| Ctrl + A                           | Select all nodes                                                                                                   |
-| Alt + C                            | Collapse/uncollapse selected nodes                                                                                 |
-| Ctrl + M                           | Mute/unmute selected nodes                                                                                         |
-| Ctrl + B                           | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
-| Delete/Backspace                   | Delete selected nodes                                                                                              |
-| Ctrl + Backspace                   | Delete the current graph                                                                                           |
-| Space                              | Move the canvas around when held and moving the cursor                                                             |
-| Ctrl/Shift + Click                 | Add clicked node to selection                                                                                      |
-| Ctrl + C/Ctrl + V                  | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes)                     |
-| Ctrl + C/Ctrl + Shift + V          | Copy and paste selected nodes (maintaining connections from outputs of unselected nodes to inputs of pasted nodes) |
-| Shift + Drag                       | Move multiple selected nodes at the same time                                                                      |
-| Ctrl + D                           | Load default graph                                                                                                 |
-| Alt + `+`                          | Canvas Zoom in                                                                                                     |
-| Alt + `-`                          | Canvas Zoom out                                                                                                    |
-| Ctrl + Shift + LMB + Vertical drag | Canvas Zoom in/out                                                                                                 |
-| P                                  | Pin/Unpin selected nodes                                                                                           |
-| Ctrl + G                           | Group selected nodes                                                                                               |
-| Q                                  | Toggle visibility of the queue                                                                                     |
-| H                                  | Toggle visibility of history                                                                                       |
-| R                                  | Refresh graph                                                                                                      |
+| `Ctrl` + `Enter`                      | Queue up current graph for generation                                                                              |
+| `Ctrl` + `Shift` + `Enter`              | Queue up current graph as first for generation                                                                     |
+| `Ctrl` + `Alt` + `Enter`                | Cancel current generation                                                                                          |
+| `Ctrl` + `Z`/`Ctrl` + `Y`                 | Undo/Redo                                                                                                          |
+| `Ctrl` + `S`                          | Save workflow                                                                                                      |
+| `Ctrl` + `O`                          | Load workflow                                                                                                      |
+| `Ctrl` + `A`                          | Select all nodes                                                                                                   |
+| `Alt `+ `C`                           | Collapse/uncollapse selected nodes                                                                                 |
+| `Ctrl` + `M`                          | Mute/unmute selected nodes                                                                                         |
+| `Ctrl` + `B`                           | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
+| `Delete`/`Backspace`                   | Delete selected nodes                                                                                              |
+| `Ctrl` + `Backspace`                   | Delete the current graph                                                                                           |
+| `Space`                              | Move the canvas around when held and moving the cursor                                                             |
+| `Ctrl`/`Shift` + `Click`                 | Add clicked node to selection                                                                                      |
+| `Ctrl` + `C`/`Ctrl` + `V`                  | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes)                     |
+| `Ctrl` + `C`/`Ctrl` + `Shift` + `V`          | Copy and paste selected nodes (maintaining connections from outputs of unselected nodes to inputs of pasted nodes) |
+| `Shift` + `Drag`                       | Move multiple selected nodes at the same time                                                                      |
+| `Ctrl` + `D`                           | Load default graph                                                                                                 |
+| `Alt` + `+`                          | Canvas Zoom in                                                                                                     |
+| `Alt` + `-`                          | Canvas Zoom out                                                                                                    |
+| `Ctrl` + `Shift` + LMB + Vertical drag | Canvas Zoom in/out                                                                                                 |
+| `P`                                  | Pin/Unpin selected nodes                                                                                           |
+| `Ctrl` + `G`                           | Group selected nodes                                                                                               |
+| `Q`                                 | Toggle visibility of the queue                                                                                     |
+| `H`                                  | Toggle visibility of history                                                                                       |
+| `R`                                  | Refresh graph                                                                                                      |
+| `F`                                  | Show/Hide menu                                                                                                      |
+| `.`                                  | Fit view to selection (Whole graph when nothing is selected)                                                        |
 | Double-Click LMB                   | Open node quick search palette                                                                                     |
-| Shift + Drag                       | Move multiple wires at once                                                                                        |
-| Ctrl + Alt + LMB                   | Disconnect all wires from clicked slot                                                                             |
+| `Shift` + Drag                       | Move multiple wires at once                                                                                        |
+| `Ctrl` + `Alt` + LMB                   | Disconnect all wires from clicked slot                                                                             |
 
-Ctrl can also be replaced with Cmd instead for macOS users
+`Ctrl` can also be replaced with `Cmd` instead for macOS users
 
 # Installing
 
@@ -139,11 +151,35 @@ Put your VAE in: models/vae
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.1```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2```
 
 This is the command to install the nightly with ROCm 6.2 which might have some performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.2```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.2.4```
+
+### Intel GPUs (Windows and Linux)
+
+(Option 1) Intel Arc GPU users can install native PyTorch with torch.xpu support using pip (currently available in PyTorch nightly builds). More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
+  
+1. To install PyTorch nightly, use the following command:
+
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/xpu```
+
+2. Launch ComfyUI by running `python main.py`
+
+
+(Option 2) Alternatively, Intel GPUs supported by Intel Extension for PyTorch (IPEX) can leverage IPEX for improved performance.
+
+1. For Intel® Arc™ A-Series Graphics utilizing IPEX, create a conda environment and use the commands below:
+
+```
+conda install libuv
+pip install torch==2.3.1.post0+cxx11.abi torchvision==0.18.1.post0+cxx11.abi torchaudio==2.3.1.post0+cxx11.abi intel-extension-for-pytorch==2.3.110.post0+xpu --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/cn/
+```
+
+For other supported Intel GPUs with IPEX, visit [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) for more information.
+
+Additional discussion and help can be found [here](https://github.com/comfyanonymous/ComfyUI/discussions/476).
 
 ### NVIDIA
 
@@ -173,6 +209,7 @@ After this you should have everything installed and can proceed to running Comfy
 
 ### Others:
 
+
 #### Ascend NPUs
 
 We offer Ascend NPU support for all models compatible with Ascend Extension for PyTorch (torch_npu). To get started, ensure your environment meets the prerequisites outlined on the [installation](https://ascend.github.io/docs/sources/ascend/quick_install.html) page. Here's a step-by-step guide tailored to your platform and installation method:
@@ -193,6 +230,7 @@ Intel GPU support is available for all Intel GPUs supported by Intel's Extension
 1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux and run ComfyUI normally as described above after everything is installed.
 
 Additional discussion and help can be found [here](https://github.com/comfyanonymous/ComfyUI/discussions/476).
+
 
 #### Apple Mac silicon
 
@@ -220,6 +258,14 @@ Try running it with this command if you have issues:
 For 6700, 6600 and maybe other RDNA2 or older: ```HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py```
 
 For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 python main.py```
+
+### AMD ROCm Tips
+
+You can enable experimental memory efficient attention on pytorch 2.5 in ComfyUI on RDNA3 and potentially other AMD GPUs using this command:
+
+```TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention```
+
+You can also try setting this env variable `PYTORCH_TUNABLEOP_ENABLED=1` which might speed things up at the cost of a very slow initial run.
 
 # Notes
 
@@ -306,4 +352,3 @@ This will use a snapshot of the legacy frontend preserved in the [ComfyUI Legacy
 ### Which GPU should I buy for this?
 
 [See this page for some recommendations](https://github.com/comfyanonymous/ComfyUI/wiki/Which-GPU-should-I-buy-for-ComfyUI)
-

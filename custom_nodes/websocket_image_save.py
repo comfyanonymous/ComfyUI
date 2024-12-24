@@ -1,7 +1,5 @@
-from PIL import Image, ImageOps
-from io import BytesIO
+from PIL import Image
 import numpy as np
-import struct
 import comfy.utils
 import time
 
