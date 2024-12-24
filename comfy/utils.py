@@ -822,7 +822,7 @@ def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
     return rows * cols
 
 @torch.inference_mode()
-def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_amount=4, out_channels=3, output_device="cpu", downscale=False, pbar=None):
+def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_amount=4, out_channels=3, output_device="cpu", downscale=False, index_formulas=None, pbar=None):
     dims = len(tile)
 
     if not (isinstance(upscale_amount, (tuple, list))):
@@ -830,6 +830,12 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
 
     if not (isinstance(overlap, (tuple, list))):
         overlap = [overlap] * dims
+
+    if index_formulas is None:
+        index_formulas = upscale_amount
+
+    if not (isinstance(index_formulas, (tuple, list))):
+        index_formulas = [index_formulas] * dims
 
     def get_upscale(dim, val):
         up = upscale_amount[dim]
@@ -845,10 +851,26 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
         else:
             return val / up
 
+    def get_upscale_pos(dim, val):
+        up = index_formulas[dim]
+        if callable(up):
+            return up(val)
+        else:
+            return up * val
+
+    def get_downscale_pos(dim, val):
+        up = index_formulas[dim]
+        if callable(up):
+            return up(val)
+        else:
+            return val / up
+
     if downscale:
         get_scale = get_downscale
+        get_pos = get_downscale_pos
     else:
         get_scale = get_upscale
+        get_pos = get_upscale_pos
 
     def mult_list_upscale(a):
         out = []
@@ -881,7 +903,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
                 pos = max(0, min(s.shape[d + 2] - overlap[d], it[d]))
                 l = min(tile[d], s.shape[d + 2] - pos)
                 s_in = s_in.narrow(d + 2, pos, l)
-                upscaled.append(round(get_scale(d, pos)))
+                upscaled.append(round(get_pos(d, pos)))
 
             ps = function(s_in).to(output_device)
             mask = torch.ones_like(ps)
