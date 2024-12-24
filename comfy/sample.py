@@ -10,12 +10,15 @@ def prepare_noise(latent_image, seed, noise_inds=None):
     creates random noise given a latent image and a seed.
     optional arg skip can be used to skip and discard x number of noise generations for a given seed
     """
-    generator = torch.manual_seed(seed)
-    if noise_inds is None:
-        return torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
-    
-    unique_inds, inverse = np.unique(noise_inds, return_inverse=True)
     noises = []
+    if noise_inds is None:
+        for i in range(latent_image.size()[0]):
+            generator = torch.manual_seed(seed + i)
+            noises.append(torch.randn(latent_image[i].size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu"))
+        return torch.stack(noises, axis=0)
+    
+    generator = torch.manual_seed(seed)
+    unique_inds, inverse = np.unique(noise_inds, return_inverse=True)
     for i in range(unique_inds[-1]+1):
         noise = torch.randn([1] + list(latent_image.size())[1:], dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
         if i in unique_inds:
