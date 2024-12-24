@@ -509,9 +509,10 @@ class VAE:
             if overlap_t is None:
                 args["overlap"] = (1, overlap, overlap)
             else:
-                args["overlap"] = (overlap_t, overlap, overlap)
+                args["overlap"] = (max(1, overlap_t), overlap, overlap)
             if tile_t is not None:
-                args["tile_t"] = tile_t
+                args["tile_t"] = max(2, tile_t)
+
             output = self.decode_tiled_3d(samples, **args)
         return output.movedim(1, -1)
 
