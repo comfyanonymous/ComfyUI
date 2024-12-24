@@ -250,6 +250,16 @@ class PromptServer():
                     name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
 
             return web.json_response(extensions)
+        
+        @routes.get("/workflow_templates")
+        async def get_workflow_templates(request):
+            files = glob.glob(os.path.join(folder_paths.custom_nodes_directory, '*/example_workflows/*.json'))
+            workflow_templates_dict = {} # custom_nodes folder name -> example workflow names
+            for file in files:
+                custom_nodes_name = os.path.basename(os.path.dirname(os.path.dirname(file)))
+                workflow_name = os.path.splitext(os.path.basename(file))[0]
+                workflow_templates_dict.setdefault(custom_nodes_name, []).append(workflow_name)
+            return web.json_response(workflow_templates_dict)
 
         def get_dir_by_type(dir_type):
             if dir_type is None:
@@ -713,6 +723,13 @@ class PromptServer():
         self.app.add_routes(api_routes)
         self.app.add_routes(self.routes)
 
+        # Add routes for workflow templates in custom nodes.
+        for module_name, module_dir in nodes.LOADED_MODULE_DIRS.items():
+            workflows_dir = os.path.join(module_dir, 'example_workflows')
+            if os.path.exists(workflows_dir):
+                self.app.add_routes([web.static('/workflow_templates/' + module_name, workflows_dir)])
+
+        # Add routes from web extensions.
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([web.static('/extensions/' + name, dir)])
 
