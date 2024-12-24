@@ -187,7 +187,7 @@ def prompt_worker(q, server_instance):
             # Log Time in a more readable way after 10 minutes
             if execution_time > 600:
                 execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
-                logging.info("Prompt executed in", execution_time)
+                logging.info(f"Prompt executed in {execution_time}")
             else:
                 logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
 
