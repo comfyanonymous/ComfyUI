@@ -166,6 +166,14 @@ def prompt_worker(q, server_instance):
         queue_item = q.get(timeout=timeout)
         if queue_item is not None:
             item, item_id = queue_item
+
+            if item[3].get("unload_models"):
+                # For those cases where the flag is set, to clear memory before execution
+                comfy.model_management.unload_all_models()
+                gc.collect()
+                comfy.model_management.soft_empty_cache()
+                last_gc_collect = time.perf_counter()
+
             execution_start_time = time.perf_counter()
             prompt_id = item[1]
             server_instance.last_prompt_id = prompt_id
