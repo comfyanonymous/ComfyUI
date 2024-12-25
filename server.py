@@ -336,6 +336,7 @@ class PromptServer():
                 for key, value in json_data.items():
                     if key == "image":
                         file_name = json_data.get("filename")
+                        import base64
                         value = base64.b64decode(value)
                         import io
                         image = aiohttp.web.FileField(name=key, filename=file_name, file=io.BytesIO(value), content_type='image/png', headers=None)
