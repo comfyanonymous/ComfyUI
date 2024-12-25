@@ -969,17 +969,13 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     if FORCE_FP16:
         return True
 
-    if device is not None:
-        if is_device_mps(device):
-            return True
-
     if FORCE_FP32:
         return False
 
     if directml_enabled:
         return False
 
-    if mps_mode():
+    if (device is not None and is_device_mps(device)) or mps_mode():
         return True
 
     if cpu_mode():
@@ -1028,17 +1024,13 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
         if is_device_cpu(device): #TODO ? bf16 works on CPU but is extremely slow
             return False
 
-    if device is not None:
-        if is_device_mps(device):
-            return True
-
     if FORCE_FP32:
         return False
 
     if directml_enabled:
         return False
 
-    if mps_mode():
+    if (device is not None and is_device_mps(device)) or mps_mode():
         if mac_version() < (14,):
             return False
         return True
