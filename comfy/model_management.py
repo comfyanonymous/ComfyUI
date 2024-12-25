@@ -188,6 +188,12 @@ def is_nvidia():
             return True
     return False
 
+def is_amd():
+    global cpu_state
+    if cpu_state == CPUState.GPU:
+        if torch.version.hip:
+            return True
+    return False
 
 MIN_WEIGHT_MEMORY_RATIO = 0.4
 if is_nvidia():
@@ -198,26 +204,16 @@ if args.use_pytorch_cross_attention:
     ENABLE_PYTORCH_ATTENTION = True
     XFORMERS_IS_AVAILABLE = False
 
-VAE_DTYPES = [torch.float32]
-
 try:
     if is_nvidia():
         if int(torch_version[0]) >= 2:
             if ENABLE_PYTORCH_ATTENTION == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
                 ENABLE_PYTORCH_ATTENTION = True
-            if torch.cuda.is_bf16_supported() and torch.cuda.get_device_properties(torch.cuda.current_device()).major >= 8:
-                VAE_DTYPES = [torch.bfloat16] + VAE_DTYPES
     if is_intel_xpu():
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             ENABLE_PYTORCH_ATTENTION = True
 except:
     pass
-
-if is_intel_xpu():
-    VAE_DTYPES = [torch.bfloat16] + VAE_DTYPES
-
-if args.cpu_vae:
-    VAE_DTYPES = [torch.float32]
 
 if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_math_sdp(True)
@@ -754,7 +750,6 @@ def vae_offload_device():
         return torch.device("cpu")
 
 def vae_dtype(device=None, allowed_dtypes=[]):
-    global VAE_DTYPES
     if args.fp16_vae:
         return torch.float16
     elif args.bf16_vae:
@@ -763,12 +758,14 @@ def vae_dtype(device=None, allowed_dtypes=[]):
         return torch.float32
 
     for d in allowed_dtypes:
-        if d == torch.float16 and should_use_fp16(device, prioritize_performance=False):
-            return d
-        if d in VAE_DTYPES:
+        if d == torch.float16 and should_use_fp16(device):
             return d
 
-    return VAE_DTYPES[0]
+        # NOTE: bfloat16 seems to work on AMD for the VAE but is extremely slow in some cases compared to fp32
+        if d == torch.bfloat16 and (not is_amd()) and should_use_bf16(device):
+            return d
+
+    return torch.float32
 
 def get_autocast_device(dev):
     if hasattr(dev, 'type'):
@@ -889,14 +886,19 @@ def pytorch_attention_flash_attention():
             return True
     return False
 
+def mac_version():
+    try:
+        return tuple(int(n) for n in platform.mac_ver()[0].split("."))
+    except:
+        return None
+
 def force_upcast_attention_dtype():
     upcast = args.force_upcast_attention
-    try:
-        macos_version = tuple(int(n) for n in platform.mac_ver()[0].split("."))
-        if (14, 5) <= macos_version <= (15, 2):  # black image bug on recent versions of macOS
-            upcast = True
-    except:
-        pass
+
+    macos_version = mac_version()
+    if macos_version is not None and ((14, 5) <= macos_version <= (15, 2)):  # black image bug on recent versions of macOS
+        upcast = True
+
     if upcast:
         return torch.float32
     else:
@@ -967,17 +969,13 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     if FORCE_FP16:
         return True
 
-    if device is not None:
-        if is_device_mps(device):
-            return True
-
     if FORCE_FP32:
         return False
 
     if directml_enabled:
         return False
 
-    if mps_mode():
+    if (device is not None and is_device_mps(device)) or mps_mode():
         return True
 
     if cpu_mode():
@@ -1026,17 +1024,15 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
         if is_device_cpu(device): #TODO ? bf16 works on CPU but is extremely slow
             return False
 
-    if device is not None:
-        if is_device_mps(device):
-            return True
-
     if FORCE_FP32:
         return False
 
     if directml_enabled:
         return False
 
-    if mps_mode():
+    if (device is not None and is_device_mps(device)) or mps_mode():
+        if mac_version() < (14,):
+            return False
         return True
 
     if cpu_mode():
