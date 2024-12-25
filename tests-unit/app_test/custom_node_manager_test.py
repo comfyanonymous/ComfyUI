@@ -1,5 +1,4 @@
 import pytest
-import json
 from aiohttp import web
 from unittest.mock import patch
 from app.custom_node_manager import CustomNodeManager
