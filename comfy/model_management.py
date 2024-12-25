@@ -886,14 +886,19 @@ def pytorch_attention_flash_attention():
             return True
     return False
 
+def mac_version():
+    try:
+        return tuple(int(n) for n in platform.mac_ver()[0].split("."))
+    except:
+        return None
+
 def force_upcast_attention_dtype():
     upcast = args.force_upcast_attention
-    try:
-        macos_version = tuple(int(n) for n in platform.mac_ver()[0].split("."))
-        if (14, 5) <= macos_version <= (15, 2):  # black image bug on recent versions of macOS
-            upcast = True
-    except:
-        pass
+
+    macos_version = mac_version()
+    if macos_version is not None and ((14, 5) <= macos_version <= (15, 2)):  # black image bug on recent versions of macOS
+        upcast = True
+
     if upcast:
         return torch.float32
     else:
@@ -1034,6 +1039,8 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
         return False
 
     if mps_mode():
+        if mac_version() < (14,):
+            return False
         return True
 
     if cpu_mode():
