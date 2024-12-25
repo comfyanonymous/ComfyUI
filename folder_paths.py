@@ -43,7 +43,6 @@ output_directory = os.path.join(base_path, "output")
 temp_directory = os.path.join(base_path, "temp")
 input_directory = os.path.join(base_path, "input")
 user_directory = os.path.join(base_path, "user")
-custom_nodes_directory = os.path.join(base_path, "custom_nodes")
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 

@@ -30,6 +30,7 @@ import node_helpers
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
+from app.custom_node_manager import CustomNodeManager
 from typing import Optional
 from api_server.routes.internal.internal_routes import InternalRoutes
 
@@ -153,6 +154,7 @@ class PromptServer():
 
         self.user_manager = UserManager()
         self.model_file_manager = ModelFileManager()
+        self.custom_node_manager = CustomNodeManager()
         self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = None
@@ -251,16 +253,6 @@ class PromptServer():
 
             return web.json_response(extensions)
         
-        @routes.get("/workflow_templates")
-        async def get_workflow_templates(request):
-            files = glob.glob(os.path.join(folder_paths.custom_nodes_directory, '*/example_workflows/*.json'))
-            workflow_templates_dict = {} # custom_nodes folder name -> example workflow names
-            for file in files:
-                custom_nodes_name = os.path.basename(os.path.dirname(os.path.dirname(file)))
-                workflow_name = os.path.splitext(os.path.basename(file))[0]
-                workflow_templates_dict.setdefault(custom_nodes_name, []).append(workflow_name)
-            return web.json_response(workflow_templates_dict)
-
         def get_dir_by_type(dir_type):
             if dir_type is None:
                 dir_type = "input"
@@ -707,6 +699,7 @@ class PromptServer():
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
         self.model_file_manager.add_routes(self.routes)
+        self.custom_node_manager.add_routes(self.routes, self.app, nodes.LOADED_MODULE_DIRS.items())
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
@@ -722,12 +715,6 @@ class PromptServer():
                 api_routes.route(route.method, "/api" + route.path)(route.handler, **route.kwargs)
         self.app.add_routes(api_routes)
         self.app.add_routes(self.routes)
-
-        # Add routes for workflow templates in custom nodes.
-        for module_name, module_dir in nodes.LOADED_MODULE_DIRS.items():
-            workflows_dir = os.path.join(module_dir, 'example_workflows')
-            if os.path.exists(workflows_dir):
-                self.app.add_routes([web.static('/workflow_templates/' + module_name, workflows_dir)])
 
         # Add routes from web extensions.
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
