@@ -1,3 +1,4 @@
+import collections
 import os
 from pathlib import Path
 from typing import Optional, List, Literal, Tuple, Union, Dict
@@ -76,7 +77,7 @@ def recursive_search(
 ) -> Tuple[List[str], Dict[str, float]]: ...
 
 
-def filter_files_extensions(files: List[str], extensions: set[str]) -> List[str]: ...
+def filter_files_extensions(files: collections.abc.Collection[str], extensions: collections.abc.Collection[str]) -> List[str]: ...
 
 
 def get_full_path(folder_name: str, filename: str) -> Optional[Union[str, bytes, os.PathLike]]: ...

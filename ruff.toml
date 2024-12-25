@@ -1,0 +1,13 @@
+# Disable all rules by default
+lint.ignore = ["ALL"]
+
+# Enable specific rules
+lint.select = [
+    "S307",  # suspicious-eval-usage
+    "T201",  # print-usage
+    # The "F" series in Ruff stands for "Pyflakes" rules, which catch various Python syntax errors and undefined names.
+    # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
+    "F",
+]
+
+exclude = ["*.ipynb"]

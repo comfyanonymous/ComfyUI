@@ -92,6 +92,7 @@ def _create_parser() -> EnhancedConfigArgParser:
 
     parser.add_argument("--preview-size", type=int, default=512, help="Sets the maximum preview size for sampler nodes.")
     cache_group = parser.add_mutually_exclusive_group()
+    cache_group.add_argument("--cache-classic", action="store_true", help="WARNING: Unused. Use the old style (aggressive) caching.")
     cache_group.add_argument("--cache-lru", type=int, default=0, help="Use LRU caching with a maximum of N node results cached. May use more RAM/VRAM.")
     attn_group = parser.add_mutually_exclusive_group()
     attn_group.add_argument("--use-split-cross-attention", action="store_true",
@@ -100,10 +101,9 @@ def _create_parser() -> EnhancedConfigArgParser:
                             help="Use the sub-quadratic cross attention optimization . Ignored when xformers is used.")
     attn_group.add_argument("--use-pytorch-cross-attention", action="store_true",
                             help="Use the new pytorch 2.0 cross attention function.")
+    attn_group.add_argument("--use-sage-attention", action="store_true", help="Use sage attention.")
 
     parser.add_argument("--disable-xformers", action="store_true", help="Disable xformers.")
-    parser.add_argument("--disable-flash-attn", action="store_true", help="Disable Flash Attention")
-    parser.add_argument("--disable-sage-attention", action="store_true", help="Disable Sage Attention")
 
     upcast = parser.add_mutually_exclusive_group()
     upcast.add_argument("--force-upcast-attention", action="store_true", help="Force enable attention upcasting, please report if it fixes black images.")

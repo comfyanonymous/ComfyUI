@@ -89,9 +89,9 @@ async def test_routes_added_to_app(aiohttp_client_factory, internal_routes):
     client = await aiohttp_client_factory()
     try:
         resp = await client.get('/files')
-        print(f"Response received: status {resp.status}")
+        print(f"Response received: status {resp.status}")  # noqa: T201
     except Exception as e:
-        print(f"Exception occurred during GET request: {e}")
+        print(f"Exception occurred during GET request: {e}")  # noqa: T201
         raise
 
     assert resp.status != 404, "Route /files does not exist"

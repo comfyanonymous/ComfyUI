@@ -190,11 +190,16 @@ def map_node_over_list(obj, input_data_all: typing.Dict[str, typing.Any], func: 
 
     results = []
 
-    def process_inputs(inputs, index=None):
+    def process_inputs(inputs, index=None, input_is_list=False):
         if allow_interrupt:
             interruption.throw_exception_if_processing_interrupted()
         execution_block = None
         for k, v in inputs.items():
+            if input_is_list:
+                for e in v:
+                    if isinstance(e, ExecutionBlocker):
+                        v = e
+                        break
             if isinstance(v, ExecutionBlocker):
                 execution_block = execution_block_cb(v) if execution_block_cb else v
                 break
@@ -206,7 +211,7 @@ def map_node_over_list(obj, input_data_all: typing.Dict[str, typing.Any], func: 
             results.append(execution_block)
 
     if input_is_list:
-        process_inputs(input_data_all, 0)
+        process_inputs(input_data_all, 0, input_is_list=input_is_list)
     elif max_len_input == 0:
         process_inputs({})
     else:
@@ -904,7 +909,7 @@ def _validate_prompt(prompt: typing.Mapping[str, typing.Any]) -> ValidationTuple
         if 'class_type' not in prompt[x]:
             error = {
                 "type": "invalid_prompt",
-                "message": f"Cannot execute because a node is missing the class_type property.",
+                "message": "Cannot execute because a node is missing the class_type property.",
                 "details": f"Node ID '#{x}'",
                 "extra_info": {}
             }

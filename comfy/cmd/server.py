@@ -170,6 +170,7 @@ class PromptServer(ExecutorToClientProgress):
 
         self.address: str = "0.0.0.0"
         self.user_manager = UserManager()
+        self.model_file_manager = ModelFileManager()
         self.internal_routes = InternalRoutes(self)
         # todo: this is probably read by custom nodes elsewhere
         self.supports: List[str] = ["custom_nodes_from_web"]
@@ -471,7 +472,21 @@ class PromptServer(ExecutorToClientProgress):
                             return web.Response(body=alpha_buffer.read(), content_type='image/png',
                                                 headers={"Content-Disposition": f"filename=\"{filename}\""})
                     else:
-                        return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
+                        # Get content type from mimetype, defaulting to 'application/octet-stream'
+                        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+                        # For security, force certain extensions to download instead of display
+                        file_extension = os.path.splitext(filename)[1].lower()
+                        if file_extension in {'.html', '.htm', '.js', '.css'}:
+                            content_type = 'application/octet-stream'  # Forces download
+
+                        return web.FileResponse(
+                            file,
+                            headers={
+                                "Content-Disposition": f"filename=\"{filename}\"",
+                                "Content-Type": content_type
+                            }
+                        )
             return web.Response(status=404)
 
         @routes.get("/view_metadata/{folder_name}")
@@ -573,7 +588,7 @@ class PromptServer(ExecutorToClientProgress):
             for x in self.nodes.NODE_CLASS_MAPPINGS:
                 try:
                     out[x] = node_info(x)
-                except Exception as e:
+                except Exception:
                     logger.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
                     logger.error(traceback.format_exc())
             return web.json_response(out)
@@ -594,7 +609,7 @@ class PromptServer(ExecutorToClientProgress):
             return web.json_response(self.prompt_queue.get_history(max_items=max_items))
 
         @routes.get("/history/{prompt_id}")
-        async def get_history_prompt(request):
+        async def get_history_prompt_id(request):
             prompt_id = request.match_info.get("prompt_id", None)
             return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
 
@@ -905,6 +920,7 @@ class PromptServer(ExecutorToClientProgress):
 
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
+        self.model_file_manager.add_routes(self.routes)
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
@@ -1049,8 +1065,8 @@ class PromptServer(ExecutorToClientProgress):
         for handler in self.on_prompt_handlers:
             try:
                 json_data = handler(json_data)
-            except Exception as e:
-                logger.warning(f"[ERROR] An error occurred during the on_prompt_handler processing")
+            except Exception:
+                logger.warning("[ERROR] An error occurred during the on_prompt_handler processing")
                 logger.warning(traceback.format_exc())
 
         return json_data

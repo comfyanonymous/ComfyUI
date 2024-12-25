@@ -354,6 +354,20 @@ def model_lora_keys_unet(model, key_map=None):
                 key_lora = "transformer.{}".format(k[:-len(".weight")])  # simpletrainer and probably regular diffusers lora format
                 key_map[key_lora] = to
 
+    if isinstance(model, model_base.PixArt):
+        diffusers_keys = utils.pixart_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
+        for k in diffusers_keys:
+            if k.endswith(".weight"):
+                to = diffusers_keys[k]
+                key_lora = "transformer.{}".format(k[:-len(".weight")])  # default format
+                key_map[key_lora] = to
+
+                key_lora = "base_model.model.{}".format(k[:-len(".weight")])  # diffusers training script
+                key_map[key_lora] = to
+
+                key_lora = "unet.base_model.model.{}".format(k[:-len(".weight")])  # old reference peft script
+                key_map[key_lora] = to
+
     if isinstance(model, model_base.HunyuanDiT):
         for k in sdk:
             if k.startswith("diffusion_model.") and k.endswith(".weight"):
@@ -374,6 +388,18 @@ def model_lora_keys_unet(model, key_map=None):
             if k.startswith("diffusion_model.") and k.endswith(".weight"):  # Official Mochi lora format
                 key_lora = k[len("diffusion_model."):-len(".weight")]
                 key_map["{}".format(key_lora)] = k
+
+    if isinstance(model, model_base.HunyuanVideo):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"):
+                # diffusion-pipe lora format
+                key_lora = k
+                key_lora = key_lora.replace("_mod.lin.", "_mod.linear.").replace("_attn.qkv.", "_attn_qkv.").replace("_attn.proj.", "_attn_proj.")
+                key_lora = key_lora.replace("mlp.0.", "mlp.fc1.").replace("mlp.2.", "mlp.fc2.")
+                key_lora = key_lora.replace(".modulation.lin.", ".modulation.linear.")
+                key_lora = key_lora[len("diffusion_model."):-len(".weight")]
+                key_map["transformer.{}".format(key_lora)] = k
+                key_map["diffusion_model.{}".format(key_lora)] = k  # Old loras
 
     return key_map
 

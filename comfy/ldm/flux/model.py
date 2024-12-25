@@ -1,8 +1,9 @@
-#Original code can be found on: https://github.com/black-forest-labs/flux
+# Original code can be found on: https://github.com/black-forest-labs/flux
 
 from dataclasses import dataclass
 
 import torch
+from einops import rearrange, repeat
 from torch import Tensor, nn
 
 from .layers import (
@@ -13,9 +14,8 @@ from .layers import (
     SingleStreamBlock,
     timestep_embedding,
 )
-
-from einops import rearrange, repeat
 from .. import common_dit
+
 
 @dataclass
 class FluxParams:
@@ -91,16 +91,17 @@ class Flux(nn.Module):
             self.final_layer = LastLayer(self.hidden_size, 1, self.out_channels, dtype=dtype, device=device, operations=operations)
 
     def forward_orig(
-        self,
-        img: Tensor,
-        img_ids: Tensor,
-        txt: Tensor,
-        txt_ids: Tensor,
-        timesteps: Tensor,
-        y: Tensor,
-        guidance: Tensor = None,
-        control=None,
-        transformer_options={},
+            self,
+            img: Tensor,
+            img_ids: Tensor,
+            txt: Tensor,
+            txt_ids: Tensor,
+            timesteps: Tensor,
+            y: Tensor,
+            guidance: Tensor = None,
+            control=None,
+            transformer_options={},
+            attn_mask: Tensor = None,
     ) -> Tensor:
         patches_replace = transformer_options.get("patches_replace", {})
         if img.ndim != 3 or txt.ndim != 3:
@@ -114,7 +115,7 @@ class Flux(nn.Module):
                 raise ValueError("Didn't get guidance strength for guidance distilled model.")
             vec = vec + self.guidance_in(timestep_embedding(guidance, 256).to(img.dtype))
 
-        vec = vec + self.vector_in(y[:,:self.params.vec_in_dim])
+        vec = vec + self.vector_in(y[:, :self.params.vec_in_dim])
         txt = self.txt_in(txt)
 
         ids = torch.cat((txt_ids, img_ids), dim=1)
@@ -125,16 +126,29 @@ class Flux(nn.Module):
             if ("double_block", i) in blocks_replace:
                 def block_wrap_1(args):
                     out = {}
-                    out["img"], out["txt"] = block(img=args["img"], txt=args["txt"], vec=args["vec"], pe=args["pe"])
+                    out["img"], out["txt"] = block(img=args["img"],
+                                                   txt=args["txt"],
+                                                   vec=args["vec"],
+                                                   pe=args["pe"],
+                                                   attn_mask=args.get("attn_mask"))
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": img, "txt": txt, "vec": vec, "pe": pe}, {"original_block": block_wrap_1})
+                out = blocks_replace[("double_block", i)]({"img": img,
+                                                           "txt": txt,
+                                                           "vec": vec,
+                                                           "pe": pe,
+                                                           "attn_mask": attn_mask},
+                                                          {"original_block": block_wrap_1})
                 txt = out["txt"]
                 img = out["img"]
             else:
-                img, txt = block(img=img, txt=txt, vec=vec, pe=pe)
+                img, txt = block(img=img,
+                                 txt=txt,
+                                 vec=vec,
+                                 pe=pe,
+                                 attn_mask=attn_mask)
 
-            if control is not None: # Controlnet
+            if control is not None:  # Controlnet
                 control_i = control.get("input")
                 if i < len(control_i):
                     add = control_i[i]
@@ -147,22 +161,29 @@ class Flux(nn.Module):
             if ("single_block", i) in blocks_replace:
                 def block_wrap_2(args):
                     out = {}
-                    out["img"] = block(args["img"], vec=args["vec"], pe=args["pe"])
+                    out["img"] = block(args["img"],
+                                       vec=args["vec"],
+                                       pe=args["pe"],
+                                       attn_mask=args.get("attn_mask"))
                     return out
 
-                out = blocks_replace[("single_block", i)]({"img": img, "vec": vec, "pe": pe}, {"original_block": block_wrap_2})
+                out = blocks_replace[("single_block", i)]({"img": img,
+                                                           "vec": vec,
+                                                           "pe": pe,
+                                                           "attn_mask": attn_mask},
+                                                          {"original_block": block_wrap_2})
                 img = out["img"]
             else:
-                img = block(img, vec=vec, pe=pe)
+                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask)
 
-            if control is not None: # Controlnet
+            if control is not None:  # Controlnet
                 control_o = control.get("output")
                 if i < len(control_o):
                     add = control_o[i]
                     if add is not None:
-                        img[:, txt.shape[1] :, ...] += add
+                        img[:, txt.shape[1]:, ...] += add
 
-        img = img[:, txt.shape[1] :, ...]
+        img = img[:, txt.shape[1]:, ...]
 
         img = self.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
         return img
@@ -182,5 +203,5 @@ class Flux(nn.Module):
         img_ids = repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
         txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)
-        out = self.forward_orig(img, img_ids, context, txt_ids, timestep, y, guidance, control, transformer_options)
-        return rearrange(out, "b (h w) (c ph pw) -> b c (h ph) (w pw)", h=h_len, w=w_len, ph=2, pw=2)[:,:,:h,:w]
+        out = self.forward_orig(img, img_ids, context, txt_ids, timestep, y, guidance, control, transformer_options, attn_mask=kwargs.get("attention_mask", None))
+        return rearrange(out, "b (h w) (c ph pw) -> b c (h ph) (w pw)", h=h_len, w=w_len, ph=2, pw=2)[:, :, :h, :w]

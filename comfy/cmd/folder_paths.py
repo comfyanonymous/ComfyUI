@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections.abc
 import logging
 import mimetypes
 import os
@@ -324,7 +325,7 @@ def recursive_search(directory, excluded_dir_names=None) -> tuple[list[str], dic
     return result, dirs
 
 
-def filter_files_extensions(files, extensions):
+def filter_files_extensions(files: collections.abc.Collection[str], extensions: collections.abc.Collection[str]):
     return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions or len(extensions) == 0, files)))
 
 

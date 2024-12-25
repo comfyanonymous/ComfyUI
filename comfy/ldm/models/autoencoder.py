@@ -1,14 +1,15 @@
-import torch
+import logging
 import math
 from contextlib import contextmanager
-from typing import Any, Dict, Tuple, Union
-import logging as logpy
+from typing import Any, Dict, Tuple, Union, Callable
+
+import torch
 
 from ..modules.distributions.distributions import DiagonalGaussianDistribution
-
-from ..util import instantiate_from_config, get_obj_from_str
 from ..modules.ema import LitEma
+from ..util import instantiate_from_config, get_obj_from_str
 from ... import ops
+
 
 class DiagonalGaussianRegularizer(torch.nn.Module):
     def __init__(self, sample: bool = True):
@@ -39,11 +40,11 @@ class AbstractAutoencoder(torch.nn.Module):
     """
 
     def __init__(
-        self,
-        ema_decay: Union[None, float] = None,
-        monitor: Union[None, str] = None,
-        input_key: str = "jpg",
-        **kwargs,
+            self,
+            ema_decay: Union[None, float] = None,
+            monitor: Union[None, str] = None,
+            input_key: str = "jpg",
+            **kwargs,
     ):
         super().__init__()
 
@@ -54,7 +55,7 @@ class AbstractAutoencoder(torch.nn.Module):
 
         if self.use_ema:
             self.model_ema = LitEma(self, decay=ema_decay)
-            logpy.info(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
+            logging.info(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
 
     def get_input(self, batch) -> Any:
         raise NotImplementedError()
@@ -70,14 +71,14 @@ class AbstractAutoencoder(torch.nn.Module):
             self.model_ema.store(self.parameters())
             self.model_ema.copy_to(self)
             if context is not None:
-                logpy.info(f"{context}: Switched to EMA weights")
+                logging.info(f"{context}: Switched to EMA weights")
         try:
             yield None
         finally:
             if self.use_ema:
                 self.model_ema.restore(self.parameters())
                 if context is not None:
-                    logpy.info(f"{context}: Restored training weights")
+                    logging.info(f"{context}: Restored training weights")
 
     def encode(self, *args, **kwargs) -> torch.Tensor:
         raise NotImplementedError("encode()-method of abstract base class called")
@@ -86,7 +87,7 @@ class AbstractAutoencoder(torch.nn.Module):
         raise NotImplementedError("decode()-method of abstract base class called")
 
     def instantiate_optimizer_from_config(self, params, lr, cfg):
-        logpy.info(f"loading >>> {cfg['target']} <<< optimizer from config")
+        logging.info(f"loading >>> {cfg['target']} <<< optimizer from config")
         return get_obj_from_str(cfg["target"])(
             params, lr=lr, **cfg.get("params", dict())
         )
@@ -103,18 +104,18 @@ class AutoencodingEngine(AbstractAutoencoder):
     """
 
     def __init__(
-        self,
-        *args,
-        encoder_config: Dict,
-        decoder_config: Dict,
-        regularizer_config: Dict,
-        **kwargs,
+            self,
+            *args,
+            encoder_config: Dict,
+            decoder_config: Dict,
+            regularizer_config: Dict,
+            **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
         self.encoder: torch.nn.Module = instantiate_from_config(encoder_config)
         self.decoder: torch.nn.Module = instantiate_from_config(decoder_config)
-        self.regularization: DiagonalGaussianRegularizer = instantiate_from_config(
+        self.regularization: Callable[[torch.Tensor], tuple[torch.Tensor, dict]] = instantiate_from_config(
             regularizer_config
         )
 
@@ -122,10 +123,10 @@ class AutoencodingEngine(AbstractAutoencoder):
         return self.decoder.get_last_layer()
 
     def encode(
-        self,
-        x: torch.Tensor,
-        return_reg_log: bool = False,
-        unregularized: bool = False,
+            self,
+            x: torch.Tensor,
+            return_reg_log: bool = False,
+            unregularized: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, dict]]:
         z = self.encoder(x)
         if unregularized:
@@ -140,7 +141,7 @@ class AutoencodingEngine(AbstractAutoencoder):
         return x
 
     def forward(
-        self, x: torch.Tensor, **additional_decode_kwargs
+            self, x: torch.Tensor, **additional_decode_kwargs
     ) -> Tuple[torch.Tensor, torch.Tensor, dict]:
         z, reg_log = self.encode(x, return_reg_log=True)
         dec = self.decode(z, **additional_decode_kwargs)
@@ -162,16 +163,23 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
             },
             **kwargs,
         )
-        self.quant_conv = ops.disable_weight_init.Conv2d(
+
+        if ddconfig.get("conv3d", False):
+            conv_op = ops.disable_weight_init.Conv3d
+        else:
+            conv_op = ops.disable_weight_init.Conv2d
+
+        self.quant_conv = conv_op(
             (1 + ddconfig["double_z"]) * ddconfig["z_channels"],
             (1 + ddconfig["double_z"]) * embed_dim,
             1,
         )
-        self.post_quant_conv = ops.disable_weight_init.Conv2d(embed_dim, ddconfig["z_channels"], 1)
+
+        self.post_quant_conv = conv_op(embed_dim, ddconfig["z_channels"], 1)
         self.embed_dim = embed_dim
 
     def encode(
-        self, x: torch.Tensor, return_reg_log: bool = False
+            self, x: torch.Tensor, return_reg_log: bool = False
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, dict]]:
         if self.max_batch_size is None:
             z = self.encoder(x)
@@ -182,7 +190,7 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
             n_batches = int(math.ceil(N / bs))
             z = list()
             for i_batch in range(n_batches):
-                z_batch = self.encoder(x[i_batch * bs : (i_batch + 1) * bs])
+                z_batch = self.encoder(x[i_batch * bs: (i_batch + 1) * bs])
                 z_batch = self.quant_conv(z_batch)
                 z.append(z_batch)
             z = torch.cat(z, 0)
@@ -202,7 +210,7 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
             n_batches = int(math.ceil(N / bs))
             dec = list()
             for i_batch in range(n_batches):
-                dec_batch = self.post_quant_conv(z[i_batch * bs : (i_batch + 1) * bs])
+                dec_batch = self.post_quant_conv(z[i_batch * bs: (i_batch + 1) * bs])
                 dec_batch = self.decoder(dec_batch, **decoder_kwargs)
                 dec.append(dec_batch)
             dec = torch.cat(dec, 0)

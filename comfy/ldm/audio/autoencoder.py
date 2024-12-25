@@ -98,7 +98,7 @@ def get_activation(activation: Literal["elu", "snake", "none"], antialias=False,
 
     # todo: ??? Not existing
     # if antialias:
-    #     act = Activation1d(act)
+    #     act = Activation1d(act)  # noqa: F821 Activation1d is not defined
 
     return act
 

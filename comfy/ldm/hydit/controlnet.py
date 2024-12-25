@@ -158,9 +158,6 @@ class HunYuanControlNet(nn.Module):
             ),
         )
 
-        # Image embedding
-        num_patches = self.x_embedder.num_patches
-
         # HUnYuanDiT Blocks
         self.blocks = nn.ModuleList(
             [

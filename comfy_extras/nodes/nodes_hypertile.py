@@ -35,8 +35,6 @@ class HyperTile:
     CATEGORY = "model_patches/unet"
 
     def patch(self, model, tile_size, swap_size, max_depth, scale_depth):
-        model_channels = model.model.model_config.unet_config["model_channels"]
-
         latent_tile_size = max(32, tile_size) // 8
         self.temp = None
 

@@ -113,7 +113,7 @@ class Modulation(nn.Module):
 
 
 class DoubleStreamBlock(nn.Module):
-    def __init__(self, hidden_size: int, num_heads: int, mlp_ratio: float, qkv_bias: bool = False, dtype=None, device=None, operations=None):
+    def __init__(self, hidden_size: int, num_heads: int, mlp_ratio: float, qkv_bias: bool = False, flipped_img_txt=False, dtype=None, device=None, operations=None):
         super().__init__()
 
         mlp_hidden_dim = int(hidden_size * mlp_ratio)
@@ -140,8 +140,9 @@ class DoubleStreamBlock(nn.Module):
             nn.GELU(approximate="tanh"),
             operations.Linear(mlp_hidden_dim, hidden_size, bias=True, dtype=dtype, device=device),
         )
+        self.flipped_img_txt = flipped_img_txt
 
-    def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor):
+    def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor, attn_mask=None):
         img_mod1, img_mod2 = self.img_mod(vec)
         txt_mod1, txt_mod2 = self.txt_mod(vec)
 
@@ -161,12 +162,22 @@ class DoubleStreamBlock(nn.Module):
         txt_q, txt_k, txt_v = torch.unbind(txt_qkv, dim=0)
         txt_q, txt_k = self.txt_attn.norm(txt_q, txt_k, txt_v)
 
-        # run actual attention
-        attn = attention(torch.cat((txt_q, img_q), dim=2),
-                         torch.cat((txt_k, img_k), dim=2),
-                         torch.cat((txt_v, img_v), dim=2), pe=pe)
+        if self.flipped_img_txt:
+            # run actual attention
+            attn = attention(torch.cat((img_q, txt_q), dim=2),
+                             torch.cat((img_k, txt_k), dim=2),
+                             torch.cat((img_v, txt_v), dim=2),
+                             pe=pe, mask=attn_mask)
 
-        txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1] :]
+            img_attn, txt_attn = attn[:, : img.shape[1]], attn[:, img.shape[1]:]
+        else:
+            # run actual attention
+            attn = attention(torch.cat((txt_q, img_q), dim=2),
+                             torch.cat((txt_k, img_k), dim=2),
+                             torch.cat((txt_v, img_v), dim=2),
+                             pe=pe, mask=attn_mask)
+
+            txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1]:]
 
         # calculate the img bloks
         img = img + img_mod1.gate * self.img_attn.proj(img_attn)
@@ -218,7 +229,7 @@ class SingleStreamBlock(nn.Module):
         self.mlp_act = nn.GELU(approximate="tanh")
         self.modulation = Modulation(hidden_size, double=False, dtype=dtype, device=device, operations=operations)
 
-    def forward(self, x: Tensor, vec: Tensor, pe: Tensor) -> Tensor:
+    def forward(self, x: Tensor, vec: Tensor, pe: Tensor, attn_mask=None) -> Tensor:
         mod, _ = self.modulation(vec)
         x_mod = (1 + mod.scale) * self.pre_norm(x) + mod.shift
         qkv, mlp = torch.split(self.linear1(x_mod), [3 * self.hidden_size, self.mlp_hidden_dim], dim=-1)
@@ -228,7 +239,7 @@ class SingleStreamBlock(nn.Module):
         q, k = self.norm(q, k, v)
 
         # compute attention
-        attn = attention(q, k, v, pe=pe)
+        attn = attention(q, k, v, pe=pe, mask=attn_mask)
         # compute activation in mlp stream, cat again and run second linear layer
         output = self.linear2(torch.cat((attn, self.mlp_act(mlp)), 2))
         x = x + mod.gate * output

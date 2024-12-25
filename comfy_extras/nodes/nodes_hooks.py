@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Union
+import logging
 import torch
 from collections.abc import Iterable
 

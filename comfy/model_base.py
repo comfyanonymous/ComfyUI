@@ -35,12 +35,14 @@ from .ldm.cascade.stage_b import StageB
 from .ldm.cascade.stage_c import StageC
 from .ldm.flux import model as flux_model
 from .ldm.genmo.joint_model.asymm_models_joint import AsymmDiTJoint
+from .ldm.hunyuan_video.model import HunyuanVideo as HunyuanVideoModel
 from .ldm.hydit.models import HunYuanDiT
 from .ldm.lightricks.model import LTXVModel
 from .ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
 from .ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
 from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
+from .ldm.pixart.pixartms import PixArtMS
 from .model_management_types import ModelManageable
 from .ops import Operations
 from .patcher_extension import WrapperExecutor, WrappersMP, get_all_wrappers
@@ -450,7 +452,6 @@ class SVD_img2vid(BaseModel):
 
         latent_image = kwargs.get("concat_latent_image", None)
         noise = kwargs.get("noise", None)
-        device = kwargs["device"]
 
         if latent_image is None:
             latent_image = torch.zeros_like(noise)
@@ -742,12 +743,30 @@ class HunyuanDiT(BaseModel):
 
         width = kwargs.get("width", 768)
         height = kwargs.get("height", 768)
-        crop_w = kwargs.get("crop_w", 0)
-        crop_h = kwargs.get("crop_h", 0)
         target_width = kwargs.get("target_width", width)
         target_height = kwargs.get("target_height", height)
 
         out['image_meta_size'] = conds.CONDRegular(torch.FloatTensor([[height, width, target_height, target_width, 0, 0]]))
+        return out
+
+
+class PixArt(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.EPS, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=PixArtMS)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = conds.CONDRegular(cross_attn)
+
+        width = kwargs.get("width", None)
+        height = kwargs.get("height", None)
+        if width is not None and height is not None:
+            out["c_size"] = conds.CONDRegular(torch.FloatTensor([[height, width]]))
+            out["c_ar"] = conds.CONDRegular(torch.FloatTensor([[kwargs.get("aspect_ratio", height / width)]]))
+
         return out
 
 
@@ -787,7 +806,6 @@ class Flux(BaseModel):
             mask = torch.ones_like(noise)[:, :1]
 
         mask = torch.mean(mask, dim=1, keepdim=True)
-        print(mask.shape)
         mask = utils.common_upscale(mask.to(device), noise.shape[-1] * 8, noise.shape[-2] * 8, "bilinear", "center")
         mask = mask.view(mask.shape[0], mask.shape[2] // 8, 8, mask.shape[3] // 8, 8).permute(0, 2, 4, 1, 3).reshape(mask.shape[0], -1, mask.shape[2] // 8, mask.shape[3] // 8)
         mask = utils.resize_to_batch_size(mask, noise.shape[0])
@@ -801,6 +819,16 @@ class Flux(BaseModel):
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             out['c_crossattn'] = conds.CONDRegular(cross_attn)
+        # upscale the attention mask, since now we
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            shape = kwargs["noise"].shape
+            mask_ref_size = kwargs["attention_mask_img_shape"]
+            # the model will pad to the patch size, and then divide
+            # essentially dividing and rounding up
+            (h_tok, w_tok) = (math.ceil(shape[2] / self.diffusion_model.patch_size), math.ceil(shape[3] / self.diffusion_model.patch_size))
+            attention_mask = utils.upscale_dit_mask(attention_mask, mask_ref_size, (h_tok, w_tok))
+            out['attention_mask'] = conds.CONDRegular(attention_mask)
         out['guidance'] = conds.CONDRegular(torch.FloatTensor([kwargs.get("guidance", 3.5)]))
         return out
 
@@ -843,4 +871,23 @@ class LTXV(BaseModel):
             out["guiding_latent_noise_scale"] = conds.CONDConstant(guiding_latent_noise_scale)
 
         out['frame_rate'] = conds.CONDConstant(kwargs.get("frame_rate", 25))
+        return out
+
+
+class HunyuanVideo(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=HunyuanVideoModel)
+
+    def encode_adm(self, **kwargs):
+        return kwargs["pooled_output"]
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out['attention_mask'] = conds.CONDRegular(attention_mask)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = conds.CONDRegular(cross_attn)
+        out['guidance'] = conds.CONDRegular(torch.FloatTensor([kwargs.get("guidance", 6.0)]))
         return out

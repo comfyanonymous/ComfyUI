@@ -137,11 +137,6 @@ def can_concat_cond(c1, c2):
 
 
 def cond_cat(c_list):
-    c_crossattn = []
-    c_concat = []
-    c_adm = []
-    crossattn_max_len = 0
-
     temp = {}
     for x in c_list:
         for k in x:
@@ -360,7 +355,7 @@ def cfg_function(model, cond_pred, uncond_pred, cond_scale, x, timestep, model_o
         cfg_result = uncond_pred + (cond_pred - uncond_pred) * cond_scale
 
     for fn in model_options.get("sampler_post_cfg_function", []):
-        args = {"denoised": cfg_result, "cond": cond, "uncond": uncond, "model": model, "uncond_denoised": uncond_pred, "cond_denoised": cond_pred,
+        args = {"denoised": cfg_result, "cond": cond, "uncond": uncond, "cond_scale": cond_scale, "model": model, "uncond_denoised": uncond_pred, "cond_denoised": cond_pred,
                 "sigma": timestep, "model_options": model_options, "input": x}
         cfg_result = fn(args)
 
@@ -639,8 +634,6 @@ def pre_run_control(model, conds):
     for t in range(len(conds)):
         x = conds[t]
 
-        timestep_start = None
-        timestep_end = None
         percent_to_timestep_function = lambda a: s.percent_to_sigma(a)
         if 'control' in x:
             x['control'].pre_run(model, percent_to_timestep_function)

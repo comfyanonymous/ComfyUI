@@ -8,6 +8,7 @@ import struct
 import torch
 
 import comfy.model_management
+from comfy import node_helpers
 from comfy.cli_args import args
 from comfy.cmd import folder_paths
 
@@ -26,15 +27,38 @@ class EmptyLatentAudio:
                 # mark as optional to not break existing workflows
                 "optional": {"batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "tooltip": "The number of latent images in the batch."}),
                              }}
+
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
 
     CATEGORY = "latent/audio"
 
-    def generate(self, seconds:float, batch_size:int=1):
+    def generate(self, seconds: float, batch_size: int = 1):
         length = round((seconds * 44100 / 2048) / 2) * 2
         latent = torch.zeros([batch_size, 64, length], device=self.device)
         return ({"samples": latent, "type": "audio"},)
+
+
+class ConditioningStableAudio:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"positive": ("CONDITIONING",),
+                             "negative": ("CONDITIONING",),
+                             "seconds_start": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1000.0, "step": 0.1}),
+                             "seconds_total": ("FLOAT", {"default": 47.0, "min": 0.0, "max": 1000.0, "step": 0.1}),
+                             }}
+
+    RETURN_TYPES = ("CONDITIONING", "CONDITIONING")
+    RETURN_NAMES = ("positive", "negative")
+
+    FUNCTION = "append"
+
+    CATEGORY = "conditioning"
+
+    def append(self, positive, negative, seconds_start, seconds_total):
+        positive = node_helpers.conditioning_set_values(positive, {"seconds_start": seconds_start, "seconds_total": seconds_total})
+        negative = node_helpers.conditioning_set_values(negative, {"seconds_start": seconds_start, "seconds_total": seconds_total})
+        return (positive, negative)
 
 
 class VAEEncodeAudio:
@@ -74,7 +98,7 @@ class VAEDecodeAudio:
 
     def decode(self, vae, samples):
         audio = vae.decode(samples["samples"]).movedim(-1, 1)
-        std = torch.std(audio, dim=[1,2], keepdim=True) * 5.0
+        std = torch.std(audio, dim=[1, 2], keepdim=True) * 5.0
         std[std < 1.0] = 1.0
         audio /= std
         return ({"waveform": audio, "sample_rate": 44100},)
@@ -254,4 +278,5 @@ NODE_CLASS_MAPPINGS = {
     "SaveAudio": SaveAudio,
     "LoadAudio": LoadAudio,
     "PreviewAudio": PreviewAudio,
+    "ConditioningStableAudio": ConditioningStableAudio,
 }

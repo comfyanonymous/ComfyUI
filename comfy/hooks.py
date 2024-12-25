@@ -4,7 +4,7 @@ import enum
 import itertools
 import logging
 import math
-from typing import Callable, Any, TYPE_CHECKING
+from typing import Callable, TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -142,7 +142,7 @@ class WeightHook(Hook):
                 weights = self.weights
             else:
                 weights = self.weights_clip
-        k = model.add_hook_patches(hook=self, patches=weights, strength_patch=strength)
+        model.add_hook_patches(hook=self, patches=weights, strength_patch=strength)
         registered.append(self)
         return True
         # TODO: add logs about any keys that were not applied
@@ -301,7 +301,7 @@ class HookGroup:
         return d
 
     def get_hooks_for_clip_schedule(self):
-        scheduled_hooks: dict[WeightHook, list[tuple[tuple[float, float], HookKeyframe]]] = {}
+        scheduled_hooks: dict[Hook, list[tuple[tuple[float, float], HookKeyframe]]] = {}
         for hook in self.hooks:
             # only care about WeightHooks, for now
             if hook.hook_type == EnumHookType.Weight:
@@ -354,7 +354,7 @@ class HookGroup:
             hook.reset()
 
     @staticmethod
-    def combine_all_hooks(hooks_list: list['HookGroup'], require_count=0) -> 'HookGroup':
+    def combine_all_hooks(hooks_list: list['HookGroup'], require_count=0) -> 'HookGroup' | None:
         actual: list[HookGroup] = []
         for group in hooks_list:
             if group is not None:
@@ -367,7 +367,7 @@ class HookGroup:
         # if only 1 hook, just return itself without cloning
         elif len(actual) == 1:
             return actual[0]
-        final_hook: HookGroup = None
+        final_hook: HookGroup | None = None
         for hook in actual:
             if final_hook is None:
                 final_hook = hook.clone()
@@ -394,7 +394,7 @@ class HookKeyframe:
 class HookKeyframeGroup:
     def __init__(self):
         self.keyframes: list[HookKeyframe] = []
-        self._current_keyframe: HookKeyframe = None
+        self._current_keyframe: HookKeyframe | None = None
         self._current_used_steps = 0
         self._current_index = 0
         self._current_strength = None
@@ -626,7 +626,9 @@ def _combine_hooks_from_values(c_dict: dict[str, HookGroup], values: dict[str, H
         c_dict[hooks_key] = cache[hooks_tuple]
 
 
-def conditioning_set_values_with_hooks(conditioning, values={}, append_hooks=True):
+def conditioning_set_values_with_hooks(conditioning, values: dict[str, HookGroup] = None, append_hooks=True):
+    if values is None:
+        values = {}
     c = []
     hooks_combine_cache: dict[tuple[HookGroup, HookGroup], HookGroup] = {}
     for t in conditioning:
