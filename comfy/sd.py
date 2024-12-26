@@ -572,13 +572,20 @@ class VAE:
         elif dims == 2:
             samples = self.encode_tiled_(pixel_samples, **args)
         elif dims == 3:
+            if tile_t is not None:
+                tile_t_latent = max(2, self.downscale_ratio[0](tile_t))
+            else:
+                tile_t_latent = 9999
+            args["tile_t"] = self.upscale_ratio[0](tile_t_latent)
+
             if overlap_t is None:
                 args["overlap"] = (1, overlap, overlap)
             else:
-                args["overlap"] = (overlap_t, overlap, overlap)
-            if tile_t is not None:
-                args["tile_t"] = tile_t
-            samples = self.encode_tiled_3d(pixel_samples, **args)
+                args["overlap"] = (self.upscale_ratio[0](max(1, min(tile_t_latent // 2, self.downscale_ratio[0](overlap_t)))), overlap, overlap)
+            maximum = pixel_samples.shape[2]
+            maximum = self.upscale_ratio[0](self.downscale_ratio[0](maximum))
+
+            samples = self.encode_tiled_3d(pixel_samples[:,:,:maximum], **args)
 
         return samples
 
