@@ -7,8 +7,7 @@ from typing import Optional, Tuple, Union
 from .conv_nd_factory import make_conv_nd, make_linear_nd
 from .pixel_norm import PixelNorm
 from ..model import PixArtAlphaCombinedTimestepSizeEmbeddings
-import comfy.ops
-ops = comfy.ops.disable_weight_init
+from ....ops import disable_weight_init as ops
 
 class Encoder(nn.Module):
     r"""
@@ -293,7 +292,7 @@ class Decoder(nn.Module):
                     norm_layer=norm_layer,
                     inject_noise=block_params.get("inject_noise", False),
                     timestep_conditioning=timestep_conditioning,
-                    attention_head_dim=block_params["attention_head_dim"],
+                    # attention_head_dim=block_params["attention_head_dim"],
                 )
             elif block_name == "res_x_y":
                 output_channel = output_channel // block_params.get("multiplier", 2)

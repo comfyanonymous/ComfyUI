@@ -35,6 +35,7 @@ from .. import node_helpers
 from .. import utils
 from ..api_server.routes.internal.internal_routes import InternalRoutes
 from ..app.frontend_management import FrontendManager
+from ..app.model_manager import ModelFileManager
 from ..app.user_manager import UserManager
 from ..cli_args import args
 from ..client.client_types import FileOutput

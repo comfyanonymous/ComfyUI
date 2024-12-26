@@ -949,7 +949,7 @@ class CLIPLoader:
         elif type == "ltxv":
             clip_type = sd.CLIPType.LTXV
         elif type == "pixart":
-            clip_type = comfy.sd.CLIPType.PIXART
+            clip_type = sd.CLIPType.PIXART
         else:
             logging.warning(f"Unknown clip type argument passed: {type} for model {clip_name}")
 
@@ -1046,10 +1046,10 @@ class StyleModelApply:
         return {"required": {"conditioning": ("CONDITIONING", ),
                              "style_model": ("STYLE_MODEL", ),
                              "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
-                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.001}),
                              },
                 "optional": {
-                             "strength_type": (["multiply", "attn_bias"], {"default": "multiply"}),
+                            "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.001}),
+                            "strength_type": (["multiply", "attn_bias"], {"default": "multiply"}),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_stylemodel"

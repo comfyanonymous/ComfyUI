@@ -1,6 +1,7 @@
-import nodes
 import torch
+
 import comfy.model_management
+from comfy.nodes.common import MAX_RESOLUTION
 
 
 class CLIPTextEncodeHunyuanDiT:
@@ -25,9 +26,9 @@ class CLIPTextEncodeHunyuanDiT:
 class EmptyHunyuanLatentVideo:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "width": ("INT", {"default": 848, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
-                              "height": ("INT", {"default": 480, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
-                              "length": ("INT", {"default": 25, "min": 1, "max": nodes.MAX_RESOLUTION, "step": 4}),
+        return {"required": { "width": ("INT", {"default": 848, "min": 16, "max": MAX_RESOLUTION, "step": 16}),
+                              "height": ("INT", {"default": 480, "min": 16, "max": MAX_RESOLUTION, "step": 16}),
+                              "length": ("INT", {"default": 25, "min": 1, "max": MAX_RESOLUTION, "step": 4}),
                               "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"

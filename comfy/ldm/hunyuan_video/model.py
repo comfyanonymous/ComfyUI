@@ -1,9 +1,8 @@
 #Based on Flux code because of weird hunyuan video code license.
 
 import torch
-import comfy.ldm.flux.layers
-import comfy.ldm.modules.diffusionmodules.mmdit
-from comfy.ldm.modules.attention import optimized_attention
+
+from ..modules.attention import optimized_attention
 
 
 from dataclasses import dataclass
@@ -11,16 +10,8 @@ from einops import repeat
 
 from torch import Tensor, nn
 
-from comfy.ldm.flux.layers import (
-    DoubleStreamBlock,
-    EmbedND,
-    LastLayer,
-    MLPEmbedder,
-    SingleStreamBlock,
-    timestep_embedding
-)
-
-import comfy.ldm.common_dit
+from ..flux.layers import DoubleStreamBlock, EmbedND, LastLayer, MLPEmbedder, SingleStreamBlock, timestep_embedding
+from ..modules.diffusionmodules.mmdit import PatchEmbed
 
 
 @dataclass
@@ -184,7 +175,7 @@ class HunyuanVideo(nn.Module):
         self.num_heads = params.num_heads
         self.pe_embedder = EmbedND(dim=pe_dim, theta=params.theta, axes_dim=params.axes_dim)
 
-        self.img_in = comfy.ldm.modules.diffusionmodules.mmdit.PatchEmbed(None, self.patch_size, self.in_channels, self.hidden_size, conv3d=True, dtype=dtype, device=device, operations=operations)
+        self.img_in = PatchEmbed(None, self.patch_size, self.in_channels, self.hidden_size, conv3d=True, dtype=dtype, device=device, operations=operations)
         self.time_in = MLPEmbedder(in_dim=256, hidden_dim=self.hidden_size, dtype=dtype, device=device, operations=operations)
         self.vector_in = MLPEmbedder(params.vec_in_dim, self.hidden_size, dtype=dtype, device=device, operations=operations)
         self.guidance_in = (
@@ -263,12 +254,12 @@ class HunyuanVideo(nn.Module):
         blocks_replace = patches_replace.get("dit", {})
         for i, block in enumerate(self.double_blocks):
             if ("double_block", i) in blocks_replace:
-                def block_wrap(args):
+                def block_wrap_2(args):
                     out = {}
                     out["img"], out["txt"] = block(img=args["img"], txt=args["txt"], vec=args["vec"], pe=args["pe"], attn_mask=args["attention_mask"])
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": img, "txt": txt, "vec": vec, "pe": pe, "attention_mask": attn_mask}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": img, "txt": txt, "vec": vec, "pe": pe, "attention_mask": attn_mask}, {"original_block": block_wrap_2})
                 txt = out["txt"]
                 img = out["img"]
             else:

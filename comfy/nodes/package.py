@@ -94,7 +94,7 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
             logging.log(logging.DEBUG if success else logging.ERROR, f"{duration:6.1f} seconds{'' if success else ' (IMPORT FAILED)'}, {module_name} ({len(new_nodes)} nodes loaded)")
     if raise_on_failure and len(exceptions) > 0:
         try:
-            raise ExceptionGroup("Node import failed", exceptions)
+            raise ExceptionGroup("Node import failed", exceptions)  # pylint: disable=using-exception-groups-in-unsupported-version
         except NameError:
             raise exceptions[0]
     return exported_nodes

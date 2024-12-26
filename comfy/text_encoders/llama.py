@@ -4,11 +4,9 @@ import torch.nn.functional as F
 from dataclasses import dataclass
 from typing import Optional, Any
 
-from comfy.ldm.modules.attention import optimized_attention_for_device
-import comfy.model_management
-import comfy.ldm.common_dit
+from ..ldm.common_dit import rms_norm
+from ..ldm.modules.attention import optimized_attention_for_device
 
-import comfy.model_management
 
 @dataclass
 class Llama2Config:
@@ -29,7 +27,7 @@ class RMSNorm(nn.Module):
         self.weight = nn.Parameter(torch.empty(dim, device=device, dtype=dtype))
 
     def forward(self, x: torch.Tensor):
-        return comfy.ldm.common_dit.rms_norm(x, self.weight, self.eps)
+        return rms_norm(x, self.weight, self.eps)
 
 
 def rotate_half(x):

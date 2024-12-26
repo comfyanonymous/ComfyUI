@@ -1,7 +1,5 @@
 import torch
-import comfy.ops
-
-ops = comfy.ops.manual_cast
+from ...ops import manual_cast as ops
 
 class ReduxImageEncoder(torch.nn.Module):
     def __init__(

@@ -45,6 +45,7 @@ torch.set_float32_matmul_precision("high")
 
 logger = logging.getLogger(__name__)
 
+
 class VRAMState(Enum):
     DISABLED = 0  # No vram present: no need to move models to vram
     NO_VRAM = 1  # Very low vram: enable all the options to save vram
@@ -975,15 +976,6 @@ if not args.disable_flash_attn:
     except ImportError:
         pass
 
-SAGE_ATTENTION_ENABLED = False
-if not args.disable_sage_attention:
-    try:
-        import sageattention
-
-        SAGE_ATTENTION_ENABLED = True
-    except ImportError:
-        pass
-
 
 def xformers_enabled():
     global directml_device
@@ -1007,20 +999,6 @@ def flash_attn_enabled():
     if directml_device:
         return False
     return FLASH_ATTENTION_ENABLED
-
-
-def sage_attention_enabled():
-    global directml_device
-    global cpu_state
-    if cpu_state != CPUState.GPU:
-        return False
-    if is_intel_xpu():
-        return False
-    if directml_device:
-        return False
-    if xformers_enabled():
-        return False
-    return SAGE_ATTENTION_ENABLED
 
 
 def xformers_enabled_vae():
@@ -1282,7 +1260,7 @@ def unload_all_models():
         free_memory(1e30, get_torch_device())
 
 
-def resolve_lowvram_weight(weight, model, key): #TODO: remove
+def resolve_lowvram_weight(weight, model, key):  # TODO: remove
     logger.warning("The comfy.model_management.resolve_lowvram_weight function will be removed soon, please stop using it.")
     return weight
 

@@ -101,10 +101,11 @@ def load_torch_file(ckpt: str, safe_load=False, device=None):
             else:
                 if len(pl_sd) == 1:
                     key = list(pl_sd.keys())[0]
-                sd = pl_sd[key]
-                if not isinstance(sd, dict):
+                    sd = pl_sd[key]
+                    if not isinstance(sd, dict):
+                        sd = pl_sd
+                else:
                     sd = pl_sd
-            else:sd = pl_sd
         except UnpicklingError as exc_info:
             try:
                 # wrong extension is most likely, try to load as safetensors anyway

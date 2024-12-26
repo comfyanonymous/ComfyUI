@@ -1,0 +1,195 @@
+{
+  "10": {
+    "inputs": {
+      "vae_name": "hunyuan_video_vae_bf16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "11": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "llava_llama3_fp8_scaled.safetensors",
+      "type": "hunyuan_video"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "DualCLIPLoader"
+    }
+  },
+  "12": {
+    "inputs": {
+      "unet_name": "hunyuan_video_t2v_720p_bf16.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "13": {
+    "inputs": {
+      "noise": [
+        "25",
+        0
+      ],
+      "guider": [
+        "22",
+        0
+      ],
+      "sampler": [
+        "16",
+        0
+      ],
+      "sigmas": [
+        "17",
+        0
+      ],
+      "latent_image": [
+        "45",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "16": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "17": {
+    "inputs": {
+      "scheduler": "normal",
+      "steps": 1,
+      "denoise": 1,
+      "model": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "22": {
+    "inputs": {
+      "model": [
+        "67",
+        0
+      ],
+      "conditioning": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "BasicGuider"
+    }
+  },
+  "25": {
+    "inputs": {
+      "noise_seed": 181566791877912
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "26": {
+    "inputs": {
+      "guidance": 6,
+      "conditioning": [
+        "44",
+        0
+      ]
+    },
+    "class_type": "FluxGuidance",
+    "_meta": {
+      "title": "FluxGuidance"
+    }
+  },
+  "44": {
+    "inputs": {
+      "text": "anime style anime girl with massive fennec ears and one big fluffy tail, she has blonde hair long hair blue eyes wearing a pink sweater and a long blue skirt walking in a beautiful outdoor scenery with snow mountains in the background",
+      "clip": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "45": {
+    "inputs": {
+      "width": 848,
+      "height": 480,
+      "length": 73,
+      "batch_size": 1
+    },
+    "class_type": "EmptyHunyuanLatentVideo",
+    "_meta": {
+      "title": "EmptyHunyuanLatentVideo"
+    }
+  },
+  "67": {
+    "inputs": {
+      "shift": 7,
+      "model": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "ModelSamplingSD3"
+    }
+  },
+  "73": {
+    "inputs": {
+      "tile_size": 256,
+      "overlap": 64,
+      "samples": [
+        "13",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeTiled",
+    "_meta": {
+      "title": "VAE Decode (Tiled)"
+    }
+  },
+  "75": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "fps": 24,
+      "lossless": false,
+      "quality": 80,
+      "method": "default",
+      "images": [
+        "73",
+        0
+      ]
+    },
+    "class_type": "SaveAnimatedWEBP",
+    "_meta": {
+      "title": "SaveAnimatedWEBP"
+    }
+  }
+}

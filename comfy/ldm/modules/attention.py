@@ -18,6 +18,8 @@ if model_management.xformers_enabled():
 
 if model_management.sage_attention_enabled():
     from sageattention import sageattn  # pylint: disable=import-error
+else:
+    sageattn = torch.nn.functional.scaled_dot_product_attention
 
 from ...cli_args import args
 from ... import ops

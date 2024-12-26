@@ -435,6 +435,7 @@ KNOWN_VAES: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("stabilityai/sd-vae-ft-mse-original", "vae-ft-mse-840000-ema-pruned.safetensors"),
     HuggingFile("black-forest-labs/FLUX.1-schnell", "ae.safetensors"),
     HuggingFile("Comfy-Org/mochi_preview_repackaged", "split_files/vae/mochi_vae.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanVideo_repackaged", "split_files/vae/hunyuan_video_vae_bf16.safetensors"),
 ], folder_name="vae")
 
 KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
@@ -459,6 +460,7 @@ KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Kijai/flux-fp8", "flux1-schnell-fp8.safetensors"),
     HuggingFile("Comfy-Org/mochi_preview_repackaged", "split_files/diffusion_models/mochi_preview_bf16.safetensors"),
     HuggingFile("Comfy-Org/mochi_preview_repackaged", "split_files/diffusion_models/mochi_preview_fp8_scaled.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanVideo_repackaged", "split_files/diffusion_models/hunyuan_video_t2v_720p_bf16.safetensors"),
 ], folder_names=["diffusion_models", "unet"])
 
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
@@ -466,6 +468,8 @@ KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("comfyanonymous/flux_text_encoders", "t5xxl_fp16.safetensors"),
     HuggingFile("comfyanonymous/flux_text_encoders", "t5xxl_fp8_e4m3fn.safetensors"),
     HuggingFile("Comfy-Org/mochi_preview_repackaged", "split_files/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanVideo_repackaged", "split_files/text_encoders/llava_llama3_fp16.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanVideo_repackaged", "split_files/text_encoders/llava_llama3_fp8_scaled.safetensors"),
     HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/clip_g.safetensors"),
     HuggingFile("comfyanonymous/flux_text_encoders", "clip_l.safetensors", save_with_filename="clip_l.safetensors"),
     # uses names from https://comfyanonymous.github.io/ComfyUI_examples/audio/

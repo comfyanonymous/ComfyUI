@@ -613,7 +613,7 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
         sd_map = utils.auraflow_to_diffusers({"n_double_layers": num_joint, "n_layers": num_joint + num_single}, output_prefix=output_prefix)
     elif 'adaln_single.emb.timestep_embedder.linear_1.bias' in state_dict and 'pos_embed.proj.bias' in state_dict: # PixArt
         num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
-        sd_map = comfy.utils.pixart_to_diffusers({"depth": num_blocks}, output_prefix=output_prefix)
+        sd_map = utils.pixart_to_diffusers({"depth": num_blocks}, output_prefix=output_prefix)
     elif 'x_embedder.weight' in state_dict:  # Flux
         depth = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth_single_blocks = count_blocks(state_dict, 'single_transformer_blocks.{}.')

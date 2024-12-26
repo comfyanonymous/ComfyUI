@@ -5,6 +5,7 @@ import importlib.resources
 import logging
 import numbers
 import os
+import re
 import traceback
 import zipfile
 from pathlib import Path
