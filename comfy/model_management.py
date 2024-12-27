@@ -87,7 +87,7 @@ except:
     pass
 
 try:
-    import torch_npu
+    import torch_npu  # noqa: F401
     _ = torch.npu.device_count()
     npu_available = torch.npu.is_available()
 except:
