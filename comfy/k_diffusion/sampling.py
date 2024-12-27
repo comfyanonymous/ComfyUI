@@ -1230,7 +1230,7 @@ def sample_dpmpp_2m_cfg_pp(model, x, sigmas, extra_args=None, callback=None, dis
         nonlocal uncond_denoised
         uncond_denoised = args["uncond_denoised"]
         return args["denoised"]
-    
+
     model_options = extra_args.get("model_options", {}).copy()
     extra_args["model_options"] = comfy.model_patcher.set_model_options_post_cfg_function(model_options, post_cfg_function, disable_cfg1_optimization=True)
 

@@ -101,7 +101,7 @@ class WeightHook(Hook):
         self.need_weight_init = True
         self._strength_model = strength_model
         self._strength_clip = strength_clip
-    
+
     @property
     def strength_model(self):
         return self._strength_model * self.strength
