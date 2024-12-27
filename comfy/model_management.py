@@ -1017,7 +1017,7 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
 
     if is_intel_xpu():
         return True
-    
+
     if is_ascend_npu():
         return True
 
