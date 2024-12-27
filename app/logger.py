@@ -51,7 +51,7 @@ def on_flush(callback):
     if stderr_interceptor is not None:
         stderr_interceptor.on_flush(callback)
 
-def setup_logger(log_level: str = 'INFO', capacity: int = 300):
+def setup_logger(log_level: str = 'INFO', capacity: int = 300, use_stdout: bool = False):
     global logs
     if logs:
         return
@@ -70,4 +70,15 @@ def setup_logger(log_level: str = 'INFO', capacity: int = 300):
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(logging.Formatter("%(message)s"))
+
+    if use_stdout:
+        # Only errors and critical to stderr
+        stream_handler.addFilter(lambda record: not record.levelno < logging.ERROR)
+
+        # Lesser to stdout
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setFormatter(logging.Formatter("%(message)s"))
+        stdout_handler.addFilter(lambda record: record.levelno < logging.ERROR)
+        logger.addHandler(stdout_handler)
+
     logger.addHandler(stream_handler)
