@@ -252,7 +252,7 @@ class PromptServer():
                     name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
 
             return web.json_response(extensions)
-        
+
         def get_dir_by_type(dir_type):
             if dir_type is None:
                 dir_type = "input"
