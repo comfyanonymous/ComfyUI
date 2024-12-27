@@ -17,7 +17,7 @@ if __name__ == "__main__":
     os.environ['DO_NOT_TRACK'] = '1'
 
 
-setup_logger(log_level=args.verbose)
+setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
 def apply_custom_paths():
     # extra model paths
