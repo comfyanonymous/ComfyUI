@@ -642,6 +642,8 @@ class HunyuanDiT(supported_models_base.BASE):
 
     latent_format = latent_formats.SDXL
 
+    memory_usage_factor = 1.3
+
     vae_key_prefix = ["vae."]
     text_encoder_key_prefix = ["text_encoders."]
 
