@@ -80,7 +80,7 @@ class NoiseScheduleVP:
                     'linear' or 'cosine' for continuous-time DPMs.
         Returns:
             A wrapper object of the forward SDE (VP type).
-        
+
         ===============================================================
 
         Example:
@@ -208,7 +208,7 @@ def model_wrapper(
                 arXiv preprint arXiv:2202.00512 (2022).
             [2] Ho, Jonathan, et al. "Imagen Video: High Definition Video Generation with Diffusion Models."
                 arXiv preprint arXiv:2210.02303 (2022).
-    
+
         4. "score": marginal score function. (Trained by denoising score matching).
             Note that the score function and the noise prediction model follows a simple relationship:
             ```
@@ -245,7 +245,7 @@ def model_wrapper(
 
             [4] Ho, Jonathan, and Tim Salimans. "Classifier-free diffusion guidance."
                 arXiv preprint arXiv:2207.12598 (2022).
-        
+
 
     The `t_input` is the time label of the model, which may be discrete-time labels (i.e. 0 to 999)
     or continuous-time labels (i.e. epsilon to T).
@@ -621,7 +621,7 @@ class UniPC:
             B_h = torch.expm1(hh)
         else:
             raise NotImplementedError()
-            
+
         for i in range(1, order + 1):
             R.append(torch.pow(rks, i - 1))
             b.append(h_phi_k * factorial_i / B_h)

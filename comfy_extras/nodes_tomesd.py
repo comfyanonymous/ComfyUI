@@ -40,9 +40,8 @@ def bipartite_soft_matching_random2d(metric: torch.Tensor,
         return do_nothing, do_nothing
 
     gather = mps_gather_workaround if metric.device.type == "mps" else torch.gather
-    
+
     with torch.no_grad():
-        
         hsy, wsx = h // sy, w // sx
 
         # For each sy by sx kernel, randomly assign one token to be dst and the rest src
@@ -50,7 +49,7 @@ def bipartite_soft_matching_random2d(metric: torch.Tensor,
             rand_idx = torch.zeros(hsy, wsx, 1, device=metric.device, dtype=torch.int64)
         else:
             rand_idx = torch.randint(sy*sx, size=(hsy, wsx, 1), device=metric.device)
-        
+
         # The image might not divide sx and sy, so we need to work on a view of the top left if the idx buffer instead
         idx_buffer_view = torch.zeros(hsy, wsx, sy*sx, device=metric.device, dtype=torch.int64)
         idx_buffer_view.scatter_(dim=2, index=rand_idx, src=-torch.ones_like(rand_idx, dtype=rand_idx.dtype))
@@ -99,7 +98,7 @@ def bipartite_soft_matching_random2d(metric: torch.Tensor,
     def merge(x: torch.Tensor, mode="mean") -> torch.Tensor:
         src, dst = split(x)
         n, t1, c = src.shape
-        
+
         unm = gather(src, dim=-2, index=unm_idx.expand(n, t1 - r, c))
         src = gather(src, dim=-2, index=src_idx.expand(n, r, c))
         dst = dst.scatter_reduce(-2, dst_idx.expand(n, r, c), src, reduce=mode)

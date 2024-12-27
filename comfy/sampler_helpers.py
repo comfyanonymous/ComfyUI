@@ -42,7 +42,7 @@ def get_hooks_from_cond(cond, hooks_dict: dict[comfy.hooks.EnumHookType, dict[co
         if cnet.previous_controlnet is None:
             return _list
         return get_extra_hooks_from_cnet(cnet.previous_controlnet, _list)
-        
+
     hooks_list = []
     cnets = set(cnets)
     for base_cnet in cnets:

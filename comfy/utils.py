@@ -455,7 +455,7 @@ def pixart_to_diffusers(mmdit_config, output_prefix=""):
 
     for k in PIXART_MAP_BASIC:
         key_map[k[1]] = "{}{}".format(output_prefix, k[0])
-    
+
     return key_map
 
 def auraflow_to_diffusers(mmdit_config, output_prefix=""):
@@ -702,7 +702,7 @@ def get_attr(obj, attr):
 def bislerp(samples, width, height):
     def slerp(b1, b2, r):
         '''slerps batches b1, b2 according to ratio r, batches should be flat e.g. NxC'''
-        
+
         c = b1.shape[-1]
 
         #norms
@@ -730,13 +730,13 @@ def bislerp(samples, width, height):
         res[dot > 1 - 1e-5] = b1[dot > 1 - 1e-5] 
         res[dot < 1e-5 - 1] = (b1 * (1.0-r) + b2 * r)[dot < 1e-5 - 1]
         return res
-    
+
     def generate_bilinear_data(length_old, length_new, device):
         coords_1 = torch.arange(length_old, dtype=torch.float32, device=device).reshape((1,1,1,-1))
         coords_1 = torch.nn.functional.interpolate(coords_1, size=(1, length_new), mode="bilinear")
         ratios = coords_1 - coords_1.floor()
         coords_1 = coords_1.to(torch.int64)
-        
+
         coords_2 = torch.arange(length_old, dtype=torch.float32, device=device).reshape((1,1,1,-1)) + 1
         coords_2[:,:,:,-1] -= 1
         coords_2 = torch.nn.functional.interpolate(coords_2, size=(1, length_new), mode="bilinear")
@@ -747,7 +747,7 @@ def bislerp(samples, width, height):
     samples = samples.float()
     n,c,h,w = samples.shape
     h_new, w_new = (height, width)
-    
+
     #linear w
     ratios, coords_1, coords_2 = generate_bilinear_data(w, w_new, samples.device)
     coords_1 = coords_1.expand((n, c, h, -1))
