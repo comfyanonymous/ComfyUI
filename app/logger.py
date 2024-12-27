@@ -1,17 +1,24 @@
+import io
+import sys
+import logging
+import threading
 from collections import deque
 from datetime import datetime
-import io
-import logging
-import sys
-import threading
+from rich import pretty
+from rich.theme import Theme
+from rich.console import Console
+from rich.logging import RichHandler
+
 
 logs = None
 stdout_interceptor = None
 stderr_interceptor = None
+LOGFMT = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)s] %(message)s"
+formatter = logging.Formatter(LOGFMT)
 
 
 class LogInterceptor(io.TextIOWrapper):
-    def __init__(self, stream,  *args, **kwargs):
+    def __init__(self, stream, *args, **kwargs):
         buffer = stream.buffer
         encoding = stream.encoding
         super().__init__(buffer, *args, **kwargs, encoding=encoding, line_buffering=stream.line_buffering)
@@ -51,6 +58,7 @@ def on_flush(callback):
     if stderr_interceptor is not None:
         stderr_interceptor.on_flush(callback)
 
+
 def setup_logger(log_level: str = 'INFO', capacity: int = 300):
     global logs
     if logs:
@@ -68,6 +76,33 @@ def setup_logger(log_level: str = 'INFO', capacity: int = 300):
     logger = logging.getLogger()
     logger.setLevel(log_level)
 
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(logging.Formatter("%(message)s"))
+    stream_handler = get_rich_hander(log_level)
     logger.addHandler(stream_handler)
+
+
+def get_rich_hander(log_level: str = "INFO") -> RichHandler:
+    console = Console(
+        log_time=True,
+        log_time_format="%Y-%m-%d %H:%M:%S",
+        theme=Theme({
+            "log.time": "green",
+            "inspect.value.border": "black",
+            "traceback.border": "black",
+            "traceback.border.syntax_error": "black",
+        }),
+    )
+
+    pretty.install(console=console)
+    handler = RichHandler(
+        console=console,
+        level=log_level,
+        markup=False,
+        show_time=True,
+        show_level=True,
+        show_path=True,
+        rich_tracebacks=True,
+        enable_link_path=False,
+        omit_repeated_times=False,
+        log_time_format="%Y-%m-%d %H:%M:%S",
+    )
+    return handler
