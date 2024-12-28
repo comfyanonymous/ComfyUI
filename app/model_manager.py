@@ -177,7 +177,7 @@ class ModelFileManager:
             safetensors_images = json.loads(safetensors_images)
             for image in safetensors_images:
                 result.append(BytesIO(base64.b64decode(image)))
-        
+
         return result
 
     def __exit__(self, exc_type, exc_value, traceback):

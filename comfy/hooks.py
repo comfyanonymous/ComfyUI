@@ -105,7 +105,7 @@ class WeightHook(Hook):
     @property
     def strength_model(self):
         return self._strength_model * self.strength
-    
+
     @property
     def strength_clip(self):
         return self._strength_clip * self.strength
@@ -118,7 +118,7 @@ class WeightHook(Hook):
             strength = self._strength_model
         else:
             strength = self._strength_clip
-        
+
         if self.need_weight_init:
             key_map = {}
             if target == EnumWeightTarget.Model:
@@ -151,7 +151,7 @@ class PatchHook(Hook):
     def __init__(self):
         super().__init__(hook_type=EnumHookType.Patch)
         self.patches: dict = None
-    
+
     def clone(self, subtype: Callable=None):
         if subtype is None:
             subtype = type(self)
@@ -164,7 +164,7 @@ class ObjectPatchHook(Hook):
     def __init__(self):
         super().__init__(hook_type=EnumHookType.ObjectPatch)
         self.object_patches: dict = None
-    
+
     def clone(self, subtype: Callable=None):
         if subtype is None:
             subtype = type(self)
@@ -179,7 +179,7 @@ class AddModelsHook(Hook):
         self.key = key
         self.models = models
         self.append_when_same = True
-    
+
     def clone(self, subtype: Callable=None):
         if subtype is None:
             subtype = type(self)
@@ -216,7 +216,7 @@ class WrapperHook(Hook):
         c: WrapperHook = super().clone(subtype)
         c.wrappers_dict = self.wrappers_dict
         return c
-    
+
     def add_hook_patches(self, model: 'ModelPatcher', model_options: dict, target: EnumWeightTarget, registered: list[Hook]):
         if not self.should_register(model, model_options, target, registered):
             return False
@@ -230,7 +230,7 @@ class SetInjectionsHook(Hook):
         super().__init__(hook_type=EnumHookType.SetInjections)
         self.key = key
         self.injections = injections
-    
+
     def clone(self, subtype: Callable=None):
         if subtype is None:
             subtype = type(self)
@@ -238,7 +238,7 @@ class SetInjectionsHook(Hook):
         c.key = self.key
         c.injections = self.injections.copy() if self.injections else self.injections
         return c
-    
+
     def add_hook_injections(self, model: 'ModelPatcher'):
         # TODO: add functionality
         pass
@@ -250,10 +250,10 @@ class HookGroup:
     def add(self, hook: Hook):
         if hook not in self.hooks:
             self.hooks.append(hook)
-    
+
     def contains(self, hook: Hook):
         return hook in self.hooks
-    
+
     def clone(self):
         c = HookGroup()
         for hook in self.hooks:
@@ -266,7 +266,7 @@ class HookGroup:
             for hook in other.hooks:
                 c.add(hook.clone())
         return c
-    
+
     def set_keyframes_on_hooks(self, hook_kf: 'HookKeyframeGroup'):
         if hook_kf is None:
             hook_kf = HookKeyframeGroup()
@@ -365,7 +365,7 @@ class HookKeyframe:
         self.start_percent = float(start_percent)
         self.start_t = 999999999.9
         self.guarantee_steps = guarantee_steps
-    
+
     def clone(self):
         c = HookKeyframe(strength=self.strength,
                                 start_percent=self.start_percent, guarantee_steps=self.guarantee_steps)
@@ -395,7 +395,7 @@ class HookKeyframeGroup:
         self._current_strength = None
         self.curr_t = -1.
         self._set_first_as_current()
-    
+
     def add(self, keyframe: HookKeyframe):
         # add to end of list, then sort
         self.keyframes.append(keyframe)
@@ -407,20 +407,20 @@ class HookKeyframeGroup:
             self._current_keyframe = self.keyframes[0]
         else:
             self._current_keyframe = None
-    
+
     def has_index(self, index: int):
         return index >= 0 and index < len(self.keyframes)
 
     def is_empty(self):
         return len(self.keyframes) == 0
-    
+
     def clone(self):
         c = HookKeyframeGroup()
         for keyframe in self.keyframes:
             c.keyframes.append(keyframe.clone())
         c._set_first_as_current()
         return c
-    
+
     def initialize_timesteps(self, model: 'BaseModel'):
         for keyframe in self.keyframes:
             keyframe.start_t = model.model_sampling.percent_to_sigma(keyframe.start_percent)
@@ -565,7 +565,7 @@ def load_hook_lora_for_models(model: 'ModelPatcher', clip: 'CLIP', lora: dict[st
     else:
         k = ()
         new_modelpatcher = None
-    
+
     if clip is not None:
         new_clip = clip.clone()
         k1 = new_clip.patcher.add_hook_patches(hook=hook, patches=loaded, strength_patch=strength_clip)
