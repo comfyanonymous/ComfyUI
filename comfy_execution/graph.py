@@ -131,7 +131,7 @@ class TopologicalSort:
                     if (include_lazy or not is_lazy) and not self.is_cached(from_node_id):
                         node_ids.append(from_node_id)
                         links.append((from_node_id, from_socket, unique_id))
-                        
+
         for link in links:
             self.add_strong_link(*link)
 

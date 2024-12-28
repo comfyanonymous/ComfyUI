@@ -43,12 +43,12 @@ class ComfyGraph:
         # sets the sampler name for the sampler nodes (eg. base and refiner)
         for node in self.sampler_nodes:
             self.graph[node]['inputs']['sampler_name'] = sampler_name
-    
+
     def set_scheduler(self, scheduler:str):
         # sets the sampler name for the sampler nodes (eg. base and refiner)
         for node in self.sampler_nodes:
             self.graph[node]['inputs']['scheduler'] = scheduler
-    
+
     def set_filename_prefix(self, prefix:str):
         # sets the filename prefix for the save nodes
         for node in self.graph:
@@ -185,7 +185,7 @@ class TestInference:
     @fixture(scope="class", params=comfy_graph_list, ids=comfy_graph_ids, autouse=True)
     def _client_graph(self, request, args_pytest, _server) -> (ComfyClient, ComfyGraph):
         comfy_graph = request.param
-        
+
         # Start client
         comfy_client = self.start_client(args_pytest["listen"], args_pytest["port"])
 
@@ -201,7 +201,7 @@ class TestInference:
     def client(self, _client_graph):
         client = _client_graph[0]
         yield client
-    
+
     @fixture
     def comfy_graph(self, _client_graph):
         # avoid mutating the graph

@@ -145,7 +145,7 @@ class TestAccumulationGetLengthNode:
 
     def accumlength(self, accumulation):
         return (len(accumulation['accum']),)
-        
+
 @VariantSupport()
 class TestAccumulationGetItemNode:
     def __init__(self):
@@ -168,7 +168,7 @@ class TestAccumulationGetItemNode:
 
     def get_item(self, accumulation, index):
         return (accumulation['accum'][index],)
-        
+
 @VariantSupport()
 class TestAccumulationSetItemNode:
     def __init__(self):
