@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  comfyui:
+    build: .
+    image: comfyui-gpu
+    container_name: comfyui-compose
+    ports:
+      - "8188:8188"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    volumes:
+      - ./models:/workspace/ComfyUI/models
