@@ -26,7 +26,7 @@ class CustomNodeManager:
                 workflow_name = os.path.splitext(os.path.basename(file))[0]
                 workflow_templates_dict.setdefault(custom_nodes_name, []).append(workflow_name)
             return web.json_response(workflow_templates_dict)
-        
+
         # Serve workflow templates from custom nodes.
         for module_name, module_dir in loadedModules:
             workflows_dir = os.path.join(module_dir, 'example_workflows')
