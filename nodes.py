@@ -2047,6 +2047,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
 EXTENSION_WEB_DIRS = {}
 
+# Dictionary of successfully loaded module names and associated directories.
+LOADED_MODULE_DIRS = {}
+
 
 def get_module_name(module_path: str) -> str:
     """
@@ -2087,6 +2090,8 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
         module = importlib.util.module_from_spec(module_spec)
         sys.modules[module_name] = module
         module_spec.loader.exec_module(module)
+
+        LOADED_MODULE_DIRS[module_name] = os.path.abspath(module_dir)
 
         if hasattr(module, "WEB_DIRECTORY") and getattr(module, "WEB_DIRECTORY") is not None:
             web_dir = os.path.abspath(os.path.join(module_dir, getattr(module, "WEB_DIRECTORY")))
