@@ -58,7 +58,7 @@ class CacheHelper:
         if not self.active:
             return default
         return self.cache.get(key, default)
-    
+
     def set(self, key: str, value: tuple[list[str], dict[str, float], float]) -> None:
         if self.active:
             self.cache[key] = value
@@ -305,7 +305,7 @@ def cached_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float]
     strong_cache = cache_helper.get(folder_name)
     if strong_cache is not None:
         return strong_cache
-    
+
     global filename_list_cache
     global folder_names_and_paths
     folder_name = map_legacy(folder_name)

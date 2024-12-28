@@ -25,7 +25,7 @@ class TerminalService:
     def update_size(self):
         columns, lines = self.get_terminal_size()
         changed = False
-        
+
         if columns != self.cols:
             self.cols = columns
             changed = True 
@@ -48,9 +48,9 @@ class TerminalService:
     def send_messages(self, entries):
         if not len(entries) or not len(self.subscriptions):
             return
-        
+
         new_size = self.update_size()
-        
+
         for client_id in self.subscriptions.copy(): # prevent: Set changed size during iteration
             if client_id not in self.server.sockets:
                 # Automatically unsub if the socket has disconnected

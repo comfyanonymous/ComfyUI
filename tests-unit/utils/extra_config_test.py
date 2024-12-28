@@ -75,7 +75,7 @@ def test_load_extra_model_paths_expands_userpath(
     ]
 
     assert mock_add_model_folder_path.call_count == len(expected_calls)
-    
+
     # Check if add_model_folder_path was called with the correct arguments
     for actual_call, expected_call in zip(mock_add_model_folder_path.call_args_list, expected_calls):
         assert actual_call.args[0] == expected_call[0] 
@@ -117,7 +117,7 @@ def test_load_extra_model_paths_expands_appdata(
     ]
 
     assert mock_add_model_folder_path.call_count == len(expected_calls)
-    
+
     # Check the base path variable was expanded
     for actual_call, expected_call in zip(mock_add_model_folder_path.call_args_list, expected_calls):
         assert actual_call.args == expected_call
