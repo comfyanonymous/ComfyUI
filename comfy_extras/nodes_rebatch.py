@@ -40,7 +40,7 @@ class LatentRebatch:
             return slices, indexable[num * batch_size:]
         else:
             return slices, None
-    
+
     @staticmethod
     def slice_batch(batch, num, batch_size):
         result = [LatentRebatch.get_slices(x, num, batch_size) for x in batch]
@@ -81,7 +81,7 @@ class LatentRebatch:
             if current_batch[0].shape[0] > batch_size:
                 num = current_batch[0].shape[0] // batch_size
                 sliced, remainder = self.slice_batch(current_batch, num, batch_size)
-                
+
                 for i in range(num):
                     output_list.append({'samples': sliced[0][i], 'noise_mask': sliced[1][i], 'batch_index': sliced[2][i]})
 

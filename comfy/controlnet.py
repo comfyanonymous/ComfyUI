@@ -120,7 +120,7 @@ class ControlBase:
         if self.previous_controlnet is not None:
             out += self.previous_controlnet.get_models()
         return out
-    
+
     def get_extra_hooks(self):
         out = []
         if self.extra_hooks is not None:

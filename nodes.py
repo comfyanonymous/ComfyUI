@@ -65,7 +65,7 @@ class CLIPTextEncode(ComfyNodeABC):
     def encode(self, clip, text):
         tokens = clip.tokenize(text)
         return (clip.encode_from_tokens_scheduled(tokens), )
-        
+
 
 class ConditioningCombine:
     @classmethod
@@ -641,7 +641,7 @@ class LoraLoader:
                 "strength_clip": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the CLIP model. This value can be negative."}),
             }
         }
-    
+
     RETURN_TYPES = ("MODEL", "CLIP")
     OUTPUT_TOOLTIPS = ("The modified diffusion model.", "The modified CLIP model.")
     FUNCTION = "load_lora"
@@ -1211,7 +1211,7 @@ class LatentFromBatch:
         else:
             s["batch_index"] = samples["batch_index"][batch_index:batch_index + length]
         return (s,)
-    
+
 class RepeatLatentBatch:
     @classmethod
     def INPUT_TYPES(s):
@@ -1226,7 +1226,7 @@ class RepeatLatentBatch:
     def repeat(self, samples, amount):
         s = samples.copy()
         s_in = samples["samples"]
-        
+
         s["samples"] = s_in.repeat((amount, 1,1,1))
         if "noise_mask" in samples and samples["noise_mask"].shape[0] > 1:
             masks = samples["noise_mask"]
@@ -1636,15 +1636,15 @@ class LoadImage:
     FUNCTION = "load_image"
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
-        
+
         img = node_helpers.pillow(Image.open, image_path)
-        
+
         output_images = []
         output_masks = []
         w, h = None, None
 
         excluded_formats = ['MPO']
-        
+
         for i in ImageSequence.Iterator(img):
             i = node_helpers.pillow(ImageOps.exif_transpose, i)
 
@@ -1655,10 +1655,10 @@ class LoadImage:
             if len(output_images) == 0:
                 w = image.size[0]
                 h = image.size[1]
-            
+
             if image.size[0] != w or image.size[1] != h:
                 continue
-            
+
             image = np.array(image).astype(np.float32) / 255.0
             image = torch.from_numpy(image)[None,]
             if 'A' in i.getbands():
@@ -2234,5 +2234,5 @@ def init_extra_nodes(init_custom_nodes=True):
         else:
             logging.warning("Please do a: pip install -r requirements.txt")
         logging.warning("")
-    
+
     return import_failed
