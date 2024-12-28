@@ -30,6 +30,8 @@ from ..tracing_compatibility import ProgressSpanSampler
 from ..tracing_compatibility import patch_spanbuilder_set_channel
 from ..vendor.aiohttp_server_instrumentation import AioHttpServerInstrumentor
 
+this_logger = logging.getLogger(__name__)
+
 options.enable_args_parsing()
 if os.name == "nt":
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
@@ -43,11 +45,16 @@ from ..cli_args import args
 if args.cuda_device is not None:
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
     os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
-    logging.info("Set cuda device to: {}".format(args.cuda_device))
+    this_logger.info("Set cuda device to: {}".format(args.cuda_device))
 
 if args.deterministic:
     if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
         os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
+
+if args.oneapi_device_selector is not None:
+    os.environ['ONEAPI_DEVICE_SELECTOR'] = args.oneapi_device_selector
+    this_logger.info("Set oneapi device selector to: {}".format(args.oneapi_device_selector))
+
 
 try:
     from . import cuda_malloc
@@ -76,11 +83,11 @@ def _fix_pytorch_240():
             try:
                 _ = ctypes.cdll.LoadLibrary(test_file)
             except FileNotFoundError:
-                logging.warning("Detected pytorch version with libomp issue, trying to patch")
+                this_logger.warning("Detected pytorch version with libomp issue, trying to patch")
                 try:
                     shutil.copyfile(os.path.join(lib_folder, "libiomp5md.dll"), dest)
                 except Exception as exc_info:
-                    logging.error("While trying to patch a fix for torch 2.4.0, an error occurred, which means this is unlikely to work", exc_info=exc_info)
+                    this_logger.error("While trying to patch a fix for torch 2.4.0, an error occurred, which means this is unlikely to work", exc_info=exc_info)
         except:
             pass
 

@@ -72,6 +72,7 @@ class Configuration(dict):
         fp8_e5m2_text_enc (bool): Use FP8 precision for the text encoder (e5m2 variant).
         fp16_text_enc (bool): Use FP16 precision for the text encoder.
         fp32_text_enc (bool): Use FP32 precision for the text encoder.
+        openapi_device_selector (Optional[str]): Sets the oneAPI device(s) this instance will use.
         directml (Optional[int]): Use DirectML. -1 for auto-selection.
         disable_ipex_optimize (bool): Disable IPEX optimization for Intel GPUs.
         preview_method (LatentPreviewMethod): Method for generating previews. Defaults to "auto".
@@ -118,6 +119,7 @@ class Configuration(dict):
         preview_size (int): Sets the maximum preview size for sampler nodes. Defaults to 512.
         openai_api_key (str): Configures the OpenAI API Key for the OpenAI nodes
         user_directory (Optional[str]): Set the ComfyUI user directory with an absolute path.
+        log_stdout (bool): Send normal process output to stdout instead of stderr (default)
     """
 
     def __init__(self, **kwargs):
@@ -198,6 +200,8 @@ class Configuration(dict):
         self.force_hf_local_dir_mode = False
         self.preview_size: int = 512
         self.logging_level: str = "INFO"
+        self.openapi_device_selector: Optional[str] = None
+        self.log_stdout: bool = False
 
         # from guill
         self.cache_lru: int = 0

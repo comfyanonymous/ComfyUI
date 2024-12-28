@@ -84,8 +84,9 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE", const=-1,
                         help="Use torch-directml.")
 
+    parser.add_argument("--oneapi-device-selector", type=str, default=None, metavar="SELECTOR_STRING", help="Sets the oneAPI device(s) this instance will use.")
     parser.add_argument("--disable-ipex-optimize", action="store_true",
-                        help="Disables ipex.optimize when loading models with Intel GPUs.")
+                        help="Disables ipex.optimize default when loading models with Intel's Extension for Pytorch.")
 
     parser.add_argument("--preview-method", type=LatentPreviewMethod, default=LatentPreviewMethod.Auto,
                         help="Default preview method for sampler nodes.", action=EnumAction)
@@ -139,6 +140,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
     parser.add_argument("--create-directories", action="store_true",
                         help="Creates the default models/, input/, output/ and temp/ directories, then exits.")
+    parser.add_argument("--log-stdout", action="store_true", help="Send normal process output to stdout instead of stderr (default).")
 
     parser.add_argument("--plausible-analytics-base-url", required=False,
                         help="Enables server-side analytics events sent to the provided URL.")

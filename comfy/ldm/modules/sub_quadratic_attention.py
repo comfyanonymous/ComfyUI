@@ -261,7 +261,7 @@ def efficient_dot_product_attention(
             value=value,
             mask=mask,
         )
-    
+
     # TODO: maybe we should use torch.empty_like(query) to allocate storage in-advance,
     # and pass slices to be mutated, instead of torch.cat()ing the returned slices
     res = torch.cat([

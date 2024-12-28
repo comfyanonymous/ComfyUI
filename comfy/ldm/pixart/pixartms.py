@@ -223,7 +223,7 @@ class PixArtMS(nn.Module):
         if self.micro_conditioning:
             if c_size is None:
                 c_size = torch.tensor([H*8, W*8], dtype=x.dtype, device=x.device).repeat(B, 1)
-            
+
             if c_ar is None:
                 c_ar = torch.tensor([H/W], dtype=x.dtype, device=x.device).repeat(B, 1)
 

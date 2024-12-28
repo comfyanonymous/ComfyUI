@@ -939,9 +939,7 @@ class PromptServer(ExecutorToClientProgress):
         self.app.add_routes(self.routes)
 
         for name, dir in self.nodes.EXTENSION_WEB_DIRS.items():
-            self.app.add_routes([
-                web.static('/extensions/' + quote(name), dir, follow_symlinks=True),
-            ])
+            self.app.add_routes([web.static('/extensions/' + name, dir, follow_symlinks=True)])
 
         self.app.add_routes([
             web.static('/', self.web_root, follow_symlinks=True),
