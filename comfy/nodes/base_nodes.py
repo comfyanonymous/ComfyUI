@@ -1,41 +1,43 @@
 from __future__ import annotations
-import torch
 
-import os
 import json
-import math
-import random
 import logging
+import math
+import os
+import random
 
+import numpy as np
+import safetensors.torch
+import torch
 from PIL import Image, ImageOps, ImageSequence
 from PIL.PngImagePlugin import PngInfo
 from huggingface_hub import snapshot_download
 from natsort import natsorted
-import numpy as np
-import safetensors.torch
 
+from .. import clip_vision as clip_vision_module
+from .. import controlnet
 from .. import diffusers_load
-from .. import samplers
+from .. import model_management
+from .. import node_helpers
 from .. import sample
+from .. import samplers
 from .. import sd
 from .. import utils
-from .. import clip_vision as clip_vision_module
-from .. import model_management
-from ..comfy_types import IO, ComfyNodeABC, InputTypeDict
 from ..cli_args import args
-
 from ..cmd import folder_paths, latent_preview
+from ..comfy_types import IO, ComfyNodeABC, InputTypeDict
 from ..component_model.deprecation import _deprecate_method
 from ..component_model.tensor_types import RGBImage, RGBImageBatch, MaskBatch
 from ..execution_context import current_execution_context
 from ..images import open_image
 from ..interruption import interrupt_current_processing
 from ..ldm.flux.weight_dtypes import FLUX_WEIGHT_DTYPES
-from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES, get_huggingface_repo_list, KNOWN_CLIP_MODELS, KNOWN_UNET_MODELS
+from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, \
+    KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, \
+    KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES, get_huggingface_repo_list, KNOWN_CLIP_MODELS, \
+    KNOWN_UNET_MODELS
 from ..nodes.common import MAX_RESOLUTION
-from .. import controlnet
 from ..open_exr import load_exr
-from .. import node_helpers
 from ..sd import VAE
 from ..utils import comfy_tqdm
 
@@ -292,6 +294,7 @@ class VAEDecodeTiled:
         return {"required": {"samples": ("LATENT", ), "vae": ("VAE", ),
                              "tile_size": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 32}),
                              "overlap": ("INT", {"default": 64, "min": 0, "max": 4096, "step": 32}),
+                             }, "optional": {
                              "temporal_size": ("INT", {"default": 64, "min": 8, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to decode at a time."}),
                              "temporal_overlap": ("INT", {"default": 8, "min": 4, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to overlap."}),
                             }}
