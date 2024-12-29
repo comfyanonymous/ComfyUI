@@ -366,9 +366,15 @@ class HookKeyframe:
         self.start_t = 999999999.9
         self.guarantee_steps = guarantee_steps
 
+    def get_effective_guarantee_steps(self, max_sigma: torch.Tensor):
+        '''If keyframe starts before current sampling range (max_sigma), treat as 0.'''
+        if self.start_t > max_sigma:
+            return 0
+        return self.guarantee_steps
+
     def clone(self):
         c = HookKeyframe(strength=self.strength,
-                                start_percent=self.start_percent, guarantee_steps=self.guarantee_steps)
+                         start_percent=self.start_percent, guarantee_steps=self.guarantee_steps)
         c.start_t = self.start_t
         return c
 
@@ -408,6 +414,12 @@ class HookKeyframeGroup:
         else:
             self._current_keyframe = None
 
+    def has_guarantee_steps(self):
+        for kf in self.keyframes:
+            if kf.guarantee_steps > 0:
+                return True
+        return False
+
     def has_index(self, index: int):
         return index >= 0 and index < len(self.keyframes)
 
@@ -425,15 +437,16 @@ class HookKeyframeGroup:
         for keyframe in self.keyframes:
             keyframe.start_t = model.model_sampling.percent_to_sigma(keyframe.start_percent)
 
-    def prepare_current_keyframe(self, curr_t: float) -> bool:
+    def prepare_current_keyframe(self, curr_t: float, transformer_options: dict[str, torch.Tensor]) -> bool:
         if self.is_empty():
             return False
         if curr_t == self._curr_t:
             return False
+        max_sigma = torch.max(transformer_options["sigmas"])
         prev_index = self._current_index
         prev_strength = self._current_strength
         # if met guaranteed steps, look for next keyframe in case need to switch
-        if self._current_used_steps >= self._current_keyframe.guarantee_steps:
+        if self._current_used_steps >= self._current_keyframe.get_effective_guarantee_steps(max_sigma):
             # if has next index, loop through and see if need to switch
             if self.has_index(self._current_index+1):
                 for i in range(self._current_index+1, len(self.keyframes)):
@@ -446,7 +459,7 @@ class HookKeyframeGroup:
                         self._current_keyframe = eval_c
                         self._current_used_steps = 0
                         # if guarantee_steps greater than zero, stop searching for other keyframes
-                        if self._current_keyframe.guarantee_steps > 0:
+                        if self._current_keyframe.get_effective_guarantee_steps(max_sigma) > 0:
                             break
                     # if eval_c is outside the percent range, stop looking further
                     else: break
