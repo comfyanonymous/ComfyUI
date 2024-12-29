@@ -3,6 +3,7 @@ import torch
 class LatentFormat:
     scale_factor = 1.0
     latent_channels = 4
+    latent_dimensions = 2
     latent_rgb_factors = None
     latent_rgb_factors_bias = None
     taesd_decoder_name = None
@@ -143,6 +144,7 @@ class SD3(LatentFormat):
 
 class StableAudio1(LatentFormat):
     latent_channels = 64
+    latent_dimensions = 1
 
 class Flux(SD3):
     latent_channels = 16
@@ -178,6 +180,7 @@ class Flux(SD3):
 
 class Mochi(LatentFormat):
     latent_channels = 12
+    latent_dimensions = 3
 
     def __init__(self):
         self.scale_factor = 1.0
@@ -219,6 +222,8 @@ class Mochi(LatentFormat):
 
 class LTXV(LatentFormat):
     latent_channels = 128
+    latent_dimensions = 3
+
     def __init__(self):
         self.latent_rgb_factors = [
             [ 1.1202e-02, -6.3815e-04, -1.0021e-02],
@@ -355,6 +360,7 @@ class LTXV(LatentFormat):
 
 class HunyuanVideo(LatentFormat):
     latent_channels = 16
+    latent_dimensions = 3
     scale_factor = 0.476986
     latent_rgb_factors = [
         [-0.0395, -0.0331,  0.0445],
