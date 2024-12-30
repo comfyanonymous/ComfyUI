@@ -413,32 +413,6 @@ class PromptServer():
 
             return image_upload(post, image_save_function)
 
-        @routes.delete("/delete-file")
-        async def delete_file(request):
-            type = request.query.get("type")
-            if not type:
-                return web.Response(text="Need Type",status=400)
-        
-            filename = request.query.get("file_name")
-            if not filename:
-                return web.Response(text="Need Filename",status=400)
-        
-            sub = request.query.get("subfolder","")
-        
-            if sub == "":
-                file_path = os.path.join(os.getcwd(),type,filename)
-            else:
-                file_path = os.path.join(os.getcwd(),type,sub,filename)
-            
-            if not os.path.isfile(file_path):
-                return web.Response(text="Not Found File", status=404)
-            
-            try:
-                os.remove(file_path)
-                return web.Response(text=f"Success Remove File : {file_path[len(os.getcwd())+1:]}",status=200)
-            except Exception as e:
-                return web.Response(text=f"Failed Remove File\n{str(e)}",status=500)
-
         @routes.get("/view")
         async def view_image(request):
             if "filename" in request.rel_url.query:
