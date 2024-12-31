@@ -226,7 +226,7 @@ def model_wrapper(
             The input `model` has the following format:
             ``
                 model(x, t_input, **model_kwargs) -> noise | x_start | v | score
-            `` 
+            ``
 
             The input `classifier_fn` has the following format:
             ``
@@ -240,7 +240,7 @@ def model_wrapper(
             The input `model` has the following format:
             ``
                 model(x, t_input, cond, **model_kwargs) -> noise | x_start | v | score
-            `` 
+            ``
             And if cond == `unconditional_condition`, the model output is the unconditional DPM output.
 
             [4] Ho, Jonathan, and Tim Salimans. "Classifier-free diffusion guidance."
@@ -254,7 +254,7 @@ def model_wrapper(
     ``
         def model_fn(x, t_continuous) -> noise:
             t_input = get_model_input_time(t_continuous)
-            return noise_pred(model, x, t_input, **model_kwargs)         
+            return noise_pred(model, x, t_input, **model_kwargs)
     ``
     where `t_continuous` is the continuous time labels (i.e. epsilon to T). And we use `model_fn` for DPM-Solver.
 
@@ -359,7 +359,7 @@ class UniPC:
         max_val=1.,
         variant='bh1',
     ):
-        """Construct a UniPC. 
+        """Construct a UniPC.
 
         We support both data_prediction and noise_prediction.
         """
@@ -372,7 +372,7 @@ class UniPC:
 
     def dynamic_thresholding_fn(self, x0, t=None):
         """
-        The dynamic thresholding method. 
+        The dynamic thresholding method.
         """
         dims = x0.dim()
         p = self.dynamic_thresholding_ratio
@@ -404,7 +404,7 @@ class UniPC:
 
     def model_fn(self, x, t):
         """
-        Convert the model to the noise prediction model or the data prediction model. 
+        Convert the model to the noise prediction model or the data prediction model.
         """
         if self.predict_x0:
             return self.data_prediction_fn(x, t)
@@ -461,7 +461,7 @@ class UniPC:
 
     def denoise_to_zero_fn(self, x, s):
         """
-        Denoise at the final step, which is equivalent to solve the ODE from lambda_s to infty by first-order discretization. 
+        Denoise at the final step, which is equivalent to solve the ODE from lambda_s to infty by first-order discretization.
         """
         return self.data_prediction_fn(x, s)
 
@@ -510,7 +510,7 @@ class UniPC:
         col = torch.ones_like(rks)
         for k in range(1, K + 1):
             C.append(col)
-            col = col * rks / (k + 1) 
+            col = col * rks / (k + 1)
         C = torch.stack(C, dim=1)
 
         if len(D1s) > 0:
@@ -626,7 +626,7 @@ class UniPC:
             R.append(torch.pow(rks, i - 1))
             b.append(h_phi_k * factorial_i / B_h)
             factorial_i *= (i + 1)
-            h_phi_k = h_phi_k / hh - 1 / factorial_i 
+            h_phi_k = h_phi_k / hh - 1 / factorial_i
 
         R = torch.stack(R)
         b = torch.tensor(b, device=x.device)
