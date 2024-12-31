@@ -224,7 +224,7 @@ def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Te
         default_conds.append(default_c)
 
     if has_default_conds:
-        finalize_default_conds(model, hooked_to_run, default_conds, x_in, timestep)
+        finalize_default_conds(model, hooked_to_run, default_conds, x_in, timestep, model_options)
 
     model.current_patcher.prepare_state(timestep)
 
