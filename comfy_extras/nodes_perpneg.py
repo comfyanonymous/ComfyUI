@@ -73,7 +73,7 @@ class Guider_PerpNeg(comfy.samplers.CFGGuider):
             comfy.samplers.calc_cond_batch(self.inner_model, [positive_cond, negative_cond, empty_cond], x, timestep, model_options)
         cfg_result = perp_neg(x, noise_pred_pos, noise_pred_neg, noise_pred_empty, self.neg_scale, self.cfg)
 
-        # normally this would be done in cfg_function, but we skipped 
+        # normally this would be done in cfg_function, but we skipped
         # that for efficiency: we can compute the noise predictions in
         # a single call to calc_cond_batch() (rather than two)
         # so we replicate the hook here

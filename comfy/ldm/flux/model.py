@@ -168,7 +168,7 @@ class Flux(nn.Module):
                 out = blocks_replace[("single_block", i)]({"img": img,
                                                            "vec": vec,
                                                            "pe": pe,
-                                                           "attn_mask": attn_mask}, 
+                                                           "attn_mask": attn_mask},
                                                           {"original_block": block_wrap})
                 img = out["img"]
             else:

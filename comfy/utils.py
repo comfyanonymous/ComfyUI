@@ -727,7 +727,7 @@ def bislerp(samples, width, height):
         res *= (b1_norms * (1.0-r) + b2_norms * r).expand(-1,c)
 
         #edge cases for same or polar opposites
-        res[dot > 1 - 1e-5] = b1[dot > 1 - 1e-5] 
+        res[dot > 1 - 1e-5] = b1[dot > 1 - 1e-5]
         res[dot < 1e-5 - 1] = (b1 * (1.0-r) + b2 * r)[dot < 1e-5 - 1]
         return res
 

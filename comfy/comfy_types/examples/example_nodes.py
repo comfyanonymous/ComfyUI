@@ -1,12 +1,12 @@
-from comfy_types import IO, ComfyNodeABC, InputTypeDict
+from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict
 from inspect import cleandoc
 
 
 class ExampleNode(ComfyNodeABC):
     """An example node that just adds 1 to an input integer.
 
-    * Requires an IDE configured with analysis paths etc to be worth looking at.
-    * Not intended for use in ComfyUI.
+    * Requires a modern IDE to provide any benefit (detail: an IDE configured with analysis paths etc).
+    * This node is intended as an example for developers only.
     """
 
     DESCRIPTION = cleandoc(__doc__)
