@@ -5,7 +5,7 @@ This module provides type hinting and concrete convenience types for node develo
 If cloned to the custom_nodes directory of ComfyUI, types can be imported using:
 
 ```python
-from comfy_types import IO, ComfyNodeABC, CheckLazyMixin
+from comfy.comfy_types import IO, ComfyNodeABC, CheckLazyMixin
 
 class ExampleNode(ComfyNodeABC):
     @classmethod
