@@ -1,10 +1,7 @@
 import torch
-import math
+from math import lcm
 import comfy.utils
 
-
-def lcm(a, b): #TODO: eventually replace by math.lcm (added in python3.9)
-    return abs(a*b) // math.gcd(a, b)
 
 class CONDRegular:
     def __init__(self, cond):
