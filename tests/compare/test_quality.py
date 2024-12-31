@@ -32,7 +32,7 @@ class TestCompareImageMetrics:
     @fixture(scope="class")
     def test_file_names(self, args_pytest):
         test_dir = args_pytest['test_dir']
-        fnames = self.gather_file_basenames(test_dir)  
+        fnames = self.gather_file_basenames(test_dir)
         yield fnames
         del fnames
 
@@ -84,7 +84,7 @@ class TestCompareImageMetrics:
         file_match = self.find_file_match(baseline_file_path, file_paths)
         assert file_match is not None, f"Could not find a file in {args_pytest['test_dir']} with matching metadata to {baseline_file_path}"
 
-    # For a baseline image file, finds the corresponding file name in test_dir and 
+    # For a baseline image file, finds the corresponding file name in test_dir and
     # compares the images using the metrics in METRICS
     @pytest.mark.parametrize("metric", METRICS.keys())
     def test_pipeline_compare(
@@ -181,7 +181,7 @@ class TestCompareImageMetrics:
 
         # Find file match
         # Reorder test_file_names so that the file with matching name is first
-        # This is an optimization because matching file names are more likely 
+        # This is an optimization because matching file names are more likely
         # to have matching metadata if they were generated with the same script
         basename = os.path.basename(baseline_file)
         file_path_basenames = [os.path.basename(f) for f in file_paths]

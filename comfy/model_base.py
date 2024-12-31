@@ -787,7 +787,7 @@ class Flux(BaseModel):
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
-        # upscale the attention mask, since now we 
+        # upscale the attention mask, since now we
         attention_mask = kwargs.get("attention_mask", None)
         if attention_mask is not None:
             shape = kwargs["noise"].shape

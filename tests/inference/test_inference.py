@@ -23,7 +23,7 @@ These tests generate and save images through a range of parameters
 """
 
 class ComfyGraph:
-    def __init__(self, 
+    def __init__(self,
                  graph: dict,
                  sampler_nodes: list[str],
                  ):
@@ -59,8 +59,8 @@ class ComfyGraph:
 class ComfyClient:
     # From examples/websockets_api_example.py
 
-    def connect(self, 
-                    listen:str = '127.0.0.1', 
+    def connect(self,
+                    listen:str = '127.0.0.1',
                     port:Union[str,int] = 8188,
                     client_id: str = str(uuid.uuid4())
                     ):
@@ -152,7 +152,7 @@ class TestInference:
     def _server(self, args_pytest):
         # Start server
         p = subprocess.Popen([
-                'python','main.py', 
+                'python','main.py',
                 '--output-directory', args_pytest["output_dir"],
                 '--listen', args_pytest["listen"],
                 '--port', str(args_pytest["port"]),
