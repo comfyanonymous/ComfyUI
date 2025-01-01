@@ -30,5 +30,4 @@ def apply_rotary_emb_qk_real(
     sin_part = (xqk_even * freqs_sin + xqk_odd * freqs_cos).type_as(xqk)
 
     # Interleave the results back into the original shape
-    out = torch.stack([cos_part, sin_part], dim=-1).flatten(-2)
-    return out
+    return torch.stack([cos_part, sin_part], dim=-1).flatten(-2)

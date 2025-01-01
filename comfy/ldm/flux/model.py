@@ -183,8 +183,7 @@ class Flux(nn.Module):
 
         img = img[:, txt.shape[1] :, ...]
 
-        img = self.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
-        return img
+        return self.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
 
     def forward(self, x, timestep, context, y, guidance, control=None, transformer_options={}, **kwargs):
         bs, c, h, w = x.shape

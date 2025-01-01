@@ -170,8 +170,7 @@ class StageB(nn.Module):
         if len(clip.shape) == 2:
             clip = clip.unsqueeze(1)
         clip = self.clip_mapper(clip).view(clip.size(0), clip.size(1) * self.c_clip_seq, -1)
-        clip = self.clip_norm(clip)
-        return clip
+        return self.clip_norm(clip)
 
     def _down_encode(self, x, r_embed, clip):
         level_outputs = []

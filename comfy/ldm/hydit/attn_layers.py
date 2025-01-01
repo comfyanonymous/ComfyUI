@@ -166,9 +166,8 @@ class CrossAttention(nn.Module):
         out = self.out_proj(context)  # context.reshape - B, L1, -1
         out = self.proj_drop(out)
 
-        out_tuple = (out,)
+        return (out,)
 
-        return out_tuple
 
 
 class Attention(nn.Module):
@@ -213,6 +212,5 @@ class Attention(nn.Module):
         x = self.out_proj(x)
         x = self.proj_drop(x)
 
-        out_tuple = (x,)
+        return (x,)
 
-        return out_tuple

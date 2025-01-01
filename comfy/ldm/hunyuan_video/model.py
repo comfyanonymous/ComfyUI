@@ -86,8 +86,7 @@ class TokenRefinerBlock(nn.Module):
         attn = optimized_attention(q, k, v, self.heads, mask=mask, skip_reshape=True)
 
         x = x + self.self_attn.proj(attn) * mod1.unsqueeze(1)
-        x = x + self.mlp(self.norm2(x)) * mod2.unsqueeze(1)
-        return x
+        return x + self.mlp(self.norm2(x)) * mod2.unsqueeze(1)
 
 
 class IndividualTokenRefiner(nn.Module):
@@ -157,8 +156,7 @@ class TokenRefiner(nn.Module):
 
         c = t + self.c_embedder(c.to(x.dtype))
         x = self.input_embedder(x)
-        x = self.individual_token_refiner(x, c, mask)
-        return x
+        return self.individual_token_refiner(x, c, mask)
 
 class HunyuanVideo(nn.Module):
     """
@@ -311,8 +309,7 @@ class HunyuanVideo(nn.Module):
             shape[i] = shape[i] // self.patch_size[i]
         img = img.reshape([img.shape[0]] + shape + [self.out_channels] + self.patch_size)
         img = img.permute(0, 4, 1, 5, 2, 6, 3, 7)
-        img = img.reshape(initial_shape)
-        return img
+        return img.reshape(initial_shape)
 
     def forward(self, x, timestep, context, y, guidance, attention_mask=None, control=None, transformer_options={}, **kwargs):
         bs, c, t, h, w = x.shape
@@ -326,5 +323,4 @@ class HunyuanVideo(nn.Module):
         img_ids[:, :, :, 2] = img_ids[:, :, :, 2] + torch.linspace(0, w_len - 1, steps=w_len, device=x.device, dtype=x.dtype).reshape(1, 1, -1)
         img_ids = repeat(img_ids, "t h w c -> b (t h w) c", b=bs)
         txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)
-        out = self.forward_orig(x, img_ids, context, txt_ids, attention_mask, timestep, y, guidance, control, transformer_options)
-        return out
+        return self.forward_orig(x, img_ids, context, txt_ids, attention_mask, timestep, y, guidance, control, transformer_options)

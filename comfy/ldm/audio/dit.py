@@ -89,8 +89,7 @@ class AbsolutePositionalEmbedding(nn.Module):
             pos = (pos - seq_start_pos[..., None]).clamp(min = 0)
 
         pos_emb = self.emb(pos)
-        pos_emb = pos_emb * self.scale
-        return pos_emb
+        return pos_emb * self.scale
 
 class ScaledSinusoidalEmbedding(nn.Module):
     def __init__(self, dim, theta = 10000):
@@ -404,9 +403,8 @@ class ConformerModule(nn.Module):
         x = self.swish(x)
         x = rearrange(x, 'b n d -> b d n')
         x = self.pointwise_conv_2(x)
-        x = rearrange(x, 'b d n -> b n d')
+        return rearrange(x, 'b d n -> b n d')
 
-        return x
 
 class TransformerBlock(nn.Module):
     def __init__(

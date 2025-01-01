@@ -60,8 +60,7 @@ class Downsample(nn.Module):
             padding = [x.shape[2] % 2, x.shape[3] % 2]
             self.op.padding = padding
 
-        x = self.op(x)
-        return x
+        return self.op(x)
 
 
 class ResnetBlock(nn.Module):
@@ -196,8 +195,7 @@ class ResidualAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor):
         x = x + self.attention(self.ln_1(x))
-        x = x + self.mlp(self.ln_2(x))
-        return x
+        return x + self.mlp(self.ln_2(x))
 
 
 class StyleAdapter(nn.Module):
@@ -224,9 +222,8 @@ class StyleAdapter(nn.Module):
         x = x.permute(1, 0, 2)  # LND -> NLD
 
         x = self.ln_post(x[:, -self.num_token:, :])
-        x = x @ self.proj
+        return x @ self.proj
 
-        return x
 
 
 class ResnetBlock_light(nn.Module):
@@ -262,9 +259,8 @@ class extractor(nn.Module):
             x = self.down_opt(x)
         x = self.in_conv(x)
         x = self.body(x)
-        x = self.out_conv(x)
+        return self.out_conv(x)
 
-        return x
 
 
 class Adapter_light(nn.Module):

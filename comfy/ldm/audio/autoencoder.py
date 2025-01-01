@@ -70,9 +70,8 @@ class SnakeBeta(nn.Module):
         if self.alpha_logscale:
             alpha = torch.exp(alpha)
             beta = torch.exp(beta)
-        x = snake_beta(x, alpha, beta)
+        return snake_beta(x, alpha, beta)
 
-        return x
 
 def WNConv1d(*args, **kwargs):
     try:

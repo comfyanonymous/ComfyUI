@@ -53,8 +53,7 @@ def get_meshgrid(start, *args):
     grid_h = np.linspace(start[0], stop[0], num[0], endpoint=False, dtype=np.float32)
     grid_w = np.linspace(start[1], stop[1], num[1], endpoint=False, dtype=np.float32)
     grid = np.meshgrid(grid_w, grid_h)  # here w goes first
-    grid = np.stack(grid, axis=0)   # [2, W, H]
-    return grid
+    return np.stack(grid, axis=0)   # [2, W, H]
 
 #################################################################################
 #                   Sine/Cosine Positional Embedding Functions                  #
@@ -87,8 +86,7 @@ def get_2d_sincos_pos_embed_from_grid(embed_dim, grid):
     emb_h = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[0])  # (H*W, D/2)
     emb_w = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[1])  # (H*W, D/2)
 
-    emb = np.concatenate([emb_h, emb_w], axis=1)    # (H*W, D)
-    return emb
+    return np.concatenate([emb_h, emb_w], axis=1)    # (H*W, D)
 
 
 def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
@@ -108,8 +106,7 @@ def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
     emb_sin = np.sin(out)   # (M, D/2)
     emb_cos = np.cos(out)   # (M, D/2)
 
-    emb = np.concatenate([emb_sin, emb_cos], axis=1)  # (M, D)
-    return emb
+    return np.concatenate([emb_sin, emb_cos], axis=1)  # (M, D)
 
 
 #################################################################################
@@ -138,8 +135,7 @@ def get_2d_rotary_pos_embed(embed_dim, start, *args, use_real=True):
     """
     grid = get_meshgrid(start, *args)   # [2, H, w]
     grid = grid.reshape([2, 1, *grid.shape[1:]])   # Returns a sampling matrix with the same resolution as the target resolution
-    pos_embed = get_2d_rotary_pos_embed_from_grid(embed_dim, grid, use_real=use_real)
-    return pos_embed
+    return get_2d_rotary_pos_embed_from_grid(embed_dim, grid, use_real=use_real)
 
 
 def get_2d_rotary_pos_embed_from_grid(embed_dim, grid, use_real=False):
@@ -154,8 +150,7 @@ def get_2d_rotary_pos_embed_from_grid(embed_dim, grid, use_real=False):
         sin = torch.cat([emb_h[1], emb_w[1]], dim=1)    # (H*W, D/2)
         return cos, sin
     else:
-        emb = torch.cat([emb_h, emb_w], dim=1)    # (H*W, D/2)
-        return emb
+        return torch.cat([emb_h, emb_w], dim=1)    # (H*W, D/2)
 
 
 def get_1d_rotary_pos_embed(dim: int, pos: Union[np.ndarray, int], theta: float = 10000.0, use_real=False):
@@ -187,8 +182,7 @@ def get_1d_rotary_pos_embed(dim: int, pos: Union[np.ndarray, int], theta: float 
         freqs_sin = freqs.sin().repeat_interleave(2, dim=1)  # [S, D]
         return freqs_cos, freqs_sin
     else:
-        freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64     # [S, D/2]
-        return freqs_cis
+        return torch.polar(torch.ones_like(freqs), freqs)  # complex64     # [S, D/2]
 
 
 

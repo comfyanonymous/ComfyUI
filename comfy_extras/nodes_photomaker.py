@@ -52,8 +52,7 @@ class FuseModule(nn.Module):
         stacked_id_embeds = torch.cat([prompt_embeds, id_embeds], dim=-1)
         stacked_id_embeds = self.mlp1(stacked_id_embeds) + prompt_embeds
         stacked_id_embeds = self.mlp2(stacked_id_embeds)
-        stacked_id_embeds = self.layer_norm(stacked_id_embeds)
-        return stacked_id_embeds
+        return self.layer_norm(stacked_id_embeds)
 
     def forward(
         self,
@@ -86,8 +85,7 @@ class FuseModule(nn.Module):
         stacked_id_embeds = self.fuse_fn(image_token_embeds, valid_id_embeds)
         assert class_tokens_mask.sum() == stacked_id_embeds.shape[0], f"{class_tokens_mask.sum()} != {stacked_id_embeds.shape[0]}"
         prompt_embeds.masked_scatter_(class_tokens_mask[:, None], stacked_id_embeds.to(prompt_embeds.dtype))
-        updated_prompt_embeds = prompt_embeds.view(batch_size, seq_length, -1)
-        return updated_prompt_embeds
+        return prompt_embeds.view(batch_size, seq_length, -1)
 
 class PhotoMakerIDEncoder(comfy.clip_model.CLIPVisionModelProjection):
     def __init__(self):
@@ -111,9 +109,8 @@ class PhotoMakerIDEncoder(comfy.clip_model.CLIPVisionModelProjection):
         id_embeds_2 = id_embeds_2.view(b, num_inputs, 1, -1)
 
         id_embeds = torch.cat((id_embeds, id_embeds_2), dim=-1)
-        updated_prompt_embeds = self.fuse_module(prompt_embeds, id_embeds, class_tokens_mask)
+        return self.fuse_module(prompt_embeds, id_embeds, class_tokens_mask)
 
-        return updated_prompt_embeds
 
 
 class PhotoMakerLoader:

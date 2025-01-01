@@ -56,8 +56,7 @@ class CausalConv3d(nn.Module):
                 (1, 1, (self.time_kernel_size - 1) // 2, 1, 1)
             )
             x = torch.concatenate((first_frame_pad, x, last_frame_pad), dim=2)
-        x = self.conv(x)
-        return x
+        return self.conv(x)
 
     @property
     def weight(self):

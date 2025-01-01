@@ -60,9 +60,8 @@ def create_position_matrix(
     # Stack and reshape the grids.
     pos = torch.stack([grid_t, grid_h, grid_w], dim=-1)  # [T, pH, pW, 3]
     pos = pos.view(-1, 3)  # [T * pH * pW, 3]
-    pos = pos.to(dtype=dtype, device=device)
+    return pos.to(dtype=dtype, device=device)
 
-    return pos
 
 
 def compute_mixed_rotation(

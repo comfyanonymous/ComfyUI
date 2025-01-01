@@ -9,6 +9,7 @@ lint.select = [
     # The "F" series in Ruff stands for "Pyflakes" rules, which catch various Python syntax errors and undefined names.
     # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
     "F",
+    "RET504",
 ]
 
 exclude = ["*.ipynb"]

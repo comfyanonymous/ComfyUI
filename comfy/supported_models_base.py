@@ -87,8 +87,7 @@ class BASE:
         return out
 
     def process_clip_state_dict(self, state_dict):
-        state_dict = utils.state_dict_prefix_replace(state_dict, {k: "" for k in self.text_encoder_key_prefix}, filter_keys=True)
-        return state_dict
+        return utils.state_dict_prefix_replace(state_dict, {k: "" for k in self.text_encoder_key_prefix}, filter_keys=True)
 
     def process_unet_state_dict(self, state_dict):
         return state_dict

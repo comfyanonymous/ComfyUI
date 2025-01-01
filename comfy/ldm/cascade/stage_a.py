@@ -157,9 +157,8 @@ class ResBlock(nn.Module):
             x = x + self.depthwise[1](x_temp) * mods[2]
 
         x_temp = self._norm(x, self.norm2) * (1 + mods[3]) + mods[4]
-        x = x + self.channelwise(x_temp.permute(0, 2, 3, 1)).permute(0, 3, 1, 2) * mods[5]
+        return x + self.channelwise(x_temp.permute(0, 2, 3, 1)).permute(0, 3, 1, 2) * mods[5]
 
-        return x
 
 
 class StageA(nn.Module):
@@ -218,8 +217,7 @@ class StageA(nn.Module):
 
     def decode(self, x):
         x = self.up_blocks(x)
-        x = self.out_block(x)
-        return x
+        return self.out_block(x)
 
     def forward(self, x, quantize=False):
         qe, x, _, vq_loss = self.encode(x, quantize)
@@ -251,5 +249,4 @@ class Discriminator(nn.Module):
             cond = cond.view(cond.size(0), cond.size(1), 1, 1, ).expand(-1, -1, x.size(-2), x.size(-1))
             x = torch.cat([x, cond], dim=1)
         x = self.shuffle(x)
-        x = self.logits(x)
-        return x
+        return self.logits(x)

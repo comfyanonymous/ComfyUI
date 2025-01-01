@@ -65,8 +65,7 @@ class Patchifier(ABC):
                     scale = scale_grid[i]
                 grid[:, i, ...] = grid[:, i, ...] * scale * self._patch_size[i]
 
-        grid = rearrange(grid, "b c f h w -> b c (f h w)", b=batch_size)
-        return grid
+        return rearrange(grid, "b c f h w -> b c (f h w)", b=batch_size)
 
 
 class SymmetricPatchifier(Patchifier):
@@ -74,14 +73,13 @@ class SymmetricPatchifier(Patchifier):
         self,
         latents: Tensor,
     ) -> Tuple[Tensor, Tensor]:
-        latents = rearrange(
+        return rearrange(
             latents,
             "b c (f p1) (h p2) (w p3) -> b (f h w) (c p1 p2 p3)",
             p1=self._patch_size[0],
             p2=self._patch_size[1],
             p3=self._patch_size[2],
         )
-        return latents
 
     def unpatchify(
         self,
@@ -93,7 +91,7 @@ class SymmetricPatchifier(Patchifier):
     ) -> Tuple[Tensor, Tensor]:
         output_height = output_height // self._patch_size[1]
         output_width = output_width // self._patch_size[2]
-        latents = rearrange(
+        return rearrange(
             latents,
             "b (f h w) (c p q) -> b c f (h p) (w q) ",
             f=output_num_frames,
@@ -102,4 +100,3 @@ class SymmetricPatchifier(Patchifier):
             p=self._patch_size[1],
             q=self._patch_size[2],
         )
-        return latents

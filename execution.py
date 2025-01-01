@@ -81,11 +81,10 @@ class CacheSet:
         self.objects = HierarchicalCache(CacheKeySetID)
 
     def recursive_debug_dump(self):
-        result = {
+        return {
             "outputs": self.outputs.recursive_debug_dump(),
             "ui": self.ui.recursive_debug_dump(),
         }
-        return result
 
 def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()

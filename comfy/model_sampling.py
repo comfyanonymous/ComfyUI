@@ -286,8 +286,7 @@ class StableCascadeSampling(ModelSamplingDiscrete):
         var = 1 / ((sigma * sigma) + 1)
         var = var.clamp(0, 1.0)
         s, min_var = self.cosine_s.to(var.device), self._init_alpha_cumprod.to(var.device)
-        t = (((var * min_var) ** 0.5).acos() / (torch.pi * 0.5)) * (1 + s) - s
-        return t
+        return (((var * min_var) ** 0.5).acos() / (torch.pi * 0.5)) * (1 + s) - s
 
     def percent_to_sigma(self, percent):
         if percent <= 0.0:

@@ -5,7 +5,7 @@ import comfy.utils
 def camera_embeddings(elevation, azimuth):
     elevation = torch.as_tensor([elevation])
     azimuth = torch.as_tensor([azimuth])
-    embeddings = torch.stack(
+    return torch.stack(
         [
                 torch.deg2rad(
                     (90 - elevation) - (90)
@@ -17,7 +17,6 @@ def camera_embeddings(elevation, azimuth):
                 ),
         ], dim=-1).unsqueeze(1)
 
-    return embeddings
 
 
 class StableZero123_Conditioning:

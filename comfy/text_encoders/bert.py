@@ -17,8 +17,7 @@ class BertAttention(torch.nn.Module):
         k = self.key(x)
         v = self.value(x)
 
-        out = optimized_attention(q, k, v, self.heads, mask)
-        return out
+        return optimized_attention(q, k, v, self.heads, mask)
 
 class BertOutput(torch.nn.Module):
     def __init__(self, input_dim, output_dim, layer_norm_eps, dtype, device, operations):
@@ -30,8 +29,7 @@ class BertOutput(torch.nn.Module):
     def forward(self, x, y):
         x = self.dense(x)
         # hidden_states = self.dropout(hidden_states)
-        x = self.LayerNorm(x + y)
-        return x
+        return self.LayerNorm(x + y)
 
 class BertAttentionBlock(torch.nn.Module):
     def __init__(self, embed_dim, heads, layer_norm_eps, dtype, device, operations):
@@ -100,8 +98,7 @@ class BertEmbeddings(torch.nn.Module):
             x += self.token_type_embeddings(token_type_ids, out_dtype=x.dtype)
         else:
             x += comfy.ops.cast_to_input(self.token_type_embeddings.weight[0], x)
-        x = self.LayerNorm(x)
-        return x
+        return self.LayerNorm(x)
 
 
 class BertModel_(torch.nn.Module):

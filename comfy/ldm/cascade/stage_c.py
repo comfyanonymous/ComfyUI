@@ -179,8 +179,7 @@ class StageC(nn.Module):
         clip_txt_pool = self.clip_txt_pooled_mapper(clip_txt_pooled).view(clip_txt_pooled.size(0), clip_txt_pooled.size(1) * self.c_clip_seq, -1)
         clip_img = self.clip_img_mapper(clip_img).view(clip_img.size(0), clip_img.size(1) * self.c_clip_seq, -1)
         clip = torch.cat([clip_txt, clip_txt_pool, clip_img], dim=1)
-        clip = self.clip_norm(clip)
-        return clip
+        return self.clip_norm(clip)
 
     def _down_encode(self, x, r_embed, clip, cnet=None):
         level_outputs = []

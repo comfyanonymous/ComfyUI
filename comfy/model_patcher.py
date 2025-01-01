@@ -874,8 +874,7 @@ class ModelPatcher:
 
         all_models = self.get_additional_models()
         models_set = set(all_models)
-        real_all_models = _evaluate_sub_additional_models(prev_models=all_models, cache_set=models_set)
-        return real_all_models
+        return _evaluate_sub_additional_models(prev_models=all_models, cache_set=models_set)
 
     def use_ejected(self, skip_and_inject_on_exit_only=False):
         return AutoPatcherEjector(self, skip_and_inject_on_exit_only=skip_and_inject_on_exit_only)

@@ -73,8 +73,7 @@ class MultiHeadCrossAttention(nn.Module):
 
         x = optimized_attention(q.view(B, -1, C), k.view(B, -1, C), v.view(B, -1, C), self.num_heads, mask=None)
         x = self.proj(x)
-        x = self.proj_drop(x)
-        return x
+        return self.proj_drop(x)
 
 
 class AttentionKVCompress(nn.Module):
@@ -172,8 +171,7 @@ class AttentionKVCompress(nn.Module):
         x = optimized_attention(q, k, v, self.num_heads, mask=None, skip_reshape=True)
 
         x = x.view(B, N, C)
-        x = self.proj(x)
-        return x
+        return self.proj(x)
 
 
 class FinalLayer(nn.Module):
@@ -192,8 +190,7 @@ class FinalLayer(nn.Module):
     def forward(self, x, c):
         shift, scale = self.adaLN_modulation(c).chunk(2, dim=1)
         x = modulate(self.norm_final(x), shift, scale)
-        x = self.linear(x)
-        return x
+        return self.linear(x)
 
 class T2IFinalLayer(nn.Module):
     """
@@ -209,8 +206,7 @@ class T2IFinalLayer(nn.Module):
     def forward(self, x, t):
         shift, scale = (self.scale_shift_table[None].to(dtype=x.dtype, device=x.device) + t[:, None]).chunk(2, dim=1)
         x = t2i_modulate(self.norm_final(x), shift, scale)
-        x = self.linear(x)
-        return x
+        return self.linear(x)
 
 
 class MaskFinalLayer(nn.Module):
@@ -228,8 +224,7 @@ class MaskFinalLayer(nn.Module):
     def forward(self, x, t):
         shift, scale = self.adaLN_modulation(t).chunk(2, dim=1)
         x = modulate(self.norm_final(x), shift, scale)
-        x = self.linear(x)
-        return x
+        return self.linear(x)
 
 
 class DecoderLayer(nn.Module):
@@ -247,8 +242,7 @@ class DecoderLayer(nn.Module):
     def forward(self, x, t):
         shift, scale = self.adaLN_modulation(t).chunk(2, dim=1)
         x = modulate(self.norm_decoder(x), shift, scale)
-        x = self.linear(x)
-        return x
+        return self.linear(x)
 
 
 class SizeEmbedder(TimestepEmbedder):
@@ -276,8 +270,7 @@ class SizeEmbedder(TimestepEmbedder):
         s = rearrange(s, "b d -> (b d)")
         s_freq = timestep_embedding(s, self.frequency_embedding_size)
         s_emb = self.mlp(s_freq.to(s.dtype))
-        s_emb = rearrange(s_emb, "(b d) d2 -> b (d d2)", b=b, d=dims, d2=self.outdim)
-        return s_emb
+        return rearrange(s_emb, "(b d) d2 -> b (d d2)", b=b, d=dims, d2=self.outdim)
 
 
 class LabelEmbedder(nn.Module):
@@ -299,15 +292,13 @@ class LabelEmbedder(nn.Module):
             drop_ids = torch.rand(labels.shape[0]).cuda() < self.dropout_prob
         else:
             drop_ids = force_drop_ids == 1
-        labels = torch.where(drop_ids, self.num_classes, labels)
-        return labels
+        return torch.where(drop_ids, self.num_classes, labels)
 
     def forward(self, labels, train, force_drop_ids=None):
         use_dropout = self.dropout_prob > 0
         if (train and use_dropout) or (force_drop_ids is not None):
             labels = self.token_drop(labels, force_drop_ids)
-        embeddings = self.embedding_table(labels)
-        return embeddings
+        return self.embedding_table(labels)
 
 
 class CaptionEmbedder(nn.Module):
@@ -331,8 +322,7 @@ class CaptionEmbedder(nn.Module):
             drop_ids = torch.rand(caption.shape[0]).cuda() < self.uncond_prob
         else:
             drop_ids = force_drop_ids == 1
-        caption = torch.where(drop_ids[:, None, None, None], self.y_embedding, caption)
-        return caption
+        return torch.where(drop_ids[:, None, None, None], self.y_embedding, caption)
 
     def forward(self, caption, train, force_drop_ids=None):
         if train:
@@ -340,8 +330,7 @@ class CaptionEmbedder(nn.Module):
         use_dropout = self.uncond_prob > 0
         if (train and use_dropout) or (force_drop_ids is not None):
             caption = self.token_drop(caption, force_drop_ids)
-        caption = self.y_proj(caption)
-        return caption
+        return self.y_proj(caption)
 
 
 class CaptionEmbedderDoubleBr(nn.Module):

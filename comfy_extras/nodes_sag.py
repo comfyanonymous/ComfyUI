@@ -82,8 +82,7 @@ def create_blur_map(x0, attn, sigma=3.0, threshold=1.0):
     mask = F.interpolate(mask, (lh, lw))
 
     blurred = gaussian_blur_2d(x0, kernel_size=9, sigma=sigma)
-    blurred = blurred * mask + x0 * (1 - mask)
-    return blurred
+    return blurred * mask + x0 * (1 - mask)
 
 def gaussian_blur_2d(img, kernel_size, sigma):
     ksize_half = (kernel_size - 1) * 0.5
@@ -101,8 +100,7 @@ def gaussian_blur_2d(img, kernel_size, sigma):
     padding = [kernel_size // 2, kernel_size // 2, kernel_size // 2, kernel_size // 2]
 
     img = F.pad(img, padding, mode="reflect")
-    img = F.conv2d(img, kernel2d, groups=img.shape[-3])
-    return img
+    return F.conv2d(img, kernel2d, groups=img.shape[-3])
 
 class SelfAttentionGuidance:
     @classmethod

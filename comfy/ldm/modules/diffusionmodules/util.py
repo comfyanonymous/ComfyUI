@@ -79,11 +79,10 @@ class AlphaBlender(nn.Module):
         image_only_indicator=None,
     ) -> torch.Tensor:
         alpha = self.get_alpha(image_only_indicator, x_spatial.device)
-        x = (
+        return (
             alpha.to(x_spatial.dtype) * x_spatial
             + (1.0 - alpha).to(x_spatial.dtype) * x_temporal
         )
-        return x
 
 
 def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2, cosine_s=8e-3):
@@ -201,8 +200,7 @@ class CheckpointFunction(torch.autograd.Function):
                                    "dtype": torch.get_autocast_gpu_dtype(),
                                    "cache_enabled": torch.is_autocast_cache_enabled()}
         with torch.no_grad():
-            output_tensors = ctx.run_function(*ctx.input_tensors)
-        return output_tensors
+            return ctx.run_function(*ctx.input_tensors)
 
     @staticmethod
     def backward(ctx, *output_grads):

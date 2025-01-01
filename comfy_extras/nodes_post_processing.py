@@ -162,8 +162,7 @@ class Quantize:
         result = result.to(dtype=torch.uint8)
 
         im = Image.fromarray(result.cpu().numpy())
-        im = im.quantize(palette=pal_im, dither=Image.Dither.NONE)
-        return im
+        return im.quantize(palette=pal_im, dither=Image.Dither.NONE)
 
     def quantize(self, image: torch.Tensor, colors: int, dither: str):
         batch_size, height, width, _ = image.shape

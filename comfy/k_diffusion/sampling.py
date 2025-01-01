@@ -50,8 +50,7 @@ def get_sigmas_laplace(n, sigma_min, sigma_max, mu=0., beta=0.5, device='cpu'):
     x = torch.linspace(0, 1, n, device=device)
     clamp = lambda x: torch.clamp(x, min=sigma_min, max=sigma_max)
     lmb = mu - beta * torch.sign(0.5-x) * torch.log(1 - 2 * torch.abs(0.5-x) + epsilon)
-    sigmas = clamp(torch.exp(lmb))
-    return sigmas
+    return clamp(torch.exp(lmb))
 
 
 

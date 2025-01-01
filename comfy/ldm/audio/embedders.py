@@ -21,8 +21,7 @@ class LearnedPositionalEmbedding(nn.Module):
         x = rearrange(x, "b -> b 1")
         freqs = x * rearrange(self.weights, "d -> 1 d") * 2 * math.pi
         fouriered = torch.cat((freqs.sin(), freqs.cos()), dim=-1)
-        fouriered = torch.cat((x, fouriered), dim=-1)
-        return fouriered
+        return torch.cat((x, fouriered), dim=-1)
 
 def TimePositionalEmbedding(dim: int, out_features: int) -> nn.Module:
     return nn.Sequential(
@@ -49,8 +48,7 @@ class NumberEmbedder(nn.Module):
         shape = x.shape
         x = rearrange(x, "... -> (...)")
         embedding = self.embedding(x)
-        x = embedding.view(*shape, self.features)
-        return x  # type: ignore
+        return embedding.view(*shape, self.features)
 
 
 class Conditioner(nn.Module):

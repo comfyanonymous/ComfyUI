@@ -270,5 +270,4 @@ class CheckLazyMixin:
         Comfy Docs: https://docs.comfy.org/essentials/custom_node_lazy_evaluation#defining-check-lazy-status
         """
 
-        need = [name for name in kwargs if kwargs[name] is None]
-        return need
+        return [name for name in kwargs if kwargs[name] is None]

@@ -12,8 +12,7 @@ def loglinear_interp(t_steps, num_steps):
     new_xs = np.linspace(0, 1, num_steps)
     new_ys = np.interp(new_xs, xs, ys)
 
-    interped_ys = np.exp(new_ys)[::-1].copy()
-    return interped_ys
+    return np.exp(new_ys)[::-1].copy()
 
 NOISE_LEVELS = {
     0.80: [

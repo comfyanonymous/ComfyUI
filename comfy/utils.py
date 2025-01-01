@@ -292,8 +292,7 @@ def unet_to_diffusers(unet_config):
 
 def swap_scale_shift(weight):
     shift, scale = weight.chunk(2, dim=0)
-    new_weight = torch.cat([scale, shift], dim=0)
-    return new_weight
+    return torch.cat([scale, shift], dim=0)
 
 MMDIT_MAP_BASIC = {
     ("context_embedder.bias", "context_embedder.bias"),
@@ -982,8 +981,7 @@ def reshape_mask(input_mask, output_shape):
     mask = torch.nn.functional.interpolate(input_mask, size=output_shape[2:], mode=scale_mode)
     if mask.shape[1] < output_shape[1]:
         mask = mask.repeat((1, output_shape[1]) + (1,) * dims)[:,:output_shape[1]]
-    mask = repeat_to_batch_size(mask, output_shape[0])
-    return mask
+    return repeat_to_batch_size(mask, output_shape[0])
 
 def upscale_dit_mask(mask: torch.Tensor, img_size_in, img_size_out):
         hi, wi = img_size_in
@@ -1019,9 +1017,8 @@ def upscale_dit_mask(mask: torch.Tensor, img_size_in, img_size_out):
         img_to_txt = rearrange  (img_to_txt, "b t h w -> b (h w) t")
 
         # reassemble the mask from blocks
-        out = torch.cat([
+        return torch.cat([
             torch.cat([txt_to_txt, txt_to_img], dim=2),
             torch.cat([img_to_txt, img_to_img], dim=2)],
             dim=1
         )
-        return out

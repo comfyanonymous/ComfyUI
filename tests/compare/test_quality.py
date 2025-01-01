@@ -129,8 +129,7 @@ class TestCompareImageMetrics:
 
     def read_img(self, filename: str) -> np.ndarray:
         cvImg = imread(filename)
-        cvImg = cvtColor(cvImg, COLOR_BGR2RGB)
-        return cvImg
+        return cvtColor(cvImg, COLOR_BGR2RGB)
 
     def image_grid(self, img_list: list[list[Image.Image]]):
         # imgs is a 2D list of images
@@ -154,8 +153,7 @@ class TestCompareImageMetrics:
         with open(metrics_output_file, 'r') as f:
             for line in f:
                 if fname_basestr in line:
-                    score = float(line.split('|')[5])
-                    return score
+                    return float(line.split('|')[5])
         raise ValueError(f"Could not find score for {fname} in {metrics_output_file}")
 
     def gather_file_basenames(self, directory: str):

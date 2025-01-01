@@ -29,8 +29,7 @@ def pool_tokens(x: torch.Tensor, mask: torch.Tensor, *, keepdim=False) -> torch.
     assert x.size(0) == mask.size(0)  # Expected mask to have same batch size as tokens.
     mask = mask[:, :, None].to(dtype=x.dtype)
     mask = mask / mask.sum(dim=1, keepdim=True).clamp(min=1)
-    pooled = (x * mask).sum(dim=1, keepdim=keepdim)
-    return pooled
+    return (x * mask).sum(dim=1, keepdim=keepdim)
 
 
 class AttentionPool(nn.Module):
@@ -98,5 +97,4 @@ class AttentionPool(nn.Module):
 
         # Concatenate heads and run output.
         x = x.squeeze(2).flatten(1, 2)  # (B, D = H * head_dim)
-        x = self.to_out(x)
-        return x
+        return self.to_out(x)

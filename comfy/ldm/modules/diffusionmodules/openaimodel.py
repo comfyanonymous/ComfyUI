@@ -350,8 +350,7 @@ class VideoResBlock(ResBlock):
         x = self.time_mixer(
             x_spatial=x_mix, x_temporal=x, image_only_indicator=image_only_indicator
         )
-        x = rearrange(x, "b c t h w -> (b t) c h w")
-        return x
+        return rearrange(x, "b c t h w -> (b t) c h w")
 
 
 class Timestep(nn.Module):

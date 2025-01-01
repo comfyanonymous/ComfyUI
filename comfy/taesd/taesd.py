@@ -72,8 +72,7 @@ class TAESD(nn.Module):
 
     def decode(self, x):
         x_sample = self.taesd_decoder((x - self.vae_shift) * self.vae_scale)
-        x_sample = x_sample.sub(0.5).mul(2)
-        return x_sample
+        return x_sample.sub(0.5).mul(2)
 
     def encode(self, x):
         return (self.taesd_encoder(x * 0.5 + 0.5) / self.vae_scale) + self.vae_shift

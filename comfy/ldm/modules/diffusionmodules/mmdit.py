@@ -51,8 +51,7 @@ class Mlp(nn.Module):
         x = self.drop1(x)
         x = self.norm(x)
         x = self.fc2(x)
-        x = self.drop2(x)
-        return x
+        return self.drop2(x)
 
 class PatchEmbed(nn.Module):
     """ 2D Image to Patch Embedding
@@ -103,8 +102,7 @@ class PatchEmbed(nn.Module):
         x = self.proj(x)
         if self.flatten:
             x = x.flatten(2).transpose(1, 2)  # NCHW -> NLC
-        x = self.norm(x)
-        return x
+        return self.norm(x)
 
 def modulate(x, shift, scale):
     if shift is None:
@@ -155,8 +153,7 @@ def get_2d_sincos_pos_embed_from_grid(embed_dim, grid):
     emb_h = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[0])  # (H*W, D/2)
     emb_w = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[1])  # (H*W, D/2)
 
-    emb = np.concatenate([emb_h, emb_w], axis=1)  # (H*W, D)
-    return emb
+    return np.concatenate([emb_h, emb_w], axis=1)  # (H*W, D)
 
 
 def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
@@ -176,8 +173,7 @@ def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
     emb_sin = np.sin(out)  # (M, D/2)
     emb_cos = np.cos(out)  # (M, D/2)
 
-    emb = np.concatenate([emb_sin, emb_cos], axis=1)  # (M, D)
-    return emb
+    return np.concatenate([emb_sin, emb_cos], axis=1)  # (M, D)
 
 def get_1d_sincos_pos_embed_from_grid_torch(embed_dim, pos, device=None, dtype=torch.float32):
     omega = torch.arange(embed_dim // 2, device=device, dtype=dtype)
@@ -187,8 +183,7 @@ def get_1d_sincos_pos_embed_from_grid_torch(embed_dim, pos, device=None, dtype=t
     out = torch.einsum("m,d->md", pos, omega)  # (M, D/2), outer product
     emb_sin = torch.sin(out)  # (M, D/2)
     emb_cos = torch.cos(out)  # (M, D/2)
-    emb = torch.cat([emb_sin, emb_cos], dim=1)  # (M, D)
-    return emb
+    return torch.cat([emb_sin, emb_cos], dim=1)  # (M, D)
 
 def get_2d_sincos_pos_embed_torch(embed_dim, w, h, val_center=7.5, val_magnitude=7.5, device=None, dtype=torch.float32):
     small = min(h, w)
@@ -197,8 +192,7 @@ def get_2d_sincos_pos_embed_torch(embed_dim, w, h, val_center=7.5, val_magnitude
     grid_h, grid_w = torch.meshgrid(torch.linspace(-val_h + val_center, val_h + val_center, h, device=device, dtype=dtype), torch.linspace(-val_w + val_center, val_w + val_center, w, device=device, dtype=dtype), indexing='ij')
     emb_h = get_1d_sincos_pos_embed_from_grid_torch(embed_dim // 2, grid_h, device=device, dtype=dtype)
     emb_w = get_1d_sincos_pos_embed_from_grid_torch(embed_dim // 2, grid_w, device=device, dtype=dtype)
-    emb = torch.cat([emb_w, emb_h], dim=1)  # (H*W, D)
-    return emb
+    return torch.cat([emb_w, emb_h], dim=1)  # (H*W, D)
 
 
 #################################################################################
@@ -222,8 +216,7 @@ class TimestepEmbedder(nn.Module):
 
     def forward(self, t, dtype, **kwargs):
         t_freq = timestep_embedding(t, self.frequency_embedding_size).to(dtype)
-        t_emb = self.mlp(t_freq)
-        return t_emb
+        return self.mlp(t_freq)
 
 
 class VectorEmbedder(nn.Module):
@@ -240,8 +233,7 @@ class VectorEmbedder(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        emb = self.mlp(x)
-        return emb
+        return self.mlp(x)
 
 
 #################################################################################
@@ -307,16 +299,14 @@ class SelfAttention(nn.Module):
     def post_attention(self, x: torch.Tensor) -> torch.Tensor:
         assert not self.pre_only
         x = self.proj(x)
-        x = self.proj_drop(x)
-        return x
+        return self.proj_drop(x)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         q, k, v = self.pre_attention(x)
         x = optimized_attention(
             q, k, v, heads=self.num_heads
         )
-        x = self.post_attention(x)
-        return x
+        return self.post_attention(x)
 
 
 class RMSNorm(torch.nn.Module):
@@ -530,10 +520,9 @@ class DismantledBlock(nn.Module):
     def post_attention(self, attn, x, gate_msa, shift_mlp, scale_mlp, gate_mlp):
         assert not self.pre_only
         x = x + gate_msa.unsqueeze(1) * self.attn.post_attention(attn)
-        x = x + gate_mlp.unsqueeze(1) * self.mlp(
+        return x + gate_mlp.unsqueeze(1) * self.mlp(
             modulate(self.norm2(x), shift_mlp, scale_mlp)
         )
-        return x
 
     def pre_attention_x(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
         assert self.x_block_self_attn
@@ -568,10 +557,9 @@ class DismantledBlock(nn.Module):
         out2 = gate_msa2.unsqueeze(1) * attn2
         x = x + out1
         x = x + out2
-        x = x + gate_mlp.unsqueeze(1) * self.mlp(
+        return x + gate_mlp.unsqueeze(1) * self.mlp(
             modulate(self.norm2(x), shift_mlp, scale_mlp)
         )
-        return x
 
     def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
         assert not self.pre_only
@@ -696,8 +684,7 @@ class FinalLayer(nn.Module):
     def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
         shift, scale = self.adaLN_modulation(c).chunk(2, dim=1)
         x = modulate(self.norm_final(x), shift, scale)
-        x = self.linear(x)
-        return x
+        return self.linear(x)
 
 class SelfAttentionContext(nn.Module):
     def __init__(self, dim, heads=8, dim_head=64, dtype=None, device=None, operations=None):
@@ -902,13 +889,12 @@ class MMDiT(nn.Module):
             w=self.pos_embed_max_size,
         )
         spatial_pos_embed = spatial_pos_embed[:, top : top + h, left : left + w, :]
-        spatial_pos_embed = rearrange(spatial_pos_embed, "1 h w c -> 1 (h w) c")
+        return rearrange(spatial_pos_embed, "1 h w c -> 1 (h w) c")
         # print(spatial_pos_embed, top, left, h, w)
         # # t = get_2d_sincos_pos_embed_torch(self.hidden_size, w, h, 7.875, 7.875, device=device) #matches exactly for 1024 res
         # t = get_2d_sincos_pos_embed_torch(self.hidden_size, w, h, 7.5, 7.5, device=device) #scales better
         # # print(t)
         # return t
-        return spatial_pos_embed
 
     def unpatchify(self, x, hw=None):
         """
@@ -927,8 +913,7 @@ class MMDiT(nn.Module):
 
         x = x.reshape(shape=(x.shape[0], h, w, p, p, c))
         x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], c, h * p, w * p))
-        return imgs
+        return x.reshape(shape=(x.shape[0], c, h * p, w * p))
 
     def forward_core_with_concat(
         self,
@@ -976,8 +961,7 @@ class MMDiT(nn.Module):
                     if add is not None:
                         x += add
 
-        x = self.final_layer(x, c_mod)  # (N, T, patch_size ** 2 * out_channels)
-        return x
+        return self.final_layer(x, c_mod)  # (N, T, patch_size ** 2 * out_channels)
 
     def forward(
         self,

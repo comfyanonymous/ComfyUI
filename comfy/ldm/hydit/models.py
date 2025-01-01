@@ -19,8 +19,7 @@ def calc_rope(x, patch_size, head_size):
     sub_args = [start, stop, (th, tw)]
     # head_size = HUNYUAN_DIT_CONFIG['DiT-g/2']['hidden_size'] // HUNYUAN_DIT_CONFIG['DiT-g/2']['num_heads']
     rope = get_2d_rotary_pos_embed(head_size, *sub_args)
-    rope = (rope[0].to(x), rope[1].to(x))
-    return rope
+    return (rope[0].to(x), rope[1].to(x))
 
 
 def modulate(x, shift, scale):
@@ -110,9 +109,8 @@ class HunYuanDiTBlock(nn.Module):
 
         # FFN Layer
         mlp_inputs = self.norm2(x)
-        x = x + self.mlp(mlp_inputs)
+        return x + self.mlp(mlp_inputs)
 
-        return x
 
     def forward(self, x, c=None, text_states=None, freq_cis_img=None, skip=None):
         if self.gradient_checkpointing and self.training:
@@ -136,8 +134,7 @@ class FinalLayer(nn.Module):
     def forward(self, x, c):
         shift, scale = self.adaLN_modulation(c).chunk(2, dim=1)
         x = modulate(self.norm_final(x), shift, scale)
-        x = self.linear(x)
-        return x
+        return self.linear(x)
 
 
 class HunYuanDiT(nn.Module):
@@ -413,5 +410,4 @@ class HunYuanDiT(nn.Module):
 
         x = x.reshape(shape=(x.shape[0], h, w, p, p, c))
         x = torch.einsum('nhwpqc->nchpwq', x)
-        imgs = x.reshape(shape=(x.shape[0], c, h * p, w * p))
-        return imgs
+        return x.reshape(shape=(x.shape[0], c, h * p, w * p))

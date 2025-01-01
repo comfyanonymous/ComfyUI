@@ -34,9 +34,8 @@ import comfy.ops
 def modulated_rmsnorm(x, scale, eps=1e-6):
     # Normalize and modulate
     x_normed = comfy.ldm.common_dit.rms_norm(x, eps=eps)
-    x_modulated = x_normed * (1 + scale.unsqueeze(1))
+    return x_normed * (1 + scale.unsqueeze(1))
 
-    return x_modulated
 
 
 def residual_tanh_gated_rmsnorm(x, x_res, gate, eps=1e-6):
@@ -47,9 +46,8 @@ def residual_tanh_gated_rmsnorm(x, x_res, gate, eps=1e-6):
     x_normed = comfy.ldm.common_dit.rms_norm(x_res, eps=eps) * tanh_gate
 
     # Apply residual connection
-    output = x + x_normed
+    return x + x_normed
 
-    return output
 
 class AsymmetricAttention(nn.Module):
     def __init__(
@@ -275,14 +273,12 @@ class AsymmetricJointBlock(nn.Module):
     def ff_block_x(self, x, scale_x, gate_x):
         x_mod = modulated_rmsnorm(x, scale_x)
         x_res = self.mlp_x(x_mod)
-        x = residual_tanh_gated_rmsnorm(x, x_res, gate_x)  # Sandwich norm
-        return x
+        return residual_tanh_gated_rmsnorm(x, x_res, gate_x)  # Sandwich norm
 
     def ff_block_y(self, y, scale_y, gate_y):
         y_mod = modulated_rmsnorm(y, scale_y)
         y_res = self.mlp_y(y_mod)
-        y = residual_tanh_gated_rmsnorm(y, y_res, gate_y)  # Sandwich norm
-        return y
+        return residual_tanh_gated_rmsnorm(y, y_res, gate_y)  # Sandwich norm
 
 
 class FinalLayer(nn.Module):
@@ -312,8 +308,7 @@ class FinalLayer(nn.Module):
         c = F.silu(c)
         shift, scale = self.mod(c).chunk(2, dim=1)
         x = modulate(self.norm_final(x), shift, scale)
-        x = self.linear(x)
-        return x
+        return self.linear(x)
 
 
 class AsymmDiTJoint(nn.Module):

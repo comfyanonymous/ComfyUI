@@ -206,8 +206,7 @@ class BaseModel(torch.nn.Module):
                         cond_concat.append(torch.ones_like(noise)[:,:1])
                     elif ck == "masked_image":
                         cond_concat.append(self.blank_inpaint_image_like(noise))
-            data = torch.cat(cond_concat, dim=1)
-            return data
+            return torch.cat(cond_concat, dim=1)
         return None
 
     def extra_conds(self, **kwargs):
@@ -418,8 +417,7 @@ class SVD_img2vid(BaseModel):
         out.append(self.embedder(torch.Tensor([motion_bucket_id])))
         out.append(self.embedder(torch.Tensor([augmentation])))
 
-        flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0)
-        return flat
+        return torch.flatten(torch.cat(out)).unsqueeze(dim=0)
 
     def extra_conds(self, **kwargs):
         out = {}
@@ -457,8 +455,7 @@ class SV3D_u(SVD_img2vid):
         out = []
         out.append(self.embedder(torch.flatten(torch.Tensor([augmentation]))))
 
-        flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0)
-        return flat
+        return torch.flatten(torch.cat(out)).unsqueeze(dim=0)
 
 class SV3D_p(SVD_img2vid):
     def __init__(self, model_config, model_type=ModelType.V_PREDICTION_EDM, device=None):

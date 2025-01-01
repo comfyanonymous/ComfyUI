@@ -54,8 +54,7 @@ class Attention2D(nn.Module):
             kv = torch.cat([x, kv], dim=1)
         # x = self.attn(x, kv, kv, need_weights=False)[0]
         x = self.attn(x, kv, kv)
-        x = x.permute(0, 2, 1).view(*orig_shape)
-        return x
+        return x.permute(0, 2, 1).view(*orig_shape)
 
 
 def LayerNorm2d_op(operations):
@@ -116,8 +115,7 @@ class AttnBlock(nn.Module):
 
     def forward(self, x, kv):
         kv = self.kv_mapper(kv)
-        x = x + self.attention(self.norm(x), kv, self_attn=self.self_attn)
-        return x
+        return x + self.attention(self.norm(x), kv, self_attn=self.self_attn)
 
 
 class FeedForwardBlock(nn.Module):
@@ -133,8 +131,7 @@ class FeedForwardBlock(nn.Module):
         )
 
     def forward(self, x):
-        x = x + self.channelwise(self.norm(x).permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
-        return x
+        return x + self.channelwise(self.norm(x).permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
 
 
 class TimestepBlock(nn.Module):

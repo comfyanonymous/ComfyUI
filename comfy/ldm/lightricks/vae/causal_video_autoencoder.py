@@ -417,9 +417,8 @@ class Decoder(nn.Module):
         sample = self.conv_act(sample)
         sample = self.conv_out(sample, causal=self.causal)
 
-        sample = unpatchify(sample, patch_size_hw=self.patch_size, patch_size_t=1)
+        return unpatchify(sample, patch_size_hw=self.patch_size, patch_size_t=1)
 
-        return sample
 
 
 class UNetMidBlock3D(nn.Module):
@@ -563,8 +562,7 @@ class LayerNorm(nn.Module):
     def forward(self, x):
         x = rearrange(x, "b c d h w -> b d h w c")
         x = self.norm(x)
-        x = rearrange(x, "b d h w c -> b c d h w")
-        return x
+        return rearrange(x, "b d h w c -> b c d h w")
 
 
 class ResnetBlock3D(nn.Module):
@@ -677,9 +675,8 @@ class ResnetBlock3D(nn.Module):
         # similar to the "explicit noise inputs" method in style-gan
         spatial_noise = torch.randn(spatial_shape, device=device, dtype=dtype)[None]
         scaled_noise = (spatial_noise * per_channel_scale)[None, :, None, ...]
-        hidden_states = hidden_states + scaled_noise
+        return hidden_states + scaled_noise
 
-        return hidden_states
 
     def forward(
         self,
@@ -740,9 +737,8 @@ class ResnetBlock3D(nn.Module):
 
         input_tensor = self.conv_shortcut(input_tensor)
 
-        output_tensor = input_tensor + hidden_states
+        return input_tensor + hidden_states
 
-        return output_tensor
 
 
 def patchify(x, patch_size_hw, patch_size_t=1):

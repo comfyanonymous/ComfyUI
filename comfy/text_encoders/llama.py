@@ -142,9 +142,8 @@ class TransformerBlock(nn.Module):
         residual = x
         x = self.post_attention_layernorm(x)
         x = self.mlp(x)
-        x = residual + x
+        return residual + x
 
-        return x
 
 class Llama2_(nn.Module):
     def __init__(self, config, device=None, dtype=None, ops=None):

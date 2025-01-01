@@ -99,8 +99,7 @@ class Conv1x1(ops.Linear):
         """
         x = x.movedim(1, -1)
         x = super().forward(x)
-        x = x.movedim(-1, 1)
-        return x
+        return x.movedim(-1, 1)
 
 
 class DepthToSpaceTime(nn.Module):
@@ -269,8 +268,7 @@ class Attention(nn.Module):
         assert x.size(0) == q.size(0)
 
         x = self.out(x)
-        x = rearrange(x, "(B h w) t C -> B C t h w", B=B, h=H, w=W)
-        return x
+        return rearrange(x, "(B h w) t C -> B C t h w", B=B, h=H, w=W)
 
 
 class AttentionBlock(nn.Module):
@@ -321,8 +319,7 @@ class CausalUpsampleBlock(nn.Module):
     def forward(self, x):
         x = self.blocks(x)
         x = self.proj(x)
-        x = self.d2st(x)
-        return x
+        return self.d2st(x)
 
 
 def block_fn(channels, *, affine: bool = True, has_attention: bool = False, **block_kwargs):

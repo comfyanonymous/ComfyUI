@@ -27,8 +27,7 @@ class Mahiro:
             normm = torch.sqrt(merge.abs()) * merge.sign()
             sim = F.cosine_similarity(normu, normm).mean()
             simsc = 2 * (sim+1)
-            wm = (simsc*cfg + (4-simsc)*leap) / 4
-            return wm
+            return (simsc*cfg + (4-simsc)*leap) / 4
         m.set_model_sampler_post_cfg_function(mahiro_normd)
         return (m, )
 

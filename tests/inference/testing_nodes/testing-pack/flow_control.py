@@ -141,14 +141,13 @@ class TestExecutionBlockerNode:
 
     @classmethod
     def INPUT_TYPES(cls):
-        inputs = {
+        return {
             "required": {
                 "input": ("*",),
                 "block": ("BOOLEAN",),
                 "verbose": ("BOOLEAN", {"default": False}),
             },
         }
-        return inputs
 
     RETURN_TYPES = ("*",)
     RETURN_NAMES = ("output",)

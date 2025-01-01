@@ -104,9 +104,8 @@ def create_vorbis_comment_block(comment_dict, last_block):
         id = b'\x84'
     else:
         id = b'\x04'
-    comment_block = id + struct.pack('>I', len(comment_data))[1:] + comment_data
+    return id + struct.pack('>I', len(comment_data))[1:] + comment_data
 
-    return comment_block
 
 def insert_or_replace_vorbis_comment(flac_io, comment_dict):
     if len(comment_dict) == 0:

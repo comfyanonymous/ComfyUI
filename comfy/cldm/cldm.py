@@ -50,8 +50,7 @@ class ResBlockUnionControlnet(nn.Module):
 
     def forward(self, x: torch.Tensor):
         x = x + self.attention(self.ln_1(x))
-        x = x + self.mlp(self.ln_2(x))
-        return x
+        return x + self.mlp(self.ln_2(x))
 
 class ControlledUnetModel(UNetModel):
     #implemented in the ldm unet

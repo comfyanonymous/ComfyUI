@@ -304,13 +304,11 @@ def token_weights(string, current_weight):
 
 def escape_important(text):
     text = text.replace("\\)", "\0\1")
-    text = text.replace("\\(", "\0\2")
-    return text
+    return text.replace("\\(", "\0\2")
 
 def unescape_important(text):
     text = text.replace("\0\1", ")")
-    text = text.replace("\0\2", "(")
-    return text
+    return text.replace("\0\2", "(")
 
 def safe_load_embed_zip(embed_path):
     with zipfile.ZipFile(embed_path) as myzip:
@@ -635,8 +633,7 @@ class SD1ClipModel(torch.nn.Module):
 
     def encode_token_weights(self, token_weight_pairs):
         token_weight_pairs = token_weight_pairs[self.clip_name]
-        out = getattr(self, self.clip).encode_token_weights(token_weight_pairs)
-        return out
+        return getattr(self, self.clip).encode_token_weights(token_weight_pairs)
 
     def load_sd(self, sd):
         return getattr(self, self.clip).load_sd(sd)

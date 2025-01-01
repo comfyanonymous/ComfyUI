@@ -404,8 +404,7 @@ class ControlLora(ControlNet):
         super().cleanup()
 
     def get_models(self):
-        out = ControlBase.get_models(self)
-        return out
+        return ControlBase.get_models(self)
 
     def inference_memory_requirements(self, dtype):
         return comfy.utils.calculate_parameters(self.control_weights) * comfy.model_management.dtype_size(dtype) + ControlBase.inference_memory_requirements(self, dtype)
@@ -461,8 +460,7 @@ def load_controlnet_mmdit(sd, model_options={}):
 
     latent_format = comfy.latent_formats.SD3()
     latent_format.shift_factor = 0 #SD3 controlnet weirdness
-    control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, concat_mask=concat_mask, load_device=load_device, manual_cast_dtype=manual_cast_dtype)
-    return control
+    return ControlNet(control_model, compression_ratio=1, latent_format=latent_format, concat_mask=concat_mask, load_device=load_device, manual_cast_dtype=manual_cast_dtype)
 
 
 class ControlNetSD35(ControlNet):
@@ -536,8 +534,7 @@ def load_controlnet_sd35(sd, model_options={}):
     elif depth_cnet:
         preprocess_image = lambda a: 1.0 - a
 
-    control = ControlNetSD35(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype, preprocess_image=preprocess_image)
-    return control
+    return ControlNetSD35(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype, preprocess_image=preprocess_image)
 
 
 
@@ -549,16 +546,14 @@ def load_controlnet_hunyuandit(controlnet_data, model_options={}):
 
     latent_format = comfy.latent_formats.SDXL()
     extra_conds = ['text_embedding_mask', 'encoder_hidden_states_t5', 'text_embedding_mask_t5', 'image_meta_size', 'style', 'cos_cis_img', 'sin_cis_img']
-    control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds, strength_type=StrengthType.CONSTANT)
-    return control
+    return ControlNet(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds, strength_type=StrengthType.CONSTANT)
 
 def load_controlnet_flux_xlabs_mistoline(sd, mistoline=False, model_options={}):
     model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(sd, model_options=model_options)
     control_model = comfy.ldm.flux.controlnet.ControlNetFlux(mistoline=mistoline, operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
     control_model = controlnet_load_state_dict(control_model, sd)
     extra_conds = ['y', 'guidance']
-    control = ControlNet(control_model, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
-    return control
+    return ControlNet(control_model, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
 
 def load_controlnet_flux_instantx(sd, model_options={}):
     new_sd = comfy.model_detection.convert_diffusers_mmdit(sd, "")
@@ -581,8 +576,7 @@ def load_controlnet_flux_instantx(sd, model_options={}):
 
     latent_format = comfy.latent_formats.Flux()
     extra_conds = ['y', 'guidance']
-    control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, concat_mask=concat_mask, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
-    return control
+    return ControlNet(control_model, compression_ratio=1, latent_format=latent_format, concat_mask=concat_mask, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
 
 def convert_mistoline(sd):
     return comfy.utils.state_dict_prefix_replace(sd, {"single_controlnet_blocks.": "controlnet_single_blocks."})
@@ -738,8 +732,7 @@ def load_controlnet_state_dict(state_dict, model=None, model_options={}):
         logging.debug("unexpected controlnet keys: {}".format(unexpected))
 
     global_average_pooling = model_options.get("global_average_pooling", False)
-    control = ControlNet(control_model, global_average_pooling=global_average_pooling, load_device=load_device, manual_cast_dtype=manual_cast_dtype)
-    return control
+    return ControlNet(control_model, global_average_pooling=global_average_pooling, load_device=load_device, manual_cast_dtype=manual_cast_dtype)
 
 def load_controlnet(ckpt_path, model=None, model_options={}):
     if "global_average_pooling" not in model_options:

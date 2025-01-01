@@ -142,13 +142,12 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     sim = sim.softmax(dim=-1)
 
     out = einsum('b i j, b j d -> b i d', sim.to(v.dtype), v)
-    out = (
+    return (
         out.unsqueeze(0)
         .reshape(b, heads, -1, dim_head)
         .permute(0, 2, 1, 3)
         .reshape(b, -1, heads * dim_head)
     )
-    return out
 
 
 def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None, skip_reshape=False):
@@ -216,8 +215,7 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None,
 
     hidden_states = hidden_states.to(dtype)
 
-    hidden_states = hidden_states.unflatten(0, (-1, heads)).transpose(1,2).flatten(start_dim=2)
-    return hidden_states
+    return hidden_states.unflatten(0, (-1, heads)).transpose(1,2).flatten(start_dim=2)
 
 def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
     attn_precision = get_attn_precision(attn_precision)
@@ -326,13 +324,12 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
 
     del q, k, v
 
-    r1 = (
+    return (
         r1.unsqueeze(0)
         .reshape(b, heads, -1, dim_head)
         .permute(0, 2, 1, 3)
         .reshape(b, -1, heads * dim_head)
     )
-    return r1
 
 BROKEN_XFORMERS = False
 try:
@@ -395,11 +392,10 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_resh
 
     out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=mask)
 
-    out = (
+    return (
         out.reshape(b, -1, heads * dim_head)
     )
 
-    return out
 
 if model_management.is_nvidia(): #pytorch 2.3 and up seem to have this issue.
     SDP_BATCH_LIMIT = 2**15
@@ -932,7 +928,6 @@ class SpatialVideoTransformer(SpatialTransformer):
         x = rearrange(x, "b (h w) c -> b c h w", h=h, w=w)
         if not self.use_linear:
             x = self.proj_out(x)
-        out = x + x_in
-        return out
+        return x + x_in
 
 

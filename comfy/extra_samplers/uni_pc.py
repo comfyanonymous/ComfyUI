@@ -136,8 +136,7 @@ class NoiseScheduleVP:
             return -0.25 * t ** 2 * (self.beta_1 - self.beta_0) - 0.5 * t * self.beta_0
         elif self.schedule == 'cosine':
             log_alpha_fn = lambda s: torch.log(torch.cos((s + self.cosine_s) / (1. + self.cosine_s) * math.pi / 2.))
-            log_alpha_t =  log_alpha_fn(t) - self.cosine_log_alpha_0
-            return log_alpha_t
+            return log_alpha_fn(t) - self.cosine_log_alpha_0
 
     def marginal_alpha(self, t):
         """
@@ -174,8 +173,7 @@ class NoiseScheduleVP:
         else:
             log_alpha = -0.5 * torch.logaddexp(-2. * lamb, torch.zeros((1,)).to(lamb))
             t_fn = lambda log_alpha_t: torch.arccos(torch.exp(log_alpha_t + self.cosine_log_alpha_0)) * 2. * (1. + self.cosine_s) / math.pi - self.cosine_s
-            t = t_fn(log_alpha)
-            return t
+            return t_fn(log_alpha)
 
 
 def model_wrapper(
@@ -378,8 +376,7 @@ class UniPC:
         p = self.dynamic_thresholding_ratio
         s = torch.quantile(torch.abs(x0).reshape((x0.shape[0], -1)), p, dim=1)
         s = expand_dims(torch.maximum(s, self.thresholding_max_val * torch.ones_like(s).to(s.device)), dims)
-        x0 = torch.clamp(x0, -s, s) / s
-        return x0
+        return torch.clamp(x0, -s, s) / s
 
     def noise_prediction_fn(self, x, t):
         """
@@ -423,8 +420,7 @@ class UniPC:
             return torch.linspace(t_T, t_0, N + 1).to(device)
         elif skip_type == 'time_quadratic':
             t_order = 2
-            t = torch.linspace(t_T**(1. / t_order), t_0**(1. / t_order), N + 1).pow(t_order).to(device)
-            return t
+            return torch.linspace(t_T**(1. / t_order), t_0**(1. / t_order), N + 1).pow(t_order).to(device)
         else:
             raise ValueError("Unsupported skip_type {}, need to be 'logSNR' or 'time_uniform' or 'time_quadratic'".format(skip_type))
 
@@ -801,8 +797,7 @@ def interpolate_fn(x, xp, yp):
     y_positions_expanded = yp.unsqueeze(0).expand(N, -1, -1)
     start_y = torch.gather(y_positions_expanded, dim=2, index=start_idx2.unsqueeze(2)).squeeze(2)
     end_y = torch.gather(y_positions_expanded, dim=2, index=(start_idx2 + 1).unsqueeze(2)).squeeze(2)
-    cand = start_y + (x - start_x) * (end_y - start_y) / (end_x - start_x)
-    return cand
+    return start_y + (x - start_x) * (end_y - start_y) / (end_x - start_x)
 
 
 def expand_dims(v, dims):

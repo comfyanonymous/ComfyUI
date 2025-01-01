@@ -493,8 +493,7 @@ class Model(nn.Module):
         # end
         h = self.norm_out(h)
         h = nonlinearity(h)
-        h = self.conv_out(h)
-        return h
+        return self.conv_out(h)
 
     def get_last_layer(self):
         return self.conv_out.weight
@@ -602,8 +601,7 @@ class Encoder(nn.Module):
         # end
         h = self.norm_out(h)
         h = nonlinearity(h)
-        h = self.conv_out(h)
-        return h
+        return self.conv_out(h)
 
 
 class Decoder(nn.Module):

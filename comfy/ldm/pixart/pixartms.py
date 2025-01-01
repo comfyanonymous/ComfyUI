@@ -23,8 +23,7 @@ def get_2d_sincos_pos_embed_torch(embed_dim, w, h, pe_interpolation=1.0, base_si
     )
     emb_h = get_1d_sincos_pos_embed_from_grid_torch(embed_dim // 2, grid_h, device=device, dtype=dtype)
     emb_w = get_1d_sincos_pos_embed_from_grid_torch(embed_dim // 2, grid_w, device=device, dtype=dtype)
-    emb = torch.cat([emb_w, emb_h], dim=1)  # (H*W, D)
-    return emb
+    return torch.cat([emb_w, emb_h], dim=1)  # (H*W, D)
 
 class PixArtMSBlock(nn.Module):
     """
@@ -57,9 +56,8 @@ class PixArtMSBlock(nn.Module):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.scale_shift_table[None].to(dtype=x.dtype, device=x.device) + t.reshape(B, 6, -1)).chunk(6, dim=1)
         x = x + (gate_msa * self.attn(t2i_modulate(self.norm1(x), shift_msa, scale_msa), HW=HW))
         x = x + self.cross_attn(x, y, mask)
-        x = x + (gate_mlp * self.mlp(t2i_modulate(self.norm2(x), shift_mlp, scale_mlp)))
+        return x + (gate_mlp * self.mlp(t2i_modulate(self.norm2(x), shift_mlp, scale_mlp)))
 
-        return x
 
 
 ### Core PixArt Model ###
@@ -212,9 +210,8 @@ class PixArtMS(nn.Module):
             x = block(x, y, t0, y_lens, (H, W), **kwargs)  # (N, T, D)
 
         x = self.final_layer(x, t)  # (N, T, patch_size ** 2 * out_channels)
-        x = self.unpatchify(x, H, W)  # (N, out_channels, H, W)
+        return self.unpatchify(x, H, W)  # (N, out_channels, H, W)
 
-        return x
 
     def forward(self, x, timesteps, context, c_size=None, c_ar=None, **kwargs):
         B, C, H, W = x.shape
@@ -252,5 +249,4 @@ class PixArtMS(nn.Module):
 
         x = x.reshape(shape=(x.shape[0], h, w, p, p, c))
         x = torch.einsum('nhwpqc->nchpwq', x)
-        imgs = x.reshape(shape=(x.shape[0], c, h * p, w * p))
-        return imgs
+        return x.reshape(shape=(x.shape[0], c, h * p, w * p))

@@ -50,8 +50,7 @@ class LatentRebatch:
     def cat_batch(batch1, batch2):
         if batch1[0] is None:
             return batch2
-        result = [torch.cat((b1, b2)) if torch.is_tensor(b1) else b1 + b2 for b1, b2 in zip(batch1, batch2)]
-        return result
+        return [torch.cat((b1, b2)) if torch.is_tensor(b1) else b1 + b2 for b1, b2 in zip(batch1, batch2)]
 
     def rebatch(self, latents, batch_size):
         batch_size = batch_size[0]

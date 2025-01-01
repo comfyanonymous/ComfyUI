@@ -78,10 +78,9 @@ class GatedCrossAttentionDense(nn.Module):
 
         x = x + self.scale * \
             torch.tanh(self.alpha_attn) * self.attn(self.norm1(x), objs, objs)
-        x = x + self.scale * \
+        return x + self.scale * \
             torch.tanh(self.alpha_dense) * self.ff(self.norm2(x))
 
-        return x
 
 
 class GatedSelfAttentionDense(nn.Module):
@@ -118,10 +117,9 @@ class GatedSelfAttentionDense(nn.Module):
 
         x = x + self.scale * torch.tanh(self.alpha_attn) * self.attn(
             self.norm1(torch.cat([x, objs], dim=1)))[:, 0:N_visual, :]
-        x = x + self.scale * \
+        return x + self.scale * \
             torch.tanh(self.alpha_dense) * self.ff(self.norm2(x))
 
-        return x
 
 
 class GatedSelfAttentionDense2(nn.Module):
@@ -172,10 +170,9 @@ class GatedSelfAttentionDense2(nn.Module):
 
         # add residual to visual feature
         x = x + self.scale * torch.tanh(self.alpha_attn) * residual
-        x = x + self.scale * \
+        return x + self.scale * \
             torch.tanh(self.alpha_dense) * self.ff(self.norm2(x))
 
-        return x
 
 
 class FourierEmbedder():
@@ -340,5 +337,4 @@ def load_gligen(sd):
         w.position_net = PositionNet(in_dim, out_dim)
         w.load_state_dict(sd, strict=False)
 
-    gligen = Gligen(output_list, w.position_net, key_dim)
-    return gligen
+    return Gligen(output_list, w.position_net, key_dim)

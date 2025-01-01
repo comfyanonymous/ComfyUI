@@ -36,8 +36,7 @@ class MLP(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = F.silu(self.c_fc1(x)) * self.c_fc2(x)
-        x = self.c_proj(x)
-        return x
+        return self.c_proj(x)
 
 
 class MultiHeadLayerNorm(nn.Module):
@@ -95,8 +94,7 @@ class SingleAttention(nn.Module):
         q, k = self.q_norm1(q), self.k_norm1(k)
 
         output = optimized_attention(q.permute(0, 2, 1, 3), k.permute(0, 2, 1, 3), v.permute(0, 2, 1, 3), self.n_heads, skip_reshape=True)
-        c = self.w1o(output)
-        return c
+        return self.w1o(output)
 
 
 
@@ -265,9 +263,8 @@ class DiTBlock(nn.Module):
         mlpout = self.mlp(modulate(cx, shift_mlp, scale_mlp))
         cx = gate_mlp.unsqueeze(1) * mlpout
 
-        cx = cxres + cx
+        return cxres + cx
 
-        return cx
 
 
 
@@ -298,8 +295,7 @@ class TimestepEmbedder(nn.Module):
     #@torch.compile()
     def forward(self, t, dtype):
         t_freq = self.timestep_embedding(t, self.frequency_embedding_size).to(dtype)
-        t_emb = self.mlp(t_freq)
-        return t_emb
+        return self.mlp(t_freq)
 
 
 class MMDiT(nn.Module):
@@ -401,8 +397,7 @@ class MMDiT(nn.Module):
 
         x = x.reshape(shape=(x.shape[0], h, w, p, p, c))
         x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], c, h * p, w * p))
-        return imgs
+        return x.reshape(shape=(x.shape[0], c, h * p, w * p))
 
     def patchify(self, x):
         B, C, H, W = x.size()
@@ -415,8 +410,7 @@ class MMDiT(nn.Module):
             (W + 1) // self.patch_size,
             self.patch_size,
         )
-        x = x.permute(0, 2, 4, 1, 3, 5).flatten(-3).flatten(1, 2)
-        return x
+        return x.permute(0, 2, 4, 1, 3, 5).flatten(-3).flatten(1, 2)
 
     def apply_pos_embeds(self, x, h, w):
         h = (h + 1) // self.patch_size
@@ -494,5 +488,4 @@ class MMDiT(nn.Module):
 
         x = modulate(x, fshift, fscale)
         x = self.final_linear(x)
-        x = self.unpatchify(x, (h + 1) // self.patch_size, (w + 1) // self.patch_size)[:,:,:h,:w]
-        return x
+        return self.unpatchify(x, (h + 1) // self.patch_size, (w + 1) // self.patch_size)[:,:,:h,:w]

@@ -29,8 +29,7 @@ def log_txt_as_img(wh, xc, size=10):
         txt = np.array(txt).transpose(2, 0, 1) / 127.5 - 1.0
         txts.append(txt)
     txts = np.stack(txts)
-    txts = torch.tensor(txts)
-    return txts
+    return torch.tensor(txts)
 
 
 def ismap(x):

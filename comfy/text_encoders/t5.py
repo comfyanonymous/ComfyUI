@@ -30,8 +30,7 @@ class T5DenseActDense(torch.nn.Module):
     def forward(self, x):
         x = self.act(self.wi(x))
         # x = self.dropout(x)
-        x = self.wo(x)
-        return x
+        return self.wo(x)
 
 class T5DenseGatedActDense(torch.nn.Module):
     def __init__(self, model_dim, ff_dim, ff_activation, dtype, device, operations):
@@ -47,8 +46,7 @@ class T5DenseGatedActDense(torch.nn.Module):
         hidden_linear = self.wi_1(x)
         x = hidden_gelu * hidden_linear
         # x = self.dropout(x)
-        x = self.wo(x)
-        return x
+        return self.wo(x)
 
 class T5LayerFF(torch.nn.Module):
     def __init__(self, model_dim, ff_dim, ff_activation, gated_act, dtype, device, operations):
@@ -145,8 +143,7 @@ class T5Attention(torch.nn.Module):
             max_distance=self.relative_attention_max_distance,
         )
         values = self.relative_attention_bias(relative_position_bucket, out_dtype=dtype)  # shape (query_length, key_length, num_heads)
-        values = values.permute([2, 0, 1]).unsqueeze(0)  # shape (1, num_heads, query_length, key_length)
-        return values
+        return values.permute([2, 0, 1]).unsqueeze(0)  # shape (1, num_heads, query_length, key_length)
 
     def forward(self, x, mask=None, past_bias=None, optimized_attention=None):
         q = self.q(x)

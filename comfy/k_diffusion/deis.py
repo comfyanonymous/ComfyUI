@@ -46,8 +46,7 @@ def cal_intergrand(beta_0, beta_1, taus):
             log_alpha = alpha.log()
             log_alpha.sum().backward()
             d_log_alpha_dtau = taus.grad
-    integrand = -0.5 * d_log_alpha_dtau / torch.sqrt(alpha * (1 - alpha))
-    return integrand
+    return -0.5 * d_log_alpha_dtau / torch.sqrt(alpha * (1 - alpha))
 
 #----------------------------------------------------------------------------
 

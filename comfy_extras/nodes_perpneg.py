@@ -11,8 +11,7 @@ def perp_neg(x, noise_pred_pos, noise_pred_neg, noise_pred_nocond, neg_scale, co
 
     perp = neg - ((torch.mul(neg, pos).sum())/(torch.norm(pos)**2)) * pos
     perp_neg = perp * neg_scale
-    cfg_result = noise_pred_nocond + cond_scale*(pos - perp_neg)
-    return cfg_result
+    return noise_pred_nocond + cond_scale*(pos - perp_neg)
 
 #TODO: This node should be removed, it has been replaced with PerpNegGuider
 class PerpNeg:
@@ -44,8 +43,7 @@ class PerpNeg:
 
             (noise_pred_nocond,) = comfy.samplers.calc_cond_batch(model, [nocond_processed], x, sigma, model_options)
 
-            cfg_result = x - perp_neg(x, noise_pred_pos, noise_pred_neg, noise_pred_nocond, neg_scale, cond_scale)
-            return cfg_result
+            return x - perp_neg(x, noise_pred_pos, noise_pred_neg, noise_pred_nocond, neg_scale, cond_scale)
 
         m.set_model_sampler_cfg_function(cfg_function)
 

@@ -356,8 +356,7 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         input = input.replace("%day%", str(now.tm_mday).zfill(2))
         input = input.replace("%hour%", str(now.tm_hour).zfill(2))
         input = input.replace("%minute%", str(now.tm_min).zfill(2))
-        input = input.replace("%second%", str(now.tm_sec).zfill(2))
-        return input
+        return input.replace("%second%", str(now.tm_sec).zfill(2))
 
     if "%" in filename_prefix:
         filename_prefix = compute_vars(filename_prefix, image_width, image_height)

@@ -36,8 +36,7 @@ class CLIPMLP(torch.nn.Module):
     def forward(self, x):
         x = self.fc1(x)
         x = self.activation(x)
-        x = self.fc2(x)
-        return x
+        return self.fc2(x)
 
 class CLIPLayer(torch.nn.Module):
     def __init__(self, embed_dim, heads, intermediate_size, intermediate_activation, dtype, device, operations):

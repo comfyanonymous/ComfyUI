@@ -114,7 +114,7 @@ class DualConv3d(nn.Module):
             return x
 
         # Second convolution
-        x = F.conv3d(
+        return F.conv3d(
             x,
             self.weight2,
             self.bias2,
@@ -124,7 +124,6 @@ class DualConv3d(nn.Module):
             self.groups,
         )
 
-        return x
 
     def forward_with_2d(self, x, skip_time_conv):
         b, c, d, h, w = x.shape
@@ -142,8 +141,7 @@ class DualConv3d(nn.Module):
         _, _, h, w = x.shape
 
         if skip_time_conv:
-            x = rearrange(x, "(b d) c h w -> b c d h w", b=b)
-            return x
+            return rearrange(x, "(b d) c h w -> b c d h w", b=b)
 
         # Second convolution which is essentially treated as a 1D convolution across the 'd' dimension
         x = rearrange(x, "(b d) c h w -> (b h w) c d", b=b)
@@ -155,9 +153,8 @@ class DualConv3d(nn.Module):
         padding2 = self.padding2[0]
         dilation2 = self.dilation2[0]
         x = F.conv1d(x, weight2, self.bias2, stride2, padding2, dilation2, self.groups)
-        x = rearrange(x, "(b h w) c d -> b c d h w", b=b, h=h, w=w)
+        return rearrange(x, "(b h w) c d -> b c d h w", b=b, h=h, w=w)
 
-        return x
 
     @property
     def weight(self):

@@ -64,8 +64,7 @@ class TimestepEmbedder(nn.Module):
         if self.timestep_scale is not None:
             t = t * self.timestep_scale
         t_freq = self.timestep_embedding(t, self.frequency_embedding_size).to(dtype=out_dtype)
-        t_emb = self.mlp(t_freq)
-        return t_emb
+        return self.mlp(t_freq)
 
 
 class FeedForward(nn.Module):
@@ -93,8 +92,7 @@ class FeedForward(nn.Module):
 
     def forward(self, x):
         x, gate = self.w1(x).chunk(2, dim=-1)
-        x = self.w2(F.silu(x) * gate)
-        return x
+        return self.w2(F.silu(x) * gate)
 
 
 class PatchEmbed(nn.Module):
@@ -149,8 +147,7 @@ class PatchEmbed(nn.Module):
             raise NotImplementedError("Must flatten output.")
         x = rearrange(x, "(B T) C H W -> B (T H W) C", B=B, T=T)
 
-        x = self.norm(x)
-        return x
+        return self.norm(x)
 
 
 class RMSNorm(torch.nn.Module):

@@ -177,8 +177,7 @@ def _get_attention_scores_no_kv_chunking(
         attn_scores /= summed
         attn_probs = attn_scores
 
-    hidden_states_slice = torch.bmm(attn_probs.to(value.dtype), value)
-    return hidden_states_slice
+    return torch.bmm(attn_probs.to(value.dtype), value)
 
 class ScannedChunk(NamedTuple):
     chunk_idx: int
@@ -264,7 +263,7 @@ def efficient_dot_product_attention(
 
     # TODO: maybe we should use torch.empty_like(query) to allocate storage in-advance,
     # and pass slices to be mutated, instead of torch.cat()ing the returned slices
-    res = torch.cat([
+    return torch.cat([
         compute_query_chunk_attn(
             query=get_query_chunk(i * query_chunk_size),
             key_t=key_t,
@@ -272,4 +271,3 @@ def efficient_dot_product_attention(
             mask=get_mask_chunk(i * query_chunk_size)
         ) for i in range(math.ceil(q_tokens / query_chunk_size))
     ], dim=1)
-    return res

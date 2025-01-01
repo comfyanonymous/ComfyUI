@@ -122,14 +122,13 @@ class Timesteps(nn.Module):
         self.scale = scale
 
     def forward(self, timesteps):
-        t_emb = get_timestep_embedding(
+        return get_timestep_embedding(
             timesteps,
             self.num_channels,
             flip_sin_to_cos=self.flip_sin_to_cos,
             downscale_freq_shift=self.downscale_freq_shift,
             scale=self.scale,
         )
-        return t_emb
 
 
 class PixArtAlphaCombinedTimestepSizeEmbeddings(nn.Module):
@@ -149,8 +148,7 @@ class PixArtAlphaCombinedTimestepSizeEmbeddings(nn.Module):
 
     def forward(self, timestep, resolution, aspect_ratio, batch_size, hidden_dtype):
         timesteps_proj = self.time_proj(timestep)
-        timesteps_emb = self.timestep_embedder(timesteps_proj.to(dtype=hidden_dtype))  # (N, D)
-        return timesteps_emb
+        return self.timestep_embedder(timesteps_proj.to(dtype=hidden_dtype))  # (N, D)
 
 
 class AdaLayerNormSingle(nn.Module):
@@ -209,8 +207,7 @@ class PixArtAlphaTextProjection(nn.Module):
     def forward(self, caption):
         hidden_states = self.linear_1(caption)
         hidden_states = self.act_1(hidden_states)
-        hidden_states = self.linear_2(hidden_states)
-        return hidden_states
+        return self.linear_2(hidden_states)
 
 
 class GELU_approx(nn.Module):
@@ -247,9 +244,8 @@ def apply_rotary_emb(input_tensor, freqs_cis): #TODO: remove duplicate funcs and
     t_dup = torch.stack((-t2, t1), dim=-1)
     input_tensor_rot = rearrange(t_dup, "... d r -> ... (d r)")
 
-    out = input_tensor * cos_freqs + input_tensor_rot * sin_freqs
+    return input_tensor * cos_freqs + input_tensor_rot * sin_freqs
 
-    return out
 
 
 class CrossAttention(nn.Module):
@@ -316,14 +312,13 @@ class BasicTransformerBlock(nn.Module):
         return x
 
 def get_fractional_positions(indices_grid, max_pos):
-    fractional_positions = torch.stack(
+    return torch.stack(
         [
             indices_grid[:, i] / max_pos[i]
             for i in range(3)
         ],
         dim=-1,
     )
-    return fractional_positions
 
 
 def precompute_freqs_cis(indices_grid, dim, out_dtype, theta=10000.0, max_pos=[20, 2048, 2048]):

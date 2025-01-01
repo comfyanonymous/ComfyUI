@@ -35,8 +35,7 @@ class EfficientNetEncoder(nn.Module):
     def forward(self, x):
         x = x * 0.5 + 0.5
         x = (x - self.mean.view([3,1,1])) / self.std.view([3,1,1])
-        o = self.mapper(self.backbone(x))
-        return o
+        return self.mapper(self.backbone(x))
 
 
 # Fast Decoder for Stage C latents. E.g. 16 x 24 x 24 -> 3 x 192 x 192

@@ -9,8 +9,7 @@ def attention(q: Tensor, k: Tensor, v: Tensor, pe: Tensor, mask=None) -> Tensor:
     q, k = apply_rope(q, k, pe)
 
     heads = q.shape[1]
-    x = optimized_attention(q, k, v, heads, skip_reshape=True, mask=mask)
-    return x
+    return optimized_attention(q, k, v, heads, skip_reshape=True, mask=mask)
 
 
 def rope(pos: Tensor, dim: int, theta: int) -> Tensor:
