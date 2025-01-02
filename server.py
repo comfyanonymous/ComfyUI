@@ -14,6 +14,7 @@ import struct
 import ssl
 import socket
 import ipaddress
+import io,base64
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
@@ -333,7 +334,6 @@ class PromptServer():
             """
             Convert Image Byte Stream to PIL Image
             """
-            import io,base64
 
             img_data = base64.b64decode(img_str)
             img_io = io.BytesIO(img_data)
@@ -353,7 +353,7 @@ class PromptServer():
             image = str2pil(post.get("img_str"))
             
             file_name = post.get("file_name")
-            if not(file_name.endswith(".png") or file_name.endswith(".jpg")):
+            if not file_name.endswith((".png",".jpg")):
                 return web.Response(text="The file name must end in .jpg or .png.", status=400)
             
             # PATH
