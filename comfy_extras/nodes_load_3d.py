@@ -48,6 +48,8 @@ class Load3D():
 
             return output_image, output_mask, model_file,
         else:
+            # to avoid the format is not dict which will happen the FE code is not compatibility to core,
+            # we need to this to double-check, it can be removed after merged FE into the core
             image_path = folder_paths.get_annotated_filepath(image)
             load_image_node = nodes.LoadImage()
             output_image, output_mask = load_image_node.load_image(image=image_path)
