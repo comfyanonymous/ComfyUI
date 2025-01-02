@@ -232,7 +232,7 @@ def get_output_data(obj, input_data_all, execution_block_cb=None, pre_execute_cb
         output = merge_result_data(results, obj)
     else:
         output = []
-    ui = dict()
+    ui = {}
     if len(uis) > 0:
         ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
     return output, ui, has_subgraph

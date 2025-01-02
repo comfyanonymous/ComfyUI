@@ -26,7 +26,7 @@ def gen_empty_tokens(special_tokens, length):
 
 class ClipTokenWeightEncoder:
     def encode_token_weights(self, token_weight_pairs):
-        to_encode = list()
+        to_encode = []
         max_token_len = 0
         has_weights = False
         for x in token_weight_pairs:

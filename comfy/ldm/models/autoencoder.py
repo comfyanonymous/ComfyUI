@@ -19,7 +19,7 @@ class DiagonalGaussianRegularizer(torch.nn.Module):
         yield from ()
 
     def forward(self, z: torch.Tensor) -> Tuple[torch.Tensor, dict]:
-        log = dict()
+        log = {}
         posterior = DiagonalGaussianDistribution(z)
         if self.sample:
             z = posterior.sample()
@@ -88,7 +88,7 @@ class AbstractAutoencoder(torch.nn.Module):
     def instantiate_optimizer_from_config(self, params, lr, cfg):
         logging.info(f"loading >>> {cfg['target']} <<< optimizer from config")
         return get_obj_from_str(cfg["target"])(
-            params, lr=lr, **cfg.get("params", dict())
+            params, lr=lr, **cfg.get("params", {})
         )
 
     def configure_optimizers(self) -> Any:
@@ -129,7 +129,7 @@ class AutoencodingEngine(AbstractAutoencoder):
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, dict]]:
         z = self.encoder(x)
         if unregularized:
-            return z, dict()
+            return z, {}
         z, reg_log = self.regularization(z)
         if return_reg_log:
             return z, reg_log
@@ -191,7 +191,7 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
             N = x.shape[0]
             bs = self.max_batch_size
             n_batches = int(math.ceil(N / bs))
-            z = list()
+            z = []
             for i_batch in range(n_batches):
                 z_batch = self.encoder(x[i_batch * bs : (i_batch + 1) * bs])
                 z_batch = self.quant_conv(z_batch)
@@ -211,7 +211,7 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
             N = z.shape[0]
             bs = self.max_batch_size
             n_batches = int(math.ceil(N / bs))
-            dec = list()
+            dec = []
             for i_batch in range(n_batches):
                 dec_batch = self.post_quant_conv(z[i_batch * bs : (i_batch + 1) * bs])
                 dec_batch = self.decoder(dec_batch, **decoder_kwargs)

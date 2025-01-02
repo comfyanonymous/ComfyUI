@@ -1,3 +1,5 @@
+target-version = "py38"
+
 # Disable all rules by default
 lint.ignore = ["ALL"]
 
@@ -9,6 +11,7 @@ lint.select = [
     # The "F" series in Ruff stands for "Pyflakes" rules, which catch various Python syntax errors and undefined names.
     # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
     "F",
+    "C408",
 ]
 
 exclude = ["*.ipynb"]

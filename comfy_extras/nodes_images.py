@@ -99,7 +99,7 @@ class SaveAnimatedWEBP:
         method = self.methods.get(method)
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
-        results = list()
+        results = []
         pil_images = []
         for image in images:
             i = 255. * image.cpu().numpy()
@@ -160,7 +160,7 @@ class SaveAnimatedPNG:
     def save_images(self, images, fps, compress_level, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
-        results = list()
+        results = []
         pil_images = []
         for image in images:
             i = 255. * image.cpu().numpy()

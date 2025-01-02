@@ -510,7 +510,7 @@ def get_sorted_list_via_attr(objects: list, attr: str) -> list:
     unique_attrs = {}
     for o in objects:
         val_attr = getattr(o, attr)
-        attr_list: list = unique_attrs.get(val_attr, list())
+        attr_list: list = unique_attrs.get(val_attr, [])
         attr_list.append(o)
         if val_attr not in unique_attrs:
             unique_attrs[val_attr] = attr_list

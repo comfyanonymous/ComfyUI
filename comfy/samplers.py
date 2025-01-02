@@ -185,7 +185,7 @@ def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.H
             p = p._replace(mult=mult)
             if p.hooks is not None:
                 model.current_patcher.prepare_hook_patches_current_keyframe(timestep, p.hooks, model_options)
-            hooked_to_run.setdefault(p.hooks, list())
+            hooked_to_run.setdefault(p.hooks, [])
             hooked_to_run[p.hooks] += [(p, i)]
 
 def calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
@@ -220,7 +220,7 @@ def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Te
                     continue
                 if p.hooks is not None:
                     model.current_patcher.prepare_hook_patches_current_keyframe(timestep, p.hooks, model_options)
-                hooked_to_run.setdefault(p.hooks, list())
+                hooked_to_run.setdefault(p.hooks, [])
                 hooked_to_run[p.hooks] += [(p, i)]
         default_conds.append(default_c)
 

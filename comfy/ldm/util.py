@@ -13,7 +13,7 @@ def log_txt_as_img(wh, xc, size=10):
     # wh a tuple of (width, height)
     # xc a list of captions to plot
     b = len(xc)
-    txts = list()
+    txts = []
     for bi in range(b):
         txt = Image.new("RGB", wh, color="white")
         draw = ImageDraw.Draw(txt)
@@ -77,7 +77,7 @@ def instantiate_from_config(config):
         elif config == "__is_unconditional__":
             return None
         raise KeyError("Expected key `target` to instantiate.")
-    return get_obj_from_str(config["target"])(**config.get("params", dict()))
+    return get_obj_from_str(config["target"])(**config.get("params", {}))
 
 
 def get_obj_from_str(string, reload=False):
@@ -106,9 +106,9 @@ class AdamWwithEMAandWings(optim.Optimizer):
             raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
         if not 0.0 <= ema_decay <= 1.0:
             raise ValueError("Invalid ema_decay value: {}".format(ema_decay))
-        defaults = dict(lr=lr, betas=betas, eps=eps,
-                        weight_decay=weight_decay, amsgrad=amsgrad, ema_decay=ema_decay,
-                        ema_power=ema_power, param_names=param_names)
+        defaults = {"lr": lr, "betas": betas, "eps": eps,
+                        "weight_decay": weight_decay, "amsgrad": amsgrad, "ema_decay": ema_decay,
+                        "ema_power": ema_power, "param_names": param_names}
         super().__init__(params, defaults)
 
     def __setstate__(self, state):
