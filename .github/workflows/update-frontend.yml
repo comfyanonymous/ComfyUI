@@ -31,7 +31,7 @@ jobs:
       - name: Start ComfyUI server
         run: |
           python main.py --cpu --front-end-version Comfy-Org/ComfyUI_frontend@${{ github.event.inputs.version }} 2>&1 | tee console_output.log &
-          wait-for-it --service 127.0.0.1:8188 -t 10
+          wait-for-it --service 127.0.0.1:8188 -t 30
       - name: Configure Git
         run: |
           git config --global user.name "GitHub Action"
