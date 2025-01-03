@@ -5,10 +5,10 @@ import os
 import shutil
 import filecmp
 
-def pull(repo, remote_name='origin', branch='master'):
+def pull(repo, remote_name='origin', branch='master', proxy=None):
     for remote in repo.remotes:
         if remote.name == remote_name:
-            remote.fetch()
+            remote.fetch(proxy=proxy)
             remote_master_id = repo.lookup_reference('refs/remotes/origin/%s' % (branch)).target
             merge_result, _ = repo.merge_analysis(remote_master_id)
             # Up to date, do nothing
@@ -46,6 +46,14 @@ def pull(repo, remote_name='origin', branch='master'):
 
 pygit2.option(pygit2.GIT_OPT_SET_OWNER_VALIDATION, 0)
 repo_path = str(sys.argv[1])
+proxy = None
+if '--proxy' in sys.argv:
+    proxy_index = sys.argv.index('--proxy')
+    if proxy_index + 1 < len(sys.argv):
+        proxy = sys.argv[proxy_index + 1]
+        if len(proxy)<=0:
+            proxy = None
+
 repo = pygit2.Repository(repo_path)
 ident = pygit2.Signature('comfyui', 'comfy@ui')
 try:
@@ -73,7 +81,7 @@ else:
     repo.checkout(ref)
 
 print("pulling latest changes")  # noqa: T201
-pull(repo)
+pull(repo, proxy=proxy)
 
 if "--stable" in sys.argv:
     def latest_tag(repo):
