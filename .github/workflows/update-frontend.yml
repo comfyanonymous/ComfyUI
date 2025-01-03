@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout ComfyUI
@@ -45,7 +46,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PR_BOT_PAT }}
           commit-message: "Update frontend to v${{ github.event.inputs.version }}"
           title: "Frontend Update: v${{ github.event.inputs.version }}"
           body: |
