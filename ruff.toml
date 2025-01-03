@@ -1,17 +1,16 @@
-target-version = "py38"
+target-version = "py39"
 
 # Disable all rules by default
 lint.ignore = ["ALL"]
 
-# Enable specific rules
+# Enable specific rules, see all rules here: https://docs.astral.sh/ruff/rules/
 lint.select = [
     "S307",  # suspicious-eval-usage
     "T201",  # print-usage
     "W",
     # The "F" series in Ruff stands for "Pyflakes" rules, which catch various Python syntax errors and undefined names.
-    # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
     "F",
-    "C408",
+    "C408",  # unnecessary dict(), list() or tuple() calls that can be rewritten as empty literals.
 ]
 
 exclude = ["*.ipynb"]
