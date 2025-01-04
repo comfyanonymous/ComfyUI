@@ -41,7 +41,6 @@ class EnumHookType(enum.Enum):
     Hook types, each of which has different expected behavior.
     '''
     Weight = "weight"
-    Patch = "patch"
     ObjectPatch = "object_patch"
     AddModels = "add_models"
     TransformerOptions = "transformer_options"
@@ -194,19 +193,6 @@ class WeightHook(Hook):
         c._strength_clip = self._strength_clip
         return c
 
-class PatchHook(Hook):
-    def __init__(self):
-        super().__init__(hook_type=EnumHookType.Patch)
-        self.patches: dict = None
-
-    def clone(self, subtype: Callable=None):
-        if subtype is None:
-            subtype = type(self)
-        c: PatchHook = super().clone(subtype)
-        c.patches = self.patches
-        return c
-    # TODO: add functionality
-
 class ObjectPatchHook(Hook):
     def __init__(self):
         super().__init__(hook_type=EnumHookType.ObjectPatch)
@@ -244,6 +230,7 @@ class AddModelsHook(Hook):
     def add_hook_patches(self, model: ModelPatcher, model_options: dict, target_dict: dict[str], registered: list[Hook]):
         if not self.should_register(model, model_options, target_dict, registered):
             return False
+        return True
 
 class TransformerOptionsHook(Hook):
     '''
@@ -298,12 +285,28 @@ class SetInjectionsHook(Hook):
         pass
 
 class HookGroup:
+    '''
+    Stores groups of hooks, and allows them to be queried by type.
+    
+    To prevent breaking their functionality, never modify the underlying self.hooks or self._hook_dict vars directly;
+    always use the provided functions on HookGroup.
+    '''
     def __init__(self):
         self.hooks: list[Hook] = []
+        self._hook_dict: dict[EnumHookType, list[Hook]] = {}
 
     def add(self, hook: Hook):
         if hook not in self.hooks:
             self.hooks.append(hook)
+            self._hook_dict.setdefault(hook.hook_type, []).append(hook)
+
+    def remove(self, hook: Hook):
+        if hook in self.hooks:
+            self.hooks.remove(hook)
+            self._hook_dict[hook.hook_type].remove(hook)
+
+    def get_type(self, hook_type: EnumHookType):
+        return self._hook_dict.get(hook_type, [])
 
     def contains(self, hook: Hook):
         return hook in self.hooks
@@ -329,36 +332,29 @@ class HookGroup:
         for hook in self.hooks:
             hook.hook_keyframe = hook_kf
 
-    def get_dict_repr(self):
-        d: dict[EnumHookType, dict[Hook, None]] = {}
-        for hook in self.hooks:
-            with_type = d.setdefault(hook.hook_type, {})
-            with_type[hook] = None
-        return d
-
     def get_hooks_for_clip_schedule(self):
         scheduled_hooks: dict[WeightHook, list[tuple[tuple[float,float], HookKeyframe]]] = {}
-        for hook in self.hooks:
-            # only care about WeightHooks, for now
-            if hook.hook_type == EnumHookType.Weight:
-                hook_schedule = []
-                # if no hook keyframes, assign default value
-                if len(hook.hook_keyframe.keyframes) == 0:
-                    hook_schedule.append(((0.0, 1.0), None))
-                    scheduled_hooks[hook] = hook_schedule
-                    continue
-                # find ranges of values
-                prev_keyframe = hook.hook_keyframe.keyframes[0]
-                for keyframe in hook.hook_keyframe.keyframes:
-                    if keyframe.start_percent > prev_keyframe.start_percent and not math.isclose(keyframe.strength, prev_keyframe.strength):
-                        hook_schedule.append(((prev_keyframe.start_percent, keyframe.start_percent), prev_keyframe))
-                        prev_keyframe = keyframe
-                    elif keyframe.start_percent == prev_keyframe.start_percent:
-                        prev_keyframe = keyframe
-                # create final range, assuming last start_percent was not 1.0
-                if not math.isclose(prev_keyframe.start_percent, 1.0):
-                    hook_schedule.append(((prev_keyframe.start_percent, 1.0), prev_keyframe))
+        # only care about WeightHooks, for now
+        for hook in self.get_type(EnumHookType.Weight):
+            hook: WeightHook
+            hook_schedule = []
+            # if no hook keyframes, assign default value
+            if len(hook.hook_keyframe.keyframes) == 0:
+                hook_schedule.append(((0.0, 1.0), None))
                 scheduled_hooks[hook] = hook_schedule
+                continue
+            # find ranges of values
+            prev_keyframe = hook.hook_keyframe.keyframes[0]
+            for keyframe in hook.hook_keyframe.keyframes:
+                if keyframe.start_percent > prev_keyframe.start_percent and not math.isclose(keyframe.strength, prev_keyframe.strength):
+                    hook_schedule.append(((prev_keyframe.start_percent, keyframe.start_percent), prev_keyframe))
+                    prev_keyframe = keyframe
+                elif keyframe.start_percent == prev_keyframe.start_percent:
+                    prev_keyframe = keyframe
+            # create final range, assuming last start_percent was not 1.0
+            if not math.isclose(prev_keyframe.start_percent, 1.0):
+                hook_schedule.append(((prev_keyframe.start_percent, 1.0), prev_keyframe))
+            scheduled_hooks[hook] = hook_schedule
         # hooks should not have their schedules in a list of tuples
         all_ranges: list[tuple[float, float]] = []
         for range_kfs in scheduled_hooks.values():

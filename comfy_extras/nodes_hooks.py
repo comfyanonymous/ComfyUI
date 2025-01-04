@@ -255,7 +255,7 @@ class SetClipHooks:
             clip.use_clip_schedule = schedule_clip
             if not clip.use_clip_schedule:
                 clip.patcher.forced_hooks.set_keyframes_on_hooks(None)
-            clip.patcher.register_all_hook_patches(hooks.get_dict_repr(), comfy.hooks.create_target_dict(comfy.hooks.EnumWeightTarget.Clip))
+            clip.patcher.register_all_hook_patches(hooks, comfy.hooks.create_target_dict(comfy.hooks.EnumWeightTarget.Clip))
         return (clip,)
 
 class ConditioningTimestepsRange:
