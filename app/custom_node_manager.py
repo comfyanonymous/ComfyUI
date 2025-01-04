@@ -10,7 +10,7 @@ class CustomNodeManager:
     Placeholder to refactor the custom node management features from ComfyUI-Manager.
     Currently it only contains the custom workflow templates feature.
     """
-    def add_routes(self, routes, webapp, loadedModules):     
+    def add_routes(self, routes, webapp, loadedModules):
 
         @routes.get("/workflow_templates")
         async def get_workflow_templates(request):

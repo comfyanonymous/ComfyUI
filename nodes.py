@@ -51,7 +51,7 @@ class CLIPTextEncode(ComfyNodeABC):
     def INPUT_TYPES(s) -> InputTypeDict:
         return {
             "required": {
-                "text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The text to be encoded."}), 
+                "text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The text to be encoded."}),
                 "clip": (IO.CLIP, {"tooltip": "The CLIP model used for encoding the text."})
             }
         }
@@ -269,8 +269,8 @@ class VAEDecode:
     @classmethod
     def INPUT_TYPES(s):
         return {
-            "required": { 
-                "samples": ("LATENT", {"tooltip": "The latent to be decoded."}), 
+            "required": {
+                "samples": ("LATENT", {"tooltip": "The latent to be decoded."}),
                 "vae": ("VAE", {"tooltip": "The VAE model used for decoding the latent."})
             }
         }
@@ -309,7 +309,7 @@ class VAEDecodeTiled:
         temporal_compression = vae.temporal_compression_decode()
         if temporal_compression is not None:
             temporal_size = max(2, temporal_size // temporal_compression)
-            temporal_overlap = min(1, temporal_size // 2, temporal_overlap // temporal_compression)
+            temporal_overlap = max(1, min(temporal_size // 2, temporal_overlap // temporal_compression))
         else:
             temporal_size = None
             temporal_overlap = None
@@ -550,13 +550,13 @@ class CheckpointLoaderSimple:
     @classmethod
     def INPUT_TYPES(s):
         return {
-            "required": { 
+            "required": {
                 "ckpt_name": (folder_paths.get_filename_list("checkpoints"), {"tooltip": "The name of the checkpoint (model) to load."}),
             }
         }
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
-    OUTPUT_TOOLTIPS = ("The model used for denoising latents.", 
-                       "The CLIP model used for encoding text prompts.", 
+    OUTPUT_TOOLTIPS = ("The model used for denoising latents.",
+                       "The CLIP model used for encoding text prompts.",
                        "The VAE model used for encoding and decoding images to and from latent space.")
     FUNCTION = "load_checkpoint"
 
@@ -633,7 +633,7 @@ class LoraLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {
-            "required": { 
+            "required": {
                 "model": ("MODEL", {"tooltip": "The diffusion model the LoRA will be applied to."}),
                 "clip": ("CLIP", {"tooltip": "The CLIP model the LoRA will be applied to."}),
                 "lora_name": (folder_paths.get_filename_list("loras"), {"tooltip": "The name of the LoRA."}),
@@ -1162,7 +1162,7 @@ class EmptyLatentImage:
     @classmethod
     def INPUT_TYPES(s):
         return {
-            "required": { 
+            "required": {
                 "width": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8, "tooltip": "The width of the latent images in pixels."}),
                 "height": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8, "tooltip": "The height of the latent images in pixels."}),
                 "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "tooltip": "The number of latent images in the batch."})

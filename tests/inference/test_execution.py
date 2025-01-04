@@ -40,8 +40,8 @@ class ComfyClient:
     def __init__(self):
         self.test_name = ""
 
-    def connect(self, 
-                    listen:str = '127.0.0.1', 
+    def connect(self,
+                    listen:str = '127.0.0.1',
                     port:Union[str,int] = 8188,
                     client_id: str = str(uuid.uuid4())
                     ):
@@ -125,7 +125,7 @@ class TestExecution:
     def _server(self, args_pytest, request):
         # Start server
         pargs = [
-            'python','main.py', 
+            'python','main.py',
             '--output-directory', args_pytest["output_dir"],
             '--listen', args_pytest["listen"],
             '--port', str(args_pytest["port"]),
