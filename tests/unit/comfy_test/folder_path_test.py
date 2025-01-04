@@ -16,10 +16,8 @@ from comfy.execution_context import context_folder_names_and_paths
 @pytest.fixture()
 def clear_folder_paths():
     # Clear the global dictionary before each test to ensure isolation
-    original = folder_paths.folder_names_and_paths.copy()
-    folder_paths.folder_names_and_paths.clear()
-    yield
-    folder_paths.folder_names_and_paths = original
+    with context_folder_names_and_paths(FolderNames()):
+        yield
 
 @pytest.fixture
 def temp_dir():

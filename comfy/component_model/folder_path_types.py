@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import copy
 import dataclasses
 import itertools
+import logging
 import os
 import typing
 import weakref
@@ -15,6 +17,8 @@ supported_pt_extensions = frozenset(['.ckpt', '.pt', '.bin', '.pth', '.safetenso
 extension_mimetypes_cache = {
     "webp": "image",
 }
+
+logger = logging.getLogger(__name__)
 
 
 def do_add(collection: list | set, index: int | None, item: Any):
@@ -101,10 +105,18 @@ class PathsList:
         p: FolderNames = self.parent()
         p.add_paths(self.folder_name, [path_str])
 
-    def insert(self, path_str: str, index: int):
+    def insert(self, index: int, path_str: str | Path):
         p: FolderNames = self.parent()
         p.add_paths(self.folder_name, [path_str], index=index)
 
+    def index(self, value: str | Path):
+        value = construct_path(value)
+        p: FolderNames = self.parent()
+        return [path for path in p.directory_paths(self.folder_name)].index(value)
+
+    def remove(self, value: str | Path):
+        p: FolderNames = self.parent()
+        p.remove_paths(self.folder_name, [value])
 
 @dataclasses.dataclass
 class SupportedExtensions:
@@ -168,12 +180,21 @@ class AbstractPaths(ABC):
         """Check if the given folder name is in folder_names."""
         pass
 
+    @abstractmethod
+    def remove_path(self, path: str | Path) -> int:
+        """
+        removes a path
+        :param path: the path
+        :return: the number of paths removed
+        """
+        pass
+
 
 @dataclasses.dataclass
 class ModelPaths(AbstractPaths):
     folder_name_base_path_subdir: Path = dataclasses.field(default_factory=lambda: construct_path("models"))
-    additional_relative_directory_paths: set[Path] = dataclasses.field(default_factory=set)
-    additional_absolute_directory_paths: set[str | Path] = dataclasses.field(default_factory=set)
+    additional_relative_directory_paths: list[Path] = dataclasses.field(default_factory=list)
+    additional_absolute_directory_paths: list[str | Path] = dataclasses.field(default_factory=list)
     folder_names_are_relative_directory_paths_too: bool = dataclasses.field(default_factory=lambda: True)
 
     def directory_paths(self, base_paths: Iterable[Path]) -> typing.Generator[Path]:
@@ -220,12 +241,26 @@ class ModelPaths(AbstractPaths):
     def has_folder_name(self, folder_name: str) -> bool:
         return folder_name in self.folder_names
 
+    def remove_path(self, path: str | Path) -> int:
+        total = 0
+        path = construct_path(path)
+        for paths_list in (self.additional_absolute_directory_paths, self.additional_relative_directory_paths):
+            try:
+                while True:
+                    paths_list.remove(path)
+                    total += 1
+            except ValueError:
+                pass
+
+        return total
+
 
 @dataclasses.dataclass
 class FolderNames:
     application_paths: typing.Optional[ApplicationPaths] = dataclasses.field(default_factory=ApplicationPaths)
     contents: list[AbstractPaths] = dataclasses.field(default_factory=list)
     base_paths: list[Path] = dataclasses.field(default_factory=list)
+    is_root: bool = dataclasses.field(default=lambda: False)
 
     def supported_extensions(self, folder_name: str) -> typing.Generator[str]:
         for candidate in self.contents:
@@ -298,8 +333,8 @@ class FolderNames:
             fn.add(
                 ModelPaths(folder_names=[folder_name],
                            supported_extensions=set(extensions),
-                           additional_relative_directory_paths=set(path for path in paths if not Path(path).is_absolute()),
-                           additional_absolute_directory_paths=set(path for path in paths if Path(path).is_absolute()), folder_names_are_relative_directory_paths_too=False
+                           additional_relative_directory_paths=[path for path in paths if not Path(path).is_absolute()],
+                           additional_absolute_directory_paths=[path for path in paths if Path(path).is_absolute()], folder_names_are_relative_directory_paths_too=False
                            ))
         return fn
 
@@ -329,6 +364,12 @@ class FolderNames:
             if candidate.has_folder_name(folder_name):
                 self._modify_model_paths(folder_name, paths, set(), candidate, index=index)
 
+    def remove_paths(self, folder_name: str, paths: list[Path | str]):
+        for candidate in self.contents:
+            if candidate.has_folder_name(folder_name):
+                for path in paths:
+                    candidate.remove_path(path)
+
     def get_paths(self, folder_name: str) -> typing.Generator[AbstractPaths]:
         for candidate in self.contents:
             if candidate.has_folder_name(folder_name):
@@ -341,6 +382,7 @@ class FolderNames:
         if index is not None and index != 0:
             raise ValueError(f"index was {index} but only 0 or None is supported")
 
+        did_add = False
         for path in paths:
             if isinstance(path, str):
                 path = construct_path(path)
@@ -374,9 +416,9 @@ class FolderNames:
                                     do_add(model_paths.additional_relative_directory_paths, index, relative_to_basepath)
                                     did_add = True
                             else:
-                                model_paths.additional_relative_directory_paths.add(relative_to_basepath)
+                                do_add(model_paths.additional_relative_directory_paths, index, relative_to_basepath)
                                 for resolve_folder_name in model_paths.folder_names:
-                                    model_paths.additional_relative_directory_paths.add(model_paths.folder_name_base_path_subdir / resolve_folder_name)
+                                    do_add(model_paths.additional_relative_directory_paths, index, model_paths.folder_name_base_path_subdir / resolve_folder_name)
                                     did_add = True
 
                         # since this was an absolute path that was a subdirectory of one of the base paths,
@@ -389,7 +431,7 @@ class FolderNames:
                 # if we got this far, none of the absolute paths were subdirectories of any base paths
                 # add it to our absolute paths
                 if not did_add:
-                    model_paths.additional_absolute_directory_paths.add(path)
+                    do_add(model_paths.additional_absolute_directory_paths, index, path)
             else:
                 # since this is a relative path, peacefully add it to model_paths
                 potential_folder_name = path.stem
@@ -405,7 +447,7 @@ class FolderNames:
                             # if there already exists a folder_name by this name, do not add it, and switch to all relative paths
                             if any(candidate.has_folder_name(potential_folder_name) for candidate in self.contents):
                                 model_paths.folder_names_are_relative_directory_paths_too = False
-                                model_paths.additional_relative_directory_paths.add(path)
+                                do_add(model_paths.additional_relative_directory_paths, index, path)
                                 model_paths.folder_name_base_path_subdir = construct_path()
                             else:
                                 do_add(model_paths.folder_names, index, potential_folder_name)
@@ -418,7 +460,7 @@ class FolderNames:
                     else:
                         if any(candidate.has_folder_name(potential_folder_name) for candidate in self.contents):
                             model_paths.folder_names_are_relative_directory_paths_too = False
-                            model_paths.additional_relative_directory_paths.add(path)
+                            do_add(model_paths.additional_relative_directory_paths, index, path)
                             model_paths.folder_name_base_path_subdir = construct_path()
                         else:
                             do_add(model_paths.folder_names, index, potential_folder_name)
@@ -487,6 +529,14 @@ class FolderNames:
                 return FolderPathsTuple(key, parent=weakref.ref(self))
         if __default is not None:
             raise ValueError("get with default is not supported")
+
+    def copy(self):
+        return copy.deepcopy(self)
+
+    def clear(self):
+        if self.is_root:
+            logger.warning(f"trying to clear the root folder names and paths instance, this will cause unexpected behavior")
+        self.contents = []
 
 
 class SaveImagePathTuple(NamedTuple):

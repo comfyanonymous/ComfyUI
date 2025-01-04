@@ -77,11 +77,11 @@ def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optio
     hf_cache_paths = ModelPaths(["huggingface_cache"], supported_extensions=set())
     # TODO: explore if there is a better way to do this
     if "HF_HUB_CACHE" in os.environ:
-        hf_cache_paths.additional_absolute_directory_paths.add(os.environ.get("HF_HUB_CACHE"))
+        hf_cache_paths.additional_absolute_directory_paths.append(os.environ.get("HF_HUB_CACHE"))
 
     model_paths_to_add = [
         ModelPaths(["checkpoints"], supported_extensions=set(supported_pt_extensions)),
-        ModelPaths(["configs"], additional_absolute_directory_paths={get_package_as_path("comfy.configs")}, supported_extensions={".yaml"}),
+        ModelPaths(["configs"], additional_absolute_directory_paths=[get_package_as_path("comfy.configs")], supported_extensions={".yaml"}),
         ModelPaths(["vae"], supported_extensions=set(supported_pt_extensions)),
         ModelPaths(folder_names=["clip", "text_encoders"], supported_extensions=set(supported_pt_extensions)),
         ModelPaths(["loras"], supported_extensions=set(supported_pt_extensions)),
@@ -271,6 +271,17 @@ def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, e
             folder_path.paths.insert(0, full_folder_path)
         else:
             folder_path.paths.append(full_folder_path)
+    else:
+        try:
+            current_default = folder_path.paths.index(full_folder_path) == 0
+        except ValueError:
+            current_default = False
+        if current_default != is_default:
+            folder_path.paths.remove(full_folder_path)
+            if is_default:
+                folder_path.paths.insert(0, full_folder_path)
+            else:
+                folder_path.paths.append(full_folder_path)
 
     if extensions is not None:
         folder_path.supported_extensions |= extensions

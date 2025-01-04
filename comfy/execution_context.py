@@ -21,7 +21,7 @@ class ExecutionContext:
     inference_mode: bool = True
 
 
-_current_context.set(ExecutionContext(server=ServerStub(), folder_names_and_paths=FolderNames()))
+_current_context.set(ExecutionContext(server=ServerStub(), folder_names_and_paths=FolderNames(is_root=True)))
 
 
 def current_execution_context() -> ExecutionContext:
