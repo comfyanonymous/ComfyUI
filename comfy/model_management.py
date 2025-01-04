@@ -25,7 +25,7 @@ import warnings
 import weakref
 from enum import Enum
 from threading import RLock
-from typing import List, Sequence, Final
+from typing import List, Sequence, Final, Optional
 
 import psutil
 import torch
@@ -110,7 +110,7 @@ except:
     pass
 
 try:
-    import torch_npu  # noqa: F401
+    import torch_npu  # pylint: disable=import-error, noqa: F401
 
     _ = torch.npu.device_count()
     npu_available = torch.npu.is_available()
@@ -257,14 +257,6 @@ def is_amd():
     return False
 
 
-def is_amd():
-    global cpu_state
-    if cpu_state == CPUState.GPU:
-        if torch.version.hip:
-            return True
-    return False
-
-
 MIN_WEIGHT_MEMORY_RATIO = 0.4
 if is_nvidia():
     MIN_WEIGHT_MEMORY_RATIO = 0.2
@@ -292,7 +284,7 @@ if ENABLE_PYTORCH_ATTENTION:
 
 try:
     if int(torch_version[0]) == 2 and int(torch_version[2]) >= 5:
-        torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
+        torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)  # pylint: disable=no-member
 except:
     logging.warning("Warning, could not set allow_fp16_bf16_reduction_math_sdp")
 
@@ -1092,7 +1084,7 @@ def get_free_memory(dev=None, torch_free_too=False):
             mem_free_total = 1024 * 1024 * 1024  # TODO
             mem_free_torch = mem_free_total
         elif is_intel_xpu():
-            stats = torch.xpu.memory_stats(dev)
+            stats = torch.xpu.memory_stats(dev)  # pylint: disable=no-member
             mem_active = stats['active_bytes.all.current']
             mem_reserved = stats['reserved_bytes.all.current']
             mem_free_torch = mem_reserved - mem_active
