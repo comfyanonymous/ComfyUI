@@ -945,7 +945,7 @@ class ModelPatcher:
         registered_hooks: list[comfy.hooks.Hook] = []
         # handle WrapperHooks, if model_options provided
         if model_options is not None:
-            for hook in hooks_dict.get(comfy.hooks.EnumHookType.Wrappers, {}):
+            for hook in hooks_dict.get(comfy.hooks.EnumHookType.TransformerOptions, {}):
                 hook.add_hook_patches(self, model_options, target_dict, registered_hooks)
         # handle WeightHooks
         weight_hooks_to_register: list[comfy.hooks.WeightHook] = []
