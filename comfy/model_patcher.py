@@ -402,7 +402,22 @@ class ModelPatcher:
     def add_object_patch(self, name, obj):
         self.object_patches[name] = obj
 
-    def get_model_object(self, name):
+    def get_model_object(self, name: str) -> torch.nn.Module:
+        """Retrieves a nested attribute from an object using dot notation considering
+        object patches.
+
+        Args:
+            obj: The object to get the attribute from
+            attr (str): The attribute path using dot notation (e.g. "model.layer.weight")
+
+        Returns:
+            The value of the requested attribute
+
+        Example:
+            model = MyModel()
+            weight = get_attr(model, "layer1.conv.weight")
+            # Equivalent to: model.layer1.conv.weight
+        """
         if name in self.object_patches:
             return self.object_patches[name]
         else:
