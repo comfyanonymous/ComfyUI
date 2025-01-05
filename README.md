@@ -238,10 +238,10 @@ For models compatible with Ascend Extension for PyTorch (torch_npu). To get star
 UV is an extremely fast Python package and project manager, written in Rust. For UV installation, checks [docs](https://docs.astral.sh/uv/). UV help isolation and reproducibility of the desired environment.
 
 ```bash
-git clone https://github.com/comfyanonymous/ComfyUI.git comfyui # Clone this repo
-cd comfyui # Move to created folder
-uv init # Start uv project in current folder
-uv add --requirements requirements.txt # Add dependencies
+git clone https://github.com/comfyanonymous/ComfyUI.git # Clone this repo
+cd ComfyUI                                              # Move to created folder
+uv init                                                 # Start uv project in current folder
+uv add --requirements requirements.txt                  # Add dependencies
 ```
 
 # Running
@@ -250,11 +250,11 @@ uv add --requirements requirements.txt # Add dependencies
 python main.py
 ```
 
-If using UV:
+If using **UV**:
 
 ```bash
 uv run python main.py
-# or activating the virtual env before
+# or in case of activating the virtual env before
 source .venv/bin/activate
 python main.py
 ```
