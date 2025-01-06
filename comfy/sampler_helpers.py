@@ -128,6 +128,9 @@ def cleanup_models(conds, models):
     cleanup_additional_models(set(control_cleanup))
 
 def prepare_model_patcher(model: 'ModelPatcher', conds, model_options: dict):
+    '''
+    Registers hooks from conds.
+    '''
     # check for hooks in conds - if not registered, see if can be applied
     hooks = comfy.hooks.HookGroup()
     for k in conds:
