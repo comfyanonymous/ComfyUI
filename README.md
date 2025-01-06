@@ -18,6 +18,7 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 
 ## What's New?
 
+* Added a "small flux guide." This aims to use low vram and provides the very basic necessary files needed to get flux generation running. [HERE](fluxguide.md)
 * Added --reserve-vram with the value of 0.9 to commandline options that run with the app on startup. Greatly helps reduce using too much memory on generations.
 * Changed `start.bat` to `comfyui.bat` because there is already a windows command by that name, which
   creates some problems. Also added  `fix-update.bat` which solves the problem that causes not being able to
