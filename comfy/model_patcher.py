@@ -407,8 +407,7 @@ class ModelPatcher:
         object patches.
 
         Args:
-            obj: The object to get the attribute from
-            attr (str): The attribute path using dot notation (e.g. "model.layer.weight")
+            name (str): The attribute path using dot notation (e.g. "model.layer.weight")
 
         Returns:
             The value of the requested attribute
