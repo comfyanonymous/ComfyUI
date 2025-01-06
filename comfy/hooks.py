@@ -442,7 +442,7 @@ class HookKeyframeGroup:
             return False
         if curr_t == self._curr_t:
             return False
-        max_sigma = torch.max(transformer_options["sigmas"])
+        max_sigma = torch.max(transformer_options["sample_sigmas"])
         prev_index = self._current_index
         prev_strength = self._current_strength
         # if met guaranteed steps, look for next keyframe in case need to switch
