@@ -157,4 +157,3 @@ def prepare_model_patcher(model: 'ModelPatcher', conds, model_options: dict):
         comfy.patcher_extension.merge_nested_dicts(to_load_options.setdefault(wc_name, {}), model_options["transformer_options"][wc_name],
                                                     copy_dict1=False)
     return to_load_options
-    
