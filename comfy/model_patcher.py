@@ -210,7 +210,7 @@ class ModelPatcher:
         self.injections: dict[str, list[PatcherInjection]] = {}
 
         self.hook_patches: dict[comfy.hooks._HookRef] = {}
-        self.hook_patches_backup: dict[comfy.hooks._HookRef] = {}
+        self.hook_patches_backup: dict[comfy.hooks._HookRef] = None
         self.hook_backup: dict[str, tuple[torch.Tensor, torch.device]] = {}
         self.cached_hook_patches: dict[comfy.hooks.HookGroup, dict[str, torch.Tensor]] = {}
         self.current_hooks: Optional[comfy.hooks.HookGroup] = None
@@ -282,7 +282,7 @@ class ModelPatcher:
             n.injections[k] = i.copy()
         # hooks
         n.hook_patches = create_hook_patches_clone(self.hook_patches)
-        n.hook_patches_backup = create_hook_patches_clone(self.hook_patches_backup)
+        n.hook_patches_backup = create_hook_patches_clone(self.hook_patches_backup) if self.hook_patches_backup else self.hook_patches_backup
         for group in self.cached_hook_patches:
             n.cached_hook_patches[group] = {}
             for k in self.cached_hook_patches[group]:
@@ -912,9 +912,9 @@ class ModelPatcher:
             callback(self, timestep)
 
     def restore_hook_patches(self):
-        if len(self.hook_patches_backup) > 0:
+        if self.hook_patches_backup is not None:
             self.hook_patches = self.hook_patches_backup
-            self.hook_patches_backup = {}
+            self.hook_patches_backup = None
 
     def set_hook_mode(self, hook_mode: comfy.hooks.EnumHookMode):
         self.hook_mode = hook_mode
@@ -950,6 +950,8 @@ class ModelPatcher:
         for hook in hooks.get_type(comfy.hooks.EnumHookType.Weight):
             if hook.hook_ref not in self.hook_patches:
                 weight_hooks_to_register.append(hook)
+            else:
+                registered.add(hook)
         if len(weight_hooks_to_register) > 0:
             # clone hook_patches to become backup so that any non-dynamic hooks will return to their original state
             self.hook_patches_backup = create_hook_patches_clone(self.hook_patches)
