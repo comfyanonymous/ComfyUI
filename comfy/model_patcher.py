@@ -1010,11 +1010,11 @@ class ModelPatcher:
     def apply_hooks(self, hooks: comfy.hooks.HookGroup, transformer_options: dict=None, force_apply=False):
         # TODO: return transformer_options dict with any additions from hooks
         if self.current_hooks == hooks and (not force_apply or (not self.is_clip and hooks is None)):
-            return {}
+            return comfy.hooks.create_transformer_options_from_hooks(self, hooks, transformer_options)
         self.patch_hooks(hooks=hooks)
         for callback in self.get_all_callbacks(CallbacksMP.ON_APPLY_HOOKS):
             callback(self, hooks)
-        return {}
+        return comfy.hooks.create_transformer_options_from_hooks(self, hooks, transformer_options)
 
     def patch_hooks(self, hooks: comfy.hooks.HookGroup):
         with self.use_ejected():
