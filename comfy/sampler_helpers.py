@@ -70,13 +70,11 @@ def get_additional_models(conds, dtype):
     cnets: list[ControlBase] = []
     gligen = []
     add_models = []
-    hooks = comfy.hooks.HookGroup()
 
     for k in conds:
         cnets += get_models_from_cond(conds[k], "control")
         gligen += get_models_from_cond(conds[k], "gligen")
         add_models += get_models_from_cond(conds[k], "additional_models")
-        get_hooks_from_cond(conds[k], hooks)
 
     control_nets = set(cnets)
 
@@ -87,13 +85,19 @@ def get_additional_models(conds, dtype):
         inference_memory += m.inference_memory_requirements(dtype)
 
     gligen = [x[1] for x in gligen]
-    hook_models = []
-    for x in hooks.get_type(comfy.hooks.EnumHookType.AddModels):
-        x: comfy.hooks.AddModelsHook
-        hook_models.extend(x.models)
-    models = control_models + gligen + add_models + hook_models
+    models = control_models + gligen + add_models
 
     return models, inference_memory
+
+def get_additional_models_from_model_options(model_options: dict[str]=None):
+    """loads additional models from registered AddModels hooks"""
+    models = []
+    if model_options is not None and "registered_hooks" in model_options:
+        registered: comfy.hooks.HookGroup = model_options["registered_hooks"]
+        for hook in registered.get_type(comfy.hooks.EnumHookType.AddModels):
+            hook: comfy.hooks.AddModelsHook
+            models.extend(hook.models)
+    return models
 
 def cleanup_additional_models(models):
     """cleanup additional models that were loaded"""
@@ -102,9 +106,10 @@ def cleanup_additional_models(models):
             m.cleanup()
 
 
-def prepare_sampling(model: 'ModelPatcher', noise_shape, conds):
-    real_model: 'BaseModel' = None
+def prepare_sampling(model: ModelPatcher, noise_shape, conds, model_options=None):
+    real_model: BaseModel = None
     models, inference_memory = get_additional_models(conds, model.model_dtype())
+    models += get_additional_models_from_model_options(model_options)
     models += model.get_nested_additional_models()  # TODO: does this require inference_memory update?
     memory_required = model.memory_required([noise_shape[0] * 2] + list(noise_shape[1:])) + inference_memory
     minimum_memory_required = model.memory_required([noise_shape[0]] + list(noise_shape[1:])) + inference_memory
@@ -130,5 +135,26 @@ def prepare_model_patcher(model: 'ModelPatcher', conds, model_options: dict):
     # add wrappers and callbacks from ModelPatcher to transformer_options
     model_options["transformer_options"]["wrappers"] = comfy.patcher_extension.copy_nested_dicts(model.wrappers)
     model_options["transformer_options"]["callbacks"] = comfy.patcher_extension.copy_nested_dicts(model.callbacks)
-    # register hooks on model/model_options
-    model.register_all_hook_patches(hooks, comfy.hooks.create_target_dict(comfy.hooks.EnumWeightTarget.Model), model_options)
+    # begin registering hooks
+    registered = comfy.hooks.HookGroup()
+    target_dict = comfy.hooks.create_target_dict(comfy.hooks.EnumWeightTarget.Model)
+    # handle all TransformerOptionsHooks
+    for hook in hooks.get_type(comfy.hooks.EnumHookType.TransformerOptions):
+        hook: comfy.hooks.TransformerOptionsHook
+        hook.add_hook_patches(model, model_options, target_dict, registered)
+    # handle all AddModelsHooks
+    for hook in hooks.get_type(comfy.hooks.EnumHookType.AddModels):
+        hook: comfy.hooks.AddModelsHook
+        hook.add_hook_patches(model, model_options, target_dict, registered)
+    # handle all WeightHooks by registering on ModelPatcher
+    model.register_all_hook_patches(hooks, target_dict, model_options, registered)
+    # add registered_hooks onto model_options for further reference
+    if len(registered) > 0:
+        model_options["registered_hooks"] = registered
+    # merge original wrappers and callbacks with hooked wrappers and callbacks
+    to_load_options: dict[str] = model_options.setdefault("to_load_options", {})
+    for wc_name in ["wrappers", "callbacks"]:
+        comfy.patcher_extension.merge_nested_dicts(to_load_options.setdefault(wc_name, {}), model_options["transformer_options"][wc_name],
+                                                    copy_dict1=False)
+    return to_load_options
+    
