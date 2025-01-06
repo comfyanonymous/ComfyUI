@@ -855,7 +855,7 @@ def cast_to_load_options(model_options: dict[str], device=None, dtype=None):
     to_load_options = model_options.get("to_load_options", None)
     if to_load_options is None:
         return
-    
+
     casts = []
     if device is not None:
         casts.append(device)
@@ -864,7 +864,7 @@ def cast_to_load_options(model_options: dict[str], device=None, dtype=None):
     # if nothing to apply, do nothing
     if len(casts) == 0:
         return
-    
+
     # Try to call .to on patches
     if "patches" in to_load_options:
         patches = to_load_options["patches"]

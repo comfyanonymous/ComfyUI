@@ -255,7 +255,7 @@ class TransformerOptionsHook(Hook):
             registered.add(self)
         comfy.patcher_extension.merge_nested_dicts(model_options, add_model_options, copy_dict1=False)
         return True
-    
+
     def on_apply_hooks(self, model: ModelPatcher, transformer_options: dict[str]):
         comfy.patcher_extension.merge_nested_dicts(transformer_options, self.transformers_dict, copy_dict1=False)
 
@@ -290,7 +290,7 @@ class SetInjectionsHook(Hook):
 class HookGroup:
     '''
     Stores groups of hooks, and allows them to be queried by type.
-    
+
     To prevent breaking their functionality, never modify the underlying self.hooks or self._hook_dict vars directly;
     always use the provided functions on HookGroup.
     '''
