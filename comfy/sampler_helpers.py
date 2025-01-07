@@ -94,8 +94,8 @@ def get_additional_models_from_model_options(model_options: dict[str]=None):
     models = []
     if model_options is not None and "registered_hooks" in model_options:
         registered: comfy.hooks.HookGroup = model_options["registered_hooks"]
-        for hook in registered.get_type(comfy.hooks.EnumHookType.AddModels):
-            hook: comfy.hooks.AddModelsHook
+        for hook in registered.get_type(comfy.hooks.EnumHookType.AdditionalModels):
+            hook: comfy.hooks.AdditionalModelsHook
             models.extend(hook.models)
     return models
 
@@ -146,8 +146,8 @@ def prepare_model_patcher(model: 'ModelPatcher', conds, model_options: dict):
         hook: comfy.hooks.TransformerOptionsHook
         hook.add_hook_patches(model, model_options, target_dict, registered)
     # handle all AddModelsHooks
-    for hook in hooks.get_type(comfy.hooks.EnumHookType.AddModels):
-        hook: comfy.hooks.AddModelsHook
+    for hook in hooks.get_type(comfy.hooks.EnumHookType.AdditionalModels):
+        hook: comfy.hooks.AdditionalModelsHook
         hook.add_hook_patches(model, model_options, target_dict, registered)
     # handle all WeightHooks by registering on ModelPatcher
     model.register_all_hook_patches(hooks, target_dict, model_options, registered)
