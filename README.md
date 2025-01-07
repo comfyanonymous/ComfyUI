@@ -66,7 +66,7 @@ If coming from the very start, you need :
    installation remember to check the box for "Add Python to PATH when you are at the "Customize Python" screen.
 3. **Visual C++ Runtime**: Download [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe) and install it.
 4. Install **HIP SDK 5.7.1** from [HERE](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html)
-    - **Update**: HIP 6.1.2 released now, but there are problems so no need to use that one, please be careful about
+    - **Update**: HIP 6.1.x is available but as of 01.2025 there are no speed improvements of it over using 5.7.1 as far as I know , please be careful about
       selecting the correct version, "Windows 10 & 11 5.7.1 HIP SDK"
 5. Add the system variable HIP_PATH, value: `C:\\Program Files\\AMD\\ROCm\\5.7\\` (This is the default folder, if you
    have installed it on another drive, change if necessary)
