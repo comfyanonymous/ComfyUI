@@ -415,7 +415,6 @@ class ModelPatcher:
         Example:
             patcher = ModelPatcher()
             weight = patcher.get_model_object("layer1.conv.weight")
-            # Equivalent to: patcher.model.layer1.conv.weight
         """
         if name in self.object_patches:
             return self.object_patches[name]
