@@ -842,6 +842,9 @@ class ModelPatcher:
         if key in self.injections:
             self.injections.pop(key)
 
+    def get_injections(self, key: str):
+        return self.injections.get(key, None)
+
     def set_additional_models(self, key: str, models: list['ModelPatcher']):
         self.additional_models[key] = models
 
