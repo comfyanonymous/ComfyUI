@@ -4,7 +4,7 @@
 
 </div>
 
-- under models\unet folder : your main flux model , it could be dev, schnell or any custom model based on those. I suggest : https://civitai.com/models/686814/jib-mix-flux?modelVersionId=1193229
+- under models\unet folder : your main flux model , it could be dev, schnell or any custom model based on those. I suggest : [https://civitai.com/models/686814/jib-mix-flux?modelVersionId=1193229](https://civitai.com/models/686814?modelVersionId=1249737)
   
 - under models\clip folder : two necessary clip models, one small
 (https://huggingface.co/zer0int/CLIP-GmP-ViT-L-14/blob/main/ViT-L-14-TEXT-detail-improved-hiT-GmP-TE-only-HF.safetensors)
