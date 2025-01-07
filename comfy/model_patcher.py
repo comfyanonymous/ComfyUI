@@ -413,9 +413,9 @@ class ModelPatcher:
             The value of the requested attribute
 
         Example:
-            model = MyModel()
-            weight = get_attr(model, "layer1.conv.weight")
-            # Equivalent to: model.layer1.conv.weight
+            patcher = ModelPatcher()
+            weight = patcher.get_model_object("layer1.conv.weight")
+            # Equivalent to: patcher.model.layer1.conv.weight
         """
         if name in self.object_patches:
             return self.object_patches[name]
