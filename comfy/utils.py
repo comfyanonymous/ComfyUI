@@ -693,7 +693,25 @@ def copy_to_param(obj, attr, value):
     prev = getattr(obj, attrs[-1])
     prev.data.copy_(value)
 
-def get_attr(obj, attr):
+def get_attr(obj, attr: str):
+    """Retrieves a nested attribute from an object using dot notation.
+
+    Args:
+        obj: The object to get the attribute from
+        attr (str): The attribute path using dot notation (e.g. "model.layer.weight")
+
+    Returns:
+        The value of the requested attribute
+
+    Example:
+        model = MyModel()
+        weight = get_attr(model, "layer1.conv.weight")
+        # Equivalent to: model.layer1.conv.weight
+
+    Important:
+        Always prefer `comfy.model_patcher.ModelPatcher.get_model_object` when
+        accessing nested model objects under `ModelPatcher.model`.
+    """
     attrs = attr.split(".")
     for name in attrs:
         obj = getattr(obj, name)
