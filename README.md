@@ -4,8 +4,6 @@
 
 Windows-only version of ComfyUI which uses ZLUDA to get better performance with AMD GPUs.
 
-![ComfyUI Screenshot](comfyui.png)
-
 </div>
 
 ## Table of Contents
@@ -18,6 +16,8 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 
 ## What's New?
 
+* Updated ZLUDA version to 3.8.5. If you have already installed comfyui-zluda, you can update zluda with running `patchzluda.bat` once. Of course, remember the
+  first time for every type of model would take extra time. 
 * Added a "small flux guide." This aims to use low vram and provides the very basic necessary files needed to get flux generation running. [HERE](fluxguide.md)
 * Added --reserve-vram with the value of 0.9 to commandline options that run with the app on startup. Greatly helps reduce using too much memory on generations.
 * Changed `start.bat` to `comfyui.bat` because there is already a windows command by that name, which
