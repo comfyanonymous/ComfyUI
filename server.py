@@ -20,6 +20,7 @@ from io import BytesIO
 
 import aiohttp
 from aiohttp import web
+import toml
 import logging
 
 import mimetypes
@@ -45,19 +46,9 @@ async def send_socket_catch_exception(function, message):
         logging.warning("send error: {}".format(err))
 
 def get_comfyui_version():
-    comfyui_version = "unknown"
-    repo_path = os.path.dirname(os.path.realpath(__file__))
-    try:
-        import pygit2
-        repo = pygit2.Repository(repo_path)
-        comfyui_version = repo.describe(describe_strategy=pygit2.GIT_DESCRIBE_TAGS)
-    except Exception:
-        try:
-            import subprocess
-            comfyui_version = subprocess.check_output(["git", "describe", "--tags"], cwd=repo_path).decode('utf-8')
-        except Exception as e:
-            logging.warning(f"Failed to get ComfyUI version: {e}")
-    return comfyui_version.strip()
+    """ Get the version of ComfyUI from the pyproject.toml file. """
+    with open("pyproject.toml", "r", encoding="utf-8") as f:
+        return toml.load(f)["project"]["version"]
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
