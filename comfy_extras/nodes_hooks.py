@@ -246,7 +246,7 @@ class SetClipHooks:
     CATEGORY = "advanced/hooks/clip"
     FUNCTION = "apply_hooks"
 
-    def apply_hooks(self, clip: 'CLIP', schedule_clip: bool, apply_to_conds: bool, hooks: comfy.hooks.HookGroup=None):
+    def apply_hooks(self, clip: CLIP, schedule_clip: bool, apply_to_conds: bool, hooks: comfy.hooks.HookGroup=None):
         if hooks is not None:
             clip = clip.clone()
             if apply_to_conds:
