@@ -1,7 +1,7 @@
 name: Update Version File
 
 on:
-  push:
+  pull_request:
     paths:
       - "pyproject.toml"
     branches:
