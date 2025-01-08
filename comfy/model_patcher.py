@@ -218,6 +218,8 @@ class ModelPatcher:
         self.is_clip = False
         self.hook_mode = comfy.hooks.EnumHookMode.MaxSpeed
 
+        self.is_multigpu_clone = False
+
         if not hasattr(self.model, 'model_loaded_weight_memory'):
             self.model.model_loaded_weight_memory = 0
 
@@ -292,6 +294,8 @@ class ModelPatcher:
         n.forced_hooks = self.forced_hooks.clone() if self.forced_hooks else self.forced_hooks
         n.is_clip = self.is_clip
         n.hook_mode = self.hook_mode
+
+        n.is_multigpu_clone = self.is_multigpu_clone
 
         for callback in self.get_all_callbacks(CallbacksMP.ON_CLONE):
             callback(self, n)
