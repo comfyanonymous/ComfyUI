@@ -10,6 +10,8 @@ on:
 jobs:
   update-version:
     runs-on: ubuntu-latest
+    # Don't run on fork PRs
+    if: github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       pull-requests: write
       contents: write
