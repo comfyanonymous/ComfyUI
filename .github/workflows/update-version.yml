@@ -46,6 +46,8 @@ jobs:
         run: |
           git config --local user.name "github-actions"
           git config --local user.email "github-actions@github.com"
+          git fetch origin ${{ github.head_ref }}
+          git checkout -B ${{ github.head_ref }} origin/${{ github.head_ref }}
           git add version.py
           git diff --quiet && git diff --staged --quiet || git commit -m "chore: Update version.py to match pyproject.toml"
-          git push
+          git push origin HEAD:${{ github.head_ref }}
