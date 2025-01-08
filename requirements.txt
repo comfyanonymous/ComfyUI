@@ -13,7 +13,6 @@ Pillow
 scipy
 tqdm
 psutil
-toml
 
 #non essential dependencies:
 kornia>=0.7.1

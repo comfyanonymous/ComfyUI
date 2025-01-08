@@ -20,7 +20,6 @@ from io import BytesIO
 
 import aiohttp
 from aiohttp import web
-import toml
 import logging
 
 import mimetypes
@@ -28,6 +27,7 @@ from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
 import node_helpers
+from version import __version__
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
@@ -44,15 +44,6 @@ async def send_socket_catch_exception(function, message):
         await function(message)
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError, BrokenPipeError, ConnectionError) as err:
         logging.warning("send error: {}".format(err))
-
-def get_comfyui_version():
-    """ Get the version of ComfyUI from the pyproject.toml file.
-
-    Note:
-        Use Python's built-in `tomllib` from Python 3.11 or later when available.
-    """
-    with open("pyproject.toml", "r", encoding="utf-8") as f:
-        return toml.load(f)["project"]["version"]
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -513,7 +504,7 @@ class PromptServer():
                     "os": os.name,
                     "ram_total": ram_total,
                     "ram_free": ram_free,
-                    "comfyui_version": get_comfyui_version(),
+                    "comfyui_version": __version__,
                     "python_version": sys.version,
                     "pytorch_version": comfy.model_management.torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
