@@ -46,7 +46,11 @@ async def send_socket_catch_exception(function, message):
         logging.warning("send error: {}".format(err))
 
 def get_comfyui_version():
-    """ Get the version of ComfyUI from the pyproject.toml file. """
+    """ Get the version of ComfyUI from the pyproject.toml file.
+
+    Note:
+        Use Python's built-in `tomllib` from Python 3.11 or later when available.
+    """
     with open("pyproject.toml", "r", encoding="utf-8") as f:
         return toml.load(f)["project"]["version"]
 
