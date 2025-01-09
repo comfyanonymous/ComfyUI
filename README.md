@@ -240,7 +240,6 @@ UV is an extremely fast Python package and project manager, written in Rust. For
 ```bash
 git clone https://github.com/comfyanonymous/ComfyUI.git # Clone this repo
 cd ComfyUI                                              # Move to created folder
-uv init                                                 # Start uv project in current folder
 uv add --requirements requirements.txt                  # Add dependencies
 ```
 
