@@ -1,12 +1,13 @@
 from __future__ import annotations
 from .k_diffusion import sampling as k_diffusion_sampling
 from .extra_samplers import uni_pc
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, NamedTuple
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
     from comfy.model_base import BaseModel
     from comfy.controlnet import ControlBase
 import torch
+from functools import partial
 import collections
 from comfy import model_management
 import math
@@ -144,7 +145,7 @@ def cond_cat(c_list):
 
     return out
 
-def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.HookGroup,list[tuple[tuple,int]]], default_conds: list[list[dict]], x_in, timestep):
+def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.HookGroup,list[tuple[tuple,int]]], default_conds: list[list[dict]], x_in, timestep, model_options):
     # need to figure out remaining unmasked area for conds
     default_mults = []
     for _ in default_conds:
@@ -183,7 +184,7 @@ def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.H
             # replace p's mult with calculated mult
             p = p._replace(mult=mult)
             if p.hooks is not None:
-                model.current_patcher.prepare_hook_patches_current_keyframe(timestep, p.hooks)
+                model.current_patcher.prepare_hook_patches_current_keyframe(timestep, p.hooks, model_options)
             hooked_to_run.setdefault(p.hooks, list())
             hooked_to_run[p.hooks] += [(p, i)]
 
@@ -218,13 +219,13 @@ def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Te
                 if p is None:
                     continue
                 if p.hooks is not None:
-                    model.current_patcher.prepare_hook_patches_current_keyframe(timestep, p.hooks)
+                    model.current_patcher.prepare_hook_patches_current_keyframe(timestep, p.hooks, model_options)
                 hooked_to_run.setdefault(p.hooks, list())
                 hooked_to_run[p.hooks] += [(p, i)]
         default_conds.append(default_c)
 
     if has_default_conds:
-        finalize_default_conds(model, hooked_to_run, default_conds, x_in, timestep)
+        finalize_default_conds(model, hooked_to_run, default_conds, x_in, timestep, model_options)
 
     model.current_patcher.prepare_state(timestep)
 
@@ -466,6 +467,13 @@ def linear_quadratic_schedule(model_sampling, steps, threshold_noise=0.025, line
         sigma_schedule = linear_sigma_schedule + quadratic_sigma_schedule + [1.0]
         sigma_schedule = [1.0 - x for x in sigma_schedule]
     return torch.FloatTensor(sigma_schedule) * model_sampling.sigma_max.cpu()
+
+# Referenced from https://github.com/AUTOMATIC1111/stable-diffusion-webui/pull/15608
+def kl_optimal_scheduler(n: int, sigma_min: float, sigma_max: float) -> torch.Tensor:
+    adj_idxs = torch.arange(n, dtype=torch.float).div_(n - 1)
+    sigmas = adj_idxs.new_zeros(n + 1)
+    sigmas[:-1] = (adj_idxs * math.atan(sigma_min) + (1 - adj_idxs) * math.atan(sigma_max)).tan_()
+    return sigmas
 
 def get_mask_aabb(masks):
     if masks.numel() == 0:
@@ -840,7 +848,9 @@ class CFGGuider:
 
         self.conds = process_conds(self.inner_model, noise, self.conds, device, latent_image, denoise_mask, seed)
 
-        extra_args = {"model_options": comfy.model_patcher.create_model_options_clone(self.model_options), "seed": seed}
+        extra_model_options = comfy.model_patcher.create_model_options_clone(self.model_options)
+        extra_model_options.setdefault("transformer_options", {})["sample_sigmas"] = sigmas
+        extra_args = {"model_options": extra_model_options, "seed": seed}
 
         executor = comfy.patcher_extension.WrapperExecutor.new_class_executor(
             sampler.sample,
@@ -911,29 +921,37 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     return cfg_guider.sample(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
 
 
-SCHEDULER_NAMES = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta", "linear_quadratic"]
 SAMPLER_NAMES = KSAMPLER_NAMES + ["ddim", "uni_pc", "uni_pc_bh2"]
 
-def calculate_sigmas(model_sampling, scheduler_name, steps):
-    if scheduler_name == "karras":
-        sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
-    elif scheduler_name == "exponential":
-        sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
-    elif scheduler_name == "normal":
-        sigmas = normal_scheduler(model_sampling, steps)
-    elif scheduler_name == "simple":
-        sigmas = simple_scheduler(model_sampling, steps)
-    elif scheduler_name == "ddim_uniform":
-        sigmas = ddim_scheduler(model_sampling, steps)
-    elif scheduler_name == "sgm_uniform":
-        sigmas = normal_scheduler(model_sampling, steps, sgm=True)
-    elif scheduler_name == "beta":
-        sigmas = beta_scheduler(model_sampling, steps)
-    elif scheduler_name == "linear_quadratic":
-        sigmas = linear_quadratic_schedule(model_sampling, steps)
-    else:
-        logging.error("error invalid scheduler {}".format(scheduler_name))
-    return sigmas
+class SchedulerHandler(NamedTuple):
+    handler: Callable[..., torch.Tensor]
+    # Boolean indicates whether to call the handler like:
+    #  scheduler_function(model_sampling, steps) or
+    #  scheduler_function(n, sigma_min: float, sigma_max: float)
+    use_ms: bool = True
+
+SCHEDULER_HANDLERS = {
+    "normal": SchedulerHandler(normal_scheduler),
+    "karras": SchedulerHandler(k_diffusion_sampling.get_sigmas_karras, use_ms=False),
+    "exponential": SchedulerHandler(k_diffusion_sampling.get_sigmas_exponential, use_ms=False),
+    "sgm_uniform": SchedulerHandler(partial(normal_scheduler, sgm=True)),
+    "simple": SchedulerHandler(simple_scheduler),
+    "ddim_uniform": SchedulerHandler(ddim_scheduler),
+    "beta": SchedulerHandler(beta_scheduler),
+    "linear_quadratic": SchedulerHandler(linear_quadratic_schedule),
+    "kl_optimal": SchedulerHandler(kl_optimal_scheduler, use_ms=False),
+}
+SCHEDULER_NAMES = list(SCHEDULER_HANDLERS)
+
+def calculate_sigmas(model_sampling: object, scheduler_name: str, steps: int) -> torch.Tensor:
+    handler = SCHEDULER_HANDLERS.get(scheduler_name)
+    if handler is None:
+        err = f"error invalid scheduler {scheduler_name}"
+        logging.error(err)
+        raise ValueError(err)
+    if handler.use_ms:
+        return handler.handler(model_sampling, steps)
+    return handler.handler(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
 
 def sampler_object(name):
     if name == "uni_pc":

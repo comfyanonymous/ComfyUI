@@ -693,7 +693,25 @@ def copy_to_param(obj, attr, value):
     prev = getattr(obj, attrs[-1])
     prev.data.copy_(value)
 
-def get_attr(obj, attr):
+def get_attr(obj, attr: str):
+    """Retrieves a nested attribute from an object using dot notation.
+
+    Args:
+        obj: The object to get the attribute from
+        attr (str): The attribute path using dot notation (e.g. "model.layer.weight")
+
+    Returns:
+        The value of the requested attribute
+
+    Example:
+        model = MyModel()
+        weight = get_attr(model, "layer1.conv.weight")
+        # Equivalent to: model.layer1.conv.weight
+
+    Important:
+        Always prefer `comfy.model_patcher.ModelPatcher.get_model_object` when
+        accessing nested model objects under `ModelPatcher.model`.
+    """
     attrs = attr.split(".")
     for name in attrs:
         obj = getattr(obj, name)
@@ -727,7 +745,7 @@ def bislerp(samples, width, height):
         res *= (b1_norms * (1.0-r) + b2_norms * r).expand(-1,c)
 
         #edge cases for same or polar opposites
-        res[dot > 1 - 1e-5] = b1[dot > 1 - 1e-5] 
+        res[dot > 1 - 1e-5] = b1[dot > 1 - 1e-5]
         res[dot < 1e-5 - 1] = (b1 * (1.0-r) + b2 * r)[dot < 1e-5 - 1]
         return res
 
@@ -893,7 +911,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
         out = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
         out_div = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
 
-        positions = [range(0, s.shape[d+2], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
+        positions = [range(0, s.shape[d+2] - overlap[d], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
 
         for it in itertools.product(*positions):
             s_in = s

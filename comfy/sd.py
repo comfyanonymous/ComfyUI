@@ -111,7 +111,7 @@ class CLIP:
             model_management.load_models_gpu([self.patcher], force_full_load=True)
         self.layer_idx = None
         self.use_clip_schedule = False
-        logging.info("CLIP model load device: {}, offload device: {}, current: {}, dtype: {}".format(load_device, offload_device, params['device'], dtype))
+        logging.info("CLIP/text encoder model load device: {}, offload device: {}, current: {}, dtype: {}".format(load_device, offload_device, params['device'], dtype))
 
     def clone(self):
         n = CLIP(no_init=True)
@@ -898,7 +898,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
     if output_model:
         model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device())
         if inital_load_device != torch.device("cpu"):
-            logging.info("loaded straight to GPU")
+            logging.info("loaded diffusion model directly to GPU")
             model_management.load_models_gpu([model_patcher], force_full_load=True)
 
     return (model_patcher, clip, vae, clipvision)

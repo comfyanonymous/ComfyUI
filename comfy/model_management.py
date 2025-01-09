@@ -1121,17 +1121,12 @@ def soft_empty_cache(force=False):
     elif is_ascend_npu():
         torch.npu.empty_cache()
     elif torch.cuda.is_available():
-        if force or is_nvidia(): #This seems to make things worse on ROCm so I only do it for cuda
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
 
 def unload_all_models():
     free_memory(1e30, get_torch_device())
 
-
-def resolve_lowvram_weight(weight, model, key): #TODO: remove
-    logging.warning("The comfy.model_management.resolve_lowvram_weight function will be removed soon, please stop using it.")
-    return weight
 
 #TODO: might be cleaner to put this somewhere else
 import threading

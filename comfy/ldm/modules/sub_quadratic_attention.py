@@ -17,10 +17,10 @@ import math
 import logging
 
 try:
-	from typing import Optional, NamedTuple, List, Protocol
+    from typing import Optional, NamedTuple, List, Protocol
 except ImportError:
-	from typing import Optional, NamedTuple, List
-	from typing_extensions import Protocol
+    from typing import Optional, NamedTuple, List
+    from typing_extensions import Protocol
 
 from typing import List
 

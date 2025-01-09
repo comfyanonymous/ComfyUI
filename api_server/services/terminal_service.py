@@ -28,7 +28,7 @@ class TerminalService:
 
         if columns != self.cols:
             self.cols = columns
-            changed = True 
+            changed = True
 
         if lines != self.rows:
             self.rows = lines
