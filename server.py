@@ -27,7 +27,7 @@ from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
 import node_helpers
-from version import __version__
+from comfyui_version import __version__
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
