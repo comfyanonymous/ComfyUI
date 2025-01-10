@@ -16,8 +16,8 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 
 ## What's New?
 
-* Updated ZLUDA version to 3.8.5. If you have already installed comfyui-zluda, you can update zluda with running `patchzluda.bat` once. Of course, remember the
-  first time for every type of model would take extra time. 
+* Reverted zluda version back to 3.8.4. After updating try running patchzluda and if still have problems, delete venv and re-run install.bat.
+* U̶p̶d̶a̶t̶e̶d̶ Z̶L̶U̶D̶A̶ v̶e̶r̶s̶i̶o̶n̶ t̶o̶ 3̶.8̶.5̶. I̶f̶ y̶o̶u̶ h̶a̶v̶e̶ a̶l̶r̶e̶a̶d̶y̶ i̶n̶s̶t̶a̶l̶l̶e̶d̶ c̶o̶m̶f̶y̶u̶i̶-̶z̶l̶u̶d̶a̶, y̶o̶u̶ c̶a̶n̶ u̶p̶d̶a̶t̶e̶ z̶l̶u̶d̶a̶ w̶i̶t̶h̶ r̶u̶n̶n̶i̶n̶g̶ `̶p̶a̶t̶c̶h̶z̶l̶u̶d̶a̶.b̶a̶t̶`̶ o̶n̶c̶e̶. O̶f̶ c̶o̶u̶r̶s̶e̶, r̶e̶m̶e̶m̶b̶e̶r̶ t̶h̶e̶  f̶i̶r̶s̶t̶ t̶i̶m̶e̶ f̶o̶r̶ e̶v̶e̶r̶y̶ t̶y̶p̶e̶ o̶f̶ m̶o̶d̶e̶l̶ w̶o̶u̶l̶d̶ t̶a̶k̶e̶ e̶x̶t̶r̶a̶ t̶i̶m̶e̶. 
 * Added a "small flux guide." This aims to use low vram and provides the very basic necessary files needed to get flux generation running. [HERE](fluxguide.md)
 * Added --reserve-vram with the value of 0.9 to commandline options that run with the app on startup. Greatly helps reduce using too much memory on generations.
 * Changed `start.bat` to `comfyui.bat` because there is already a windows command by that name, which
