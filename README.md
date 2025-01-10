@@ -23,7 +23,7 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 * Changed `start.bat` to `comfyui.bat` because there is already a windows command by that name, which
   creates some problems. Also added  `fix-update.bat` which solves the problem that causes not being able to
   update to the latest version.
-* Updated ZLUDA to 3.8.4, thanks to lshqqytiger for still supporting HIP SDK 5.7. Install will install that version from
+* Updated ZLUDA to 3.8.4, thanks to lshqqytiger for still supporting HIP SDK 5.7.1. Install will install that version from
   now on, and if you are already on the previous one please run `patchzluda.bat` once. Of course, remember the
   first time for every type of model would take extra time. You can still use both zluda's on the same machine btw. But
   I recommend updating.
@@ -126,8 +126,7 @@ patchzluda.bat
   nvidia
   gpu's.
 - If you see zluda errors make sure these three files are inside "ComfyUI-Zluda\venv\Lib\site-packages\torch\lib\"
-  `cublas64_11.dll (196kb)` `cusparse64_11.dll (193kb)` `nvrtc64_112_0.dll (125kb)` If they are there but bigger files
-  run : `patchzluda.bat`
+  `cublas64_11.dll (231kb)` `cusparse64_11.dll (199kb)` `nvrtc64_112_0.dll (129kb)` If they are there but much bigger in size please run : `patchzluda.bat`
 - If for some reason you can't solve with these and want to start from zero, delete "venv" folder and re-run
   `install.bat`
 - If you can't git pull to the latest version, run these commands, `git fetch --all` and then
