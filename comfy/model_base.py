@@ -33,6 +33,7 @@ import comfy.ldm.audio.embedders
 import comfy.ldm.flux.model
 import comfy.ldm.lightricks.model
 import comfy.ldm.hunyuan_video.model
+import comfy.ldm.cosmos.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -855,4 +856,20 @@ class HunyuanVideo(BaseModel):
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([kwargs.get("guidance", 6.0)]))
+        return out
+
+class CosmosVideo(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.EDM, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.cosmos.model.GeneralDIT)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        out['fps'] = comfy.conds.CONDConstant(kwargs.get("frame_rate", None))
         return out

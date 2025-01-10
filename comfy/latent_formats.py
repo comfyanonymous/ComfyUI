@@ -382,3 +382,7 @@ class HunyuanVideo(LatentFormat):
     ]
 
     latent_rgb_factors_bias = [ 0.0259, -0.0192, -0.0761]
+
+class Cosmos1CV8x8x8(LatentFormat):
+    latent_channels = 16
+    latent_dimensions = 3
