@@ -52,7 +52,9 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
    - [Mochi](https://comfyanonymous.github.io/ComfyUI_examples/mochi/)
    - [LTX-Video](https://comfyanonymous.github.io/ComfyUI_examples/ltxv/)
    - [Hunyuan Video](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_video/)
-- [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
+- Audio Models
+   - [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/stable_audio/)
+   - [TangoFlux](https://comfyanonymous.github.io/ComfyUI_examples/tangoflux/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Smart memory management: can automatically run models on GPUs with as low as 1GB vram.
