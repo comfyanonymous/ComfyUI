@@ -150,6 +150,10 @@ async def main(from_script_dir: Optional[Path] = None):
 
     # always create directories when started interactively
     folder_paths.create_directories()
+    if args.create_directories:
+        import_all_nodes_in_workspace(raise_on_failure=False)
+        folder_paths.create_directories()
+        exit(0)
 
     if args.windows_standalone_build:
         folder_paths.create_directories()
