@@ -44,7 +44,7 @@ echo  ::  %time:~0,8%  ::  - Installing ComfyUI-deepcache
 git clone https://github.com/styler00dollar/ComfyUI-deepcache.git --quiet
 cd ..
 echo. 
-echo  ::  %time:~0,8%  ::  - Patching ZLUDA (Zluda 3.8.4 for HIP SDK 5.7)
+echo  ::  %time:~0,8%  ::  - Patching ZLUDA (Zluda 3.8.5 for HIP SDK 5.7.1)
 curl -s -L https://github.com/lshqqytiger/ZLUDA/releases/download/rel.2930436a356baabafad9e66d49a5929ad2fc3eb9/ZLUDA-windows-rocm5-amd64.zip > zluda.zip
 tar -xf zluda.zip
 del zluda.zip
