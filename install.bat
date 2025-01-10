@@ -44,14 +44,14 @@ echo  ::  %time:~0,8%  ::  - Installing ComfyUI-deepcache
 git clone https://github.com/styler00dollar/ComfyUI-deepcache.git --quiet
 cd ..
 echo. 
-echo  ::  %time:~0,8%  ::  - Patching ZLUDA (Zluda 3.8.5 for HIP SDK 5.7.1)
-curl -s -L https://github.com/lshqqytiger/ZLUDA/releases/download/rel.2930436a356baabafad9e66d49a5929ad2fc3eb9/ZLUDA-windows-rocm5-amd64.zip > zluda.zip
+echo  ::  %time:~0,8%  ::  - Patching ZLUDA (Zluda 3.8.4 for HIP SDK 5.7.1)
+curl -s -L https://github.com/lshqqytiger/ZLUDA/releases/download/rel.c0804ca624963aab420cb418412b1c7fbae3454b/ZLUDA-windows-rocm5-amd64.zip > zluda.zip
 tar -xf zluda.zip
 del zluda.zip
 copy zluda\cublas.dll venv\Lib\site-packages\torch\lib\cublas64_11.dll /y >NUL
 copy zluda\cusparse.dll venv\Lib\site-packages\torch\lib\cusparse64_11.dll /y >NUL
 copy zluda\nvrtc.dll venv\Lib\site-packages\torch\lib\nvrtc64_112_0.dll /y >NUL
-@echo  ::  %time:~0,8%  ::  - ZLUDA is patched. (Zluda 3.8.5 for HIP 5.7.1)
+@echo  ::  %time:~0,8%  ::  - ZLUDA is patched. (Zluda 3.8.4 for HIP 5.7.1)
 echo. 
 set "endTime=%time: =0%"
 set "end=!endTime:%time:~8,1%=%%100)*100+1!"  &  set "start=!startTime:%time:~8,1%=%%100)*100+1!"
