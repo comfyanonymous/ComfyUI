@@ -210,7 +210,7 @@ class ModelPatcher:
         self.injections: dict[str, list[PatcherInjection]] = {}
 
         self.hook_patches: dict[comfy.hooks._HookRef] = {}
-        self.hook_patches_backup: dict[comfy.hooks._HookRef] = {}
+        self.hook_patches_backup: dict[comfy.hooks._HookRef] = None
         self.hook_backup: dict[str, tuple[torch.Tensor, torch.device]] = {}
         self.cached_hook_patches: dict[comfy.hooks.HookGroup, dict[str, torch.Tensor]] = {}
         self.current_hooks: Optional[comfy.hooks.HookGroup] = None
@@ -282,7 +282,7 @@ class ModelPatcher:
             n.injections[k] = i.copy()
         # hooks
         n.hook_patches = create_hook_patches_clone(self.hook_patches)
-        n.hook_patches_backup = create_hook_patches_clone(self.hook_patches_backup)
+        n.hook_patches_backup = create_hook_patches_clone(self.hook_patches_backup) if self.hook_patches_backup else self.hook_patches_backup
         for group in self.cached_hook_patches:
             n.cached_hook_patches[group] = {}
             for k in self.cached_hook_patches[group]:
@@ -855,6 +855,9 @@ class ModelPatcher:
         if key in self.injections:
             self.injections.pop(key)
 
+    def get_injections(self, key: str):
+        return self.injections.get(key, None)
+
     def set_additional_models(self, key: str, models: list['ModelPatcher']):
         self.additional_models[key] = models
 
@@ -925,9 +928,9 @@ class ModelPatcher:
             callback(self, timestep)
 
     def restore_hook_patches(self):
-        if len(self.hook_patches_backup) > 0:
+        if self.hook_patches_backup is not None:
             self.hook_patches = self.hook_patches_backup
-            self.hook_patches_backup = {}
+            self.hook_patches_backup = None
 
     def set_hook_mode(self, hook_mode: comfy.hooks.EnumHookMode):
         self.hook_mode = hook_mode
@@ -953,25 +956,26 @@ class ModelPatcher:
         if reset_current_hooks:
             self.patch_hooks(None)
 
-    def register_all_hook_patches(self, hooks_dict: dict[comfy.hooks.EnumHookType, dict[comfy.hooks.Hook, None]], target: comfy.hooks.EnumWeightTarget, model_options: dict=None):
+    def register_all_hook_patches(self, hooks: comfy.hooks.HookGroup, target_dict: dict[str], model_options: dict=None,
+                                  registered: comfy.hooks.HookGroup = None):
         self.restore_hook_patches()
-        registered_hooks: list[comfy.hooks.Hook] = []
-        # handle WrapperHooks, if model_options provided
-        if model_options is not None:
-            for hook in hooks_dict.get(comfy.hooks.EnumHookType.Wrappers, {}):
-                hook.add_hook_patches(self, model_options, target, registered_hooks)
+        if registered is None:
+            registered = comfy.hooks.HookGroup()
         # handle WeightHooks
         weight_hooks_to_register: list[comfy.hooks.WeightHook] = []
-        for hook in hooks_dict.get(comfy.hooks.EnumHookType.Weight, {}):
+        for hook in hooks.get_type(comfy.hooks.EnumHookType.Weight):
             if hook.hook_ref not in self.hook_patches:
                 weight_hooks_to_register.append(hook)
+            else:
+                registered.add(hook)
         if len(weight_hooks_to_register) > 0:
             # clone hook_patches to become backup so that any non-dynamic hooks will return to their original state
             self.hook_patches_backup = create_hook_patches_clone(self.hook_patches)
             for hook in weight_hooks_to_register:
-                hook.add_hook_patches(self, model_options, target, registered_hooks)
+                hook.add_hook_patches(self, model_options, target_dict, registered)
         for callback in self.get_all_callbacks(CallbacksMP.ON_REGISTER_ALL_HOOK_PATCHES):
-            callback(self, hooks_dict, target)
+            callback(self, hooks, target_dict, model_options, registered)
+        return registered
 
     def add_hook_patches(self, hook: comfy.hooks.WeightHook, patches, strength_patch=1.0, strength_model=1.0):
         with self.use_ejected():
@@ -1022,11 +1026,11 @@ class ModelPatcher:
     def apply_hooks(self, hooks: comfy.hooks.HookGroup, transformer_options: dict=None, force_apply=False):
         # TODO: return transformer_options dict with any additions from hooks
         if self.current_hooks == hooks and (not force_apply or (not self.is_clip and hooks is None)):
-            return {}
+            return comfy.hooks.create_transformer_options_from_hooks(self, hooks, transformer_options)
         self.patch_hooks(hooks=hooks)
         for callback in self.get_all_callbacks(CallbacksMP.ON_APPLY_HOOKS):
             callback(self, hooks)
-        return {}
+        return comfy.hooks.create_transformer_options_from_hooks(self, hooks, transformer_options)
 
     def patch_hooks(self, hooks: comfy.hooks.HookGroup):
         with self.use_ejected():
