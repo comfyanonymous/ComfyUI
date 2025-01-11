@@ -810,6 +810,33 @@ def preprocess_conds_hooks(conds: dict[str, list[dict[str]]]):
             for cond in conds_to_modify:
                 cond['hooks'] = hooks
 
+def filter_registered_hooks_on_conds(conds: dict[str, list[dict[str]]], model_options: dict[str]):
+    '''Modify 'hooks' on conds so that only hooks that were registered remain. Properly accounts for
+    HookGroups that have the same reference.'''
+    registered: comfy.hooks.HookGroup = model_options.get('registered_hooks', None)
+    # if None were registered, make sure all hooks are cleaned from conds
+    if registered is None:
+        for k in conds:
+            for kk in conds[k]:
+                kk.pop('hooks', None)
+        return
+    # find conds that contain hooks to be replaced - group by common HookGroup refs
+    hook_replacement: dict[comfy.hooks.HookGroup, list[dict]] = {}
+    for k in conds:
+        for kk in conds[k]:
+            hooks: comfy.hooks.HookGroup = kk.get('hooks', None)
+            if hooks is not None:
+                if not hooks.is_subset_of(registered):
+                    to_replace = hook_replacement.setdefault(hooks, [])
+                    to_replace.append(kk)
+    # for each hook to replace, create a new proper HookGroup and assign to all common conds
+    for hooks, conds_to_modify in hook_replacement.items():
+        new_hooks = hooks.new_with_common_hooks(registered)
+        if len(new_hooks) == 0:
+            new_hooks = None
+        for kk in conds_to_modify:
+            kk['hooks'] = new_hooks
+
 
 def get_total_hook_groups_in_conds(conds: dict[str, list[dict[str]]]):
     hooks_set = set()
@@ -819,9 +846,58 @@ def get_total_hook_groups_in_conds(conds: dict[str, list[dict[str]]]):
     return len(hooks_set)
 
 
+def cast_to_load_options(model_options: dict[str], device=None, dtype=None):
+    '''
+    If any patches from hooks, wrappers, or callbacks have .to to be called, call it.
+    '''
+    if model_options is None:
+        return
+    to_load_options = model_options.get("to_load_options", None)
+    if to_load_options is None:
+        return
+
+    casts = []
+    if device is not None:
+        casts.append(device)
+    if dtype is not None:
+        casts.append(dtype)
+    # if nothing to apply, do nothing
+    if len(casts) == 0:
+        return
+
+    # try to call .to on patches
+    if "patches" in to_load_options:
+        patches = to_load_options["patches"]
+        for name in patches:
+            patch_list = patches[name]
+            for i in range(len(patch_list)):
+                if hasattr(patch_list[i], "to"):
+                    for cast in casts:
+                        patch_list[i] = patch_list[i].to(cast)
+    if "patches_replace" in to_load_options:
+        patches = to_load_options["patches_replace"]
+        for name in patches:
+            patch_list = patches[name]
+            for k in patch_list:
+                if hasattr(patch_list[k], "to"):
+                    for cast in casts:
+                        patch_list[k] = patch_list[k].to(cast)
+    # try to call .to on any wrappers/callbacks
+    wrappers_and_callbacks = ["wrappers", "callbacks"]
+    for wc_name in wrappers_and_callbacks:
+        if wc_name in to_load_options:
+            wc: dict[str, list] = to_load_options[wc_name]
+            for wc_dict in wc.values():
+                for wc_list in wc_dict.values():
+                    for i in range(len(wc_list)):
+                        if hasattr(wc_list[i], "to"):
+                            for cast in casts:
+                                wc_list[i] = wc_list[i].to(cast)
+
+
 class CFGGuider:
-    def __init__(self, model_patcher):
-        self.model_patcher: 'ModelPatcher' = model_patcher
+    def __init__(self, model_patcher: ModelPatcher):
+        self.model_patcher = model_patcher
         self.model_options = model_patcher.model_options
         self.original_conds = {}
         self.cfg = 1.0
@@ -849,7 +925,7 @@ class CFGGuider:
         self.conds = process_conds(self.inner_model, noise, self.conds, device, latent_image, denoise_mask, seed)
 
         extra_model_options = comfy.model_patcher.create_model_options_clone(self.model_options)
-        extra_model_options.setdefault("transformer_options", {})["sigmas"] = sigmas
+        extra_model_options.setdefault("transformer_options", {})["sample_sigmas"] = sigmas
         extra_args = {"model_options": extra_model_options, "seed": seed}
 
         executor = comfy.patcher_extension.WrapperExecutor.new_class_executor(
@@ -861,7 +937,7 @@ class CFGGuider:
         return self.inner_model.process_latent_out(samples.to(torch.float32))
 
     def outer_sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
-        self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds)
+        self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds, self.model_options)
         device = self.model_patcher.load_device
 
         if denoise_mask is not None:
@@ -870,6 +946,7 @@ class CFGGuider:
         noise = noise.to(device)
         latent_image = latent_image.to(device)
         sigmas = sigmas.to(device)
+        cast_to_load_options(self.model_options, device=device, dtype=self.model_patcher.model_dtype())
 
         try:
             self.model_patcher.pre_run()
@@ -899,6 +976,7 @@ class CFGGuider:
             if get_total_hook_groups_in_conds(self.conds) <= 1:
                 self.model_patcher.hook_mode = comfy.hooks.EnumHookMode.MinVram
             comfy.sampler_helpers.prepare_model_patcher(self.model_patcher, self.conds, self.model_options)
+            filter_registered_hooks_on_conds(self.conds, self.model_options)
             executor = comfy.patcher_extension.WrapperExecutor.new_class_executor(
                 self.outer_sample,
                 self,
@@ -906,6 +984,7 @@ class CFGGuider:
             )
             output = executor.execute(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
         finally:
+            cast_to_load_options(self.model_options, device=self.model_patcher.offload_device)
             self.model_options = orig_model_options
             self.model_patcher.hook_mode = orig_hook_mode
             self.model_patcher.restore_hook_patches()
