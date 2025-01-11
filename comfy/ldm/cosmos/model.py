@@ -217,19 +217,19 @@ class GeneralDIT(nn.Module):
             raise ValueError(f"Unknown pos_emb_cls {self.pos_emb_cls}")
 
         logging.debug(f"Building positional embedding with {self.pos_emb_cls} class, impl {cls_type}")
-        kwargs = dict(
-            model_channels=self.model_channels,
-            len_h=self.max_img_h // self.patch_spatial,
-            len_w=self.max_img_w // self.patch_spatial,
-            len_t=self.max_frames // self.patch_temporal,
-            is_learnable=self.pos_emb_learnable,
-            interpolation=self.pos_emb_interpolation,
-            head_dim=self.model_channels // self.num_heads,
-            h_extrapolation_ratio=self.rope_h_extrapolation_ratio,
-            w_extrapolation_ratio=self.rope_w_extrapolation_ratio,
-            t_extrapolation_ratio=self.rope_t_extrapolation_ratio,
-            device=device,
-        )
+        kwargs = {
+            "model_channels": self.model_channels,
+            "len_h": self.max_img_h // self.patch_spatial,
+            "len_w": self.max_img_w // self.patch_spatial,
+            "len_t": self.max_frames // self.patch_temporal,
+            "is_learnable": self.pos_emb_learnable,
+            "interpolation": self.pos_emb_interpolation,
+            "head_dim": self.model_channels // self.num_heads,
+            "h_extrapolation_ratio": self.rope_h_extrapolation_ratio,
+            "w_extrapolation_ratio": self.rope_w_extrapolation_ratio,
+            "t_extrapolation_ratio": self.rope_t_extrapolation_ratio,
+            "device": device,
+        }
         self.pos_embedder = cls_type(
             **kwargs,
         )
