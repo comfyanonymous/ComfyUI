@@ -9,3 +9,15 @@ requires-python = ">=3.9"
 homepage = "https://www.comfy.org/"
 repository = "https://github.com/comfyanonymous/ComfyUI"
 documentation = "https://docs.comfy.org/"
+
+[tool.ruff]
+lint.select = [
+  "S307", # suspicious-eval-usage
+  "S102", # exec
+  "T",    # print-usage
+  "W",
+  # The "F" series in Ruff stands for "Pyflakes" rules, which catch various Python syntax errors and undefined names.
+  # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
+  "F",
+]
+exclude = ["*.ipynb"]
