@@ -143,7 +143,7 @@ def cond_cat(c_list, device=None):
     for k in temp:
         conds = temp[k]
         out[k] = conds[0].concat(conds[1:])
-        if device is not None:
+        if device is not None and hasattr(out[k], 'to'):
             out[k] = out[k].to(device)
 
     return out
