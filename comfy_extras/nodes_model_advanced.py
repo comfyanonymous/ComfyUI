@@ -189,7 +189,7 @@ class ModelSamplingContinuousEDM:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["v_prediction", "edm_playground_v2.5", "eps"],),
+                              "sampling": (["v_prediction", "edm", "edm_playground_v2.5", "eps"],),
                               "sigma_max": ("FLOAT", {"default": 120.0, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               "sigma_min": ("FLOAT", {"default": 0.002, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               }}
@@ -206,6 +206,9 @@ class ModelSamplingContinuousEDM:
         sigma_data = 1.0
         if sampling == "eps":
             sampling_type = comfy.model_sampling.EPS
+        elif sampling == "edm":
+            sampling_type = comfy.model_sampling.EDM
+            sigma_data = 0.5
         elif sampling == "v_prediction":
             sampling_type = comfy.model_sampling.V_PREDICTION
         elif sampling == "edm_playground_v2.5":
