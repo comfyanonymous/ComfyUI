@@ -16,6 +16,10 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 
 ## What's New?
 
+* Added a way to use any zluda you want (to use with HIP versions you want to use such as 6.1 - 6.2) After installing, close the app, run `patchzluda2.bat`. It will ask for url of the zluda build you want to use. You can choose from them here,
+ [lshyqqtiger's ZLUDA Fork](https://github.com/lshqqytiger/ZLUDA/releases) then you can use `patchzluda2.bat`, run it paste the link via right click (A correct link would be like this, `https://github.com/lshqqytiger/ZLUDA/releases/download/rel.d60bddbc870827566b3d2d417e00e1d2d8acc026/ZLUDA-windows-rocm6-amd64.zip`)
+ After pasting press enter and it would patch that zluda into comfy for you.
+
 * Reverted zluda version back to 3.8.4. After updating try running patchzluda and if still have problems, delete venv and re-run install.bat.
 * U̶p̶d̶a̶t̶e̶d̶ Z̶L̶U̶D̶A̶ v̶e̶r̶s̶i̶o̶n̶ t̶o̶ 3̶.8̶.5̶. I̶f̶ y̶o̶u̶ h̶a̶v̶e̶ a̶l̶r̶e̶a̶d̶y̶ i̶n̶s̶t̶a̶l̶l̶e̶d̶ c̶o̶m̶f̶y̶u̶i̶-̶z̶l̶u̶d̶a̶, y̶o̶u̶ c̶a̶n̶ u̶p̶d̶a̶t̶e̶ z̶l̶u̶d̶a̶ w̶i̶t̶h̶ r̶u̶n̶n̶i̶n̶g̶ `̶p̶a̶t̶c̶h̶z̶l̶u̶d̶a̶.b̶a̶t̶`̶ o̶n̶c̶e̶. O̶f̶ c̶o̶u̶r̶s̶e̶, r̶e̶m̶e̶m̶b̶e̶r̶ t̶h̶e̶  f̶i̶r̶s̶t̶ t̶i̶m̶e̶ f̶o̶r̶ e̶v̶e̶r̶y̶ t̶y̶p̶e̶ o̶f̶ m̶o̶d̶e̶l̶ w̶o̶u̶l̶d̶ t̶a̶k̶e̶ e̶x̶t̶r̶a̶ t̶i̶m̶e̶. 
 * Added a "small flux guide." This aims to use low vram and provides the very basic necessary files needed to get flux generation running. [HERE](fluxguide.md)
@@ -23,10 +27,6 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 * Changed `start.bat` to `comfyui.bat` because there is already a windows command by that name, which
   creates some problems. Also added  `fix-update.bat` which solves the problem that causes not being able to
   update to the latest version.
-* Updated ZLUDA to 3.8.4, thanks to lshqqytiger for still supporting HIP SDK 5.7.1. Install will install that version from
-  now on, and if you are already on the previous one please run `patchzluda.bat` once. Of course, remember the
-  first time for every type of model would take extra time. You can still use both zluda's on the same machine btw. But
-  I recommend updating.
 
 > [!IMPORTANT]
 > 
@@ -65,21 +65,24 @@ If coming from the very start, you need :
    Windows Store Version**. If you have that installed, uninstall and please install from python.org. During
    installation remember to check the box for "Add Python to PATH when you are at the "Customize Python" screen.
 3. **Visual C++ Runtime**: Download [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe) and install it.
-4. Install **HIP SDK 5.7.1** from [HERE](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html)
-    - **Update**: HIP 6.1.x is available but as of 01.2025 there are no speed improvements of it over using 5.7.1 as far as I know , please be careful about
-      selecting the correct version, "Windows 10 & 11 5.7.1 HIP SDK"
+4. Install **HIP SDK 5.7.1** from [HERE](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html) the correct version, "Windows 10 & 11 5.7.1 HIP SDK"
+
+   *** (*** this app installs zluda for 5.7.1 by default, if you want to use 6.1 or 6.2 you have to get the latest zluda link from
+    [lshyqqtiger's ZLUDA Fork](https://github.com/lshqqytiger/ZLUDA/releases) then you can use `patchzluda2.bat`, run it paste the link via right click (a correct link would be like this, `https://github.com/lshqqytiger/ZLUDA/releases/download/rel.d60bddbc870827566b3d2d417e00e1d2d8acc026/ZLUDA-windows-rocm6-amd64.zip` press enter and it would patch that zluda into comfy for you. Of course this also would mean you have to change the variables below from 
+"5.7" to "6.x" where needed) ***
+   
 5. Add the system variable HIP_PATH, value: `C:\\Program Files\\AMD\\ROCm\\5.7\\` (This is the default folder, if you
    have installed it on another drive, change if necessary)
     1. Check the variables on the lower part (System Variables), there should be a variable called: HIP_PATH.
     2. Also check the variables on the lower part (System Variables), there should be a variable called: "Path".
        Double-click it and click "New" add this: `C:\Program Files\AMD\ROCm\5.7\bin`
-6. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
+7. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
    from [Brknsoul Repository](https://github.com/brknsoul/ROCmLibs)
     1. Go to folder "C:\Program Files\AMD\ROCm\5.7\bin\rocblas", there would be a "library" folder, backup the files
        inside to somewhere else.
     2. Open your downloaded optimized library archive and put them inside the library folder (overwriting if
        necessary): "C:\\Program Files\\AMD\\ROCm\\5.7\\bin\\rocblas\\library"
-7. Reboot your system.
+8. Reboot your system.
 
 ## Setup (Windows-Only)
 
