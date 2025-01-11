@@ -456,9 +456,8 @@ class LTXVModel(torch.nn.Module):
         x = self.patchify_proj(x)
         timestep = timestep * 1000.0
 
-        attention_mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1]))
-        attention_mask = attention_mask.masked_fill(attention_mask.to(torch.bool), float("-inf"))  # not sure about this
-        # attention_mask = (context != 0).any(dim=2).to(dtype=x.dtype)
+        if attention_mask is not None and not torch.is_floating_point(attention_mask):
+            attention_mask = (attention_mask - 1).to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])) * torch.finfo(x.dtype).max
 
         pe = precompute_freqs_cis(indices_grid, dim=self.inner_dim, out_dtype=x.dtype)
 
