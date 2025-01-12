@@ -8,6 +8,7 @@ from tqdm.auto import trange, tqdm
 
 from . import utils
 from . import deis
+from . import res
 import comfy.model_patcher
 import comfy.model_sampling
 
@@ -1264,4 +1265,21 @@ def sample_dpmpp_2m_cfg_pp(model, x, sigmas, extra_args=None, callback=None, dis
             denoised_mix = -torch.exp(-h) * uncond_denoised - torch.expm1(-h) * (1 / (2 * r)) * (denoised - old_uncond_denoised)
         x = denoised + denoised_mix + torch.exp(-h) * x
         old_uncond_denoised = uncond_denoised
+    return x
+
+@torch.no_grad()
+def sample_res_multistep(model, x, sigmas, extra_args=None, callback=None, disable=None, s_churn=0., s_tmin=0., s_tmax=float('inf'), s_noise=1., noise_sampler=None):
+    extra_args = {} if extra_args is None else extra_args
+    seed = extra_args.get("seed", None)
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
+
+    x0_func = lambda x, sigma: model(x, sigma, **extra_args)
+
+    solver_cfg = res.SolverConfig()
+    solver_cfg.s_churn = s_churn
+    solver_cfg.s_t_max = s_tmax
+    solver_cfg.s_t_min = s_tmin
+    solver_cfg.s_noise = s_noise
+
+    x = res.differential_equation_solver(x0_func, sigmas, solver_cfg, noise_sampler, callback=callback, disable=disable)(x)
     return x
