@@ -239,6 +239,50 @@ def detect_unet_config(state_dict, key_prefix):
             dit_config["micro_condition"] = False
         return dit_config
 
+    if '{}blocks.block0.blocks.0.block.attn.to_q.0.weight'.format(key_prefix) in state_dict_keys:
+        dit_config = {}
+        dit_config["image_model"] = "cosmos"
+        dit_config["max_img_h"] = 240
+        dit_config["max_img_w"] = 240
+        dit_config["max_frames"] = 128
+        dit_config["in_channels"] = 16
+        dit_config["out_channels"] = 16
+        dit_config["patch_spatial"] = 2
+        dit_config["patch_temporal"] = 1
+        dit_config["model_channels"] = state_dict['{}blocks.block0.blocks.0.block.attn.to_q.0.weight'.format(key_prefix)].shape[0]
+        dit_config["block_config"] = "FA-CA-MLP"
+        dit_config["concat_padding_mask"] = True
+        dit_config["pos_emb_cls"] = "rope3d"
+        dit_config["pos_emb_learnable"] = False
+        dit_config["pos_emb_interpolation"] = "crop"
+        dit_config["block_x_format"] = "THWBD"
+        dit_config["affline_emb_norm"] = True
+        dit_config["use_adaln_lora"] = True
+        dit_config["adaln_lora_dim"] = 256
+
+        if dit_config["model_channels"] == 4096:
+            # 7B
+            dit_config["num_blocks"] = 28
+            dit_config["num_heads"] = 32
+            dit_config["extra_per_block_abs_pos_emb"] = True
+            dit_config["rope_h_extrapolation_ratio"] = 1.0
+            dit_config["rope_w_extrapolation_ratio"] = 1.0
+            dit_config["rope_t_extrapolation_ratio"] = 2.0
+            dit_config["extra_per_block_abs_pos_emb_type"] = "learnable"
+        else:  # 5120
+            # 14B
+            dit_config["num_blocks"] = 36
+            dit_config["num_heads"] = 40
+            dit_config["extra_per_block_abs_pos_emb"] = True
+            dit_config["rope_h_extrapolation_ratio"] = 2.0
+            dit_config["rope_w_extrapolation_ratio"] = 2.0
+            dit_config["rope_t_extrapolation_ratio"] = 2.0
+            dit_config["extra_h_extrapolation_ratio"] = 2.0
+            dit_config["extra_w_extrapolation_ratio"] = 2.0
+            dit_config["extra_t_extrapolation_ratio"] = 2.0
+            dit_config["extra_per_block_abs_pos_emb_type"] = "learnable"
+        return dit_config
+
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
 
@@ -393,6 +437,7 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
 def unet_prefix_from_state_dict(state_dict):
     candidates = ["model.diffusion_model.", #ldm/sgm models
                   "model.model.", #audio models
+                  "net.", #cosmos
                   ]
     counts = {k: 0 for k in candidates}
     for k in state_dict:
