@@ -13,7 +13,7 @@ import requests
 from dotenv import load_dotenv
 load_dotenv()
 
-amqp_addr = os.getenv('AMQP_ADDR') or 'amqp://api:gacdownatravKekmy9@51.8.120.154:5672/dev'
+amqp_addr = os.getenv('AMQP_ADDR') or 'amqp://api:gacdownatravy9@51.8.120.154:5672/dev'
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -59,7 +59,7 @@ class MemedeckWorker:
         self.amqp_url = amqp_addr
         self.queue_name = os.getenv('QUEUE_NAME') or 'generic-queue'
         self.api_url = os.getenv('API_ADDRESS') or 'http://0.0.0.0:8079/v2'
-        self.api_key = os.getenv('API_KEY') or 'eb46e20a-cc25-4ed4-a39b-f47ca8ff3383'
+        self.api_key = os.getenv('API_KEY') or 'fb46e20e-cc25-4ed4-a39b-d47ca8cc3383'
         self.is_dev = os.getenv('IS_DEV') or False
         
         self.training_only = os.getenv('TRAINING_ONLY') or False
