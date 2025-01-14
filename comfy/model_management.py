@@ -25,6 +25,7 @@ import sys
 import platform
 import weakref
 import gc
+import zluda
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -301,23 +302,9 @@ def get_torch_device_name(device):
         return "CUDA {}: {}".format(device, torch.cuda.get_device_name(device))
 
 try:
-    torch_device_name = get_torch_device_name(get_torch_device())
-   
-    if "[ZLUDA]" in torch_device_name:
-        print(" ")
-        print("***----------------------ZLUDA--------------------------***")
-        print("  ::  ZLUDA detected, disabling non-supported functions.")
-        torch.backends.cudnn.enabled = False
-        print("  ::  (cuDNN, flash_sdp, mem_efficient_sdp disabled) ")
-        torch.backends.cuda.enable_flash_sdp(False)
-        torch.backends.cuda.enable_math_sdp(True)
-        torch.backends.cuda.enable_mem_efficient_sdp(False)
-        print("***-----------------------------------------------------***")
-    print("  ::  Device:", torch_device_name)
-    print(" ")
-
+    logging.info("Device: {}".format(get_torch_device_name(get_torch_device())))
 except:
-    print("Could not pick default device.") 
+    logging.warning("Could not pick default device.")
 
 current_loaded_models = []
 
