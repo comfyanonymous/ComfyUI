@@ -47,11 +47,13 @@ class MD_SaveMP4:
                     "crf": ("FLOAT",),
                     "motion_prompt": ("STRING", ),
                     "negative_prompt": ("STRING", ),
-                    "img2vid_metadata": ("STRING", ),
-                    "sampler_metadata": ("STRING", ),
+                },
+                "optional": {
+                    "seed_value": ("NOISE", ),
+                    "input_metadata": ("STRING", ),
                 },
                 # "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
-                }
+            }
 
     RETURN_TYPES = ()
     FUNCTION = "save_images"
@@ -60,7 +62,7 @@ class MD_SaveMP4:
 
     CATEGORY = "MemeDeck"
     
-    def save_images(self, images, fps, filename_prefix, crf=None, motion_prompt=None, negative_prompt=None, img2vid_metadata=None, sampler_metadata=None):
+    def save_images(self, images, fps, filename_prefix, crf=None, motion_prompt=None, negative_prompt=None, seed_value=None, input_metadata=None):
         start_time = time.time()
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
@@ -82,14 +84,17 @@ class MD_SaveMP4:
 
         # metadata = pil_images[0].getexif()
         # num_frames = len(pil_images)
+        
+        logger.info(f"seed_value: {seed_value.seed}")
+        logger.info(f"input_metadata: {input_metadata}")
 
         json_metadata = {
             "crf": crf,
             "motion_prompt": motion_prompt,
             "negative_prompt": negative_prompt,
-            "img2vid_metadata": json.loads(img2vid_metadata),
-            "sampler_metadata": json.loads(sampler_metadata),
-        }            
+            "seed": seed_value.seed,
+            "input_metadata": json.loads(input_metadata),
+        }
 
         # Use ffmpeg to create MP4 with watermark
         output_file = f"{filename}_{counter:05}_.mp4"
@@ -236,105 +241,6 @@ class MD_SaveMP4:
         watermark_img = watermark_img.convert("RGBA")
 
         return watermark_img
-    
-    # def save_images(self, images, fps, filename_prefix, lossless, quality, method, crf=None, motion_prompt=None, negative_prompt=None, img2vid_metadata=None, sampler_metadata=None):
-    #     start_time = time.time()
-    #     method = self.methods.get(method)
-    #     filename_prefix += self.prefix_append
-    #     full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
-    #         filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0]
-    #     )
-    #     results = []
-
-    #     # Prepare PIL images in one loop
-    #     pil_images = [
-    #         Image.fromarray(np.clip((255. * image.cpu().numpy()), 0, 255).astype(np.uint8))
-    #         for image in images
-    #     ]
-
-    #     metadata = pil_images[0].getexif()
-    #     num_frames = len(pil_images)
-
-    #     # Pre-serialize JSON metadata
-    #     json_metadata = json.dumps({
-    #         "crf": crf,
-    #         "motion_prompt": motion_prompt,
-    #         "negative_prompt": negative_prompt,
-    #         "img2vid_metadata": json.loads(img2vid_metadata),
-    #         "sampler_metadata": json.loads(sampler_metadata),
-    #     })
-
-    #     # Save images directly
-    #     duration = int(1000.0 / fps)
-    #     for i in range(0, len(pil_images), num_frames):
-    #         file = f"{filename}_{counter:05}_.webp"
-    #         pil_images[i].save(
-    #             os.path.join(full_output_folder, file),
-    #             save_all=True,
-    #             duration=duration,
-    #             append_images=pil_images[i + 1:i + num_frames],
-    #             exif=metadata,
-    #             lossless=lossless,
-    #             quality=quality,
-    #             method=method
-    #         )
-    #         results.append({"filename": file, "subfolder": subfolder, "type": self.type})
-    #         counter += 1
-        
-    #     end_time = time.time()
-    #     logger.info(f"Save images took: {end_time - start_time} seconds")
-
-    #     return {
-    #         "ui": {
-    #             "images": results,
-    #             "animated": (num_frames != 1,),
-    #             "metadata": (json_metadata,),
-    #         },
-    #     }
-
-    # def save_images(self, images, fps, filename_prefix, lossless, quality, method, crf=None, motion_prompt=None, negative_prompt=None, img2vid_metadata=None, sampler_metadata=None):
-    #     method = self.methods.get(method)
-    #     filename_prefix += self.prefix_append
-    #     full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
-    #     results = list()
-
-    #     pil_images = []
-    #     for image in images:
-    #         i = 255. * image.cpu().numpy()
-    #         img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-    #         pil_images.append(img)
-
-    #     metadata = pil_images[0].getexif()
-    #     num_frames = len(pil_images)
-        
-    #     json_metadata = {
-    #       "crf": crf,
-    #       "motion_prompt": motion_prompt,
-    #       "negative_prompt": negative_prompt,
-    #       "img2vid_metadata": json.loads(img2vid_metadata),
-    #       "sampler_metadata": json.loads(sampler_metadata),
-    #     }
-
-    #     c = len(pil_images)
-    #     for i in range(0, c, num_frames):
-    #         file = f"{filename}_{counter:05}_.webp"
-    #         pil_images[i].save(os.path.join(full_output_folder, file), save_all=True, duration=int(1000.0/fps), append_images=pil_images[i + 1:i + num_frames], exif=metadata, lossless=lossless, quality=quality, method=method)
-    #         results.append({
-    #             "filename": file,
-    #             "subfolder": subfolder,
-    #             "type": self.type,
-    #         })
-    #         counter += 1
-
-    #     animated = num_frames != 1
-    #     # properly serialize metadata
-    #     return { 
-    #         "ui": { 
-    #             "images": results, 
-    #             "animated": (animated,), 
-    #             "metadata": (json.dumps(json_metadata),)
-    #         },
-    #     }
     
 class MD_VAEDecode:
     @classmethod

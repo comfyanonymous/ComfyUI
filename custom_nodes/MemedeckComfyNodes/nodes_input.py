@@ -1,3 +1,4 @@
+import json
 from comfy_extras.nodes_custom_sampler import Noise_RandomNoise
 
 
@@ -16,7 +17,7 @@ class MD_VideoInputs:
                     "description": "The length of the video."
                 }),
                 "steps": ("INT", {
-                    "default": 25,
+                    "default": 15,
                     "description": "Number of steps to generate the video."
                 }),
                 "width": ("INT", {
@@ -58,10 +59,21 @@ class MD_VideoInputs:
             }
         }
 
-    RETURN_TYPES = ("STRING", "INT", "INT", "INT", "INT", "INT", "FLOAT", "STRING", "STRING", "STRING", "STRING", "NOISE",)
-    RETURN_NAMES = ("image_url", "length", "steps", "width", "height", "crf", "terminal", "user_prompt", "pre_prompt", "post_prompt", "negative_prompt", "seed")
+    RETURN_TYPES = ("STRING", "INT", "INT", "INT", "INT", "INT", "FLOAT", "STRING", "STRING", "STRING", "STRING", "NOISE", "STRING")
+    RETURN_NAMES = ("image_url", "length", "steps", "width", "height", "crf", "terminal", "user_prompt", "pre_prompt", "post_prompt", "negative_prompt", "seed", "input_metadata")
     FUNCTION = "load_inputs"
     CATEGORY = "MemeDeck"
 
-    def load_inputs(self, image_url, length=121, steps=25, width=768, height=768, crf=28, terminal=0.1, user_prompt="", pre_prompt="", post_prompt="", negative_prompt="", seed=None):
-      return (image_url, length, steps, width, height, crf, terminal, user_prompt, pre_prompt, post_prompt, negative_prompt, Noise_RandomNoise(seed))
+    def load_inputs(self, image_url, length=121, steps=15, width=768, height=768, crf=28, terminal=0.1, user_prompt="", pre_prompt="", post_prompt="", negative_prompt="", seed=None):
+        input_metadata = json.dumps({
+            "length": length,
+            "steps": steps,
+            "width": width,
+            "height": height,
+            "crf": crf,
+            "terminal": terminal,
+            "user_prompt": user_prompt,
+            "pre_prompt": pre_prompt,
+            "post_prompt": post_prompt,
+        })
+        return (image_url, length, steps, width, height, crf, terminal, user_prompt, pre_prompt, post_prompt, negative_prompt, Noise_RandomNoise(seed), input_metadata)

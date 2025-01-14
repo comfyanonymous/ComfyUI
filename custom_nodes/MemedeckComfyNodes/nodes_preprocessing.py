@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import sys
 import time
@@ -111,7 +112,11 @@ class MD_ImageToMotionPrompt:
                     },
                 ),
                 "max_tokens": ("INT", {"min": 1, "max": 2048, "default": 200}),
-            }
+            },
+            # "optional": {
+            #     "temperature": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.2}),
+            #     "top_p": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.9}),
+            # }
         }
 
     
@@ -121,14 +126,23 @@ class MD_ImageToMotionPrompt:
     CATEGORY = "MemeDeck"
 
     def generate_completion(
-        self, pre_prompt: str, post_prompt: str, Image: torch.Tensor, clip, prompt: str, negative_prompt: str, max_tokens: int
+        self, pre_prompt: str, post_prompt: str, Image: torch.Tensor, clip, prompt: str, negative_prompt: str,
+        # temperature: float, 
+        # top_p: float, 
+        max_tokens: int
     ) -> Tuple[str]:
         # start a timer
         start_time = time.time()
         b64image = image.pil2base64(image.tensor2pil(Image))
         # change this to a endpoint on localhost:5010/inference that takes a json with the image and the prompt
         
-        response = requests.post("http://127.0.0.1:5010/inference", json={"image_url": f"data:image/jpeg;base64,{b64image}", "prompt": prompt})
+        response = requests.post("http://127.0.0.1:5010/inference", json={
+            "image_url": f"data:image/jpeg;base64,{b64image}",
+            "prompt": prompt,
+            "temperature": 0.2,
+            "top_p": 0.7,
+            "max_gen_len": max_tokens,
+        })
         if response.status_code != 200:
             raise Exception(f"Failed to generate completion: {response.text}")
         end_time = time.time()
@@ -171,6 +185,19 @@ class MD_CompressAdjustNode:
                     "description": "The height of the video."
                 }),
             },
+            "optional": {
+                "weights": ("STRING", {
+                    "multiline": True,
+                    "default": json.dumps({
+                        "ideal_blockiness": 600,
+                        "ideal_edge_density": 12,
+                        "ideal_color_variation": 10000,
+                        "blockiness_weight": -0.006,
+                        "edge_density_weight": 0.32,
+                        "color_variation_weight": -0.00005
+                    }),
+                }),
+            }
         }
 
     RETURN_TYPES = ("IMAGE", "FLOAT", "INT", "INT")
@@ -252,11 +279,20 @@ class MD_CompressAdjustNode:
         target_crf = round(target_crf, 2)
         return target_crf
     
-    def tensor_to_video_and_back(self, image, desired_crf=28, width=832, height=832):        
+    def tensor_to_video_and_back(self, image, desired_crf=28, width=832, height=832, weights=None):        
         temp_dir = "temp_video"
         filename = f"frame_{time.time()}".split('.')[0]
         os.makedirs(temp_dir, exist_ok=True)
-                
+        
+        if weights:
+            weights = json.loads(weights)
+            self.ideal_blockiness = weights["ideal_blockiness"]
+            self.ideal_edge_density = weights["ideal_edge_density"]
+            self.ideal_color_variation = weights["ideal_color_variation"]
+            self.blockiness_weight = weights["blockiness_weight"]
+            self.edge_density_weight = weights["edge_density_weight"]
+            self.color_variation_weight = weights["color_variation_weight"]
+        
         # Convert single image to list if necessary
         if len(image.shape) == 3:
             image = [image]
