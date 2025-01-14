@@ -534,7 +534,7 @@ class VAE:
     def encode(self, pixel_samples):
         pixel_samples = self.vae_encode_crop_pixels(pixel_samples)
         pixel_samples = pixel_samples.movedim(-1, 1)
-        if self.latent_dim == 3:
+        if self.latent_dim == 3 and pixel_samples.ndim < 5:
             pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
         try:
             memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)
