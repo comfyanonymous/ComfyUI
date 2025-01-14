@@ -113,10 +113,10 @@ class MD_ImageToMotionPrompt:
                 ),
                 "max_tokens": ("INT", {"min": 1, "max": 2048, "default": 200}),
             },
-            # "optional": {
-            #     "temperature": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.2}),
-            #     "top_p": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.9}),
-            # }
+            "optional": {
+                "temperature": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.2}),
+                "top_p": ("FLOAT", {"min": 0.0, "max": 1.0, "step": 0.01, "default": 0.7}),
+            }
         }
 
     
@@ -127,9 +127,9 @@ class MD_ImageToMotionPrompt:
 
     def generate_completion(
         self, pre_prompt: str, post_prompt: str, Image: torch.Tensor, clip, prompt: str, negative_prompt: str,
-        # temperature: float, 
-        # top_p: float, 
-        max_tokens: int
+        temperature: float = 0.2, 
+        top_p: float = 0.7, 
+        max_tokens: int = 256
     ) -> Tuple[str]:
         # start a timer
         start_time = time.time()
@@ -139,8 +139,8 @@ class MD_ImageToMotionPrompt:
         response = requests.post("http://127.0.0.1:5010/inference", json={
             "image_url": f"data:image/jpeg;base64,{b64image}",
             "prompt": prompt,
-            "temperature": 0.2,
-            "top_p": 0.7,
+            "temperature": temperature,
+            "top_p": top_p,
             "max_gen_len": max_tokens,
         })
         if response.status_code != 200:
@@ -339,7 +339,6 @@ class MD_CompressAdjustNode:
         image_cv2 = cv2.cvtColor(np.array(tensor2pil(image)), cv2.COLOR_RGB2BGR)
         # calculate the crf based on the image
         analysis_results = self.analyze_compression_artifacts(image_cv2, width=width, height=height)
-        logger.info(f"compression analysis_results: {analysis_results}")
         calculated_crf = self.calculate_crf(analysis_results, self.ideal_blockiness, self.ideal_edge_density, 
                   self.ideal_color_variation, self.blockiness_weight, 
                   self.edge_density_weight, self.color_variation_weight)
@@ -347,8 +346,6 @@ class MD_CompressAdjustNode:
         if desired_crf is 0:
             desired_crf = calculated_crf
         
-        logger.info(f"calculated_crf: {calculated_crf}")
-        logger.info(f"desired_crf: {desired_crf}")
         args = [
             utils.ffmpeg_path, 
             "-v", "error", 
