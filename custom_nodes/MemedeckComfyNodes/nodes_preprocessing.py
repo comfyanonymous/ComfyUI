@@ -186,6 +186,7 @@ class MD_CompressAdjustNode:
                 }),
             },
             "optional": {
+                "base_crf": ("INT", ),
                 "weights": ("STRING", {
                     "multiline": True,
                     "default": json.dumps({
@@ -206,6 +207,7 @@ class MD_CompressAdjustNode:
     CATEGORY = "MemeDeck"
     
     def __init__(self):
+        self.base_crf = 28
         # baseline values
         self.ideal_blockiness = 600
         self.ideal_edge_density = 12
@@ -270,7 +272,7 @@ class MD_CompressAdjustNode:
         Calculates the target CRF based on analysis results and weights.
         """
 
-        target_crf = 28 + (blockiness_weight * (analysis_results["blockiness"] - ideal_blockiness)) \
+        target_crf = self.base_crf + (blockiness_weight * (analysis_results["blockiness"] - ideal_blockiness)) \
                     + (edge_density_weight * (analysis_results["edge_density"] - ideal_edge_density)) \
                     + (color_variation_weight * (analysis_results["color_variation"] - ideal_color_variation))
 
@@ -279,10 +281,13 @@ class MD_CompressAdjustNode:
         target_crf = round(target_crf, 2)
         return target_crf
     
-    def tensor_to_video_and_back(self, image, desired_crf=28, width=832, height=832, weights=None):        
+    def tensor_to_video_and_back(self, image, desired_crf=28, width=832, height=832, weights=None, base_crf=28):        
         temp_dir = "temp_video"
         filename = f"frame_{time.time()}".split('.')[0]
         os.makedirs(temp_dir, exist_ok=True)
+        
+        if base_crf:
+            self.base_crf = base_crf
         
         if weights:
             weights = json.loads(weights)
@@ -334,6 +339,7 @@ class MD_CompressAdjustNode:
         image_cv2 = cv2.cvtColor(np.array(tensor2pil(image)), cv2.COLOR_RGB2BGR)
         # calculate the crf based on the image
         analysis_results = self.analyze_compression_artifacts(image_cv2, width=width, height=height)
+        logger.info(f"compression analysis_results: {analysis_results}")
         calculated_crf = self.calculate_crf(analysis_results, self.ideal_blockiness, self.ideal_edge_density, 
                   self.ideal_color_variation, self.blockiness_weight, 
                   self.edge_density_weight, self.color_variation_weight)
