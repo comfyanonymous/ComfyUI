@@ -245,13 +245,14 @@ def detect_unet_config(state_dict, key_prefix):
         dit_config["max_img_h"] = 240
         dit_config["max_img_w"] = 240
         dit_config["max_frames"] = 128
-        dit_config["in_channels"] = 16
+        concat_padding_mask = True
+        dit_config["in_channels"] = (state_dict['{}x_embedder.proj.1.weight'.format(key_prefix)].shape[1] // 4) - int(concat_padding_mask)
         dit_config["out_channels"] = 16
         dit_config["patch_spatial"] = 2
         dit_config["patch_temporal"] = 1
         dit_config["model_channels"] = state_dict['{}blocks.block0.blocks.0.block.attn.to_q.0.weight'.format(key_prefix)].shape[0]
         dit_config["block_config"] = "FA-CA-MLP"
-        dit_config["concat_padding_mask"] = True
+        dit_config["concat_padding_mask"] = concat_padding_mask
         dit_config["pos_emb_cls"] = "rope3d"
         dit_config["pos_emb_learnable"] = False
         dit_config["pos_emb_interpolation"] = "crop"

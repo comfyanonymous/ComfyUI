@@ -189,9 +189,10 @@ class BaseModel(torch.nn.Module):
 
             if denoise_mask is not None:
                 if len(denoise_mask.shape) == len(noise.shape):
-                    denoise_mask = denoise_mask[:,:1]
+                    denoise_mask = denoise_mask[:, :1]
 
-                denoise_mask = denoise_mask.reshape((-1, 1, denoise_mask.shape[-2], denoise_mask.shape[-1]))
+                num_dim = noise.ndim - 2
+                denoise_mask = denoise_mask.reshape((-1, 1) + tuple(denoise_mask.shape[-num_dim:]))
                 if denoise_mask.shape[-2:] != noise.shape[-2:]:
                     denoise_mask = utils.common_upscale(denoise_mask, noise.shape[-1], noise.shape[-2], "bilinear", "center")
                 denoise_mask = utils.resize_to_batch_size(denoise_mask.round(), noise.shape[0])
@@ -201,12 +202,16 @@ class BaseModel(torch.nn.Module):
                     if ck == "mask":
                         cond_concat.append(denoise_mask.to(device))
                     elif ck == "masked_image":
-                        cond_concat.append(concat_latent_image.to(device)) #NOTE: the latent_image should be masked by the mask in pixel space
+                        cond_concat.append(concat_latent_image.to(device))  # NOTE: the latent_image should be masked by the mask in pixel space
+                    elif ck == "mask_inverted":
+                        cond_concat.append(1.0 - denoise_mask.to(device))
                 else:
                     if ck == "mask":
-                        cond_concat.append(torch.ones_like(noise)[:,:1])
+                        cond_concat.append(torch.ones_like(noise)[:, :1])
                     elif ck == "masked_image":
                         cond_concat.append(self.blank_inpaint_image_like(noise))
+                    elif ck == "mask_inverted":
+                        cond_concat.append(torch.zeros_like(noise)[:, :1])
             data = torch.cat(cond_concat, dim=1)
             return data
         return None
@@ -293,6 +298,9 @@ class BaseModel(torch.nn.Module):
             blank_image[:,3] *= 0.1380
             return blank_image
         self.blank_inpaint_image_like = blank_inpaint_image_like
+
+    def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
+        return self.model_sampling.noise_scaling(sigma.reshape([sigma.shape[0]] + [1] * (len(noise.shape) - 1)), noise, latent_image)
 
     def memory_required(self, input_shape):
         if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention():
@@ -859,8 +867,11 @@ class HunyuanVideo(BaseModel):
         return out
 
 class CosmosVideo(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.EDM, device=None):
+    def __init__(self, model_config, model_type=ModelType.EDM, image_to_video=False, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.cosmos.model.GeneralDIT)
+        self.image_to_video = image_to_video
+        if self.image_to_video:
+            self.concat_keys = ("mask_inverted",)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -873,3 +884,11 @@ class CosmosVideo(BaseModel):
 
         out['fps'] = comfy.conds.CONDConstant(kwargs.get("frame_rate", None))
         return out
+
+    def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
+        sigma = sigma.reshape([sigma.shape[0]] + [1] * (len(noise.shape) - 1))
+        sigma_noise_augmentation = 0 #TODO
+        if sigma_noise_augmentation != 0:
+            latent_image = latent_image + noise
+        latent_image = self.model_sampling.calculate_input(torch.tensor([sigma_noise_augmentation], device=latent_image.device, dtype=latent_image.dtype), latent_image)
+        return latent_image * ((sigma ** 2 + self.model_sampling.sigma_data ** 2) ** 0.5)
