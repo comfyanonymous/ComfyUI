@@ -1,0 +1,6 @@
+default::https://raw.githubusercontent.com/ltdrdata/ComfyUI-Manager/main
+recent::https://raw.githubusercontent.com/ltdrdata/ComfyUI-Manager/main/node_db/new
+legacy::https://raw.githubusercontent.com/ltdrdata/ComfyUI-Manager/main/node_db/legacy
+forked::https://raw.githubusercontent.com/ltdrdata/ComfyUI-Manager/main/node_db/forked
+dev::https://raw.githubusercontent.com/ltdrdata/ComfyUI-Manager/main/node_db/dev
+tutorial::https://raw.githubusercontent.com/ltdrdata/ComfyUI-Manager/main/node_db/tutorial

@@ -1,0 +1,26 @@
+{
+    "favorites": [
+        "comfyui_ipadapter_plus",
+        "comfyui-animatediff-evolved",
+        "comfyui_controlnet_aux",
+        "comfyui-impact-pack",
+        "comfyui-impact-subpack",
+        "comfyui-custom-scripts",
+        "comfyui-layerdiffuse",
+        "comfyui-liveportraitkj",
+        "aigodlike-comfyui-translation",
+        "comfyui-reactor-node",
+        "comfyui_instantid",
+        "sd-dynamic-thresholding",
+        "pr-was-node-suite-comfyui-47064894",
+        "comfyui-advancedliveportrait",
+        "comfyui_layerstyle",
+        "efficiency-nodes-comfyui",
+        "comfyui-crystools",
+        "comfyui-advanced-controlnet",
+        "comfyui-videohelpersuite",
+        "comfyui-kjnodes",
+        "comfy-mtb",
+        "comfyui_essentials"
+    ]
+}

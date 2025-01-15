@@ -1,0 +1,999 @@
+{
+  "last_node_id": 96,
+  "last_link_id": 158,
+  "nodes": [
+    {
+      "id": 78,
+      "type": "UNETLoader",
+      "pos": [
+        -590,
+        27
+      ],
+      "size": {
+        "0": 315,
+        "1": 82
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            133
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "flux/flux1-dev.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 37,
+      "type": "Reroute",
+      "pos": [
+        392,
+        65
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 130
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "MODEL",
+          "links": [
+            149,
+            150
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 38,
+      "type": "Reroute",
+      "pos": [
+        701,
+        -9
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 150
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "MODEL",
+          "links": [
+            138
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 83,
+      "type": "BasicGuider",
+      "pos": [
+        955,
+        161
+      ],
+      "size": {
+        "0": 241.79998779296875,
+        "1": 46
+      },
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 138
+        },
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 134
+        }
+      ],
+      "outputs": [
+        {
+          "name": "GUIDER",
+          "type": "GUIDER",
+          "links": [
+            137
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BasicGuider"
+      }
+    },
+    {
+      "id": 84,
+      "type": "EmptyLatentImage",
+      "pos": [
+        697,
+        305
+      ],
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            139
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        1
+      ]
+    },
+    {
+      "id": 93,
+      "type": "CLIPTextEncode",
+      "pos": [
+        195,
+        201
+      ],
+      "size": {
+        "0": 309.29437255859375,
+        "1": 103.42794036865234
+      },
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 153
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 152,
+          "widget": {
+            "name": "text"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            154
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 90,
+      "type": "VAELoader",
+      "pos": [
+        1252,
+        332
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            146
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "flux_dev/ae.safetensors"
+      ]
+    },
+    {
+      "id": 79,
+      "type": "DualCLIPLoader",
+      "pos": [
+        -635,
+        165
+      ],
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            128
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DualCLIPLoader"
+      },
+      "widgets_values": [
+        "t5xxl_fp16.safetensors",
+        "clip_l.safetensors",
+        "flux"
+      ]
+    },
+    {
+      "id": 44,
+      "type": "Note",
+      "pos": [
+        -1084,
+        -273
+      ],
+      "size": {
+        "0": 310,
+        "1": 130
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "https://huggingface.co/Comfy-Org/flux1-dev/blob/main/flux1-dev-fp8.safetensors\n(ComfyUI\\models\\checkpoints\\flux)\n\nhttps://huggingface.co/comfyanonymous/flux_RealismLora_converted_comfyui/blob/main/flux_realism_lora.safetensors\n(ComfyUI\\models\\loras\\flux)"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 59,
+      "type": "LoraLoader",
+      "pos": [
+        -160,
+        73
+      ],
+      "size": {
+        "0": 310,
+        "1": 130
+      },
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 133
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 128
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            130
+          ],
+          "slot_index": 0,
+          "shape": 3
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            153
+          ],
+          "slot_index": 1,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoraLoader"
+      },
+      "widgets_values": [
+        "flux_dev/codingowl_flux_dev_lora_v1.safetensors",
+        1,
+        1
+      ]
+    },
+    {
+      "id": 73,
+      "type": "PreviewImage",
+      "pos": [
+        1767,
+        342
+      ],
+      "size": {
+        "0": 625.344482421875,
+        "1": 1082.5174560546875
+      },
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 147
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 85,
+      "type": "RandomNoise",
+      "pos": [
+        678,
+        476
+      ],
+      "size": {
+        "0": 315,
+        "1": 82
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "NOISE",
+          "type": "NOISE",
+          "links": [
+            140
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RandomNoise"
+      },
+      "widgets_values": [
+        554454386312253,
+        "randomize"
+      ]
+    },
+    {
+      "id": 86,
+      "type": "KSamplerSelect",
+      "pos": [
+        678,
+        604
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            141
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "euler"
+      ]
+    },
+    {
+      "id": 89,
+      "type": "VAEDecode",
+      "pos": [
+        1546,
+        161
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 158
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 146
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            147
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 82,
+      "type": "SamplerCustomAdvanced",
+      "pos": [
+        1183,
+        460
+      ],
+      "size": {
+        "0": 355.20001220703125,
+        "1": 106
+      },
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "noise",
+          "type": "NOISE",
+          "link": 140
+        },
+        {
+          "name": "guider",
+          "type": "GUIDER",
+          "link": 137
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 141
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 142
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 139
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "LATENT",
+          "links": [
+            158
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "denoised_output",
+          "type": "LATENT",
+          "links": [],
+          "slot_index": 1,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SamplerCustomAdvanced"
+      }
+    },
+    {
+      "id": 87,
+      "type": "BasicScheduler",
+      "pos": [
+        640,
+        762
+      ],
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 149
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SIGMAS",
+          "type": "SIGMAS",
+          "links": [
+            142
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BasicScheduler"
+      },
+      "widgets_values": [
+        "normal",
+        50,
+        1
+      ]
+    },
+    {
+      "id": 35,
+      "type": "FluxGuidance",
+      "pos": [
+        627,
+        119
+      ],
+      "size": {
+        "0": 211.60000610351562,
+        "1": 58
+      },
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 154
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            134
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FluxGuidance"
+      },
+      "widgets_values": [
+        10
+      ]
+    },
+    {
+      "id": 95,
+      "type": "Note",
+      "pos": [
+        -94,
+        -406
+      ],
+      "size": [
+        348.5360602121608,
+        429.85297340320074
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "***flux_dev/codingowl_flux_dev_lora_v1.safetensors***\n\nstrength_model 1.0\nstrength_clip 1.0\nguidance 7.0\nstep 50\ndenoise 1\n\n위 조건일 경우 오울이가 가장 비슷하게 나왔음.\n---------------------------\n\n***flux_dev/flux_realism_lora.safetensors*** \n==> 주로 실사 배경을 뽑고 싶을 때 사용\n\nstrength_model 1.0\nstrength_clip 1.0\nguidance 3.5\n\n위 조건일 경우 가장 사실적인 이미지가 나왔음.\n---------------------------\n\n***flux_dev/Disney-Studios-Flux-000008.safetensors***\n\nstrength_model 0.7\nstrength_clip 2.0 \nguidance 2.5 \n\n위 조건일 경우 가장 디즈니스럽게 나왔음.\n\n"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 76,
+      "type": "ShowText|pysssss",
+      "pos": [
+        -456,
+        488
+      ],
+      "size": {
+        "0": 479.5333251953125,
+        "1": 322.0462646484375
+      },
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 125,
+          "widget": {
+            "name": "text"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null,
+          "slot_index": 0,
+          "shape": 6
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        "",
+        " “A cartoon-style image with a pastel tone of an owl with a beige body, painting a picture on the wall under a colorful, whimsical sky.”"
+      ]
+    },
+    {
+      "id": 75,
+      "type": "OllamaGenerateAdvance",
+      "pos": [
+        -940,
+        407
+      ],
+      "size": {
+        "0": 394.2892761230469,
+        "1": 651.3236083984375
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "context",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "context"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "response",
+          "type": "STRING",
+          "links": [
+            125,
+            152
+          ],
+          "slot_index": 0,
+          "shape": 3
+        },
+        {
+          "name": "context",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "OllamaGenerateAdvance"
+      },
+      "widgets_values": [
+        "1. Image Style and Mood : cartoon, pastel tone.\n2. Person : owl, beige body. paint a picture on the wall.\n3. Background : sky, wall\n",
+        false,
+        "http://127.0.0.1:11434",
+        "brxce/stable-diffusion-prompt-generator:latest",
+        "The user will input image prompts in Markdown format with up to three sections:\n\n1. **Image Style and Mood** (optional): Describes the general style or mood of the image, such as \"DisneyStudio,\" \"Cartoon,\" \"Dreamy,\" or \"Realistic.\" If provided, keep any specific names mentioned by the user.\n2. **Person** (optional): Describes the main person or character, including attributes like age, appearance, and specific details. If this section is missing, do not include any characters in the generated prompt.\n3. **Background** (optional): Describes the setting or background, including elements like \"sky,\" \"sunshine,\" \"field,\" etc. If this section is provided, include it in the prompt.\n\nUse the provided sections to create a detailed, natural-language prompt that combines all available elements smoothly. Follow these rules:\n- Begin with the style and mood if provided. Retain specific names if included.\n- For a **realistic** style, ensure the prompt uses language that reflects realism, avoiding whimsical or cartoon-like phrases.\n- If the person information is missing, do not add any character descriptions.\n- If a person is described, include detailed appearance and expressions.\n- If background information is provided, describe it vividly, including colors, lighting, and notable details.\n- Use a single, fluent sentence structure with appropriate commas to separate elements, ensuring coherence.\n- Exclude all Markdown formatting symbols.\n- **Do not add any additional artist names, studios, platforms, or styles unless specified by the user.** This includes phrases like \"art by...\" or references to other artists.\n\nExamples:\n\n**User Input 1**:\n1. Image Style and Mood: Cartoon\n3. Background: sky, sunshine, field, red-roofed cottage\n\n**Generated Prompt**:\n“A cartoon-style image of a field under a bright sun and clear blue sky, featuring a red-roofed cottage.”\n\n**User Input 2**:\n1. Image Style and Mood: Realistic\n3. Background: sky, sunshine, field, red-roofed cottage\n\n**Generated Prompt**:\n“A realistic image depicting a field under a bright sun and clear blue sky, with a charming red-roofed cottage nestled in the landscape, capturing the warmth of a sunny day.”\n\n**User Input 3**:\n1. Image Style and Mood: Dreamy\n2. Person: young woman with long hair, smiling\n\n**Generated Prompt**:\n“A dreamy image of a young woman with long hair, smiling brightly, surrounded by soft, ethereal light, creating a joyful atmosphere.”\n\n**User Input 4**:\n2. Person: elderly man with a beard, reading a newspaper\n\n**Generated Prompt**:\n“A detailed image of an elderly man with a beard, reading a newspaper, capturing a thoughtful expression against a softly blurred background.”\n\n**User Input 5**:\n1. Image Style and Mood: Realistic\n3. Background: sunset over mountains\n\n**Generated Prompt**:\n“A realistic image of a sunset over mountains, showcasing the vibrant colors of the sky reflecting on the peaks.”",
+        893931251,
+        "randomize",
+        50,
+        0.9,
+        0.2,
+        -1,
+        1,
+        5,
+        true,
+        "text",
+        ""
+      ]
+    },
+    {
+      "id": 96,
+      "type": "Note",
+      "pos": [
+        -1384,
+        710
+      ],
+      "size": [
+        359.9062222899529,
+        186.8222474786371
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "[예시] - 오울이 생성하기\n1. Image Style and Mood : cartoon, pastel tone.\n2. Person : owl, beige body. paint a picture on the wall.\n3. Background : sky, wall\n"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 94,
+      "type": "Note",
+      "pos": [
+        -1384,
+        366
+      ],
+      "size": [
+        411.91770349970375,
+        296.0898438401763
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "[프롬프트 작성 매뉴얼]\n아래와 같은 형태로 입력할 것\n\n1. Image Style and Mood : DisneyStudio, Cartoon. (or realistic)\n2. Person : cute little girl. blond long hair. braided hair. pink dress.\n3. Background : sky, sunshine, Field. a red-roofed cottage.\n\n---------------------------------\n위 세 가지 중 몇개만 선택적으로 적어도 됨. 만약 이미지 내에 사람이 없다면?\n아래와 같이 작성될 수 있음.\n\n1. Image Style and Mood : realistic.\n3. Background : ocean, big waves, sunshine.\n---------------------------\n\n[주의 사항]\n**실사의 경우 Image Style and Mood에 `realistic` 꼭 추가하기!\n**원하는 context가 나올 경우, keep_context를 true로 설정하기!"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      125,
+      75,
+      0,
+      76,
+      0,
+      "STRING"
+    ],
+    [
+      128,
+      79,
+      0,
+      59,
+      1,
+      "CLIP"
+    ],
+    [
+      130,
+      59,
+      0,
+      37,
+      0,
+      "*"
+    ],
+    [
+      133,
+      78,
+      0,
+      59,
+      0,
+      "MODEL"
+    ],
+    [
+      134,
+      35,
+      0,
+      83,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      137,
+      83,
+      0,
+      82,
+      1,
+      "GUIDER"
+    ],
+    [
+      138,
+      38,
+      0,
+      83,
+      0,
+      "MODEL"
+    ],
+    [
+      139,
+      84,
+      0,
+      82,
+      4,
+      "LATENT"
+    ],
+    [
+      140,
+      85,
+      0,
+      82,
+      0,
+      "NOISE"
+    ],
+    [
+      141,
+      86,
+      0,
+      82,
+      2,
+      "SAMPLER"
+    ],
+    [
+      142,
+      87,
+      0,
+      82,
+      3,
+      "SIGMAS"
+    ],
+    [
+      146,
+      90,
+      0,
+      89,
+      1,
+      "VAE"
+    ],
+    [
+      147,
+      89,
+      0,
+      73,
+      0,
+      "IMAGE"
+    ],
+    [
+      149,
+      37,
+      0,
+      87,
+      0,
+      "MODEL"
+    ],
+    [
+      150,
+      37,
+      0,
+      38,
+      0,
+      "*"
+    ],
+    [
+      152,
+      75,
+      0,
+      93,
+      1,
+      "STRING"
+    ],
+    [
+      153,
+      59,
+      1,
+      93,
+      0,
+      "CLIP"
+    ],
+    [
+      154,
+      93,
+      0,
+      35,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      158,
+      82,
+      0,
+      89,
+      0,
+      "LATENT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7972024500000222,
+      "offset": [
+        786.6130560513357,
+        421.4906188061324
+      ]
+    },
+    "workspace_info": {
+      "id": "sY55WPuQeLrd0hHkCq9hV",
+      "saveLock": false,
+      "cloudID": null,
+      "coverMediaPath": null
+    }
+  },
+  "version": 0.4
+}

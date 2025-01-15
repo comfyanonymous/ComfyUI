@@ -1,0 +1,545 @@
+{
+  "last_node_id": 27,
+  "last_link_id": 33,
+  "nodes": [
+    {
+      "id": 23,
+      "type": "ShowText|pysssss",
+      "pos": [
+        603.0383844200387,
+        44.14506444433173
+      ],
+      "size": {
+        "0": 376.6049499511719,
+        "1": 125.44591522216797
+      },
+      "flags": {
+        "collapsed": false
+      },
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 27,
+          "widget": {
+            "name": "text"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            29
+          ],
+          "slot_index": 0,
+          "shape": 6
+        }
+      ],
+      "title": "이슈-IT 주제",
+      "properties": {
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        "",
+        "1. Recent Issues : Impact of the 2024 Iran-Israel War on the surge and plunge in oil prices. This is a case of problems in companies that use oil.\n2. IT technology related to the issue : Prospects for Renewable Energy. Global IT Companies Focus on Renewable Energy. A case of a company focusing on renewable energy."
+      ]
+    },
+    {
+      "id": 19,
+      "type": "Zuellni Text Format",
+      "pos": [
+        609,
+        -43
+      ],
+      "size": {
+        "0": 400,
+        "1": 200
+      },
+      "flags": {
+        "collapsed": true
+      },
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "var_1",
+          "type": "STRING",
+          "link": 21,
+          "widget": {
+            "name": "var_1"
+          }
+        },
+        {
+          "name": "var_2",
+          "type": "STRING",
+          "link": 22,
+          "widget": {
+            "name": "var_2"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            27
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Zuellni Text Format"
+      },
+      "widgets_values": [
+        "1. Recent Issues : var_1\n2. IT technology related to the issue : var_2",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 27,
+      "type": "TextInput_",
+      "pos": [
+        204,
+        1180
+      ],
+      "size": {
+        "0": 400,
+        "1": 200
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 2,
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            33
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "title": "상세 주제",
+      "properties": {
+        "Node name for S&R": "TextInput_"
+      },
+      "widgets_values": [
+        "Prospects for Renewable Energy. Global IT Companies Focus on Renewable Energy. A case of a Apple and Microsoft, Goole focusing on renewable energy. Let's get ready because we can look forward to creating jobs in related fields!"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 26,
+      "type": "ShowText|pysssss",
+      "pos": [
+        1177,
+        964
+      ],
+      "size": {
+        "0": 463.0121765136719,
+        "1": 909.886474609375
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 32,
+          "widget": {
+            "name": "text"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null,
+          "shape": 6
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        "",
+        " **[Visual Content Displayed: Animation showing Earth surrounded by large, coal-powered power plants.]**  \n- **Subtitle:** Prospects for Renewable Energy. Global IT Companies Focus on Renewable Energy.  \n\n**An interesting fact** - Did you know that more than 72% of world's electricity is still produced by burning fossil fuels like coal and natural gas?  \n- **Subtitle:** It's time to change that!  \n\n**[Visual Content Displayed: Climate graph, Earth, clean, blue, green energy, solar panel, wind turbines.]**  \n- **Subtitle:** (smiling) Let's talk about the future. The future is renewable.  \n\n**another fact** - Tech giants like Apple, Microsoft, Google and many more have decided to focus on renewable energy. In 2018 alone, these companies generated enough power through renewable sources to cover their operations in full.  \n- **Subtitle:** So, what's it about?  \n\n**[Visual Content Displayed: Solar panels on a roof.]**  \n- **Subtitle:** It's about harnessing the energy from natural resources like sunlight, wind and water.  - No more burning coal, no more greenhouse gases!  \n\n**Let's take an example** - Apple, for instance, has been powered by 100% renewable energy since 2014. And guess what? They built solar farms in countries where they sell most of their products.  \n- **Subtitle:** How cool is that?  \n\n**[Visual Content Displayed: Art of a girl with the Earth, blue sky.]**  \n- **Subtitle:** (excited) The list goes on! Microsoft has committed to be carbon negative by 2030. Google is planning to run on carbonless electricity in the same year.  \n\n**connecting with audience** - What's your take? Can we do it too?  \n- **Subtitle:** (friendly) This is not a movie!  \n\n**[Visual Content Displayed: Infographics showing jobs.]**  \n- **Subtitle:** Renewable energy is also about job creation. In the US, 432,000 people work in wind, solar, and other renewables in 2019.  \n\n**practical applications** - (smiling) And it's not just big corporations leading the way. Small businesses and homes are jumping on the bandwagon too!  \n- **Subtitle:** (with a grin) It's practical, sustainable, environmentally friendly, and job-creating.  \n\n**[Visual Content Displayed: Infographics showing money.]**  \n- **subtitle:** And let's not forget about the cost-effectiveness! Renewables are getting cheaper.  - In many parts of the world, they’re already cheaper than coal and natural gas.  \n\n**[Visual Content Displayed: Animation showing Earth as a globe]**  \n- **subtitle:** So let's do it together. Let's keep Earth green!"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 24,
+      "type": "OllamaGenerateAdvance",
+      "pos": [
+        667,
+        1031
+      ],
+      "size": {
+        "0": 468.8838806152344,
+        "1": 773.9572143554688
+      },
+      "flags": {
+        "collapsed": true
+      },
+      "order": 3,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "context",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "context"
+          }
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "link": 33,
+          "widget": {
+            "name": "prompt"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "response",
+          "type": "STRING",
+          "links": [
+            32
+          ],
+          "slot_index": 0,
+          "shape": 3
+        },
+        {
+          "name": "context",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "OllamaGenerateAdvance"
+      },
+      "widgets_values": [
+        "1. Recent Issues : Impact of the 2024 Iran-Israel War on the surge and plunge in oil prices.\n2. IT technology related to the issue : Prospects for Renewable Energy. Global IT Companies Focus on Renewable Energy. A case of a company focusing on renewable energy.",
+        false,
+        "http://127.0.0.1:11434",
+        "brxce/stable-diffusion-prompt-generator:latest",
+        "**Scenario Objective:** Based on the user-provided topic, create a friendly and engaging script covering IT issues or information. Structure the content as visual display sections followed by matching subtitles, with each sentence kept short and easy to understand. The script should provide a detailed explanation of the topic, including recent events, interesting facts, and clear examples to capture viewers' attention and ensure easy comprehension. The script must be a minimum of 5000 characters long.\n\n**Scriptwriting Guidelines:**\n\n1. **Introduction and Hook:**  \n   - Start with an interesting fact or recent event to grab viewers' attention.  \n   - Use a friendly, conversational tone as\n\n if directly speaking to the audience.\n\n2. **Detailed Explanation of the Topic:**  \n   - Clearly convey the key details of the provided topic.  \n   - Use short, simple sentences for ease of understanding.  \n   - Include concrete examples or scenarios to highlight the importance of the topic.\n\n3. **Audience Engagement:**  \n   - Add friendly questions or engaging conversational phrases to draw in viewers.  \n   - Encourage viewers to connect personally with the topic.\n\n4. **Practical and Relevant Information:**  \n   - Introduce examples or industry applications to make the topic relatable.  \n   - Explain the current relevance of the technology or information and its industry impact.\n\n5. **Friendly Tone:**  \n   - Maintain a conversational style to foster audience engagement and understanding.  \n   - Conclude with positive insights, ensuring the content feels valuable and accessible to viewers.\n\n**Output Structure:**  \n- **[Visual Content Displayed]**  \n- **Subtitle:** (Script content in a friendly, audience-engaging tone)",
+        190604111,
+        "randomize",
+        50,
+        0.9,
+        0.9,
+        -1,
+        1.5,
+        5,
+        false,
+        "text",
+        ""
+      ]
+    },
+    {
+      "id": 9,
+      "type": "TextInput_",
+      "pos": [
+        89,
+        -98
+      ],
+      "size": {
+        "0": 400.44091796875,
+        "1": 109.61751556396484
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            21
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "title": "최근 이슈",
+      "properties": {
+        "Node name for S&R": "TextInput_"
+      },
+      "widgets_values": [
+        "Impact of the 2024 Iran-Israel War on the surge and plunge in oil prices. This is a case of problems in companies that use oil."
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 10,
+      "type": "TextInput_",
+      "pos": [
+        83,
+        60
+      ],
+      "size": {
+        "0": 399.73040771484375,
+        "1": 122.83692932128906
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            22
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "title": "관련된 IT 주제",
+      "properties": {
+        "Node name for S&R": "TextInput_"
+      },
+      "widgets_values": [
+        "Prospects for Renewable Energy. Global IT Companies Focus on Renewable Energy. A case of a company focusing on renewable energy."
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 2,
+      "type": "ShowText|pysssss",
+      "pos": [
+        508,
+        223
+      ],
+      "size": {
+        "0": 553.6436767578125,
+        "1": 489.0061950683594
+      },
+      "flags": {
+        "collapsed": false
+      },
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 1,
+          "widget": {
+            "name": "text"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null,
+          "slot_index": 0,
+          "shape": 6
+        }
+      ],
+      "title": "시나리오(결과)",
+      "properties": {
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        "",
+        " [Visual description of the scene 1: Oil rigs and oil barrels by the sea]\n\nScript 1\nMira here, overlooking the oil rigs off the coast. You know, we’ve all filled up our cars with gas lately, but have you ever thought about where it comes from? Well, sometimes things don’t go as smoothly as you’d hope in the world of fossil fuels.\n\n[Visual description of the scene 2: Animated graph of oil prices]\n\nScript 2\nMira\nCue our topic – oil prices, and more specifically, recent trends. 2024 is a key year to watch because of tensions between Iran and Israel that could significantly impact the price of oil. But have you ever wondered how technology comes into play in this situation?\n\n[Visual description of the scene 3: Renewable energy company logo]\n\nScript 3\nMira\nEnter our related IT technology, renewable energy. Tech companies are increasingly on board with reducing the world’s dependence on oil. You may have seen those solar panels and wind turbines popping up everywhere. But what’s in it for them?\n\n[Visual description of the scene 4: Solar panels in a sunny field]\n\nScript 4\nMira\nWell, let’s look at an example, John Doe’s solar panel company. They were losing business due to oil prices. But instead of focusing on the problem, they asked themselves what technology could help them and others like them?\n\n[Visual description of the scene 5: Renewable energy company with a high-tech logo]\n\nScript 5\nMira\nAnd that’s where renewable energy comes in! Solar panels, wind turbines – these are just some examples. By investing in renewable energy technology, companies like John Doe’s can not only weather oil price fluctuations but thrive.\n\n[Visual description of the scene 6: Renewable energy infrastructure]\n\nScript 6\nMira\nBut let’s step back and look at the bigger picture. The global IT industry is taking a stand for our planet. By focusing on renewable energy, these companies are not only creating jobs but also reducing their carbon footprint, making oil less necessary in the long run.\n\n[Visual description of the scene 7: Renewable energy infographic]\n\nScript 7\nMira\nSo, back to our topic – oil prices. We’ve all felt the pinch at the pump when prices go up. But wouldn’t it be great if we could minimize this impact? By investing in renewable energy technology and companies, we can not only help the planet but also protect ourselves from oil price fluctuations.\n\n[Visual description of the scene 8: Animated sun with solar panels]\n\nScript 8\nMira\nSo next time you fill up your car, or maybe even buy an electric vehicle, think about the impact of technology and what we can do together to make a positive change! In a world where oil prices are always on the move, renewable energy is the light at the end of the tunnel.\n\n[Visual description of the scene 9: A beautiful horizon with solar panels]\n\nScript 9\nMira\nThat’s it from me! I hope you found this discussion about oil prices and renewable energy technology interesting. Until next time, keep an eye on those oil prices and invest in companies that focus on renewable energy – the future is bright!\n\n[Visual description of the scene 10: The sun sets on a beautiful horizon]\n\nScript 10\nMira\nCatch you all next time! Bye for now.\n\nCitations:\n\n- CNN Business, Oil Prices Are Crashing Again Amid the Economic Turmoil of Covid-19 and the Russia-Ukraine War\n- IEA, Renewable Energy\n- Bloomberg, Solar and Wind Technologies are Decisive in 2024 Power Market Outlook"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 1,
+      "type": "OllamaGenerateAdvance",
+      "pos": [
+        1100,
+        -119
+      ],
+      "size": {
+        "0": 442.4588317871094,
+        "1": 787.1527099609375
+      },
+      "flags": {
+        "collapsed": true
+      },
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "context",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "context"
+          }
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "link": 29,
+          "widget": {
+            "name": "prompt"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "response",
+          "type": "STRING",
+          "links": [
+            1
+          ],
+          "slot_index": 0,
+          "shape": 3
+        },
+        {
+          "name": "context",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "OllamaGenerateAdvance"
+      },
+      "widgets_values": [
+        "1. Recent Issues : Impact of the 2024 Iran-Israel War on the surge and plunge in oil prices.\n2. IT technology related to the issue : Prospects for Renewable Energy. Global IT Companies Focus on Renewable Energy. A case of a company focusing on renewable energy.",
+        false,
+        "http://127.0.0.1:11434",
+        "brxce/stable-diffusion-prompt-generator:latest",
+        "Create a 3-5 minute video script on an IT-related topic that combines a \"recent issue\" with \"related IT technology.\" Start by explaining the \"recent issue\" in a friendly and detailed way, then smoothly transition into the \"related IT technology,\" discussing its role and why it’s important in a laid-back manner. **Keep the tone casual and friendly throughout**—this is key! Use simple questions to engage the audience and make it feel like a conversation with a friend. Keep sentences short and clear for easy understanding. Each \"Visual description of the scene\" should be limited to one line or less to keep it concise. The script must be based solely on factual information, without any fictional or narrative content. If using content from newspapers or news sources, please include citations in the subtitles to enhance the factual credibility.\n\n**Topics:**\n1. Recent Issue: [Insert recent issue here, e.g., \"Impact of the 2024 Iran-Israel War on oil prices\"]\n2. Related IT Technology: [Insert related IT technology here, e.g., \"Prospects for Renewable Energy\"]\n\n**Structure and Style Requirements:**\n- **Introduction:** Start with a visually interesting scene description in one line, then introduce the topic in a casual way, like you’re chatting with a friend. Use simple language and friendly questions to draw the viewer in. Briefly explain why the topic is important, keeping the vibe light and fun.\n- **Explanation of Recent Issue:** Provide a friendly, detailed look at the \"recent issue,\" covering its background, key points, and current impact. Include relevant facts, recent events, or stats to help everyone understand the issue, all while keeping a casual tone. If quoting from newspapers or news sources, include those citations in the subtitles to enhance credibility.\n- **Transition to Related IT Technology:** Naturally move from the \"recent issue\" to the \"related IT technology.\" Highlight how this technology connects to the issue, making it clear why it matters. Use a conversational tone, simple words, and questions to keep the audience engaged and comfortable.\n- **In-depth Explanation of Related IT Technology:** Explain how the technology can help address the issue, what it does, and why it’s significant in the industry. Share relatable examples, fun facts, or anecdotes to illustrate the technology’s potential impact. Keep the language friendly and easy to follow!\n- **Conclusion:** Wrap it up with a positive and hopeful statement about the technology's future. Avoid heavy questions, and finish on a cheerful note that leaves viewers feeling good.\n\nEach section should follow this format:\n[Visual description of the scene 1 in one line]\nScript 1\n[Visual description of the scene 2 in one line]\nScript 2\n[Visual description of the scene 3 in one line]\nScript 3\n... (continue this format)\n\nThe entire script should be at least 5000 characters, maintaining a **friendly and casual tone throughout**, and it must be based solely on factual information, without any fictional or narrative content. If using content from newspapers or news sources, please include citations in the subtitles to enhance the factual credibility.",
+        594829255,
+        "randomize",
+        50,
+        0.9,
+        0.9,
+        -1,
+        1.5,
+        5,
+        false,
+        "text",
+        ""
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "STRING"
+    ],
+    [
+      21,
+      9,
+      0,
+      19,
+      0,
+      "STRING"
+    ],
+    [
+      22,
+      10,
+      0,
+      19,
+      1,
+      "STRING"
+    ],
+    [
+      27,
+      19,
+      0,
+      23,
+      0,
+      "STRING"
+    ],
+    [
+      29,
+      23,
+      0,
+      1,
+      1,
+      "STRING"
+    ],
+    [
+      32,
+      24,
+      0,
+      26,
+      0,
+      "STRING"
+    ],
+    [
+      33,
+      27,
+      0,
+      24,
+      1,
+      "STRING"
+    ]
+  ],
+  "groups": [
+    {
+      "title": "단일 주제에 집중",
+      "bounding": [
+        60,
+        873,
+        1678,
+        1041
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "locked": false
+    },
+    {
+      "title": "이슈+IT 주제",
+      "bounding": [
+        -21,
+        -342,
+        1694,
+        1097
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "locked": false
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8769226950000019,
+      "offset": [
+        158.17013872665785,
+        313.1095695213723
+      ]
+    }
+  },
+  "version": 0.4
+}

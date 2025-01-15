@@ -1,0 +1,603 @@
+{
+  "last_node_id": 16,
+  "last_link_id": 19,
+  "nodes": [
+    {
+      "id": 4,
+      "type": "PreviewImage",
+      "pos": [
+        525,
+        -115
+      ],
+      "size": {
+        "0": 210,
+        "1": 246
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 5,
+      "type": "MaskPreview+",
+      "pos": [
+        756,
+        -110
+      ],
+      "size": {
+        "0": 210,
+        "1": 246
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MaskPreview+"
+      }
+    },
+    {
+      "id": 2,
+      "type": "Florence2Run",
+      "pos": [
+        37,
+        -27
+      ],
+      "size": {
+        "0": 400,
+        "1": 352
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 7
+        },
+        {
+          "name": "florence2_model",
+          "type": "FL2MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            2
+          ],
+          "slot_index": 0,
+          "shape": 3
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": [
+            3
+          ],
+          "slot_index": 1,
+          "shape": 3
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "links": [
+            16
+          ],
+          "slot_index": 2,
+          "shape": 3
+        },
+        {
+          "name": "data",
+          "type": "JSON",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Florence2Run"
+      },
+      "widgets_values": [
+        "",
+        "more_detailed_caption",
+        true,
+        false,
+        1024,
+        3,
+        true,
+        "",
+        845629812006471,
+        "randomize"
+      ]
+    },
+    {
+      "id": 14,
+      "type": "CR Integer To String",
+      "pos": [
+        -370,
+        590
+      ],
+      "size": {
+        "0": 315,
+        "1": 78
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "int_",
+          "type": "INT",
+          "link": 13,
+          "widget": {
+            "name": "int_"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            14,
+            15
+          ],
+          "slot_index": 0,
+          "shape": 3
+        },
+        {
+          "name": "show_help",
+          "type": "STRING",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CR Integer To String"
+      },
+      "widgets_values": [
+        0
+      ]
+    },
+    {
+      "id": 11,
+      "type": "Save Text File",
+      "pos": [
+        913,
+        571
+      ],
+      "size": {
+        "0": 315,
+        "1": 202
+      },
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 17,
+          "widget": {
+            "name": "text"
+          }
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "link": 14,
+          "widget": {
+            "name": "filename_prefix"
+          }
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Save Text File"
+      },
+      "widgets_values": [
+        "",
+        "./ComfyUI/output/[time(%Y-%m-%d-%H-%M)]",
+        "ComfyUI",
+        "_",
+        0,
+        ".txt",
+        "utf-8"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "LoadImageListFromDir //Inspire",
+      "pos": [
+        -385,
+        177
+      ],
+      "size": {
+        "0": 315,
+        "1": 170
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            7,
+            18
+          ],
+          "slot_index": 0,
+          "shape": 6
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null,
+          "shape": 6
+        },
+        {
+          "name": "FILE PATH",
+          "type": "STRING",
+          "links": [
+            12
+          ],
+          "slot_index": 2,
+          "shape": 6
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImageListFromDir //Inspire"
+      },
+      "widgets_values": [
+        "/opt/ftp/files/오울이",
+        0,
+        0,
+        false
+      ]
+    },
+    {
+      "id": 12,
+      "type": "SaveImageExtended",
+      "pos": [
+        391,
+        444
+      ],
+      "size": {
+        "0": 315,
+        "1": 290
+      },
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 19
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "link": 15,
+          "widget": {
+            "name": "filename_prefix"
+          }
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveImageExtended"
+      },
+      "widgets_values": [
+        "ComfyUI",
+        "PNG"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "DownloadAndLoadFlorence2Model",
+      "pos": [
+        -387,
+        2
+      ],
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "lora",
+          "type": "PEFTLORA",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "florence2_model",
+          "type": "FL2MODEL",
+          "links": [
+            1
+          ],
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DownloadAndLoadFlorence2Model"
+      },
+      "widgets_values": [
+        "microsoft/Florence-2-large-ft",
+        "fp16",
+        "sdpa"
+      ]
+    },
+    {
+      "id": 13,
+      "type": "ListCounter //Inspire",
+      "pos": [
+        -380,
+        450
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "signal",
+          "type": "*",
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            13
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ListCounter //Inspire"
+      },
+      "widgets_values": [
+        1
+      ]
+    },
+    {
+      "id": 15,
+      "type": "IF_DisplayText",
+      "pos": [
+        813,
+        274
+      ],
+      "size": {
+        "0": 395.5855712890625,
+        "1": 218.43255615234375
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 16,
+          "widget": {
+            "name": "text"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            17
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "IF_DisplayText"
+      },
+      "widgets_values": [
+        "",
+        "A white table with black chairs around it. There is a picture of a white owl on top of the table. There are three animals on a colorful background. There are trees on either side of the animals. There is a brown pot in front of them that has a white substance inside of it. The animals are white and have long ears. A cartoon animal is shown on a beige background. There is a thought bubble above the animal. The animal has black spots on it's face and black eyes. A cartoon owl is sitting on a window sill with its eyes closed. There is a potted plant next to the owl. There are two white clouds in the window. A cartoon image of an owl and a potted plant. The owl is standing in front of a window. The plant has green leaves. The sky outside the window is light blue. There are white clouds in the sky above the plant and owl. A cartoon of an owl is sitting in a box. Inside the box is a blue scarf. Next to the owl are two pairs of socks. One pair of socks is grey and the other pair is purple. There is a white mug in front of the owl. The mug has a brown bear face on it. A cartoon image of a bear and a bird. The bear is white with big black eyes. The bird is orange. There are green leaves surrounding the bear and bird. There is a clock above the bear. A cartoon image of an owl is shown on a beige background. The owl is yellow and white with big black eyes. Above the owl there is a speech bubble with black letters. A cartoon animal is on a beige background. The animal is a pig. It is wearing a yellow strap around its neck. There is writing above the animal in a foreign language. There are small brown spots on the ground next to the animal. Three people are standing in a room. There is a woman in a white shirt and a man in a blue suit. There are buildings behind them. The person in the middle is wearing a gray jacket and has a black bag on his shoulder. A cartoon image of an animal. The animal is an owl. The owl has big round eyes. The eyes are black. The ears of the animal are light brown. The body of the owl is light gray. There is a black nose on the owl. A cartoon of a boy with black hair and round glasses. He has pink ears and a pink nose. His eyes are big and round. Above his head is a white and yellow animal with round eyes. Above the animal's head are two speech bubbles with black letters. The background is light green. A cartoon of a yellow and white owl with big black eyes. There are two white speech bubbles above the owl. There is a person's hand holding the owl above them. A cartoon image of an owl is standing in front of a laptop. The owl is yellow and white and has big black eyes. There is a speech bubble next to the owl with a question mark in it. A cartoon image of an animal. The animal is a penguin. The background of the image is yellow. The penguin is yellow and white. The eyes of the penguin are black. The ears of the animal are a light brown color. There is a speech bubble above the animal's head that has foreign writing inside of it. There are five stars surrounding the animal. A cartoon image of a white owl is on a light yellow background. The owl is wearing a green lanyard around its neck. There is black writing above the owl on the top of the image. Two cartoon characters are shown on a black background. The character on the left is wearing a blue shirt and black pants. He has glasses on his face. He also has a camera on his chest. On the right is a girl with brown hair and a red shirt. She has a black backpack on her back. She is holding a green hand up in the air. The words \"web_luna\" are above her head. Two cartoon characters are on a black background. One of the characters is wearing a blue shirt and the other one is wearing blue pants and a black scarf. There is a black backpack on the left side of the image. A cartoon animal is wearing a blue hat. The animal has big black eyes. There are words written around the animal. Two cartoon images are shown side by side. The first image is of a penguin wearing a blue hat and scarf. The second image has the penguin holding a laptop. The penguin is yellow and white. There is a gray laptop on the ground. A cartoon animal is shown on a blue and white background. The animal is yellow and white and has black eyes. There is a bridge in the background behind the animal. There are buildings behind the bridge. A cartoon animal is on a blue background. There is a bridge behind the animal. There are buildings on the other side of the bridge. The animal is yellow and white. A cartoon image of an owl. The owl is yellow and white. The eyes are black. There is a bridge in the background. The sky is blue. There are buildings behind the bridge. The ground is covered in snow. The snow is light blue. Three cartoon animals are standing in front of a bridge. The animals are yellow and white. The sky is blue and there are buildings behind the bridge. There are clouds in the sky. A white sign is on a brick wall. There is a potted plant on the wall next to the sign. A cartoon image of an owl sitting in a bowl of fruit. The bowl is blue and has a pink banner on it that says \"summer dessert cafe\". The owl is white with big black eyes and ears. There is a small orange bird on the top left corner of the image. A cartoon of a man standing next to a bed. There is a desk in front of the man with a computer on top of it. There are pictures hanging on the wall behind the man. There are four cartoon animals on the top and bottom of the image. The animals are yellow and white. They have black sunglasses on their eyes. They are wearing a pink hat. There is a pink background under the animals. A cartoon picture of a blue car that is parked in a wooded area. There is a yellow animal in front of the car. There are several people standing around the car with their arms outstretched. A cartoon animal is wearing a brown hat. The animal has big black eyes and a small orange nose. There is a blue scarf around its neck. There are blue flowers on the scarf. A cartoon animal is holding a flag. The animal is wearing a brown hat and a blue shirt. There is a yellow star on the flag. A cartoon animal is wearing a brown hat. The animal has big black eyes and a frown on its face. It is also wearing a blue shirt and holding a silver laptop. A cartoon animal is sitting in a boat. The animal is wearing a brown hat. There is a pink flower in front of the animal. A cartoon image of a pirate ship. The ship is brown and has a black flag with a white skull on it. There is an orange bird on the top of the ship. A cartoon animal is sitting in front of a black pot. The animal is wearing a blue hat and a blue and white shirt. There is a white sign above the animal with black writing on it. A cartoon animal is sitting at a table. The animal is wearing a blue hat and a blue and white shirt. There is a black pot on the table in front of the animal. There are pictures hanging on the wall behind the bear. A cartoon bear is sitting in front of a table. There is a green bowl on the table with food in it. There are two red lanterns hanging above the bear. A cartoon owl is standing in a field of flowers. The owl is wearing a yellow hoodie and holding a green umbrella. The flowers are blue, white and pink. There are trees and water behind the owl. A cartoon of a green owl and a yellow bird. The yellow bird has a blue hat on it's head. There are white clouds behind them. A cartoon animal is standing in a field. There are trees surrounding the animal. The animal is wearing a purple hat. There are two cartoon images. The first image is of a chicken and the second image is a bear holding milk bottles. The chicken is white and the bird is brown. There is a pear next to the chicken. A cartoon image of a chicken and a bird. The chicken is wearing a red hat with a letter C on it. The bird is standing on its hind legs. The head of the chicken is white. The beak of the bird is yellow and black. The eyes are black and round. A cartoon animal is holding a laptop. The animal is yellow and white. It is wearing a blue hat with a letter \"C\" on it. It also has a blue shirt on. The bird has big black eyes and a frown on its face. A cartoon chicken is wearing a red shirt and a red hat. The chicken has big black eyes and a small beak. There is a white house behind the chicken. A cartoon owl is wearing a blue hat with the letter \"C\" on it. The owl is yellow and white and has big black eyes. It also has a blue shirt on with a collar that has a bone design on the front. The ears of the owl are light brown. A cartoon animal is wearing a red hat with the letter \"C\" on it. The animal has big black eyes and a white face. It also has a red scarf around its neck. A cartoon animal is holding a flag. The animal is yellow and white and has big black eyes. It is wearing a blue hat with a white letter C on it. The flag is red and blue. A cartoon image of an owl is shown. The owl is white with black eyes and black feet. It has a yellow beak and is wearing an orange bag around its neck. The background is white and there is yellow writing above the image that says \"Codingon Character OWL\". A cartoon animal is on a yellow background. The animal is white with black eyes and a brown beak. There is an orange strap around its neck. Above the animal's head is a quote in Korean that reads \"Who is owl?\" Three cartoon birds are shown on a white background with a yellow border. The birds are drawn in three different positions. They are all facing the same direction and are shown in a row. The first bird is on the left side, the middle bird is in the front and the third bird on the right side is facing the back. Each of the birds has a round eye and a small beak. There are three cartoon characters on a white background. The character in the middle is wearing a blue hat and a blue shirt. The bird on the left is white and the one on the right is light brown. There is a yellow text above the characters that says character turnaround. There are three cartoon characters on a white background. The character on the left is a bird. The bird on the right is a hamster. The hamster is sad. The owl in the middle is wearing a hat and a blue shirt. The owls eyes are big and round. The text above the hamster reads \"Character Turnaround\". There are two cartoon animals on a white background. One of the animals is holding a laptop. The other animal is wearing a bag. There is a blue can next to the animals. The image has nine owls on a white background. The owls have different faces. Each of the owls has big round eyes and big black eyes. One of the owl has a pink bow on its neck. The second row has two owls with big eyes. The third row has a light brown owl with big brown eyes and a beak. The fourth row has an owl with a yellow hat and a yellow scarf on its head. The fifth row has one penguin with a blue hat and gray scarf on it. There are four cartoon images of a bear. The first image on the top left shows a bear eating pancakes. The second image in the top right shows the bear having a meal. The third image shows the same bear sleeping. The fourth image has a bear holding a spoon. There is a to do list on the bottom right. There is a cartoon image in a collage of four pictures.  The first picture shows a bunk bed with a monkey on it.  There is a ladder leading up to the top bunk.  A kitchen with white cabinets and a sink with a faucet is in the corner.  Next to the bunk bed is a washing machine. A set of four cartoon images of a yellow owl sitting in a pink armchair. Each image has a light pink background and the owl is wearing a black and white outfit. The owl has big, round eyes and a black beak. There is a speech bubble above the owl's head that says \"CodingOn\" in black letters. A cartoon image of an animal on a pink background. The animal is an owl and it is wearing a crown. There are balloons surrounding the animal. There is a cake under the owl with the number 5 on it. A cartoon of a bird is sitting in a chair. The bird is yellow with big black eyes. There is a yellow table in front of the bird. There are words above the bird that say no and yes. A cartoon image of an owl. The owl has big round eyes. The eyes are black. The ears of the owl are light yellow. The belly of the bird is light beige. The feet of the birds are black as well. A group of people are standing together in a line. They are all dressed in business attire. There is a small white and yellow owl in front of them. The cover of a book called The Little Mermaid. The title of the book is written in blue letters at the top of the cover. There is an illustration of a seal in the middle of the page. There are two dolphins on the right side and a yellow fish on the left side. A red lobster is on the bottom of the seal. The waves are white and blue. A set of four cartoon images are on a yellow background. Each of the images has a bear on the top right corner with a laptop in front of it. Next to the bear is a speech bubble with the word coding on it. A cartoon penguin is wearing glasses and a suit. He is standing on a gray surface. There is a gray and white background behind the penguin. On the top of the image there is a text that says \"Oh my\". A cartoon bear is wearing glasses. The bear is black and white. There is writing above the bear that says oh my. A cartoon animal is standing in front of a purple building. There are several gray buildings behind the animal. There is a yellow lightbulb above the bird. A poster has a purple background. There is an owl on the poster. The owl is yellow with big black eyes and a beak. In front of the owl is a silver laptop. A cartoon image of two owls. One of the owls is wearing an orange hat with a letter C on it. The other owl is sitting in a wooden box with food inside of it. There is a green and white checkered table cloth on the table. There are pink cherry blossom trees in the background. A cartoon bear is sitting on a rock. The bear is blue and yellow. There are seagulls flying above the bear. There is a light house in the distance. A cartoon animal is sitting behind a computer monitor. There is a stack of books in front of the animal. There are shelves behind the animal with books on them. A cartoon animal is floating in the water. There is a waterfall behind the animal. There are large boulders around the animal on the ground. A cartoon animal is sitting inside of a shopping cart. There are shelves on either side of the cart filled with bottles. There is a sign above the cart that has blue writing on it. A cartoon animal is floating in the water. There is a pink flamingo behind the animal. There are palm trees on the land in front of the animals. A cartoon bear is sitting on a purple couch. He is holding a red cup in his hand. There is a black computer monitor in front of him. Next to the monitor is a potted plant."
+      ]
+    },
+    {
+      "id": 16,
+      "type": "ImageResize+",
+      "pos": [
+        43,
+        442
+      ],
+      "size": {
+        "0": 315,
+        "1": 218
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            19
+          ],
+          "slot_index": 0,
+          "shape": 3
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageResize+"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        "bilinear",
+        "pad",
+        "always",
+        0
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      3,
+      0,
+      2,
+      1,
+      "FL2MODEL"
+    ],
+    [
+      2,
+      2,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ],
+    [
+      3,
+      2,
+      1,
+      5,
+      0,
+      "MASK"
+    ],
+    [
+      7,
+      9,
+      0,
+      2,
+      0,
+      "IMAGE"
+    ],
+    [
+      12,
+      9,
+      2,
+      13,
+      0,
+      "*"
+    ],
+    [
+      13,
+      13,
+      0,
+      14,
+      0,
+      "INT"
+    ],
+    [
+      14,
+      14,
+      0,
+      11,
+      1,
+      "STRING"
+    ],
+    [
+      15,
+      14,
+      0,
+      12,
+      1,
+      "STRING"
+    ],
+    [
+      16,
+      2,
+      2,
+      15,
+      0,
+      "STRING"
+    ],
+    [
+      17,
+      15,
+      0,
+      11,
+      0,
+      "STRING"
+    ],
+    [
+      18,
+      9,
+      0,
+      16,
+      0,
+      "IMAGE"
+    ],
+    [
+      19,
+      16,
+      0,
+      12,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.5535220464768975,
+      "offset": [
+        123.21199969997127,
+        -124.42231649207137
+      ]
+    }
+  },
+  "version": 0.4
+}
