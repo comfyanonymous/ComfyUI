@@ -18,6 +18,7 @@ venv/
 !/web/extensions/core/
 /tests-ui/data/object_info.json
 #/user/
+/user/default/ComfyUI-Manager/cache/
 *.log
 web_custom_versions/
 .DS_Store
