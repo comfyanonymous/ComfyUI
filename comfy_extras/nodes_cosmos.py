@@ -71,8 +71,8 @@ class CosmosImageToVideoLatent:
             mask[:, :, -latent_temp.shape[-3]:] *= 0.0
 
         out_latent = {}
-        out_latent["samples"] = latent
-        out_latent["noise_mask"] = mask
+        out_latent["samples"] = latent.repeat((batch_size, ) + (1,) * (latent.ndim - 1))
+        out_latent["noise_mask"] = mask.repeat((batch_size, ) + (1,) * (mask.ndim - 1))
         return (out_latent,)
 
 
