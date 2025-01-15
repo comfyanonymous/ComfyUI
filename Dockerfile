@@ -1,9 +1,30 @@
 FROM nvcr.io/nvidia/pytorch:24.03-py3
-RUN pip install --no-cache --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
-EXPOSE 8188
-WORKDIR /workspace
-# tries to address https://github.com/pytorch/pytorch/issues/104801
-# and issues reported by importing nodes_canny
+
+ARG TZ="America/Los_Angeles"
+
 ENV PYTORCH_CUDA_ALLOC_CONF="backend:cudaMallocAsync"
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_NO_CACHE=1
+ENV UV_SYSTEM_PYTHON=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PIP_NO_CACHE_DIR=1
+ENV DEBIAN_FRONTEND="noninteractive"
+# mitigates https://stackoverflow.com/questions/55313610/importerror-libgl-so-1-cannot-open-shared-object-file-no-such-file-or-directo
+# mitigates AttributeError: module 'cv2.dnn' has no attribute 'DictValue' \
+# see https://github.com/facebookresearch/nougat/issues/40
+RUN pip install uv && uv --version && \
+    apt-get update && apt-get install --no-install-recommends ffmpeg libsm6 libxext6 -y && \
+    uv pip uninstall --system $(pip list --format=freeze | grep opencv) && \
+    rm -rf /usr/local/lib/python3.10/dist-packages/cv2/ && \
+    uv pip install wheel && \
+    uv pip install --no-build-isolation opencv-python-headless && \
+    uv pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+# addresses https://github.com/pytorch/pytorch/issues/104801
+# and issues reported by importing nodes_canny
 RUN comfyui --quick-test-for-ci --cpu --cwd /workspace
-CMD ["/usr/local/bin/comfyui", "--listen"]
+
+EXPOSE 8188
+CMD ["python", "-m", "comfy.cmd.main", "--listen"]
