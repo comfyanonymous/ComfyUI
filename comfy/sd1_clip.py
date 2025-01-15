@@ -388,13 +388,10 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
             import safetensors.torch
             embed = safetensors.torch.load_file(embed_path, device="cpu")
         else:
-            if 'weights_only' in torch.load.__code__.co_varnames:
-                try:
-                    embed = torch.load(embed_path, weights_only=True, map_location="cpu")
-                except:
-                    embed_out = safe_load_embed_zip(embed_path)
-            else:
-                embed = torch.load(embed_path, map_location="cpu")
+            try:
+                embed = torch.load(embed_path, weights_only=True, map_location="cpu")
+            except:
+                embed_out = safe_load_embed_zip(embed_path)
     except Exception:
         logging.warning("{}\n\nerror loading embedding, skipping loading: {}".format(traceback.format_exc(), embedding_name))
         return None
