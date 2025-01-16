@@ -168,14 +168,18 @@ class Attention(nn.Module):
         k = self.to_k[1](k)
         v = self.to_v[1](v)
         if self.is_selfattn and rope_emb is not None:  # only apply to self-attention!
-            q = apply_rotary_pos_emb(q, rope_emb)
-            k = apply_rotary_pos_emb(k, rope_emb)
-        return q, k, v
+            # apply_rotary_pos_emb inlined
+            q_shape = q.shape
+            q = q.reshape(*q.shape[:-1], 2, -1).movedim(-2, -1).unsqueeze(-2)
+            q = rope_emb[..., 0] * q[..., 0] + rope_emb[..., 1] * q[..., 1]
+            q = q.movedim(-1, -2).reshape(*q_shape).to(x.dtype)
 
-    def cal_attn(self, q, k, v, mask=None):
-        out = optimized_attention(q, k, v, self.heads, skip_reshape=True, mask=mask, skip_output_reshape=True)
-        out = rearrange(out, " b n s c -> s b (n c)")
-        return self.to_out(out)
+            # apply_rotary_pos_emb inlined
+            k_shape = k.shape
+            k = k.reshape(*k.shape[:-1], 2, -1).movedim(-2, -1).unsqueeze(-2)
+            k = rope_emb[..., 0] * k[..., 0] + rope_emb[..., 1] * k[..., 1]
+            k = k.movedim(-1, -2).reshape(*k_shape).to(x.dtype)
+        return q, k, v
 
     def forward(
         self,
@@ -191,7 +195,10 @@ class Attention(nn.Module):
             context (Optional[Tensor]): The key tensor of shape [B, Mk, K] or use x as context [self attention] if None
         """
         q, k, v = self.cal_qkv(x, context, mask, rope_emb=rope_emb, **kwargs)
-        return self.cal_attn(q, k, v, mask)
+        out = optimized_attention(q, k, v, self.heads, skip_reshape=True, mask=mask, skip_output_reshape=True)
+        del q, k, v
+        out = rearrange(out, " b n s c -> s b (n c)")
+        return self.to_out(out)
 
 
 class FeedForward(nn.Module):
@@ -788,10 +795,7 @@ class GeneralDITTransformerBlock(nn.Module):
         crossattn_mask: Optional[torch.Tensor] = None,
         rope_emb_L_1_1_D: Optional[torch.Tensor] = None,
         adaln_lora_B_3D: Optional[torch.Tensor] = None,
-        extra_per_block_pos_emb: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        if extra_per_block_pos_emb is not None:
-            x = x + extra_per_block_pos_emb
         for block in self.blocks:
             x = block(
                 x,
