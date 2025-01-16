@@ -23,7 +23,7 @@ package_name = "comfyui"
 """
 The current version.
 """
-version = "0.3.10"
+version = "0.3.11"
 
 """
 The package index to the torch built with AMD ROCm.
