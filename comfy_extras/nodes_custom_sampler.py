@@ -231,6 +231,24 @@ class FlipSigmas:
             sigmas[0] = 0.0001
         return (sigmas,)
 
+class SetFirstSigma:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"sigmas": ("SIGMAS", ),
+                     "sigma": ("FLOAT", {"default": 136.0, "min": 0.0, "max": 20000.0, "step": 0.001, "round": False}),
+                    }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "sampling/custom_sampling/sigmas"
+
+    FUNCTION = "set_first_sigma"
+
+    def set_first_sigma(self, sigmas, sigma):
+        sigmas = sigmas.clone()
+        sigmas[0] = sigma
+        return (sigmas, )
+
 class KSamplerSelect:
     @classmethod
     def INPUT_TYPES(s):
@@ -710,6 +728,7 @@ NODE_CLASS_MAPPINGS = {
     "SplitSigmas": SplitSigmas,
     "SplitSigmasDenoise": SplitSigmasDenoise,
     "FlipSigmas": FlipSigmas,
+    "SetFirstSigma": SetFirstSigma,
 
     "CFGGuider": CFGGuider,
     "DualCFGGuider": DualCFGGuider,
