@@ -22,8 +22,8 @@ import copy
 import inspect
 import logging
 import uuid
-from typing import Callable, Optional
 from math import isclose
+from typing import Callable, Optional
 
 import torch
 import torch.nn
@@ -32,10 +32,10 @@ from humanize import naturalsize
 from . import model_management, lora
 from . import patcher_extension
 from . import utils
-from .component_model.deprecation import _deprecate_method
 from .comfy_types import UnetWrapperFunction
+from .component_model.deprecation import _deprecate_method
 from .float import stochastic_rounding
-from .hooks import EnumHookMode, _HookRef, HookGroup, EnumHookType, Hook, WeightHook, EnumWeightTarget
+from .hooks import EnumHookMode, _HookRef, HookGroup, EnumHookType, WeightHook, create_transformer_options_from_hooks
 from .lora_types import PatchDict, PatchDictKey, PatchTuple, PatchWeightTuple, ModelPatchesDictValue
 from .model_base import BaseModel
 from .model_management_types import ModelManageable, MemoryMeasurements, ModelOptions
@@ -225,7 +225,7 @@ class ModelPatcher(ModelManageable):
         self.injections: dict[str, list[PatcherInjection]] = {}
 
         self.hook_patches: dict[_HookRef] = {}
-        self.hook_patches_backup: dict[_HookRef] = {}
+        self.hook_patches_backup: dict[_HookRef] = None
         self.hook_backup: dict[str, tuple[torch.Tensor, torch.device]] = {}
         self.cached_hook_patches: dict[HookGroup, dict[str, torch.Tensor | tuple[torch.Tensor, torch.device]]] = {}
         self.current_hooks: Optional[HookGroup] = None
@@ -318,7 +318,7 @@ class ModelPatcher(ModelManageable):
             n.injections[k] = i.copy()
         # hooks
         n.hook_patches = create_hook_patches_clone(self.hook_patches)
-        n.hook_patches_backup = create_hook_patches_clone(self.hook_patches_backup)
+        n.hook_patches_backup = create_hook_patches_clone(self.hook_patches_backup) if self.hook_patches_backup else self.hook_patches_backup
         for group in self.cached_hook_patches:
             n.cached_hook_patches[group] = {}
             for k in self.cached_hook_patches[group]:
@@ -437,7 +437,20 @@ class ModelPatcher(ModelManageable):
     def add_object_patch(self, name, obj):
         self.object_patches[name] = obj
 
-    def get_model_object(self, name):
+    def get_model_object(self, name: str) -> torch.nn.Module:
+        """Retrieves a nested attribute from an object using dot notation considering
+        object patches.
+
+        Args:
+            name (str): The attribute path using dot notation (e.g. "model.layer.weight")
+
+        Returns:
+            The value of the requested attribute
+
+        Example:
+            patcher = ModelPatcher()
+            weight = patcher.get_model_object("layer1.conv.weight")
+        """
         if name in self.object_patches:
             return self.object_patches[name]
         else:
@@ -836,7 +849,7 @@ class ModelPatcher(ModelManageable):
         else:
             return f"<ModelPatcher for {self.model.__class__.__name__} ({info_str})>"
 
-    @_deprecate_method(version="0.3.2",message="WARNING the ModelPatcher.calculate_weight function is deprecated, please use: comfy.lora.calculate_weight instead")
+    @_deprecate_method(version="0.3.2", message="WARNING the ModelPatcher.calculate_weight function is deprecated, please use: comfy.lora.calculate_weight instead")
     def calculate_weight(self, patches, weight, key, intermediate_dtype=torch.float32):
         return lora.calculate_weight(patches, weight, key, intermediate_dtype=intermediate_dtype)
 
@@ -905,6 +918,9 @@ class ModelPatcher(ModelManageable):
     def remove_injections(self, key: str):
         if key in self.injections:
             self.injections.pop(key)
+
+    def get_injections(self, key: str):
+        return self.injections.get(key, None)
 
     def set_additional_models(self, key: str, models: list['ModelPatcher']):
         self.additional_models[key] = models
@@ -976,18 +992,19 @@ class ModelPatcher(ModelManageable):
             callback(self, timestep)
 
     def restore_hook_patches(self):
-        if len(self.hook_patches_backup) > 0:
+        if self.hook_patches_backup is not None:
             self.hook_patches = self.hook_patches_backup
-            self.hook_patches_backup = {}
+            self.hook_patches_backup = None
 
     def set_hook_mode(self, hook_mode: EnumHookMode):
         self.hook_mode = hook_mode
 
-    def prepare_hook_patches_current_keyframe(self, t: torch.Tensor, hook_group: HookGroup):
+    def prepare_hook_patches_current_keyframe(self, t: torch.Tensor, hook_group: HookGroup, model_options: dict[str]):
         curr_t = t[0]
         reset_current_hooks = False
+        transformer_options = model_options.get("transformer_options", {})
         for hook in hook_group.hooks:
-            changed = hook.hook_keyframe.prepare_current_keyframe(curr_t=curr_t)
+            changed = hook.hook_keyframe.prepare_current_keyframe(curr_t=curr_t, transformer_options=transformer_options)
             # if keyframe changed, remove any cached HookGroups that contain hook with the same hook_ref;
             # this will cause the weights to be recalculated when sampling
             if changed:
@@ -1003,25 +1020,26 @@ class ModelPatcher(ModelManageable):
         if reset_current_hooks:
             self.patch_hooks(None)
 
-    def register_all_hook_patches(self, hooks_dict: dict[EnumHookType, dict[Hook, None]], target: EnumWeightTarget, model_options: dict = None):
+    def register_all_hook_patches(self, hooks: HookGroup, target_dict: dict[str], model_options: dict = None,
+                                  registered: HookGroup = None):
         self.restore_hook_patches()
-        registered_hooks: list[Hook] = []
-        # handle WrapperHooks, if model_options provided
-        if model_options is not None:
-            for hook in hooks_dict.get(EnumHookType.Wrappers, {}):
-                hook.add_hook_patches(self, model_options, target, registered_hooks)
+        if registered is None:
+            registered = HookGroup()
         # handle WeightHooks
         weight_hooks_to_register: list[WeightHook] = []
-        for hook in hooks_dict.get(EnumHookType.Weight, {}):
+        for hook in hooks.get_type(EnumHookType.Weight):
             if hook.hook_ref not in self.hook_patches:
                 weight_hooks_to_register.append(hook)
+            else:
+                registered.add(hook)
         if len(weight_hooks_to_register) > 0:
             # clone hook_patches to become backup so that any non-dynamic hooks will return to their original state
             self.hook_patches_backup = create_hook_patches_clone(self.hook_patches)
             for hook in weight_hooks_to_register:
-                hook.add_hook_patches(self, model_options, target, registered_hooks)
+                hook.add_hook_patches(self, model_options, target_dict, registered)
         for callback in self.get_all_callbacks(CallbacksMP.ON_REGISTER_ALL_HOOK_PATCHES):
-            callback(self, hooks_dict, target)
+            callback(self, hooks, target_dict, model_options, registered)
+        return registered
 
     def add_hook_patches(self, hook: WeightHook, patches, strength_patch=1.0, strength_model=1.0):
         with self.use_ejected():
@@ -1069,14 +1087,14 @@ class ModelPatcher(ModelManageable):
                     combined_patches[key] = current_patches
         return combined_patches
 
-    def apply_hooks(self, hooks: HookGroup, transformer_options: dict = None, force_apply=False):
+    def apply_hooks(self, hooks: Optional[HookGroup], transformer_options: dict = None, force_apply=False):
         # TODO: return transformer_options dict with any additions from hooks
         if self.current_hooks == hooks and (not force_apply or (not self.is_clip and hooks is None)):
-            return {}
+            return create_transformer_options_from_hooks(self, hooks, transformer_options)
         self.patch_hooks(hooks=hooks)
         for callback in self.get_all_callbacks(CallbacksMP.ON_APPLY_HOOKS):
             callback(self, hooks)
-        return {}
+        return create_transformer_options_from_hooks(self, hooks, transformer_options)
 
     def patch_hooks(self, hooks: HookGroup | None):
         with self.use_ejected():
@@ -1171,7 +1189,6 @@ class ModelPatcher(ModelManageable):
             keys = list(self.hook_backup.keys())
             for k in keys:
                 utils.copy_to_param(self.model, k, self.hook_backup[k][0].to(device=self.hook_backup[k][1]))
-
             self.hook_backup.clear()
             self.current_hooks = None
 

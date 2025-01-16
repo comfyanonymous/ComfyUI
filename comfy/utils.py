@@ -29,7 +29,6 @@ import sys
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
-from pickle import UnpicklingError
 from typing import Optional, Any
 
 import numpy as np
@@ -40,7 +39,7 @@ from einops import rearrange
 from torch.nn.functional import interpolate
 from tqdm import tqdm
 
-from . import checkpoint_pickle, interruption
+from . import interruption, checkpoint_pickle
 from .component_model import files
 from .component_model.deprecation import _deprecate_method
 from .component_model.executor_types import ExecutorToClientProgress, ProgressMessage
@@ -48,6 +47,23 @@ from .component_model.queue_types import BinaryEventTypes
 from .execution_context import current_execution_context
 
 logger = logging.getLogger(__name__)
+
+ALWAYS_SAFE_LOAD = False
+if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in pytorch 2.4, the unsafe path should be removed once earlier versions are deprecated
+    class ModelCheckpoint:
+        pass
+
+
+    ModelCheckpoint.__module__ = "pytorch_lightning.callbacks.model_checkpoint"
+
+    from numpy.core.multiarray import scalar
+    from numpy import dtype
+    from numpy.dtypes import Float64DType
+    from _codecs import encode
+
+    torch.serialization.add_safe_globals([ModelCheckpoint, scalar, dtype, Float64DType, encode])
+    ALWAYS_SAFE_LOAD = True
+    logging.info("Checkpoint files will always be loaded safely.")
 
 
 # deprecate PROGRESS_BAR_ENABLED
@@ -86,7 +102,7 @@ def load_torch_file(ckpt: str, safe_load=False, device=None):
             sd.update(safetensors.torch.load_file(str(checkpoint_file), device=device.type))
     else:
         try:
-            if safe_load:
+            if safe_load or ALWAYS_SAFE_LOAD:
                 if not 'weights_only' in torch.load.__code__.co_varnames:
                     logger.warning("Warning torch.load doesn't support weights_only on this pytorch version, loading unsafely.")
                     safe_load = False
@@ -778,7 +794,25 @@ def copy_to_param(obj, attr, value):
     prev.data.copy_(value)
 
 
-def get_attr(obj, attr):
+def get_attr(obj, attr: str):
+    """Retrieves a nested attribute from an object using dot notation.
+
+    Args:
+        obj: The object to get the attribute from
+        attr (str): The attribute path using dot notation (e.g. "model.layer.weight")
+
+    Returns:
+        The value of the requested attribute
+
+    Example:
+        model = MyModel()
+        weight = get_attr(model, "layer1.conv.weight")
+        # Equivalent to: model.layer1.conv.weight
+
+    Important:
+        Always prefer `comfy.model_patcher.ModelPatcher.get_model_object` when
+        accessing nested model objects under `ModelPatcher.model`.
+    """
     attrs = attr.split(".")
     for name in attrs:
         obj = getattr(obj, name)
@@ -982,7 +1016,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
         out = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
         out_div = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
 
-        positions = [range(0, s.shape[d + 2], tile[d] - overlap[d]) if s.shape[d + 2] > tile[d] else [0] for d in range(dims)]
+        positions = [range(0, s.shape[d + 2] - overlap[d], tile[d] - overlap[d]) if s.shape[d + 2] > tile[d] else [0] for d in range(dims)]
 
         for it in itertools.product(*positions):
             s_in = s

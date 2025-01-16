@@ -1,6 +1,10 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+<<<<<<<< HEAD:comfy/web/assets/index-CJHqfMZG.js
 import { c5 as ComfyDialog, c6 as $el, c7 as ComfyApp, b as app, i as LiteGraph, b7 as LGraphCanvas, c as LGraphNode, c8 as applyTextReplacements, c9 as ComfyWidgets, ca as addValueControlWidgets, aD as useNodeDefStore, cb as DraggableList, bl as useToastStore, cc as showPromptDialog, cd as t, ce as serialise, cf as deserialiseAndCreate, b0 as api, u as useSettingStore, L as LGraphGroup, cg as KeyComboImpl, N as useKeybindingStore, D as useCommandStore, ch as isElectron, bY as electronAPI, ci as showConfirmationDialog, aJ as nextTick } from "./index-BK27PIiK.js";
+========
+import { ca as ComfyDialog, cb as $el, cc as ComfyApp, h as app, a3 as LiteGraph, bd as LGraphCanvas, cd as useExtensionService, ce as processDynamicPrompt, cf as isElectron, c0 as electronAPI, bR as useDialogService, cg as t, ch as DraggableList, bt as useToastStore, ah as LGraphNode, ci as applyTextReplacements, cj as ComfyWidgets, ck as addValueControlWidgets, a6 as useNodeDefStore, cl as serialise, cm as deserialiseAndCreate, b8 as api, a as useSettingStore, ag as LGraphGroup, ad as nextTick } from "./index-DjNHn37O.js";
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/index-Bordpmzt.js
 class ClipspaceDialog extends ComfyDialog {
   static {
     __name(this, "ClipspaceDialog");
@@ -284,27 +288,15 @@ const ext$1 = {
   }
 };
 app.registerExtension(ext$1);
-function stripComments(str) {
-  return str.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, "");
-}
-__name(stripComments, "stripComments");
-app.registerExtension({
+useExtensionService().registerExtension({
   name: "Comfy.DynamicPrompts",
   nodeCreated(node) {
     if (node.widgets) {
       const widgets = node.widgets.filter((n) => n.dynamicPrompts);
       for (const widget of widgets) {
         widget.serializeValue = (workflowNode, widgetIndex) => {
-          let prompt = stripComments(widget.value);
-          while (prompt.replace("\\{", "").includes("{") && prompt.replace("\\}", "").includes("}")) {
-            const startIndex = prompt.replace("\\{", "00").indexOf("{");
-            const endIndex = prompt.replace("\\}", "00").indexOf("}");
-            const optionsString = prompt.substring(startIndex + 1, endIndex);
-            const options = optionsString.split("|");
-            const randomIndex = Math.floor(Math.random() * options.length);
-            const randomOption = options[randomIndex];
-            prompt = prompt.substring(0, startIndex) + randomOption + prompt.substring(endIndex + 1);
-          }
+          if (typeof widget.value !== "string") return widget.value;
+          const prompt = processDynamicPrompt(widget.value);
           if (workflowNode?.widgets_values)
             workflowNode.widgets_values[widgetIndex] = prompt;
           return prompt;
@@ -430,6 +422,7 @@ app.registerExtension({
     window.addEventListener("keydown", editAttention);
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/index-CJHqfMZG.js
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = [
   "STRING",
@@ -1215,6 +1208,169 @@ window.comfyAPI.widgetInputs.getWidgetConfig = getWidgetConfig;
 window.comfyAPI.widgetInputs.convertToInput = convertToInput;
 window.comfyAPI.widgetInputs.setWidgetConfig = setWidgetConfig;
 window.comfyAPI.widgetInputs.mergeIfValid = mergeIfValid;
+========
+(async () => {
+  if (!isElectron()) return;
+  const electronAPI$1 = electronAPI();
+  const desktopAppVersion = await electronAPI$1.getElectronVersion();
+  const onChangeRestartApp = /* @__PURE__ */ __name((newValue, oldValue) => {
+    if (oldValue !== void 0 && newValue !== oldValue) {
+      electronAPI$1.restartApp("Restart ComfyUI to apply changes.", 1500);
+    }
+  }, "onChangeRestartApp");
+  app.registerExtension({
+    name: "Comfy.ElectronAdapter",
+    settings: [
+      {
+        id: "Comfy-Desktop.AutoUpdate",
+        category: ["Comfy-Desktop", "General", "AutoUpdate"],
+        name: "Automatically check for updates",
+        type: "boolean",
+        defaultValue: true,
+        onChange: onChangeRestartApp
+      },
+      {
+        id: "Comfy-Desktop.SendStatistics",
+        category: ["Comfy-Desktop", "General", "Send Statistics"],
+        name: "Send anonymous crash reports",
+        type: "boolean",
+        defaultValue: true,
+        onChange: onChangeRestartApp
+      }
+    ],
+    commands: [
+      {
+        id: "Comfy-Desktop.Folders.OpenLogsFolder",
+        label: "Open Logs Folder",
+        icon: "pi pi-folder-open",
+        function() {
+          electronAPI$1.openLogsFolder();
+        }
+      },
+      {
+        id: "Comfy-Desktop.Folders.OpenModelsFolder",
+        label: "Open Models Folder",
+        icon: "pi pi-folder-open",
+        function() {
+          electronAPI$1.openModelsFolder();
+        }
+      },
+      {
+        id: "Comfy-Desktop.Folders.OpenOutputsFolder",
+        label: "Open Outputs Folder",
+        icon: "pi pi-folder-open",
+        function() {
+          electronAPI$1.openOutputsFolder();
+        }
+      },
+      {
+        id: "Comfy-Desktop.Folders.OpenInputsFolder",
+        label: "Open Inputs Folder",
+        icon: "pi pi-folder-open",
+        function() {
+          electronAPI$1.openInputsFolder();
+        }
+      },
+      {
+        id: "Comfy-Desktop.Folders.OpenCustomNodesFolder",
+        label: "Open Custom Nodes Folder",
+        icon: "pi pi-folder-open",
+        function() {
+          electronAPI$1.openCustomNodesFolder();
+        }
+      },
+      {
+        id: "Comfy-Desktop.Folders.OpenModelConfig",
+        label: "Open extra_model_paths.yaml",
+        icon: "pi pi-file",
+        function() {
+          electronAPI$1.openModelConfig();
+        }
+      },
+      {
+        id: "Comfy-Desktop.OpenDevTools",
+        label: "Open DevTools",
+        icon: "pi pi-code",
+        function() {
+          electronAPI$1.openDevTools();
+        }
+      },
+      {
+        id: "Comfy-Desktop.OpenFeedbackPage",
+        label: "Feedback",
+        icon: "pi pi-envelope",
+        function() {
+          window.open("https://forum.comfy.org/c/v1-feedback/", "_blank");
+        }
+      },
+      {
+        id: "Comfy-Desktop.OpenUserGuide",
+        label: "Desktop User Guide",
+        icon: "pi pi-book",
+        function() {
+          window.open("https://comfyorg.notion.site/", "_blank");
+        }
+      },
+      {
+        id: "Comfy-Desktop.Reinstall",
+        label: "Reinstall",
+        icon: "pi pi-refresh",
+        async function() {
+          const proceed = await useDialogService().confirm({
+            message: t("desktopMenu.confirmReinstall"),
+            title: t("desktopMenu.reinstall"),
+            type: "reinstall"
+          });
+          if (proceed) electronAPI$1.reinstall();
+        }
+      },
+      {
+        id: "Comfy-Desktop.Restart",
+        label: "Restart",
+        icon: "pi pi-refresh",
+        function() {
+          electronAPI$1.restartApp();
+        }
+      }
+    ],
+    menuCommands: [
+      {
+        path: ["Help"],
+        commands: [
+          "Comfy-Desktop.OpenUserGuide",
+          "Comfy-Desktop.OpenFeedbackPage"
+        ]
+      },
+      {
+        path: ["Help"],
+        commands: ["Comfy-Desktop.OpenDevTools"]
+      },
+      {
+        path: ["Help", "Open Folder"],
+        commands: [
+          "Comfy-Desktop.Folders.OpenLogsFolder",
+          "Comfy-Desktop.Folders.OpenModelsFolder",
+          "Comfy-Desktop.Folders.OpenOutputsFolder",
+          "Comfy-Desktop.Folders.OpenInputsFolder",
+          "Comfy-Desktop.Folders.OpenCustomNodesFolder",
+          "Comfy-Desktop.Folders.OpenModelConfig"
+        ]
+      },
+      {
+        path: ["Help"],
+        commands: ["Comfy-Desktop.Reinstall"]
+      }
+    ],
+    aboutPageBadges: [
+      {
+        label: "ComfyUI_desktop v" + desktopAppVersion,
+        url: "https://github.com/Comfy-Org/electron",
+        icon: "pi pi-github"
+      }
+    ]
+  });
+})();
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/index-Bordpmzt.js
 const ORDER = Symbol();
 const PREFIX$1 = "workflow";
 const SEPARATOR$1 = ">";
@@ -1650,6 +1806,791 @@ class ManageGroupDialog extends ComfyDialog {
 window.comfyAPI = window.comfyAPI || {};
 window.comfyAPI.groupNodeManage = window.comfyAPI.groupNodeManage || {};
 window.comfyAPI.groupNodeManage.ManageGroupDialog = ManageGroupDialog;
+const CONVERTED_TYPE = "converted-widget";
+const VALID_TYPES = [
+  "STRING",
+  "combo",
+  "number",
+  "toggle",
+  "BOOLEAN",
+  "text",
+  "string"
+];
+const CONFIG = Symbol();
+const GET_CONFIG = Symbol();
+const TARGET = Symbol();
+const replacePropertyName = "Run widget replace on values";
+class PrimitiveNode extends LGraphNode {
+  static {
+    __name(this, "PrimitiveNode");
+  }
+  controlValues;
+  lastType;
+  static category;
+  constructor(title) {
+    super(title);
+    this.addOutput("connect to widget input", "*");
+    this.serialize_widgets = true;
+    this.isVirtualNode = true;
+    if (!this.properties || !(replacePropertyName in this.properties)) {
+      this.addProperty(replacePropertyName, false, "boolean");
+    }
+  }
+  applyToGraph(extraLinks = []) {
+    if (!this.outputs[0].links?.length) return;
+    function get_links(node) {
+      let links2 = [];
+      for (const l of node.outputs[0].links) {
+        const linkInfo = app.graph.links[l];
+        const n = node.graph.getNodeById(linkInfo.target_id);
+        if (n.type == "Reroute") {
+          links2 = links2.concat(get_links(n));
+        } else {
+          links2.push(l);
+        }
+      }
+      return links2;
+    }
+    __name(get_links, "get_links");
+    let links = [
+      ...get_links(this).map((l) => app.graph.links[l]),
+      ...extraLinks
+    ];
+    let v = this.widgets?.[0].value;
+    if (v && this.properties[replacePropertyName]) {
+      v = applyTextReplacements(app, v);
+    }
+    for (const linkInfo of links) {
+      const node = this.graph.getNodeById(linkInfo.target_id);
+      const input = node.inputs[linkInfo.target_slot];
+      let widget;
+      if (input.widget[TARGET]) {
+        widget = input.widget[TARGET];
+      } else {
+        const widgetName = input.widget.name;
+        if (widgetName) {
+          widget = node.widgets.find((w) => w.name === widgetName);
+        }
+      }
+      if (widget) {
+        widget.value = v;
+        if (widget.callback) {
+          widget.callback(
+            widget.value,
+            app.canvas,
+            node,
+            app.canvas.graph_mouse,
+            {}
+          );
+        }
+      }
+    }
+  }
+  refreshComboInNode() {
+    const widget = this.widgets?.[0];
+    if (widget?.type === "combo") {
+      widget.options.values = this.outputs[0].widget[GET_CONFIG]()[0];
+      if (!widget.options.values.includes(widget.value)) {
+        widget.value = widget.options.values[0];
+        widget.callback(widget.value);
+      }
+    }
+  }
+  onAfterGraphConfigured() {
+    if (this.outputs[0].links?.length && !this.widgets?.length) {
+      if (!this.#onFirstConnection()) return;
+      if (this.widgets) {
+        for (let i = 0; i < this.widgets_values.length; i++) {
+          const w = this.widgets[i];
+          if (w) {
+            w.value = this.widgets_values[i];
+          }
+        }
+      }
+      this.#mergeWidgetConfig();
+    }
+  }
+  onConnectionsChange(_, index, connected) {
+    if (app.configuringGraph) {
+      return;
+    }
+    const links = this.outputs[0].links;
+    if (connected) {
+      if (links?.length && !this.widgets?.length) {
+        this.#onFirstConnection();
+      }
+    } else {
+      this.#mergeWidgetConfig();
+      if (!links?.length) {
+        this.onLastDisconnect();
+      }
+    }
+  }
+  onConnectOutput(slot, type, input, target_node, target_slot) {
+    if (!input.widget) {
+      if (!(input.type in ComfyWidgets)) return false;
+    }
+    if (this.outputs[slot].links?.length) {
+      const valid = this.#isValidConnection(input);
+      if (valid) {
+        this.applyToGraph([{ target_id: target_node.id, target_slot }]);
+      }
+      return valid;
+    }
+  }
+  #onFirstConnection(recreating) {
+    if (!this.outputs[0].links) {
+      this.onLastDisconnect();
+      return;
+    }
+    const linkId = this.outputs[0].links[0];
+    const link = this.graph.links[linkId];
+    if (!link) return;
+    const theirNode = this.graph.getNodeById(link.target_id);
+    if (!theirNode || !theirNode.inputs) return;
+    const input = theirNode.inputs[link.target_slot];
+    if (!input) return;
+    let widget;
+    if (!input.widget) {
+      if (!(input.type in ComfyWidgets)) return;
+      widget = { name: input.name, [GET_CONFIG]: () => [input.type, {}] };
+    } else {
+      widget = input.widget;
+    }
+    const config = widget[GET_CONFIG]?.();
+    if (!config) return;
+    const { type } = getWidgetType(config);
+    this.outputs[0].type = type;
+    this.outputs[0].name = type;
+    this.outputs[0].widget = widget;
+    this.#createWidget(
+      widget[CONFIG] ?? config,
+      theirNode,
+      widget.name,
+      recreating,
+      widget[TARGET]
+    );
+  }
+  #createWidget(inputData, node, widgetName, recreating, targetWidget) {
+    let type = inputData[0];
+    if (type instanceof Array) {
+      type = "COMBO";
+    }
+    const [oldWidth, oldHeight] = this.size;
+    let widget;
+    if (type in ComfyWidgets) {
+      widget = (ComfyWidgets[type](this, "value", inputData, app) || {}).widget;
+    } else {
+      widget = this.addWidget(type, "value", null, () => {
+      }, {});
+    }
+    if (targetWidget) {
+      widget.value = targetWidget.value;
+    } else if (node?.widgets && widget) {
+      const theirWidget = node.widgets.find((w) => w.name === widgetName);
+      if (theirWidget) {
+        widget.value = theirWidget.value;
+      }
+    }
+    if (!inputData?.[1]?.control_after_generate && (widget.type === "number" || widget.type === "combo")) {
+      let control_value = this.widgets_values?.[1];
+      if (!control_value) {
+        control_value = "fixed";
+      }
+      addValueControlWidgets(
+        this,
+        widget,
+        control_value,
+        void 0,
+        inputData
+      );
+      let filter = this.widgets_values?.[2];
+      if (filter && this.widgets.length === 3) {
+        this.widgets[2].value = filter;
+      }
+    }
+    const controlValues = this.controlValues;
+    if (this.lastType === this.widgets[0].type && controlValues?.length === this.widgets.length - 1) {
+      for (let i = 0; i < controlValues.length; i++) {
+        this.widgets[i + 1].value = controlValues[i];
+      }
+    }
+    const callback = widget.callback;
+    const self2 = this;
+    widget.callback = function() {
+      const r = callback ? callback.apply(this, arguments) : void 0;
+      self2.applyToGraph();
+      return r;
+    };
+    this.size = [
+      Math.max(this.size[0], oldWidth),
+      Math.max(this.size[1], oldHeight)
+    ];
+    if (!recreating) {
+      const sz = this.computeSize();
+      if (this.size[0] < sz[0]) {
+        this.size[0] = sz[0];
+      }
+      if (this.size[1] < sz[1]) {
+        this.size[1] = sz[1];
+      }
+      requestAnimationFrame(() => {
+        if (this.onResize) {
+          this.onResize(this.size);
+        }
+      });
+    }
+  }
+  recreateWidget() {
+    const values = this.widgets?.map((w) => w.value);
+    this.#removeWidgets();
+    this.#onFirstConnection(true);
+    if (values?.length) {
+      for (let i = 0; i < this.widgets?.length; i++)
+        this.widgets[i].value = values[i];
+    }
+    return this.widgets?.[0];
+  }
+  #mergeWidgetConfig() {
+    const output = this.outputs[0];
+    const links = output.links;
+    const hasConfig = !!output.widget[CONFIG];
+    if (hasConfig) {
+      delete output.widget[CONFIG];
+    }
+    if (links?.length < 2 && hasConfig) {
+      if (links.length) {
+        this.recreateWidget();
+      }
+      return;
+    }
+    const config1 = output.widget[GET_CONFIG]();
+    const isNumber = config1[0] === "INT" || config1[0] === "FLOAT";
+    if (!isNumber) return;
+    for (const linkId of links) {
+      const link = app.graph.links[linkId];
+      if (!link) continue;
+      const theirNode = app.graph.getNodeById(link.target_id);
+      const theirInput = theirNode.inputs[link.target_slot];
+      this.#isValidConnection(theirInput, hasConfig);
+    }
+  }
+  isValidWidgetLink(originSlot, targetNode, targetWidget) {
+    const config2 = getConfig.call(targetNode, targetWidget.name) ?? [
+      targetWidget.type,
+      targetWidget.options || {}
+    ];
+    if (!isConvertibleWidget(targetWidget, config2)) return false;
+    const output = this.outputs[originSlot];
+    if (!(output.widget?.[CONFIG] ?? output.widget?.[GET_CONFIG]())) {
+      return true;
+    }
+    return !!mergeIfValid.call(this, output, config2);
+  }
+  #isValidConnection(input, forceUpdate) {
+    const output = this.outputs[0];
+    const config2 = input.widget[GET_CONFIG]();
+    return !!mergeIfValid.call(
+      this,
+      output,
+      config2,
+      forceUpdate,
+      this.recreateWidget
+    );
+  }
+  #removeWidgets() {
+    if (this.widgets) {
+      for (const w of this.widgets) {
+        if (w.onRemove) {
+          w.onRemove();
+        }
+      }
+      this.controlValues = [];
+      this.lastType = this.widgets[0]?.type;
+      for (let i = 1; i < this.widgets.length; i++) {
+        this.controlValues.push(this.widgets[i].value);
+      }
+      setTimeout(() => {
+        delete this.lastType;
+        delete this.controlValues;
+      }, 15);
+      this.widgets.length = 0;
+    }
+  }
+  onLastDisconnect() {
+    this.outputs[0].type = "*";
+    this.outputs[0].name = "connect to widget input";
+    delete this.outputs[0].widget;
+    this.#removeWidgets();
+  }
+}
+function getWidgetConfig(slot) {
+  return slot.widget[CONFIG] ?? slot.widget[GET_CONFIG]?.() ?? ["*", {}];
+}
+__name(getWidgetConfig, "getWidgetConfig");
+function getConfig(widgetName) {
+  const { nodeData } = this.constructor;
+  return nodeData?.input?.required?.[widgetName] ?? nodeData?.input?.optional?.[widgetName];
+}
+__name(getConfig, "getConfig");
+function isConvertibleWidget(widget, config) {
+  return (VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0])) && !widget.options?.forceInput;
+}
+__name(isConvertibleWidget, "isConvertibleWidget");
+function hideWidget(node, widget, suffix = "") {
+  if (widget.type?.startsWith(CONVERTED_TYPE)) return;
+  widget.origType = widget.type;
+  widget.origComputeSize = widget.computeSize;
+  widget.origSerializeValue = widget.serializeValue;
+  widget.computeSize = () => [0, -4];
+  widget.type = CONVERTED_TYPE + suffix;
+  widget.serializeValue = () => {
+    if (!node.inputs) {
+      return void 0;
+    }
+    let node_input = node.inputs.find((i) => i.widget?.name === widget.name);
+    if (!node_input || !node_input.link) {
+      return void 0;
+    }
+    return widget.origSerializeValue ? widget.origSerializeValue() : widget.value;
+  };
+  if (widget.linkedWidgets) {
+    for (const w of widget.linkedWidgets) {
+      hideWidget(node, w, ":" + widget.name);
+    }
+  }
+}
+__name(hideWidget, "hideWidget");
+function showWidget(widget) {
+  widget.type = widget.origType;
+  widget.computeSize = widget.origComputeSize;
+  widget.serializeValue = widget.origSerializeValue;
+  delete widget.origType;
+  delete widget.origComputeSize;
+  delete widget.origSerializeValue;
+  if (widget.linkedWidgets) {
+    for (const w of widget.linkedWidgets) {
+      showWidget(w);
+    }
+  }
+}
+__name(showWidget, "showWidget");
+function convertToInput(node, widget, config) {
+  hideWidget(node, widget);
+  const { type } = getWidgetType(config);
+  const [oldWidth, oldHeight] = node.size;
+  const inputIsOptional = !!widget.options?.inputIsOptional;
+  const input = node.addInput(widget.name, type, {
+    widget: { name: widget.name, [GET_CONFIG]: () => config },
+    ...inputIsOptional ? { shape: LiteGraph.SlotShape.HollowCircle } : {}
+  });
+  for (const widget2 of node.widgets) {
+    widget2.last_y += LiteGraph.NODE_SLOT_HEIGHT;
+  }
+  node.setSize([
+    Math.max(oldWidth, node.size[0]),
+    Math.max(oldHeight, node.size[1])
+  ]);
+  return input;
+}
+__name(convertToInput, "convertToInput");
+function convertToWidget(node, widget) {
+  showWidget(widget);
+  const [oldWidth, oldHeight] = node.size;
+  node.removeInput(node.inputs.findIndex((i) => i.widget?.name === widget.name));
+  for (const widget2 of node.widgets) {
+    widget2.last_y -= LiteGraph.NODE_SLOT_HEIGHT;
+  }
+  node.setSize([
+    Math.max(oldWidth, node.size[0]),
+    Math.max(oldHeight, node.size[1])
+  ]);
+}
+__name(convertToWidget, "convertToWidget");
+function getWidgetType(config) {
+  let type = config[0];
+  if (type instanceof Array) {
+    type = "COMBO";
+  }
+  return { type };
+}
+__name(getWidgetType, "getWidgetType");
+function isValidCombo(combo, obj) {
+  if (!(obj instanceof Array)) {
+    console.log(`connection rejected: tried to connect combo to ${obj}`);
+    return false;
+  }
+  if (combo.length !== obj.length) {
+    console.log(`connection rejected: combo lists dont match`);
+    return false;
+  }
+  if (combo.find((v, i) => obj[i] !== v)) {
+    console.log(`connection rejected: combo lists dont match`);
+    return false;
+  }
+  return true;
+}
+__name(isValidCombo, "isValidCombo");
+function isPrimitiveNode(node) {
+  return node.type === "PrimitiveNode";
+}
+__name(isPrimitiveNode, "isPrimitiveNode");
+function setWidgetConfig(slot, config, target) {
+  if (!slot.widget) return;
+  if (config) {
+    slot.widget[GET_CONFIG] = () => config;
+    slot.widget[TARGET] = target;
+  } else {
+    delete slot.widget;
+  }
+  if (slot.link) {
+    const link = app.graph.links[slot.link];
+    if (link) {
+      const originNode = app.graph.getNodeById(link.origin_id);
+      if (isPrimitiveNode(originNode)) {
+        if (config) {
+          originNode.recreateWidget();
+        } else if (!app.configuringGraph) {
+          originNode.disconnectOutput(0);
+          originNode.onLastDisconnect();
+        }
+      }
+    }
+  }
+}
+__name(setWidgetConfig, "setWidgetConfig");
+function mergeIfValid(output, config2, forceUpdate, recreateWidget, config1) {
+  if (!config1) {
+    config1 = getWidgetConfig(output);
+  }
+  if (config1[0] instanceof Array) {
+    if (!isValidCombo(config1[0], config2[0])) return;
+  } else if (config1[0] !== config2[0]) {
+    console.log(`connection rejected: types dont match`, config1[0], config2[0]);
+    return;
+  }
+  const keys = /* @__PURE__ */ new Set([
+    ...Object.keys(config1[1] ?? {}),
+    ...Object.keys(config2[1] ?? {})
+  ]);
+  let customConfig;
+  const getCustomConfig = /* @__PURE__ */ __name(() => {
+    if (!customConfig) {
+      if (typeof structuredClone === "undefined") {
+        customConfig = JSON.parse(JSON.stringify(config1[1] ?? {}));
+      } else {
+        customConfig = structuredClone(config1[1] ?? {});
+      }
+    }
+    return customConfig;
+  }, "getCustomConfig");
+  const isNumber = config1[0] === "INT" || config1[0] === "FLOAT";
+  for (const k of keys.values()) {
+    if (k !== "default" && k !== "forceInput" && k !== "defaultInput" && k !== "control_after_generate" && k !== "multiline" && k !== "tooltip" && k !== "dynamicPrompts") {
+      let v1 = config1[1][k];
+      let v2 = config2[1]?.[k];
+      if (v1 === v2 || !v1 && !v2) continue;
+      if (isNumber) {
+        if (k === "min") {
+          const theirMax = config2[1]?.["max"];
+          if (theirMax != null && v1 > theirMax) {
+            console.log("connection rejected: min > max", v1, theirMax);
+            return;
+          }
+          getCustomConfig()[k] = v1 == null ? v2 : v2 == null ? v1 : Math.max(v1, v2);
+          continue;
+        } else if (k === "max") {
+          const theirMin = config2[1]?.["min"];
+          if (theirMin != null && v1 < theirMin) {
+            console.log("connection rejected: max < min", v1, theirMin);
+            return;
+          }
+          getCustomConfig()[k] = v1 == null ? v2 : v2 == null ? v1 : Math.min(v1, v2);
+          continue;
+        } else if (k === "step") {
+          let step;
+          if (v1 == null) {
+            step = v2;
+          } else if (v2 == null) {
+            step = v1;
+          } else {
+            if (v1 < v2) {
+              const a = v2;
+              v2 = v1;
+              v1 = a;
+            }
+            if (v1 % v2) {
+              console.log(
+                "connection rejected: steps not divisible",
+                "current:",
+                v1,
+                "new:",
+                v2
+              );
+              return;
+            }
+            step = v1;
+          }
+          getCustomConfig()[k] = step;
+          continue;
+        }
+      }
+      console.log(`connection rejected: config ${k} values dont match`, v1, v2);
+      return;
+    }
+  }
+  if (customConfig || forceUpdate) {
+    if (customConfig) {
+      output.widget[CONFIG] = [config1[0], customConfig];
+    }
+    const widget = recreateWidget?.call(this);
+    if (widget) {
+      const min = widget.options.min;
+      const max2 = widget.options.max;
+      if (min != null && widget.value < min) widget.value = min;
+      if (max2 != null && widget.value > max2) widget.value = max2;
+      widget.callback(widget.value);
+    }
+  }
+  return { customConfig };
+}
+__name(mergeIfValid, "mergeIfValid");
+let useConversionSubmenusSetting;
+app.registerExtension({
+  name: "Comfy.WidgetInputs",
+  init() {
+    useConversionSubmenusSetting = app.ui.settings.addSetting({
+      id: "Comfy.NodeInputConversionSubmenus",
+      name: "In the node context menu, place the entries that convert between input/widget in sub-menus.",
+      type: "boolean",
+      defaultValue: true
+    });
+  },
+  setup() {
+    app.canvas.getWidgetLinkType = function(widget, node) {
+      const nodeDefStore = useNodeDefStore();
+      const nodeDef = nodeDefStore.nodeDefsByName[node.type];
+      const input = nodeDef.inputs.getInput(widget.name);
+      return input?.type;
+    };
+    document.addEventListener(
+      "litegraph:canvas",
+      async (e) => {
+        if (e.detail.subType === "connectingWidgetLink") {
+          const { node, link, widget } = e.detail;
+          if (!node || !link || !widget) return;
+          const nodeData = node.constructor.nodeData;
+          if (!nodeData) return;
+          const all = {
+            ...nodeData?.input?.required,
+            ...nodeData?.input?.optional
+          };
+          const inputSpec = all[widget.name];
+          if (!inputSpec) return;
+          const input = convertToInput(node, widget, inputSpec);
+          if (!input) return;
+          const originNode = link.node;
+          originNode.connect(link.slot, node, node.inputs.lastIndexOf(input));
+        }
+      }
+    );
+  },
+  async beforeRegisterNodeDef(nodeType, nodeData, app2) {
+    const origGetExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
+    nodeType.prototype.convertWidgetToInput = function(widget) {
+      const config = getConfig.call(this, widget.name) ?? [
+        widget.type,
+        widget.options || {}
+      ];
+      if (!isConvertibleWidget(widget, config)) return false;
+      if (widget.type?.startsWith(CONVERTED_TYPE)) return false;
+      convertToInput(this, widget, config);
+      return true;
+    };
+    nodeType.prototype.getExtraMenuOptions = function(_, options) {
+      const r = origGetExtraMenuOptions ? origGetExtraMenuOptions.apply(this, arguments) : void 0;
+      if (this.widgets) {
+        let toInput = [];
+        let toWidget = [];
+        for (const w of this.widgets) {
+          if (w.options?.forceInput) {
+            continue;
+          }
+          if (w.type === CONVERTED_TYPE) {
+            toWidget.push({
+              // @ts-expect-error never
+              content: `Convert ${w.name} to widget`,
+              callback: /* @__PURE__ */ __name(() => convertToWidget(this, w), "callback")
+            });
+          } else {
+            const config = getConfig.call(this, w.name) ?? [
+              w.type,
+              w.options || {}
+            ];
+            if (isConvertibleWidget(w, config)) {
+              toInput.push({
+                content: `Convert ${w.name} to input`,
+                callback: /* @__PURE__ */ __name(() => convertToInput(this, w, config), "callback")
+              });
+            }
+          }
+        }
+        if (toInput.length) {
+          if (useConversionSubmenusSetting.value) {
+            options.push({
+              content: "Convert Widget to Input",
+              submenu: {
+                options: toInput
+              }
+            });
+          } else {
+            options.push(...toInput, null);
+          }
+        }
+        if (toWidget.length) {
+          if (useConversionSubmenusSetting.value) {
+            options.push({
+              content: "Convert Input to Widget",
+              submenu: {
+                options: toWidget
+              }
+            });
+          } else {
+            options.push(...toWidget, null);
+          }
+        }
+      }
+      return r;
+    };
+    nodeType.prototype.onGraphConfigured = function() {
+      if (!this.inputs) return;
+      this.widgets ??= [];
+      for (const input of this.inputs) {
+        if (input.widget) {
+          if (!input.widget[GET_CONFIG]) {
+            input.widget[GET_CONFIG] = () => getConfig.call(this, input.widget.name);
+          }
+          if (input.widget.config) {
+            if (input.widget.config[0] instanceof Array) {
+              input.type = "COMBO";
+              const link = app2.graph.links[input.link];
+              if (link) {
+                link.type = input.type;
+              }
+            }
+            delete input.widget.config;
+          }
+          const w = this.widgets.find((w2) => w2.name === input.widget.name);
+          if (w) {
+            hideWidget(this, w);
+          } else {
+            convertToWidget(this, input);
+          }
+        }
+      }
+    };
+    const origOnNodeCreated = nodeType.prototype.onNodeCreated;
+    nodeType.prototype.onNodeCreated = function() {
+      const r = origOnNodeCreated ? origOnNodeCreated.apply(this) : void 0;
+      if (!app2.configuringGraph && this.widgets) {
+        for (const w of this.widgets) {
+          if (w?.options?.forceInput || w?.options?.defaultInput) {
+            const config = getConfig.call(this, w.name) ?? [
+              w.type,
+              w.options || {}
+            ];
+            convertToInput(this, w, config);
+          }
+        }
+      }
+      return r;
+    };
+    const origOnConfigure = nodeType.prototype.onConfigure;
+    nodeType.prototype.onConfigure = function() {
+      const r = origOnConfigure ? origOnConfigure.apply(this, arguments) : void 0;
+      if (!app2.configuringGraph && this.inputs) {
+        for (const input of this.inputs) {
+          if (input.widget && !input.widget[GET_CONFIG]) {
+            input.widget[GET_CONFIG] = () => (
+              // @ts-expect-error input.widget has unknown type
+              getConfig.call(this, input.widget.name)
+            );
+            const w = this.widgets.find((w2) => w2.name === input.widget.name);
+            if (w) {
+              hideWidget(this, w);
+            }
+          }
+        }
+      }
+      return r;
+    };
+    function isNodeAtPos(pos) {
+      for (const n of app2.graph.nodes) {
+        if (n.pos[0] === pos[0] && n.pos[1] === pos[1]) {
+          return true;
+        }
+      }
+      return false;
+    }
+    __name(isNodeAtPos, "isNodeAtPos");
+    const origOnInputDblClick = nodeType.prototype.onInputDblClick;
+    const ignoreDblClick = Symbol();
+    nodeType.prototype.onInputDblClick = function(slot) {
+      const r = origOnInputDblClick ? origOnInputDblClick.apply(this, arguments) : void 0;
+      const input = this.inputs[slot];
+      if (!input.widget || !input[ignoreDblClick]) {
+        if (!(input.type in ComfyWidgets) && !(input.widget?.[GET_CONFIG]?.()?.[0] instanceof Array)) {
+          return r;
+        }
+      }
+      const node = LiteGraph.createNode("PrimitiveNode");
+      app2.graph.add(node);
+      const pos = [
+        this.pos[0] - node.size[0] - 30,
+        this.pos[1]
+      ];
+      while (isNodeAtPos(pos)) {
+        pos[1] += LiteGraph.NODE_TITLE_HEIGHT;
+      }
+      node.pos = pos;
+      node.connect(0, this, slot);
+      node.title = input.name;
+      input[ignoreDblClick] = true;
+      setTimeout(() => {
+        delete input[ignoreDblClick];
+      }, 300);
+      return r;
+    };
+    const onConnectInput = nodeType.prototype.onConnectInput;
+    nodeType.prototype.onConnectInput = function(targetSlot, type, output, originNode, originSlot) {
+      const v = onConnectInput?.(this, arguments);
+      if (type !== "COMBO") return v;
+      if (originNode.outputs[originSlot].widget) return v;
+      const targetCombo = this.inputs[targetSlot].widget?.[GET_CONFIG]?.()?.[0];
+      if (!targetCombo || !(targetCombo instanceof Array)) return v;
+      const originConfig = originNode.constructor?.nodeData?.output?.[originSlot];
+      if (!originConfig || !isValidCombo(targetCombo, originConfig)) {
+        return false;
+      }
+      return v;
+    };
+  },
+  registerCustomNodes() {
+    LiteGraph.registerNodeType(
+      "PrimitiveNode",
+      Object.assign(PrimitiveNode, {
+        title: "Primitive"
+      })
+    );
+    PrimitiveNode.category = "utils";
+  }
+});
+window.comfyAPI = window.comfyAPI || {};
+window.comfyAPI.widgetInputs = window.comfyAPI.widgetInputs || {};
+window.comfyAPI.widgetInputs.getWidgetConfig = getWidgetConfig;
+window.comfyAPI.widgetInputs.convertToInput = convertToInput;
+window.comfyAPI.widgetInputs.setWidgetConfig = setWidgetConfig;
+window.comfyAPI.widgetInputs.mergeIfValid = mergeIfValid;
 const GROUP = Symbol();
 const PREFIX = "workflow";
 const SEPARATOR = ">";
@@ -1696,7 +2637,7 @@ class GroupNodeBuilder {
     return { name, nodeData: this.nodeData };
   }
   async getName() {
-    const name = await showPromptDialog({
+    const name = await useDialogService().prompt({
       title: t("groupNode.create"),
       message: t("groupNode.enterName"),
       defaultValue: ""
@@ -3118,6 +4059,7 @@ app.registerExtension({
     });
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/index-CJHqfMZG.js
 app.registerExtension({
   name: "Comfy.Keybinds",
   init() {
@@ -9383,6 +10325,8 @@ app.registerExtension({
     ]
   });
 })();
+========
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/index-Bordpmzt.js
 /**
  * @license
  * Copyright 2010-2024 Three.js Authors
@@ -42477,4140 +43421,6 @@ function interceptControlUp(event) {
   }
 }
 __name(interceptControlUp, "interceptControlUp");
-function computeMikkTSpaceTangents(geometry, MikkTSpace, negateSign = true) {
-  if (!MikkTSpace || !MikkTSpace.isReady) {
-    throw new Error("BufferGeometryUtils: Initialized MikkTSpace library required.");
-  }
-  if (!geometry.hasAttribute("position") || !geometry.hasAttribute("normal") || !geometry.hasAttribute("uv")) {
-    throw new Error('BufferGeometryUtils: Tangents require "position", "normal", and "uv" attributes.');
-  }
-  function getAttributeArray(attribute) {
-    if (attribute.normalized || attribute.isInterleavedBufferAttribute) {
-      const dstArray = new Float32Array(attribute.count * attribute.itemSize);
-      for (let i = 0, j = 0; i < attribute.count; i++) {
-        dstArray[j++] = attribute.getX(i);
-        dstArray[j++] = attribute.getY(i);
-        if (attribute.itemSize > 2) {
-          dstArray[j++] = attribute.getZ(i);
-        }
-      }
-      return dstArray;
-    }
-    if (attribute.array instanceof Float32Array) {
-      return attribute.array;
-    }
-    return new Float32Array(attribute.array);
-  }
-  __name(getAttributeArray, "getAttributeArray");
-  const _geometry2 = geometry.index ? geometry.toNonIndexed() : geometry;
-  const tangents = MikkTSpace.generateTangents(
-    getAttributeArray(_geometry2.attributes.position),
-    getAttributeArray(_geometry2.attributes.normal),
-    getAttributeArray(_geometry2.attributes.uv)
-  );
-  if (negateSign) {
-    for (let i = 3; i < tangents.length; i += 4) {
-      tangents[i] *= -1;
-    }
-  }
-  _geometry2.setAttribute("tangent", new BufferAttribute(tangents, 4));
-  if (geometry !== _geometry2) {
-    geometry.copy(_geometry2);
-  }
-  return geometry;
-}
-__name(computeMikkTSpaceTangents, "computeMikkTSpaceTangents");
-function mergeGeometries(geometries, useGroups = false) {
-  const isIndexed = geometries[0].index !== null;
-  const attributesUsed = new Set(Object.keys(geometries[0].attributes));
-  const morphAttributesUsed = new Set(Object.keys(geometries[0].morphAttributes));
-  const attributes = {};
-  const morphAttributes = {};
-  const morphTargetsRelative = geometries[0].morphTargetsRelative;
-  const mergedGeometry = new BufferGeometry();
-  let offset = 0;
-  for (let i = 0; i < geometries.length; ++i) {
-    const geometry = geometries[i];
-    let attributesCount = 0;
-    if (isIndexed !== (geometry.index !== null)) {
-      console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " + i + ". All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.");
-      return null;
-    }
-    for (const name in geometry.attributes) {
-      if (!attributesUsed.has(name)) {
-        console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " + i + '. All geometries must have compatible attributes; make sure "' + name + '" attribute exists among all geometries, or in none of them.');
-        return null;
-      }
-      if (attributes[name] === void 0) attributes[name] = [];
-      attributes[name].push(geometry.attributes[name]);
-      attributesCount++;
-    }
-    if (attributesCount !== attributesUsed.size) {
-      console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " + i + ". Make sure all geometries have the same number of attributes.");
-      return null;
-    }
-    if (morphTargetsRelative !== geometry.morphTargetsRelative) {
-      console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " + i + ". .morphTargetsRelative must be consistent throughout all geometries.");
-      return null;
-    }
-    for (const name in geometry.morphAttributes) {
-      if (!morphAttributesUsed.has(name)) {
-        console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " + i + ".  .morphAttributes must be consistent throughout all geometries.");
-        return null;
-      }
-      if (morphAttributes[name] === void 0) morphAttributes[name] = [];
-      morphAttributes[name].push(geometry.morphAttributes[name]);
-    }
-    if (useGroups) {
-      let count;
-      if (isIndexed) {
-        count = geometry.index.count;
-      } else if (geometry.attributes.position !== void 0) {
-        count = geometry.attributes.position.count;
-      } else {
-        console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " + i + ". The geometry must have either an index or a position attribute");
-        return null;
-      }
-      mergedGeometry.addGroup(offset, count, i);
-      offset += count;
-    }
-  }
-  if (isIndexed) {
-    let indexOffset = 0;
-    const mergedIndex = [];
-    for (let i = 0; i < geometries.length; ++i) {
-      const index = geometries[i].index;
-      for (let j = 0; j < index.count; ++j) {
-        mergedIndex.push(index.getX(j) + indexOffset);
-      }
-      indexOffset += geometries[i].attributes.position.count;
-    }
-    mergedGeometry.setIndex(mergedIndex);
-  }
-  for (const name in attributes) {
-    const mergedAttribute = mergeAttributes(attributes[name]);
-    if (!mergedAttribute) {
-      console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " + name + " attribute.");
-      return null;
-    }
-    mergedGeometry.setAttribute(name, mergedAttribute);
-  }
-  for (const name in morphAttributes) {
-    const numMorphTargets = morphAttributes[name][0].length;
-    if (numMorphTargets === 0) break;
-    mergedGeometry.morphAttributes = mergedGeometry.morphAttributes || {};
-    mergedGeometry.morphAttributes[name] = [];
-    for (let i = 0; i < numMorphTargets; ++i) {
-      const morphAttributesToMerge = [];
-      for (let j = 0; j < morphAttributes[name].length; ++j) {
-        morphAttributesToMerge.push(morphAttributes[name][j][i]);
-      }
-      const mergedMorphAttribute = mergeAttributes(morphAttributesToMerge);
-      if (!mergedMorphAttribute) {
-        console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " + name + " morphAttribute.");
-        return null;
-      }
-      mergedGeometry.morphAttributes[name].push(mergedMorphAttribute);
-    }
-  }
-  return mergedGeometry;
-}
-__name(mergeGeometries, "mergeGeometries");
-function mergeAttributes(attributes) {
-  let TypedArray;
-  let itemSize;
-  let normalized;
-  let gpuType = -1;
-  let arrayLength = 0;
-  for (let i = 0; i < attributes.length; ++i) {
-    const attribute = attributes[i];
-    if (TypedArray === void 0) TypedArray = attribute.array.constructor;
-    if (TypedArray !== attribute.array.constructor) {
-      console.error("THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.array must be of consistent array types across matching attributes.");
-      return null;
-    }
-    if (itemSize === void 0) itemSize = attribute.itemSize;
-    if (itemSize !== attribute.itemSize) {
-      console.error("THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.itemSize must be consistent across matching attributes.");
-      return null;
-    }
-    if (normalized === void 0) normalized = attribute.normalized;
-    if (normalized !== attribute.normalized) {
-      console.error("THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.normalized must be consistent across matching attributes.");
-      return null;
-    }
-    if (gpuType === -1) gpuType = attribute.gpuType;
-    if (gpuType !== attribute.gpuType) {
-      console.error("THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.gpuType must be consistent across matching attributes.");
-      return null;
-    }
-    arrayLength += attribute.count * itemSize;
-  }
-  const array = new TypedArray(arrayLength);
-  const result = new BufferAttribute(array, itemSize, normalized);
-  let offset = 0;
-  for (let i = 0; i < attributes.length; ++i) {
-    const attribute = attributes[i];
-    if (attribute.isInterleavedBufferAttribute) {
-      const tupleOffset = offset / itemSize;
-      for (let j = 0, l = attribute.count; j < l; j++) {
-        for (let c = 0; c < itemSize; c++) {
-          const value = attribute.getComponent(j, c);
-          result.setComponent(j + tupleOffset, c, value);
-        }
-      }
-    } else {
-      array.set(attribute.array, offset);
-    }
-    offset += attribute.count * itemSize;
-  }
-  if (gpuType !== void 0) {
-    result.gpuType = gpuType;
-  }
-  return result;
-}
-__name(mergeAttributes, "mergeAttributes");
-function deepCloneAttribute(attribute) {
-  if (attribute.isInstancedInterleavedBufferAttribute || attribute.isInterleavedBufferAttribute) {
-    return deinterleaveAttribute(attribute);
-  }
-  if (attribute.isInstancedBufferAttribute) {
-    return new InstancedBufferAttribute().copy(attribute);
-  }
-  return new BufferAttribute().copy(attribute);
-}
-__name(deepCloneAttribute, "deepCloneAttribute");
-function interleaveAttributes(attributes) {
-  let TypedArray;
-  let arrayLength = 0;
-  let stride = 0;
-  for (let i = 0, l = attributes.length; i < l; ++i) {
-    const attribute = attributes[i];
-    if (TypedArray === void 0) TypedArray = attribute.array.constructor;
-    if (TypedArray !== attribute.array.constructor) {
-      console.error("AttributeBuffers of different types cannot be interleaved");
-      return null;
-    }
-    arrayLength += attribute.array.length;
-    stride += attribute.itemSize;
-  }
-  const interleavedBuffer = new InterleavedBuffer(new TypedArray(arrayLength), stride);
-  let offset = 0;
-  const res = [];
-  const getters = ["getX", "getY", "getZ", "getW"];
-  const setters = ["setX", "setY", "setZ", "setW"];
-  for (let j = 0, l = attributes.length; j < l; j++) {
-    const attribute = attributes[j];
-    const itemSize = attribute.itemSize;
-    const count = attribute.count;
-    const iba = new InterleavedBufferAttribute(interleavedBuffer, itemSize, offset, attribute.normalized);
-    res.push(iba);
-    offset += itemSize;
-    for (let c = 0; c < count; c++) {
-      for (let k = 0; k < itemSize; k++) {
-        iba[setters[k]](c, attribute[getters[k]](c));
-      }
-    }
-  }
-  return res;
-}
-__name(interleaveAttributes, "interleaveAttributes");
-function deinterleaveAttribute(attribute) {
-  const cons = attribute.data.array.constructor;
-  const count = attribute.count;
-  const itemSize = attribute.itemSize;
-  const normalized = attribute.normalized;
-  const array = new cons(count * itemSize);
-  let newAttribute;
-  if (attribute.isInstancedInterleavedBufferAttribute) {
-    newAttribute = new InstancedBufferAttribute(array, itemSize, normalized, attribute.meshPerAttribute);
-  } else {
-    newAttribute = new BufferAttribute(array, itemSize, normalized);
-  }
-  for (let i = 0; i < count; i++) {
-    newAttribute.setX(i, attribute.getX(i));
-    if (itemSize >= 2) {
-      newAttribute.setY(i, attribute.getY(i));
-    }
-    if (itemSize >= 3) {
-      newAttribute.setZ(i, attribute.getZ(i));
-    }
-    if (itemSize >= 4) {
-      newAttribute.setW(i, attribute.getW(i));
-    }
-  }
-  return newAttribute;
-}
-__name(deinterleaveAttribute, "deinterleaveAttribute");
-function deinterleaveGeometry(geometry) {
-  const attributes = geometry.attributes;
-  const morphTargets = geometry.morphTargets;
-  const attrMap = /* @__PURE__ */ new Map();
-  for (const key in attributes) {
-    const attr = attributes[key];
-    if (attr.isInterleavedBufferAttribute) {
-      if (!attrMap.has(attr)) {
-        attrMap.set(attr, deinterleaveAttribute(attr));
-      }
-      attributes[key] = attrMap.get(attr);
-    }
-  }
-  for (const key in morphTargets) {
-    const attr = morphTargets[key];
-    if (attr.isInterleavedBufferAttribute) {
-      if (!attrMap.has(attr)) {
-        attrMap.set(attr, deinterleaveAttribute(attr));
-      }
-      morphTargets[key] = attrMap.get(attr);
-    }
-  }
-}
-__name(deinterleaveGeometry, "deinterleaveGeometry");
-function estimateBytesUsed(geometry) {
-  let mem = 0;
-  for (const name in geometry.attributes) {
-    const attr = geometry.getAttribute(name);
-    mem += attr.count * attr.itemSize * attr.array.BYTES_PER_ELEMENT;
-  }
-  const indices = geometry.getIndex();
-  mem += indices ? indices.count * indices.itemSize * indices.array.BYTES_PER_ELEMENT : 0;
-  return mem;
-}
-__name(estimateBytesUsed, "estimateBytesUsed");
-function mergeVertices(geometry, tolerance = 1e-4) {
-  tolerance = Math.max(tolerance, Number.EPSILON);
-  const hashToIndex = {};
-  const indices = geometry.getIndex();
-  const positions = geometry.getAttribute("position");
-  const vertexCount = indices ? indices.count : positions.count;
-  let nextIndex = 0;
-  const attributeNames = Object.keys(geometry.attributes);
-  const tmpAttributes = {};
-  const tmpMorphAttributes = {};
-  const newIndices = [];
-  const getters = ["getX", "getY", "getZ", "getW"];
-  const setters = ["setX", "setY", "setZ", "setW"];
-  for (let i = 0, l = attributeNames.length; i < l; i++) {
-    const name = attributeNames[i];
-    const attr = geometry.attributes[name];
-    tmpAttributes[name] = new attr.constructor(
-      new attr.array.constructor(attr.count * attr.itemSize),
-      attr.itemSize,
-      attr.normalized
-    );
-    const morphAttributes = geometry.morphAttributes[name];
-    if (morphAttributes) {
-      if (!tmpMorphAttributes[name]) tmpMorphAttributes[name] = [];
-      morphAttributes.forEach((morphAttr, i2) => {
-        const array = new morphAttr.array.constructor(morphAttr.count * morphAttr.itemSize);
-        tmpMorphAttributes[name][i2] = new morphAttr.constructor(array, morphAttr.itemSize, morphAttr.normalized);
-      });
-    }
-  }
-  const halfTolerance = tolerance * 0.5;
-  const exponent = Math.log10(1 / tolerance);
-  const hashMultiplier = Math.pow(10, exponent);
-  const hashAdditive = halfTolerance * hashMultiplier;
-  for (let i = 0; i < vertexCount; i++) {
-    const index = indices ? indices.getX(i) : i;
-    let hash = "";
-    for (let j = 0, l = attributeNames.length; j < l; j++) {
-      const name = attributeNames[j];
-      const attribute = geometry.getAttribute(name);
-      const itemSize = attribute.itemSize;
-      for (let k = 0; k < itemSize; k++) {
-        hash += `${~~(attribute[getters[k]](index) * hashMultiplier + hashAdditive)},`;
-      }
-    }
-    if (hash in hashToIndex) {
-      newIndices.push(hashToIndex[hash]);
-    } else {
-      for (let j = 0, l = attributeNames.length; j < l; j++) {
-        const name = attributeNames[j];
-        const attribute = geometry.getAttribute(name);
-        const morphAttributes = geometry.morphAttributes[name];
-        const itemSize = attribute.itemSize;
-        const newArray = tmpAttributes[name];
-        const newMorphArrays = tmpMorphAttributes[name];
-        for (let k = 0; k < itemSize; k++) {
-          const getterFunc = getters[k];
-          const setterFunc = setters[k];
-          newArray[setterFunc](nextIndex, attribute[getterFunc](index));
-          if (morphAttributes) {
-            for (let m = 0, ml = morphAttributes.length; m < ml; m++) {
-              newMorphArrays[m][setterFunc](nextIndex, morphAttributes[m][getterFunc](index));
-            }
-          }
-        }
-      }
-      hashToIndex[hash] = nextIndex;
-      newIndices.push(nextIndex);
-      nextIndex++;
-    }
-  }
-  const result = geometry.clone();
-  for (const name in geometry.attributes) {
-    const tmpAttribute = tmpAttributes[name];
-    result.setAttribute(name, new tmpAttribute.constructor(
-      tmpAttribute.array.slice(0, nextIndex * tmpAttribute.itemSize),
-      tmpAttribute.itemSize,
-      tmpAttribute.normalized
-    ));
-    if (!(name in tmpMorphAttributes)) continue;
-    for (let j = 0; j < tmpMorphAttributes[name].length; j++) {
-      const tmpMorphAttribute = tmpMorphAttributes[name][j];
-      result.morphAttributes[name][j] = new tmpMorphAttribute.constructor(
-        tmpMorphAttribute.array.slice(0, nextIndex * tmpMorphAttribute.itemSize),
-        tmpMorphAttribute.itemSize,
-        tmpMorphAttribute.normalized
-      );
-    }
-  }
-  result.setIndex(newIndices);
-  return result;
-}
-__name(mergeVertices, "mergeVertices");
-function toTrianglesDrawMode(geometry, drawMode) {
-  if (drawMode === TrianglesDrawMode) {
-    console.warn("THREE.BufferGeometryUtils.toTrianglesDrawMode(): Geometry already defined as triangles.");
-    return geometry;
-  }
-  if (drawMode === TriangleFanDrawMode || drawMode === TriangleStripDrawMode) {
-    let index = geometry.getIndex();
-    if (index === null) {
-      const indices = [];
-      const position = geometry.getAttribute("position");
-      if (position !== void 0) {
-        for (let i = 0; i < position.count; i++) {
-          indices.push(i);
-        }
-        geometry.setIndex(indices);
-        index = geometry.getIndex();
-      } else {
-        console.error("THREE.BufferGeometryUtils.toTrianglesDrawMode(): Undefined position attribute. Processing not possible.");
-        return geometry;
-      }
-    }
-    const numberOfTriangles = index.count - 2;
-    const newIndices = [];
-    if (drawMode === TriangleFanDrawMode) {
-      for (let i = 1; i <= numberOfTriangles; i++) {
-        newIndices.push(index.getX(0));
-        newIndices.push(index.getX(i));
-        newIndices.push(index.getX(i + 1));
-      }
-    } else {
-      for (let i = 0; i < numberOfTriangles; i++) {
-        if (i % 2 === 0) {
-          newIndices.push(index.getX(i));
-          newIndices.push(index.getX(i + 1));
-          newIndices.push(index.getX(i + 2));
-        } else {
-          newIndices.push(index.getX(i + 2));
-          newIndices.push(index.getX(i + 1));
-          newIndices.push(index.getX(i));
-        }
-      }
-    }
-    if (newIndices.length / 3 !== numberOfTriangles) {
-      console.error("THREE.BufferGeometryUtils.toTrianglesDrawMode(): Unable to generate correct amount of triangles.");
-    }
-    const newGeometry = geometry.clone();
-    newGeometry.setIndex(newIndices);
-    newGeometry.clearGroups();
-    return newGeometry;
-  } else {
-    console.error("THREE.BufferGeometryUtils.toTrianglesDrawMode(): Unknown draw mode:", drawMode);
-    return geometry;
-  }
-}
-__name(toTrianglesDrawMode, "toTrianglesDrawMode");
-function computeMorphedAttributes(object) {
-  const _vA2 = new Vector3();
-  const _vB2 = new Vector3();
-  const _vC2 = new Vector3();
-  const _tempA2 = new Vector3();
-  const _tempB = new Vector3();
-  const _tempC = new Vector3();
-  const _morphA2 = new Vector3();
-  const _morphB = new Vector3();
-  const _morphC = new Vector3();
-  function _calculateMorphedAttributeData(object2, attribute, morphAttribute, morphTargetsRelative2, a2, b3, c2, modifiedAttributeArray) {
-    _vA2.fromBufferAttribute(attribute, a2);
-    _vB2.fromBufferAttribute(attribute, b3);
-    _vC2.fromBufferAttribute(attribute, c2);
-    const morphInfluences = object2.morphTargetInfluences;
-    if (morphAttribute && morphInfluences) {
-      _morphA2.set(0, 0, 0);
-      _morphB.set(0, 0, 0);
-      _morphC.set(0, 0, 0);
-      for (let i2 = 0, il2 = morphAttribute.length; i2 < il2; i2++) {
-        const influence = morphInfluences[i2];
-        const morph = morphAttribute[i2];
-        if (influence === 0) continue;
-        _tempA2.fromBufferAttribute(morph, a2);
-        _tempB.fromBufferAttribute(morph, b3);
-        _tempC.fromBufferAttribute(morph, c2);
-        if (morphTargetsRelative2) {
-          _morphA2.addScaledVector(_tempA2, influence);
-          _morphB.addScaledVector(_tempB, influence);
-          _morphC.addScaledVector(_tempC, influence);
-        } else {
-          _morphA2.addScaledVector(_tempA2.sub(_vA2), influence);
-          _morphB.addScaledVector(_tempB.sub(_vB2), influence);
-          _morphC.addScaledVector(_tempC.sub(_vC2), influence);
-        }
-      }
-      _vA2.add(_morphA2);
-      _vB2.add(_morphB);
-      _vC2.add(_morphC);
-    }
-    if (object2.isSkinnedMesh) {
-      object2.applyBoneTransform(a2, _vA2);
-      object2.applyBoneTransform(b3, _vB2);
-      object2.applyBoneTransform(c2, _vC2);
-    }
-    modifiedAttributeArray[a2 * 3 + 0] = _vA2.x;
-    modifiedAttributeArray[a2 * 3 + 1] = _vA2.y;
-    modifiedAttributeArray[a2 * 3 + 2] = _vA2.z;
-    modifiedAttributeArray[b3 * 3 + 0] = _vB2.x;
-    modifiedAttributeArray[b3 * 3 + 1] = _vB2.y;
-    modifiedAttributeArray[b3 * 3 + 2] = _vB2.z;
-    modifiedAttributeArray[c2 * 3 + 0] = _vC2.x;
-    modifiedAttributeArray[c2 * 3 + 1] = _vC2.y;
-    modifiedAttributeArray[c2 * 3 + 2] = _vC2.z;
-  }
-  __name(_calculateMorphedAttributeData, "_calculateMorphedAttributeData");
-  const geometry = object.geometry;
-  const material = object.material;
-  let a, b, c;
-  const index = geometry.index;
-  const positionAttribute = geometry.attributes.position;
-  const morphPosition = geometry.morphAttributes.position;
-  const morphTargetsRelative = geometry.morphTargetsRelative;
-  const normalAttribute = geometry.attributes.normal;
-  const morphNormal = geometry.morphAttributes.position;
-  const groups = geometry.groups;
-  const drawRange = geometry.drawRange;
-  let i, j, il, jl;
-  let group;
-  let start, end;
-  const modifiedPosition = new Float32Array(positionAttribute.count * positionAttribute.itemSize);
-  const modifiedNormal = new Float32Array(normalAttribute.count * normalAttribute.itemSize);
-  if (index !== null) {
-    if (Array.isArray(material)) {
-      for (i = 0, il = groups.length; i < il; i++) {
-        group = groups[i];
-        start = Math.max(group.start, drawRange.start);
-        end = Math.min(group.start + group.count, drawRange.start + drawRange.count);
-        for (j = start, jl = end; j < jl; j += 3) {
-          a = index.getX(j);
-          b = index.getX(j + 1);
-          c = index.getX(j + 2);
-          _calculateMorphedAttributeData(
-            object,
-            positionAttribute,
-            morphPosition,
-            morphTargetsRelative,
-            a,
-            b,
-            c,
-            modifiedPosition
-          );
-          _calculateMorphedAttributeData(
-            object,
-            normalAttribute,
-            morphNormal,
-            morphTargetsRelative,
-            a,
-            b,
-            c,
-            modifiedNormal
-          );
-        }
-      }
-    } else {
-      start = Math.max(0, drawRange.start);
-      end = Math.min(index.count, drawRange.start + drawRange.count);
-      for (i = start, il = end; i < il; i += 3) {
-        a = index.getX(i);
-        b = index.getX(i + 1);
-        c = index.getX(i + 2);
-        _calculateMorphedAttributeData(
-          object,
-          positionAttribute,
-          morphPosition,
-          morphTargetsRelative,
-          a,
-          b,
-          c,
-          modifiedPosition
-        );
-        _calculateMorphedAttributeData(
-          object,
-          normalAttribute,
-          morphNormal,
-          morphTargetsRelative,
-          a,
-          b,
-          c,
-          modifiedNormal
-        );
-      }
-    }
-  } else {
-    if (Array.isArray(material)) {
-      for (i = 0, il = groups.length; i < il; i++) {
-        group = groups[i];
-        start = Math.max(group.start, drawRange.start);
-        end = Math.min(group.start + group.count, drawRange.start + drawRange.count);
-        for (j = start, jl = end; j < jl; j += 3) {
-          a = j;
-          b = j + 1;
-          c = j + 2;
-          _calculateMorphedAttributeData(
-            object,
-            positionAttribute,
-            morphPosition,
-            morphTargetsRelative,
-            a,
-            b,
-            c,
-            modifiedPosition
-          );
-          _calculateMorphedAttributeData(
-            object,
-            normalAttribute,
-            morphNormal,
-            morphTargetsRelative,
-            a,
-            b,
-            c,
-            modifiedNormal
-          );
-        }
-      }
-    } else {
-      start = Math.max(0, drawRange.start);
-      end = Math.min(positionAttribute.count, drawRange.start + drawRange.count);
-      for (i = start, il = end; i < il; i += 3) {
-        a = i;
-        b = i + 1;
-        c = i + 2;
-        _calculateMorphedAttributeData(
-          object,
-          positionAttribute,
-          morphPosition,
-          morphTargetsRelative,
-          a,
-          b,
-          c,
-          modifiedPosition
-        );
-        _calculateMorphedAttributeData(
-          object,
-          normalAttribute,
-          morphNormal,
-          morphTargetsRelative,
-          a,
-          b,
-          c,
-          modifiedNormal
-        );
-      }
-    }
-  }
-  const morphedPositionAttribute = new Float32BufferAttribute(modifiedPosition, 3);
-  const morphedNormalAttribute = new Float32BufferAttribute(modifiedNormal, 3);
-  return {
-    positionAttribute,
-    normalAttribute,
-    morphedPositionAttribute,
-    morphedNormalAttribute
-  };
-}
-__name(computeMorphedAttributes, "computeMorphedAttributes");
-function mergeGroups(geometry) {
-  if (geometry.groups.length === 0) {
-    console.warn("THREE.BufferGeometryUtils.mergeGroups(): No groups are defined. Nothing to merge.");
-    return geometry;
-  }
-  let groups = geometry.groups;
-  groups = groups.sort((a, b) => {
-    if (a.materialIndex !== b.materialIndex) return a.materialIndex - b.materialIndex;
-    return a.start - b.start;
-  });
-  if (geometry.getIndex() === null) {
-    const positionAttribute = geometry.getAttribute("position");
-    const indices = [];
-    for (let i = 0; i < positionAttribute.count; i += 3) {
-      indices.push(i, i + 1, i + 2);
-    }
-    geometry.setIndex(indices);
-  }
-  const index = geometry.getIndex();
-  const newIndices = [];
-  for (let i = 0; i < groups.length; i++) {
-    const group = groups[i];
-    const groupStart = group.start;
-    const groupLength = groupStart + group.count;
-    for (let j = groupStart; j < groupLength; j++) {
-      newIndices.push(index.getX(j));
-    }
-  }
-  geometry.dispose();
-  geometry.setIndex(newIndices);
-  let start = 0;
-  for (let i = 0; i < groups.length; i++) {
-    const group = groups[i];
-    group.start = start;
-    start += group.count;
-  }
-  let currentGroup = groups[0];
-  geometry.groups = [currentGroup];
-  for (let i = 1; i < groups.length; i++) {
-    const group = groups[i];
-    if (currentGroup.materialIndex === group.materialIndex) {
-      currentGroup.count += group.count;
-    } else {
-      currentGroup = group;
-      geometry.groups.push(currentGroup);
-    }
-  }
-  return geometry;
-}
-__name(mergeGroups, "mergeGroups");
-function toCreasedNormals(geometry, creaseAngle = Math.PI / 3) {
-  const creaseDot = Math.cos(creaseAngle);
-  const hashMultiplier = (1 + 1e-10) * 100;
-  const verts = [new Vector3(), new Vector3(), new Vector3()];
-  const tempVec1 = new Vector3();
-  const tempVec2 = new Vector3();
-  const tempNorm = new Vector3();
-  const tempNorm2 = new Vector3();
-  function hashVertex(v) {
-    const x = ~~(v.x * hashMultiplier);
-    const y = ~~(v.y * hashMultiplier);
-    const z = ~~(v.z * hashMultiplier);
-    return `${x},${y},${z}`;
-  }
-  __name(hashVertex, "hashVertex");
-  const resultGeometry = geometry.index ? geometry.toNonIndexed() : geometry;
-  const posAttr = resultGeometry.attributes.position;
-  const vertexMap = {};
-  for (let i = 0, l = posAttr.count / 3; i < l; i++) {
-    const i3 = 3 * i;
-    const a = verts[0].fromBufferAttribute(posAttr, i3 + 0);
-    const b = verts[1].fromBufferAttribute(posAttr, i3 + 1);
-    const c = verts[2].fromBufferAttribute(posAttr, i3 + 2);
-    tempVec1.subVectors(c, b);
-    tempVec2.subVectors(a, b);
-    const normal = new Vector3().crossVectors(tempVec1, tempVec2).normalize();
-    for (let n = 0; n < 3; n++) {
-      const vert = verts[n];
-      const hash = hashVertex(vert);
-      if (!(hash in vertexMap)) {
-        vertexMap[hash] = [];
-      }
-      vertexMap[hash].push(normal);
-    }
-  }
-  const normalArray = new Float32Array(posAttr.count * 3);
-  const normAttr = new BufferAttribute(normalArray, 3, false);
-  for (let i = 0, l = posAttr.count / 3; i < l; i++) {
-    const i3 = 3 * i;
-    const a = verts[0].fromBufferAttribute(posAttr, i3 + 0);
-    const b = verts[1].fromBufferAttribute(posAttr, i3 + 1);
-    const c = verts[2].fromBufferAttribute(posAttr, i3 + 2);
-    tempVec1.subVectors(c, b);
-    tempVec2.subVectors(a, b);
-    tempNorm.crossVectors(tempVec1, tempVec2).normalize();
-    for (let n = 0; n < 3; n++) {
-      const vert = verts[n];
-      const hash = hashVertex(vert);
-      const otherNormals = vertexMap[hash];
-      tempNorm2.set(0, 0, 0);
-      for (let k = 0, lk = otherNormals.length; k < lk; k++) {
-        const otherNorm = otherNormals[k];
-        if (tempNorm.dot(otherNorm) > creaseDot) {
-          tempNorm2.add(otherNorm);
-        }
-      }
-      tempNorm2.normalize();
-      normAttr.setXYZ(i3 + n, tempNorm2.x, tempNorm2.y, tempNorm2.z);
-    }
-  }
-  resultGeometry.setAttribute("normal", normAttr);
-  return resultGeometry;
-}
-__name(toCreasedNormals, "toCreasedNormals");
-class GLTFLoader extends Loader {
-  static {
-    __name(this, "GLTFLoader");
-  }
-  constructor(manager) {
-    super(manager);
-    this.dracoLoader = null;
-    this.ktx2Loader = null;
-    this.meshoptDecoder = null;
-    this.pluginCallbacks = [];
-    this.register(function(parser) {
-      return new GLTFMaterialsClearcoatExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFMaterialsDispersionExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFTextureBasisUExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFTextureWebPExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFTextureAVIFExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFMaterialsSheenExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFMaterialsTransmissionExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFMaterialsVolumeExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFMaterialsIorExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFMaterialsEmissiveStrengthExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFMaterialsSpecularExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFMaterialsIridescenceExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFMaterialsAnisotropyExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFMaterialsBumpExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFLightsExtension(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFMeshoptCompression(parser);
-    });
-    this.register(function(parser) {
-      return new GLTFMeshGpuInstancing(parser);
-    });
-  }
-  load(url, onLoad, onProgress, onError) {
-    const scope = this;
-    let resourcePath;
-    if (this.resourcePath !== "") {
-      resourcePath = this.resourcePath;
-    } else if (this.path !== "") {
-      const relativeUrl = LoaderUtils.extractUrlBase(url);
-      resourcePath = LoaderUtils.resolveURL(relativeUrl, this.path);
-    } else {
-      resourcePath = LoaderUtils.extractUrlBase(url);
-    }
-    this.manager.itemStart(url);
-    const _onError = /* @__PURE__ */ __name(function(e) {
-      if (onError) {
-        onError(e);
-      } else {
-        console.error(e);
-      }
-      scope.manager.itemError(url);
-      scope.manager.itemEnd(url);
-    }, "_onError");
-    const loader = new FileLoader(this.manager);
-    loader.setPath(this.path);
-    loader.setResponseType("arraybuffer");
-    loader.setRequestHeader(this.requestHeader);
-    loader.setWithCredentials(this.withCredentials);
-    loader.load(url, function(data) {
-      try {
-        scope.parse(data, resourcePath, function(gltf) {
-          onLoad(gltf);
-          scope.manager.itemEnd(url);
-        }, _onError);
-      } catch (e) {
-        _onError(e);
-      }
-    }, onProgress, _onError);
-  }
-  setDRACOLoader(dracoLoader) {
-    this.dracoLoader = dracoLoader;
-    return this;
-  }
-  setKTX2Loader(ktx2Loader) {
-    this.ktx2Loader = ktx2Loader;
-    return this;
-  }
-  setMeshoptDecoder(meshoptDecoder) {
-    this.meshoptDecoder = meshoptDecoder;
-    return this;
-  }
-  register(callback) {
-    if (this.pluginCallbacks.indexOf(callback) === -1) {
-      this.pluginCallbacks.push(callback);
-    }
-    return this;
-  }
-  unregister(callback) {
-    if (this.pluginCallbacks.indexOf(callback) !== -1) {
-      this.pluginCallbacks.splice(this.pluginCallbacks.indexOf(callback), 1);
-    }
-    return this;
-  }
-  parse(data, path, onLoad, onError) {
-    let json;
-    const extensions = {};
-    const plugins = {};
-    const textDecoder = new TextDecoder();
-    if (typeof data === "string") {
-      json = JSON.parse(data);
-    } else if (data instanceof ArrayBuffer) {
-      const magic = textDecoder.decode(new Uint8Array(data, 0, 4));
-      if (magic === BINARY_EXTENSION_HEADER_MAGIC) {
-        try {
-          extensions[EXTENSIONS.KHR_BINARY_GLTF] = new GLTFBinaryExtension(data);
-        } catch (error) {
-          if (onError) onError(error);
-          return;
-        }
-        json = JSON.parse(extensions[EXTENSIONS.KHR_BINARY_GLTF].content);
-      } else {
-        json = JSON.parse(textDecoder.decode(data));
-      }
-    } else {
-      json = data;
-    }
-    if (json.asset === void 0 || json.asset.version[0] < 2) {
-      if (onError) onError(new Error("THREE.GLTFLoader: Unsupported asset. glTF versions >=2.0 are supported."));
-      return;
-    }
-    const parser = new GLTFParser(json, {
-      path: path || this.resourcePath || "",
-      crossOrigin: this.crossOrigin,
-      requestHeader: this.requestHeader,
-      manager: this.manager,
-      ktx2Loader: this.ktx2Loader,
-      meshoptDecoder: this.meshoptDecoder
-    });
-    parser.fileLoader.setRequestHeader(this.requestHeader);
-    for (let i = 0; i < this.pluginCallbacks.length; i++) {
-      const plugin = this.pluginCallbacks[i](parser);
-      if (!plugin.name) console.error("THREE.GLTFLoader: Invalid plugin found: missing name");
-      plugins[plugin.name] = plugin;
-      extensions[plugin.name] = true;
-    }
-    if (json.extensionsUsed) {
-      for (let i = 0; i < json.extensionsUsed.length; ++i) {
-        const extensionName = json.extensionsUsed[i];
-        const extensionsRequired = json.extensionsRequired || [];
-        switch (extensionName) {
-          case EXTENSIONS.KHR_MATERIALS_UNLIT:
-            extensions[extensionName] = new GLTFMaterialsUnlitExtension();
-            break;
-          case EXTENSIONS.KHR_DRACO_MESH_COMPRESSION:
-            extensions[extensionName] = new GLTFDracoMeshCompressionExtension(json, this.dracoLoader);
-            break;
-          case EXTENSIONS.KHR_TEXTURE_TRANSFORM:
-            extensions[extensionName] = new GLTFTextureTransformExtension();
-            break;
-          case EXTENSIONS.KHR_MESH_QUANTIZATION:
-            extensions[extensionName] = new GLTFMeshQuantizationExtension();
-            break;
-          default:
-            if (extensionsRequired.indexOf(extensionName) >= 0 && plugins[extensionName] === void 0) {
-              console.warn('THREE.GLTFLoader: Unknown extension "' + extensionName + '".');
-            }
-        }
-      }
-    }
-    parser.setExtensions(extensions);
-    parser.setPlugins(plugins);
-    parser.parse(onLoad, onError);
-  }
-  parseAsync(data, path) {
-    const scope = this;
-    return new Promise(function(resolve, reject) {
-      scope.parse(data, path, resolve, reject);
-    });
-  }
-}
-function GLTFRegistry() {
-  let objects = {};
-  return {
-    get: /* @__PURE__ */ __name(function(key) {
-      return objects[key];
-    }, "get"),
-    add: /* @__PURE__ */ __name(function(key, object) {
-      objects[key] = object;
-    }, "add"),
-    remove: /* @__PURE__ */ __name(function(key) {
-      delete objects[key];
-    }, "remove"),
-    removeAll: /* @__PURE__ */ __name(function() {
-      objects = {};
-    }, "removeAll")
-  };
-}
-__name(GLTFRegistry, "GLTFRegistry");
-const EXTENSIONS = {
-  KHR_BINARY_GLTF: "KHR_binary_glTF",
-  KHR_DRACO_MESH_COMPRESSION: "KHR_draco_mesh_compression",
-  KHR_LIGHTS_PUNCTUAL: "KHR_lights_punctual",
-  KHR_MATERIALS_CLEARCOAT: "KHR_materials_clearcoat",
-  KHR_MATERIALS_DISPERSION: "KHR_materials_dispersion",
-  KHR_MATERIALS_IOR: "KHR_materials_ior",
-  KHR_MATERIALS_SHEEN: "KHR_materials_sheen",
-  KHR_MATERIALS_SPECULAR: "KHR_materials_specular",
-  KHR_MATERIALS_TRANSMISSION: "KHR_materials_transmission",
-  KHR_MATERIALS_IRIDESCENCE: "KHR_materials_iridescence",
-  KHR_MATERIALS_ANISOTROPY: "KHR_materials_anisotropy",
-  KHR_MATERIALS_UNLIT: "KHR_materials_unlit",
-  KHR_MATERIALS_VOLUME: "KHR_materials_volume",
-  KHR_TEXTURE_BASISU: "KHR_texture_basisu",
-  KHR_TEXTURE_TRANSFORM: "KHR_texture_transform",
-  KHR_MESH_QUANTIZATION: "KHR_mesh_quantization",
-  KHR_MATERIALS_EMISSIVE_STRENGTH: "KHR_materials_emissive_strength",
-  EXT_MATERIALS_BUMP: "EXT_materials_bump",
-  EXT_TEXTURE_WEBP: "EXT_texture_webp",
-  EXT_TEXTURE_AVIF: "EXT_texture_avif",
-  EXT_MESHOPT_COMPRESSION: "EXT_meshopt_compression",
-  EXT_MESH_GPU_INSTANCING: "EXT_mesh_gpu_instancing"
-};
-class GLTFLightsExtension {
-  static {
-    __name(this, "GLTFLightsExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.KHR_LIGHTS_PUNCTUAL;
-    this.cache = { refs: {}, uses: {} };
-  }
-  _markDefs() {
-    const parser = this.parser;
-    const nodeDefs = this.parser.json.nodes || [];
-    for (let nodeIndex = 0, nodeLength = nodeDefs.length; nodeIndex < nodeLength; nodeIndex++) {
-      const nodeDef = nodeDefs[nodeIndex];
-      if (nodeDef.extensions && nodeDef.extensions[this.name] && nodeDef.extensions[this.name].light !== void 0) {
-        parser._addNodeRef(this.cache, nodeDef.extensions[this.name].light);
-      }
-    }
-  }
-  _loadLight(lightIndex) {
-    const parser = this.parser;
-    const cacheKey = "light:" + lightIndex;
-    let dependency = parser.cache.get(cacheKey);
-    if (dependency) return dependency;
-    const json = parser.json;
-    const extensions = json.extensions && json.extensions[this.name] || {};
-    const lightDefs = extensions.lights || [];
-    const lightDef = lightDefs[lightIndex];
-    let lightNode;
-    const color = new Color(16777215);
-    if (lightDef.color !== void 0) color.setRGB(lightDef.color[0], lightDef.color[1], lightDef.color[2], LinearSRGBColorSpace);
-    const range = lightDef.range !== void 0 ? lightDef.range : 0;
-    switch (lightDef.type) {
-      case "directional":
-        lightNode = new DirectionalLight(color);
-        lightNode.target.position.set(0, 0, -1);
-        lightNode.add(lightNode.target);
-        break;
-      case "point":
-        lightNode = new PointLight(color);
-        lightNode.distance = range;
-        break;
-      case "spot":
-        lightNode = new SpotLight(color);
-        lightNode.distance = range;
-        lightDef.spot = lightDef.spot || {};
-        lightDef.spot.innerConeAngle = lightDef.spot.innerConeAngle !== void 0 ? lightDef.spot.innerConeAngle : 0;
-        lightDef.spot.outerConeAngle = lightDef.spot.outerConeAngle !== void 0 ? lightDef.spot.outerConeAngle : Math.PI / 4;
-        lightNode.angle = lightDef.spot.outerConeAngle;
-        lightNode.penumbra = 1 - lightDef.spot.innerConeAngle / lightDef.spot.outerConeAngle;
-        lightNode.target.position.set(0, 0, -1);
-        lightNode.add(lightNode.target);
-        break;
-      default:
-        throw new Error("THREE.GLTFLoader: Unexpected light type: " + lightDef.type);
-    }
-    lightNode.position.set(0, 0, 0);
-    lightNode.decay = 2;
-    assignExtrasToUserData(lightNode, lightDef);
-    if (lightDef.intensity !== void 0) lightNode.intensity = lightDef.intensity;
-    lightNode.name = parser.createUniqueName(lightDef.name || "light_" + lightIndex);
-    dependency = Promise.resolve(lightNode);
-    parser.cache.add(cacheKey, dependency);
-    return dependency;
-  }
-  getDependency(type, index) {
-    if (type !== "light") return;
-    return this._loadLight(index);
-  }
-  createNodeAttachment(nodeIndex) {
-    const self2 = this;
-    const parser = this.parser;
-    const json = parser.json;
-    const nodeDef = json.nodes[nodeIndex];
-    const lightDef = nodeDef.extensions && nodeDef.extensions[this.name] || {};
-    const lightIndex = lightDef.light;
-    if (lightIndex === void 0) return null;
-    return this._loadLight(lightIndex).then(function(light) {
-      return parser._getNodeRef(self2.cache, lightIndex, light);
-    });
-  }
-}
-class GLTFMaterialsUnlitExtension {
-  static {
-    __name(this, "GLTFMaterialsUnlitExtension");
-  }
-  constructor() {
-    this.name = EXTENSIONS.KHR_MATERIALS_UNLIT;
-  }
-  getMaterialType() {
-    return MeshBasicMaterial;
-  }
-  extendParams(materialParams, materialDef, parser) {
-    const pending = [];
-    materialParams.color = new Color(1, 1, 1);
-    materialParams.opacity = 1;
-    const metallicRoughness = materialDef.pbrMetallicRoughness;
-    if (metallicRoughness) {
-      if (Array.isArray(metallicRoughness.baseColorFactor)) {
-        const array = metallicRoughness.baseColorFactor;
-        materialParams.color.setRGB(array[0], array[1], array[2], LinearSRGBColorSpace);
-        materialParams.opacity = array[3];
-      }
-      if (metallicRoughness.baseColorTexture !== void 0) {
-        pending.push(parser.assignTexture(materialParams, "map", metallicRoughness.baseColorTexture, SRGBColorSpace));
-      }
-    }
-    return Promise.all(pending);
-  }
-}
-class GLTFMaterialsEmissiveStrengthExtension {
-  static {
-    __name(this, "GLTFMaterialsEmissiveStrengthExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.KHR_MATERIALS_EMISSIVE_STRENGTH;
-  }
-  extendMaterialParams(materialIndex, materialParams) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
-      return Promise.resolve();
-    }
-    const emissiveStrength = materialDef.extensions[this.name].emissiveStrength;
-    if (emissiveStrength !== void 0) {
-      materialParams.emissiveIntensity = emissiveStrength;
-    }
-    return Promise.resolve();
-  }
-}
-class GLTFMaterialsClearcoatExtension {
-  static {
-    __name(this, "GLTFMaterialsClearcoatExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.KHR_MATERIALS_CLEARCOAT;
-  }
-  getMaterialType(materialIndex) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
-    return MeshPhysicalMaterial;
-  }
-  extendMaterialParams(materialIndex, materialParams) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
-      return Promise.resolve();
-    }
-    const pending = [];
-    const extension = materialDef.extensions[this.name];
-    if (extension.clearcoatFactor !== void 0) {
-      materialParams.clearcoat = extension.clearcoatFactor;
-    }
-    if (extension.clearcoatTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "clearcoatMap", extension.clearcoatTexture));
-    }
-    if (extension.clearcoatRoughnessFactor !== void 0) {
-      materialParams.clearcoatRoughness = extension.clearcoatRoughnessFactor;
-    }
-    if (extension.clearcoatRoughnessTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "clearcoatRoughnessMap", extension.clearcoatRoughnessTexture));
-    }
-    if (extension.clearcoatNormalTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "clearcoatNormalMap", extension.clearcoatNormalTexture));
-      if (extension.clearcoatNormalTexture.scale !== void 0) {
-        const scale = extension.clearcoatNormalTexture.scale;
-        materialParams.clearcoatNormalScale = new Vector2(scale, scale);
-      }
-    }
-    return Promise.all(pending);
-  }
-}
-class GLTFMaterialsDispersionExtension {
-  static {
-    __name(this, "GLTFMaterialsDispersionExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.KHR_MATERIALS_DISPERSION;
-  }
-  getMaterialType(materialIndex) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
-    return MeshPhysicalMaterial;
-  }
-  extendMaterialParams(materialIndex, materialParams) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
-      return Promise.resolve();
-    }
-    const extension = materialDef.extensions[this.name];
-    materialParams.dispersion = extension.dispersion !== void 0 ? extension.dispersion : 0;
-    return Promise.resolve();
-  }
-}
-class GLTFMaterialsIridescenceExtension {
-  static {
-    __name(this, "GLTFMaterialsIridescenceExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.KHR_MATERIALS_IRIDESCENCE;
-  }
-  getMaterialType(materialIndex) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
-    return MeshPhysicalMaterial;
-  }
-  extendMaterialParams(materialIndex, materialParams) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
-      return Promise.resolve();
-    }
-    const pending = [];
-    const extension = materialDef.extensions[this.name];
-    if (extension.iridescenceFactor !== void 0) {
-      materialParams.iridescence = extension.iridescenceFactor;
-    }
-    if (extension.iridescenceTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "iridescenceMap", extension.iridescenceTexture));
-    }
-    if (extension.iridescenceIor !== void 0) {
-      materialParams.iridescenceIOR = extension.iridescenceIor;
-    }
-    if (materialParams.iridescenceThicknessRange === void 0) {
-      materialParams.iridescenceThicknessRange = [100, 400];
-    }
-    if (extension.iridescenceThicknessMinimum !== void 0) {
-      materialParams.iridescenceThicknessRange[0] = extension.iridescenceThicknessMinimum;
-    }
-    if (extension.iridescenceThicknessMaximum !== void 0) {
-      materialParams.iridescenceThicknessRange[1] = extension.iridescenceThicknessMaximum;
-    }
-    if (extension.iridescenceThicknessTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "iridescenceThicknessMap", extension.iridescenceThicknessTexture));
-    }
-    return Promise.all(pending);
-  }
-}
-class GLTFMaterialsSheenExtension {
-  static {
-    __name(this, "GLTFMaterialsSheenExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.KHR_MATERIALS_SHEEN;
-  }
-  getMaterialType(materialIndex) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
-    return MeshPhysicalMaterial;
-  }
-  extendMaterialParams(materialIndex, materialParams) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
-      return Promise.resolve();
-    }
-    const pending = [];
-    materialParams.sheenColor = new Color(0, 0, 0);
-    materialParams.sheenRoughness = 0;
-    materialParams.sheen = 1;
-    const extension = materialDef.extensions[this.name];
-    if (extension.sheenColorFactor !== void 0) {
-      const colorFactor = extension.sheenColorFactor;
-      materialParams.sheenColor.setRGB(colorFactor[0], colorFactor[1], colorFactor[2], LinearSRGBColorSpace);
-    }
-    if (extension.sheenRoughnessFactor !== void 0) {
-      materialParams.sheenRoughness = extension.sheenRoughnessFactor;
-    }
-    if (extension.sheenColorTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "sheenColorMap", extension.sheenColorTexture, SRGBColorSpace));
-    }
-    if (extension.sheenRoughnessTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "sheenRoughnessMap", extension.sheenRoughnessTexture));
-    }
-    return Promise.all(pending);
-  }
-}
-class GLTFMaterialsTransmissionExtension {
-  static {
-    __name(this, "GLTFMaterialsTransmissionExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.KHR_MATERIALS_TRANSMISSION;
-  }
-  getMaterialType(materialIndex) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
-    return MeshPhysicalMaterial;
-  }
-  extendMaterialParams(materialIndex, materialParams) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
-      return Promise.resolve();
-    }
-    const pending = [];
-    const extension = materialDef.extensions[this.name];
-    if (extension.transmissionFactor !== void 0) {
-      materialParams.transmission = extension.transmissionFactor;
-    }
-    if (extension.transmissionTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "transmissionMap", extension.transmissionTexture));
-    }
-    return Promise.all(pending);
-  }
-}
-class GLTFMaterialsVolumeExtension {
-  static {
-    __name(this, "GLTFMaterialsVolumeExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.KHR_MATERIALS_VOLUME;
-  }
-  getMaterialType(materialIndex) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
-    return MeshPhysicalMaterial;
-  }
-  extendMaterialParams(materialIndex, materialParams) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
-      return Promise.resolve();
-    }
-    const pending = [];
-    const extension = materialDef.extensions[this.name];
-    materialParams.thickness = extension.thicknessFactor !== void 0 ? extension.thicknessFactor : 0;
-    if (extension.thicknessTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "thicknessMap", extension.thicknessTexture));
-    }
-    materialParams.attenuationDistance = extension.attenuationDistance || Infinity;
-    const colorArray = extension.attenuationColor || [1, 1, 1];
-    materialParams.attenuationColor = new Color().setRGB(colorArray[0], colorArray[1], colorArray[2], LinearSRGBColorSpace);
-    return Promise.all(pending);
-  }
-}
-class GLTFMaterialsIorExtension {
-  static {
-    __name(this, "GLTFMaterialsIorExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.KHR_MATERIALS_IOR;
-  }
-  getMaterialType(materialIndex) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
-    return MeshPhysicalMaterial;
-  }
-  extendMaterialParams(materialIndex, materialParams) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
-      return Promise.resolve();
-    }
-    const extension = materialDef.extensions[this.name];
-    materialParams.ior = extension.ior !== void 0 ? extension.ior : 1.5;
-    return Promise.resolve();
-  }
-}
-class GLTFMaterialsSpecularExtension {
-  static {
-    __name(this, "GLTFMaterialsSpecularExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.KHR_MATERIALS_SPECULAR;
-  }
-  getMaterialType(materialIndex) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
-    return MeshPhysicalMaterial;
-  }
-  extendMaterialParams(materialIndex, materialParams) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
-      return Promise.resolve();
-    }
-    const pending = [];
-    const extension = materialDef.extensions[this.name];
-    materialParams.specularIntensity = extension.specularFactor !== void 0 ? extension.specularFactor : 1;
-    if (extension.specularTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "specularIntensityMap", extension.specularTexture));
-    }
-    const colorArray = extension.specularColorFactor || [1, 1, 1];
-    materialParams.specularColor = new Color().setRGB(colorArray[0], colorArray[1], colorArray[2], LinearSRGBColorSpace);
-    if (extension.specularColorTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "specularColorMap", extension.specularColorTexture, SRGBColorSpace));
-    }
-    return Promise.all(pending);
-  }
-}
-class GLTFMaterialsBumpExtension {
-  static {
-    __name(this, "GLTFMaterialsBumpExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.EXT_MATERIALS_BUMP;
-  }
-  getMaterialType(materialIndex) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
-    return MeshPhysicalMaterial;
-  }
-  extendMaterialParams(materialIndex, materialParams) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
-      return Promise.resolve();
-    }
-    const pending = [];
-    const extension = materialDef.extensions[this.name];
-    materialParams.bumpScale = extension.bumpFactor !== void 0 ? extension.bumpFactor : 1;
-    if (extension.bumpTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "bumpMap", extension.bumpTexture));
-    }
-    return Promise.all(pending);
-  }
-}
-class GLTFMaterialsAnisotropyExtension {
-  static {
-    __name(this, "GLTFMaterialsAnisotropyExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.KHR_MATERIALS_ANISOTROPY;
-  }
-  getMaterialType(materialIndex) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
-    return MeshPhysicalMaterial;
-  }
-  extendMaterialParams(materialIndex, materialParams) {
-    const parser = this.parser;
-    const materialDef = parser.json.materials[materialIndex];
-    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
-      return Promise.resolve();
-    }
-    const pending = [];
-    const extension = materialDef.extensions[this.name];
-    if (extension.anisotropyStrength !== void 0) {
-      materialParams.anisotropy = extension.anisotropyStrength;
-    }
-    if (extension.anisotropyRotation !== void 0) {
-      materialParams.anisotropyRotation = extension.anisotropyRotation;
-    }
-    if (extension.anisotropyTexture !== void 0) {
-      pending.push(parser.assignTexture(materialParams, "anisotropyMap", extension.anisotropyTexture));
-    }
-    return Promise.all(pending);
-  }
-}
-class GLTFTextureBasisUExtension {
-  static {
-    __name(this, "GLTFTextureBasisUExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.KHR_TEXTURE_BASISU;
-  }
-  loadTexture(textureIndex) {
-    const parser = this.parser;
-    const json = parser.json;
-    const textureDef = json.textures[textureIndex];
-    if (!textureDef.extensions || !textureDef.extensions[this.name]) {
-      return null;
-    }
-    const extension = textureDef.extensions[this.name];
-    const loader = parser.options.ktx2Loader;
-    if (!loader) {
-      if (json.extensionsRequired && json.extensionsRequired.indexOf(this.name) >= 0) {
-        throw new Error("THREE.GLTFLoader: setKTX2Loader must be called before loading KTX2 textures");
-      } else {
-        return null;
-      }
-    }
-    return parser.loadTextureImage(textureIndex, extension.source, loader);
-  }
-}
-class GLTFTextureWebPExtension {
-  static {
-    __name(this, "GLTFTextureWebPExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.EXT_TEXTURE_WEBP;
-    this.isSupported = null;
-  }
-  loadTexture(textureIndex) {
-    const name = this.name;
-    const parser = this.parser;
-    const json = parser.json;
-    const textureDef = json.textures[textureIndex];
-    if (!textureDef.extensions || !textureDef.extensions[name]) {
-      return null;
-    }
-    const extension = textureDef.extensions[name];
-    const source = json.images[extension.source];
-    let loader = parser.textureLoader;
-    if (source.uri) {
-      const handler = parser.options.manager.getHandler(source.uri);
-      if (handler !== null) loader = handler;
-    }
-    return this.detectSupport().then(function(isSupported) {
-      if (isSupported) return parser.loadTextureImage(textureIndex, extension.source, loader);
-      if (json.extensionsRequired && json.extensionsRequired.indexOf(name) >= 0) {
-        throw new Error("THREE.GLTFLoader: WebP required by asset but unsupported.");
-      }
-      return parser.loadTexture(textureIndex);
-    });
-  }
-  detectSupport() {
-    if (!this.isSupported) {
-      this.isSupported = new Promise(function(resolve) {
-        const image = new Image();
-        image.src = "data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA";
-        image.onload = image.onerror = function() {
-          resolve(image.height === 1);
-        };
-      });
-    }
-    return this.isSupported;
-  }
-}
-class GLTFTextureAVIFExtension {
-  static {
-    __name(this, "GLTFTextureAVIFExtension");
-  }
-  constructor(parser) {
-    this.parser = parser;
-    this.name = EXTENSIONS.EXT_TEXTURE_AVIF;
-    this.isSupported = null;
-  }
-  loadTexture(textureIndex) {
-    const name = this.name;
-    const parser = this.parser;
-    const json = parser.json;
-    const textureDef = json.textures[textureIndex];
-    if (!textureDef.extensions || !textureDef.extensions[name]) {
-      return null;
-    }
-    const extension = textureDef.extensions[name];
-    const source = json.images[extension.source];
-    let loader = parser.textureLoader;
-    if (source.uri) {
-      const handler = parser.options.manager.getHandler(source.uri);
-      if (handler !== null) loader = handler;
-    }
-    return this.detectSupport().then(function(isSupported) {
-      if (isSupported) return parser.loadTextureImage(textureIndex, extension.source, loader);
-      if (json.extensionsRequired && json.extensionsRequired.indexOf(name) >= 0) {
-        throw new Error("THREE.GLTFLoader: AVIF required by asset but unsupported.");
-      }
-      return parser.loadTexture(textureIndex);
-    });
-  }
-  detectSupport() {
-    if (!this.isSupported) {
-      this.isSupported = new Promise(function(resolve) {
-        const image = new Image();
-        image.src = "data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUIAAADybWV0YQAAAAAAAAAoaGRscgAAAAAAAAAAcGljdAAAAAAAAAAAAAAAAGxpYmF2aWYAAAAADnBpdG0AAAAAAAEAAAAeaWxvYwAAAABEAAABAAEAAAABAAABGgAAABcAAAAoaWluZgAAAAAAAQAAABppbmZlAgAAAAABAABhdjAxQ29sb3IAAAAAamlwcnAAAABLaXBjbwAAABRpc3BlAAAAAAAAAAEAAAABAAAAEHBpeGkAAAAAAwgICAAAAAxhdjFDgQAMAAAAABNjb2xybmNseAACAAIABoAAAAAXaXBtYQAAAAAAAAABAAEEAQKDBAAAAB9tZGF0EgAKCBgABogQEDQgMgkQAAAAB8dSLfI=";
-        image.onload = image.onerror = function() {
-          resolve(image.height === 1);
-        };
-      });
-    }
-    return this.isSupported;
-  }
-}
-class GLTFMeshoptCompression {
-  static {
-    __name(this, "GLTFMeshoptCompression");
-  }
-  constructor(parser) {
-    this.name = EXTENSIONS.EXT_MESHOPT_COMPRESSION;
-    this.parser = parser;
-  }
-  loadBufferView(index) {
-    const json = this.parser.json;
-    const bufferView = json.bufferViews[index];
-    if (bufferView.extensions && bufferView.extensions[this.name]) {
-      const extensionDef = bufferView.extensions[this.name];
-      const buffer = this.parser.getDependency("buffer", extensionDef.buffer);
-      const decoder = this.parser.options.meshoptDecoder;
-      if (!decoder || !decoder.supported) {
-        if (json.extensionsRequired && json.extensionsRequired.indexOf(this.name) >= 0) {
-          throw new Error("THREE.GLTFLoader: setMeshoptDecoder must be called before loading compressed files");
-        } else {
-          return null;
-        }
-      }
-      return buffer.then(function(res) {
-        const byteOffset = extensionDef.byteOffset || 0;
-        const byteLength = extensionDef.byteLength || 0;
-        const count = extensionDef.count;
-        const stride = extensionDef.byteStride;
-        const source = new Uint8Array(res, byteOffset, byteLength);
-        if (decoder.decodeGltfBufferAsync) {
-          return decoder.decodeGltfBufferAsync(count, stride, source, extensionDef.mode, extensionDef.filter).then(function(res2) {
-            return res2.buffer;
-          });
-        } else {
-          return decoder.ready.then(function() {
-            const result = new ArrayBuffer(count * stride);
-            decoder.decodeGltfBuffer(new Uint8Array(result), count, stride, source, extensionDef.mode, extensionDef.filter);
-            return result;
-          });
-        }
-      });
-    } else {
-      return null;
-    }
-  }
-}
-class GLTFMeshGpuInstancing {
-  static {
-    __name(this, "GLTFMeshGpuInstancing");
-  }
-  constructor(parser) {
-    this.name = EXTENSIONS.EXT_MESH_GPU_INSTANCING;
-    this.parser = parser;
-  }
-  createNodeMesh(nodeIndex) {
-    const json = this.parser.json;
-    const nodeDef = json.nodes[nodeIndex];
-    if (!nodeDef.extensions || !nodeDef.extensions[this.name] || nodeDef.mesh === void 0) {
-      return null;
-    }
-    const meshDef = json.meshes[nodeDef.mesh];
-    for (const primitive of meshDef.primitives) {
-      if (primitive.mode !== WEBGL_CONSTANTS.TRIANGLES && primitive.mode !== WEBGL_CONSTANTS.TRIANGLE_STRIP && primitive.mode !== WEBGL_CONSTANTS.TRIANGLE_FAN && primitive.mode !== void 0) {
-        return null;
-      }
-    }
-    const extensionDef = nodeDef.extensions[this.name];
-    const attributesDef = extensionDef.attributes;
-    const pending = [];
-    const attributes = {};
-    for (const key in attributesDef) {
-      pending.push(this.parser.getDependency("accessor", attributesDef[key]).then((accessor) => {
-        attributes[key] = accessor;
-        return attributes[key];
-      }));
-    }
-    if (pending.length < 1) {
-      return null;
-    }
-    pending.push(this.parser.createNodeMesh(nodeIndex));
-    return Promise.all(pending).then((results) => {
-      const nodeObject = results.pop();
-      const meshes = nodeObject.isGroup ? nodeObject.children : [nodeObject];
-      const count = results[0].count;
-      const instancedMeshes = [];
-      for (const mesh of meshes) {
-        const m = new Matrix4();
-        const p = new Vector3();
-        const q = new Quaternion();
-        const s = new Vector3(1, 1, 1);
-        const instancedMesh = new InstancedMesh(mesh.geometry, mesh.material, count);
-        for (let i = 0; i < count; i++) {
-          if (attributes.TRANSLATION) {
-            p.fromBufferAttribute(attributes.TRANSLATION, i);
-          }
-          if (attributes.ROTATION) {
-            q.fromBufferAttribute(attributes.ROTATION, i);
-          }
-          if (attributes.SCALE) {
-            s.fromBufferAttribute(attributes.SCALE, i);
-          }
-          instancedMesh.setMatrixAt(i, m.compose(p, q, s));
-        }
-        for (const attributeName in attributes) {
-          if (attributeName === "_COLOR_0") {
-            const attr = attributes[attributeName];
-            instancedMesh.instanceColor = new InstancedBufferAttribute(attr.array, attr.itemSize, attr.normalized);
-          } else if (attributeName !== "TRANSLATION" && attributeName !== "ROTATION" && attributeName !== "SCALE") {
-            mesh.geometry.setAttribute(attributeName, attributes[attributeName]);
-          }
-        }
-        Object3D.prototype.copy.call(instancedMesh, mesh);
-        this.parser.assignFinalMaterial(instancedMesh);
-        instancedMeshes.push(instancedMesh);
-      }
-      if (nodeObject.isGroup) {
-        nodeObject.clear();
-        nodeObject.add(...instancedMeshes);
-        return nodeObject;
-      }
-      return instancedMeshes[0];
-    });
-  }
-}
-const BINARY_EXTENSION_HEADER_MAGIC = "glTF";
-const BINARY_EXTENSION_HEADER_LENGTH = 12;
-const BINARY_EXTENSION_CHUNK_TYPES = { JSON: 1313821514, BIN: 5130562 };
-class GLTFBinaryExtension {
-  static {
-    __name(this, "GLTFBinaryExtension");
-  }
-  constructor(data) {
-    this.name = EXTENSIONS.KHR_BINARY_GLTF;
-    this.content = null;
-    this.body = null;
-    const headerView = new DataView(data, 0, BINARY_EXTENSION_HEADER_LENGTH);
-    const textDecoder = new TextDecoder();
-    this.header = {
-      magic: textDecoder.decode(new Uint8Array(data.slice(0, 4))),
-      version: headerView.getUint32(4, true),
-      length: headerView.getUint32(8, true)
-    };
-    if (this.header.magic !== BINARY_EXTENSION_HEADER_MAGIC) {
-      throw new Error("THREE.GLTFLoader: Unsupported glTF-Binary header.");
-    } else if (this.header.version < 2) {
-      throw new Error("THREE.GLTFLoader: Legacy binary file detected.");
-    }
-    const chunkContentsLength = this.header.length - BINARY_EXTENSION_HEADER_LENGTH;
-    const chunkView = new DataView(data, BINARY_EXTENSION_HEADER_LENGTH);
-    let chunkIndex = 0;
-    while (chunkIndex < chunkContentsLength) {
-      const chunkLength = chunkView.getUint32(chunkIndex, true);
-      chunkIndex += 4;
-      const chunkType = chunkView.getUint32(chunkIndex, true);
-      chunkIndex += 4;
-      if (chunkType === BINARY_EXTENSION_CHUNK_TYPES.JSON) {
-        const contentArray = new Uint8Array(data, BINARY_EXTENSION_HEADER_LENGTH + chunkIndex, chunkLength);
-        this.content = textDecoder.decode(contentArray);
-      } else if (chunkType === BINARY_EXTENSION_CHUNK_TYPES.BIN) {
-        const byteOffset = BINARY_EXTENSION_HEADER_LENGTH + chunkIndex;
-        this.body = data.slice(byteOffset, byteOffset + chunkLength);
-      }
-      chunkIndex += chunkLength;
-    }
-    if (this.content === null) {
-      throw new Error("THREE.GLTFLoader: JSON content not found.");
-    }
-  }
-}
-class GLTFDracoMeshCompressionExtension {
-  static {
-    __name(this, "GLTFDracoMeshCompressionExtension");
-  }
-  constructor(json, dracoLoader) {
-    if (!dracoLoader) {
-      throw new Error("THREE.GLTFLoader: No DRACOLoader instance provided.");
-    }
-    this.name = EXTENSIONS.KHR_DRACO_MESH_COMPRESSION;
-    this.json = json;
-    this.dracoLoader = dracoLoader;
-    this.dracoLoader.preload();
-  }
-  decodePrimitive(primitive, parser) {
-    const json = this.json;
-    const dracoLoader = this.dracoLoader;
-    const bufferViewIndex = primitive.extensions[this.name].bufferView;
-    const gltfAttributeMap = primitive.extensions[this.name].attributes;
-    const threeAttributeMap = {};
-    const attributeNormalizedMap = {};
-    const attributeTypeMap = {};
-    for (const attributeName in gltfAttributeMap) {
-      const threeAttributeName = ATTRIBUTES[attributeName] || attributeName.toLowerCase();
-      threeAttributeMap[threeAttributeName] = gltfAttributeMap[attributeName];
-    }
-    for (const attributeName in primitive.attributes) {
-      const threeAttributeName = ATTRIBUTES[attributeName] || attributeName.toLowerCase();
-      if (gltfAttributeMap[attributeName] !== void 0) {
-        const accessorDef = json.accessors[primitive.attributes[attributeName]];
-        const componentType = WEBGL_COMPONENT_TYPES[accessorDef.componentType];
-        attributeTypeMap[threeAttributeName] = componentType.name;
-        attributeNormalizedMap[threeAttributeName] = accessorDef.normalized === true;
-      }
-    }
-    return parser.getDependency("bufferView", bufferViewIndex).then(function(bufferView) {
-      return new Promise(function(resolve, reject) {
-        dracoLoader.decodeDracoFile(bufferView, function(geometry) {
-          for (const attributeName in geometry.attributes) {
-            const attribute = geometry.attributes[attributeName];
-            const normalized = attributeNormalizedMap[attributeName];
-            if (normalized !== void 0) attribute.normalized = normalized;
-          }
-          resolve(geometry);
-        }, threeAttributeMap, attributeTypeMap, LinearSRGBColorSpace, reject);
-      });
-    });
-  }
-}
-class GLTFTextureTransformExtension {
-  static {
-    __name(this, "GLTFTextureTransformExtension");
-  }
-  constructor() {
-    this.name = EXTENSIONS.KHR_TEXTURE_TRANSFORM;
-  }
-  extendTexture(texture, transform) {
-    if ((transform.texCoord === void 0 || transform.texCoord === texture.channel) && transform.offset === void 0 && transform.rotation === void 0 && transform.scale === void 0) {
-      return texture;
-    }
-    texture = texture.clone();
-    if (transform.texCoord !== void 0) {
-      texture.channel = transform.texCoord;
-    }
-    if (transform.offset !== void 0) {
-      texture.offset.fromArray(transform.offset);
-    }
-    if (transform.rotation !== void 0) {
-      texture.rotation = transform.rotation;
-    }
-    if (transform.scale !== void 0) {
-      texture.repeat.fromArray(transform.scale);
-    }
-    texture.needsUpdate = true;
-    return texture;
-  }
-}
-class GLTFMeshQuantizationExtension {
-  static {
-    __name(this, "GLTFMeshQuantizationExtension");
-  }
-  constructor() {
-    this.name = EXTENSIONS.KHR_MESH_QUANTIZATION;
-  }
-}
-class GLTFCubicSplineInterpolant extends Interpolant {
-  static {
-    __name(this, "GLTFCubicSplineInterpolant");
-  }
-  constructor(parameterPositions, sampleValues, sampleSize, resultBuffer) {
-    super(parameterPositions, sampleValues, sampleSize, resultBuffer);
-  }
-  copySampleValue_(index) {
-    const result = this.resultBuffer, values = this.sampleValues, valueSize = this.valueSize, offset = index * valueSize * 3 + valueSize;
-    for (let i = 0; i !== valueSize; i++) {
-      result[i] = values[offset + i];
-    }
-    return result;
-  }
-  interpolate_(i1, t0, t2, t1) {
-    const result = this.resultBuffer;
-    const values = this.sampleValues;
-    const stride = this.valueSize;
-    const stride2 = stride * 2;
-    const stride3 = stride * 3;
-    const td2 = t1 - t0;
-    const p = (t2 - t0) / td2;
-    const pp = p * p;
-    const ppp = pp * p;
-    const offset1 = i1 * stride3;
-    const offset0 = offset1 - stride3;
-    const s2 = -2 * ppp + 3 * pp;
-    const s3 = ppp - pp;
-    const s0 = 1 - s2;
-    const s1 = s3 - pp + p;
-    for (let i = 0; i !== stride; i++) {
-      const p0 = values[offset0 + i + stride];
-      const m0 = values[offset0 + i + stride2] * td2;
-      const p1 = values[offset1 + i + stride];
-      const m1 = values[offset1 + i] * td2;
-      result[i] = s0 * p0 + s1 * m0 + s2 * p1 + s3 * m1;
-    }
-    return result;
-  }
-}
-const _q = new Quaternion();
-class GLTFCubicSplineQuaternionInterpolant extends GLTFCubicSplineInterpolant {
-  static {
-    __name(this, "GLTFCubicSplineQuaternionInterpolant");
-  }
-  interpolate_(i1, t0, t2, t1) {
-    const result = super.interpolate_(i1, t0, t2, t1);
-    _q.fromArray(result).normalize().toArray(result);
-    return result;
-  }
-}
-const WEBGL_CONSTANTS = {
-  FLOAT: 5126,
-  //FLOAT_MAT2: 35674,
-  FLOAT_MAT3: 35675,
-  FLOAT_MAT4: 35676,
-  FLOAT_VEC2: 35664,
-  FLOAT_VEC3: 35665,
-  FLOAT_VEC4: 35666,
-  LINEAR: 9729,
-  REPEAT: 10497,
-  SAMPLER_2D: 35678,
-  POINTS: 0,
-  LINES: 1,
-  LINE_LOOP: 2,
-  LINE_STRIP: 3,
-  TRIANGLES: 4,
-  TRIANGLE_STRIP: 5,
-  TRIANGLE_FAN: 6,
-  UNSIGNED_BYTE: 5121,
-  UNSIGNED_SHORT: 5123
-};
-const WEBGL_COMPONENT_TYPES = {
-  5120: Int8Array,
-  5121: Uint8Array,
-  5122: Int16Array,
-  5123: Uint16Array,
-  5125: Uint32Array,
-  5126: Float32Array
-};
-const WEBGL_FILTERS = {
-  9728: NearestFilter,
-  9729: LinearFilter,
-  9984: NearestMipmapNearestFilter,
-  9985: LinearMipmapNearestFilter,
-  9986: NearestMipmapLinearFilter,
-  9987: LinearMipmapLinearFilter
-};
-const WEBGL_WRAPPINGS = {
-  33071: ClampToEdgeWrapping,
-  33648: MirroredRepeatWrapping,
-  10497: RepeatWrapping
-};
-const WEBGL_TYPE_SIZES = {
-  "SCALAR": 1,
-  "VEC2": 2,
-  "VEC3": 3,
-  "VEC4": 4,
-  "MAT2": 4,
-  "MAT3": 9,
-  "MAT4": 16
-};
-const ATTRIBUTES = {
-  POSITION: "position",
-  NORMAL: "normal",
-  TANGENT: "tangent",
-  TEXCOORD_0: "uv",
-  TEXCOORD_1: "uv1",
-  TEXCOORD_2: "uv2",
-  TEXCOORD_3: "uv3",
-  COLOR_0: "color",
-  WEIGHTS_0: "skinWeight",
-  JOINTS_0: "skinIndex"
-};
-const PATH_PROPERTIES = {
-  scale: "scale",
-  translation: "position",
-  rotation: "quaternion",
-  weights: "morphTargetInfluences"
-};
-const INTERPOLATION = {
-  CUBICSPLINE: void 0,
-  // We use a custom interpolant (GLTFCubicSplineInterpolation) for CUBICSPLINE tracks. Each
-  // keyframe track will be initialized with a default interpolation type, then modified.
-  LINEAR: InterpolateLinear,
-  STEP: InterpolateDiscrete
-};
-const ALPHA_MODES = {
-  OPAQUE: "OPAQUE",
-  MASK: "MASK",
-  BLEND: "BLEND"
-};
-function createDefaultMaterial(cache) {
-  if (cache["DefaultMaterial"] === void 0) {
-    cache["DefaultMaterial"] = new MeshStandardMaterial({
-      color: 16777215,
-      emissive: 0,
-      metalness: 1,
-      roughness: 1,
-      transparent: false,
-      depthTest: true,
-      side: FrontSide
-    });
-  }
-  return cache["DefaultMaterial"];
-}
-__name(createDefaultMaterial, "createDefaultMaterial");
-function addUnknownExtensionsToUserData(knownExtensions, object, objectDef) {
-  for (const name in objectDef.extensions) {
-    if (knownExtensions[name] === void 0) {
-      object.userData.gltfExtensions = object.userData.gltfExtensions || {};
-      object.userData.gltfExtensions[name] = objectDef.extensions[name];
-    }
-  }
-}
-__name(addUnknownExtensionsToUserData, "addUnknownExtensionsToUserData");
-function assignExtrasToUserData(object, gltfDef) {
-  if (gltfDef.extras !== void 0) {
-    if (typeof gltfDef.extras === "object") {
-      Object.assign(object.userData, gltfDef.extras);
-    } else {
-      console.warn("THREE.GLTFLoader: Ignoring primitive type .extras, " + gltfDef.extras);
-    }
-  }
-}
-__name(assignExtrasToUserData, "assignExtrasToUserData");
-function addMorphTargets(geometry, targets, parser) {
-  let hasMorphPosition = false;
-  let hasMorphNormal = false;
-  let hasMorphColor = false;
-  for (let i = 0, il = targets.length; i < il; i++) {
-    const target = targets[i];
-    if (target.POSITION !== void 0) hasMorphPosition = true;
-    if (target.NORMAL !== void 0) hasMorphNormal = true;
-    if (target.COLOR_0 !== void 0) hasMorphColor = true;
-    if (hasMorphPosition && hasMorphNormal && hasMorphColor) break;
-  }
-  if (!hasMorphPosition && !hasMorphNormal && !hasMorphColor) return Promise.resolve(geometry);
-  const pendingPositionAccessors = [];
-  const pendingNormalAccessors = [];
-  const pendingColorAccessors = [];
-  for (let i = 0, il = targets.length; i < il; i++) {
-    const target = targets[i];
-    if (hasMorphPosition) {
-      const pendingAccessor = target.POSITION !== void 0 ? parser.getDependency("accessor", target.POSITION) : geometry.attributes.position;
-      pendingPositionAccessors.push(pendingAccessor);
-    }
-    if (hasMorphNormal) {
-      const pendingAccessor = target.NORMAL !== void 0 ? parser.getDependency("accessor", target.NORMAL) : geometry.attributes.normal;
-      pendingNormalAccessors.push(pendingAccessor);
-    }
-    if (hasMorphColor) {
-      const pendingAccessor = target.COLOR_0 !== void 0 ? parser.getDependency("accessor", target.COLOR_0) : geometry.attributes.color;
-      pendingColorAccessors.push(pendingAccessor);
-    }
-  }
-  return Promise.all([
-    Promise.all(pendingPositionAccessors),
-    Promise.all(pendingNormalAccessors),
-    Promise.all(pendingColorAccessors)
-  ]).then(function(accessors) {
-    const morphPositions = accessors[0];
-    const morphNormals = accessors[1];
-    const morphColors = accessors[2];
-    if (hasMorphPosition) geometry.morphAttributes.position = morphPositions;
-    if (hasMorphNormal) geometry.morphAttributes.normal = morphNormals;
-    if (hasMorphColor) geometry.morphAttributes.color = morphColors;
-    geometry.morphTargetsRelative = true;
-    return geometry;
-  });
-}
-__name(addMorphTargets, "addMorphTargets");
-function updateMorphTargets(mesh, meshDef) {
-  mesh.updateMorphTargets();
-  if (meshDef.weights !== void 0) {
-    for (let i = 0, il = meshDef.weights.length; i < il; i++) {
-      mesh.morphTargetInfluences[i] = meshDef.weights[i];
-    }
-  }
-  if (meshDef.extras && Array.isArray(meshDef.extras.targetNames)) {
-    const targetNames = meshDef.extras.targetNames;
-    if (mesh.morphTargetInfluences.length === targetNames.length) {
-      mesh.morphTargetDictionary = {};
-      for (let i = 0, il = targetNames.length; i < il; i++) {
-        mesh.morphTargetDictionary[targetNames[i]] = i;
-      }
-    } else {
-      console.warn("THREE.GLTFLoader: Invalid extras.targetNames length. Ignoring names.");
-    }
-  }
-}
-__name(updateMorphTargets, "updateMorphTargets");
-function createPrimitiveKey(primitiveDef) {
-  let geometryKey;
-  const dracoExtension = primitiveDef.extensions && primitiveDef.extensions[EXTENSIONS.KHR_DRACO_MESH_COMPRESSION];
-  if (dracoExtension) {
-    geometryKey = "draco:" + dracoExtension.bufferView + ":" + dracoExtension.indices + ":" + createAttributesKey(dracoExtension.attributes);
-  } else {
-    geometryKey = primitiveDef.indices + ":" + createAttributesKey(primitiveDef.attributes) + ":" + primitiveDef.mode;
-  }
-  if (primitiveDef.targets !== void 0) {
-    for (let i = 0, il = primitiveDef.targets.length; i < il; i++) {
-      geometryKey += ":" + createAttributesKey(primitiveDef.targets[i]);
-    }
-  }
-  return geometryKey;
-}
-__name(createPrimitiveKey, "createPrimitiveKey");
-function createAttributesKey(attributes) {
-  let attributesKey = "";
-  const keys = Object.keys(attributes).sort();
-  for (let i = 0, il = keys.length; i < il; i++) {
-    attributesKey += keys[i] + ":" + attributes[keys[i]] + ";";
-  }
-  return attributesKey;
-}
-__name(createAttributesKey, "createAttributesKey");
-function getNormalizedComponentScale(constructor) {
-  switch (constructor) {
-    case Int8Array:
-      return 1 / 127;
-    case Uint8Array:
-      return 1 / 255;
-    case Int16Array:
-      return 1 / 32767;
-    case Uint16Array:
-      return 1 / 65535;
-    default:
-      throw new Error("THREE.GLTFLoader: Unsupported normalized accessor component type.");
-  }
-}
-__name(getNormalizedComponentScale, "getNormalizedComponentScale");
-function getImageURIMimeType(uri) {
-  if (uri.search(/\.jpe?g($|\?)/i) > 0 || uri.search(/^data\:image\/jpeg/) === 0) return "image/jpeg";
-  if (uri.search(/\.webp($|\?)/i) > 0 || uri.search(/^data\:image\/webp/) === 0) return "image/webp";
-  if (uri.search(/\.ktx2($|\?)/i) > 0 || uri.search(/^data\:image\/ktx2/) === 0) return "image/ktx2";
-  return "image/png";
-}
-__name(getImageURIMimeType, "getImageURIMimeType");
-const _identityMatrix = new Matrix4();
-class GLTFParser {
-  static {
-    __name(this, "GLTFParser");
-  }
-  constructor(json = {}, options = {}) {
-    this.json = json;
-    this.extensions = {};
-    this.plugins = {};
-    this.options = options;
-    this.cache = new GLTFRegistry();
-    this.associations = /* @__PURE__ */ new Map();
-    this.primitiveCache = {};
-    this.nodeCache = {};
-    this.meshCache = { refs: {}, uses: {} };
-    this.cameraCache = { refs: {}, uses: {} };
-    this.lightCache = { refs: {}, uses: {} };
-    this.sourceCache = {};
-    this.textureCache = {};
-    this.nodeNamesUsed = {};
-    let isSafari = false;
-    let safariVersion = -1;
-    let isFirefox = false;
-    let firefoxVersion = -1;
-    if (typeof navigator !== "undefined") {
-      const userAgent = navigator.userAgent;
-      isSafari = /^((?!chrome|android).)*safari/i.test(userAgent) === true;
-      const safariMatch = userAgent.match(/Version\/(\d+)/);
-      safariVersion = isSafari && safariMatch ? parseInt(safariMatch[1], 10) : -1;
-      isFirefox = userAgent.indexOf("Firefox") > -1;
-      firefoxVersion = isFirefox ? userAgent.match(/Firefox\/([0-9]+)\./)[1] : -1;
-    }
-    if (typeof createImageBitmap === "undefined" || isSafari && safariVersion < 17 || isFirefox && firefoxVersion < 98) {
-      this.textureLoader = new TextureLoader(this.options.manager);
-    } else {
-      this.textureLoader = new ImageBitmapLoader(this.options.manager);
-    }
-    this.textureLoader.setCrossOrigin(this.options.crossOrigin);
-    this.textureLoader.setRequestHeader(this.options.requestHeader);
-    this.fileLoader = new FileLoader(this.options.manager);
-    this.fileLoader.setResponseType("arraybuffer");
-    if (this.options.crossOrigin === "use-credentials") {
-      this.fileLoader.setWithCredentials(true);
-    }
-  }
-  setExtensions(extensions) {
-    this.extensions = extensions;
-  }
-  setPlugins(plugins) {
-    this.plugins = plugins;
-  }
-  parse(onLoad, onError) {
-    const parser = this;
-    const json = this.json;
-    const extensions = this.extensions;
-    this.cache.removeAll();
-    this.nodeCache = {};
-    this._invokeAll(function(ext2) {
-      return ext2._markDefs && ext2._markDefs();
-    });
-    Promise.all(this._invokeAll(function(ext2) {
-      return ext2.beforeRoot && ext2.beforeRoot();
-    })).then(function() {
-      return Promise.all([
-        parser.getDependencies("scene"),
-        parser.getDependencies("animation"),
-        parser.getDependencies("camera")
-      ]);
-    }).then(function(dependencies) {
-      const result = {
-        scene: dependencies[0][json.scene || 0],
-        scenes: dependencies[0],
-        animations: dependencies[1],
-        cameras: dependencies[2],
-        asset: json.asset,
-        parser,
-        userData: {}
-      };
-      addUnknownExtensionsToUserData(extensions, result, json);
-      assignExtrasToUserData(result, json);
-      return Promise.all(parser._invokeAll(function(ext2) {
-        return ext2.afterRoot && ext2.afterRoot(result);
-      })).then(function() {
-        for (const scene of result.scenes) {
-          scene.updateMatrixWorld();
-        }
-        onLoad(result);
-      });
-    }).catch(onError);
-  }
-  /**
-   * Marks the special nodes/meshes in json for efficient parse.
-   */
-  _markDefs() {
-    const nodeDefs = this.json.nodes || [];
-    const skinDefs = this.json.skins || [];
-    const meshDefs = this.json.meshes || [];
-    for (let skinIndex = 0, skinLength = skinDefs.length; skinIndex < skinLength; skinIndex++) {
-      const joints = skinDefs[skinIndex].joints;
-      for (let i = 0, il = joints.length; i < il; i++) {
-        nodeDefs[joints[i]].isBone = true;
-      }
-    }
-    for (let nodeIndex = 0, nodeLength = nodeDefs.length; nodeIndex < nodeLength; nodeIndex++) {
-      const nodeDef = nodeDefs[nodeIndex];
-      if (nodeDef.mesh !== void 0) {
-        this._addNodeRef(this.meshCache, nodeDef.mesh);
-        if (nodeDef.skin !== void 0) {
-          meshDefs[nodeDef.mesh].isSkinnedMesh = true;
-        }
-      }
-      if (nodeDef.camera !== void 0) {
-        this._addNodeRef(this.cameraCache, nodeDef.camera);
-      }
-    }
-  }
-  /**
-   * Counts references to shared node / Object3D resources. These resources
-   * can be reused, or "instantiated", at multiple nodes in the scene
-   * hierarchy. Mesh, Camera, and Light instances are instantiated and must
-   * be marked. Non-scenegraph resources (like Materials, Geometries, and
-   * Textures) can be reused directly and are not marked here.
-   *
-   * Example: CesiumMilkTruck sample model reuses "Wheel" meshes.
-   */
-  _addNodeRef(cache, index) {
-    if (index === void 0) return;
-    if (cache.refs[index] === void 0) {
-      cache.refs[index] = cache.uses[index] = 0;
-    }
-    cache.refs[index]++;
-  }
-  /** Returns a reference to a shared resource, cloning it if necessary. */
-  _getNodeRef(cache, index, object) {
-    if (cache.refs[index] <= 1) return object;
-    const ref = object.clone();
-    const updateMappings = /* @__PURE__ */ __name((original, clone) => {
-      const mappings = this.associations.get(original);
-      if (mappings != null) {
-        this.associations.set(clone, mappings);
-      }
-      for (const [i, child] of original.children.entries()) {
-        updateMappings(child, clone.children[i]);
-      }
-    }, "updateMappings");
-    updateMappings(object, ref);
-    ref.name += "_instance_" + cache.uses[index]++;
-    return ref;
-  }
-  _invokeOne(func) {
-    const extensions = Object.values(this.plugins);
-    extensions.push(this);
-    for (let i = 0; i < extensions.length; i++) {
-      const result = func(extensions[i]);
-      if (result) return result;
-    }
-    return null;
-  }
-  _invokeAll(func) {
-    const extensions = Object.values(this.plugins);
-    extensions.unshift(this);
-    const pending = [];
-    for (let i = 0; i < extensions.length; i++) {
-      const result = func(extensions[i]);
-      if (result) pending.push(result);
-    }
-    return pending;
-  }
-  /**
-   * Requests the specified dependency asynchronously, with caching.
-   * @param {string} type
-   * @param {number} index
-   * @return {Promise<Object3D|Material|THREE.Texture|AnimationClip|ArrayBuffer|Object>}
-   */
-  getDependency(type, index) {
-    const cacheKey = type + ":" + index;
-    let dependency = this.cache.get(cacheKey);
-    if (!dependency) {
-      switch (type) {
-        case "scene":
-          dependency = this.loadScene(index);
-          break;
-        case "node":
-          dependency = this._invokeOne(function(ext2) {
-            return ext2.loadNode && ext2.loadNode(index);
-          });
-          break;
-        case "mesh":
-          dependency = this._invokeOne(function(ext2) {
-            return ext2.loadMesh && ext2.loadMesh(index);
-          });
-          break;
-        case "accessor":
-          dependency = this.loadAccessor(index);
-          break;
-        case "bufferView":
-          dependency = this._invokeOne(function(ext2) {
-            return ext2.loadBufferView && ext2.loadBufferView(index);
-          });
-          break;
-        case "buffer":
-          dependency = this.loadBuffer(index);
-          break;
-        case "material":
-          dependency = this._invokeOne(function(ext2) {
-            return ext2.loadMaterial && ext2.loadMaterial(index);
-          });
-          break;
-        case "texture":
-          dependency = this._invokeOne(function(ext2) {
-            return ext2.loadTexture && ext2.loadTexture(index);
-          });
-          break;
-        case "skin":
-          dependency = this.loadSkin(index);
-          break;
-        case "animation":
-          dependency = this._invokeOne(function(ext2) {
-            return ext2.loadAnimation && ext2.loadAnimation(index);
-          });
-          break;
-        case "camera":
-          dependency = this.loadCamera(index);
-          break;
-        default:
-          dependency = this._invokeOne(function(ext2) {
-            return ext2 != this && ext2.getDependency && ext2.getDependency(type, index);
-          });
-          if (!dependency) {
-            throw new Error("Unknown type: " + type);
-          }
-          break;
-      }
-      this.cache.add(cacheKey, dependency);
-    }
-    return dependency;
-  }
-  /**
-   * Requests all dependencies of the specified type asynchronously, with caching.
-   * @param {string} type
-   * @return {Promise<Array<Object>>}
-   */
-  getDependencies(type) {
-    let dependencies = this.cache.get(type);
-    if (!dependencies) {
-      const parser = this;
-      const defs = this.json[type + (type === "mesh" ? "es" : "s")] || [];
-      dependencies = Promise.all(defs.map(function(def, index) {
-        return parser.getDependency(type, index);
-      }));
-      this.cache.add(type, dependencies);
-    }
-    return dependencies;
-  }
-  /**
-   * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#buffers-and-buffer-views
-   * @param {number} bufferIndex
-   * @return {Promise<ArrayBuffer>}
-   */
-  loadBuffer(bufferIndex) {
-    const bufferDef = this.json.buffers[bufferIndex];
-    const loader = this.fileLoader;
-    if (bufferDef.type && bufferDef.type !== "arraybuffer") {
-      throw new Error("THREE.GLTFLoader: " + bufferDef.type + " buffer type is not supported.");
-    }
-    if (bufferDef.uri === void 0 && bufferIndex === 0) {
-      return Promise.resolve(this.extensions[EXTENSIONS.KHR_BINARY_GLTF].body);
-    }
-    const options = this.options;
-    return new Promise(function(resolve, reject) {
-      loader.load(LoaderUtils.resolveURL(bufferDef.uri, options.path), resolve, void 0, function() {
-        reject(new Error('THREE.GLTFLoader: Failed to load buffer "' + bufferDef.uri + '".'));
-      });
-    });
-  }
-  /**
-   * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#buffers-and-buffer-views
-   * @param {number} bufferViewIndex
-   * @return {Promise<ArrayBuffer>}
-   */
-  loadBufferView(bufferViewIndex) {
-    const bufferViewDef = this.json.bufferViews[bufferViewIndex];
-    return this.getDependency("buffer", bufferViewDef.buffer).then(function(buffer) {
-      const byteLength = bufferViewDef.byteLength || 0;
-      const byteOffset = bufferViewDef.byteOffset || 0;
-      return buffer.slice(byteOffset, byteOffset + byteLength);
-    });
-  }
-  /**
-   * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#accessors
-   * @param {number} accessorIndex
-   * @return {Promise<BufferAttribute|InterleavedBufferAttribute>}
-   */
-  loadAccessor(accessorIndex) {
-    const parser = this;
-    const json = this.json;
-    const accessorDef = this.json.accessors[accessorIndex];
-    if (accessorDef.bufferView === void 0 && accessorDef.sparse === void 0) {
-      const itemSize = WEBGL_TYPE_SIZES[accessorDef.type];
-      const TypedArray = WEBGL_COMPONENT_TYPES[accessorDef.componentType];
-      const normalized = accessorDef.normalized === true;
-      const array = new TypedArray(accessorDef.count * itemSize);
-      return Promise.resolve(new BufferAttribute(array, itemSize, normalized));
-    }
-    const pendingBufferViews = [];
-    if (accessorDef.bufferView !== void 0) {
-      pendingBufferViews.push(this.getDependency("bufferView", accessorDef.bufferView));
-    } else {
-      pendingBufferViews.push(null);
-    }
-    if (accessorDef.sparse !== void 0) {
-      pendingBufferViews.push(this.getDependency("bufferView", accessorDef.sparse.indices.bufferView));
-      pendingBufferViews.push(this.getDependency("bufferView", accessorDef.sparse.values.bufferView));
-    }
-    return Promise.all(pendingBufferViews).then(function(bufferViews) {
-      const bufferView = bufferViews[0];
-      const itemSize = WEBGL_TYPE_SIZES[accessorDef.type];
-      const TypedArray = WEBGL_COMPONENT_TYPES[accessorDef.componentType];
-      const elementBytes = TypedArray.BYTES_PER_ELEMENT;
-      const itemBytes = elementBytes * itemSize;
-      const byteOffset = accessorDef.byteOffset || 0;
-      const byteStride = accessorDef.bufferView !== void 0 ? json.bufferViews[accessorDef.bufferView].byteStride : void 0;
-      const normalized = accessorDef.normalized === true;
-      let array, bufferAttribute;
-      if (byteStride && byteStride !== itemBytes) {
-        const ibSlice = Math.floor(byteOffset / byteStride);
-        const ibCacheKey = "InterleavedBuffer:" + accessorDef.bufferView + ":" + accessorDef.componentType + ":" + ibSlice + ":" + accessorDef.count;
-        let ib = parser.cache.get(ibCacheKey);
-        if (!ib) {
-          array = new TypedArray(bufferView, ibSlice * byteStride, accessorDef.count * byteStride / elementBytes);
-          ib = new InterleavedBuffer(array, byteStride / elementBytes);
-          parser.cache.add(ibCacheKey, ib);
-        }
-        bufferAttribute = new InterleavedBufferAttribute(ib, itemSize, byteOffset % byteStride / elementBytes, normalized);
-      } else {
-        if (bufferView === null) {
-          array = new TypedArray(accessorDef.count * itemSize);
-        } else {
-          array = new TypedArray(bufferView, byteOffset, accessorDef.count * itemSize);
-        }
-        bufferAttribute = new BufferAttribute(array, itemSize, normalized);
-      }
-      if (accessorDef.sparse !== void 0) {
-        const itemSizeIndices = WEBGL_TYPE_SIZES.SCALAR;
-        const TypedArrayIndices = WEBGL_COMPONENT_TYPES[accessorDef.sparse.indices.componentType];
-        const byteOffsetIndices = accessorDef.sparse.indices.byteOffset || 0;
-        const byteOffsetValues = accessorDef.sparse.values.byteOffset || 0;
-        const sparseIndices = new TypedArrayIndices(bufferViews[1], byteOffsetIndices, accessorDef.sparse.count * itemSizeIndices);
-        const sparseValues = new TypedArray(bufferViews[2], byteOffsetValues, accessorDef.sparse.count * itemSize);
-        if (bufferView !== null) {
-          bufferAttribute = new BufferAttribute(bufferAttribute.array.slice(), bufferAttribute.itemSize, bufferAttribute.normalized);
-        }
-        bufferAttribute.normalized = false;
-        for (let i = 0, il = sparseIndices.length; i < il; i++) {
-          const index = sparseIndices[i];
-          bufferAttribute.setX(index, sparseValues[i * itemSize]);
-          if (itemSize >= 2) bufferAttribute.setY(index, sparseValues[i * itemSize + 1]);
-          if (itemSize >= 3) bufferAttribute.setZ(index, sparseValues[i * itemSize + 2]);
-          if (itemSize >= 4) bufferAttribute.setW(index, sparseValues[i * itemSize + 3]);
-          if (itemSize >= 5) throw new Error("THREE.GLTFLoader: Unsupported itemSize in sparse BufferAttribute.");
-        }
-        bufferAttribute.normalized = normalized;
-      }
-      return bufferAttribute;
-    });
-  }
-  /**
-   * Specification: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#textures
-   * @param {number} textureIndex
-   * @return {Promise<THREE.Texture|null>}
-   */
-  loadTexture(textureIndex) {
-    const json = this.json;
-    const options = this.options;
-    const textureDef = json.textures[textureIndex];
-    const sourceIndex = textureDef.source;
-    const sourceDef = json.images[sourceIndex];
-    let loader = this.textureLoader;
-    if (sourceDef.uri) {
-      const handler = options.manager.getHandler(sourceDef.uri);
-      if (handler !== null) loader = handler;
-    }
-    return this.loadTextureImage(textureIndex, sourceIndex, loader);
-  }
-  loadTextureImage(textureIndex, sourceIndex, loader) {
-    const parser = this;
-    const json = this.json;
-    const textureDef = json.textures[textureIndex];
-    const sourceDef = json.images[sourceIndex];
-    const cacheKey = (sourceDef.uri || sourceDef.bufferView) + ":" + textureDef.sampler;
-    if (this.textureCache[cacheKey]) {
-      return this.textureCache[cacheKey];
-    }
-    const promise = this.loadImageSource(sourceIndex, loader).then(function(texture) {
-      texture.flipY = false;
-      texture.name = textureDef.name || sourceDef.name || "";
-      if (texture.name === "" && typeof sourceDef.uri === "string" && sourceDef.uri.startsWith("data:image/") === false) {
-        texture.name = sourceDef.uri;
-      }
-      const samplers = json.samplers || {};
-      const sampler = samplers[textureDef.sampler] || {};
-      texture.magFilter = WEBGL_FILTERS[sampler.magFilter] || LinearFilter;
-      texture.minFilter = WEBGL_FILTERS[sampler.minFilter] || LinearMipmapLinearFilter;
-      texture.wrapS = WEBGL_WRAPPINGS[sampler.wrapS] || RepeatWrapping;
-      texture.wrapT = WEBGL_WRAPPINGS[sampler.wrapT] || RepeatWrapping;
-      texture.generateMipmaps = !texture.isCompressedTexture && texture.minFilter !== NearestFilter && texture.minFilter !== LinearFilter;
-      parser.associations.set(texture, { textures: textureIndex });
-      return texture;
-    }).catch(function() {
-      return null;
-    });
-    this.textureCache[cacheKey] = promise;
-    return promise;
-  }
-  loadImageSource(sourceIndex, loader) {
-    const parser = this;
-    const json = this.json;
-    const options = this.options;
-    if (this.sourceCache[sourceIndex] !== void 0) {
-      return this.sourceCache[sourceIndex].then((texture) => texture.clone());
-    }
-    const sourceDef = json.images[sourceIndex];
-    const URL2 = self.URL || self.webkitURL;
-    let sourceURI = sourceDef.uri || "";
-    let isObjectURL = false;
-    if (sourceDef.bufferView !== void 0) {
-      sourceURI = parser.getDependency("bufferView", sourceDef.bufferView).then(function(bufferView) {
-        isObjectURL = true;
-        const blob = new Blob([bufferView], { type: sourceDef.mimeType });
-        sourceURI = URL2.createObjectURL(blob);
-        return sourceURI;
-      });
-    } else if (sourceDef.uri === void 0) {
-      throw new Error("THREE.GLTFLoader: Image " + sourceIndex + " is missing URI and bufferView");
-    }
-    const promise = Promise.resolve(sourceURI).then(function(sourceURI2) {
-      return new Promise(function(resolve, reject) {
-        let onLoad = resolve;
-        if (loader.isImageBitmapLoader === true) {
-          onLoad = /* @__PURE__ */ __name(function(imageBitmap) {
-            const texture = new Texture(imageBitmap);
-            texture.needsUpdate = true;
-            resolve(texture);
-          }, "onLoad");
-        }
-        loader.load(LoaderUtils.resolveURL(sourceURI2, options.path), onLoad, void 0, reject);
-      });
-    }).then(function(texture) {
-      if (isObjectURL === true) {
-        URL2.revokeObjectURL(sourceURI);
-      }
-      assignExtrasToUserData(texture, sourceDef);
-      texture.userData.mimeType = sourceDef.mimeType || getImageURIMimeType(sourceDef.uri);
-      return texture;
-    }).catch(function(error) {
-      console.error("THREE.GLTFLoader: Couldn't load texture", sourceURI);
-      throw error;
-    });
-    this.sourceCache[sourceIndex] = promise;
-    return promise;
-  }
-  /**
-   * Asynchronously assigns a texture to the given material parameters.
-   * @param {Object} materialParams
-   * @param {string} mapName
-   * @param {Object} mapDef
-   * @return {Promise<Texture>}
-   */
-  assignTexture(materialParams, mapName, mapDef, colorSpace) {
-    const parser = this;
-    return this.getDependency("texture", mapDef.index).then(function(texture) {
-      if (!texture) return null;
-      if (mapDef.texCoord !== void 0 && mapDef.texCoord > 0) {
-        texture = texture.clone();
-        texture.channel = mapDef.texCoord;
-      }
-      if (parser.extensions[EXTENSIONS.KHR_TEXTURE_TRANSFORM]) {
-        const transform = mapDef.extensions !== void 0 ? mapDef.extensions[EXTENSIONS.KHR_TEXTURE_TRANSFORM] : void 0;
-        if (transform) {
-          const gltfReference = parser.associations.get(texture);
-          texture = parser.extensions[EXTENSIONS.KHR_TEXTURE_TRANSFORM].extendTexture(texture, transform);
-          parser.associations.set(texture, gltfReference);
-        }
-      }
-      if (colorSpace !== void 0) {
-        texture.colorSpace = colorSpace;
-      }
-      materialParams[mapName] = texture;
-      return texture;
-    });
-  }
-  /**
-   * Assigns final material to a Mesh, Line, or Points instance. The instance
-   * already has a material (generated from the glTF material options alone)
-   * but reuse of the same glTF material may require multiple threejs materials
-   * to accommodate different primitive types, defines, etc. New materials will
-   * be created if necessary, and reused from a cache.
-   * @param  {Object3D} mesh Mesh, Line, or Points instance.
-   */
-  assignFinalMaterial(mesh) {
-    const geometry = mesh.geometry;
-    let material = mesh.material;
-    const useDerivativeTangents = geometry.attributes.tangent === void 0;
-    const useVertexColors = geometry.attributes.color !== void 0;
-    const useFlatShading = geometry.attributes.normal === void 0;
-    if (mesh.isPoints) {
-      const cacheKey = "PointsMaterial:" + material.uuid;
-      let pointsMaterial = this.cache.get(cacheKey);
-      if (!pointsMaterial) {
-        pointsMaterial = new PointsMaterial();
-        Material.prototype.copy.call(pointsMaterial, material);
-        pointsMaterial.color.copy(material.color);
-        pointsMaterial.map = material.map;
-        pointsMaterial.sizeAttenuation = false;
-        this.cache.add(cacheKey, pointsMaterial);
-      }
-      material = pointsMaterial;
-    } else if (mesh.isLine) {
-      const cacheKey = "LineBasicMaterial:" + material.uuid;
-      let lineMaterial = this.cache.get(cacheKey);
-      if (!lineMaterial) {
-        lineMaterial = new LineBasicMaterial();
-        Material.prototype.copy.call(lineMaterial, material);
-        lineMaterial.color.copy(material.color);
-        lineMaterial.map = material.map;
-        this.cache.add(cacheKey, lineMaterial);
-      }
-      material = lineMaterial;
-    }
-    if (useDerivativeTangents || useVertexColors || useFlatShading) {
-      let cacheKey = "ClonedMaterial:" + material.uuid + ":";
-      if (useDerivativeTangents) cacheKey += "derivative-tangents:";
-      if (useVertexColors) cacheKey += "vertex-colors:";
-      if (useFlatShading) cacheKey += "flat-shading:";
-      let cachedMaterial = this.cache.get(cacheKey);
-      if (!cachedMaterial) {
-        cachedMaterial = material.clone();
-        if (useVertexColors) cachedMaterial.vertexColors = true;
-        if (useFlatShading) cachedMaterial.flatShading = true;
-        if (useDerivativeTangents) {
-          if (cachedMaterial.normalScale) cachedMaterial.normalScale.y *= -1;
-          if (cachedMaterial.clearcoatNormalScale) cachedMaterial.clearcoatNormalScale.y *= -1;
-        }
-        this.cache.add(cacheKey, cachedMaterial);
-        this.associations.set(cachedMaterial, this.associations.get(material));
-      }
-      material = cachedMaterial;
-    }
-    mesh.material = material;
-  }
-  getMaterialType() {
-    return MeshStandardMaterial;
-  }
-  /**
-   * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#materials
-   * @param {number} materialIndex
-   * @return {Promise<Material>}
-   */
-  loadMaterial(materialIndex) {
-    const parser = this;
-    const json = this.json;
-    const extensions = this.extensions;
-    const materialDef = json.materials[materialIndex];
-    let materialType;
-    const materialParams = {};
-    const materialExtensions = materialDef.extensions || {};
-    const pending = [];
-    if (materialExtensions[EXTENSIONS.KHR_MATERIALS_UNLIT]) {
-      const kmuExtension = extensions[EXTENSIONS.KHR_MATERIALS_UNLIT];
-      materialType = kmuExtension.getMaterialType();
-      pending.push(kmuExtension.extendParams(materialParams, materialDef, parser));
-    } else {
-      const metallicRoughness = materialDef.pbrMetallicRoughness || {};
-      materialParams.color = new Color(1, 1, 1);
-      materialParams.opacity = 1;
-      if (Array.isArray(metallicRoughness.baseColorFactor)) {
-        const array = metallicRoughness.baseColorFactor;
-        materialParams.color.setRGB(array[0], array[1], array[2], LinearSRGBColorSpace);
-        materialParams.opacity = array[3];
-      }
-      if (metallicRoughness.baseColorTexture !== void 0) {
-        pending.push(parser.assignTexture(materialParams, "map", metallicRoughness.baseColorTexture, SRGBColorSpace));
-      }
-      materialParams.metalness = metallicRoughness.metallicFactor !== void 0 ? metallicRoughness.metallicFactor : 1;
-      materialParams.roughness = metallicRoughness.roughnessFactor !== void 0 ? metallicRoughness.roughnessFactor : 1;
-      if (metallicRoughness.metallicRoughnessTexture !== void 0) {
-        pending.push(parser.assignTexture(materialParams, "metalnessMap", metallicRoughness.metallicRoughnessTexture));
-        pending.push(parser.assignTexture(materialParams, "roughnessMap", metallicRoughness.metallicRoughnessTexture));
-      }
-      materialType = this._invokeOne(function(ext2) {
-        return ext2.getMaterialType && ext2.getMaterialType(materialIndex);
-      });
-      pending.push(Promise.all(this._invokeAll(function(ext2) {
-        return ext2.extendMaterialParams && ext2.extendMaterialParams(materialIndex, materialParams);
-      })));
-    }
-    if (materialDef.doubleSided === true) {
-      materialParams.side = DoubleSide;
-    }
-    const alphaMode = materialDef.alphaMode || ALPHA_MODES.OPAQUE;
-    if (alphaMode === ALPHA_MODES.BLEND) {
-      materialParams.transparent = true;
-      materialParams.depthWrite = false;
-    } else {
-      materialParams.transparent = false;
-      if (alphaMode === ALPHA_MODES.MASK) {
-        materialParams.alphaTest = materialDef.alphaCutoff !== void 0 ? materialDef.alphaCutoff : 0.5;
-      }
-    }
-    if (materialDef.normalTexture !== void 0 && materialType !== MeshBasicMaterial) {
-      pending.push(parser.assignTexture(materialParams, "normalMap", materialDef.normalTexture));
-      materialParams.normalScale = new Vector2(1, 1);
-      if (materialDef.normalTexture.scale !== void 0) {
-        const scale = materialDef.normalTexture.scale;
-        materialParams.normalScale.set(scale, scale);
-      }
-    }
-    if (materialDef.occlusionTexture !== void 0 && materialType !== MeshBasicMaterial) {
-      pending.push(parser.assignTexture(materialParams, "aoMap", materialDef.occlusionTexture));
-      if (materialDef.occlusionTexture.strength !== void 0) {
-        materialParams.aoMapIntensity = materialDef.occlusionTexture.strength;
-      }
-    }
-    if (materialDef.emissiveFactor !== void 0 && materialType !== MeshBasicMaterial) {
-      const emissiveFactor = materialDef.emissiveFactor;
-      materialParams.emissive = new Color().setRGB(emissiveFactor[0], emissiveFactor[1], emissiveFactor[2], LinearSRGBColorSpace);
-    }
-    if (materialDef.emissiveTexture !== void 0 && materialType !== MeshBasicMaterial) {
-      pending.push(parser.assignTexture(materialParams, "emissiveMap", materialDef.emissiveTexture, SRGBColorSpace));
-    }
-    return Promise.all(pending).then(function() {
-      const material = new materialType(materialParams);
-      if (materialDef.name) material.name = materialDef.name;
-      assignExtrasToUserData(material, materialDef);
-      parser.associations.set(material, { materials: materialIndex });
-      if (materialDef.extensions) addUnknownExtensionsToUserData(extensions, material, materialDef);
-      return material;
-    });
-  }
-  /** When Object3D instances are targeted by animation, they need unique names. */
-  createUniqueName(originalName) {
-    const sanitizedName = PropertyBinding.sanitizeNodeName(originalName || "");
-    if (sanitizedName in this.nodeNamesUsed) {
-      return sanitizedName + "_" + ++this.nodeNamesUsed[sanitizedName];
-    } else {
-      this.nodeNamesUsed[sanitizedName] = 0;
-      return sanitizedName;
-    }
-  }
-  /**
-   * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#geometry
-   *
-   * Creates BufferGeometries from primitives.
-   *
-   * @param {Array<GLTF.Primitive>} primitives
-   * @return {Promise<Array<BufferGeometry>>}
-   */
-  loadGeometries(primitives) {
-    const parser = this;
-    const extensions = this.extensions;
-    const cache = this.primitiveCache;
-    function createDracoPrimitive(primitive) {
-      return extensions[EXTENSIONS.KHR_DRACO_MESH_COMPRESSION].decodePrimitive(primitive, parser).then(function(geometry) {
-        return addPrimitiveAttributes(geometry, primitive, parser);
-      });
-    }
-    __name(createDracoPrimitive, "createDracoPrimitive");
-    const pending = [];
-    for (let i = 0, il = primitives.length; i < il; i++) {
-      const primitive = primitives[i];
-      const cacheKey = createPrimitiveKey(primitive);
-      const cached = cache[cacheKey];
-      if (cached) {
-        pending.push(cached.promise);
-      } else {
-        let geometryPromise;
-        if (primitive.extensions && primitive.extensions[EXTENSIONS.KHR_DRACO_MESH_COMPRESSION]) {
-          geometryPromise = createDracoPrimitive(primitive);
-        } else {
-          geometryPromise = addPrimitiveAttributes(new BufferGeometry(), primitive, parser);
-        }
-        cache[cacheKey] = { primitive, promise: geometryPromise };
-        pending.push(geometryPromise);
-      }
-    }
-    return Promise.all(pending);
-  }
-  /**
-   * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#meshes
-   * @param {number} meshIndex
-   * @return {Promise<Group|Mesh|SkinnedMesh>}
-   */
-  loadMesh(meshIndex) {
-    const parser = this;
-    const json = this.json;
-    const extensions = this.extensions;
-    const meshDef = json.meshes[meshIndex];
-    const primitives = meshDef.primitives;
-    const pending = [];
-    for (let i = 0, il = primitives.length; i < il; i++) {
-      const material = primitives[i].material === void 0 ? createDefaultMaterial(this.cache) : this.getDependency("material", primitives[i].material);
-      pending.push(material);
-    }
-    pending.push(parser.loadGeometries(primitives));
-    return Promise.all(pending).then(function(results) {
-      const materials = results.slice(0, results.length - 1);
-      const geometries = results[results.length - 1];
-      const meshes = [];
-      for (let i = 0, il = geometries.length; i < il; i++) {
-        const geometry = geometries[i];
-        const primitive = primitives[i];
-        let mesh;
-        const material = materials[i];
-        if (primitive.mode === WEBGL_CONSTANTS.TRIANGLES || primitive.mode === WEBGL_CONSTANTS.TRIANGLE_STRIP || primitive.mode === WEBGL_CONSTANTS.TRIANGLE_FAN || primitive.mode === void 0) {
-          mesh = meshDef.isSkinnedMesh === true ? new SkinnedMesh(geometry, material) : new Mesh(geometry, material);
-          if (mesh.isSkinnedMesh === true) {
-            mesh.normalizeSkinWeights();
-          }
-          if (primitive.mode === WEBGL_CONSTANTS.TRIANGLE_STRIP) {
-            mesh.geometry = toTrianglesDrawMode(mesh.geometry, TriangleStripDrawMode);
-          } else if (primitive.mode === WEBGL_CONSTANTS.TRIANGLE_FAN) {
-            mesh.geometry = toTrianglesDrawMode(mesh.geometry, TriangleFanDrawMode);
-          }
-        } else if (primitive.mode === WEBGL_CONSTANTS.LINES) {
-          mesh = new LineSegments(geometry, material);
-        } else if (primitive.mode === WEBGL_CONSTANTS.LINE_STRIP) {
-          mesh = new Line(geometry, material);
-        } else if (primitive.mode === WEBGL_CONSTANTS.LINE_LOOP) {
-          mesh = new LineLoop(geometry, material);
-        } else if (primitive.mode === WEBGL_CONSTANTS.POINTS) {
-          mesh = new Points(geometry, material);
-        } else {
-          throw new Error("THREE.GLTFLoader: Primitive mode unsupported: " + primitive.mode);
-        }
-        if (Object.keys(mesh.geometry.morphAttributes).length > 0) {
-          updateMorphTargets(mesh, meshDef);
-        }
-        mesh.name = parser.createUniqueName(meshDef.name || "mesh_" + meshIndex);
-        assignExtrasToUserData(mesh, meshDef);
-        if (primitive.extensions) addUnknownExtensionsToUserData(extensions, mesh, primitive);
-        parser.assignFinalMaterial(mesh);
-        meshes.push(mesh);
-      }
-      for (let i = 0, il = meshes.length; i < il; i++) {
-        parser.associations.set(meshes[i], {
-          meshes: meshIndex,
-          primitives: i
-        });
-      }
-      if (meshes.length === 1) {
-        if (meshDef.extensions) addUnknownExtensionsToUserData(extensions, meshes[0], meshDef);
-        return meshes[0];
-      }
-      const group = new Group();
-      if (meshDef.extensions) addUnknownExtensionsToUserData(extensions, group, meshDef);
-      parser.associations.set(group, { meshes: meshIndex });
-      for (let i = 0, il = meshes.length; i < il; i++) {
-        group.add(meshes[i]);
-      }
-      return group;
-    });
-  }
-  /**
-   * Specification: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#cameras
-   * @param {number} cameraIndex
-   * @return {Promise<THREE.Camera>}
-   */
-  loadCamera(cameraIndex) {
-    let camera;
-    const cameraDef = this.json.cameras[cameraIndex];
-    const params = cameraDef[cameraDef.type];
-    if (!params) {
-      console.warn("THREE.GLTFLoader: Missing camera parameters.");
-      return;
-    }
-    if (cameraDef.type === "perspective") {
-      camera = new PerspectiveCamera(MathUtils.radToDeg(params.yfov), params.aspectRatio || 1, params.znear || 1, params.zfar || 2e6);
-    } else if (cameraDef.type === "orthographic") {
-      camera = new OrthographicCamera(-params.xmag, params.xmag, params.ymag, -params.ymag, params.znear, params.zfar);
-    }
-    if (cameraDef.name) camera.name = this.createUniqueName(cameraDef.name);
-    assignExtrasToUserData(camera, cameraDef);
-    return Promise.resolve(camera);
-  }
-  /**
-   * Specification: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#skins
-   * @param {number} skinIndex
-   * @return {Promise<Skeleton>}
-   */
-  loadSkin(skinIndex) {
-    const skinDef = this.json.skins[skinIndex];
-    const pending = [];
-    for (let i = 0, il = skinDef.joints.length; i < il; i++) {
-      pending.push(this._loadNodeShallow(skinDef.joints[i]));
-    }
-    if (skinDef.inverseBindMatrices !== void 0) {
-      pending.push(this.getDependency("accessor", skinDef.inverseBindMatrices));
-    } else {
-      pending.push(null);
-    }
-    return Promise.all(pending).then(function(results) {
-      const inverseBindMatrices = results.pop();
-      const jointNodes = results;
-      const bones = [];
-      const boneInverses = [];
-      for (let i = 0, il = jointNodes.length; i < il; i++) {
-        const jointNode = jointNodes[i];
-        if (jointNode) {
-          bones.push(jointNode);
-          const mat = new Matrix4();
-          if (inverseBindMatrices !== null) {
-            mat.fromArray(inverseBindMatrices.array, i * 16);
-          }
-          boneInverses.push(mat);
-        } else {
-          console.warn('THREE.GLTFLoader: Joint "%s" could not be found.', skinDef.joints[i]);
-        }
-      }
-      return new Skeleton(bones, boneInverses);
-    });
-  }
-  /**
-   * Specification: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#animations
-   * @param {number} animationIndex
-   * @return {Promise<AnimationClip>}
-   */
-  loadAnimation(animationIndex) {
-    const json = this.json;
-    const parser = this;
-    const animationDef = json.animations[animationIndex];
-    const animationName = animationDef.name ? animationDef.name : "animation_" + animationIndex;
-    const pendingNodes = [];
-    const pendingInputAccessors = [];
-    const pendingOutputAccessors = [];
-    const pendingSamplers = [];
-    const pendingTargets = [];
-    for (let i = 0, il = animationDef.channels.length; i < il; i++) {
-      const channel = animationDef.channels[i];
-      const sampler = animationDef.samplers[channel.sampler];
-      const target = channel.target;
-      const name = target.node;
-      const input = animationDef.parameters !== void 0 ? animationDef.parameters[sampler.input] : sampler.input;
-      const output = animationDef.parameters !== void 0 ? animationDef.parameters[sampler.output] : sampler.output;
-      if (target.node === void 0) continue;
-      pendingNodes.push(this.getDependency("node", name));
-      pendingInputAccessors.push(this.getDependency("accessor", input));
-      pendingOutputAccessors.push(this.getDependency("accessor", output));
-      pendingSamplers.push(sampler);
-      pendingTargets.push(target);
-    }
-    return Promise.all([
-      Promise.all(pendingNodes),
-      Promise.all(pendingInputAccessors),
-      Promise.all(pendingOutputAccessors),
-      Promise.all(pendingSamplers),
-      Promise.all(pendingTargets)
-    ]).then(function(dependencies) {
-      const nodes = dependencies[0];
-      const inputAccessors = dependencies[1];
-      const outputAccessors = dependencies[2];
-      const samplers = dependencies[3];
-      const targets = dependencies[4];
-      const tracks = [];
-      for (let i = 0, il = nodes.length; i < il; i++) {
-        const node = nodes[i];
-        const inputAccessor = inputAccessors[i];
-        const outputAccessor = outputAccessors[i];
-        const sampler = samplers[i];
-        const target = targets[i];
-        if (node === void 0) continue;
-        if (node.updateMatrix) {
-          node.updateMatrix();
-        }
-        const createdTracks = parser._createAnimationTracks(node, inputAccessor, outputAccessor, sampler, target);
-        if (createdTracks) {
-          for (let k = 0; k < createdTracks.length; k++) {
-            tracks.push(createdTracks[k]);
-          }
-        }
-      }
-      return new AnimationClip(animationName, void 0, tracks);
-    });
-  }
-  createNodeMesh(nodeIndex) {
-    const json = this.json;
-    const parser = this;
-    const nodeDef = json.nodes[nodeIndex];
-    if (nodeDef.mesh === void 0) return null;
-    return parser.getDependency("mesh", nodeDef.mesh).then(function(mesh) {
-      const node = parser._getNodeRef(parser.meshCache, nodeDef.mesh, mesh);
-      if (nodeDef.weights !== void 0) {
-        node.traverse(function(o) {
-          if (!o.isMesh) return;
-          for (let i = 0, il = nodeDef.weights.length; i < il; i++) {
-            o.morphTargetInfluences[i] = nodeDef.weights[i];
-          }
-        });
-      }
-      return node;
-    });
-  }
-  /**
-   * Specification: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#nodes-and-hierarchy
-   * @param {number} nodeIndex
-   * @return {Promise<Object3D>}
-   */
-  loadNode(nodeIndex) {
-    const json = this.json;
-    const parser = this;
-    const nodeDef = json.nodes[nodeIndex];
-    const nodePending = parser._loadNodeShallow(nodeIndex);
-    const childPending = [];
-    const childrenDef = nodeDef.children || [];
-    for (let i = 0, il = childrenDef.length; i < il; i++) {
-      childPending.push(parser.getDependency("node", childrenDef[i]));
-    }
-    const skeletonPending = nodeDef.skin === void 0 ? Promise.resolve(null) : parser.getDependency("skin", nodeDef.skin);
-    return Promise.all([
-      nodePending,
-      Promise.all(childPending),
-      skeletonPending
-    ]).then(function(results) {
-      const node = results[0];
-      const children = results[1];
-      const skeleton = results[2];
-      if (skeleton !== null) {
-        node.traverse(function(mesh) {
-          if (!mesh.isSkinnedMesh) return;
-          mesh.bind(skeleton, _identityMatrix);
-        });
-      }
-      for (let i = 0, il = children.length; i < il; i++) {
-        node.add(children[i]);
-      }
-      return node;
-    });
-  }
-  // ._loadNodeShallow() parses a single node.
-  // skin and child nodes are created and added in .loadNode() (no '_' prefix).
-  _loadNodeShallow(nodeIndex) {
-    const json = this.json;
-    const extensions = this.extensions;
-    const parser = this;
-    if (this.nodeCache[nodeIndex] !== void 0) {
-      return this.nodeCache[nodeIndex];
-    }
-    const nodeDef = json.nodes[nodeIndex];
-    const nodeName = nodeDef.name ? parser.createUniqueName(nodeDef.name) : "";
-    const pending = [];
-    const meshPromise = parser._invokeOne(function(ext2) {
-      return ext2.createNodeMesh && ext2.createNodeMesh(nodeIndex);
-    });
-    if (meshPromise) {
-      pending.push(meshPromise);
-    }
-    if (nodeDef.camera !== void 0) {
-      pending.push(parser.getDependency("camera", nodeDef.camera).then(function(camera) {
-        return parser._getNodeRef(parser.cameraCache, nodeDef.camera, camera);
-      }));
-    }
-    parser._invokeAll(function(ext2) {
-      return ext2.createNodeAttachment && ext2.createNodeAttachment(nodeIndex);
-    }).forEach(function(promise) {
-      pending.push(promise);
-    });
-    this.nodeCache[nodeIndex] = Promise.all(pending).then(function(objects) {
-      let node;
-      if (nodeDef.isBone === true) {
-        node = new Bone();
-      } else if (objects.length > 1) {
-        node = new Group();
-      } else if (objects.length === 1) {
-        node = objects[0];
-      } else {
-        node = new Object3D();
-      }
-      if (node !== objects[0]) {
-        for (let i = 0, il = objects.length; i < il; i++) {
-          node.add(objects[i]);
-        }
-      }
-      if (nodeDef.name) {
-        node.userData.name = nodeDef.name;
-        node.name = nodeName;
-      }
-      assignExtrasToUserData(node, nodeDef);
-      if (nodeDef.extensions) addUnknownExtensionsToUserData(extensions, node, nodeDef);
-      if (nodeDef.matrix !== void 0) {
-        const matrix = new Matrix4();
-        matrix.fromArray(nodeDef.matrix);
-        node.applyMatrix4(matrix);
-      } else {
-        if (nodeDef.translation !== void 0) {
-          node.position.fromArray(nodeDef.translation);
-        }
-        if (nodeDef.rotation !== void 0) {
-          node.quaternion.fromArray(nodeDef.rotation);
-        }
-        if (nodeDef.scale !== void 0) {
-          node.scale.fromArray(nodeDef.scale);
-        }
-      }
-      if (!parser.associations.has(node)) {
-        parser.associations.set(node, {});
-      }
-      parser.associations.get(node).nodes = nodeIndex;
-      return node;
-    });
-    return this.nodeCache[nodeIndex];
-  }
-  /**
-   * Specification: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#scenes
-   * @param {number} sceneIndex
-   * @return {Promise<Group>}
-   */
-  loadScene(sceneIndex) {
-    const extensions = this.extensions;
-    const sceneDef = this.json.scenes[sceneIndex];
-    const parser = this;
-    const scene = new Group();
-    if (sceneDef.name) scene.name = parser.createUniqueName(sceneDef.name);
-    assignExtrasToUserData(scene, sceneDef);
-    if (sceneDef.extensions) addUnknownExtensionsToUserData(extensions, scene, sceneDef);
-    const nodeIds = sceneDef.nodes || [];
-    const pending = [];
-    for (let i = 0, il = nodeIds.length; i < il; i++) {
-      pending.push(parser.getDependency("node", nodeIds[i]));
-    }
-    return Promise.all(pending).then(function(nodes) {
-      for (let i = 0, il = nodes.length; i < il; i++) {
-        scene.add(nodes[i]);
-      }
-      const reduceAssociations = /* @__PURE__ */ __name((node) => {
-        const reducedAssociations = /* @__PURE__ */ new Map();
-        for (const [key, value] of parser.associations) {
-          if (key instanceof Material || key instanceof Texture) {
-            reducedAssociations.set(key, value);
-          }
-        }
-        node.traverse((node2) => {
-          const mappings = parser.associations.get(node2);
-          if (mappings != null) {
-            reducedAssociations.set(node2, mappings);
-          }
-        });
-        return reducedAssociations;
-      }, "reduceAssociations");
-      parser.associations = reduceAssociations(scene);
-      return scene;
-    });
-  }
-  _createAnimationTracks(node, inputAccessor, outputAccessor, sampler, target) {
-    const tracks = [];
-    const targetName = node.name ? node.name : node.uuid;
-    const targetNames = [];
-    if (PATH_PROPERTIES[target.path] === PATH_PROPERTIES.weights) {
-      node.traverse(function(object) {
-        if (object.morphTargetInfluences) {
-          targetNames.push(object.name ? object.name : object.uuid);
-        }
-      });
-    } else {
-      targetNames.push(targetName);
-    }
-    let TypedKeyframeTrack;
-    switch (PATH_PROPERTIES[target.path]) {
-      case PATH_PROPERTIES.weights:
-        TypedKeyframeTrack = NumberKeyframeTrack;
-        break;
-      case PATH_PROPERTIES.rotation:
-        TypedKeyframeTrack = QuaternionKeyframeTrack;
-        break;
-      case PATH_PROPERTIES.position:
-      case PATH_PROPERTIES.scale:
-        TypedKeyframeTrack = VectorKeyframeTrack;
-        break;
-      default:
-        switch (outputAccessor.itemSize) {
-          case 1:
-            TypedKeyframeTrack = NumberKeyframeTrack;
-            break;
-          case 2:
-          case 3:
-          default:
-            TypedKeyframeTrack = VectorKeyframeTrack;
-            break;
-        }
-        break;
-    }
-    const interpolation = sampler.interpolation !== void 0 ? INTERPOLATION[sampler.interpolation] : InterpolateLinear;
-    const outputArray = this._getArrayFromAccessor(outputAccessor);
-    for (let j = 0, jl = targetNames.length; j < jl; j++) {
-      const track = new TypedKeyframeTrack(
-        targetNames[j] + "." + PATH_PROPERTIES[target.path],
-        inputAccessor.array,
-        outputArray,
-        interpolation
-      );
-      if (sampler.interpolation === "CUBICSPLINE") {
-        this._createCubicSplineTrackInterpolant(track);
-      }
-      tracks.push(track);
-    }
-    return tracks;
-  }
-  _getArrayFromAccessor(accessor) {
-    let outputArray = accessor.array;
-    if (accessor.normalized) {
-      const scale = getNormalizedComponentScale(outputArray.constructor);
-      const scaled = new Float32Array(outputArray.length);
-      for (let j = 0, jl = outputArray.length; j < jl; j++) {
-        scaled[j] = outputArray[j] * scale;
-      }
-      outputArray = scaled;
-    }
-    return outputArray;
-  }
-  _createCubicSplineTrackInterpolant(track) {
-    track.createInterpolant = /* @__PURE__ */ __name(function InterpolantFactoryMethodGLTFCubicSpline(result) {
-      const interpolantType = this instanceof QuaternionKeyframeTrack ? GLTFCubicSplineQuaternionInterpolant : GLTFCubicSplineInterpolant;
-      return new interpolantType(this.times, this.values, this.getValueSize() / 3, result);
-    }, "InterpolantFactoryMethodGLTFCubicSpline");
-    track.createInterpolant.isInterpolantFactoryMethodGLTFCubicSpline = true;
-  }
-}
-function computeBounds(geometry, primitiveDef, parser) {
-  const attributes = primitiveDef.attributes;
-  const box = new Box3();
-  if (attributes.POSITION !== void 0) {
-    const accessor = parser.json.accessors[attributes.POSITION];
-    const min = accessor.min;
-    const max2 = accessor.max;
-    if (min !== void 0 && max2 !== void 0) {
-      box.set(
-        new Vector3(min[0], min[1], min[2]),
-        new Vector3(max2[0], max2[1], max2[2])
-      );
-      if (accessor.normalized) {
-        const boxScale = getNormalizedComponentScale(WEBGL_COMPONENT_TYPES[accessor.componentType]);
-        box.min.multiplyScalar(boxScale);
-        box.max.multiplyScalar(boxScale);
-      }
-    } else {
-      console.warn("THREE.GLTFLoader: Missing min/max properties for accessor POSITION.");
-      return;
-    }
-  } else {
-    return;
-  }
-  const targets = primitiveDef.targets;
-  if (targets !== void 0) {
-    const maxDisplacement = new Vector3();
-    const vector = new Vector3();
-    for (let i = 0, il = targets.length; i < il; i++) {
-      const target = targets[i];
-      if (target.POSITION !== void 0) {
-        const accessor = parser.json.accessors[target.POSITION];
-        const min = accessor.min;
-        const max2 = accessor.max;
-        if (min !== void 0 && max2 !== void 0) {
-          vector.setX(Math.max(Math.abs(min[0]), Math.abs(max2[0])));
-          vector.setY(Math.max(Math.abs(min[1]), Math.abs(max2[1])));
-          vector.setZ(Math.max(Math.abs(min[2]), Math.abs(max2[2])));
-          if (accessor.normalized) {
-            const boxScale = getNormalizedComponentScale(WEBGL_COMPONENT_TYPES[accessor.componentType]);
-            vector.multiplyScalar(boxScale);
-          }
-          maxDisplacement.max(vector);
-        } else {
-          console.warn("THREE.GLTFLoader: Missing min/max properties for accessor POSITION.");
-        }
-      }
-    }
-    box.expandByVector(maxDisplacement);
-  }
-  geometry.boundingBox = box;
-  const sphere = new Sphere();
-  box.getCenter(sphere.center);
-  sphere.radius = box.min.distanceTo(box.max) / 2;
-  geometry.boundingSphere = sphere;
-}
-__name(computeBounds, "computeBounds");
-function addPrimitiveAttributes(geometry, primitiveDef, parser) {
-  const attributes = primitiveDef.attributes;
-  const pending = [];
-  function assignAttributeAccessor(accessorIndex, attributeName) {
-    return parser.getDependency("accessor", accessorIndex).then(function(accessor) {
-      geometry.setAttribute(attributeName, accessor);
-    });
-  }
-  __name(assignAttributeAccessor, "assignAttributeAccessor");
-  for (const gltfAttributeName in attributes) {
-    const threeAttributeName = ATTRIBUTES[gltfAttributeName] || gltfAttributeName.toLowerCase();
-    if (threeAttributeName in geometry.attributes) continue;
-    pending.push(assignAttributeAccessor(attributes[gltfAttributeName], threeAttributeName));
-  }
-  if (primitiveDef.indices !== void 0 && !geometry.index) {
-    const accessor = parser.getDependency("accessor", primitiveDef.indices).then(function(accessor2) {
-      geometry.setIndex(accessor2);
-    });
-    pending.push(accessor);
-  }
-  if (ColorManagement.workingColorSpace !== LinearSRGBColorSpace && "COLOR_0" in attributes) {
-    console.warn(`THREE.GLTFLoader: Converting vertex colors from "srgb-linear" to "${ColorManagement.workingColorSpace}" not supported.`);
-  }
-  assignExtrasToUserData(geometry, primitiveDef);
-  computeBounds(geometry, primitiveDef, parser);
-  return Promise.all(pending).then(function() {
-    return primitiveDef.targets !== void 0 ? addMorphTargets(geometry, primitiveDef.targets, parser) : geometry;
-  });
-}
-__name(addPrimitiveAttributes, "addPrimitiveAttributes");
-const _object_pattern = /^[og]\s*(.+)?/;
-const _material_library_pattern = /^mtllib /;
-const _material_use_pattern = /^usemtl /;
-const _map_use_pattern = /^usemap /;
-const _face_vertex_data_separator_pattern = /\s+/;
-const _vA = new Vector3();
-const _vB = new Vector3();
-const _vC = new Vector3();
-const _ab = new Vector3();
-const _cb = new Vector3();
-const _color = new Color();
-function ParserState() {
-  const state = {
-    objects: [],
-    object: {},
-    vertices: [],
-    normals: [],
-    colors: [],
-    uvs: [],
-    materials: {},
-    materialLibraries: [],
-    startObject: /* @__PURE__ */ __name(function(name, fromDeclaration) {
-      if (this.object && this.object.fromDeclaration === false) {
-        this.object.name = name;
-        this.object.fromDeclaration = fromDeclaration !== false;
-        return;
-      }
-      const previousMaterial = this.object && typeof this.object.currentMaterial === "function" ? this.object.currentMaterial() : void 0;
-      if (this.object && typeof this.object._finalize === "function") {
-        this.object._finalize(true);
-      }
-      this.object = {
-        name: name || "",
-        fromDeclaration: fromDeclaration !== false,
-        geometry: {
-          vertices: [],
-          normals: [],
-          colors: [],
-          uvs: [],
-          hasUVIndices: false
-        },
-        materials: [],
-        smooth: true,
-        startMaterial: /* @__PURE__ */ __name(function(name2, libraries) {
-          const previous = this._finalize(false);
-          if (previous && (previous.inherited || previous.groupCount <= 0)) {
-            this.materials.splice(previous.index, 1);
-          }
-          const material = {
-            index: this.materials.length,
-            name: name2 || "",
-            mtllib: Array.isArray(libraries) && libraries.length > 0 ? libraries[libraries.length - 1] : "",
-            smooth: previous !== void 0 ? previous.smooth : this.smooth,
-            groupStart: previous !== void 0 ? previous.groupEnd : 0,
-            groupEnd: -1,
-            groupCount: -1,
-            inherited: false,
-            clone: /* @__PURE__ */ __name(function(index) {
-              const cloned = {
-                index: typeof index === "number" ? index : this.index,
-                name: this.name,
-                mtllib: this.mtllib,
-                smooth: this.smooth,
-                groupStart: 0,
-                groupEnd: -1,
-                groupCount: -1,
-                inherited: false
-              };
-              cloned.clone = this.clone.bind(cloned);
-              return cloned;
-            }, "clone")
-          };
-          this.materials.push(material);
-          return material;
-        }, "startMaterial"),
-        currentMaterial: /* @__PURE__ */ __name(function() {
-          if (this.materials.length > 0) {
-            return this.materials[this.materials.length - 1];
-          }
-          return void 0;
-        }, "currentMaterial"),
-        _finalize: /* @__PURE__ */ __name(function(end) {
-          const lastMultiMaterial = this.currentMaterial();
-          if (lastMultiMaterial && lastMultiMaterial.groupEnd === -1) {
-            lastMultiMaterial.groupEnd = this.geometry.vertices.length / 3;
-            lastMultiMaterial.groupCount = lastMultiMaterial.groupEnd - lastMultiMaterial.groupStart;
-            lastMultiMaterial.inherited = false;
-          }
-          if (end && this.materials.length > 1) {
-            for (let mi = this.materials.length - 1; mi >= 0; mi--) {
-              if (this.materials[mi].groupCount <= 0) {
-                this.materials.splice(mi, 1);
-              }
-            }
-          }
-          if (end && this.materials.length === 0) {
-            this.materials.push({
-              name: "",
-              smooth: this.smooth
-            });
-          }
-          return lastMultiMaterial;
-        }, "_finalize")
-      };
-      if (previousMaterial && previousMaterial.name && typeof previousMaterial.clone === "function") {
-        const declared = previousMaterial.clone(0);
-        declared.inherited = true;
-        this.object.materials.push(declared);
-      }
-      this.objects.push(this.object);
-    }, "startObject"),
-    finalize: /* @__PURE__ */ __name(function() {
-      if (this.object && typeof this.object._finalize === "function") {
-        this.object._finalize(true);
-      }
-    }, "finalize"),
-    parseVertexIndex: /* @__PURE__ */ __name(function(value, len) {
-      const index = parseInt(value, 10);
-      return (index >= 0 ? index - 1 : index + len / 3) * 3;
-    }, "parseVertexIndex"),
-    parseNormalIndex: /* @__PURE__ */ __name(function(value, len) {
-      const index = parseInt(value, 10);
-      return (index >= 0 ? index - 1 : index + len / 3) * 3;
-    }, "parseNormalIndex"),
-    parseUVIndex: /* @__PURE__ */ __name(function(value, len) {
-      const index = parseInt(value, 10);
-      return (index >= 0 ? index - 1 : index + len / 2) * 2;
-    }, "parseUVIndex"),
-    addVertex: /* @__PURE__ */ __name(function(a, b, c) {
-      const src = this.vertices;
-      const dst = this.object.geometry.vertices;
-      dst.push(src[a + 0], src[a + 1], src[a + 2]);
-      dst.push(src[b + 0], src[b + 1], src[b + 2]);
-      dst.push(src[c + 0], src[c + 1], src[c + 2]);
-    }, "addVertex"),
-    addVertexPoint: /* @__PURE__ */ __name(function(a) {
-      const src = this.vertices;
-      const dst = this.object.geometry.vertices;
-      dst.push(src[a + 0], src[a + 1], src[a + 2]);
-    }, "addVertexPoint"),
-    addVertexLine: /* @__PURE__ */ __name(function(a) {
-      const src = this.vertices;
-      const dst = this.object.geometry.vertices;
-      dst.push(src[a + 0], src[a + 1], src[a + 2]);
-    }, "addVertexLine"),
-    addNormal: /* @__PURE__ */ __name(function(a, b, c) {
-      const src = this.normals;
-      const dst = this.object.geometry.normals;
-      dst.push(src[a + 0], src[a + 1], src[a + 2]);
-      dst.push(src[b + 0], src[b + 1], src[b + 2]);
-      dst.push(src[c + 0], src[c + 1], src[c + 2]);
-    }, "addNormal"),
-    addFaceNormal: /* @__PURE__ */ __name(function(a, b, c) {
-      const src = this.vertices;
-      const dst = this.object.geometry.normals;
-      _vA.fromArray(src, a);
-      _vB.fromArray(src, b);
-      _vC.fromArray(src, c);
-      _cb.subVectors(_vC, _vB);
-      _ab.subVectors(_vA, _vB);
-      _cb.cross(_ab);
-      _cb.normalize();
-      dst.push(_cb.x, _cb.y, _cb.z);
-      dst.push(_cb.x, _cb.y, _cb.z);
-      dst.push(_cb.x, _cb.y, _cb.z);
-    }, "addFaceNormal"),
-    addColor: /* @__PURE__ */ __name(function(a, b, c) {
-      const src = this.colors;
-      const dst = this.object.geometry.colors;
-      if (src[a] !== void 0) dst.push(src[a + 0], src[a + 1], src[a + 2]);
-      if (src[b] !== void 0) dst.push(src[b + 0], src[b + 1], src[b + 2]);
-      if (src[c] !== void 0) dst.push(src[c + 0], src[c + 1], src[c + 2]);
-    }, "addColor"),
-    addUV: /* @__PURE__ */ __name(function(a, b, c) {
-      const src = this.uvs;
-      const dst = this.object.geometry.uvs;
-      dst.push(src[a + 0], src[a + 1]);
-      dst.push(src[b + 0], src[b + 1]);
-      dst.push(src[c + 0], src[c + 1]);
-    }, "addUV"),
-    addDefaultUV: /* @__PURE__ */ __name(function() {
-      const dst = this.object.geometry.uvs;
-      dst.push(0, 0);
-      dst.push(0, 0);
-      dst.push(0, 0);
-    }, "addDefaultUV"),
-    addUVLine: /* @__PURE__ */ __name(function(a) {
-      const src = this.uvs;
-      const dst = this.object.geometry.uvs;
-      dst.push(src[a + 0], src[a + 1]);
-    }, "addUVLine"),
-    addFace: /* @__PURE__ */ __name(function(a, b, c, ua, ub, uc, na, nb, nc) {
-      const vLen = this.vertices.length;
-      let ia = this.parseVertexIndex(a, vLen);
-      let ib = this.parseVertexIndex(b, vLen);
-      let ic = this.parseVertexIndex(c, vLen);
-      this.addVertex(ia, ib, ic);
-      this.addColor(ia, ib, ic);
-      if (na !== void 0 && na !== "") {
-        const nLen = this.normals.length;
-        ia = this.parseNormalIndex(na, nLen);
-        ib = this.parseNormalIndex(nb, nLen);
-        ic = this.parseNormalIndex(nc, nLen);
-        this.addNormal(ia, ib, ic);
-      } else {
-        this.addFaceNormal(ia, ib, ic);
-      }
-      if (ua !== void 0 && ua !== "") {
-        const uvLen = this.uvs.length;
-        ia = this.parseUVIndex(ua, uvLen);
-        ib = this.parseUVIndex(ub, uvLen);
-        ic = this.parseUVIndex(uc, uvLen);
-        this.addUV(ia, ib, ic);
-        this.object.geometry.hasUVIndices = true;
-      } else {
-        this.addDefaultUV();
-      }
-    }, "addFace"),
-    addPointGeometry: /* @__PURE__ */ __name(function(vertices) {
-      this.object.geometry.type = "Points";
-      const vLen = this.vertices.length;
-      for (let vi = 0, l = vertices.length; vi < l; vi++) {
-        const index = this.parseVertexIndex(vertices[vi], vLen);
-        this.addVertexPoint(index);
-        this.addColor(index);
-      }
-    }, "addPointGeometry"),
-    addLineGeometry: /* @__PURE__ */ __name(function(vertices, uvs) {
-      this.object.geometry.type = "Line";
-      const vLen = this.vertices.length;
-      const uvLen = this.uvs.length;
-      for (let vi = 0, l = vertices.length; vi < l; vi++) {
-        this.addVertexLine(this.parseVertexIndex(vertices[vi], vLen));
-      }
-      for (let uvi = 0, l = uvs.length; uvi < l; uvi++) {
-        this.addUVLine(this.parseUVIndex(uvs[uvi], uvLen));
-      }
-    }, "addLineGeometry")
-  };
-  state.startObject("", false);
-  return state;
-}
-__name(ParserState, "ParserState");
-class OBJLoader extends Loader {
-  static {
-    __name(this, "OBJLoader");
-  }
-  constructor(manager) {
-    super(manager);
-    this.materials = null;
-  }
-  load(url, onLoad, onProgress, onError) {
-    const scope = this;
-    const loader = new FileLoader(this.manager);
-    loader.setPath(this.path);
-    loader.setRequestHeader(this.requestHeader);
-    loader.setWithCredentials(this.withCredentials);
-    loader.load(url, function(text) {
-      try {
-        onLoad(scope.parse(text));
-      } catch (e) {
-        if (onError) {
-          onError(e);
-        } else {
-          console.error(e);
-        }
-        scope.manager.itemError(url);
-      }
-    }, onProgress, onError);
-  }
-  setMaterials(materials) {
-    this.materials = materials;
-    return this;
-  }
-  parse(text) {
-    const state = new ParserState();
-    if (text.indexOf("\r\n") !== -1) {
-      text = text.replace(/\r\n/g, "\n");
-    }
-    if (text.indexOf("\\\n") !== -1) {
-      text = text.replace(/\\\n/g, "");
-    }
-    const lines = text.split("\n");
-    let result = [];
-    for (let i = 0, l = lines.length; i < l; i++) {
-      const line = lines[i].trimStart();
-      if (line.length === 0) continue;
-      const lineFirstChar = line.charAt(0);
-      if (lineFirstChar === "#") continue;
-      if (lineFirstChar === "v") {
-        const data = line.split(_face_vertex_data_separator_pattern);
-        switch (data[0]) {
-          case "v":
-            state.vertices.push(
-              parseFloat(data[1]),
-              parseFloat(data[2]),
-              parseFloat(data[3])
-            );
-            if (data.length >= 7) {
-              _color.setRGB(
-                parseFloat(data[4]),
-                parseFloat(data[5]),
-                parseFloat(data[6]),
-                SRGBColorSpace
-              );
-              state.colors.push(_color.r, _color.g, _color.b);
-            } else {
-              state.colors.push(void 0, void 0, void 0);
-            }
-            break;
-          case "vn":
-            state.normals.push(
-              parseFloat(data[1]),
-              parseFloat(data[2]),
-              parseFloat(data[3])
-            );
-            break;
-          case "vt":
-            state.uvs.push(
-              parseFloat(data[1]),
-              parseFloat(data[2])
-            );
-            break;
-        }
-      } else if (lineFirstChar === "f") {
-        const lineData = line.slice(1).trim();
-        const vertexData = lineData.split(_face_vertex_data_separator_pattern);
-        const faceVertices = [];
-        for (let j = 0, jl = vertexData.length; j < jl; j++) {
-          const vertex2 = vertexData[j];
-          if (vertex2.length > 0) {
-            const vertexParts = vertex2.split("/");
-            faceVertices.push(vertexParts);
-          }
-        }
-        const v1 = faceVertices[0];
-        for (let j = 1, jl = faceVertices.length - 1; j < jl; j++) {
-          const v2 = faceVertices[j];
-          const v3 = faceVertices[j + 1];
-          state.addFace(
-            v1[0],
-            v2[0],
-            v3[0],
-            v1[1],
-            v2[1],
-            v3[1],
-            v1[2],
-            v2[2],
-            v3[2]
-          );
-        }
-      } else if (lineFirstChar === "l") {
-        const lineParts = line.substring(1).trim().split(" ");
-        let lineVertices = [];
-        const lineUVs = [];
-        if (line.indexOf("/") === -1) {
-          lineVertices = lineParts;
-        } else {
-          for (let li = 0, llen = lineParts.length; li < llen; li++) {
-            const parts = lineParts[li].split("/");
-            if (parts[0] !== "") lineVertices.push(parts[0]);
-            if (parts[1] !== "") lineUVs.push(parts[1]);
-          }
-        }
-        state.addLineGeometry(lineVertices, lineUVs);
-      } else if (lineFirstChar === "p") {
-        const lineData = line.slice(1).trim();
-        const pointData = lineData.split(" ");
-        state.addPointGeometry(pointData);
-      } else if ((result = _object_pattern.exec(line)) !== null) {
-        const name = (" " + result[0].slice(1).trim()).slice(1);
-        state.startObject(name);
-      } else if (_material_use_pattern.test(line)) {
-        state.object.startMaterial(line.substring(7).trim(), state.materialLibraries);
-      } else if (_material_library_pattern.test(line)) {
-        state.materialLibraries.push(line.substring(7).trim());
-      } else if (_map_use_pattern.test(line)) {
-        console.warn('THREE.OBJLoader: Rendering identifier "usemap" not supported. Textures must be defined in MTL files.');
-      } else if (lineFirstChar === "s") {
-        result = line.split(" ");
-        if (result.length > 1) {
-          const value = result[1].trim().toLowerCase();
-          state.object.smooth = value !== "0" && value !== "off";
-        } else {
-          state.object.smooth = true;
-        }
-        const material = state.object.currentMaterial();
-        if (material) material.smooth = state.object.smooth;
-      } else {
-        if (line === "\0") continue;
-        console.warn('THREE.OBJLoader: Unexpected line: "' + line + '"');
-      }
-    }
-    state.finalize();
-    const container = new Group();
-    container.materialLibraries = [].concat(state.materialLibraries);
-    const hasPrimitives = !(state.objects.length === 1 && state.objects[0].geometry.vertices.length === 0);
-    if (hasPrimitives === true) {
-      for (let i = 0, l = state.objects.length; i < l; i++) {
-        const object = state.objects[i];
-        const geometry = object.geometry;
-        const materials = object.materials;
-        const isLine = geometry.type === "Line";
-        const isPoints = geometry.type === "Points";
-        let hasVertexColors = false;
-        if (geometry.vertices.length === 0) continue;
-        const buffergeometry = new BufferGeometry();
-        buffergeometry.setAttribute("position", new Float32BufferAttribute(geometry.vertices, 3));
-        if (geometry.normals.length > 0) {
-          buffergeometry.setAttribute("normal", new Float32BufferAttribute(geometry.normals, 3));
-        }
-        if (geometry.colors.length > 0) {
-          hasVertexColors = true;
-          buffergeometry.setAttribute("color", new Float32BufferAttribute(geometry.colors, 3));
-        }
-        if (geometry.hasUVIndices === true) {
-          buffergeometry.setAttribute("uv", new Float32BufferAttribute(geometry.uvs, 2));
-        }
-        const createdMaterials = [];
-        for (let mi = 0, miLen = materials.length; mi < miLen; mi++) {
-          const sourceMaterial = materials[mi];
-          const materialHash = sourceMaterial.name + "_" + sourceMaterial.smooth + "_" + hasVertexColors;
-          let material = state.materials[materialHash];
-          if (this.materials !== null) {
-            material = this.materials.create(sourceMaterial.name);
-            if (isLine && material && !(material instanceof LineBasicMaterial)) {
-              const materialLine = new LineBasicMaterial();
-              Material.prototype.copy.call(materialLine, material);
-              materialLine.color.copy(material.color);
-              material = materialLine;
-            } else if (isPoints && material && !(material instanceof PointsMaterial)) {
-              const materialPoints = new PointsMaterial({ size: 10, sizeAttenuation: false });
-              Material.prototype.copy.call(materialPoints, material);
-              materialPoints.color.copy(material.color);
-              materialPoints.map = material.map;
-              material = materialPoints;
-            }
-          }
-          if (material === void 0) {
-            if (isLine) {
-              material = new LineBasicMaterial();
-            } else if (isPoints) {
-              material = new PointsMaterial({ size: 1, sizeAttenuation: false });
-            } else {
-              material = new MeshPhongMaterial();
-            }
-            material.name = sourceMaterial.name;
-            material.flatShading = sourceMaterial.smooth ? false : true;
-            material.vertexColors = hasVertexColors;
-            state.materials[materialHash] = material;
-          }
-          createdMaterials.push(material);
-        }
-        let mesh;
-        if (createdMaterials.length > 1) {
-          for (let mi = 0, miLen = materials.length; mi < miLen; mi++) {
-            const sourceMaterial = materials[mi];
-            buffergeometry.addGroup(sourceMaterial.groupStart, sourceMaterial.groupCount, mi);
-          }
-          if (isLine) {
-            mesh = new LineSegments(buffergeometry, createdMaterials);
-          } else if (isPoints) {
-            mesh = new Points(buffergeometry, createdMaterials);
-          } else {
-            mesh = new Mesh(buffergeometry, createdMaterials);
-          }
-        } else {
-          if (isLine) {
-            mesh = new LineSegments(buffergeometry, createdMaterials[0]);
-          } else if (isPoints) {
-            mesh = new Points(buffergeometry, createdMaterials[0]);
-          } else {
-            mesh = new Mesh(buffergeometry, createdMaterials[0]);
-          }
-        }
-        mesh.name = object.name;
-        container.add(mesh);
-      }
-    } else {
-      if (state.vertices.length > 0) {
-        const material = new PointsMaterial({ size: 1, sizeAttenuation: false });
-        const buffergeometry = new BufferGeometry();
-        buffergeometry.setAttribute("position", new Float32BufferAttribute(state.vertices, 3));
-        if (state.colors.length > 0 && state.colors[0] !== void 0) {
-          buffergeometry.setAttribute("color", new Float32BufferAttribute(state.colors, 3));
-          material.vertexColors = true;
-        }
-        const points = new Points(buffergeometry, material);
-        container.add(points);
-      }
-    }
-    return container;
-  }
-}
-class MTLLoader extends Loader {
-  static {
-    __name(this, "MTLLoader");
-  }
-  constructor(manager) {
-    super(manager);
-  }
-  /**
-   * Loads and parses a MTL asset from a URL.
-   *
-   * @param {String} url - URL to the MTL file.
-   * @param {Function} [onLoad] - Callback invoked with the loaded object.
-   * @param {Function} [onProgress] - Callback for download progress.
-   * @param {Function} [onError] - Callback for download errors.
-   *
-   * @see setPath setResourcePath
-   *
-   * @note In order for relative texture references to resolve correctly
-   * you must call setResourcePath() explicitly prior to load.
-   */
-  load(url, onLoad, onProgress, onError) {
-    const scope = this;
-    const path = this.path === "" ? LoaderUtils.extractUrlBase(url) : this.path;
-    const loader = new FileLoader(this.manager);
-    loader.setPath(this.path);
-    loader.setRequestHeader(this.requestHeader);
-    loader.setWithCredentials(this.withCredentials);
-    loader.load(url, function(text) {
-      try {
-        onLoad(scope.parse(text, path));
-      } catch (e) {
-        if (onError) {
-          onError(e);
-        } else {
-          console.error(e);
-        }
-        scope.manager.itemError(url);
-      }
-    }, onProgress, onError);
-  }
-  setMaterialOptions(value) {
-    this.materialOptions = value;
-    return this;
-  }
-  /**
-   * Parses a MTL file.
-   *
-   * @param {String} text - Content of MTL file
-   * @return {MaterialCreator}
-   *
-   * @see setPath setResourcePath
-   *
-   * @note In order for relative texture references to resolve correctly
-   * you must call setResourcePath() explicitly prior to parse.
-   */
-  parse(text, path) {
-    const lines = text.split("\n");
-    let info = {};
-    const delimiter_pattern = /\s+/;
-    const materialsInfo = {};
-    for (let i = 0; i < lines.length; i++) {
-      let line = lines[i];
-      line = line.trim();
-      if (line.length === 0 || line.charAt(0) === "#") {
-        continue;
-      }
-      const pos = line.indexOf(" ");
-      let key = pos >= 0 ? line.substring(0, pos) : line;
-      key = key.toLowerCase();
-      let value = pos >= 0 ? line.substring(pos + 1) : "";
-      value = value.trim();
-      if (key === "newmtl") {
-        info = { name: value };
-        materialsInfo[value] = info;
-      } else {
-        if (key === "ka" || key === "kd" || key === "ks" || key === "ke") {
-          const ss = value.split(delimiter_pattern, 3);
-          info[key] = [parseFloat(ss[0]), parseFloat(ss[1]), parseFloat(ss[2])];
-        } else {
-          info[key] = value;
-        }
-      }
-    }
-    const materialCreator = new MaterialCreator(this.resourcePath || path, this.materialOptions);
-    materialCreator.setCrossOrigin(this.crossOrigin);
-    materialCreator.setManager(this.manager);
-    materialCreator.setMaterials(materialsInfo);
-    return materialCreator;
-  }
-}
-class MaterialCreator {
-  static {
-    __name(this, "MaterialCreator");
-  }
-  constructor(baseUrl = "", options = {}) {
-    this.baseUrl = baseUrl;
-    this.options = options;
-    this.materialsInfo = {};
-    this.materials = {};
-    this.materialsArray = [];
-    this.nameLookup = {};
-    this.crossOrigin = "anonymous";
-    this.side = this.options.side !== void 0 ? this.options.side : FrontSide;
-    this.wrap = this.options.wrap !== void 0 ? this.options.wrap : RepeatWrapping;
-  }
-  setCrossOrigin(value) {
-    this.crossOrigin = value;
-    return this;
-  }
-  setManager(value) {
-    this.manager = value;
-  }
-  setMaterials(materialsInfo) {
-    this.materialsInfo = this.convert(materialsInfo);
-    this.materials = {};
-    this.materialsArray = [];
-    this.nameLookup = {};
-  }
-  convert(materialsInfo) {
-    if (!this.options) return materialsInfo;
-    const converted = {};
-    for (const mn in materialsInfo) {
-      const mat = materialsInfo[mn];
-      const covmat = {};
-      converted[mn] = covmat;
-      for (const prop in mat) {
-        let save = true;
-        let value = mat[prop];
-        const lprop = prop.toLowerCase();
-        switch (lprop) {
-          case "kd":
-          case "ka":
-          case "ks":
-            if (this.options && this.options.normalizeRGB) {
-              value = [value[0] / 255, value[1] / 255, value[2] / 255];
-            }
-            if (this.options && this.options.ignoreZeroRGBs) {
-              if (value[0] === 0 && value[1] === 0 && value[2] === 0) {
-                save = false;
-              }
-            }
-            break;
-          default:
-            break;
-        }
-        if (save) {
-          covmat[lprop] = value;
-        }
-      }
-    }
-    return converted;
-  }
-  preload() {
-    for (const mn in this.materialsInfo) {
-      this.create(mn);
-    }
-  }
-  getIndex(materialName) {
-    return this.nameLookup[materialName];
-  }
-  getAsArray() {
-    let index = 0;
-    for (const mn in this.materialsInfo) {
-      this.materialsArray[index] = this.create(mn);
-      this.nameLookup[mn] = index;
-      index++;
-    }
-    return this.materialsArray;
-  }
-  create(materialName) {
-    if (this.materials[materialName] === void 0) {
-      this.createMaterial_(materialName);
-    }
-    return this.materials[materialName];
-  }
-  createMaterial_(materialName) {
-    const scope = this;
-    const mat = this.materialsInfo[materialName];
-    const params = {
-      name: materialName,
-      side: this.side
-    };
-    function resolveURL(baseUrl, url) {
-      if (typeof url !== "string" || url === "")
-        return "";
-      if (/^https?:\/\//i.test(url)) return url;
-      return baseUrl + url;
-    }
-    __name(resolveURL, "resolveURL");
-    function setMapForType(mapType, value) {
-      if (params[mapType]) return;
-      const texParams = scope.getTextureParams(value, params);
-      const map = scope.loadTexture(resolveURL(scope.baseUrl, texParams.url));
-      map.repeat.copy(texParams.scale);
-      map.offset.copy(texParams.offset);
-      map.wrapS = scope.wrap;
-      map.wrapT = scope.wrap;
-      if (mapType === "map" || mapType === "emissiveMap") {
-        map.colorSpace = SRGBColorSpace;
-      }
-      params[mapType] = map;
-    }
-    __name(setMapForType, "setMapForType");
-    for (const prop in mat) {
-      const value = mat[prop];
-      let n;
-      if (value === "") continue;
-      switch (prop.toLowerCase()) {
-        case "kd":
-          params.color = ColorManagement.toWorkingColorSpace(new Color().fromArray(value), SRGBColorSpace);
-          break;
-        case "ks":
-          params.specular = ColorManagement.toWorkingColorSpace(new Color().fromArray(value), SRGBColorSpace);
-          break;
-        case "ke":
-          params.emissive = ColorManagement.toWorkingColorSpace(new Color().fromArray(value), SRGBColorSpace);
-          break;
-        case "map_kd":
-          setMapForType("map", value);
-          break;
-        case "map_ks":
-          setMapForType("specularMap", value);
-          break;
-        case "map_ke":
-          setMapForType("emissiveMap", value);
-          break;
-        case "norm":
-          setMapForType("normalMap", value);
-          break;
-        case "map_bump":
-        case "bump":
-          setMapForType("bumpMap", value);
-          break;
-        case "map_d":
-          setMapForType("alphaMap", value);
-          params.transparent = true;
-          break;
-        case "ns":
-          params.shininess = parseFloat(value);
-          break;
-        case "d":
-          n = parseFloat(value);
-          if (n < 1) {
-            params.opacity = n;
-            params.transparent = true;
-          }
-          break;
-        case "tr":
-          n = parseFloat(value);
-          if (this.options && this.options.invertTrProperty) n = 1 - n;
-          if (n > 0) {
-            params.opacity = 1 - n;
-            params.transparent = true;
-          }
-          break;
-        default:
-          break;
-      }
-    }
-    this.materials[materialName] = new MeshPhongMaterial(params);
-    return this.materials[materialName];
-  }
-  getTextureParams(value, matParams) {
-    const texParams = {
-      scale: new Vector2(1, 1),
-      offset: new Vector2(0, 0)
-    };
-    const items = value.split(/\s+/);
-    let pos;
-    pos = items.indexOf("-bm");
-    if (pos >= 0) {
-      matParams.bumpScale = parseFloat(items[pos + 1]);
-      items.splice(pos, 2);
-    }
-    pos = items.indexOf("-s");
-    if (pos >= 0) {
-      texParams.scale.set(parseFloat(items[pos + 1]), parseFloat(items[pos + 2]));
-      items.splice(pos, 4);
-    }
-    pos = items.indexOf("-o");
-    if (pos >= 0) {
-      texParams.offset.set(parseFloat(items[pos + 1]), parseFloat(items[pos + 2]));
-      items.splice(pos, 4);
-    }
-    texParams.url = items.join(" ").trim();
-    return texParams;
-  }
-  loadTexture(url, mapping, onLoad, onProgress, onError) {
-    const manager = this.manager !== void 0 ? this.manager : DefaultLoadingManager;
-    let loader = manager.getHandler(url);
-    if (loader === null) {
-      loader = new TextureLoader(manager);
-    }
-    if (loader.setCrossOrigin) loader.setCrossOrigin(this.crossOrigin);
-    const texture = loader.load(url, onLoad, onProgress, onError);
-    if (mapping !== void 0) texture.mapping = mapping;
-    return texture;
-  }
-}
 /*!
 fflate - fast JavaScript compression/decompression
 <https://101arrowz.github.io/fflate>
@@ -51667,6 +48477,4140 @@ function slice(a, b, from, to) {
   return a;
 }
 __name(slice, "slice");
+function computeMikkTSpaceTangents(geometry, MikkTSpace, negateSign = true) {
+  if (!MikkTSpace || !MikkTSpace.isReady) {
+    throw new Error("BufferGeometryUtils: Initialized MikkTSpace library required.");
+  }
+  if (!geometry.hasAttribute("position") || !geometry.hasAttribute("normal") || !geometry.hasAttribute("uv")) {
+    throw new Error('BufferGeometryUtils: Tangents require "position", "normal", and "uv" attributes.');
+  }
+  function getAttributeArray(attribute) {
+    if (attribute.normalized || attribute.isInterleavedBufferAttribute) {
+      const dstArray = new Float32Array(attribute.count * attribute.itemSize);
+      for (let i = 0, j = 0; i < attribute.count; i++) {
+        dstArray[j++] = attribute.getX(i);
+        dstArray[j++] = attribute.getY(i);
+        if (attribute.itemSize > 2) {
+          dstArray[j++] = attribute.getZ(i);
+        }
+      }
+      return dstArray;
+    }
+    if (attribute.array instanceof Float32Array) {
+      return attribute.array;
+    }
+    return new Float32Array(attribute.array);
+  }
+  __name(getAttributeArray, "getAttributeArray");
+  const _geometry2 = geometry.index ? geometry.toNonIndexed() : geometry;
+  const tangents = MikkTSpace.generateTangents(
+    getAttributeArray(_geometry2.attributes.position),
+    getAttributeArray(_geometry2.attributes.normal),
+    getAttributeArray(_geometry2.attributes.uv)
+  );
+  if (negateSign) {
+    for (let i = 3; i < tangents.length; i += 4) {
+      tangents[i] *= -1;
+    }
+  }
+  _geometry2.setAttribute("tangent", new BufferAttribute(tangents, 4));
+  if (geometry !== _geometry2) {
+    geometry.copy(_geometry2);
+  }
+  return geometry;
+}
+__name(computeMikkTSpaceTangents, "computeMikkTSpaceTangents");
+function mergeGeometries(geometries, useGroups = false) {
+  const isIndexed = geometries[0].index !== null;
+  const attributesUsed = new Set(Object.keys(geometries[0].attributes));
+  const morphAttributesUsed = new Set(Object.keys(geometries[0].morphAttributes));
+  const attributes = {};
+  const morphAttributes = {};
+  const morphTargetsRelative = geometries[0].morphTargetsRelative;
+  const mergedGeometry = new BufferGeometry();
+  let offset = 0;
+  for (let i = 0; i < geometries.length; ++i) {
+    const geometry = geometries[i];
+    let attributesCount = 0;
+    if (isIndexed !== (geometry.index !== null)) {
+      console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " + i + ". All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.");
+      return null;
+    }
+    for (const name in geometry.attributes) {
+      if (!attributesUsed.has(name)) {
+        console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " + i + '. All geometries must have compatible attributes; make sure "' + name + '" attribute exists among all geometries, or in none of them.');
+        return null;
+      }
+      if (attributes[name] === void 0) attributes[name] = [];
+      attributes[name].push(geometry.attributes[name]);
+      attributesCount++;
+    }
+    if (attributesCount !== attributesUsed.size) {
+      console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " + i + ". Make sure all geometries have the same number of attributes.");
+      return null;
+    }
+    if (morphTargetsRelative !== geometry.morphTargetsRelative) {
+      console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " + i + ". .morphTargetsRelative must be consistent throughout all geometries.");
+      return null;
+    }
+    for (const name in geometry.morphAttributes) {
+      if (!morphAttributesUsed.has(name)) {
+        console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " + i + ".  .morphAttributes must be consistent throughout all geometries.");
+        return null;
+      }
+      if (morphAttributes[name] === void 0) morphAttributes[name] = [];
+      morphAttributes[name].push(geometry.morphAttributes[name]);
+    }
+    if (useGroups) {
+      let count;
+      if (isIndexed) {
+        count = geometry.index.count;
+      } else if (geometry.attributes.position !== void 0) {
+        count = geometry.attributes.position.count;
+      } else {
+        console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " + i + ". The geometry must have either an index or a position attribute");
+        return null;
+      }
+      mergedGeometry.addGroup(offset, count, i);
+      offset += count;
+    }
+  }
+  if (isIndexed) {
+    let indexOffset = 0;
+    const mergedIndex = [];
+    for (let i = 0; i < geometries.length; ++i) {
+      const index = geometries[i].index;
+      for (let j = 0; j < index.count; ++j) {
+        mergedIndex.push(index.getX(j) + indexOffset);
+      }
+      indexOffset += geometries[i].attributes.position.count;
+    }
+    mergedGeometry.setIndex(mergedIndex);
+  }
+  for (const name in attributes) {
+    const mergedAttribute = mergeAttributes(attributes[name]);
+    if (!mergedAttribute) {
+      console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " + name + " attribute.");
+      return null;
+    }
+    mergedGeometry.setAttribute(name, mergedAttribute);
+  }
+  for (const name in morphAttributes) {
+    const numMorphTargets = morphAttributes[name][0].length;
+    if (numMorphTargets === 0) break;
+    mergedGeometry.morphAttributes = mergedGeometry.morphAttributes || {};
+    mergedGeometry.morphAttributes[name] = [];
+    for (let i = 0; i < numMorphTargets; ++i) {
+      const morphAttributesToMerge = [];
+      for (let j = 0; j < morphAttributes[name].length; ++j) {
+        morphAttributesToMerge.push(morphAttributes[name][j][i]);
+      }
+      const mergedMorphAttribute = mergeAttributes(morphAttributesToMerge);
+      if (!mergedMorphAttribute) {
+        console.error("THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " + name + " morphAttribute.");
+        return null;
+      }
+      mergedGeometry.morphAttributes[name].push(mergedMorphAttribute);
+    }
+  }
+  return mergedGeometry;
+}
+__name(mergeGeometries, "mergeGeometries");
+function mergeAttributes(attributes) {
+  let TypedArray;
+  let itemSize;
+  let normalized;
+  let gpuType = -1;
+  let arrayLength = 0;
+  for (let i = 0; i < attributes.length; ++i) {
+    const attribute = attributes[i];
+    if (TypedArray === void 0) TypedArray = attribute.array.constructor;
+    if (TypedArray !== attribute.array.constructor) {
+      console.error("THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.array must be of consistent array types across matching attributes.");
+      return null;
+    }
+    if (itemSize === void 0) itemSize = attribute.itemSize;
+    if (itemSize !== attribute.itemSize) {
+      console.error("THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.itemSize must be consistent across matching attributes.");
+      return null;
+    }
+    if (normalized === void 0) normalized = attribute.normalized;
+    if (normalized !== attribute.normalized) {
+      console.error("THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.normalized must be consistent across matching attributes.");
+      return null;
+    }
+    if (gpuType === -1) gpuType = attribute.gpuType;
+    if (gpuType !== attribute.gpuType) {
+      console.error("THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.gpuType must be consistent across matching attributes.");
+      return null;
+    }
+    arrayLength += attribute.count * itemSize;
+  }
+  const array = new TypedArray(arrayLength);
+  const result = new BufferAttribute(array, itemSize, normalized);
+  let offset = 0;
+  for (let i = 0; i < attributes.length; ++i) {
+    const attribute = attributes[i];
+    if (attribute.isInterleavedBufferAttribute) {
+      const tupleOffset = offset / itemSize;
+      for (let j = 0, l = attribute.count; j < l; j++) {
+        for (let c = 0; c < itemSize; c++) {
+          const value = attribute.getComponent(j, c);
+          result.setComponent(j + tupleOffset, c, value);
+        }
+      }
+    } else {
+      array.set(attribute.array, offset);
+    }
+    offset += attribute.count * itemSize;
+  }
+  if (gpuType !== void 0) {
+    result.gpuType = gpuType;
+  }
+  return result;
+}
+__name(mergeAttributes, "mergeAttributes");
+function deepCloneAttribute(attribute) {
+  if (attribute.isInstancedInterleavedBufferAttribute || attribute.isInterleavedBufferAttribute) {
+    return deinterleaveAttribute(attribute);
+  }
+  if (attribute.isInstancedBufferAttribute) {
+    return new InstancedBufferAttribute().copy(attribute);
+  }
+  return new BufferAttribute().copy(attribute);
+}
+__name(deepCloneAttribute, "deepCloneAttribute");
+function interleaveAttributes(attributes) {
+  let TypedArray;
+  let arrayLength = 0;
+  let stride = 0;
+  for (let i = 0, l = attributes.length; i < l; ++i) {
+    const attribute = attributes[i];
+    if (TypedArray === void 0) TypedArray = attribute.array.constructor;
+    if (TypedArray !== attribute.array.constructor) {
+      console.error("AttributeBuffers of different types cannot be interleaved");
+      return null;
+    }
+    arrayLength += attribute.array.length;
+    stride += attribute.itemSize;
+  }
+  const interleavedBuffer = new InterleavedBuffer(new TypedArray(arrayLength), stride);
+  let offset = 0;
+  const res = [];
+  const getters = ["getX", "getY", "getZ", "getW"];
+  const setters = ["setX", "setY", "setZ", "setW"];
+  for (let j = 0, l = attributes.length; j < l; j++) {
+    const attribute = attributes[j];
+    const itemSize = attribute.itemSize;
+    const count = attribute.count;
+    const iba = new InterleavedBufferAttribute(interleavedBuffer, itemSize, offset, attribute.normalized);
+    res.push(iba);
+    offset += itemSize;
+    for (let c = 0; c < count; c++) {
+      for (let k = 0; k < itemSize; k++) {
+        iba[setters[k]](c, attribute[getters[k]](c));
+      }
+    }
+  }
+  return res;
+}
+__name(interleaveAttributes, "interleaveAttributes");
+function deinterleaveAttribute(attribute) {
+  const cons = attribute.data.array.constructor;
+  const count = attribute.count;
+  const itemSize = attribute.itemSize;
+  const normalized = attribute.normalized;
+  const array = new cons(count * itemSize);
+  let newAttribute;
+  if (attribute.isInstancedInterleavedBufferAttribute) {
+    newAttribute = new InstancedBufferAttribute(array, itemSize, normalized, attribute.meshPerAttribute);
+  } else {
+    newAttribute = new BufferAttribute(array, itemSize, normalized);
+  }
+  for (let i = 0; i < count; i++) {
+    newAttribute.setX(i, attribute.getX(i));
+    if (itemSize >= 2) {
+      newAttribute.setY(i, attribute.getY(i));
+    }
+    if (itemSize >= 3) {
+      newAttribute.setZ(i, attribute.getZ(i));
+    }
+    if (itemSize >= 4) {
+      newAttribute.setW(i, attribute.getW(i));
+    }
+  }
+  return newAttribute;
+}
+__name(deinterleaveAttribute, "deinterleaveAttribute");
+function deinterleaveGeometry(geometry) {
+  const attributes = geometry.attributes;
+  const morphTargets = geometry.morphTargets;
+  const attrMap = /* @__PURE__ */ new Map();
+  for (const key in attributes) {
+    const attr = attributes[key];
+    if (attr.isInterleavedBufferAttribute) {
+      if (!attrMap.has(attr)) {
+        attrMap.set(attr, deinterleaveAttribute(attr));
+      }
+      attributes[key] = attrMap.get(attr);
+    }
+  }
+  for (const key in morphTargets) {
+    const attr = morphTargets[key];
+    if (attr.isInterleavedBufferAttribute) {
+      if (!attrMap.has(attr)) {
+        attrMap.set(attr, deinterleaveAttribute(attr));
+      }
+      morphTargets[key] = attrMap.get(attr);
+    }
+  }
+}
+__name(deinterleaveGeometry, "deinterleaveGeometry");
+function estimateBytesUsed(geometry) {
+  let mem = 0;
+  for (const name in geometry.attributes) {
+    const attr = geometry.getAttribute(name);
+    mem += attr.count * attr.itemSize * attr.array.BYTES_PER_ELEMENT;
+  }
+  const indices = geometry.getIndex();
+  mem += indices ? indices.count * indices.itemSize * indices.array.BYTES_PER_ELEMENT : 0;
+  return mem;
+}
+__name(estimateBytesUsed, "estimateBytesUsed");
+function mergeVertices(geometry, tolerance = 1e-4) {
+  tolerance = Math.max(tolerance, Number.EPSILON);
+  const hashToIndex = {};
+  const indices = geometry.getIndex();
+  const positions = geometry.getAttribute("position");
+  const vertexCount = indices ? indices.count : positions.count;
+  let nextIndex = 0;
+  const attributeNames = Object.keys(geometry.attributes);
+  const tmpAttributes = {};
+  const tmpMorphAttributes = {};
+  const newIndices = [];
+  const getters = ["getX", "getY", "getZ", "getW"];
+  const setters = ["setX", "setY", "setZ", "setW"];
+  for (let i = 0, l = attributeNames.length; i < l; i++) {
+    const name = attributeNames[i];
+    const attr = geometry.attributes[name];
+    tmpAttributes[name] = new attr.constructor(
+      new attr.array.constructor(attr.count * attr.itemSize),
+      attr.itemSize,
+      attr.normalized
+    );
+    const morphAttributes = geometry.morphAttributes[name];
+    if (morphAttributes) {
+      if (!tmpMorphAttributes[name]) tmpMorphAttributes[name] = [];
+      morphAttributes.forEach((morphAttr, i2) => {
+        const array = new morphAttr.array.constructor(morphAttr.count * morphAttr.itemSize);
+        tmpMorphAttributes[name][i2] = new morphAttr.constructor(array, morphAttr.itemSize, morphAttr.normalized);
+      });
+    }
+  }
+  const halfTolerance = tolerance * 0.5;
+  const exponent = Math.log10(1 / tolerance);
+  const hashMultiplier = Math.pow(10, exponent);
+  const hashAdditive = halfTolerance * hashMultiplier;
+  for (let i = 0; i < vertexCount; i++) {
+    const index = indices ? indices.getX(i) : i;
+    let hash = "";
+    for (let j = 0, l = attributeNames.length; j < l; j++) {
+      const name = attributeNames[j];
+      const attribute = geometry.getAttribute(name);
+      const itemSize = attribute.itemSize;
+      for (let k = 0; k < itemSize; k++) {
+        hash += `${~~(attribute[getters[k]](index) * hashMultiplier + hashAdditive)},`;
+      }
+    }
+    if (hash in hashToIndex) {
+      newIndices.push(hashToIndex[hash]);
+    } else {
+      for (let j = 0, l = attributeNames.length; j < l; j++) {
+        const name = attributeNames[j];
+        const attribute = geometry.getAttribute(name);
+        const morphAttributes = geometry.morphAttributes[name];
+        const itemSize = attribute.itemSize;
+        const newArray = tmpAttributes[name];
+        const newMorphArrays = tmpMorphAttributes[name];
+        for (let k = 0; k < itemSize; k++) {
+          const getterFunc = getters[k];
+          const setterFunc = setters[k];
+          newArray[setterFunc](nextIndex, attribute[getterFunc](index));
+          if (morphAttributes) {
+            for (let m = 0, ml = morphAttributes.length; m < ml; m++) {
+              newMorphArrays[m][setterFunc](nextIndex, morphAttributes[m][getterFunc](index));
+            }
+          }
+        }
+      }
+      hashToIndex[hash] = nextIndex;
+      newIndices.push(nextIndex);
+      nextIndex++;
+    }
+  }
+  const result = geometry.clone();
+  for (const name in geometry.attributes) {
+    const tmpAttribute = tmpAttributes[name];
+    result.setAttribute(name, new tmpAttribute.constructor(
+      tmpAttribute.array.slice(0, nextIndex * tmpAttribute.itemSize),
+      tmpAttribute.itemSize,
+      tmpAttribute.normalized
+    ));
+    if (!(name in tmpMorphAttributes)) continue;
+    for (let j = 0; j < tmpMorphAttributes[name].length; j++) {
+      const tmpMorphAttribute = tmpMorphAttributes[name][j];
+      result.morphAttributes[name][j] = new tmpMorphAttribute.constructor(
+        tmpMorphAttribute.array.slice(0, nextIndex * tmpMorphAttribute.itemSize),
+        tmpMorphAttribute.itemSize,
+        tmpMorphAttribute.normalized
+      );
+    }
+  }
+  result.setIndex(newIndices);
+  return result;
+}
+__name(mergeVertices, "mergeVertices");
+function toTrianglesDrawMode(geometry, drawMode) {
+  if (drawMode === TrianglesDrawMode) {
+    console.warn("THREE.BufferGeometryUtils.toTrianglesDrawMode(): Geometry already defined as triangles.");
+    return geometry;
+  }
+  if (drawMode === TriangleFanDrawMode || drawMode === TriangleStripDrawMode) {
+    let index = geometry.getIndex();
+    if (index === null) {
+      const indices = [];
+      const position = geometry.getAttribute("position");
+      if (position !== void 0) {
+        for (let i = 0; i < position.count; i++) {
+          indices.push(i);
+        }
+        geometry.setIndex(indices);
+        index = geometry.getIndex();
+      } else {
+        console.error("THREE.BufferGeometryUtils.toTrianglesDrawMode(): Undefined position attribute. Processing not possible.");
+        return geometry;
+      }
+    }
+    const numberOfTriangles = index.count - 2;
+    const newIndices = [];
+    if (drawMode === TriangleFanDrawMode) {
+      for (let i = 1; i <= numberOfTriangles; i++) {
+        newIndices.push(index.getX(0));
+        newIndices.push(index.getX(i));
+        newIndices.push(index.getX(i + 1));
+      }
+    } else {
+      for (let i = 0; i < numberOfTriangles; i++) {
+        if (i % 2 === 0) {
+          newIndices.push(index.getX(i));
+          newIndices.push(index.getX(i + 1));
+          newIndices.push(index.getX(i + 2));
+        } else {
+          newIndices.push(index.getX(i + 2));
+          newIndices.push(index.getX(i + 1));
+          newIndices.push(index.getX(i));
+        }
+      }
+    }
+    if (newIndices.length / 3 !== numberOfTriangles) {
+      console.error("THREE.BufferGeometryUtils.toTrianglesDrawMode(): Unable to generate correct amount of triangles.");
+    }
+    const newGeometry = geometry.clone();
+    newGeometry.setIndex(newIndices);
+    newGeometry.clearGroups();
+    return newGeometry;
+  } else {
+    console.error("THREE.BufferGeometryUtils.toTrianglesDrawMode(): Unknown draw mode:", drawMode);
+    return geometry;
+  }
+}
+__name(toTrianglesDrawMode, "toTrianglesDrawMode");
+function computeMorphedAttributes(object) {
+  const _vA2 = new Vector3();
+  const _vB2 = new Vector3();
+  const _vC2 = new Vector3();
+  const _tempA2 = new Vector3();
+  const _tempB = new Vector3();
+  const _tempC = new Vector3();
+  const _morphA2 = new Vector3();
+  const _morphB = new Vector3();
+  const _morphC = new Vector3();
+  function _calculateMorphedAttributeData(object2, attribute, morphAttribute, morphTargetsRelative2, a2, b3, c2, modifiedAttributeArray) {
+    _vA2.fromBufferAttribute(attribute, a2);
+    _vB2.fromBufferAttribute(attribute, b3);
+    _vC2.fromBufferAttribute(attribute, c2);
+    const morphInfluences = object2.morphTargetInfluences;
+    if (morphAttribute && morphInfluences) {
+      _morphA2.set(0, 0, 0);
+      _morphB.set(0, 0, 0);
+      _morphC.set(0, 0, 0);
+      for (let i2 = 0, il2 = morphAttribute.length; i2 < il2; i2++) {
+        const influence = morphInfluences[i2];
+        const morph = morphAttribute[i2];
+        if (influence === 0) continue;
+        _tempA2.fromBufferAttribute(morph, a2);
+        _tempB.fromBufferAttribute(morph, b3);
+        _tempC.fromBufferAttribute(morph, c2);
+        if (morphTargetsRelative2) {
+          _morphA2.addScaledVector(_tempA2, influence);
+          _morphB.addScaledVector(_tempB, influence);
+          _morphC.addScaledVector(_tempC, influence);
+        } else {
+          _morphA2.addScaledVector(_tempA2.sub(_vA2), influence);
+          _morphB.addScaledVector(_tempB.sub(_vB2), influence);
+          _morphC.addScaledVector(_tempC.sub(_vC2), influence);
+        }
+      }
+      _vA2.add(_morphA2);
+      _vB2.add(_morphB);
+      _vC2.add(_morphC);
+    }
+    if (object2.isSkinnedMesh) {
+      object2.applyBoneTransform(a2, _vA2);
+      object2.applyBoneTransform(b3, _vB2);
+      object2.applyBoneTransform(c2, _vC2);
+    }
+    modifiedAttributeArray[a2 * 3 + 0] = _vA2.x;
+    modifiedAttributeArray[a2 * 3 + 1] = _vA2.y;
+    modifiedAttributeArray[a2 * 3 + 2] = _vA2.z;
+    modifiedAttributeArray[b3 * 3 + 0] = _vB2.x;
+    modifiedAttributeArray[b3 * 3 + 1] = _vB2.y;
+    modifiedAttributeArray[b3 * 3 + 2] = _vB2.z;
+    modifiedAttributeArray[c2 * 3 + 0] = _vC2.x;
+    modifiedAttributeArray[c2 * 3 + 1] = _vC2.y;
+    modifiedAttributeArray[c2 * 3 + 2] = _vC2.z;
+  }
+  __name(_calculateMorphedAttributeData, "_calculateMorphedAttributeData");
+  const geometry = object.geometry;
+  const material = object.material;
+  let a, b, c;
+  const index = geometry.index;
+  const positionAttribute = geometry.attributes.position;
+  const morphPosition = geometry.morphAttributes.position;
+  const morphTargetsRelative = geometry.morphTargetsRelative;
+  const normalAttribute = geometry.attributes.normal;
+  const morphNormal = geometry.morphAttributes.position;
+  const groups = geometry.groups;
+  const drawRange = geometry.drawRange;
+  let i, j, il, jl;
+  let group;
+  let start, end;
+  const modifiedPosition = new Float32Array(positionAttribute.count * positionAttribute.itemSize);
+  const modifiedNormal = new Float32Array(normalAttribute.count * normalAttribute.itemSize);
+  if (index !== null) {
+    if (Array.isArray(material)) {
+      for (i = 0, il = groups.length; i < il; i++) {
+        group = groups[i];
+        start = Math.max(group.start, drawRange.start);
+        end = Math.min(group.start + group.count, drawRange.start + drawRange.count);
+        for (j = start, jl = end; j < jl; j += 3) {
+          a = index.getX(j);
+          b = index.getX(j + 1);
+          c = index.getX(j + 2);
+          _calculateMorphedAttributeData(
+            object,
+            positionAttribute,
+            morphPosition,
+            morphTargetsRelative,
+            a,
+            b,
+            c,
+            modifiedPosition
+          );
+          _calculateMorphedAttributeData(
+            object,
+            normalAttribute,
+            morphNormal,
+            morphTargetsRelative,
+            a,
+            b,
+            c,
+            modifiedNormal
+          );
+        }
+      }
+    } else {
+      start = Math.max(0, drawRange.start);
+      end = Math.min(index.count, drawRange.start + drawRange.count);
+      for (i = start, il = end; i < il; i += 3) {
+        a = index.getX(i);
+        b = index.getX(i + 1);
+        c = index.getX(i + 2);
+        _calculateMorphedAttributeData(
+          object,
+          positionAttribute,
+          morphPosition,
+          morphTargetsRelative,
+          a,
+          b,
+          c,
+          modifiedPosition
+        );
+        _calculateMorphedAttributeData(
+          object,
+          normalAttribute,
+          morphNormal,
+          morphTargetsRelative,
+          a,
+          b,
+          c,
+          modifiedNormal
+        );
+      }
+    }
+  } else {
+    if (Array.isArray(material)) {
+      for (i = 0, il = groups.length; i < il; i++) {
+        group = groups[i];
+        start = Math.max(group.start, drawRange.start);
+        end = Math.min(group.start + group.count, drawRange.start + drawRange.count);
+        for (j = start, jl = end; j < jl; j += 3) {
+          a = j;
+          b = j + 1;
+          c = j + 2;
+          _calculateMorphedAttributeData(
+            object,
+            positionAttribute,
+            morphPosition,
+            morphTargetsRelative,
+            a,
+            b,
+            c,
+            modifiedPosition
+          );
+          _calculateMorphedAttributeData(
+            object,
+            normalAttribute,
+            morphNormal,
+            morphTargetsRelative,
+            a,
+            b,
+            c,
+            modifiedNormal
+          );
+        }
+      }
+    } else {
+      start = Math.max(0, drawRange.start);
+      end = Math.min(positionAttribute.count, drawRange.start + drawRange.count);
+      for (i = start, il = end; i < il; i += 3) {
+        a = i;
+        b = i + 1;
+        c = i + 2;
+        _calculateMorphedAttributeData(
+          object,
+          positionAttribute,
+          morphPosition,
+          morphTargetsRelative,
+          a,
+          b,
+          c,
+          modifiedPosition
+        );
+        _calculateMorphedAttributeData(
+          object,
+          normalAttribute,
+          morphNormal,
+          morphTargetsRelative,
+          a,
+          b,
+          c,
+          modifiedNormal
+        );
+      }
+    }
+  }
+  const morphedPositionAttribute = new Float32BufferAttribute(modifiedPosition, 3);
+  const morphedNormalAttribute = new Float32BufferAttribute(modifiedNormal, 3);
+  return {
+    positionAttribute,
+    normalAttribute,
+    morphedPositionAttribute,
+    morphedNormalAttribute
+  };
+}
+__name(computeMorphedAttributes, "computeMorphedAttributes");
+function mergeGroups(geometry) {
+  if (geometry.groups.length === 0) {
+    console.warn("THREE.BufferGeometryUtils.mergeGroups(): No groups are defined. Nothing to merge.");
+    return geometry;
+  }
+  let groups = geometry.groups;
+  groups = groups.sort((a, b) => {
+    if (a.materialIndex !== b.materialIndex) return a.materialIndex - b.materialIndex;
+    return a.start - b.start;
+  });
+  if (geometry.getIndex() === null) {
+    const positionAttribute = geometry.getAttribute("position");
+    const indices = [];
+    for (let i = 0; i < positionAttribute.count; i += 3) {
+      indices.push(i, i + 1, i + 2);
+    }
+    geometry.setIndex(indices);
+  }
+  const index = geometry.getIndex();
+  const newIndices = [];
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i];
+    const groupStart = group.start;
+    const groupLength = groupStart + group.count;
+    for (let j = groupStart; j < groupLength; j++) {
+      newIndices.push(index.getX(j));
+    }
+  }
+  geometry.dispose();
+  geometry.setIndex(newIndices);
+  let start = 0;
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i];
+    group.start = start;
+    start += group.count;
+  }
+  let currentGroup = groups[0];
+  geometry.groups = [currentGroup];
+  for (let i = 1; i < groups.length; i++) {
+    const group = groups[i];
+    if (currentGroup.materialIndex === group.materialIndex) {
+      currentGroup.count += group.count;
+    } else {
+      currentGroup = group;
+      geometry.groups.push(currentGroup);
+    }
+  }
+  return geometry;
+}
+__name(mergeGroups, "mergeGroups");
+function toCreasedNormals(geometry, creaseAngle = Math.PI / 3) {
+  const creaseDot = Math.cos(creaseAngle);
+  const hashMultiplier = (1 + 1e-10) * 100;
+  const verts = [new Vector3(), new Vector3(), new Vector3()];
+  const tempVec1 = new Vector3();
+  const tempVec2 = new Vector3();
+  const tempNorm = new Vector3();
+  const tempNorm2 = new Vector3();
+  function hashVertex(v) {
+    const x = ~~(v.x * hashMultiplier);
+    const y = ~~(v.y * hashMultiplier);
+    const z = ~~(v.z * hashMultiplier);
+    return `${x},${y},${z}`;
+  }
+  __name(hashVertex, "hashVertex");
+  const resultGeometry = geometry.index ? geometry.toNonIndexed() : geometry;
+  const posAttr = resultGeometry.attributes.position;
+  const vertexMap = {};
+  for (let i = 0, l = posAttr.count / 3; i < l; i++) {
+    const i3 = 3 * i;
+    const a = verts[0].fromBufferAttribute(posAttr, i3 + 0);
+    const b = verts[1].fromBufferAttribute(posAttr, i3 + 1);
+    const c = verts[2].fromBufferAttribute(posAttr, i3 + 2);
+    tempVec1.subVectors(c, b);
+    tempVec2.subVectors(a, b);
+    const normal = new Vector3().crossVectors(tempVec1, tempVec2).normalize();
+    for (let n = 0; n < 3; n++) {
+      const vert = verts[n];
+      const hash = hashVertex(vert);
+      if (!(hash in vertexMap)) {
+        vertexMap[hash] = [];
+      }
+      vertexMap[hash].push(normal);
+    }
+  }
+  const normalArray = new Float32Array(posAttr.count * 3);
+  const normAttr = new BufferAttribute(normalArray, 3, false);
+  for (let i = 0, l = posAttr.count / 3; i < l; i++) {
+    const i3 = 3 * i;
+    const a = verts[0].fromBufferAttribute(posAttr, i3 + 0);
+    const b = verts[1].fromBufferAttribute(posAttr, i3 + 1);
+    const c = verts[2].fromBufferAttribute(posAttr, i3 + 2);
+    tempVec1.subVectors(c, b);
+    tempVec2.subVectors(a, b);
+    tempNorm.crossVectors(tempVec1, tempVec2).normalize();
+    for (let n = 0; n < 3; n++) {
+      const vert = verts[n];
+      const hash = hashVertex(vert);
+      const otherNormals = vertexMap[hash];
+      tempNorm2.set(0, 0, 0);
+      for (let k = 0, lk = otherNormals.length; k < lk; k++) {
+        const otherNorm = otherNormals[k];
+        if (tempNorm.dot(otherNorm) > creaseDot) {
+          tempNorm2.add(otherNorm);
+        }
+      }
+      tempNorm2.normalize();
+      normAttr.setXYZ(i3 + n, tempNorm2.x, tempNorm2.y, tempNorm2.z);
+    }
+  }
+  resultGeometry.setAttribute("normal", normAttr);
+  return resultGeometry;
+}
+__name(toCreasedNormals, "toCreasedNormals");
+class GLTFLoader extends Loader {
+  static {
+    __name(this, "GLTFLoader");
+  }
+  constructor(manager) {
+    super(manager);
+    this.dracoLoader = null;
+    this.ktx2Loader = null;
+    this.meshoptDecoder = null;
+    this.pluginCallbacks = [];
+    this.register(function(parser) {
+      return new GLTFMaterialsClearcoatExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsDispersionExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFTextureBasisUExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFTextureWebPExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFTextureAVIFExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsSheenExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsTransmissionExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsVolumeExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsIorExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsEmissiveStrengthExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsSpecularExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsIridescenceExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsAnisotropyExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsBumpExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFLightsExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMeshoptCompression(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMeshGpuInstancing(parser);
+    });
+  }
+  load(url, onLoad, onProgress, onError) {
+    const scope = this;
+    let resourcePath;
+    if (this.resourcePath !== "") {
+      resourcePath = this.resourcePath;
+    } else if (this.path !== "") {
+      const relativeUrl = LoaderUtils.extractUrlBase(url);
+      resourcePath = LoaderUtils.resolveURL(relativeUrl, this.path);
+    } else {
+      resourcePath = LoaderUtils.extractUrlBase(url);
+    }
+    this.manager.itemStart(url);
+    const _onError = /* @__PURE__ */ __name(function(e) {
+      if (onError) {
+        onError(e);
+      } else {
+        console.error(e);
+      }
+      scope.manager.itemError(url);
+      scope.manager.itemEnd(url);
+    }, "_onError");
+    const loader = new FileLoader(this.manager);
+    loader.setPath(this.path);
+    loader.setResponseType("arraybuffer");
+    loader.setRequestHeader(this.requestHeader);
+    loader.setWithCredentials(this.withCredentials);
+    loader.load(url, function(data) {
+      try {
+        scope.parse(data, resourcePath, function(gltf) {
+          onLoad(gltf);
+          scope.manager.itemEnd(url);
+        }, _onError);
+      } catch (e) {
+        _onError(e);
+      }
+    }, onProgress, _onError);
+  }
+  setDRACOLoader(dracoLoader) {
+    this.dracoLoader = dracoLoader;
+    return this;
+  }
+  setKTX2Loader(ktx2Loader) {
+    this.ktx2Loader = ktx2Loader;
+    return this;
+  }
+  setMeshoptDecoder(meshoptDecoder) {
+    this.meshoptDecoder = meshoptDecoder;
+    return this;
+  }
+  register(callback) {
+    if (this.pluginCallbacks.indexOf(callback) === -1) {
+      this.pluginCallbacks.push(callback);
+    }
+    return this;
+  }
+  unregister(callback) {
+    if (this.pluginCallbacks.indexOf(callback) !== -1) {
+      this.pluginCallbacks.splice(this.pluginCallbacks.indexOf(callback), 1);
+    }
+    return this;
+  }
+  parse(data, path, onLoad, onError) {
+    let json;
+    const extensions = {};
+    const plugins = {};
+    const textDecoder = new TextDecoder();
+    if (typeof data === "string") {
+      json = JSON.parse(data);
+    } else if (data instanceof ArrayBuffer) {
+      const magic = textDecoder.decode(new Uint8Array(data, 0, 4));
+      if (magic === BINARY_EXTENSION_HEADER_MAGIC) {
+        try {
+          extensions[EXTENSIONS.KHR_BINARY_GLTF] = new GLTFBinaryExtension(data);
+        } catch (error) {
+          if (onError) onError(error);
+          return;
+        }
+        json = JSON.parse(extensions[EXTENSIONS.KHR_BINARY_GLTF].content);
+      } else {
+        json = JSON.parse(textDecoder.decode(data));
+      }
+    } else {
+      json = data;
+    }
+    if (json.asset === void 0 || json.asset.version[0] < 2) {
+      if (onError) onError(new Error("THREE.GLTFLoader: Unsupported asset. glTF versions >=2.0 are supported."));
+      return;
+    }
+    const parser = new GLTFParser(json, {
+      path: path || this.resourcePath || "",
+      crossOrigin: this.crossOrigin,
+      requestHeader: this.requestHeader,
+      manager: this.manager,
+      ktx2Loader: this.ktx2Loader,
+      meshoptDecoder: this.meshoptDecoder
+    });
+    parser.fileLoader.setRequestHeader(this.requestHeader);
+    for (let i = 0; i < this.pluginCallbacks.length; i++) {
+      const plugin = this.pluginCallbacks[i](parser);
+      if (!plugin.name) console.error("THREE.GLTFLoader: Invalid plugin found: missing name");
+      plugins[plugin.name] = plugin;
+      extensions[plugin.name] = true;
+    }
+    if (json.extensionsUsed) {
+      for (let i = 0; i < json.extensionsUsed.length; ++i) {
+        const extensionName = json.extensionsUsed[i];
+        const extensionsRequired = json.extensionsRequired || [];
+        switch (extensionName) {
+          case EXTENSIONS.KHR_MATERIALS_UNLIT:
+            extensions[extensionName] = new GLTFMaterialsUnlitExtension();
+            break;
+          case EXTENSIONS.KHR_DRACO_MESH_COMPRESSION:
+            extensions[extensionName] = new GLTFDracoMeshCompressionExtension(json, this.dracoLoader);
+            break;
+          case EXTENSIONS.KHR_TEXTURE_TRANSFORM:
+            extensions[extensionName] = new GLTFTextureTransformExtension();
+            break;
+          case EXTENSIONS.KHR_MESH_QUANTIZATION:
+            extensions[extensionName] = new GLTFMeshQuantizationExtension();
+            break;
+          default:
+            if (extensionsRequired.indexOf(extensionName) >= 0 && plugins[extensionName] === void 0) {
+              console.warn('THREE.GLTFLoader: Unknown extension "' + extensionName + '".');
+            }
+        }
+      }
+    }
+    parser.setExtensions(extensions);
+    parser.setPlugins(plugins);
+    parser.parse(onLoad, onError);
+  }
+  parseAsync(data, path) {
+    const scope = this;
+    return new Promise(function(resolve, reject) {
+      scope.parse(data, path, resolve, reject);
+    });
+  }
+}
+function GLTFRegistry() {
+  let objects = {};
+  return {
+    get: /* @__PURE__ */ __name(function(key) {
+      return objects[key];
+    }, "get"),
+    add: /* @__PURE__ */ __name(function(key, object) {
+      objects[key] = object;
+    }, "add"),
+    remove: /* @__PURE__ */ __name(function(key) {
+      delete objects[key];
+    }, "remove"),
+    removeAll: /* @__PURE__ */ __name(function() {
+      objects = {};
+    }, "removeAll")
+  };
+}
+__name(GLTFRegistry, "GLTFRegistry");
+const EXTENSIONS = {
+  KHR_BINARY_GLTF: "KHR_binary_glTF",
+  KHR_DRACO_MESH_COMPRESSION: "KHR_draco_mesh_compression",
+  KHR_LIGHTS_PUNCTUAL: "KHR_lights_punctual",
+  KHR_MATERIALS_CLEARCOAT: "KHR_materials_clearcoat",
+  KHR_MATERIALS_DISPERSION: "KHR_materials_dispersion",
+  KHR_MATERIALS_IOR: "KHR_materials_ior",
+  KHR_MATERIALS_SHEEN: "KHR_materials_sheen",
+  KHR_MATERIALS_SPECULAR: "KHR_materials_specular",
+  KHR_MATERIALS_TRANSMISSION: "KHR_materials_transmission",
+  KHR_MATERIALS_IRIDESCENCE: "KHR_materials_iridescence",
+  KHR_MATERIALS_ANISOTROPY: "KHR_materials_anisotropy",
+  KHR_MATERIALS_UNLIT: "KHR_materials_unlit",
+  KHR_MATERIALS_VOLUME: "KHR_materials_volume",
+  KHR_TEXTURE_BASISU: "KHR_texture_basisu",
+  KHR_TEXTURE_TRANSFORM: "KHR_texture_transform",
+  KHR_MESH_QUANTIZATION: "KHR_mesh_quantization",
+  KHR_MATERIALS_EMISSIVE_STRENGTH: "KHR_materials_emissive_strength",
+  EXT_MATERIALS_BUMP: "EXT_materials_bump",
+  EXT_TEXTURE_WEBP: "EXT_texture_webp",
+  EXT_TEXTURE_AVIF: "EXT_texture_avif",
+  EXT_MESHOPT_COMPRESSION: "EXT_meshopt_compression",
+  EXT_MESH_GPU_INSTANCING: "EXT_mesh_gpu_instancing"
+};
+class GLTFLightsExtension {
+  static {
+    __name(this, "GLTFLightsExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_LIGHTS_PUNCTUAL;
+    this.cache = { refs: {}, uses: {} };
+  }
+  _markDefs() {
+    const parser = this.parser;
+    const nodeDefs = this.parser.json.nodes || [];
+    for (let nodeIndex = 0, nodeLength = nodeDefs.length; nodeIndex < nodeLength; nodeIndex++) {
+      const nodeDef = nodeDefs[nodeIndex];
+      if (nodeDef.extensions && nodeDef.extensions[this.name] && nodeDef.extensions[this.name].light !== void 0) {
+        parser._addNodeRef(this.cache, nodeDef.extensions[this.name].light);
+      }
+    }
+  }
+  _loadLight(lightIndex) {
+    const parser = this.parser;
+    const cacheKey = "light:" + lightIndex;
+    let dependency = parser.cache.get(cacheKey);
+    if (dependency) return dependency;
+    const json = parser.json;
+    const extensions = json.extensions && json.extensions[this.name] || {};
+    const lightDefs = extensions.lights || [];
+    const lightDef = lightDefs[lightIndex];
+    let lightNode;
+    const color = new Color(16777215);
+    if (lightDef.color !== void 0) color.setRGB(lightDef.color[0], lightDef.color[1], lightDef.color[2], LinearSRGBColorSpace);
+    const range = lightDef.range !== void 0 ? lightDef.range : 0;
+    switch (lightDef.type) {
+      case "directional":
+        lightNode = new DirectionalLight(color);
+        lightNode.target.position.set(0, 0, -1);
+        lightNode.add(lightNode.target);
+        break;
+      case "point":
+        lightNode = new PointLight(color);
+        lightNode.distance = range;
+        break;
+      case "spot":
+        lightNode = new SpotLight(color);
+        lightNode.distance = range;
+        lightDef.spot = lightDef.spot || {};
+        lightDef.spot.innerConeAngle = lightDef.spot.innerConeAngle !== void 0 ? lightDef.spot.innerConeAngle : 0;
+        lightDef.spot.outerConeAngle = lightDef.spot.outerConeAngle !== void 0 ? lightDef.spot.outerConeAngle : Math.PI / 4;
+        lightNode.angle = lightDef.spot.outerConeAngle;
+        lightNode.penumbra = 1 - lightDef.spot.innerConeAngle / lightDef.spot.outerConeAngle;
+        lightNode.target.position.set(0, 0, -1);
+        lightNode.add(lightNode.target);
+        break;
+      default:
+        throw new Error("THREE.GLTFLoader: Unexpected light type: " + lightDef.type);
+    }
+    lightNode.position.set(0, 0, 0);
+    lightNode.decay = 2;
+    assignExtrasToUserData(lightNode, lightDef);
+    if (lightDef.intensity !== void 0) lightNode.intensity = lightDef.intensity;
+    lightNode.name = parser.createUniqueName(lightDef.name || "light_" + lightIndex);
+    dependency = Promise.resolve(lightNode);
+    parser.cache.add(cacheKey, dependency);
+    return dependency;
+  }
+  getDependency(type, index) {
+    if (type !== "light") return;
+    return this._loadLight(index);
+  }
+  createNodeAttachment(nodeIndex) {
+    const self2 = this;
+    const parser = this.parser;
+    const json = parser.json;
+    const nodeDef = json.nodes[nodeIndex];
+    const lightDef = nodeDef.extensions && nodeDef.extensions[this.name] || {};
+    const lightIndex = lightDef.light;
+    if (lightIndex === void 0) return null;
+    return this._loadLight(lightIndex).then(function(light) {
+      return parser._getNodeRef(self2.cache, lightIndex, light);
+    });
+  }
+}
+class GLTFMaterialsUnlitExtension {
+  static {
+    __name(this, "GLTFMaterialsUnlitExtension");
+  }
+  constructor() {
+    this.name = EXTENSIONS.KHR_MATERIALS_UNLIT;
+  }
+  getMaterialType() {
+    return MeshBasicMaterial;
+  }
+  extendParams(materialParams, materialDef, parser) {
+    const pending = [];
+    materialParams.color = new Color(1, 1, 1);
+    materialParams.opacity = 1;
+    const metallicRoughness = materialDef.pbrMetallicRoughness;
+    if (metallicRoughness) {
+      if (Array.isArray(metallicRoughness.baseColorFactor)) {
+        const array = metallicRoughness.baseColorFactor;
+        materialParams.color.setRGB(array[0], array[1], array[2], LinearSRGBColorSpace);
+        materialParams.opacity = array[3];
+      }
+      if (metallicRoughness.baseColorTexture !== void 0) {
+        pending.push(parser.assignTexture(materialParams, "map", metallicRoughness.baseColorTexture, SRGBColorSpace));
+      }
+    }
+    return Promise.all(pending);
+  }
+}
+class GLTFMaterialsEmissiveStrengthExtension {
+  static {
+    __name(this, "GLTFMaterialsEmissiveStrengthExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_EMISSIVE_STRENGTH;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
+      return Promise.resolve();
+    }
+    const emissiveStrength = materialDef.extensions[this.name].emissiveStrength;
+    if (emissiveStrength !== void 0) {
+      materialParams.emissiveIntensity = emissiveStrength;
+    }
+    return Promise.resolve();
+  }
+}
+class GLTFMaterialsClearcoatExtension {
+  static {
+    __name(this, "GLTFMaterialsClearcoatExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_CLEARCOAT;
+  }
+  getMaterialType(materialIndex) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
+    return MeshPhysicalMaterial;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
+      return Promise.resolve();
+    }
+    const pending = [];
+    const extension = materialDef.extensions[this.name];
+    if (extension.clearcoatFactor !== void 0) {
+      materialParams.clearcoat = extension.clearcoatFactor;
+    }
+    if (extension.clearcoatTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "clearcoatMap", extension.clearcoatTexture));
+    }
+    if (extension.clearcoatRoughnessFactor !== void 0) {
+      materialParams.clearcoatRoughness = extension.clearcoatRoughnessFactor;
+    }
+    if (extension.clearcoatRoughnessTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "clearcoatRoughnessMap", extension.clearcoatRoughnessTexture));
+    }
+    if (extension.clearcoatNormalTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "clearcoatNormalMap", extension.clearcoatNormalTexture));
+      if (extension.clearcoatNormalTexture.scale !== void 0) {
+        const scale = extension.clearcoatNormalTexture.scale;
+        materialParams.clearcoatNormalScale = new Vector2(scale, scale);
+      }
+    }
+    return Promise.all(pending);
+  }
+}
+class GLTFMaterialsDispersionExtension {
+  static {
+    __name(this, "GLTFMaterialsDispersionExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_DISPERSION;
+  }
+  getMaterialType(materialIndex) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
+    return MeshPhysicalMaterial;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
+      return Promise.resolve();
+    }
+    const extension = materialDef.extensions[this.name];
+    materialParams.dispersion = extension.dispersion !== void 0 ? extension.dispersion : 0;
+    return Promise.resolve();
+  }
+}
+class GLTFMaterialsIridescenceExtension {
+  static {
+    __name(this, "GLTFMaterialsIridescenceExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_IRIDESCENCE;
+  }
+  getMaterialType(materialIndex) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
+    return MeshPhysicalMaterial;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
+      return Promise.resolve();
+    }
+    const pending = [];
+    const extension = materialDef.extensions[this.name];
+    if (extension.iridescenceFactor !== void 0) {
+      materialParams.iridescence = extension.iridescenceFactor;
+    }
+    if (extension.iridescenceTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "iridescenceMap", extension.iridescenceTexture));
+    }
+    if (extension.iridescenceIor !== void 0) {
+      materialParams.iridescenceIOR = extension.iridescenceIor;
+    }
+    if (materialParams.iridescenceThicknessRange === void 0) {
+      materialParams.iridescenceThicknessRange = [100, 400];
+    }
+    if (extension.iridescenceThicknessMinimum !== void 0) {
+      materialParams.iridescenceThicknessRange[0] = extension.iridescenceThicknessMinimum;
+    }
+    if (extension.iridescenceThicknessMaximum !== void 0) {
+      materialParams.iridescenceThicknessRange[1] = extension.iridescenceThicknessMaximum;
+    }
+    if (extension.iridescenceThicknessTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "iridescenceThicknessMap", extension.iridescenceThicknessTexture));
+    }
+    return Promise.all(pending);
+  }
+}
+class GLTFMaterialsSheenExtension {
+  static {
+    __name(this, "GLTFMaterialsSheenExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_SHEEN;
+  }
+  getMaterialType(materialIndex) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
+    return MeshPhysicalMaterial;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
+      return Promise.resolve();
+    }
+    const pending = [];
+    materialParams.sheenColor = new Color(0, 0, 0);
+    materialParams.sheenRoughness = 0;
+    materialParams.sheen = 1;
+    const extension = materialDef.extensions[this.name];
+    if (extension.sheenColorFactor !== void 0) {
+      const colorFactor = extension.sheenColorFactor;
+      materialParams.sheenColor.setRGB(colorFactor[0], colorFactor[1], colorFactor[2], LinearSRGBColorSpace);
+    }
+    if (extension.sheenRoughnessFactor !== void 0) {
+      materialParams.sheenRoughness = extension.sheenRoughnessFactor;
+    }
+    if (extension.sheenColorTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "sheenColorMap", extension.sheenColorTexture, SRGBColorSpace));
+    }
+    if (extension.sheenRoughnessTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "sheenRoughnessMap", extension.sheenRoughnessTexture));
+    }
+    return Promise.all(pending);
+  }
+}
+class GLTFMaterialsTransmissionExtension {
+  static {
+    __name(this, "GLTFMaterialsTransmissionExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_TRANSMISSION;
+  }
+  getMaterialType(materialIndex) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
+    return MeshPhysicalMaterial;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
+      return Promise.resolve();
+    }
+    const pending = [];
+    const extension = materialDef.extensions[this.name];
+    if (extension.transmissionFactor !== void 0) {
+      materialParams.transmission = extension.transmissionFactor;
+    }
+    if (extension.transmissionTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "transmissionMap", extension.transmissionTexture));
+    }
+    return Promise.all(pending);
+  }
+}
+class GLTFMaterialsVolumeExtension {
+  static {
+    __name(this, "GLTFMaterialsVolumeExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_VOLUME;
+  }
+  getMaterialType(materialIndex) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
+    return MeshPhysicalMaterial;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
+      return Promise.resolve();
+    }
+    const pending = [];
+    const extension = materialDef.extensions[this.name];
+    materialParams.thickness = extension.thicknessFactor !== void 0 ? extension.thicknessFactor : 0;
+    if (extension.thicknessTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "thicknessMap", extension.thicknessTexture));
+    }
+    materialParams.attenuationDistance = extension.attenuationDistance || Infinity;
+    const colorArray = extension.attenuationColor || [1, 1, 1];
+    materialParams.attenuationColor = new Color().setRGB(colorArray[0], colorArray[1], colorArray[2], LinearSRGBColorSpace);
+    return Promise.all(pending);
+  }
+}
+class GLTFMaterialsIorExtension {
+  static {
+    __name(this, "GLTFMaterialsIorExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_IOR;
+  }
+  getMaterialType(materialIndex) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
+    return MeshPhysicalMaterial;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
+      return Promise.resolve();
+    }
+    const extension = materialDef.extensions[this.name];
+    materialParams.ior = extension.ior !== void 0 ? extension.ior : 1.5;
+    return Promise.resolve();
+  }
+}
+class GLTFMaterialsSpecularExtension {
+  static {
+    __name(this, "GLTFMaterialsSpecularExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_SPECULAR;
+  }
+  getMaterialType(materialIndex) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
+    return MeshPhysicalMaterial;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
+      return Promise.resolve();
+    }
+    const pending = [];
+    const extension = materialDef.extensions[this.name];
+    materialParams.specularIntensity = extension.specularFactor !== void 0 ? extension.specularFactor : 1;
+    if (extension.specularTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "specularIntensityMap", extension.specularTexture));
+    }
+    const colorArray = extension.specularColorFactor || [1, 1, 1];
+    materialParams.specularColor = new Color().setRGB(colorArray[0], colorArray[1], colorArray[2], LinearSRGBColorSpace);
+    if (extension.specularColorTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "specularColorMap", extension.specularColorTexture, SRGBColorSpace));
+    }
+    return Promise.all(pending);
+  }
+}
+class GLTFMaterialsBumpExtension {
+  static {
+    __name(this, "GLTFMaterialsBumpExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.EXT_MATERIALS_BUMP;
+  }
+  getMaterialType(materialIndex) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
+    return MeshPhysicalMaterial;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
+      return Promise.resolve();
+    }
+    const pending = [];
+    const extension = materialDef.extensions[this.name];
+    materialParams.bumpScale = extension.bumpFactor !== void 0 ? extension.bumpFactor : 1;
+    if (extension.bumpTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "bumpMap", extension.bumpTexture));
+    }
+    return Promise.all(pending);
+  }
+}
+class GLTFMaterialsAnisotropyExtension {
+  static {
+    __name(this, "GLTFMaterialsAnisotropyExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_ANISOTROPY;
+  }
+  getMaterialType(materialIndex) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) return null;
+    return MeshPhysicalMaterial;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const parser = this.parser;
+    const materialDef = parser.json.materials[materialIndex];
+    if (!materialDef.extensions || !materialDef.extensions[this.name]) {
+      return Promise.resolve();
+    }
+    const pending = [];
+    const extension = materialDef.extensions[this.name];
+    if (extension.anisotropyStrength !== void 0) {
+      materialParams.anisotropy = extension.anisotropyStrength;
+    }
+    if (extension.anisotropyRotation !== void 0) {
+      materialParams.anisotropyRotation = extension.anisotropyRotation;
+    }
+    if (extension.anisotropyTexture !== void 0) {
+      pending.push(parser.assignTexture(materialParams, "anisotropyMap", extension.anisotropyTexture));
+    }
+    return Promise.all(pending);
+  }
+}
+class GLTFTextureBasisUExtension {
+  static {
+    __name(this, "GLTFTextureBasisUExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_TEXTURE_BASISU;
+  }
+  loadTexture(textureIndex) {
+    const parser = this.parser;
+    const json = parser.json;
+    const textureDef = json.textures[textureIndex];
+    if (!textureDef.extensions || !textureDef.extensions[this.name]) {
+      return null;
+    }
+    const extension = textureDef.extensions[this.name];
+    const loader = parser.options.ktx2Loader;
+    if (!loader) {
+      if (json.extensionsRequired && json.extensionsRequired.indexOf(this.name) >= 0) {
+        throw new Error("THREE.GLTFLoader: setKTX2Loader must be called before loading KTX2 textures");
+      } else {
+        return null;
+      }
+    }
+    return parser.loadTextureImage(textureIndex, extension.source, loader);
+  }
+}
+class GLTFTextureWebPExtension {
+  static {
+    __name(this, "GLTFTextureWebPExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.EXT_TEXTURE_WEBP;
+    this.isSupported = null;
+  }
+  loadTexture(textureIndex) {
+    const name = this.name;
+    const parser = this.parser;
+    const json = parser.json;
+    const textureDef = json.textures[textureIndex];
+    if (!textureDef.extensions || !textureDef.extensions[name]) {
+      return null;
+    }
+    const extension = textureDef.extensions[name];
+    const source = json.images[extension.source];
+    let loader = parser.textureLoader;
+    if (source.uri) {
+      const handler = parser.options.manager.getHandler(source.uri);
+      if (handler !== null) loader = handler;
+    }
+    return this.detectSupport().then(function(isSupported) {
+      if (isSupported) return parser.loadTextureImage(textureIndex, extension.source, loader);
+      if (json.extensionsRequired && json.extensionsRequired.indexOf(name) >= 0) {
+        throw new Error("THREE.GLTFLoader: WebP required by asset but unsupported.");
+      }
+      return parser.loadTexture(textureIndex);
+    });
+  }
+  detectSupport() {
+    if (!this.isSupported) {
+      this.isSupported = new Promise(function(resolve) {
+        const image = new Image();
+        image.src = "data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA";
+        image.onload = image.onerror = function() {
+          resolve(image.height === 1);
+        };
+      });
+    }
+    return this.isSupported;
+  }
+}
+class GLTFTextureAVIFExtension {
+  static {
+    __name(this, "GLTFTextureAVIFExtension");
+  }
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.EXT_TEXTURE_AVIF;
+    this.isSupported = null;
+  }
+  loadTexture(textureIndex) {
+    const name = this.name;
+    const parser = this.parser;
+    const json = parser.json;
+    const textureDef = json.textures[textureIndex];
+    if (!textureDef.extensions || !textureDef.extensions[name]) {
+      return null;
+    }
+    const extension = textureDef.extensions[name];
+    const source = json.images[extension.source];
+    let loader = parser.textureLoader;
+    if (source.uri) {
+      const handler = parser.options.manager.getHandler(source.uri);
+      if (handler !== null) loader = handler;
+    }
+    return this.detectSupport().then(function(isSupported) {
+      if (isSupported) return parser.loadTextureImage(textureIndex, extension.source, loader);
+      if (json.extensionsRequired && json.extensionsRequired.indexOf(name) >= 0) {
+        throw new Error("THREE.GLTFLoader: AVIF required by asset but unsupported.");
+      }
+      return parser.loadTexture(textureIndex);
+    });
+  }
+  detectSupport() {
+    if (!this.isSupported) {
+      this.isSupported = new Promise(function(resolve) {
+        const image = new Image();
+        image.src = "data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUIAAADybWV0YQAAAAAAAAAoaGRscgAAAAAAAAAAcGljdAAAAAAAAAAAAAAAAGxpYmF2aWYAAAAADnBpdG0AAAAAAAEAAAAeaWxvYwAAAABEAAABAAEAAAABAAABGgAAABcAAAAoaWluZgAAAAAAAQAAABppbmZlAgAAAAABAABhdjAxQ29sb3IAAAAAamlwcnAAAABLaXBjbwAAABRpc3BlAAAAAAAAAAEAAAABAAAAEHBpeGkAAAAAAwgICAAAAAxhdjFDgQAMAAAAABNjb2xybmNseAACAAIABoAAAAAXaXBtYQAAAAAAAAABAAEEAQKDBAAAAB9tZGF0EgAKCBgABogQEDQgMgkQAAAAB8dSLfI=";
+        image.onload = image.onerror = function() {
+          resolve(image.height === 1);
+        };
+      });
+    }
+    return this.isSupported;
+  }
+}
+class GLTFMeshoptCompression {
+  static {
+    __name(this, "GLTFMeshoptCompression");
+  }
+  constructor(parser) {
+    this.name = EXTENSIONS.EXT_MESHOPT_COMPRESSION;
+    this.parser = parser;
+  }
+  loadBufferView(index) {
+    const json = this.parser.json;
+    const bufferView = json.bufferViews[index];
+    if (bufferView.extensions && bufferView.extensions[this.name]) {
+      const extensionDef = bufferView.extensions[this.name];
+      const buffer = this.parser.getDependency("buffer", extensionDef.buffer);
+      const decoder = this.parser.options.meshoptDecoder;
+      if (!decoder || !decoder.supported) {
+        if (json.extensionsRequired && json.extensionsRequired.indexOf(this.name) >= 0) {
+          throw new Error("THREE.GLTFLoader: setMeshoptDecoder must be called before loading compressed files");
+        } else {
+          return null;
+        }
+      }
+      return buffer.then(function(res) {
+        const byteOffset = extensionDef.byteOffset || 0;
+        const byteLength = extensionDef.byteLength || 0;
+        const count = extensionDef.count;
+        const stride = extensionDef.byteStride;
+        const source = new Uint8Array(res, byteOffset, byteLength);
+        if (decoder.decodeGltfBufferAsync) {
+          return decoder.decodeGltfBufferAsync(count, stride, source, extensionDef.mode, extensionDef.filter).then(function(res2) {
+            return res2.buffer;
+          });
+        } else {
+          return decoder.ready.then(function() {
+            const result = new ArrayBuffer(count * stride);
+            decoder.decodeGltfBuffer(new Uint8Array(result), count, stride, source, extensionDef.mode, extensionDef.filter);
+            return result;
+          });
+        }
+      });
+    } else {
+      return null;
+    }
+  }
+}
+class GLTFMeshGpuInstancing {
+  static {
+    __name(this, "GLTFMeshGpuInstancing");
+  }
+  constructor(parser) {
+    this.name = EXTENSIONS.EXT_MESH_GPU_INSTANCING;
+    this.parser = parser;
+  }
+  createNodeMesh(nodeIndex) {
+    const json = this.parser.json;
+    const nodeDef = json.nodes[nodeIndex];
+    if (!nodeDef.extensions || !nodeDef.extensions[this.name] || nodeDef.mesh === void 0) {
+      return null;
+    }
+    const meshDef = json.meshes[nodeDef.mesh];
+    for (const primitive of meshDef.primitives) {
+      if (primitive.mode !== WEBGL_CONSTANTS.TRIANGLES && primitive.mode !== WEBGL_CONSTANTS.TRIANGLE_STRIP && primitive.mode !== WEBGL_CONSTANTS.TRIANGLE_FAN && primitive.mode !== void 0) {
+        return null;
+      }
+    }
+    const extensionDef = nodeDef.extensions[this.name];
+    const attributesDef = extensionDef.attributes;
+    const pending = [];
+    const attributes = {};
+    for (const key in attributesDef) {
+      pending.push(this.parser.getDependency("accessor", attributesDef[key]).then((accessor) => {
+        attributes[key] = accessor;
+        return attributes[key];
+      }));
+    }
+    if (pending.length < 1) {
+      return null;
+    }
+    pending.push(this.parser.createNodeMesh(nodeIndex));
+    return Promise.all(pending).then((results) => {
+      const nodeObject = results.pop();
+      const meshes = nodeObject.isGroup ? nodeObject.children : [nodeObject];
+      const count = results[0].count;
+      const instancedMeshes = [];
+      for (const mesh of meshes) {
+        const m = new Matrix4();
+        const p = new Vector3();
+        const q = new Quaternion();
+        const s = new Vector3(1, 1, 1);
+        const instancedMesh = new InstancedMesh(mesh.geometry, mesh.material, count);
+        for (let i = 0; i < count; i++) {
+          if (attributes.TRANSLATION) {
+            p.fromBufferAttribute(attributes.TRANSLATION, i);
+          }
+          if (attributes.ROTATION) {
+            q.fromBufferAttribute(attributes.ROTATION, i);
+          }
+          if (attributes.SCALE) {
+            s.fromBufferAttribute(attributes.SCALE, i);
+          }
+          instancedMesh.setMatrixAt(i, m.compose(p, q, s));
+        }
+        for (const attributeName in attributes) {
+          if (attributeName === "_COLOR_0") {
+            const attr = attributes[attributeName];
+            instancedMesh.instanceColor = new InstancedBufferAttribute(attr.array, attr.itemSize, attr.normalized);
+          } else if (attributeName !== "TRANSLATION" && attributeName !== "ROTATION" && attributeName !== "SCALE") {
+            mesh.geometry.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+        Object3D.prototype.copy.call(instancedMesh, mesh);
+        this.parser.assignFinalMaterial(instancedMesh);
+        instancedMeshes.push(instancedMesh);
+      }
+      if (nodeObject.isGroup) {
+        nodeObject.clear();
+        nodeObject.add(...instancedMeshes);
+        return nodeObject;
+      }
+      return instancedMeshes[0];
+    });
+  }
+}
+const BINARY_EXTENSION_HEADER_MAGIC = "glTF";
+const BINARY_EXTENSION_HEADER_LENGTH = 12;
+const BINARY_EXTENSION_CHUNK_TYPES = { JSON: 1313821514, BIN: 5130562 };
+class GLTFBinaryExtension {
+  static {
+    __name(this, "GLTFBinaryExtension");
+  }
+  constructor(data) {
+    this.name = EXTENSIONS.KHR_BINARY_GLTF;
+    this.content = null;
+    this.body = null;
+    const headerView = new DataView(data, 0, BINARY_EXTENSION_HEADER_LENGTH);
+    const textDecoder = new TextDecoder();
+    this.header = {
+      magic: textDecoder.decode(new Uint8Array(data.slice(0, 4))),
+      version: headerView.getUint32(4, true),
+      length: headerView.getUint32(8, true)
+    };
+    if (this.header.magic !== BINARY_EXTENSION_HEADER_MAGIC) {
+      throw new Error("THREE.GLTFLoader: Unsupported glTF-Binary header.");
+    } else if (this.header.version < 2) {
+      throw new Error("THREE.GLTFLoader: Legacy binary file detected.");
+    }
+    const chunkContentsLength = this.header.length - BINARY_EXTENSION_HEADER_LENGTH;
+    const chunkView = new DataView(data, BINARY_EXTENSION_HEADER_LENGTH);
+    let chunkIndex = 0;
+    while (chunkIndex < chunkContentsLength) {
+      const chunkLength = chunkView.getUint32(chunkIndex, true);
+      chunkIndex += 4;
+      const chunkType = chunkView.getUint32(chunkIndex, true);
+      chunkIndex += 4;
+      if (chunkType === BINARY_EXTENSION_CHUNK_TYPES.JSON) {
+        const contentArray = new Uint8Array(data, BINARY_EXTENSION_HEADER_LENGTH + chunkIndex, chunkLength);
+        this.content = textDecoder.decode(contentArray);
+      } else if (chunkType === BINARY_EXTENSION_CHUNK_TYPES.BIN) {
+        const byteOffset = BINARY_EXTENSION_HEADER_LENGTH + chunkIndex;
+        this.body = data.slice(byteOffset, byteOffset + chunkLength);
+      }
+      chunkIndex += chunkLength;
+    }
+    if (this.content === null) {
+      throw new Error("THREE.GLTFLoader: JSON content not found.");
+    }
+  }
+}
+class GLTFDracoMeshCompressionExtension {
+  static {
+    __name(this, "GLTFDracoMeshCompressionExtension");
+  }
+  constructor(json, dracoLoader) {
+    if (!dracoLoader) {
+      throw new Error("THREE.GLTFLoader: No DRACOLoader instance provided.");
+    }
+    this.name = EXTENSIONS.KHR_DRACO_MESH_COMPRESSION;
+    this.json = json;
+    this.dracoLoader = dracoLoader;
+    this.dracoLoader.preload();
+  }
+  decodePrimitive(primitive, parser) {
+    const json = this.json;
+    const dracoLoader = this.dracoLoader;
+    const bufferViewIndex = primitive.extensions[this.name].bufferView;
+    const gltfAttributeMap = primitive.extensions[this.name].attributes;
+    const threeAttributeMap = {};
+    const attributeNormalizedMap = {};
+    const attributeTypeMap = {};
+    for (const attributeName in gltfAttributeMap) {
+      const threeAttributeName = ATTRIBUTES[attributeName] || attributeName.toLowerCase();
+      threeAttributeMap[threeAttributeName] = gltfAttributeMap[attributeName];
+    }
+    for (const attributeName in primitive.attributes) {
+      const threeAttributeName = ATTRIBUTES[attributeName] || attributeName.toLowerCase();
+      if (gltfAttributeMap[attributeName] !== void 0) {
+        const accessorDef = json.accessors[primitive.attributes[attributeName]];
+        const componentType = WEBGL_COMPONENT_TYPES[accessorDef.componentType];
+        attributeTypeMap[threeAttributeName] = componentType.name;
+        attributeNormalizedMap[threeAttributeName] = accessorDef.normalized === true;
+      }
+    }
+    return parser.getDependency("bufferView", bufferViewIndex).then(function(bufferView) {
+      return new Promise(function(resolve, reject) {
+        dracoLoader.decodeDracoFile(bufferView, function(geometry) {
+          for (const attributeName in geometry.attributes) {
+            const attribute = geometry.attributes[attributeName];
+            const normalized = attributeNormalizedMap[attributeName];
+            if (normalized !== void 0) attribute.normalized = normalized;
+          }
+          resolve(geometry);
+        }, threeAttributeMap, attributeTypeMap, LinearSRGBColorSpace, reject);
+      });
+    });
+  }
+}
+class GLTFTextureTransformExtension {
+  static {
+    __name(this, "GLTFTextureTransformExtension");
+  }
+  constructor() {
+    this.name = EXTENSIONS.KHR_TEXTURE_TRANSFORM;
+  }
+  extendTexture(texture, transform) {
+    if ((transform.texCoord === void 0 || transform.texCoord === texture.channel) && transform.offset === void 0 && transform.rotation === void 0 && transform.scale === void 0) {
+      return texture;
+    }
+    texture = texture.clone();
+    if (transform.texCoord !== void 0) {
+      texture.channel = transform.texCoord;
+    }
+    if (transform.offset !== void 0) {
+      texture.offset.fromArray(transform.offset);
+    }
+    if (transform.rotation !== void 0) {
+      texture.rotation = transform.rotation;
+    }
+    if (transform.scale !== void 0) {
+      texture.repeat.fromArray(transform.scale);
+    }
+    texture.needsUpdate = true;
+    return texture;
+  }
+}
+class GLTFMeshQuantizationExtension {
+  static {
+    __name(this, "GLTFMeshQuantizationExtension");
+  }
+  constructor() {
+    this.name = EXTENSIONS.KHR_MESH_QUANTIZATION;
+  }
+}
+class GLTFCubicSplineInterpolant extends Interpolant {
+  static {
+    __name(this, "GLTFCubicSplineInterpolant");
+  }
+  constructor(parameterPositions, sampleValues, sampleSize, resultBuffer) {
+    super(parameterPositions, sampleValues, sampleSize, resultBuffer);
+  }
+  copySampleValue_(index) {
+    const result = this.resultBuffer, values = this.sampleValues, valueSize = this.valueSize, offset = index * valueSize * 3 + valueSize;
+    for (let i = 0; i !== valueSize; i++) {
+      result[i] = values[offset + i];
+    }
+    return result;
+  }
+  interpolate_(i1, t0, t2, t1) {
+    const result = this.resultBuffer;
+    const values = this.sampleValues;
+    const stride = this.valueSize;
+    const stride2 = stride * 2;
+    const stride3 = stride * 3;
+    const td2 = t1 - t0;
+    const p = (t2 - t0) / td2;
+    const pp = p * p;
+    const ppp = pp * p;
+    const offset1 = i1 * stride3;
+    const offset0 = offset1 - stride3;
+    const s2 = -2 * ppp + 3 * pp;
+    const s3 = ppp - pp;
+    const s0 = 1 - s2;
+    const s1 = s3 - pp + p;
+    for (let i = 0; i !== stride; i++) {
+      const p0 = values[offset0 + i + stride];
+      const m0 = values[offset0 + i + stride2] * td2;
+      const p1 = values[offset1 + i + stride];
+      const m1 = values[offset1 + i] * td2;
+      result[i] = s0 * p0 + s1 * m0 + s2 * p1 + s3 * m1;
+    }
+    return result;
+  }
+}
+const _q = new Quaternion();
+class GLTFCubicSplineQuaternionInterpolant extends GLTFCubicSplineInterpolant {
+  static {
+    __name(this, "GLTFCubicSplineQuaternionInterpolant");
+  }
+  interpolate_(i1, t0, t2, t1) {
+    const result = super.interpolate_(i1, t0, t2, t1);
+    _q.fromArray(result).normalize().toArray(result);
+    return result;
+  }
+}
+const WEBGL_CONSTANTS = {
+  FLOAT: 5126,
+  //FLOAT_MAT2: 35674,
+  FLOAT_MAT3: 35675,
+  FLOAT_MAT4: 35676,
+  FLOAT_VEC2: 35664,
+  FLOAT_VEC3: 35665,
+  FLOAT_VEC4: 35666,
+  LINEAR: 9729,
+  REPEAT: 10497,
+  SAMPLER_2D: 35678,
+  POINTS: 0,
+  LINES: 1,
+  LINE_LOOP: 2,
+  LINE_STRIP: 3,
+  TRIANGLES: 4,
+  TRIANGLE_STRIP: 5,
+  TRIANGLE_FAN: 6,
+  UNSIGNED_BYTE: 5121,
+  UNSIGNED_SHORT: 5123
+};
+const WEBGL_COMPONENT_TYPES = {
+  5120: Int8Array,
+  5121: Uint8Array,
+  5122: Int16Array,
+  5123: Uint16Array,
+  5125: Uint32Array,
+  5126: Float32Array
+};
+const WEBGL_FILTERS = {
+  9728: NearestFilter,
+  9729: LinearFilter,
+  9984: NearestMipmapNearestFilter,
+  9985: LinearMipmapNearestFilter,
+  9986: NearestMipmapLinearFilter,
+  9987: LinearMipmapLinearFilter
+};
+const WEBGL_WRAPPINGS = {
+  33071: ClampToEdgeWrapping,
+  33648: MirroredRepeatWrapping,
+  10497: RepeatWrapping
+};
+const WEBGL_TYPE_SIZES = {
+  "SCALAR": 1,
+  "VEC2": 2,
+  "VEC3": 3,
+  "VEC4": 4,
+  "MAT2": 4,
+  "MAT3": 9,
+  "MAT4": 16
+};
+const ATTRIBUTES = {
+  POSITION: "position",
+  NORMAL: "normal",
+  TANGENT: "tangent",
+  TEXCOORD_0: "uv",
+  TEXCOORD_1: "uv1",
+  TEXCOORD_2: "uv2",
+  TEXCOORD_3: "uv3",
+  COLOR_0: "color",
+  WEIGHTS_0: "skinWeight",
+  JOINTS_0: "skinIndex"
+};
+const PATH_PROPERTIES = {
+  scale: "scale",
+  translation: "position",
+  rotation: "quaternion",
+  weights: "morphTargetInfluences"
+};
+const INTERPOLATION = {
+  CUBICSPLINE: void 0,
+  // We use a custom interpolant (GLTFCubicSplineInterpolation) for CUBICSPLINE tracks. Each
+  // keyframe track will be initialized with a default interpolation type, then modified.
+  LINEAR: InterpolateLinear,
+  STEP: InterpolateDiscrete
+};
+const ALPHA_MODES = {
+  OPAQUE: "OPAQUE",
+  MASK: "MASK",
+  BLEND: "BLEND"
+};
+function createDefaultMaterial(cache) {
+  if (cache["DefaultMaterial"] === void 0) {
+    cache["DefaultMaterial"] = new MeshStandardMaterial({
+      color: 16777215,
+      emissive: 0,
+      metalness: 1,
+      roughness: 1,
+      transparent: false,
+      depthTest: true,
+      side: FrontSide
+    });
+  }
+  return cache["DefaultMaterial"];
+}
+__name(createDefaultMaterial, "createDefaultMaterial");
+function addUnknownExtensionsToUserData(knownExtensions, object, objectDef) {
+  for (const name in objectDef.extensions) {
+    if (knownExtensions[name] === void 0) {
+      object.userData.gltfExtensions = object.userData.gltfExtensions || {};
+      object.userData.gltfExtensions[name] = objectDef.extensions[name];
+    }
+  }
+}
+__name(addUnknownExtensionsToUserData, "addUnknownExtensionsToUserData");
+function assignExtrasToUserData(object, gltfDef) {
+  if (gltfDef.extras !== void 0) {
+    if (typeof gltfDef.extras === "object") {
+      Object.assign(object.userData, gltfDef.extras);
+    } else {
+      console.warn("THREE.GLTFLoader: Ignoring primitive type .extras, " + gltfDef.extras);
+    }
+  }
+}
+__name(assignExtrasToUserData, "assignExtrasToUserData");
+function addMorphTargets(geometry, targets, parser) {
+  let hasMorphPosition = false;
+  let hasMorphNormal = false;
+  let hasMorphColor = false;
+  for (let i = 0, il = targets.length; i < il; i++) {
+    const target = targets[i];
+    if (target.POSITION !== void 0) hasMorphPosition = true;
+    if (target.NORMAL !== void 0) hasMorphNormal = true;
+    if (target.COLOR_0 !== void 0) hasMorphColor = true;
+    if (hasMorphPosition && hasMorphNormal && hasMorphColor) break;
+  }
+  if (!hasMorphPosition && !hasMorphNormal && !hasMorphColor) return Promise.resolve(geometry);
+  const pendingPositionAccessors = [];
+  const pendingNormalAccessors = [];
+  const pendingColorAccessors = [];
+  for (let i = 0, il = targets.length; i < il; i++) {
+    const target = targets[i];
+    if (hasMorphPosition) {
+      const pendingAccessor = target.POSITION !== void 0 ? parser.getDependency("accessor", target.POSITION) : geometry.attributes.position;
+      pendingPositionAccessors.push(pendingAccessor);
+    }
+    if (hasMorphNormal) {
+      const pendingAccessor = target.NORMAL !== void 0 ? parser.getDependency("accessor", target.NORMAL) : geometry.attributes.normal;
+      pendingNormalAccessors.push(pendingAccessor);
+    }
+    if (hasMorphColor) {
+      const pendingAccessor = target.COLOR_0 !== void 0 ? parser.getDependency("accessor", target.COLOR_0) : geometry.attributes.color;
+      pendingColorAccessors.push(pendingAccessor);
+    }
+  }
+  return Promise.all([
+    Promise.all(pendingPositionAccessors),
+    Promise.all(pendingNormalAccessors),
+    Promise.all(pendingColorAccessors)
+  ]).then(function(accessors) {
+    const morphPositions = accessors[0];
+    const morphNormals = accessors[1];
+    const morphColors = accessors[2];
+    if (hasMorphPosition) geometry.morphAttributes.position = morphPositions;
+    if (hasMorphNormal) geometry.morphAttributes.normal = morphNormals;
+    if (hasMorphColor) geometry.morphAttributes.color = morphColors;
+    geometry.morphTargetsRelative = true;
+    return geometry;
+  });
+}
+__name(addMorphTargets, "addMorphTargets");
+function updateMorphTargets(mesh, meshDef) {
+  mesh.updateMorphTargets();
+  if (meshDef.weights !== void 0) {
+    for (let i = 0, il = meshDef.weights.length; i < il; i++) {
+      mesh.morphTargetInfluences[i] = meshDef.weights[i];
+    }
+  }
+  if (meshDef.extras && Array.isArray(meshDef.extras.targetNames)) {
+    const targetNames = meshDef.extras.targetNames;
+    if (mesh.morphTargetInfluences.length === targetNames.length) {
+      mesh.morphTargetDictionary = {};
+      for (let i = 0, il = targetNames.length; i < il; i++) {
+        mesh.morphTargetDictionary[targetNames[i]] = i;
+      }
+    } else {
+      console.warn("THREE.GLTFLoader: Invalid extras.targetNames length. Ignoring names.");
+    }
+  }
+}
+__name(updateMorphTargets, "updateMorphTargets");
+function createPrimitiveKey(primitiveDef) {
+  let geometryKey;
+  const dracoExtension = primitiveDef.extensions && primitiveDef.extensions[EXTENSIONS.KHR_DRACO_MESH_COMPRESSION];
+  if (dracoExtension) {
+    geometryKey = "draco:" + dracoExtension.bufferView + ":" + dracoExtension.indices + ":" + createAttributesKey(dracoExtension.attributes);
+  } else {
+    geometryKey = primitiveDef.indices + ":" + createAttributesKey(primitiveDef.attributes) + ":" + primitiveDef.mode;
+  }
+  if (primitiveDef.targets !== void 0) {
+    for (let i = 0, il = primitiveDef.targets.length; i < il; i++) {
+      geometryKey += ":" + createAttributesKey(primitiveDef.targets[i]);
+    }
+  }
+  return geometryKey;
+}
+__name(createPrimitiveKey, "createPrimitiveKey");
+function createAttributesKey(attributes) {
+  let attributesKey = "";
+  const keys = Object.keys(attributes).sort();
+  for (let i = 0, il = keys.length; i < il; i++) {
+    attributesKey += keys[i] + ":" + attributes[keys[i]] + ";";
+  }
+  return attributesKey;
+}
+__name(createAttributesKey, "createAttributesKey");
+function getNormalizedComponentScale(constructor) {
+  switch (constructor) {
+    case Int8Array:
+      return 1 / 127;
+    case Uint8Array:
+      return 1 / 255;
+    case Int16Array:
+      return 1 / 32767;
+    case Uint16Array:
+      return 1 / 65535;
+    default:
+      throw new Error("THREE.GLTFLoader: Unsupported normalized accessor component type.");
+  }
+}
+__name(getNormalizedComponentScale, "getNormalizedComponentScale");
+function getImageURIMimeType(uri) {
+  if (uri.search(/\.jpe?g($|\?)/i) > 0 || uri.search(/^data\:image\/jpeg/) === 0) return "image/jpeg";
+  if (uri.search(/\.webp($|\?)/i) > 0 || uri.search(/^data\:image\/webp/) === 0) return "image/webp";
+  if (uri.search(/\.ktx2($|\?)/i) > 0 || uri.search(/^data\:image\/ktx2/) === 0) return "image/ktx2";
+  return "image/png";
+}
+__name(getImageURIMimeType, "getImageURIMimeType");
+const _identityMatrix = new Matrix4();
+class GLTFParser {
+  static {
+    __name(this, "GLTFParser");
+  }
+  constructor(json = {}, options = {}) {
+    this.json = json;
+    this.extensions = {};
+    this.plugins = {};
+    this.options = options;
+    this.cache = new GLTFRegistry();
+    this.associations = /* @__PURE__ */ new Map();
+    this.primitiveCache = {};
+    this.nodeCache = {};
+    this.meshCache = { refs: {}, uses: {} };
+    this.cameraCache = { refs: {}, uses: {} };
+    this.lightCache = { refs: {}, uses: {} };
+    this.sourceCache = {};
+    this.textureCache = {};
+    this.nodeNamesUsed = {};
+    let isSafari = false;
+    let safariVersion = -1;
+    let isFirefox = false;
+    let firefoxVersion = -1;
+    if (typeof navigator !== "undefined") {
+      const userAgent = navigator.userAgent;
+      isSafari = /^((?!chrome|android).)*safari/i.test(userAgent) === true;
+      const safariMatch = userAgent.match(/Version\/(\d+)/);
+      safariVersion = isSafari && safariMatch ? parseInt(safariMatch[1], 10) : -1;
+      isFirefox = userAgent.indexOf("Firefox") > -1;
+      firefoxVersion = isFirefox ? userAgent.match(/Firefox\/([0-9]+)\./)[1] : -1;
+    }
+    if (typeof createImageBitmap === "undefined" || isSafari && safariVersion < 17 || isFirefox && firefoxVersion < 98) {
+      this.textureLoader = new TextureLoader(this.options.manager);
+    } else {
+      this.textureLoader = new ImageBitmapLoader(this.options.manager);
+    }
+    this.textureLoader.setCrossOrigin(this.options.crossOrigin);
+    this.textureLoader.setRequestHeader(this.options.requestHeader);
+    this.fileLoader = new FileLoader(this.options.manager);
+    this.fileLoader.setResponseType("arraybuffer");
+    if (this.options.crossOrigin === "use-credentials") {
+      this.fileLoader.setWithCredentials(true);
+    }
+  }
+  setExtensions(extensions) {
+    this.extensions = extensions;
+  }
+  setPlugins(plugins) {
+    this.plugins = plugins;
+  }
+  parse(onLoad, onError) {
+    const parser = this;
+    const json = this.json;
+    const extensions = this.extensions;
+    this.cache.removeAll();
+    this.nodeCache = {};
+    this._invokeAll(function(ext2) {
+      return ext2._markDefs && ext2._markDefs();
+    });
+    Promise.all(this._invokeAll(function(ext2) {
+      return ext2.beforeRoot && ext2.beforeRoot();
+    })).then(function() {
+      return Promise.all([
+        parser.getDependencies("scene"),
+        parser.getDependencies("animation"),
+        parser.getDependencies("camera")
+      ]);
+    }).then(function(dependencies) {
+      const result = {
+        scene: dependencies[0][json.scene || 0],
+        scenes: dependencies[0],
+        animations: dependencies[1],
+        cameras: dependencies[2],
+        asset: json.asset,
+        parser,
+        userData: {}
+      };
+      addUnknownExtensionsToUserData(extensions, result, json);
+      assignExtrasToUserData(result, json);
+      return Promise.all(parser._invokeAll(function(ext2) {
+        return ext2.afterRoot && ext2.afterRoot(result);
+      })).then(function() {
+        for (const scene of result.scenes) {
+          scene.updateMatrixWorld();
+        }
+        onLoad(result);
+      });
+    }).catch(onError);
+  }
+  /**
+   * Marks the special nodes/meshes in json for efficient parse.
+   */
+  _markDefs() {
+    const nodeDefs = this.json.nodes || [];
+    const skinDefs = this.json.skins || [];
+    const meshDefs = this.json.meshes || [];
+    for (let skinIndex = 0, skinLength = skinDefs.length; skinIndex < skinLength; skinIndex++) {
+      const joints = skinDefs[skinIndex].joints;
+      for (let i = 0, il = joints.length; i < il; i++) {
+        nodeDefs[joints[i]].isBone = true;
+      }
+    }
+    for (let nodeIndex = 0, nodeLength = nodeDefs.length; nodeIndex < nodeLength; nodeIndex++) {
+      const nodeDef = nodeDefs[nodeIndex];
+      if (nodeDef.mesh !== void 0) {
+        this._addNodeRef(this.meshCache, nodeDef.mesh);
+        if (nodeDef.skin !== void 0) {
+          meshDefs[nodeDef.mesh].isSkinnedMesh = true;
+        }
+      }
+      if (nodeDef.camera !== void 0) {
+        this._addNodeRef(this.cameraCache, nodeDef.camera);
+      }
+    }
+  }
+  /**
+   * Counts references to shared node / Object3D resources. These resources
+   * can be reused, or "instantiated", at multiple nodes in the scene
+   * hierarchy. Mesh, Camera, and Light instances are instantiated and must
+   * be marked. Non-scenegraph resources (like Materials, Geometries, and
+   * Textures) can be reused directly and are not marked here.
+   *
+   * Example: CesiumMilkTruck sample model reuses "Wheel" meshes.
+   */
+  _addNodeRef(cache, index) {
+    if (index === void 0) return;
+    if (cache.refs[index] === void 0) {
+      cache.refs[index] = cache.uses[index] = 0;
+    }
+    cache.refs[index]++;
+  }
+  /** Returns a reference to a shared resource, cloning it if necessary. */
+  _getNodeRef(cache, index, object) {
+    if (cache.refs[index] <= 1) return object;
+    const ref = object.clone();
+    const updateMappings = /* @__PURE__ */ __name((original, clone) => {
+      const mappings = this.associations.get(original);
+      if (mappings != null) {
+        this.associations.set(clone, mappings);
+      }
+      for (const [i, child] of original.children.entries()) {
+        updateMappings(child, clone.children[i]);
+      }
+    }, "updateMappings");
+    updateMappings(object, ref);
+    ref.name += "_instance_" + cache.uses[index]++;
+    return ref;
+  }
+  _invokeOne(func) {
+    const extensions = Object.values(this.plugins);
+    extensions.push(this);
+    for (let i = 0; i < extensions.length; i++) {
+      const result = func(extensions[i]);
+      if (result) return result;
+    }
+    return null;
+  }
+  _invokeAll(func) {
+    const extensions = Object.values(this.plugins);
+    extensions.unshift(this);
+    const pending = [];
+    for (let i = 0; i < extensions.length; i++) {
+      const result = func(extensions[i]);
+      if (result) pending.push(result);
+    }
+    return pending;
+  }
+  /**
+   * Requests the specified dependency asynchronously, with caching.
+   * @param {string} type
+   * @param {number} index
+   * @return {Promise<Object3D|Material|THREE.Texture|AnimationClip|ArrayBuffer|Object>}
+   */
+  getDependency(type, index) {
+    const cacheKey = type + ":" + index;
+    let dependency = this.cache.get(cacheKey);
+    if (!dependency) {
+      switch (type) {
+        case "scene":
+          dependency = this.loadScene(index);
+          break;
+        case "node":
+          dependency = this._invokeOne(function(ext2) {
+            return ext2.loadNode && ext2.loadNode(index);
+          });
+          break;
+        case "mesh":
+          dependency = this._invokeOne(function(ext2) {
+            return ext2.loadMesh && ext2.loadMesh(index);
+          });
+          break;
+        case "accessor":
+          dependency = this.loadAccessor(index);
+          break;
+        case "bufferView":
+          dependency = this._invokeOne(function(ext2) {
+            return ext2.loadBufferView && ext2.loadBufferView(index);
+          });
+          break;
+        case "buffer":
+          dependency = this.loadBuffer(index);
+          break;
+        case "material":
+          dependency = this._invokeOne(function(ext2) {
+            return ext2.loadMaterial && ext2.loadMaterial(index);
+          });
+          break;
+        case "texture":
+          dependency = this._invokeOne(function(ext2) {
+            return ext2.loadTexture && ext2.loadTexture(index);
+          });
+          break;
+        case "skin":
+          dependency = this.loadSkin(index);
+          break;
+        case "animation":
+          dependency = this._invokeOne(function(ext2) {
+            return ext2.loadAnimation && ext2.loadAnimation(index);
+          });
+          break;
+        case "camera":
+          dependency = this.loadCamera(index);
+          break;
+        default:
+          dependency = this._invokeOne(function(ext2) {
+            return ext2 != this && ext2.getDependency && ext2.getDependency(type, index);
+          });
+          if (!dependency) {
+            throw new Error("Unknown type: " + type);
+          }
+          break;
+      }
+      this.cache.add(cacheKey, dependency);
+    }
+    return dependency;
+  }
+  /**
+   * Requests all dependencies of the specified type asynchronously, with caching.
+   * @param {string} type
+   * @return {Promise<Array<Object>>}
+   */
+  getDependencies(type) {
+    let dependencies = this.cache.get(type);
+    if (!dependencies) {
+      const parser = this;
+      const defs = this.json[type + (type === "mesh" ? "es" : "s")] || [];
+      dependencies = Promise.all(defs.map(function(def, index) {
+        return parser.getDependency(type, index);
+      }));
+      this.cache.add(type, dependencies);
+    }
+    return dependencies;
+  }
+  /**
+   * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#buffers-and-buffer-views
+   * @param {number} bufferIndex
+   * @return {Promise<ArrayBuffer>}
+   */
+  loadBuffer(bufferIndex) {
+    const bufferDef = this.json.buffers[bufferIndex];
+    const loader = this.fileLoader;
+    if (bufferDef.type && bufferDef.type !== "arraybuffer") {
+      throw new Error("THREE.GLTFLoader: " + bufferDef.type + " buffer type is not supported.");
+    }
+    if (bufferDef.uri === void 0 && bufferIndex === 0) {
+      return Promise.resolve(this.extensions[EXTENSIONS.KHR_BINARY_GLTF].body);
+    }
+    const options = this.options;
+    return new Promise(function(resolve, reject) {
+      loader.load(LoaderUtils.resolveURL(bufferDef.uri, options.path), resolve, void 0, function() {
+        reject(new Error('THREE.GLTFLoader: Failed to load buffer "' + bufferDef.uri + '".'));
+      });
+    });
+  }
+  /**
+   * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#buffers-and-buffer-views
+   * @param {number} bufferViewIndex
+   * @return {Promise<ArrayBuffer>}
+   */
+  loadBufferView(bufferViewIndex) {
+    const bufferViewDef = this.json.bufferViews[bufferViewIndex];
+    return this.getDependency("buffer", bufferViewDef.buffer).then(function(buffer) {
+      const byteLength = bufferViewDef.byteLength || 0;
+      const byteOffset = bufferViewDef.byteOffset || 0;
+      return buffer.slice(byteOffset, byteOffset + byteLength);
+    });
+  }
+  /**
+   * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#accessors
+   * @param {number} accessorIndex
+   * @return {Promise<BufferAttribute|InterleavedBufferAttribute>}
+   */
+  loadAccessor(accessorIndex) {
+    const parser = this;
+    const json = this.json;
+    const accessorDef = this.json.accessors[accessorIndex];
+    if (accessorDef.bufferView === void 0 && accessorDef.sparse === void 0) {
+      const itemSize = WEBGL_TYPE_SIZES[accessorDef.type];
+      const TypedArray = WEBGL_COMPONENT_TYPES[accessorDef.componentType];
+      const normalized = accessorDef.normalized === true;
+      const array = new TypedArray(accessorDef.count * itemSize);
+      return Promise.resolve(new BufferAttribute(array, itemSize, normalized));
+    }
+    const pendingBufferViews = [];
+    if (accessorDef.bufferView !== void 0) {
+      pendingBufferViews.push(this.getDependency("bufferView", accessorDef.bufferView));
+    } else {
+      pendingBufferViews.push(null);
+    }
+    if (accessorDef.sparse !== void 0) {
+      pendingBufferViews.push(this.getDependency("bufferView", accessorDef.sparse.indices.bufferView));
+      pendingBufferViews.push(this.getDependency("bufferView", accessorDef.sparse.values.bufferView));
+    }
+    return Promise.all(pendingBufferViews).then(function(bufferViews) {
+      const bufferView = bufferViews[0];
+      const itemSize = WEBGL_TYPE_SIZES[accessorDef.type];
+      const TypedArray = WEBGL_COMPONENT_TYPES[accessorDef.componentType];
+      const elementBytes = TypedArray.BYTES_PER_ELEMENT;
+      const itemBytes = elementBytes * itemSize;
+      const byteOffset = accessorDef.byteOffset || 0;
+      const byteStride = accessorDef.bufferView !== void 0 ? json.bufferViews[accessorDef.bufferView].byteStride : void 0;
+      const normalized = accessorDef.normalized === true;
+      let array, bufferAttribute;
+      if (byteStride && byteStride !== itemBytes) {
+        const ibSlice = Math.floor(byteOffset / byteStride);
+        const ibCacheKey = "InterleavedBuffer:" + accessorDef.bufferView + ":" + accessorDef.componentType + ":" + ibSlice + ":" + accessorDef.count;
+        let ib = parser.cache.get(ibCacheKey);
+        if (!ib) {
+          array = new TypedArray(bufferView, ibSlice * byteStride, accessorDef.count * byteStride / elementBytes);
+          ib = new InterleavedBuffer(array, byteStride / elementBytes);
+          parser.cache.add(ibCacheKey, ib);
+        }
+        bufferAttribute = new InterleavedBufferAttribute(ib, itemSize, byteOffset % byteStride / elementBytes, normalized);
+      } else {
+        if (bufferView === null) {
+          array = new TypedArray(accessorDef.count * itemSize);
+        } else {
+          array = new TypedArray(bufferView, byteOffset, accessorDef.count * itemSize);
+        }
+        bufferAttribute = new BufferAttribute(array, itemSize, normalized);
+      }
+      if (accessorDef.sparse !== void 0) {
+        const itemSizeIndices = WEBGL_TYPE_SIZES.SCALAR;
+        const TypedArrayIndices = WEBGL_COMPONENT_TYPES[accessorDef.sparse.indices.componentType];
+        const byteOffsetIndices = accessorDef.sparse.indices.byteOffset || 0;
+        const byteOffsetValues = accessorDef.sparse.values.byteOffset || 0;
+        const sparseIndices = new TypedArrayIndices(bufferViews[1], byteOffsetIndices, accessorDef.sparse.count * itemSizeIndices);
+        const sparseValues = new TypedArray(bufferViews[2], byteOffsetValues, accessorDef.sparse.count * itemSize);
+        if (bufferView !== null) {
+          bufferAttribute = new BufferAttribute(bufferAttribute.array.slice(), bufferAttribute.itemSize, bufferAttribute.normalized);
+        }
+        bufferAttribute.normalized = false;
+        for (let i = 0, il = sparseIndices.length; i < il; i++) {
+          const index = sparseIndices[i];
+          bufferAttribute.setX(index, sparseValues[i * itemSize]);
+          if (itemSize >= 2) bufferAttribute.setY(index, sparseValues[i * itemSize + 1]);
+          if (itemSize >= 3) bufferAttribute.setZ(index, sparseValues[i * itemSize + 2]);
+          if (itemSize >= 4) bufferAttribute.setW(index, sparseValues[i * itemSize + 3]);
+          if (itemSize >= 5) throw new Error("THREE.GLTFLoader: Unsupported itemSize in sparse BufferAttribute.");
+        }
+        bufferAttribute.normalized = normalized;
+      }
+      return bufferAttribute;
+    });
+  }
+  /**
+   * Specification: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#textures
+   * @param {number} textureIndex
+   * @return {Promise<THREE.Texture|null>}
+   */
+  loadTexture(textureIndex) {
+    const json = this.json;
+    const options = this.options;
+    const textureDef = json.textures[textureIndex];
+    const sourceIndex = textureDef.source;
+    const sourceDef = json.images[sourceIndex];
+    let loader = this.textureLoader;
+    if (sourceDef.uri) {
+      const handler = options.manager.getHandler(sourceDef.uri);
+      if (handler !== null) loader = handler;
+    }
+    return this.loadTextureImage(textureIndex, sourceIndex, loader);
+  }
+  loadTextureImage(textureIndex, sourceIndex, loader) {
+    const parser = this;
+    const json = this.json;
+    const textureDef = json.textures[textureIndex];
+    const sourceDef = json.images[sourceIndex];
+    const cacheKey = (sourceDef.uri || sourceDef.bufferView) + ":" + textureDef.sampler;
+    if (this.textureCache[cacheKey]) {
+      return this.textureCache[cacheKey];
+    }
+    const promise = this.loadImageSource(sourceIndex, loader).then(function(texture) {
+      texture.flipY = false;
+      texture.name = textureDef.name || sourceDef.name || "";
+      if (texture.name === "" && typeof sourceDef.uri === "string" && sourceDef.uri.startsWith("data:image/") === false) {
+        texture.name = sourceDef.uri;
+      }
+      const samplers = json.samplers || {};
+      const sampler = samplers[textureDef.sampler] || {};
+      texture.magFilter = WEBGL_FILTERS[sampler.magFilter] || LinearFilter;
+      texture.minFilter = WEBGL_FILTERS[sampler.minFilter] || LinearMipmapLinearFilter;
+      texture.wrapS = WEBGL_WRAPPINGS[sampler.wrapS] || RepeatWrapping;
+      texture.wrapT = WEBGL_WRAPPINGS[sampler.wrapT] || RepeatWrapping;
+      texture.generateMipmaps = !texture.isCompressedTexture && texture.minFilter !== NearestFilter && texture.minFilter !== LinearFilter;
+      parser.associations.set(texture, { textures: textureIndex });
+      return texture;
+    }).catch(function() {
+      return null;
+    });
+    this.textureCache[cacheKey] = promise;
+    return promise;
+  }
+  loadImageSource(sourceIndex, loader) {
+    const parser = this;
+    const json = this.json;
+    const options = this.options;
+    if (this.sourceCache[sourceIndex] !== void 0) {
+      return this.sourceCache[sourceIndex].then((texture) => texture.clone());
+    }
+    const sourceDef = json.images[sourceIndex];
+    const URL2 = self.URL || self.webkitURL;
+    let sourceURI = sourceDef.uri || "";
+    let isObjectURL = false;
+    if (sourceDef.bufferView !== void 0) {
+      sourceURI = parser.getDependency("bufferView", sourceDef.bufferView).then(function(bufferView) {
+        isObjectURL = true;
+        const blob = new Blob([bufferView], { type: sourceDef.mimeType });
+        sourceURI = URL2.createObjectURL(blob);
+        return sourceURI;
+      });
+    } else if (sourceDef.uri === void 0) {
+      throw new Error("THREE.GLTFLoader: Image " + sourceIndex + " is missing URI and bufferView");
+    }
+    const promise = Promise.resolve(sourceURI).then(function(sourceURI2) {
+      return new Promise(function(resolve, reject) {
+        let onLoad = resolve;
+        if (loader.isImageBitmapLoader === true) {
+          onLoad = /* @__PURE__ */ __name(function(imageBitmap) {
+            const texture = new Texture(imageBitmap);
+            texture.needsUpdate = true;
+            resolve(texture);
+          }, "onLoad");
+        }
+        loader.load(LoaderUtils.resolveURL(sourceURI2, options.path), onLoad, void 0, reject);
+      });
+    }).then(function(texture) {
+      if (isObjectURL === true) {
+        URL2.revokeObjectURL(sourceURI);
+      }
+      assignExtrasToUserData(texture, sourceDef);
+      texture.userData.mimeType = sourceDef.mimeType || getImageURIMimeType(sourceDef.uri);
+      return texture;
+    }).catch(function(error) {
+      console.error("THREE.GLTFLoader: Couldn't load texture", sourceURI);
+      throw error;
+    });
+    this.sourceCache[sourceIndex] = promise;
+    return promise;
+  }
+  /**
+   * Asynchronously assigns a texture to the given material parameters.
+   * @param {Object} materialParams
+   * @param {string} mapName
+   * @param {Object} mapDef
+   * @return {Promise<Texture>}
+   */
+  assignTexture(materialParams, mapName, mapDef, colorSpace) {
+    const parser = this;
+    return this.getDependency("texture", mapDef.index).then(function(texture) {
+      if (!texture) return null;
+      if (mapDef.texCoord !== void 0 && mapDef.texCoord > 0) {
+        texture = texture.clone();
+        texture.channel = mapDef.texCoord;
+      }
+      if (parser.extensions[EXTENSIONS.KHR_TEXTURE_TRANSFORM]) {
+        const transform = mapDef.extensions !== void 0 ? mapDef.extensions[EXTENSIONS.KHR_TEXTURE_TRANSFORM] : void 0;
+        if (transform) {
+          const gltfReference = parser.associations.get(texture);
+          texture = parser.extensions[EXTENSIONS.KHR_TEXTURE_TRANSFORM].extendTexture(texture, transform);
+          parser.associations.set(texture, gltfReference);
+        }
+      }
+      if (colorSpace !== void 0) {
+        texture.colorSpace = colorSpace;
+      }
+      materialParams[mapName] = texture;
+      return texture;
+    });
+  }
+  /**
+   * Assigns final material to a Mesh, Line, or Points instance. The instance
+   * already has a material (generated from the glTF material options alone)
+   * but reuse of the same glTF material may require multiple threejs materials
+   * to accommodate different primitive types, defines, etc. New materials will
+   * be created if necessary, and reused from a cache.
+   * @param  {Object3D} mesh Mesh, Line, or Points instance.
+   */
+  assignFinalMaterial(mesh) {
+    const geometry = mesh.geometry;
+    let material = mesh.material;
+    const useDerivativeTangents = geometry.attributes.tangent === void 0;
+    const useVertexColors = geometry.attributes.color !== void 0;
+    const useFlatShading = geometry.attributes.normal === void 0;
+    if (mesh.isPoints) {
+      const cacheKey = "PointsMaterial:" + material.uuid;
+      let pointsMaterial = this.cache.get(cacheKey);
+      if (!pointsMaterial) {
+        pointsMaterial = new PointsMaterial();
+        Material.prototype.copy.call(pointsMaterial, material);
+        pointsMaterial.color.copy(material.color);
+        pointsMaterial.map = material.map;
+        pointsMaterial.sizeAttenuation = false;
+        this.cache.add(cacheKey, pointsMaterial);
+      }
+      material = pointsMaterial;
+    } else if (mesh.isLine) {
+      const cacheKey = "LineBasicMaterial:" + material.uuid;
+      let lineMaterial = this.cache.get(cacheKey);
+      if (!lineMaterial) {
+        lineMaterial = new LineBasicMaterial();
+        Material.prototype.copy.call(lineMaterial, material);
+        lineMaterial.color.copy(material.color);
+        lineMaterial.map = material.map;
+        this.cache.add(cacheKey, lineMaterial);
+      }
+      material = lineMaterial;
+    }
+    if (useDerivativeTangents || useVertexColors || useFlatShading) {
+      let cacheKey = "ClonedMaterial:" + material.uuid + ":";
+      if (useDerivativeTangents) cacheKey += "derivative-tangents:";
+      if (useVertexColors) cacheKey += "vertex-colors:";
+      if (useFlatShading) cacheKey += "flat-shading:";
+      let cachedMaterial = this.cache.get(cacheKey);
+      if (!cachedMaterial) {
+        cachedMaterial = material.clone();
+        if (useVertexColors) cachedMaterial.vertexColors = true;
+        if (useFlatShading) cachedMaterial.flatShading = true;
+        if (useDerivativeTangents) {
+          if (cachedMaterial.normalScale) cachedMaterial.normalScale.y *= -1;
+          if (cachedMaterial.clearcoatNormalScale) cachedMaterial.clearcoatNormalScale.y *= -1;
+        }
+        this.cache.add(cacheKey, cachedMaterial);
+        this.associations.set(cachedMaterial, this.associations.get(material));
+      }
+      material = cachedMaterial;
+    }
+    mesh.material = material;
+  }
+  getMaterialType() {
+    return MeshStandardMaterial;
+  }
+  /**
+   * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#materials
+   * @param {number} materialIndex
+   * @return {Promise<Material>}
+   */
+  loadMaterial(materialIndex) {
+    const parser = this;
+    const json = this.json;
+    const extensions = this.extensions;
+    const materialDef = json.materials[materialIndex];
+    let materialType;
+    const materialParams = {};
+    const materialExtensions = materialDef.extensions || {};
+    const pending = [];
+    if (materialExtensions[EXTENSIONS.KHR_MATERIALS_UNLIT]) {
+      const kmuExtension = extensions[EXTENSIONS.KHR_MATERIALS_UNLIT];
+      materialType = kmuExtension.getMaterialType();
+      pending.push(kmuExtension.extendParams(materialParams, materialDef, parser));
+    } else {
+      const metallicRoughness = materialDef.pbrMetallicRoughness || {};
+      materialParams.color = new Color(1, 1, 1);
+      materialParams.opacity = 1;
+      if (Array.isArray(metallicRoughness.baseColorFactor)) {
+        const array = metallicRoughness.baseColorFactor;
+        materialParams.color.setRGB(array[0], array[1], array[2], LinearSRGBColorSpace);
+        materialParams.opacity = array[3];
+      }
+      if (metallicRoughness.baseColorTexture !== void 0) {
+        pending.push(parser.assignTexture(materialParams, "map", metallicRoughness.baseColorTexture, SRGBColorSpace));
+      }
+      materialParams.metalness = metallicRoughness.metallicFactor !== void 0 ? metallicRoughness.metallicFactor : 1;
+      materialParams.roughness = metallicRoughness.roughnessFactor !== void 0 ? metallicRoughness.roughnessFactor : 1;
+      if (metallicRoughness.metallicRoughnessTexture !== void 0) {
+        pending.push(parser.assignTexture(materialParams, "metalnessMap", metallicRoughness.metallicRoughnessTexture));
+        pending.push(parser.assignTexture(materialParams, "roughnessMap", metallicRoughness.metallicRoughnessTexture));
+      }
+      materialType = this._invokeOne(function(ext2) {
+        return ext2.getMaterialType && ext2.getMaterialType(materialIndex);
+      });
+      pending.push(Promise.all(this._invokeAll(function(ext2) {
+        return ext2.extendMaterialParams && ext2.extendMaterialParams(materialIndex, materialParams);
+      })));
+    }
+    if (materialDef.doubleSided === true) {
+      materialParams.side = DoubleSide;
+    }
+    const alphaMode = materialDef.alphaMode || ALPHA_MODES.OPAQUE;
+    if (alphaMode === ALPHA_MODES.BLEND) {
+      materialParams.transparent = true;
+      materialParams.depthWrite = false;
+    } else {
+      materialParams.transparent = false;
+      if (alphaMode === ALPHA_MODES.MASK) {
+        materialParams.alphaTest = materialDef.alphaCutoff !== void 0 ? materialDef.alphaCutoff : 0.5;
+      }
+    }
+    if (materialDef.normalTexture !== void 0 && materialType !== MeshBasicMaterial) {
+      pending.push(parser.assignTexture(materialParams, "normalMap", materialDef.normalTexture));
+      materialParams.normalScale = new Vector2(1, 1);
+      if (materialDef.normalTexture.scale !== void 0) {
+        const scale = materialDef.normalTexture.scale;
+        materialParams.normalScale.set(scale, scale);
+      }
+    }
+    if (materialDef.occlusionTexture !== void 0 && materialType !== MeshBasicMaterial) {
+      pending.push(parser.assignTexture(materialParams, "aoMap", materialDef.occlusionTexture));
+      if (materialDef.occlusionTexture.strength !== void 0) {
+        materialParams.aoMapIntensity = materialDef.occlusionTexture.strength;
+      }
+    }
+    if (materialDef.emissiveFactor !== void 0 && materialType !== MeshBasicMaterial) {
+      const emissiveFactor = materialDef.emissiveFactor;
+      materialParams.emissive = new Color().setRGB(emissiveFactor[0], emissiveFactor[1], emissiveFactor[2], LinearSRGBColorSpace);
+    }
+    if (materialDef.emissiveTexture !== void 0 && materialType !== MeshBasicMaterial) {
+      pending.push(parser.assignTexture(materialParams, "emissiveMap", materialDef.emissiveTexture, SRGBColorSpace));
+    }
+    return Promise.all(pending).then(function() {
+      const material = new materialType(materialParams);
+      if (materialDef.name) material.name = materialDef.name;
+      assignExtrasToUserData(material, materialDef);
+      parser.associations.set(material, { materials: materialIndex });
+      if (materialDef.extensions) addUnknownExtensionsToUserData(extensions, material, materialDef);
+      return material;
+    });
+  }
+  /** When Object3D instances are targeted by animation, they need unique names. */
+  createUniqueName(originalName) {
+    const sanitizedName = PropertyBinding.sanitizeNodeName(originalName || "");
+    if (sanitizedName in this.nodeNamesUsed) {
+      return sanitizedName + "_" + ++this.nodeNamesUsed[sanitizedName];
+    } else {
+      this.nodeNamesUsed[sanitizedName] = 0;
+      return sanitizedName;
+    }
+  }
+  /**
+   * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#geometry
+   *
+   * Creates BufferGeometries from primitives.
+   *
+   * @param {Array<GLTF.Primitive>} primitives
+   * @return {Promise<Array<BufferGeometry>>}
+   */
+  loadGeometries(primitives) {
+    const parser = this;
+    const extensions = this.extensions;
+    const cache = this.primitiveCache;
+    function createDracoPrimitive(primitive) {
+      return extensions[EXTENSIONS.KHR_DRACO_MESH_COMPRESSION].decodePrimitive(primitive, parser).then(function(geometry) {
+        return addPrimitiveAttributes(geometry, primitive, parser);
+      });
+    }
+    __name(createDracoPrimitive, "createDracoPrimitive");
+    const pending = [];
+    for (let i = 0, il = primitives.length; i < il; i++) {
+      const primitive = primitives[i];
+      const cacheKey = createPrimitiveKey(primitive);
+      const cached = cache[cacheKey];
+      if (cached) {
+        pending.push(cached.promise);
+      } else {
+        let geometryPromise;
+        if (primitive.extensions && primitive.extensions[EXTENSIONS.KHR_DRACO_MESH_COMPRESSION]) {
+          geometryPromise = createDracoPrimitive(primitive);
+        } else {
+          geometryPromise = addPrimitiveAttributes(new BufferGeometry(), primitive, parser);
+        }
+        cache[cacheKey] = { primitive, promise: geometryPromise };
+        pending.push(geometryPromise);
+      }
+    }
+    return Promise.all(pending);
+  }
+  /**
+   * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#meshes
+   * @param {number} meshIndex
+   * @return {Promise<Group|Mesh|SkinnedMesh>}
+   */
+  loadMesh(meshIndex) {
+    const parser = this;
+    const json = this.json;
+    const extensions = this.extensions;
+    const meshDef = json.meshes[meshIndex];
+    const primitives = meshDef.primitives;
+    const pending = [];
+    for (let i = 0, il = primitives.length; i < il; i++) {
+      const material = primitives[i].material === void 0 ? createDefaultMaterial(this.cache) : this.getDependency("material", primitives[i].material);
+      pending.push(material);
+    }
+    pending.push(parser.loadGeometries(primitives));
+    return Promise.all(pending).then(function(results) {
+      const materials = results.slice(0, results.length - 1);
+      const geometries = results[results.length - 1];
+      const meshes = [];
+      for (let i = 0, il = geometries.length; i < il; i++) {
+        const geometry = geometries[i];
+        const primitive = primitives[i];
+        let mesh;
+        const material = materials[i];
+        if (primitive.mode === WEBGL_CONSTANTS.TRIANGLES || primitive.mode === WEBGL_CONSTANTS.TRIANGLE_STRIP || primitive.mode === WEBGL_CONSTANTS.TRIANGLE_FAN || primitive.mode === void 0) {
+          mesh = meshDef.isSkinnedMesh === true ? new SkinnedMesh(geometry, material) : new Mesh(geometry, material);
+          if (mesh.isSkinnedMesh === true) {
+            mesh.normalizeSkinWeights();
+          }
+          if (primitive.mode === WEBGL_CONSTANTS.TRIANGLE_STRIP) {
+            mesh.geometry = toTrianglesDrawMode(mesh.geometry, TriangleStripDrawMode);
+          } else if (primitive.mode === WEBGL_CONSTANTS.TRIANGLE_FAN) {
+            mesh.geometry = toTrianglesDrawMode(mesh.geometry, TriangleFanDrawMode);
+          }
+        } else if (primitive.mode === WEBGL_CONSTANTS.LINES) {
+          mesh = new LineSegments(geometry, material);
+        } else if (primitive.mode === WEBGL_CONSTANTS.LINE_STRIP) {
+          mesh = new Line(geometry, material);
+        } else if (primitive.mode === WEBGL_CONSTANTS.LINE_LOOP) {
+          mesh = new LineLoop(geometry, material);
+        } else if (primitive.mode === WEBGL_CONSTANTS.POINTS) {
+          mesh = new Points(geometry, material);
+        } else {
+          throw new Error("THREE.GLTFLoader: Primitive mode unsupported: " + primitive.mode);
+        }
+        if (Object.keys(mesh.geometry.morphAttributes).length > 0) {
+          updateMorphTargets(mesh, meshDef);
+        }
+        mesh.name = parser.createUniqueName(meshDef.name || "mesh_" + meshIndex);
+        assignExtrasToUserData(mesh, meshDef);
+        if (primitive.extensions) addUnknownExtensionsToUserData(extensions, mesh, primitive);
+        parser.assignFinalMaterial(mesh);
+        meshes.push(mesh);
+      }
+      for (let i = 0, il = meshes.length; i < il; i++) {
+        parser.associations.set(meshes[i], {
+          meshes: meshIndex,
+          primitives: i
+        });
+      }
+      if (meshes.length === 1) {
+        if (meshDef.extensions) addUnknownExtensionsToUserData(extensions, meshes[0], meshDef);
+        return meshes[0];
+      }
+      const group = new Group();
+      if (meshDef.extensions) addUnknownExtensionsToUserData(extensions, group, meshDef);
+      parser.associations.set(group, { meshes: meshIndex });
+      for (let i = 0, il = meshes.length; i < il; i++) {
+        group.add(meshes[i]);
+      }
+      return group;
+    });
+  }
+  /**
+   * Specification: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#cameras
+   * @param {number} cameraIndex
+   * @return {Promise<THREE.Camera>}
+   */
+  loadCamera(cameraIndex) {
+    let camera;
+    const cameraDef = this.json.cameras[cameraIndex];
+    const params = cameraDef[cameraDef.type];
+    if (!params) {
+      console.warn("THREE.GLTFLoader: Missing camera parameters.");
+      return;
+    }
+    if (cameraDef.type === "perspective") {
+      camera = new PerspectiveCamera(MathUtils.radToDeg(params.yfov), params.aspectRatio || 1, params.znear || 1, params.zfar || 2e6);
+    } else if (cameraDef.type === "orthographic") {
+      camera = new OrthographicCamera(-params.xmag, params.xmag, params.ymag, -params.ymag, params.znear, params.zfar);
+    }
+    if (cameraDef.name) camera.name = this.createUniqueName(cameraDef.name);
+    assignExtrasToUserData(camera, cameraDef);
+    return Promise.resolve(camera);
+  }
+  /**
+   * Specification: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#skins
+   * @param {number} skinIndex
+   * @return {Promise<Skeleton>}
+   */
+  loadSkin(skinIndex) {
+    const skinDef = this.json.skins[skinIndex];
+    const pending = [];
+    for (let i = 0, il = skinDef.joints.length; i < il; i++) {
+      pending.push(this._loadNodeShallow(skinDef.joints[i]));
+    }
+    if (skinDef.inverseBindMatrices !== void 0) {
+      pending.push(this.getDependency("accessor", skinDef.inverseBindMatrices));
+    } else {
+      pending.push(null);
+    }
+    return Promise.all(pending).then(function(results) {
+      const inverseBindMatrices = results.pop();
+      const jointNodes = results;
+      const bones = [];
+      const boneInverses = [];
+      for (let i = 0, il = jointNodes.length; i < il; i++) {
+        const jointNode = jointNodes[i];
+        if (jointNode) {
+          bones.push(jointNode);
+          const mat = new Matrix4();
+          if (inverseBindMatrices !== null) {
+            mat.fromArray(inverseBindMatrices.array, i * 16);
+          }
+          boneInverses.push(mat);
+        } else {
+          console.warn('THREE.GLTFLoader: Joint "%s" could not be found.', skinDef.joints[i]);
+        }
+      }
+      return new Skeleton(bones, boneInverses);
+    });
+  }
+  /**
+   * Specification: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#animations
+   * @param {number} animationIndex
+   * @return {Promise<AnimationClip>}
+   */
+  loadAnimation(animationIndex) {
+    const json = this.json;
+    const parser = this;
+    const animationDef = json.animations[animationIndex];
+    const animationName = animationDef.name ? animationDef.name : "animation_" + animationIndex;
+    const pendingNodes = [];
+    const pendingInputAccessors = [];
+    const pendingOutputAccessors = [];
+    const pendingSamplers = [];
+    const pendingTargets = [];
+    for (let i = 0, il = animationDef.channels.length; i < il; i++) {
+      const channel = animationDef.channels[i];
+      const sampler = animationDef.samplers[channel.sampler];
+      const target = channel.target;
+      const name = target.node;
+      const input = animationDef.parameters !== void 0 ? animationDef.parameters[sampler.input] : sampler.input;
+      const output = animationDef.parameters !== void 0 ? animationDef.parameters[sampler.output] : sampler.output;
+      if (target.node === void 0) continue;
+      pendingNodes.push(this.getDependency("node", name));
+      pendingInputAccessors.push(this.getDependency("accessor", input));
+      pendingOutputAccessors.push(this.getDependency("accessor", output));
+      pendingSamplers.push(sampler);
+      pendingTargets.push(target);
+    }
+    return Promise.all([
+      Promise.all(pendingNodes),
+      Promise.all(pendingInputAccessors),
+      Promise.all(pendingOutputAccessors),
+      Promise.all(pendingSamplers),
+      Promise.all(pendingTargets)
+    ]).then(function(dependencies) {
+      const nodes = dependencies[0];
+      const inputAccessors = dependencies[1];
+      const outputAccessors = dependencies[2];
+      const samplers = dependencies[3];
+      const targets = dependencies[4];
+      const tracks = [];
+      for (let i = 0, il = nodes.length; i < il; i++) {
+        const node = nodes[i];
+        const inputAccessor = inputAccessors[i];
+        const outputAccessor = outputAccessors[i];
+        const sampler = samplers[i];
+        const target = targets[i];
+        if (node === void 0) continue;
+        if (node.updateMatrix) {
+          node.updateMatrix();
+        }
+        const createdTracks = parser._createAnimationTracks(node, inputAccessor, outputAccessor, sampler, target);
+        if (createdTracks) {
+          for (let k = 0; k < createdTracks.length; k++) {
+            tracks.push(createdTracks[k]);
+          }
+        }
+      }
+      return new AnimationClip(animationName, void 0, tracks);
+    });
+  }
+  createNodeMesh(nodeIndex) {
+    const json = this.json;
+    const parser = this;
+    const nodeDef = json.nodes[nodeIndex];
+    if (nodeDef.mesh === void 0) return null;
+    return parser.getDependency("mesh", nodeDef.mesh).then(function(mesh) {
+      const node = parser._getNodeRef(parser.meshCache, nodeDef.mesh, mesh);
+      if (nodeDef.weights !== void 0) {
+        node.traverse(function(o) {
+          if (!o.isMesh) return;
+          for (let i = 0, il = nodeDef.weights.length; i < il; i++) {
+            o.morphTargetInfluences[i] = nodeDef.weights[i];
+          }
+        });
+      }
+      return node;
+    });
+  }
+  /**
+   * Specification: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#nodes-and-hierarchy
+   * @param {number} nodeIndex
+   * @return {Promise<Object3D>}
+   */
+  loadNode(nodeIndex) {
+    const json = this.json;
+    const parser = this;
+    const nodeDef = json.nodes[nodeIndex];
+    const nodePending = parser._loadNodeShallow(nodeIndex);
+    const childPending = [];
+    const childrenDef = nodeDef.children || [];
+    for (let i = 0, il = childrenDef.length; i < il; i++) {
+      childPending.push(parser.getDependency("node", childrenDef[i]));
+    }
+    const skeletonPending = nodeDef.skin === void 0 ? Promise.resolve(null) : parser.getDependency("skin", nodeDef.skin);
+    return Promise.all([
+      nodePending,
+      Promise.all(childPending),
+      skeletonPending
+    ]).then(function(results) {
+      const node = results[0];
+      const children = results[1];
+      const skeleton = results[2];
+      if (skeleton !== null) {
+        node.traverse(function(mesh) {
+          if (!mesh.isSkinnedMesh) return;
+          mesh.bind(skeleton, _identityMatrix);
+        });
+      }
+      for (let i = 0, il = children.length; i < il; i++) {
+        node.add(children[i]);
+      }
+      return node;
+    });
+  }
+  // ._loadNodeShallow() parses a single node.
+  // skin and child nodes are created and added in .loadNode() (no '_' prefix).
+  _loadNodeShallow(nodeIndex) {
+    const json = this.json;
+    const extensions = this.extensions;
+    const parser = this;
+    if (this.nodeCache[nodeIndex] !== void 0) {
+      return this.nodeCache[nodeIndex];
+    }
+    const nodeDef = json.nodes[nodeIndex];
+    const nodeName = nodeDef.name ? parser.createUniqueName(nodeDef.name) : "";
+    const pending = [];
+    const meshPromise = parser._invokeOne(function(ext2) {
+      return ext2.createNodeMesh && ext2.createNodeMesh(nodeIndex);
+    });
+    if (meshPromise) {
+      pending.push(meshPromise);
+    }
+    if (nodeDef.camera !== void 0) {
+      pending.push(parser.getDependency("camera", nodeDef.camera).then(function(camera) {
+        return parser._getNodeRef(parser.cameraCache, nodeDef.camera, camera);
+      }));
+    }
+    parser._invokeAll(function(ext2) {
+      return ext2.createNodeAttachment && ext2.createNodeAttachment(nodeIndex);
+    }).forEach(function(promise) {
+      pending.push(promise);
+    });
+    this.nodeCache[nodeIndex] = Promise.all(pending).then(function(objects) {
+      let node;
+      if (nodeDef.isBone === true) {
+        node = new Bone();
+      } else if (objects.length > 1) {
+        node = new Group();
+      } else if (objects.length === 1) {
+        node = objects[0];
+      } else {
+        node = new Object3D();
+      }
+      if (node !== objects[0]) {
+        for (let i = 0, il = objects.length; i < il; i++) {
+          node.add(objects[i]);
+        }
+      }
+      if (nodeDef.name) {
+        node.userData.name = nodeDef.name;
+        node.name = nodeName;
+      }
+      assignExtrasToUserData(node, nodeDef);
+      if (nodeDef.extensions) addUnknownExtensionsToUserData(extensions, node, nodeDef);
+      if (nodeDef.matrix !== void 0) {
+        const matrix = new Matrix4();
+        matrix.fromArray(nodeDef.matrix);
+        node.applyMatrix4(matrix);
+      } else {
+        if (nodeDef.translation !== void 0) {
+          node.position.fromArray(nodeDef.translation);
+        }
+        if (nodeDef.rotation !== void 0) {
+          node.quaternion.fromArray(nodeDef.rotation);
+        }
+        if (nodeDef.scale !== void 0) {
+          node.scale.fromArray(nodeDef.scale);
+        }
+      }
+      if (!parser.associations.has(node)) {
+        parser.associations.set(node, {});
+      }
+      parser.associations.get(node).nodes = nodeIndex;
+      return node;
+    });
+    return this.nodeCache[nodeIndex];
+  }
+  /**
+   * Specification: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#scenes
+   * @param {number} sceneIndex
+   * @return {Promise<Group>}
+   */
+  loadScene(sceneIndex) {
+    const extensions = this.extensions;
+    const sceneDef = this.json.scenes[sceneIndex];
+    const parser = this;
+    const scene = new Group();
+    if (sceneDef.name) scene.name = parser.createUniqueName(sceneDef.name);
+    assignExtrasToUserData(scene, sceneDef);
+    if (sceneDef.extensions) addUnknownExtensionsToUserData(extensions, scene, sceneDef);
+    const nodeIds = sceneDef.nodes || [];
+    const pending = [];
+    for (let i = 0, il = nodeIds.length; i < il; i++) {
+      pending.push(parser.getDependency("node", nodeIds[i]));
+    }
+    return Promise.all(pending).then(function(nodes) {
+      for (let i = 0, il = nodes.length; i < il; i++) {
+        scene.add(nodes[i]);
+      }
+      const reduceAssociations = /* @__PURE__ */ __name((node) => {
+        const reducedAssociations = /* @__PURE__ */ new Map();
+        for (const [key, value] of parser.associations) {
+          if (key instanceof Material || key instanceof Texture) {
+            reducedAssociations.set(key, value);
+          }
+        }
+        node.traverse((node2) => {
+          const mappings = parser.associations.get(node2);
+          if (mappings != null) {
+            reducedAssociations.set(node2, mappings);
+          }
+        });
+        return reducedAssociations;
+      }, "reduceAssociations");
+      parser.associations = reduceAssociations(scene);
+      return scene;
+    });
+  }
+  _createAnimationTracks(node, inputAccessor, outputAccessor, sampler, target) {
+    const tracks = [];
+    const targetName = node.name ? node.name : node.uuid;
+    const targetNames = [];
+    if (PATH_PROPERTIES[target.path] === PATH_PROPERTIES.weights) {
+      node.traverse(function(object) {
+        if (object.morphTargetInfluences) {
+          targetNames.push(object.name ? object.name : object.uuid);
+        }
+      });
+    } else {
+      targetNames.push(targetName);
+    }
+    let TypedKeyframeTrack;
+    switch (PATH_PROPERTIES[target.path]) {
+      case PATH_PROPERTIES.weights:
+        TypedKeyframeTrack = NumberKeyframeTrack;
+        break;
+      case PATH_PROPERTIES.rotation:
+        TypedKeyframeTrack = QuaternionKeyframeTrack;
+        break;
+      case PATH_PROPERTIES.position:
+      case PATH_PROPERTIES.scale:
+        TypedKeyframeTrack = VectorKeyframeTrack;
+        break;
+      default:
+        switch (outputAccessor.itemSize) {
+          case 1:
+            TypedKeyframeTrack = NumberKeyframeTrack;
+            break;
+          case 2:
+          case 3:
+          default:
+            TypedKeyframeTrack = VectorKeyframeTrack;
+            break;
+        }
+        break;
+    }
+    const interpolation = sampler.interpolation !== void 0 ? INTERPOLATION[sampler.interpolation] : InterpolateLinear;
+    const outputArray = this._getArrayFromAccessor(outputAccessor);
+    for (let j = 0, jl = targetNames.length; j < jl; j++) {
+      const track = new TypedKeyframeTrack(
+        targetNames[j] + "." + PATH_PROPERTIES[target.path],
+        inputAccessor.array,
+        outputArray,
+        interpolation
+      );
+      if (sampler.interpolation === "CUBICSPLINE") {
+        this._createCubicSplineTrackInterpolant(track);
+      }
+      tracks.push(track);
+    }
+    return tracks;
+  }
+  _getArrayFromAccessor(accessor) {
+    let outputArray = accessor.array;
+    if (accessor.normalized) {
+      const scale = getNormalizedComponentScale(outputArray.constructor);
+      const scaled = new Float32Array(outputArray.length);
+      for (let j = 0, jl = outputArray.length; j < jl; j++) {
+        scaled[j] = outputArray[j] * scale;
+      }
+      outputArray = scaled;
+    }
+    return outputArray;
+  }
+  _createCubicSplineTrackInterpolant(track) {
+    track.createInterpolant = /* @__PURE__ */ __name(function InterpolantFactoryMethodGLTFCubicSpline(result) {
+      const interpolantType = this instanceof QuaternionKeyframeTrack ? GLTFCubicSplineQuaternionInterpolant : GLTFCubicSplineInterpolant;
+      return new interpolantType(this.times, this.values, this.getValueSize() / 3, result);
+    }, "InterpolantFactoryMethodGLTFCubicSpline");
+    track.createInterpolant.isInterpolantFactoryMethodGLTFCubicSpline = true;
+  }
+}
+function computeBounds(geometry, primitiveDef, parser) {
+  const attributes = primitiveDef.attributes;
+  const box = new Box3();
+  if (attributes.POSITION !== void 0) {
+    const accessor = parser.json.accessors[attributes.POSITION];
+    const min = accessor.min;
+    const max2 = accessor.max;
+    if (min !== void 0 && max2 !== void 0) {
+      box.set(
+        new Vector3(min[0], min[1], min[2]),
+        new Vector3(max2[0], max2[1], max2[2])
+      );
+      if (accessor.normalized) {
+        const boxScale = getNormalizedComponentScale(WEBGL_COMPONENT_TYPES[accessor.componentType]);
+        box.min.multiplyScalar(boxScale);
+        box.max.multiplyScalar(boxScale);
+      }
+    } else {
+      console.warn("THREE.GLTFLoader: Missing min/max properties for accessor POSITION.");
+      return;
+    }
+  } else {
+    return;
+  }
+  const targets = primitiveDef.targets;
+  if (targets !== void 0) {
+    const maxDisplacement = new Vector3();
+    const vector = new Vector3();
+    for (let i = 0, il = targets.length; i < il; i++) {
+      const target = targets[i];
+      if (target.POSITION !== void 0) {
+        const accessor = parser.json.accessors[target.POSITION];
+        const min = accessor.min;
+        const max2 = accessor.max;
+        if (min !== void 0 && max2 !== void 0) {
+          vector.setX(Math.max(Math.abs(min[0]), Math.abs(max2[0])));
+          vector.setY(Math.max(Math.abs(min[1]), Math.abs(max2[1])));
+          vector.setZ(Math.max(Math.abs(min[2]), Math.abs(max2[2])));
+          if (accessor.normalized) {
+            const boxScale = getNormalizedComponentScale(WEBGL_COMPONENT_TYPES[accessor.componentType]);
+            vector.multiplyScalar(boxScale);
+          }
+          maxDisplacement.max(vector);
+        } else {
+          console.warn("THREE.GLTFLoader: Missing min/max properties for accessor POSITION.");
+        }
+      }
+    }
+    box.expandByVector(maxDisplacement);
+  }
+  geometry.boundingBox = box;
+  const sphere = new Sphere();
+  box.getCenter(sphere.center);
+  sphere.radius = box.min.distanceTo(box.max) / 2;
+  geometry.boundingSphere = sphere;
+}
+__name(computeBounds, "computeBounds");
+function addPrimitiveAttributes(geometry, primitiveDef, parser) {
+  const attributes = primitiveDef.attributes;
+  const pending = [];
+  function assignAttributeAccessor(accessorIndex, attributeName) {
+    return parser.getDependency("accessor", accessorIndex).then(function(accessor) {
+      geometry.setAttribute(attributeName, accessor);
+    });
+  }
+  __name(assignAttributeAccessor, "assignAttributeAccessor");
+  for (const gltfAttributeName in attributes) {
+    const threeAttributeName = ATTRIBUTES[gltfAttributeName] || gltfAttributeName.toLowerCase();
+    if (threeAttributeName in geometry.attributes) continue;
+    pending.push(assignAttributeAccessor(attributes[gltfAttributeName], threeAttributeName));
+  }
+  if (primitiveDef.indices !== void 0 && !geometry.index) {
+    const accessor = parser.getDependency("accessor", primitiveDef.indices).then(function(accessor2) {
+      geometry.setIndex(accessor2);
+    });
+    pending.push(accessor);
+  }
+  if (ColorManagement.workingColorSpace !== LinearSRGBColorSpace && "COLOR_0" in attributes) {
+    console.warn(`THREE.GLTFLoader: Converting vertex colors from "srgb-linear" to "${ColorManagement.workingColorSpace}" not supported.`);
+  }
+  assignExtrasToUserData(geometry, primitiveDef);
+  computeBounds(geometry, primitiveDef, parser);
+  return Promise.all(pending).then(function() {
+    return primitiveDef.targets !== void 0 ? addMorphTargets(geometry, primitiveDef.targets, parser) : geometry;
+  });
+}
+__name(addPrimitiveAttributes, "addPrimitiveAttributes");
+class MTLLoader extends Loader {
+  static {
+    __name(this, "MTLLoader");
+  }
+  constructor(manager) {
+    super(manager);
+  }
+  /**
+   * Loads and parses a MTL asset from a URL.
+   *
+   * @param {String} url - URL to the MTL file.
+   * @param {Function} [onLoad] - Callback invoked with the loaded object.
+   * @param {Function} [onProgress] - Callback for download progress.
+   * @param {Function} [onError] - Callback for download errors.
+   *
+   * @see setPath setResourcePath
+   *
+   * @note In order for relative texture references to resolve correctly
+   * you must call setResourcePath() explicitly prior to load.
+   */
+  load(url, onLoad, onProgress, onError) {
+    const scope = this;
+    const path = this.path === "" ? LoaderUtils.extractUrlBase(url) : this.path;
+    const loader = new FileLoader(this.manager);
+    loader.setPath(this.path);
+    loader.setRequestHeader(this.requestHeader);
+    loader.setWithCredentials(this.withCredentials);
+    loader.load(url, function(text) {
+      try {
+        onLoad(scope.parse(text, path));
+      } catch (e) {
+        if (onError) {
+          onError(e);
+        } else {
+          console.error(e);
+        }
+        scope.manager.itemError(url);
+      }
+    }, onProgress, onError);
+  }
+  setMaterialOptions(value) {
+    this.materialOptions = value;
+    return this;
+  }
+  /**
+   * Parses a MTL file.
+   *
+   * @param {String} text - Content of MTL file
+   * @return {MaterialCreator}
+   *
+   * @see setPath setResourcePath
+   *
+   * @note In order for relative texture references to resolve correctly
+   * you must call setResourcePath() explicitly prior to parse.
+   */
+  parse(text, path) {
+    const lines = text.split("\n");
+    let info = {};
+    const delimiter_pattern = /\s+/;
+    const materialsInfo = {};
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+      line = line.trim();
+      if (line.length === 0 || line.charAt(0) === "#") {
+        continue;
+      }
+      const pos = line.indexOf(" ");
+      let key = pos >= 0 ? line.substring(0, pos) : line;
+      key = key.toLowerCase();
+      let value = pos >= 0 ? line.substring(pos + 1) : "";
+      value = value.trim();
+      if (key === "newmtl") {
+        info = { name: value };
+        materialsInfo[value] = info;
+      } else {
+        if (key === "ka" || key === "kd" || key === "ks" || key === "ke") {
+          const ss = value.split(delimiter_pattern, 3);
+          info[key] = [parseFloat(ss[0]), parseFloat(ss[1]), parseFloat(ss[2])];
+        } else {
+          info[key] = value;
+        }
+      }
+    }
+    const materialCreator = new MaterialCreator(this.resourcePath || path, this.materialOptions);
+    materialCreator.setCrossOrigin(this.crossOrigin);
+    materialCreator.setManager(this.manager);
+    materialCreator.setMaterials(materialsInfo);
+    return materialCreator;
+  }
+}
+class MaterialCreator {
+  static {
+    __name(this, "MaterialCreator");
+  }
+  constructor(baseUrl = "", options = {}) {
+    this.baseUrl = baseUrl;
+    this.options = options;
+    this.materialsInfo = {};
+    this.materials = {};
+    this.materialsArray = [];
+    this.nameLookup = {};
+    this.crossOrigin = "anonymous";
+    this.side = this.options.side !== void 0 ? this.options.side : FrontSide;
+    this.wrap = this.options.wrap !== void 0 ? this.options.wrap : RepeatWrapping;
+  }
+  setCrossOrigin(value) {
+    this.crossOrigin = value;
+    return this;
+  }
+  setManager(value) {
+    this.manager = value;
+  }
+  setMaterials(materialsInfo) {
+    this.materialsInfo = this.convert(materialsInfo);
+    this.materials = {};
+    this.materialsArray = [];
+    this.nameLookup = {};
+  }
+  convert(materialsInfo) {
+    if (!this.options) return materialsInfo;
+    const converted = {};
+    for (const mn in materialsInfo) {
+      const mat = materialsInfo[mn];
+      const covmat = {};
+      converted[mn] = covmat;
+      for (const prop in mat) {
+        let save = true;
+        let value = mat[prop];
+        const lprop = prop.toLowerCase();
+        switch (lprop) {
+          case "kd":
+          case "ka":
+          case "ks":
+            if (this.options && this.options.normalizeRGB) {
+              value = [value[0] / 255, value[1] / 255, value[2] / 255];
+            }
+            if (this.options && this.options.ignoreZeroRGBs) {
+              if (value[0] === 0 && value[1] === 0 && value[2] === 0) {
+                save = false;
+              }
+            }
+            break;
+          default:
+            break;
+        }
+        if (save) {
+          covmat[lprop] = value;
+        }
+      }
+    }
+    return converted;
+  }
+  preload() {
+    for (const mn in this.materialsInfo) {
+      this.create(mn);
+    }
+  }
+  getIndex(materialName) {
+    return this.nameLookup[materialName];
+  }
+  getAsArray() {
+    let index = 0;
+    for (const mn in this.materialsInfo) {
+      this.materialsArray[index] = this.create(mn);
+      this.nameLookup[mn] = index;
+      index++;
+    }
+    return this.materialsArray;
+  }
+  create(materialName) {
+    if (this.materials[materialName] === void 0) {
+      this.createMaterial_(materialName);
+    }
+    return this.materials[materialName];
+  }
+  createMaterial_(materialName) {
+    const scope = this;
+    const mat = this.materialsInfo[materialName];
+    const params = {
+      name: materialName,
+      side: this.side
+    };
+    function resolveURL(baseUrl, url) {
+      if (typeof url !== "string" || url === "")
+        return "";
+      if (/^https?:\/\//i.test(url)) return url;
+      return baseUrl + url;
+    }
+    __name(resolveURL, "resolveURL");
+    function setMapForType(mapType, value) {
+      if (params[mapType]) return;
+      const texParams = scope.getTextureParams(value, params);
+      const map = scope.loadTexture(resolveURL(scope.baseUrl, texParams.url));
+      map.repeat.copy(texParams.scale);
+      map.offset.copy(texParams.offset);
+      map.wrapS = scope.wrap;
+      map.wrapT = scope.wrap;
+      if (mapType === "map" || mapType === "emissiveMap") {
+        map.colorSpace = SRGBColorSpace;
+      }
+      params[mapType] = map;
+    }
+    __name(setMapForType, "setMapForType");
+    for (const prop in mat) {
+      const value = mat[prop];
+      let n;
+      if (value === "") continue;
+      switch (prop.toLowerCase()) {
+        case "kd":
+          params.color = ColorManagement.toWorkingColorSpace(new Color().fromArray(value), SRGBColorSpace);
+          break;
+        case "ks":
+          params.specular = ColorManagement.toWorkingColorSpace(new Color().fromArray(value), SRGBColorSpace);
+          break;
+        case "ke":
+          params.emissive = ColorManagement.toWorkingColorSpace(new Color().fromArray(value), SRGBColorSpace);
+          break;
+        case "map_kd":
+          setMapForType("map", value);
+          break;
+        case "map_ks":
+          setMapForType("specularMap", value);
+          break;
+        case "map_ke":
+          setMapForType("emissiveMap", value);
+          break;
+        case "norm":
+          setMapForType("normalMap", value);
+          break;
+        case "map_bump":
+        case "bump":
+          setMapForType("bumpMap", value);
+          break;
+        case "map_d":
+          setMapForType("alphaMap", value);
+          params.transparent = true;
+          break;
+        case "ns":
+          params.shininess = parseFloat(value);
+          break;
+        case "d":
+          n = parseFloat(value);
+          if (n < 1) {
+            params.opacity = n;
+            params.transparent = true;
+          }
+          break;
+        case "tr":
+          n = parseFloat(value);
+          if (this.options && this.options.invertTrProperty) n = 1 - n;
+          if (n > 0) {
+            params.opacity = 1 - n;
+            params.transparent = true;
+          }
+          break;
+        default:
+          break;
+      }
+    }
+    this.materials[materialName] = new MeshPhongMaterial(params);
+    return this.materials[materialName];
+  }
+  getTextureParams(value, matParams) {
+    const texParams = {
+      scale: new Vector2(1, 1),
+      offset: new Vector2(0, 0)
+    };
+    const items = value.split(/\s+/);
+    let pos;
+    pos = items.indexOf("-bm");
+    if (pos >= 0) {
+      matParams.bumpScale = parseFloat(items[pos + 1]);
+      items.splice(pos, 2);
+    }
+    pos = items.indexOf("-s");
+    if (pos >= 0) {
+      texParams.scale.set(parseFloat(items[pos + 1]), parseFloat(items[pos + 2]));
+      items.splice(pos, 4);
+    }
+    pos = items.indexOf("-o");
+    if (pos >= 0) {
+      texParams.offset.set(parseFloat(items[pos + 1]), parseFloat(items[pos + 2]));
+      items.splice(pos, 4);
+    }
+    texParams.url = items.join(" ").trim();
+    return texParams;
+  }
+  loadTexture(url, mapping, onLoad, onProgress, onError) {
+    const manager = this.manager !== void 0 ? this.manager : DefaultLoadingManager;
+    let loader = manager.getHandler(url);
+    if (loader === null) {
+      loader = new TextureLoader(manager);
+    }
+    if (loader.setCrossOrigin) loader.setCrossOrigin(this.crossOrigin);
+    const texture = loader.load(url, onLoad, onProgress, onError);
+    if (mapping !== void 0) texture.mapping = mapping;
+    return texture;
+  }
+}
+const _object_pattern = /^[og]\s*(.+)?/;
+const _material_library_pattern = /^mtllib /;
+const _material_use_pattern = /^usemtl /;
+const _map_use_pattern = /^usemap /;
+const _face_vertex_data_separator_pattern = /\s+/;
+const _vA = new Vector3();
+const _vB = new Vector3();
+const _vC = new Vector3();
+const _ab = new Vector3();
+const _cb = new Vector3();
+const _color = new Color();
+function ParserState() {
+  const state = {
+    objects: [],
+    object: {},
+    vertices: [],
+    normals: [],
+    colors: [],
+    uvs: [],
+    materials: {},
+    materialLibraries: [],
+    startObject: /* @__PURE__ */ __name(function(name, fromDeclaration) {
+      if (this.object && this.object.fromDeclaration === false) {
+        this.object.name = name;
+        this.object.fromDeclaration = fromDeclaration !== false;
+        return;
+      }
+      const previousMaterial = this.object && typeof this.object.currentMaterial === "function" ? this.object.currentMaterial() : void 0;
+      if (this.object && typeof this.object._finalize === "function") {
+        this.object._finalize(true);
+      }
+      this.object = {
+        name: name || "",
+        fromDeclaration: fromDeclaration !== false,
+        geometry: {
+          vertices: [],
+          normals: [],
+          colors: [],
+          uvs: [],
+          hasUVIndices: false
+        },
+        materials: [],
+        smooth: true,
+        startMaterial: /* @__PURE__ */ __name(function(name2, libraries) {
+          const previous = this._finalize(false);
+          if (previous && (previous.inherited || previous.groupCount <= 0)) {
+            this.materials.splice(previous.index, 1);
+          }
+          const material = {
+            index: this.materials.length,
+            name: name2 || "",
+            mtllib: Array.isArray(libraries) && libraries.length > 0 ? libraries[libraries.length - 1] : "",
+            smooth: previous !== void 0 ? previous.smooth : this.smooth,
+            groupStart: previous !== void 0 ? previous.groupEnd : 0,
+            groupEnd: -1,
+            groupCount: -1,
+            inherited: false,
+            clone: /* @__PURE__ */ __name(function(index) {
+              const cloned = {
+                index: typeof index === "number" ? index : this.index,
+                name: this.name,
+                mtllib: this.mtllib,
+                smooth: this.smooth,
+                groupStart: 0,
+                groupEnd: -1,
+                groupCount: -1,
+                inherited: false
+              };
+              cloned.clone = this.clone.bind(cloned);
+              return cloned;
+            }, "clone")
+          };
+          this.materials.push(material);
+          return material;
+        }, "startMaterial"),
+        currentMaterial: /* @__PURE__ */ __name(function() {
+          if (this.materials.length > 0) {
+            return this.materials[this.materials.length - 1];
+          }
+          return void 0;
+        }, "currentMaterial"),
+        _finalize: /* @__PURE__ */ __name(function(end) {
+          const lastMultiMaterial = this.currentMaterial();
+          if (lastMultiMaterial && lastMultiMaterial.groupEnd === -1) {
+            lastMultiMaterial.groupEnd = this.geometry.vertices.length / 3;
+            lastMultiMaterial.groupCount = lastMultiMaterial.groupEnd - lastMultiMaterial.groupStart;
+            lastMultiMaterial.inherited = false;
+          }
+          if (end && this.materials.length > 1) {
+            for (let mi = this.materials.length - 1; mi >= 0; mi--) {
+              if (this.materials[mi].groupCount <= 0) {
+                this.materials.splice(mi, 1);
+              }
+            }
+          }
+          if (end && this.materials.length === 0) {
+            this.materials.push({
+              name: "",
+              smooth: this.smooth
+            });
+          }
+          return lastMultiMaterial;
+        }, "_finalize")
+      };
+      if (previousMaterial && previousMaterial.name && typeof previousMaterial.clone === "function") {
+        const declared = previousMaterial.clone(0);
+        declared.inherited = true;
+        this.object.materials.push(declared);
+      }
+      this.objects.push(this.object);
+    }, "startObject"),
+    finalize: /* @__PURE__ */ __name(function() {
+      if (this.object && typeof this.object._finalize === "function") {
+        this.object._finalize(true);
+      }
+    }, "finalize"),
+    parseVertexIndex: /* @__PURE__ */ __name(function(value, len) {
+      const index = parseInt(value, 10);
+      return (index >= 0 ? index - 1 : index + len / 3) * 3;
+    }, "parseVertexIndex"),
+    parseNormalIndex: /* @__PURE__ */ __name(function(value, len) {
+      const index = parseInt(value, 10);
+      return (index >= 0 ? index - 1 : index + len / 3) * 3;
+    }, "parseNormalIndex"),
+    parseUVIndex: /* @__PURE__ */ __name(function(value, len) {
+      const index = parseInt(value, 10);
+      return (index >= 0 ? index - 1 : index + len / 2) * 2;
+    }, "parseUVIndex"),
+    addVertex: /* @__PURE__ */ __name(function(a, b, c) {
+      const src = this.vertices;
+      const dst = this.object.geometry.vertices;
+      dst.push(src[a + 0], src[a + 1], src[a + 2]);
+      dst.push(src[b + 0], src[b + 1], src[b + 2]);
+      dst.push(src[c + 0], src[c + 1], src[c + 2]);
+    }, "addVertex"),
+    addVertexPoint: /* @__PURE__ */ __name(function(a) {
+      const src = this.vertices;
+      const dst = this.object.geometry.vertices;
+      dst.push(src[a + 0], src[a + 1], src[a + 2]);
+    }, "addVertexPoint"),
+    addVertexLine: /* @__PURE__ */ __name(function(a) {
+      const src = this.vertices;
+      const dst = this.object.geometry.vertices;
+      dst.push(src[a + 0], src[a + 1], src[a + 2]);
+    }, "addVertexLine"),
+    addNormal: /* @__PURE__ */ __name(function(a, b, c) {
+      const src = this.normals;
+      const dst = this.object.geometry.normals;
+      dst.push(src[a + 0], src[a + 1], src[a + 2]);
+      dst.push(src[b + 0], src[b + 1], src[b + 2]);
+      dst.push(src[c + 0], src[c + 1], src[c + 2]);
+    }, "addNormal"),
+    addFaceNormal: /* @__PURE__ */ __name(function(a, b, c) {
+      const src = this.vertices;
+      const dst = this.object.geometry.normals;
+      _vA.fromArray(src, a);
+      _vB.fromArray(src, b);
+      _vC.fromArray(src, c);
+      _cb.subVectors(_vC, _vB);
+      _ab.subVectors(_vA, _vB);
+      _cb.cross(_ab);
+      _cb.normalize();
+      dst.push(_cb.x, _cb.y, _cb.z);
+      dst.push(_cb.x, _cb.y, _cb.z);
+      dst.push(_cb.x, _cb.y, _cb.z);
+    }, "addFaceNormal"),
+    addColor: /* @__PURE__ */ __name(function(a, b, c) {
+      const src = this.colors;
+      const dst = this.object.geometry.colors;
+      if (src[a] !== void 0) dst.push(src[a + 0], src[a + 1], src[a + 2]);
+      if (src[b] !== void 0) dst.push(src[b + 0], src[b + 1], src[b + 2]);
+      if (src[c] !== void 0) dst.push(src[c + 0], src[c + 1], src[c + 2]);
+    }, "addColor"),
+    addUV: /* @__PURE__ */ __name(function(a, b, c) {
+      const src = this.uvs;
+      const dst = this.object.geometry.uvs;
+      dst.push(src[a + 0], src[a + 1]);
+      dst.push(src[b + 0], src[b + 1]);
+      dst.push(src[c + 0], src[c + 1]);
+    }, "addUV"),
+    addDefaultUV: /* @__PURE__ */ __name(function() {
+      const dst = this.object.geometry.uvs;
+      dst.push(0, 0);
+      dst.push(0, 0);
+      dst.push(0, 0);
+    }, "addDefaultUV"),
+    addUVLine: /* @__PURE__ */ __name(function(a) {
+      const src = this.uvs;
+      const dst = this.object.geometry.uvs;
+      dst.push(src[a + 0], src[a + 1]);
+    }, "addUVLine"),
+    addFace: /* @__PURE__ */ __name(function(a, b, c, ua, ub, uc, na, nb, nc) {
+      const vLen = this.vertices.length;
+      let ia = this.parseVertexIndex(a, vLen);
+      let ib = this.parseVertexIndex(b, vLen);
+      let ic = this.parseVertexIndex(c, vLen);
+      this.addVertex(ia, ib, ic);
+      this.addColor(ia, ib, ic);
+      if (na !== void 0 && na !== "") {
+        const nLen = this.normals.length;
+        ia = this.parseNormalIndex(na, nLen);
+        ib = this.parseNormalIndex(nb, nLen);
+        ic = this.parseNormalIndex(nc, nLen);
+        this.addNormal(ia, ib, ic);
+      } else {
+        this.addFaceNormal(ia, ib, ic);
+      }
+      if (ua !== void 0 && ua !== "") {
+        const uvLen = this.uvs.length;
+        ia = this.parseUVIndex(ua, uvLen);
+        ib = this.parseUVIndex(ub, uvLen);
+        ic = this.parseUVIndex(uc, uvLen);
+        this.addUV(ia, ib, ic);
+        this.object.geometry.hasUVIndices = true;
+      } else {
+        this.addDefaultUV();
+      }
+    }, "addFace"),
+    addPointGeometry: /* @__PURE__ */ __name(function(vertices) {
+      this.object.geometry.type = "Points";
+      const vLen = this.vertices.length;
+      for (let vi = 0, l = vertices.length; vi < l; vi++) {
+        const index = this.parseVertexIndex(vertices[vi], vLen);
+        this.addVertexPoint(index);
+        this.addColor(index);
+      }
+    }, "addPointGeometry"),
+    addLineGeometry: /* @__PURE__ */ __name(function(vertices, uvs) {
+      this.object.geometry.type = "Line";
+      const vLen = this.vertices.length;
+      const uvLen = this.uvs.length;
+      for (let vi = 0, l = vertices.length; vi < l; vi++) {
+        this.addVertexLine(this.parseVertexIndex(vertices[vi], vLen));
+      }
+      for (let uvi = 0, l = uvs.length; uvi < l; uvi++) {
+        this.addUVLine(this.parseUVIndex(uvs[uvi], uvLen));
+      }
+    }, "addLineGeometry")
+  };
+  state.startObject("", false);
+  return state;
+}
+__name(ParserState, "ParserState");
+class OBJLoader extends Loader {
+  static {
+    __name(this, "OBJLoader");
+  }
+  constructor(manager) {
+    super(manager);
+    this.materials = null;
+  }
+  load(url, onLoad, onProgress, onError) {
+    const scope = this;
+    const loader = new FileLoader(this.manager);
+    loader.setPath(this.path);
+    loader.setRequestHeader(this.requestHeader);
+    loader.setWithCredentials(this.withCredentials);
+    loader.load(url, function(text) {
+      try {
+        onLoad(scope.parse(text));
+      } catch (e) {
+        if (onError) {
+          onError(e);
+        } else {
+          console.error(e);
+        }
+        scope.manager.itemError(url);
+      }
+    }, onProgress, onError);
+  }
+  setMaterials(materials) {
+    this.materials = materials;
+    return this;
+  }
+  parse(text) {
+    const state = new ParserState();
+    if (text.indexOf("\r\n") !== -1) {
+      text = text.replace(/\r\n/g, "\n");
+    }
+    if (text.indexOf("\\\n") !== -1) {
+      text = text.replace(/\\\n/g, "");
+    }
+    const lines = text.split("\n");
+    let result = [];
+    for (let i = 0, l = lines.length; i < l; i++) {
+      const line = lines[i].trimStart();
+      if (line.length === 0) continue;
+      const lineFirstChar = line.charAt(0);
+      if (lineFirstChar === "#") continue;
+      if (lineFirstChar === "v") {
+        const data = line.split(_face_vertex_data_separator_pattern);
+        switch (data[0]) {
+          case "v":
+            state.vertices.push(
+              parseFloat(data[1]),
+              parseFloat(data[2]),
+              parseFloat(data[3])
+            );
+            if (data.length >= 7) {
+              _color.setRGB(
+                parseFloat(data[4]),
+                parseFloat(data[5]),
+                parseFloat(data[6]),
+                SRGBColorSpace
+              );
+              state.colors.push(_color.r, _color.g, _color.b);
+            } else {
+              state.colors.push(void 0, void 0, void 0);
+            }
+            break;
+          case "vn":
+            state.normals.push(
+              parseFloat(data[1]),
+              parseFloat(data[2]),
+              parseFloat(data[3])
+            );
+            break;
+          case "vt":
+            state.uvs.push(
+              parseFloat(data[1]),
+              parseFloat(data[2])
+            );
+            break;
+        }
+      } else if (lineFirstChar === "f") {
+        const lineData = line.slice(1).trim();
+        const vertexData = lineData.split(_face_vertex_data_separator_pattern);
+        const faceVertices = [];
+        for (let j = 0, jl = vertexData.length; j < jl; j++) {
+          const vertex2 = vertexData[j];
+          if (vertex2.length > 0) {
+            const vertexParts = vertex2.split("/");
+            faceVertices.push(vertexParts);
+          }
+        }
+        const v1 = faceVertices[0];
+        for (let j = 1, jl = faceVertices.length - 1; j < jl; j++) {
+          const v2 = faceVertices[j];
+          const v3 = faceVertices[j + 1];
+          state.addFace(
+            v1[0],
+            v2[0],
+            v3[0],
+            v1[1],
+            v2[1],
+            v3[1],
+            v1[2],
+            v2[2],
+            v3[2]
+          );
+        }
+      } else if (lineFirstChar === "l") {
+        const lineParts = line.substring(1).trim().split(" ");
+        let lineVertices = [];
+        const lineUVs = [];
+        if (line.indexOf("/") === -1) {
+          lineVertices = lineParts;
+        } else {
+          for (let li = 0, llen = lineParts.length; li < llen; li++) {
+            const parts = lineParts[li].split("/");
+            if (parts[0] !== "") lineVertices.push(parts[0]);
+            if (parts[1] !== "") lineUVs.push(parts[1]);
+          }
+        }
+        state.addLineGeometry(lineVertices, lineUVs);
+      } else if (lineFirstChar === "p") {
+        const lineData = line.slice(1).trim();
+        const pointData = lineData.split(" ");
+        state.addPointGeometry(pointData);
+      } else if ((result = _object_pattern.exec(line)) !== null) {
+        const name = (" " + result[0].slice(1).trim()).slice(1);
+        state.startObject(name);
+      } else if (_material_use_pattern.test(line)) {
+        state.object.startMaterial(line.substring(7).trim(), state.materialLibraries);
+      } else if (_material_library_pattern.test(line)) {
+        state.materialLibraries.push(line.substring(7).trim());
+      } else if (_map_use_pattern.test(line)) {
+        console.warn('THREE.OBJLoader: Rendering identifier "usemap" not supported. Textures must be defined in MTL files.');
+      } else if (lineFirstChar === "s") {
+        result = line.split(" ");
+        if (result.length > 1) {
+          const value = result[1].trim().toLowerCase();
+          state.object.smooth = value !== "0" && value !== "off";
+        } else {
+          state.object.smooth = true;
+        }
+        const material = state.object.currentMaterial();
+        if (material) material.smooth = state.object.smooth;
+      } else {
+        if (line === "\0") continue;
+        console.warn('THREE.OBJLoader: Unexpected line: "' + line + '"');
+      }
+    }
+    state.finalize();
+    const container = new Group();
+    container.materialLibraries = [].concat(state.materialLibraries);
+    const hasPrimitives = !(state.objects.length === 1 && state.objects[0].geometry.vertices.length === 0);
+    if (hasPrimitives === true) {
+      for (let i = 0, l = state.objects.length; i < l; i++) {
+        const object = state.objects[i];
+        const geometry = object.geometry;
+        const materials = object.materials;
+        const isLine = geometry.type === "Line";
+        const isPoints = geometry.type === "Points";
+        let hasVertexColors = false;
+        if (geometry.vertices.length === 0) continue;
+        const buffergeometry = new BufferGeometry();
+        buffergeometry.setAttribute("position", new Float32BufferAttribute(geometry.vertices, 3));
+        if (geometry.normals.length > 0) {
+          buffergeometry.setAttribute("normal", new Float32BufferAttribute(geometry.normals, 3));
+        }
+        if (geometry.colors.length > 0) {
+          hasVertexColors = true;
+          buffergeometry.setAttribute("color", new Float32BufferAttribute(geometry.colors, 3));
+        }
+        if (geometry.hasUVIndices === true) {
+          buffergeometry.setAttribute("uv", new Float32BufferAttribute(geometry.uvs, 2));
+        }
+        const createdMaterials = [];
+        for (let mi = 0, miLen = materials.length; mi < miLen; mi++) {
+          const sourceMaterial = materials[mi];
+          const materialHash = sourceMaterial.name + "_" + sourceMaterial.smooth + "_" + hasVertexColors;
+          let material = state.materials[materialHash];
+          if (this.materials !== null) {
+            material = this.materials.create(sourceMaterial.name);
+            if (isLine && material && !(material instanceof LineBasicMaterial)) {
+              const materialLine = new LineBasicMaterial();
+              Material.prototype.copy.call(materialLine, material);
+              materialLine.color.copy(material.color);
+              material = materialLine;
+            } else if (isPoints && material && !(material instanceof PointsMaterial)) {
+              const materialPoints = new PointsMaterial({ size: 10, sizeAttenuation: false });
+              Material.prototype.copy.call(materialPoints, material);
+              materialPoints.color.copy(material.color);
+              materialPoints.map = material.map;
+              material = materialPoints;
+            }
+          }
+          if (material === void 0) {
+            if (isLine) {
+              material = new LineBasicMaterial();
+            } else if (isPoints) {
+              material = new PointsMaterial({ size: 1, sizeAttenuation: false });
+            } else {
+              material = new MeshPhongMaterial();
+            }
+            material.name = sourceMaterial.name;
+            material.flatShading = sourceMaterial.smooth ? false : true;
+            material.vertexColors = hasVertexColors;
+            state.materials[materialHash] = material;
+          }
+          createdMaterials.push(material);
+        }
+        let mesh;
+        if (createdMaterials.length > 1) {
+          for (let mi = 0, miLen = materials.length; mi < miLen; mi++) {
+            const sourceMaterial = materials[mi];
+            buffergeometry.addGroup(sourceMaterial.groupStart, sourceMaterial.groupCount, mi);
+          }
+          if (isLine) {
+            mesh = new LineSegments(buffergeometry, createdMaterials);
+          } else if (isPoints) {
+            mesh = new Points(buffergeometry, createdMaterials);
+          } else {
+            mesh = new Mesh(buffergeometry, createdMaterials);
+          }
+        } else {
+          if (isLine) {
+            mesh = new LineSegments(buffergeometry, createdMaterials[0]);
+          } else if (isPoints) {
+            mesh = new Points(buffergeometry, createdMaterials[0]);
+          } else {
+            mesh = new Mesh(buffergeometry, createdMaterials[0]);
+          }
+        }
+        mesh.name = object.name;
+        container.add(mesh);
+      }
+    } else {
+      if (state.vertices.length > 0) {
+        const material = new PointsMaterial({ size: 1, sizeAttenuation: false });
+        const buffergeometry = new BufferGeometry();
+        buffergeometry.setAttribute("position", new Float32BufferAttribute(state.vertices, 3));
+        if (state.colors.length > 0 && state.colors[0] !== void 0) {
+          buffergeometry.setAttribute("color", new Float32BufferAttribute(state.colors, 3));
+          material.vertexColors = true;
+        }
+        const points = new Points(buffergeometry, material);
+        container.add(points);
+      }
+    }
+    return container;
+  }
+}
 class STLLoader extends Loader {
   static {
     __name(this, "STLLoader");
@@ -51862,7 +52806,27 @@ class STLLoader extends Loader {
     return isBinary(binData) ? parseBinary(binData) : parseASCII(ensureString(data));
   }
 }
-async function uploadFile(load3d, file2, fileInput) {
+async function uploadTempImage(imageData, prefix) {
+  const blob = await fetch(imageData).then((r) => r.blob());
+  const name = `${prefix}_${Date.now()}.png`;
+  const file2 = new File([blob], name);
+  const body = new FormData();
+  body.append("image", file2);
+  body.append("subfolder", "threed");
+  body.append("type", "temp");
+  const resp = await api.fetchApi("/upload/image", {
+    method: "POST",
+    body
+  });
+  if (resp.status !== 200) {
+    const err2 = `Error uploading temp image: ${resp.status} - ${resp.statusText}`;
+    useToastStore().addAlert(err2);
+    throw new Error(err2);
+  }
+  return await resp.json();
+}
+__name(uploadTempImage, "uploadTempImage");
+async function uploadFile$1(load3d, file2, fileInput) {
   let uploadPath;
   try {
     const body = new FormData();
@@ -51878,7 +52842,7 @@ async function uploadFile(load3d, file2, fileInput) {
       if (data.subfolder) path = data.subfolder + "/" + path;
       uploadPath = path;
       const modelUrl = api.apiURL(
-        getResourceURL(...splitFilePath(path), "input")
+        getResourceURL$1(...splitFilePath$1(path), "input")
       );
       await load3d.loadModel(modelUrl, file2.name);
       const fileExt = file2.name.split(".").pop()?.toLowerCase();
@@ -51911,7 +52875,7 @@ async function uploadFile(load3d, file2, fileInput) {
   }
   return uploadPath;
 }
-__name(uploadFile, "uploadFile");
+__name(uploadFile$1, "uploadFile$1");
 class Load3d {
   static {
     __name(this, "Load3d");
@@ -51959,7 +52923,7 @@ class Load3d {
     this.activeCamera = this.perspectiveCamera;
     this.perspectiveCamera.lookAt(0, 0, 0);
     this.orthographicCamera.lookAt(0, 0, 0);
-    this.renderer = new WebGLRenderer({ antialias: true });
+    this.renderer = new WebGLRenderer({ alpha: true, antialias: true });
     this.renderer.setSize(300, 300);
     this.renderer.setClearColor(2631720);
     const rendererDomElement = this.renderer.domElement;
@@ -52000,6 +52964,13 @@ class Load3d {
     this.animate();
     this.handleResize();
     this.startAnimation();
+  }
+  setFOV(fov2) {
+    if (this.activeCamera === this.perspectiveCamera) {
+      this.perspectiveCamera.fov = fov2;
+      this.perspectiveCamera.updateProjectionMatrix();
+      this.renderer.render(this.scene, this.activeCamera);
+    }
   }
   getCameraState() {
     const currentType = this.getCurrentCameraType();
@@ -52440,10 +53411,14 @@ class Load3d {
     this.renderer.render(this.scene, this.activeCamera);
   }, "animate");
   captureScene(width, height) {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
         const originalWidth = this.renderer.domElement.width;
         const originalHeight = this.renderer.domElement.height;
+        const originalClearColor = this.renderer.getClearColor(
+          new Color()
+        );
+        const originalClearAlpha = this.renderer.getClearAlpha();
         this.renderer.setSize(width, height);
         if (this.activeCamera === this.perspectiveCamera) {
           this.perspectiveCamera.aspect = width / height;
@@ -52458,10 +53433,14 @@ class Load3d {
           this.orthographicCamera.updateProjectionMatrix();
         }
         this.renderer.render(this.scene, this.activeCamera);
-        const imageData = this.renderer.domElement.toDataURL("image/png");
+        const sceneData = this.renderer.domElement.toDataURL("image/png");
+        this.renderer.setClearColor(0, 0);
+        this.renderer.render(this.scene, this.activeCamera);
+        const maskData = this.renderer.domElement.toDataURL("image/png");
+        this.renderer.setClearColor(originalClearColor, originalClearAlpha);
         this.renderer.setSize(originalWidth, originalHeight);
         this.handleResize();
-        resolve(imageData);
+        resolve({ scene: sceneData, mask: maskData });
       } catch (error) {
         reject(error);
       }
@@ -52627,7 +53606,7 @@ class Load3dAnimation extends Load3d {
     this.renderer.render(this.scene, this.activeCamera);
   }, "animate");
 }
-function splitFilePath(path) {
+function splitFilePath$1(path) {
   const folder_separator = path.lastIndexOf("/");
   if (folder_separator === -1) {
     return ["", path];
@@ -52637,8 +53616,8 @@ function splitFilePath(path) {
     path.substring(folder_separator + 1)
   ];
 }
-__name(splitFilePath, "splitFilePath");
-function getResourceURL(subfolder, filename, type = "input") {
+__name(splitFilePath$1, "splitFilePath$1");
+function getResourceURL$1(subfolder, filename, type = "input") {
   const params = [
     "filename=" + encodeURIComponent(filename),
     "type=" + type,
@@ -52647,7 +53626,7 @@ function getResourceURL(subfolder, filename, type = "input") {
   ].join("&");
   return `/view?${params}`;
 }
-__name(getResourceURL, "getResourceURL");
+__name(getResourceURL$1, "getResourceURL$1");
 const load3dCSSCLASS = `display: flex;
     flex-direction: column;
     background: transparent;
@@ -52658,14 +53637,14 @@ const load3dCanvasCSSCLASS = `display: flex;
     width: 100% !important;
     height: 100% !important;`;
 const containerToLoad3D = /* @__PURE__ */ new Map();
-function configureLoad3D(load3d, loadFolder, modelWidget, showGrid, cameraType, view, material, bgColor, lightIntensity, upDirection, cameraState, postModelUpdateFunc) {
+function configureLoad3D(load3d, loadFolder, modelWidget, showGrid, cameraType, view, material, bgColor, lightIntensity, upDirection, fov2, cameraState, postModelUpdateFunc) {
   const createModelUpdateHandler = /* @__PURE__ */ __name(() => {
     let isFirstLoad = true;
     return async (value) => {
       if (!value) return;
       const filename = value;
       const modelUrl = api.apiURL(
-        getResourceURL(...splitFilePath(filename), loadFolder)
+        getResourceURL$1(...splitFilePath$1(filename), loadFolder)
       );
       await load3d.loadModel(modelUrl, filename);
       load3d.setMaterialMode(
@@ -52721,6 +53700,10 @@ function configureLoad3D(load3d, loadFolder, modelWidget, showGrid, cameraType, 
   load3d.setUpDirection(
     upDirection.value
   );
+  fov2.callback = (value) => {
+    load3d.setFOV(value);
+  };
+  load3d.setFOV(fov2.value);
 }
 __name(configureLoad3D, "configureLoad3D");
 app.registerExtension({
@@ -52760,7 +53743,7 @@ app.registerExtension({
             const modelWidget = node.widgets?.find(
               (w) => w.name === "model_file"
             );
-            const uploadPath = await uploadFile(
+            const uploadPath = await uploadFile$1(
               load3d,
               fileInput.files[0],
               fileInput
@@ -52831,6 +53814,7 @@ app.registerExtension({
     const upDirection = node.widgets.find(
       (w2) => w2.name === "up_direction"
     );
+    const fov2 = node.widgets.find((w2) => w2.name === "fov");
     let cameraState;
     try {
       const cameraInfo = node.properties["Camera Info"];
@@ -52852,31 +53836,25 @@ app.registerExtension({
       bgColor,
       lightIntensity,
       upDirection,
+      fov2,
       cameraState
     );
     const w = node.widgets.find((w2) => w2.name === "width");
     const h = node.widgets.find((w2) => w2.name === "height");
     sceneWidget.serializeValue = async () => {
       node.properties["Camera Info"] = JSON.stringify(load3d.getCameraState());
-      const imageData = await load3d.captureScene(w.value, h.value);
-      const blob = await fetch(imageData).then((r) => r.blob());
-      const name = `scene_${Date.now()}.png`;
-      const file2 = new File([blob], name);
-      const body = new FormData();
-      body.append("image", file2);
-      body.append("subfolder", "threed");
-      body.append("type", "temp");
-      const resp = await api.fetchApi("/upload/image", {
-        method: "POST",
-        body
-      });
-      if (resp.status !== 200) {
-        const err2 = `Error uploading scene capture: ${resp.status} - ${resp.statusText}`;
-        useToastStore().addAlert(err2);
-        throw new Error(err2);
-      }
-      const data = await resp.json();
-      return `threed/${data.name} [temp]`;
+      const { scene: imageData, mask: maskData } = await load3d.captureScene(
+        w.value,
+        h.value
+      );
+      const [data, dataMask] = await Promise.all([
+        uploadTempImage(imageData, "scene"),
+        uploadTempImage(maskData, "scene_mask")
+      ]);
+      return {
+        image: `threed/${data.name} [temp]`,
+        mask: `threed/${dataMask.name} [temp]`
+      };
     };
   }
 });
@@ -52919,7 +53897,7 @@ app.registerExtension({
             const modelWidget = node.widgets?.find(
               (w) => w.name === "model_file"
             );
-            const uploadPath = await uploadFile(
+            const uploadPath = await uploadFile$1(
               load3d,
               fileInput.files[0],
               fileInput
@@ -53043,6 +54021,7 @@ app.registerExtension({
         load3d2.setAnimationSpeed(parseFloat(value));
       }
     };
+    const fov2 = node.widgets.find((w2) => w2.name === "fov");
     let cameraState;
     try {
       const cameraInfo = node.properties["Camera Info"];
@@ -53064,6 +54043,7 @@ app.registerExtension({
       bgColor,
       lightIntensity,
       upDirection,
+      fov2,
       cameraState,
       (load3d2) => {
         const animationLoad3d = load3d2;
@@ -53081,26 +54061,18 @@ app.registerExtension({
     const h = node.widgets.find((w2) => w2.name === "height");
     sceneWidget.serializeValue = async () => {
       node.properties["Camera Info"] = JSON.stringify(load3d.getCameraState());
-      load3d.toggleAnimation(false);
-      const imageData = await load3d.captureScene(w.value, h.value);
-      const blob = await fetch(imageData).then((r) => r.blob());
-      const name = `scene_${Date.now()}.png`;
-      const file2 = new File([blob], name);
-      const body = new FormData();
-      body.append("image", file2);
-      body.append("subfolder", "threed");
-      body.append("type", "temp");
-      const resp = await api.fetchApi("/upload/image", {
-        method: "POST",
-        body
-      });
-      if (resp.status !== 200) {
-        const err2 = `Error uploading scene capture: ${resp.status} - ${resp.statusText}`;
-        useToastStore().addAlert(err2);
-        throw new Error(err2);
-      }
-      const data = await resp.json();
-      return `threed/${data.name} [temp]`;
+      const { scene: imageData, mask: maskData } = await load3d.captureScene(
+        w.value,
+        h.value
+      );
+      const [data, dataMask] = await Promise.all([
+        uploadTempImage(imageData, "scene"),
+        uploadTempImage(maskData, "scene_mask")
+      ]);
+      return {
+        image: `threed/${data.name} [temp]`,
+        mask: `threed/${dataMask.name} [temp]`
+      };
     };
   }
 });
@@ -53182,6 +54154,10 @@ app.registerExtension({
     const upDirection = node.widgets.find(
       (w) => w.name === "up_direction"
     );
+<<<<<<<< HEAD:comfy/web/assets/index-CJHqfMZG.js
+========
+    const fov2 = node.widgets.find((w) => w.name === "fov");
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/index-Bordpmzt.js
     const onExecuted = node.onExecuted;
     node.onExecuted = function(message) {
       onExecuted?.apply(this, arguments);
@@ -53202,9 +54178,6109 @@ app.registerExtension({
         material,
         bgColor,
         lightIntensity,
+<<<<<<<< HEAD:comfy/web/assets/index-CJHqfMZG.js
         upDirection
       );
     };
   }
 });
 //# sourceMappingURL=index-CJHqfMZG.js.map
+========
+        upDirection,
+        fov2
+      );
+    };
+  }
+});
+function dataURLToBlob(dataURL) {
+  const parts = dataURL.split(";base64,");
+  const contentType = parts[0].split(":")[1];
+  const byteString = atob(parts[1]);
+  const arrayBuffer = new ArrayBuffer(byteString.length);
+  const uint8Array = new Uint8Array(arrayBuffer);
+  for (let i = 0; i < byteString.length; i++) {
+    uint8Array[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([arrayBuffer], { type: contentType });
+}
+__name(dataURLToBlob, "dataURLToBlob");
+function loadedImageToBlob(image) {
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(image, 0, 0);
+  const dataURL = canvas.toDataURL("image/png", 1);
+  const blob = dataURLToBlob(dataURL);
+  return blob;
+}
+__name(loadedImageToBlob, "loadedImageToBlob");
+function loadImage(imagePath) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = function() {
+      resolve(image);
+    };
+    image.src = imagePath;
+  });
+}
+__name(loadImage, "loadImage");
+async function uploadMask(filepath, formData) {
+  await api.fetchApi("/upload/mask", {
+    method: "POST",
+    body: formData
+  }).then((response) => {
+  }).catch((error) => {
+    console.error("Error:", error);
+  });
+  ComfyApp.clipspace.imgs[ComfyApp.clipspace["selectedIndex"]] = new Image();
+  ComfyApp.clipspace.imgs[ComfyApp.clipspace["selectedIndex"]].src = api.apiURL(
+    "/view?" + new URLSearchParams(filepath).toString() + app.getPreviewFormatParam() + app.getRandParam()
+  );
+  if (ComfyApp.clipspace.images)
+    ComfyApp.clipspace.images[ComfyApp.clipspace["selectedIndex"]] = filepath;
+  ClipspaceDialog.invalidatePreview();
+}
+__name(uploadMask, "uploadMask");
+function prepare_mask(image, maskCanvas, maskCtx, maskColor) {
+  maskCtx.drawImage(image, 0, 0, maskCanvas.width, maskCanvas.height);
+  const maskData = maskCtx.getImageData(
+    0,
+    0,
+    maskCanvas.width,
+    maskCanvas.height
+  );
+  for (let i = 0; i < maskData.data.length; i += 4) {
+    if (maskData.data[i + 3] == 255) maskData.data[i + 3] = 0;
+    else maskData.data[i + 3] = 255;
+    maskData.data[i] = maskColor.r;
+    maskData.data[i + 1] = maskColor.g;
+    maskData.data[i + 2] = maskColor.b;
+  }
+  maskCtx.globalCompositeOperation = "source-over";
+  maskCtx.putImageData(maskData, 0, 0);
+}
+__name(prepare_mask, "prepare_mask");
+var PointerType = /* @__PURE__ */ ((PointerType2) => {
+  PointerType2["Arc"] = "arc";
+  PointerType2["Rect"] = "rect";
+  return PointerType2;
+})(PointerType || {});
+var CompositionOperation$1 = /* @__PURE__ */ ((CompositionOperation2) => {
+  CompositionOperation2["SourceOver"] = "source-over";
+  CompositionOperation2["DestinationOut"] = "destination-out";
+  return CompositionOperation2;
+})(CompositionOperation$1 || {});
+class MaskEditorDialogOld extends ComfyDialog {
+  static {
+    __name(this, "MaskEditorDialogOld");
+  }
+  static instance = null;
+  static mousedown_x = null;
+  static mousedown_y = null;
+  brush;
+  maskCtx;
+  maskCanvas;
+  brush_size_slider;
+  brush_opacity_slider;
+  colorButton;
+  saveButton;
+  zoom_ratio;
+  pan_x;
+  pan_y;
+  imgCanvas;
+  last_display_style;
+  is_visible;
+  image;
+  handler_registered;
+  brush_slider_input;
+  cursorX;
+  cursorY;
+  mousedown_pan_x;
+  mousedown_pan_y;
+  last_pressure;
+  pointer_type;
+  brush_pointer_type_select;
+  static getInstance() {
+    if (!MaskEditorDialogOld.instance) {
+      MaskEditorDialogOld.instance = new MaskEditorDialogOld();
+    }
+    return MaskEditorDialogOld.instance;
+  }
+  is_layout_created = false;
+  constructor() {
+    super();
+    this.element = $el("div.comfy-modal", { parent: document.body }, [
+      $el("div.comfy-modal-content", [...this.createButtons()])
+    ]);
+  }
+  createButtons() {
+    return [];
+  }
+  createButton(name, callback) {
+    var button = document.createElement("button");
+    button.style.pointerEvents = "auto";
+    button.innerText = name;
+    button.addEventListener("click", callback);
+    return button;
+  }
+  createLeftButton(name, callback) {
+    var button = this.createButton(name, callback);
+    button.style.cssFloat = "left";
+    button.style.marginRight = "4px";
+    return button;
+  }
+  createRightButton(name, callback) {
+    var button = this.createButton(name, callback);
+    button.style.cssFloat = "right";
+    button.style.marginLeft = "4px";
+    return button;
+  }
+  createLeftSlider(self2, name, callback) {
+    const divElement = document.createElement("div");
+    divElement.id = "maskeditor-slider";
+    divElement.style.cssFloat = "left";
+    divElement.style.fontFamily = "sans-serif";
+    divElement.style.marginRight = "4px";
+    divElement.style.color = "var(--input-text)";
+    divElement.style.backgroundColor = "var(--comfy-input-bg)";
+    divElement.style.borderRadius = "8px";
+    divElement.style.borderColor = "var(--border-color)";
+    divElement.style.borderStyle = "solid";
+    divElement.style.fontSize = "15px";
+    divElement.style.height = "25px";
+    divElement.style.padding = "1px 6px";
+    divElement.style.display = "flex";
+    divElement.style.position = "relative";
+    divElement.style.top = "2px";
+    divElement.style.pointerEvents = "auto";
+    self2.brush_slider_input = document.createElement("input");
+    self2.brush_slider_input.setAttribute("type", "range");
+    self2.brush_slider_input.setAttribute("min", "1");
+    self2.brush_slider_input.setAttribute("max", "100");
+    self2.brush_slider_input.setAttribute("value", "10");
+    const labelElement = document.createElement("label");
+    labelElement.textContent = name;
+    divElement.appendChild(labelElement);
+    divElement.appendChild(self2.brush_slider_input);
+    self2.brush_slider_input.addEventListener("change", callback);
+    return divElement;
+  }
+  createOpacitySlider(self2, name, callback) {
+    const divElement = document.createElement("div");
+    divElement.id = "maskeditor-opacity-slider";
+    divElement.style.cssFloat = "left";
+    divElement.style.fontFamily = "sans-serif";
+    divElement.style.marginRight = "4px";
+    divElement.style.color = "var(--input-text)";
+    divElement.style.backgroundColor = "var(--comfy-input-bg)";
+    divElement.style.borderRadius = "8px";
+    divElement.style.borderColor = "var(--border-color)";
+    divElement.style.borderStyle = "solid";
+    divElement.style.fontSize = "15px";
+    divElement.style.height = "25px";
+    divElement.style.padding = "1px 6px";
+    divElement.style.display = "flex";
+    divElement.style.position = "relative";
+    divElement.style.top = "2px";
+    divElement.style.pointerEvents = "auto";
+    self2.opacity_slider_input = document.createElement("input");
+    self2.opacity_slider_input.setAttribute("type", "range");
+    self2.opacity_slider_input.setAttribute("min", "0.1");
+    self2.opacity_slider_input.setAttribute("max", "1.0");
+    self2.opacity_slider_input.setAttribute("step", "0.01");
+    self2.opacity_slider_input.setAttribute("value", "0.7");
+    const labelElement = document.createElement("label");
+    labelElement.textContent = name;
+    divElement.appendChild(labelElement);
+    divElement.appendChild(self2.opacity_slider_input);
+    self2.opacity_slider_input.addEventListener("input", callback);
+    return divElement;
+  }
+  createPointerTypeSelect(self2) {
+    const divElement = document.createElement("div");
+    divElement.id = "maskeditor-pointer-type";
+    divElement.style.cssFloat = "left";
+    divElement.style.fontFamily = "sans-serif";
+    divElement.style.marginRight = "4px";
+    divElement.style.color = "var(--input-text)";
+    divElement.style.backgroundColor = "var(--comfy-input-bg)";
+    divElement.style.borderRadius = "8px";
+    divElement.style.borderColor = "var(--border-color)";
+    divElement.style.borderStyle = "solid";
+    divElement.style.fontSize = "15px";
+    divElement.style.height = "25px";
+    divElement.style.padding = "1px 6px";
+    divElement.style.display = "flex";
+    divElement.style.position = "relative";
+    divElement.style.top = "2px";
+    divElement.style.pointerEvents = "auto";
+    const labelElement = document.createElement("label");
+    labelElement.textContent = "Pointer Type:";
+    const selectElement = document.createElement("select");
+    selectElement.style.borderRadius = "0";
+    selectElement.style.borderColor = "transparent";
+    selectElement.style.borderStyle = "unset";
+    selectElement.style.fontSize = "0.9em";
+    const optionArc = document.createElement("option");
+    optionArc.value = "arc";
+    optionArc.text = "Circle";
+    optionArc.selected = true;
+    const optionRect = document.createElement("option");
+    optionRect.value = "rect";
+    optionRect.text = "Square";
+    selectElement.appendChild(optionArc);
+    selectElement.appendChild(optionRect);
+    selectElement.addEventListener("change", (event) => {
+      const target = event.target;
+      self2.pointer_type = target.value;
+      this.setBrushBorderRadius(self2);
+    });
+    divElement.appendChild(labelElement);
+    divElement.appendChild(selectElement);
+    return divElement;
+  }
+  setBrushBorderRadius(self2) {
+    if (self2.pointer_type === "rect") {
+      this.brush.style.borderRadius = "0%";
+      this.brush.style.MozBorderRadius = "0%";
+      this.brush.style.WebkitBorderRadius = "0%";
+    } else {
+      this.brush.style.borderRadius = "50%";
+      this.brush.style.MozBorderRadius = "50%";
+      this.brush.style.WebkitBorderRadius = "50%";
+    }
+  }
+  setlayout(imgCanvas, maskCanvas) {
+    const self2 = this;
+    self2.pointer_type = "arc";
+    var bottom_panel = document.createElement("div");
+    bottom_panel.style.position = "absolute";
+    bottom_panel.style.bottom = "0px";
+    bottom_panel.style.left = "20px";
+    bottom_panel.style.right = "20px";
+    bottom_panel.style.height = "50px";
+    bottom_panel.style.pointerEvents = "none";
+    var brush = document.createElement("div");
+    brush.id = "brush";
+    brush.style.backgroundColor = "transparent";
+    brush.style.outline = "1px dashed black";
+    brush.style.boxShadow = "0 0 0 1px white";
+    brush.style.position = "absolute";
+    brush.style.zIndex = "8889";
+    brush.style.pointerEvents = "none";
+    this.brush = brush;
+    this.setBrushBorderRadius(self2);
+    this.element.appendChild(imgCanvas);
+    this.element.appendChild(maskCanvas);
+    this.element.appendChild(bottom_panel);
+    document.body.appendChild(brush);
+    var clearButton = this.createLeftButton("Clear", () => {
+      self2.maskCtx.clearRect(
+        0,
+        0,
+        self2.maskCanvas.width,
+        self2.maskCanvas.height
+      );
+    });
+    this.brush_size_slider = this.createLeftSlider(
+      self2,
+      "Thickness",
+      (event) => {
+        self2.brush_size = event.target.value;
+        self2.updateBrushPreview(self2);
+      }
+    );
+    this.brush_opacity_slider = this.createOpacitySlider(
+      self2,
+      "Opacity",
+      (event) => {
+        self2.brush_opacity = event.target.value;
+        if (self2.brush_color_mode !== "negative") {
+          self2.maskCanvas.style.opacity = self2.brush_opacity.toString();
+        }
+      }
+    );
+    this.brush_pointer_type_select = this.createPointerTypeSelect(self2);
+    this.colorButton = this.createLeftButton(this.getColorButtonText(), () => {
+      if (self2.brush_color_mode === "black") {
+        self2.brush_color_mode = "white";
+      } else if (self2.brush_color_mode === "white") {
+        self2.brush_color_mode = "negative";
+      } else {
+        self2.brush_color_mode = "black";
+      }
+      self2.updateWhenBrushColorModeChanged();
+    });
+    var cancelButton = this.createRightButton("Cancel", () => {
+      document.removeEventListener("keydown", MaskEditorDialogOld.handleKeyDown);
+      self2.close();
+    });
+    this.saveButton = this.createRightButton("Save", () => {
+      document.removeEventListener("keydown", MaskEditorDialogOld.handleKeyDown);
+      self2.save();
+    });
+    this.element.appendChild(imgCanvas);
+    this.element.appendChild(maskCanvas);
+    this.element.appendChild(bottom_panel);
+    bottom_panel.appendChild(clearButton);
+    bottom_panel.appendChild(this.saveButton);
+    bottom_panel.appendChild(cancelButton);
+    bottom_panel.appendChild(this.brush_size_slider);
+    bottom_panel.appendChild(this.brush_opacity_slider);
+    bottom_panel.appendChild(this.brush_pointer_type_select);
+    bottom_panel.appendChild(this.colorButton);
+    imgCanvas.style.position = "absolute";
+    maskCanvas.style.position = "absolute";
+    imgCanvas.style.top = "200";
+    imgCanvas.style.left = "0";
+    maskCanvas.style.top = imgCanvas.style.top;
+    maskCanvas.style.left = imgCanvas.style.left;
+    const maskCanvasStyle = this.getMaskCanvasStyle();
+    maskCanvas.style.mixBlendMode = maskCanvasStyle.mixBlendMode;
+    maskCanvas.style.opacity = maskCanvasStyle.opacity.toString();
+  }
+  async show() {
+    this.zoom_ratio = 1;
+    this.pan_x = 0;
+    this.pan_y = 0;
+    if (!this.is_layout_created) {
+      const imgCanvas = document.createElement("canvas");
+      const maskCanvas = document.createElement("canvas");
+      imgCanvas.id = "imageCanvas";
+      maskCanvas.id = "maskCanvas";
+      this.setlayout(imgCanvas, maskCanvas);
+      this.imgCanvas = imgCanvas;
+      this.maskCanvas = maskCanvas;
+      this.maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true });
+      this.setEventHandler(maskCanvas);
+      this.is_layout_created = true;
+      const self2 = this;
+      const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          if (mutation.type === "attributes" && mutation.attributeName === "style") {
+            if (self2.last_display_style && self2.last_display_style != "none" && self2.element.style.display == "none") {
+              self2.brush.style.display = "none";
+              ComfyApp.onClipspaceEditorClosed();
+            }
+            self2.last_display_style = self2.element.style.display;
+          }
+        });
+      });
+      const config = { attributes: true };
+      observer.observe(this.element, config);
+    }
+    document.addEventListener("keydown", MaskEditorDialogOld.handleKeyDown);
+    if (ComfyApp.clipspace_return_node) {
+      this.saveButton.innerText = "Save to node";
+    } else {
+      this.saveButton.innerText = "Save";
+    }
+    this.saveButton.disabled = false;
+    this.element.style.display = "block";
+    this.element.style.width = "85%";
+    this.element.style.margin = "0 7.5%";
+    this.element.style.height = "100vh";
+    this.element.style.top = "50%";
+    this.element.style.left = "42%";
+    this.element.style.zIndex = "8888";
+    await this.setImages(this.imgCanvas);
+    this.is_visible = true;
+  }
+  isOpened() {
+    return this.element.style.display == "block";
+  }
+  invalidateCanvas(orig_image, mask_image) {
+    this.imgCanvas.width = orig_image.width;
+    this.imgCanvas.height = orig_image.height;
+    this.maskCanvas.width = orig_image.width;
+    this.maskCanvas.height = orig_image.height;
+    let imgCtx = this.imgCanvas.getContext("2d", { willReadFrequently: true });
+    let maskCtx = this.maskCanvas.getContext("2d", {
+      willReadFrequently: true
+    });
+    imgCtx.drawImage(orig_image, 0, 0, orig_image.width, orig_image.height);
+    prepare_mask(mask_image, this.maskCanvas, maskCtx, this.getMaskColor());
+  }
+  async setImages(imgCanvas) {
+    let self2 = this;
+    const imgCtx = imgCanvas.getContext("2d", { willReadFrequently: true });
+    const maskCtx = this.maskCtx;
+    const maskCanvas = this.maskCanvas;
+    imgCtx.clearRect(0, 0, this.imgCanvas.width, this.imgCanvas.height);
+    maskCtx.clearRect(0, 0, this.maskCanvas.width, this.maskCanvas.height);
+    const filepath = ComfyApp.clipspace.images;
+    const alpha_url = new URL(
+      ComfyApp.clipspace.imgs[ComfyApp.clipspace["selectedIndex"]].src
+    );
+    alpha_url.searchParams.delete("channel");
+    alpha_url.searchParams.delete("preview");
+    alpha_url.searchParams.set("channel", "a");
+    let mask_image = await loadImage(alpha_url);
+    const rgb_url = new URL(
+      ComfyApp.clipspace.imgs[ComfyApp.clipspace["selectedIndex"]].src
+    );
+    rgb_url.searchParams.delete("channel");
+    rgb_url.searchParams.set("channel", "rgb");
+    this.image = new Image();
+    this.image.onload = function() {
+      maskCanvas.width = self2.image.width;
+      maskCanvas.height = self2.image.height;
+      self2.invalidateCanvas(self2.image, mask_image);
+      self2.initializeCanvasPanZoom();
+    };
+    this.image.src = rgb_url.toString();
+  }
+  initializeCanvasPanZoom() {
+    let drawWidth = this.image.width;
+    let drawHeight = this.image.height;
+    let width = this.element.clientWidth;
+    let height = this.element.clientHeight;
+    if (this.image.width > width) {
+      drawWidth = width;
+      drawHeight = drawWidth / this.image.width * this.image.height;
+    }
+    if (drawHeight > height) {
+      drawHeight = height;
+      drawWidth = drawHeight / this.image.height * this.image.width;
+    }
+    this.zoom_ratio = drawWidth / this.image.width;
+    const canvasX = (width - drawWidth) / 2;
+    const canvasY = (height - drawHeight) / 2;
+    this.pan_x = canvasX;
+    this.pan_y = canvasY;
+    this.invalidatePanZoom();
+  }
+  invalidatePanZoom() {
+    let raw_width = this.image.width * this.zoom_ratio;
+    let raw_height = this.image.height * this.zoom_ratio;
+    if (this.pan_x + raw_width < 10) {
+      this.pan_x = 10 - raw_width;
+    }
+    if (this.pan_y + raw_height < 10) {
+      this.pan_y = 10 - raw_height;
+    }
+    let width = `${raw_width}px`;
+    let height = `${raw_height}px`;
+    let left = `${this.pan_x}px`;
+    let top = `${this.pan_y}px`;
+    this.maskCanvas.style.width = width;
+    this.maskCanvas.style.height = height;
+    this.maskCanvas.style.left = left;
+    this.maskCanvas.style.top = top;
+    this.imgCanvas.style.width = width;
+    this.imgCanvas.style.height = height;
+    this.imgCanvas.style.left = left;
+    this.imgCanvas.style.top = top;
+  }
+  setEventHandler(maskCanvas) {
+    const self2 = this;
+    if (!this.handler_registered) {
+      maskCanvas.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+      });
+      this.element.addEventListener(
+        "wheel",
+        (event) => this.handleWheelEvent(self2, event)
+      );
+      this.element.addEventListener(
+        "pointermove",
+        (event) => this.pointMoveEvent(self2, event)
+      );
+      this.element.addEventListener(
+        "touchmove",
+        (event) => this.pointMoveEvent(self2, event)
+      );
+      this.element.addEventListener("dragstart", (event) => {
+        if (event.ctrlKey) {
+          event.preventDefault();
+        }
+      });
+      maskCanvas.addEventListener(
+        "pointerdown",
+        (event) => this.handlePointerDown(self2, event)
+      );
+      maskCanvas.addEventListener(
+        "pointermove",
+        (event) => this.draw_move(self2, event)
+      );
+      maskCanvas.addEventListener(
+        "touchmove",
+        (event) => this.draw_move(self2, event)
+      );
+      maskCanvas.addEventListener("pointerover", (event) => {
+        this.brush.style.display = "block";
+      });
+      maskCanvas.addEventListener("pointerleave", (event) => {
+        this.brush.style.display = "none";
+      });
+      document.addEventListener(
+        "pointerup",
+        MaskEditorDialogOld.handlePointerUp
+      );
+      this.handler_registered = true;
+    }
+  }
+  getMaskCanvasStyle() {
+    if (this.brush_color_mode === "negative") {
+      return {
+        mixBlendMode: "difference",
+        opacity: "1"
+      };
+    } else {
+      return {
+        mixBlendMode: "initial",
+        opacity: this.brush_opacity
+      };
+    }
+  }
+  getMaskColor() {
+    if (this.brush_color_mode === "black") {
+      return { r: 0, g: 0, b: 0 };
+    }
+    if (this.brush_color_mode === "white") {
+      return { r: 255, g: 255, b: 255 };
+    }
+    if (this.brush_color_mode === "negative") {
+      return { r: 255, g: 255, b: 255 };
+    }
+    return { r: 0, g: 0, b: 0 };
+  }
+  getMaskFillStyle() {
+    const maskColor = this.getMaskColor();
+    return "rgb(" + maskColor.r + "," + maskColor.g + "," + maskColor.b + ")";
+  }
+  getColorButtonText() {
+    let colorCaption = "unknown";
+    if (this.brush_color_mode === "black") {
+      colorCaption = "black";
+    } else if (this.brush_color_mode === "white") {
+      colorCaption = "white";
+    } else if (this.brush_color_mode === "negative") {
+      colorCaption = "negative";
+    }
+    return "Color: " + colorCaption;
+  }
+  updateWhenBrushColorModeChanged() {
+    this.colorButton.innerText = this.getColorButtonText();
+    const maskCanvasStyle = this.getMaskCanvasStyle();
+    this.maskCanvas.style.mixBlendMode = maskCanvasStyle.mixBlendMode;
+    this.maskCanvas.style.opacity = maskCanvasStyle.opacity.toString();
+    const maskColor = this.getMaskColor();
+    const maskData = this.maskCtx.getImageData(
+      0,
+      0,
+      this.maskCanvas.width,
+      this.maskCanvas.height
+    );
+    for (let i = 0; i < maskData.data.length; i += 4) {
+      maskData.data[i] = maskColor.r;
+      maskData.data[i + 1] = maskColor.g;
+      maskData.data[i + 2] = maskColor.b;
+    }
+    this.maskCtx.putImageData(maskData, 0, 0);
+  }
+  brush_opacity = 0.7;
+  brush_size = 10;
+  brush_color_mode = "black";
+  drawing_mode = false;
+  lastx = -1;
+  lasty = -1;
+  lasttime = 0;
+  static handleKeyDown(event) {
+    const self2 = MaskEditorDialogOld.instance;
+    if (event.key === "]") {
+      self2.brush_size = Math.min(self2.brush_size + 2, 100);
+      self2.brush_slider_input.value = self2.brush_size;
+    } else if (event.key === "[") {
+      self2.brush_size = Math.max(self2.brush_size - 2, 1);
+      self2.brush_slider_input.value = self2.brush_size;
+    } else if (event.key === "Enter") {
+      self2.save();
+    }
+    self2.updateBrushPreview(self2);
+  }
+  static handlePointerUp(event) {
+    event.preventDefault();
+    this.mousedown_x = null;
+    this.mousedown_y = null;
+    MaskEditorDialogOld.instance.drawing_mode = false;
+  }
+  updateBrushPreview(self2) {
+    const brush = self2.brush;
+    var centerX = self2.cursorX;
+    var centerY = self2.cursorY;
+    brush.style.width = self2.brush_size * 2 * this.zoom_ratio + "px";
+    brush.style.height = self2.brush_size * 2 * this.zoom_ratio + "px";
+    brush.style.left = centerX - self2.brush_size * this.zoom_ratio + "px";
+    brush.style.top = centerY - self2.brush_size * this.zoom_ratio + "px";
+  }
+  handleWheelEvent(self2, event) {
+    event.preventDefault();
+    if (event.ctrlKey) {
+      if (event.deltaY < 0) {
+        this.zoom_ratio = Math.min(10, this.zoom_ratio + 0.2);
+      } else {
+        this.zoom_ratio = Math.max(0.2, this.zoom_ratio - 0.2);
+      }
+      this.invalidatePanZoom();
+    } else {
+      if (event.deltaY < 0) this.brush_size = Math.min(this.brush_size + 2, 100);
+      else this.brush_size = Math.max(this.brush_size - 2, 1);
+      this.brush_slider_input.value = this.brush_size.toString();
+      this.updateBrushPreview(this);
+    }
+  }
+  pointMoveEvent(self2, event) {
+    this.cursorX = event.pageX;
+    this.cursorY = event.pageY;
+    self2.updateBrushPreview(self2);
+    if (event.ctrlKey) {
+      event.preventDefault();
+      self2.pan_move(self2, event);
+    }
+    let left_button_down = window.TouchEvent && event instanceof TouchEvent || event.buttons == 1;
+    if (event.shiftKey && left_button_down) {
+      self2.drawing_mode = false;
+      const y = event.clientY;
+      let delta = (self2.zoom_lasty - y) * 5e-3;
+      self2.zoom_ratio = Math.max(
+        Math.min(10, self2.last_zoom_ratio - delta),
+        0.2
+      );
+      this.invalidatePanZoom();
+      return;
+    }
+  }
+  pan_move(self2, event) {
+    if (event.buttons == 1) {
+      if (MaskEditorDialogOld.mousedown_x) {
+        let deltaX = MaskEditorDialogOld.mousedown_x - event.clientX;
+        let deltaY = MaskEditorDialogOld.mousedown_y - event.clientY;
+        self2.pan_x = this.mousedown_pan_x - deltaX;
+        self2.pan_y = this.mousedown_pan_y - deltaY;
+        self2.invalidatePanZoom();
+      }
+    }
+  }
+  draw_move(self2, event) {
+    if (event.ctrlKey || event.shiftKey) {
+      return;
+    }
+    event.preventDefault();
+    this.cursorX = event.pageX;
+    this.cursorY = event.pageY;
+    self2.updateBrushPreview(self2);
+    let left_button_down = window.TouchEvent && event instanceof TouchEvent || event.buttons == 1;
+    let right_button_down = [2, 5, 32].includes(event.buttons);
+    if (!event.altKey && left_button_down) {
+      var diff = performance.now() - self2.lasttime;
+      const maskRect = self2.maskCanvas.getBoundingClientRect();
+      var x = event.offsetX;
+      var y = event.offsetY;
+      if (event.offsetX == null) {
+        x = event.targetTouches[0].clientX - maskRect.left;
+      }
+      if (event.offsetY == null) {
+        y = event.targetTouches[0].clientY - maskRect.top;
+      }
+      x /= self2.zoom_ratio;
+      y /= self2.zoom_ratio;
+      var brush_size = this.brush_size;
+      if (event instanceof PointerEvent && event.pointerType == "pen") {
+        brush_size *= event.pressure;
+        this.last_pressure = event.pressure;
+      } else if (window.TouchEvent && event instanceof TouchEvent && diff < 20) {
+        brush_size *= this.last_pressure;
+      } else {
+        brush_size = this.brush_size;
+      }
+      if (diff > 20 && !this.drawing_mode)
+        requestAnimationFrame(() => {
+          self2.init_shape(
+            self2,
+            "source-over"
+            /* SourceOver */
+          );
+          self2.draw_shape(self2, x, y, brush_size);
+          self2.lastx = x;
+          self2.lasty = y;
+        });
+      else
+        requestAnimationFrame(() => {
+          self2.init_shape(
+            self2,
+            "source-over"
+            /* SourceOver */
+          );
+          var dx = x - self2.lastx;
+          var dy = y - self2.lasty;
+          var distance = Math.sqrt(dx * dx + dy * dy);
+          var directionX = dx / distance;
+          var directionY = dy / distance;
+          for (var i = 0; i < distance; i += 5) {
+            var px2 = self2.lastx + directionX * i;
+            var py2 = self2.lasty + directionY * i;
+            self2.draw_shape(self2, px2, py2, brush_size);
+          }
+          self2.lastx = x;
+          self2.lasty = y;
+        });
+      self2.lasttime = performance.now();
+    } else if (event.altKey && left_button_down || right_button_down) {
+      const maskRect = self2.maskCanvas.getBoundingClientRect();
+      const x2 = (event.offsetX || event.targetTouches[0].clientX - maskRect.left) / self2.zoom_ratio;
+      const y2 = (event.offsetY || event.targetTouches[0].clientY - maskRect.top) / self2.zoom_ratio;
+      var brush_size = this.brush_size;
+      if (event instanceof PointerEvent && event.pointerType == "pen") {
+        brush_size *= event.pressure;
+        this.last_pressure = event.pressure;
+      } else if (window.TouchEvent && event instanceof TouchEvent && diff < 20) {
+        brush_size *= this.last_pressure;
+      } else {
+        brush_size = this.brush_size;
+      }
+      if (diff > 20 && !this.drawing_mode)
+        requestAnimationFrame(() => {
+          self2.init_shape(
+            self2,
+            "destination-out"
+            /* DestinationOut */
+          );
+          self2.draw_shape(self2, x2, y2, brush_size);
+          self2.lastx = x2;
+          self2.lasty = y2;
+        });
+      else
+        requestAnimationFrame(() => {
+          self2.init_shape(
+            self2,
+            "destination-out"
+            /* DestinationOut */
+          );
+          var dx = x2 - self2.lastx;
+          var dy = y2 - self2.lasty;
+          var distance = Math.sqrt(dx * dx + dy * dy);
+          var directionX = dx / distance;
+          var directionY = dy / distance;
+          for (var i = 0; i < distance; i += 5) {
+            var px2 = self2.lastx + directionX * i;
+            var py2 = self2.lasty + directionY * i;
+            self2.draw_shape(self2, px2, py2, brush_size);
+          }
+          self2.lastx = x2;
+          self2.lasty = y2;
+        });
+      self2.lasttime = performance.now();
+    }
+  }
+  handlePointerDown(self2, event) {
+    if (event.ctrlKey) {
+      if (event.buttons == 1) {
+        MaskEditorDialogOld.mousedown_x = event.clientX;
+        MaskEditorDialogOld.mousedown_y = event.clientY;
+        this.mousedown_pan_x = this.pan_x;
+        this.mousedown_pan_y = this.pan_y;
+      }
+      return;
+    }
+    var brush_size = this.brush_size;
+    if (event instanceof PointerEvent && event.pointerType == "pen") {
+      brush_size *= event.pressure;
+      this.last_pressure = event.pressure;
+    }
+    if ([0, 2, 5].includes(event.button)) {
+      self2.drawing_mode = true;
+      event.preventDefault();
+      if (event.shiftKey) {
+        self2.zoom_lasty = event.clientY;
+        self2.last_zoom_ratio = self2.zoom_ratio;
+        return;
+      }
+      const maskRect = self2.maskCanvas.getBoundingClientRect();
+      const x = (event.offsetX || event.targetTouches[0].clientX - maskRect.left) / self2.zoom_ratio;
+      const y = (event.offsetY || event.targetTouches[0].clientY - maskRect.top) / self2.zoom_ratio;
+      if (!event.altKey && event.button == 0) {
+        self2.init_shape(
+          self2,
+          "source-over"
+          /* SourceOver */
+        );
+      } else {
+        self2.init_shape(
+          self2,
+          "destination-out"
+          /* DestinationOut */
+        );
+      }
+      self2.draw_shape(self2, x, y, brush_size);
+      self2.lastx = x;
+      self2.lasty = y;
+      self2.lasttime = performance.now();
+    }
+  }
+  init_shape(self2, compositionOperation) {
+    self2.maskCtx.beginPath();
+    if (compositionOperation == "source-over") {
+      self2.maskCtx.fillStyle = this.getMaskFillStyle();
+      self2.maskCtx.globalCompositeOperation = "source-over";
+    } else if (compositionOperation == "destination-out") {
+      self2.maskCtx.globalCompositeOperation = "destination-out";
+    }
+  }
+  draw_shape(self2, x, y, brush_size) {
+    if (self2.pointer_type === "rect") {
+      self2.maskCtx.rect(
+        x - brush_size,
+        y - brush_size,
+        brush_size * 2,
+        brush_size * 2
+      );
+    } else {
+      self2.maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
+    }
+    self2.maskCtx.fill();
+  }
+  async save() {
+    const backupCanvas = document.createElement("canvas");
+    const backupCtx = backupCanvas.getContext("2d", {
+      willReadFrequently: true
+    });
+    backupCanvas.width = this.image.width;
+    backupCanvas.height = this.image.height;
+    backupCtx.clearRect(0, 0, backupCanvas.width, backupCanvas.height);
+    backupCtx.drawImage(
+      this.maskCanvas,
+      0,
+      0,
+      this.maskCanvas.width,
+      this.maskCanvas.height,
+      0,
+      0,
+      backupCanvas.width,
+      backupCanvas.height
+    );
+    const backupData = backupCtx.getImageData(
+      0,
+      0,
+      backupCanvas.width,
+      backupCanvas.height
+    );
+    for (let i = 0; i < backupData.data.length; i += 4) {
+      if (backupData.data[i + 3] == 255) backupData.data[i + 3] = 0;
+      else backupData.data[i + 3] = 255;
+      backupData.data[i] = 0;
+      backupData.data[i + 1] = 0;
+      backupData.data[i + 2] = 0;
+    }
+    backupCtx.globalCompositeOperation = "source-over";
+    backupCtx.putImageData(backupData, 0, 0);
+    const formData = new FormData();
+    const filename = "clipspace-mask-" + performance.now() + ".png";
+    const item = {
+      filename,
+      subfolder: "clipspace",
+      type: "input"
+    };
+    if (ComfyApp.clipspace.images) ComfyApp.clipspace.images[0] = item;
+    if (ComfyApp.clipspace.widgets) {
+      const index = ComfyApp.clipspace.widgets.findIndex(
+        (obj) => obj.name === "image"
+      );
+      if (index >= 0) ComfyApp.clipspace.widgets[index].value = item;
+    }
+    const dataURL = backupCanvas.toDataURL();
+    const blob = dataURLToBlob(dataURL);
+    let original_url = new URL(this.image.src);
+    const original_ref = {
+      filename: original_url.searchParams.get("filename")
+    };
+    let original_subfolder = original_url.searchParams.get("subfolder");
+    if (original_subfolder) original_ref.subfolder = original_subfolder;
+    let original_type = original_url.searchParams.get("type");
+    if (original_type) original_ref.type = original_type;
+    formData.append("image", blob, filename);
+    formData.append("original_ref", JSON.stringify(original_ref));
+    formData.append("type", "input");
+    formData.append("subfolder", "clipspace");
+    this.saveButton.innerText = "Saving...";
+    this.saveButton.disabled = true;
+    await uploadMask(item, formData);
+    ComfyApp.onClipspaceEditorSave();
+    this.close();
+  }
+}
+window.comfyAPI = window.comfyAPI || {};
+window.comfyAPI.maskEditorOld = window.comfyAPI.maskEditorOld || {};
+window.comfyAPI.maskEditorOld.MaskEditorDialogOld = MaskEditorDialogOld;
+var styles = `
+  #maskEditorContainer {
+    display: fixed;
+  }
+  #maskEditor_brush {
+    position: absolute;
+    backgroundColor: transparent;
+    z-index: 8889;
+    pointer-events: none;
+    border-radius: 50%;
+    overflow: visible;
+    outline: 1px dashed black;
+    box-shadow: 0 0 0 1px white;
+  }
+  #maskEditor_brushPreviewGradient {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    display: none;
+  }
+  #maskEditor {
+    display: block;
+    width: 100%;
+    height: 100vh;
+    left: 0;
+    z-index: 8888;
+    position: fixed;
+    background: rgba(50,50,50,0.75);
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+    user-select: none;
+  }
+  #maskEditor_sidePanelContainer {
+    height: 100%;
+    width: 220px;
+    z-index: 8888;
+    display: flex;
+    flex-direction: column;
+  }
+  #maskEditor_sidePanel {
+    background: var(--comfy-menu-bg);
+    height: 100%;
+    display: flex;
+    align-items: center;
+    overflow-y: hidden;
+    width: 220px;
+  }
+  #maskEditor_sidePanelShortcuts {
+    display: flex;
+    flex-direction: row;
+    width: 200px;
+    margin-top: 10px;
+    gap: 10px;
+    justify-content: center;
+  }
+  .maskEditor_sidePanelIconButton {
+    width: 40px;
+    height: 40px;
+    pointer-events: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background-color 0.1s;
+  }
+  .maskEditor_sidePanelIconButton:hover {
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+  #maskEditor_sidePanelBrushSettings {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 200px;
+    padding: 10px;
+  }
+  .maskEditor_sidePanelTitle {
+    text-align: center;
+    font-size: 15px;
+    font-family: sans-serif;
+    color: var(--descrip-text);
+    margin-top: 10px;
+  }
+  #maskEditor_sidePanelBrushShapeContainer {
+    display: flex;
+    width: 180px;
+    height: 50px;
+    border: 1px solid var(--border-color);
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.2);
+  }
+  #maskEditor_sidePanelBrushShapeCircle {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    pointer-events: auto;
+    transition: background 0.1s;
+    margin-left: 7.5px;
+  }
+  .maskEditor_sidePanelBrushRange {
+    width: 180px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+  }
+  .maskEditor_sidePanelBrushRange::-webkit-slider-thumb {
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    cursor: grab;
+    margin-top: -8px;
+    background: var(--p-surface-700);
+    border: 1px solid var(--border-color);
+  }
+  .maskEditor_sidePanelBrushRange::-moz-range-thumb {
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    cursor: grab;
+    background: var(--p-surface-800);
+    border: 1px solid var(--border-color);
+  }
+  .maskEditor_sidePanelBrushRange::-webkit-slider-runnable-track {
+    background: var(--p-surface-700);
+    height: 3px;
+  }
+  .maskEditor_sidePanelBrushRange::-moz-range-track {
+    background: var(--p-surface-700);
+    height: 3px;
+  }
+
+  #maskEditor_sidePanelBrushShapeSquare {
+    width: 35px;
+    height: 35px;
+    margin: 5px;
+    border: 1px solid var(--border-color);
+    pointer-events: auto;
+    transition: background 0.1s;
+  }
+
+  .maskEditor_brushShape_dark {
+    background: transparent;
+  }
+
+  .maskEditor_brushShape_dark:hover {
+    background: var(--p-surface-900);
+  }
+
+  .maskEditor_brushShape_light {
+    background: transparent;
+  }
+
+  .maskEditor_brushShape_light:hover {
+    background: var(--comfy-menu-bg);
+  }
+
+  #maskEditor_sidePanelImageLayerSettings {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 200px;
+    align-items: center;
+  }
+  .maskEditor_sidePanelLayer {
+    display: flex;
+    width: 200px;
+    height: 50px;
+  }
+  .maskEditor_sidePanelLayerVisibilityContainer {
+    width: 50px;
+    height: 50px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .maskEditor_sidePanelVisibilityToggle {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    pointer-events: auto;
+  }
+  .maskEditor_sidePanelLayerIconContainer {
+    width: 60px;
+    height: 50px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    fill: var(--input-text);
+  }
+  .maskEditor_sidePanelLayerIconContainer svg {
+    width: 30px;
+    height: 30px;
+  }
+  #maskEditor_sidePanelMaskLayerBlendingContainer {
+    width: 80px;
+    height: 50px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  #maskEditor_sidePanelMaskLayerBlendingSelect {
+    width: 80px;
+    height: 30px;
+    border: 1px solid var(--border-color);
+    background-color: rgba(0, 0, 0, 0.2);
+    color: var(--input-text);
+    font-family: sans-serif;
+    font-size: 15px;
+    pointer-events: auto;
+    transition: background-color border 0.1s;
+  }
+  #maskEditor_sidePanelClearCanvasButton:hover {
+    background-color: var(--p-overlaybadge-outline-color);
+    border: none;
+  }
+  #maskEditor_sidePanelClearCanvasButton {
+    width: 180px;
+    height: 30px;
+    border: none;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    color: var(--input-text);
+    font-family: sans-serif;
+    font-size: 15px;
+    pointer-events: auto;
+    transition: background-color 0.1s;
+  }
+  #maskEditor_sidePanelClearCanvasButton:hover {
+    background-color: var(--p-overlaybadge-outline-color);
+  }
+  #maskEditor_sidePanelHorizontalButtonContainer {
+    display: flex;
+    gap: 10px;
+    height: 40px;
+  }
+  .maskEditor_sidePanelBigButton {
+    width: 85px;
+    height: 30px;
+    border: none;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    color: var(--input-text);
+    font-family: sans-serif;
+    font-size: 15px;
+    pointer-events: auto;
+    transition: background-color border 0.1s;
+  }
+  .maskEditor_sidePanelBigButton:hover {
+    background-color: var(--p-overlaybadge-outline-color);
+    border: none;
+  }
+  #maskEditor_toolPanel {
+    height: 100%;
+    width: var(--sidebar-width);
+    z-index: 8888;
+    background: var(--comfy-menu-bg);
+    display: flex;
+    flex-direction: column;
+  }
+  .maskEditor_toolPanelContainer {
+    width: var(--sidebar-width);
+    height: var(--sidebar-width);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    transition: background-color 0.2s;
+  }
+  .maskEditor_toolPanelContainerSelected svg {
+    fill: var(--p-button-text-primary-color) !important;
+  }
+  .maskEditor_toolPanelContainerSelected .maskEditor_toolPanelIndicator {
+    display: block;
+  }
+  .maskEditor_toolPanelContainer svg {
+    width: 75%;
+    aspect-ratio: 1/1;
+    fill: var(--p-button-text-secondary-color);
+  }
+
+  .maskEditor_toolPanelContainerDark:hover {
+    background-color: var(--p-surface-800);
+  }
+
+  .maskEditor_toolPanelContainerLight:hover {
+    background-color: var(--p-surface-300);
+  }
+
+  .maskEditor_toolPanelIndicator {
+    display: none;
+    height: 100%;
+    width: 4px;
+    position: absolute;
+    left: 0;
+    background: var(--p-button-text-primary-color);
+  }
+  #maskEditor_sidePanelPaintBucketSettings {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 200px;
+    padding: 10px;
+  }
+  #canvasBackground {
+    background: white;
+    width: 100%;
+    height: 100%;
+  }
+  #maskEditor_sidePanelButtonsContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .maskEditor_sidePanelSeparator {
+    width: 200px;
+    height: 2px;
+    background: var(--border-color);
+    margin-top: 5px;
+    margin-bottom: 5px;
+  }
+  #maskEditor_pointerZone {
+    width: calc(100% - var(--sidebar-width) - 220px);
+    height: 100%;
+  }
+  #maskEditor_uiContainer {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    z-index: 8888;
+    display: flex;
+    flex-direction: column;
+  }
+  #maskEditorCanvasContainer {
+    position: absolute;
+    width: 1000px;
+    height: 667px;
+    left: 359px;
+    top: 280px;
+  }
+  #imageCanvas {
+    width: 100%;
+    height: 100%;
+  }
+  #maskCanvas {
+    width: 100%;
+    height: 100%;
+  }
+  #maskEditor_uiHorizontalContainer {
+    width: 100%;
+    height: 100%;
+    display: flex;
+  }
+  #maskEditor_topBar {
+    display: flex;
+    height: 44px;
+    align-items: center;
+    background: var(--comfy-menu-bg);
+  }
+  #maskEditor_topBarTitle {
+    margin: 0;
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+    font-size: 1.2em;
+  }
+  #maskEditor_topBarButtonContainer {
+    display: flex;
+    gap: 10px;
+    margin-right: 0.5rem;
+    position: absolute;
+    right: 0;
+    width: 200px;
+  }
+  #maskEditor_topBarShortcutsContainer {
+    display: flex;
+    gap: 10px;
+    margin-left: 5px;
+  }
+
+  .maskEditor_topPanelIconButton_dark {
+    width: 50px;
+    height: 30px;
+    pointer-events: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background-color 0.1s;
+    background: var(--p-surface-800);
+    border: 1px solid var(--p-form-field-border-color);
+    border-radius: 10px;
+  }
+
+  .maskEditor_topPanelIconButton_dark:hover {
+      background-color: var(--p-surface-900);
+  }
+
+  .maskEditor_topPanelIconButton_dark svg {
+    width: 25px;
+    height: 25px;
+    pointer-events: none;
+    fill: var(--input-text);
+  }
+
+  .maskEditor_topPanelIconButton_light {
+    width: 50px;
+    height: 30px;
+    pointer-events: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background-color 0.1s;
+    background: var(--comfy-menu-bg);
+    border: 1px solid var(--p-form-field-border-color);
+    border-radius: 10px;
+  }
+
+  .maskEditor_topPanelIconButton_light:hover {
+      background-color: var(--p-surface-300);
+  }
+
+  .maskEditor_topPanelIconButton_light svg {
+    width: 25px;
+    height: 25px;
+    pointer-events: none;
+    fill: var(--input-text);
+  }
+
+  .maskEditor_topPanelButton_dark {
+    height: 30px;
+    background: var(--p-surface-800);
+    border: 1px solid var(--p-form-field-border-color);
+    border-radius: 10px;
+    color: var(--input-text);
+    font-family: sans-serif;
+    pointer-events: auto;
+    transition: 0.1s;
+    width: 60px;
+  }
+
+  .maskEditor_topPanelButton_dark:hover {
+    background-color: var(--p-surface-900);
+  }
+
+  .maskEditor_topPanelButton_light {
+    height: 30px;
+    background: var(--comfy-menu-bg);
+    border: 1px solid var(--p-form-field-border-color);
+    border-radius: 10px;
+    color: var(--input-text);
+    font-family: sans-serif;
+    pointer-events: auto;
+    transition: 0.1s;
+    width: 60px;
+  }
+
+  .maskEditor_topPanelButton_light:hover {
+    background-color: var(--p-surface-300);
+  }
+
+
+  #maskEditor_sidePanelColorSelectSettings {
+    flex-direction: column;
+  }
+  
+  .maskEditor_sidePanel_paintBucket_Container {
+    width: 180px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  .maskEditor_sidePanel_colorSelect_Container {
+    display: flex;
+    width: 180px;
+    align-items: center;
+    gap: 5px;
+    height: 30px;
+  }
+  
+  #maskEditor_sidePanelVisibilityToggle {
+    position: absolute;
+    right: 0;
+  }
+
+  #maskEditor_sidePanelColorSelectMethodSelect {
+    position: absolute;
+    right: 0;
+    height: 30px;
+    border-radius: 0;
+    border: 1px solid var(--border-color);
+    background: rgba(0,0,0,0.2);
+  }
+
+  #maskEditor_sidePanelVisibilityToggle {
+    position: absolute;
+    right: 0;
+  }
+
+  .maskEditor_sidePanel_colorSelect_tolerance_container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .maskEditor_sidePanelContainerColumn {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .maskEditor_sidePanelContainerRow {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    align-items: center;
+    min-height: 24px;
+    position: relative;
+  }
+
+  .maskEditor_accent_bg_dark {
+    background: var(--p-surface-800);
+  }
+
+  .maskEditor_accent_bg_very_dark {
+    background: var(--p-surface-900);
+  }
+
+  .maskEditor_accent_bg_light {
+    background: var(--p-surface-300);
+  }
+
+  .maskEditor_accent_bg_very_light {
+    background: var(--comfy-menu-bg);
+  }
+
+  #maskEditor_paintBucketSettings {
+    display: none;
+  }
+
+  #maskEditor_colorSelectSettings {
+    display: none;
+  }
+
+  .maskEditor_sidePanelToggleContainer {
+    cursor: pointer;
+    display: inline-block;
+    position: absolute;
+    right: 0;
+  }
+
+  .maskEditor_toggle_bg_dark {
+    background: var(--p-surface-700);
+  }
+
+  .maskEditor_toggle_bg_light {
+    background: var(--p-surface-300);
+  }
+
+  .maskEditor_sidePanelToggleSwitch {
+    display: inline-block;
+    border-radius: 16px;
+    width: 40px;
+    height: 24px;
+    position: relative;
+    vertical-align: middle;
+    transition: background 0.25s;
+  }
+  .maskEditor_sidePanelToggleSwitch:before, .maskEditor_sidePanelToggleSwitch:after {
+    content: "";
+  }
+  .maskEditor_sidePanelToggleSwitch:before {
+    display: block;
+    background: linear-gradient(to bottom, #fff 0%, #eee 100%);
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    transition: ease 0.2s;
+  }
+  .maskEditor_sidePanelToggleContainer:hover .maskEditor_sidePanelToggleSwitch:before {
+    background: linear-gradient(to bottom, #fff 0%, #fff 100%);
+  }
+  .maskEditor_sidePanelToggleCheckbox:checked + .maskEditor_sidePanelToggleSwitch {
+    background: var(--p-button-text-primary-color);
+  }
+  .maskEditor_sidePanelToggleCheckbox:checked + .maskEditor_toggle_bg_dark:before {
+    background: var(--p-surface-900);
+  }
+  .maskEditor_sidePanelToggleCheckbox:checked + .maskEditor_toggle_bg_light:before {
+    background: var(--comfy-menu-bg);
+  }
+  .maskEditor_sidePanelToggleCheckbox:checked + .maskEditor_sidePanelToggleSwitch:before {
+    left: 20px;
+  }
+
+  .maskEditor_sidePanelToggleCheckbox {
+    position: absolute;
+    visibility: hidden;
+  }
+
+  .maskEditor_sidePanelDropdown_dark {
+    border: 1px solid var(--p-form-field-border-color);
+    background: var(--p-surface-900);
+    height: 24px;
+    padding-left: 5px;
+    padding-right: 5px;
+    border-radius: 6px;
+    transition: background 0.1s;
+  }
+
+  .maskEditor_sidePanelDropdown_dark option {
+    background: var(--p-surface-900);
+  }
+
+  .maskEditor_sidePanelDropdown_dark:focus {
+    outline: 1px solid var(--p-button-text-primary-color);
+  }
+
+  .maskEditor_sidePanelDropdown_dark option:hover {
+    background: white;
+  }
+  .maskEditor_sidePanelDropdown_dark option:active {
+    background: var(--p-highlight-background);
+  }
+
+  .maskEditor_sidePanelDropdown_light {
+    border: 1px solid var(--p-form-field-border-color);
+    background: var(--comfy-menu-bg);
+    height: 24px;
+    padding-left: 5px;
+    padding-right: 5px;
+    border-radius: 6px;
+    transition: background 0.1s;
+  }
+
+  .maskEditor_sidePanelDropdown_light option {
+    background: var(--comfy-menu-bg);
+  }
+
+  .maskEditor_sidePanelDropdown_light:focus {
+    outline: 1px solid var(--p-surface-300);
+  }
+
+  .maskEditor_sidePanelDropdown_light option:hover {
+    background: white;
+  }
+  .maskEditor_sidePanelDropdown_light option:active {
+    background: var(--p-surface-300);
+  }
+
+  .maskEditor_layerRow {
+    height: 50px;
+    width: 200px;
+    border-radius: 10px;
+  }
+
+  .maskEditor_sidePanelLayerPreviewContainer {
+    width: 40px;
+    height: 30px;
+  }
+
+  .maskEditor_sidePanelLayerPreviewContainer > svg{
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    fill: var(--p-surface-100);
+  }
+
+  #maskEditor_sidePanelImageLayerImage {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .maskEditor_sidePanelSubTitle {
+    text-align: left;
+    font-size: 12px;
+    font-family: sans-serif;
+    color: var(--descrip-text);
+  }
+
+  .maskEditor_containerDropdown {
+    position: absolute;
+    right: 0;
+  }
+
+  .maskEditor_sidePanelLayerCheckbox {
+    margin-left: 15px;
+  }
+
+  .maskEditor_toolPanelZoomIndicator {
+    width: var(--sidebar-width);
+    height: var(--sidebar-width);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    color: var(--p-button-text-secondary-color);
+    position: absolute;
+    bottom: 0;
+    transition: background-color 0.2s;
+  }
+
+  #maskEditor_toolPanelDimensionsText {
+    font-size: 12px;
+  }
+
+  #maskEditor_topBarSaveButton {
+    background: var(--p-primary-color) !important;
+    color: var(--p-button-primary-color) !important;
+  }
+
+  #maskEditor_topBarSaveButton:hover {
+    background: var(--p-primary-hover-color) !important;
+  }
+
+`;
+var styleSheet = document.createElement("style");
+styleSheet.type = "text/css";
+styleSheet.innerText = styles;
+document.head.appendChild(styleSheet);
+var BrushShape = /* @__PURE__ */ ((BrushShape2) => {
+  BrushShape2["Arc"] = "arc";
+  BrushShape2["Rect"] = "rect";
+  return BrushShape2;
+})(BrushShape || {});
+var Tools = /* @__PURE__ */ ((Tools2) => {
+  Tools2["Pen"] = "pen";
+  Tools2["Eraser"] = "eraser";
+  Tools2["PaintBucket"] = "paintBucket";
+  Tools2["ColorSelect"] = "colorSelect";
+  return Tools2;
+})(Tools || {});
+var CompositionOperation = /* @__PURE__ */ ((CompositionOperation2) => {
+  CompositionOperation2["SourceOver"] = "source-over";
+  CompositionOperation2["DestinationOut"] = "destination-out";
+  return CompositionOperation2;
+})(CompositionOperation || {});
+var MaskBlendMode = /* @__PURE__ */ ((MaskBlendMode2) => {
+  MaskBlendMode2["Black"] = "black";
+  MaskBlendMode2["White"] = "white";
+  MaskBlendMode2["Negative"] = "negative";
+  return MaskBlendMode2;
+})(MaskBlendMode || {});
+var ColorComparisonMethod = /* @__PURE__ */ ((ColorComparisonMethod2) => {
+  ColorComparisonMethod2["Simple"] = "simple";
+  ColorComparisonMethod2["HSL"] = "hsl";
+  ColorComparisonMethod2["LAB"] = "lab";
+  return ColorComparisonMethod2;
+})(ColorComparisonMethod || {});
+class MaskEditorDialog extends ComfyDialog {
+  static {
+    __name(this, "MaskEditorDialog");
+  }
+  static instance = null;
+  //new
+  uiManager;
+  toolManager;
+  panAndZoomManager;
+  brushTool;
+  paintBucketTool;
+  colorSelectTool;
+  canvasHistory;
+  messageBroker;
+  keyboardManager;
+  rootElement;
+  imageURL;
+  isLayoutCreated = false;
+  isOpen = false;
+  //variables needed?
+  last_display_style = null;
+  constructor() {
+    super();
+    this.rootElement = $el(
+      "div.maskEditor_hidden",
+      { parent: document.body },
+      []
+    );
+    this.element = this.rootElement;
+  }
+  static getInstance() {
+    if (!ComfyApp.clipspace || !ComfyApp.clipspace.imgs) {
+      throw new Error("No clipspace images found");
+    }
+    const currentSrc = ComfyApp.clipspace.imgs[ComfyApp.clipspace["selectedIndex"]].src;
+    if (!MaskEditorDialog.instance || currentSrc !== MaskEditorDialog.instance.imageURL) {
+      MaskEditorDialog.instance = new MaskEditorDialog();
+    }
+    return MaskEditorDialog.instance;
+  }
+  async show() {
+    this.cleanup();
+    if (!this.isLayoutCreated) {
+      this.messageBroker = new MessageBroker();
+      this.canvasHistory = new CanvasHistory(this, 20);
+      this.paintBucketTool = new PaintBucketTool(this);
+      this.brushTool = new BrushTool(this);
+      this.panAndZoomManager = new PanAndZoomManager(this);
+      this.toolManager = new ToolManager(this);
+      this.keyboardManager = new KeyboardManager(this);
+      this.uiManager = new UIManager(this.rootElement, this);
+      this.colorSelectTool = new ColorSelectTool(this);
+      const self2 = this;
+      const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          if (mutation.type === "attributes" && mutation.attributeName === "style") {
+            if (self2.last_display_style && self2.last_display_style != "none" && self2.element.style.display == "none") {
+              ComfyApp.onClipspaceEditorClosed();
+            }
+            self2.last_display_style = self2.element.style.display;
+          }
+        });
+      });
+      const config = { attributes: true };
+      observer.observe(this.rootElement, config);
+      this.isLayoutCreated = true;
+      await this.uiManager.setlayout();
+    }
+    this.rootElement.id = "maskEditor";
+    this.rootElement.style.display = "flex";
+    this.element.style.display = "flex";
+    await this.uiManager.initUI();
+    this.paintBucketTool.initPaintBucketTool();
+    this.colorSelectTool.initColorSelectTool();
+    await this.canvasHistory.saveInitialState();
+    this.isOpen = true;
+    if (ComfyApp.clipspace && ComfyApp.clipspace.imgs) {
+      this.uiManager.setSidebarImage();
+    }
+    this.keyboardManager.addListeners();
+  }
+  cleanup() {
+    const maskEditors = document.querySelectorAll('[id^="maskEditor"]');
+    maskEditors.forEach((element) => element.remove());
+    const brushElements = document.querySelectorAll("#maskEditor_brush");
+    brushElements.forEach((element) => element.remove());
+  }
+  isOpened() {
+    return this.isOpen;
+  }
+  async save() {
+    const backupCanvas = document.createElement("canvas");
+    const imageCanvas = this.uiManager.getImgCanvas();
+    const maskCanvas = this.uiManager.getMaskCanvas();
+    const image = this.uiManager.getImage();
+    const backupCtx = backupCanvas.getContext("2d", {
+      willReadFrequently: true
+    });
+    backupCanvas.width = imageCanvas.width;
+    backupCanvas.height = imageCanvas.height;
+    if (!backupCtx) {
+      return;
+    }
+    const maskImageLoaded = new Promise((resolve, reject) => {
+      const maskImage = new Image();
+      maskImage.src = maskCanvas.toDataURL();
+      maskImage.onload = () => {
+        resolve();
+      };
+      maskImage.onerror = (error) => {
+        reject(error);
+      };
+    });
+    try {
+      await maskImageLoaded;
+    } catch (error) {
+      console.error("Error loading mask image:", error);
+      return;
+    }
+    backupCtx.clearRect(0, 0, backupCanvas.width, backupCanvas.height);
+    backupCtx.drawImage(
+      maskCanvas,
+      0,
+      0,
+      maskCanvas.width,
+      maskCanvas.height,
+      0,
+      0,
+      backupCanvas.width,
+      backupCanvas.height
+    );
+    let maskHasContent = false;
+    const maskData = backupCtx.getImageData(
+      0,
+      0,
+      backupCanvas.width,
+      backupCanvas.height
+    );
+    for (let i = 0; i < maskData.data.length; i += 4) {
+      if (maskData.data[i + 3] !== 0) {
+        maskHasContent = true;
+        break;
+      }
+    }
+    const backupData = backupCtx.getImageData(
+      0,
+      0,
+      backupCanvas.width,
+      backupCanvas.height
+    );
+    let backupHasContent = false;
+    for (let i = 0; i < backupData.data.length; i += 4) {
+      if (backupData.data[i + 3] !== 0) {
+        backupHasContent = true;
+        break;
+      }
+    }
+    if (maskHasContent && !backupHasContent) {
+      console.error("Mask appears to be empty");
+      alert("Cannot save empty mask");
+      return;
+    }
+    for (let i = 0; i < backupData.data.length; i += 4) {
+      const alpha = backupData.data[i + 3];
+      backupData.data[i] = 0;
+      backupData.data[i + 1] = 0;
+      backupData.data[i + 2] = 0;
+      backupData.data[i + 3] = 255 - alpha;
+    }
+    backupCtx.globalCompositeOperation = "source-over";
+    backupCtx.putImageData(backupData, 0, 0);
+    const formData = new FormData();
+    const filename = "clipspace-mask-" + performance.now() + ".png";
+    const item = {
+      filename,
+      subfolder: "clipspace",
+      type: "input"
+    };
+    if (ComfyApp?.clipspace?.widgets?.length) {
+      const index = ComfyApp.clipspace.widgets.findIndex(
+        (obj) => obj?.name === "image"
+      );
+      if (index >= 0 && item !== void 0) {
+        try {
+          ComfyApp.clipspace.widgets[index].value = item;
+        } catch (err2) {
+          console.warn("Failed to set widget value:", err2);
+        }
+      }
+    }
+    const dataURL = backupCanvas.toDataURL();
+    const blob = this.dataURLToBlob(dataURL);
+    let original_url = new URL(image.src);
+    this.uiManager.setBrushOpacity(0);
+    const filenameRef = original_url.searchParams.get("filename");
+    if (!filenameRef) {
+      throw new Error("filename parameter is required");
+    }
+    const original_ref = {
+      filename: filenameRef
+    };
+    let original_subfolder = original_url.searchParams.get("subfolder");
+    if (original_subfolder) original_ref.subfolder = original_subfolder;
+    let original_type = original_url.searchParams.get("type");
+    if (original_type) original_ref.type = original_type;
+    formData.append("image", blob, filename);
+    formData.append("original_ref", JSON.stringify(original_ref));
+    formData.append("type", "input");
+    formData.append("subfolder", "clipspace");
+    this.uiManager.setSaveButtonText("Saving");
+    this.uiManager.setSaveButtonEnabled(false);
+    this.keyboardManager.removeListeners();
+    const maxRetries = 3;
+    let attempt = 0;
+    let success = false;
+    while (attempt < maxRetries && !success) {
+      try {
+        await this.uploadMask(item, formData);
+        success = true;
+      } catch (error) {
+        console.error(`Upload attempt ${attempt + 1} failed:`, error);
+        attempt++;
+        if (attempt < maxRetries) {
+          console.log("Retrying upload...");
+        } else {
+          console.log("Max retries reached. Upload failed.");
+        }
+      }
+    }
+    if (success) {
+      ComfyApp.onClipspaceEditorSave();
+      this.close();
+      this.isOpen = false;
+    } else {
+      this.uiManager.setSaveButtonText("Save");
+      this.uiManager.setSaveButtonEnabled(true);
+      this.keyboardManager.addListeners();
+    }
+  }
+  getMessageBroker() {
+    return this.messageBroker;
+  }
+  // Helper function to convert a data URL to a Blob object
+  dataURLToBlob(dataURL) {
+    const parts = dataURL.split(";base64,");
+    const contentType = parts[0].split(":")[1];
+    const byteString = atob(parts[1]);
+    const arrayBuffer = new ArrayBuffer(byteString.length);
+    const uint8Array = new Uint8Array(arrayBuffer);
+    for (let i = 0; i < byteString.length; i++) {
+      uint8Array[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([arrayBuffer], { type: contentType });
+  }
+  async uploadMask(filepath, formData, retries = 3) {
+    if (retries <= 0) {
+      throw new Error("Max retries reached");
+      return;
+    }
+    await api.fetchApi("/upload/mask", {
+      method: "POST",
+      body: formData
+    }).then((response) => {
+      if (!response.ok) {
+        console.log("Failed to upload mask:", response);
+        this.uploadMask(filepath, formData, 2);
+      }
+    }).catch((error) => {
+      console.error("Error:", error);
+    });
+    try {
+      const selectedIndex = ComfyApp.clipspace?.selectedIndex;
+      if (ComfyApp.clipspace?.imgs && selectedIndex !== void 0) {
+        const newImage = new Image();
+        newImage.src = api.apiURL(
+          "/view?" + new URLSearchParams(filepath).toString() + app.getPreviewFormatParam() + app.getRandParam()
+        );
+        ComfyApp.clipspace.imgs[selectedIndex] = newImage;
+        if (ComfyApp.clipspace.images) {
+          ComfyApp.clipspace.images[selectedIndex] = filepath;
+        }
+      }
+    } catch (err2) {
+      console.warn("Failed to update clipspace image:", err2);
+    }
+    ClipspaceDialog.invalidatePreview();
+  }
+}
+class CanvasHistory {
+  static {
+    __name(this, "CanvasHistory");
+  }
+  maskEditor;
+  messageBroker;
+  canvas;
+  ctx;
+  states = [];
+  currentStateIndex = -1;
+  maxStates = 20;
+  initialized = false;
+  constructor(maskEditor, maxStates = 20) {
+    this.maskEditor = maskEditor;
+    this.messageBroker = maskEditor.getMessageBroker();
+    this.maxStates = maxStates;
+    this.createListeners();
+  }
+  async pullCanvas() {
+    this.canvas = await this.messageBroker.pull("maskCanvas");
+    this.ctx = await this.messageBroker.pull("maskCtx");
+  }
+  createListeners() {
+    this.messageBroker.subscribe("saveState", () => this.saveState());
+    this.messageBroker.subscribe("undo", () => this.undo());
+    this.messageBroker.subscribe("redo", () => this.redo());
+  }
+  clearStates() {
+    this.states = [];
+    this.currentStateIndex = -1;
+    this.initialized = false;
+  }
+  async saveInitialState() {
+    await this.pullCanvas();
+    if (!this.canvas.width || !this.canvas.height) {
+      requestAnimationFrame(() => this.saveInitialState());
+      return;
+    }
+    this.clearStates();
+    const state = this.ctx.getImageData(
+      0,
+      0,
+      this.canvas.width,
+      this.canvas.height
+    );
+    this.states.push(state);
+    this.currentStateIndex = 0;
+    this.initialized = true;
+  }
+  saveState() {
+    if (!this.initialized || this.currentStateIndex === -1) {
+      this.saveInitialState();
+      return;
+    }
+    this.states = this.states.slice(0, this.currentStateIndex + 1);
+    const state = this.ctx.getImageData(
+      0,
+      0,
+      this.canvas.width,
+      this.canvas.height
+    );
+    this.states.push(state);
+    this.currentStateIndex++;
+    if (this.states.length > this.maxStates) {
+      this.states.shift();
+      this.currentStateIndex--;
+    }
+  }
+  undo() {
+    if (this.states.length > 1 && this.currentStateIndex > 0) {
+      this.currentStateIndex--;
+      this.restoreState(this.states[this.currentStateIndex]);
+    } else {
+      alert("No more undo states available");
+    }
+  }
+  redo() {
+    if (this.states.length > 1 && this.currentStateIndex < this.states.length - 1) {
+      this.currentStateIndex++;
+      this.restoreState(this.states[this.currentStateIndex]);
+    } else {
+      alert("No more redo states available");
+    }
+  }
+  restoreState(state) {
+    if (state && this.initialized) {
+      this.ctx.putImageData(state, 0, 0);
+    }
+  }
+}
+class PaintBucketTool {
+  static {
+    __name(this, "PaintBucketTool");
+  }
+  maskEditor;
+  messageBroker;
+  canvas;
+  ctx;
+  width = null;
+  height = null;
+  imageData = null;
+  data = null;
+  tolerance = 5;
+  constructor(maskEditor) {
+    this.maskEditor = maskEditor;
+    this.messageBroker = maskEditor.getMessageBroker();
+    this.createListeners();
+    this.addPullTopics();
+  }
+  initPaintBucketTool() {
+    this.pullCanvas();
+  }
+  async pullCanvas() {
+    this.canvas = await this.messageBroker.pull("maskCanvas");
+    this.ctx = await this.messageBroker.pull("maskCtx");
+  }
+  createListeners() {
+    this.messageBroker.subscribe(
+      "setPaintBucketTolerance",
+      (tolerance) => this.setTolerance(tolerance)
+    );
+    this.messageBroker.subscribe(
+      "paintBucketFill",
+      (point) => this.floodFill(point)
+    );
+    this.messageBroker.subscribe("invert", () => this.invertMask());
+  }
+  addPullTopics() {
+    this.messageBroker.createPullTopic(
+      "getTolerance",
+      async () => this.tolerance
+    );
+  }
+  getPixel(x, y) {
+    return this.data[(y * this.width + x) * 4 + 3];
+  }
+  setPixel(x, y, alpha, color) {
+    const index = (y * this.width + x) * 4;
+    this.data[index] = color.r;
+    this.data[index + 1] = color.g;
+    this.data[index + 2] = color.b;
+    this.data[index + 3] = alpha;
+  }
+  shouldProcessPixel(currentAlpha, targetAlpha, tolerance, isFillMode) {
+    if (currentAlpha === -1) return false;
+    if (isFillMode) {
+      return currentAlpha !== 255 && Math.abs(currentAlpha - targetAlpha) <= tolerance;
+    } else {
+      return currentAlpha === 255 || Math.abs(currentAlpha - targetAlpha) <= tolerance;
+    }
+  }
+  async floodFill(point) {
+    let startX = Math.floor(point.x);
+    let startY = Math.floor(point.y);
+    this.width = this.canvas.width;
+    this.height = this.canvas.height;
+    if (startX < 0 || startX >= this.width || startY < 0 || startY >= this.height) {
+      return;
+    }
+    this.imageData = this.ctx.getImageData(0, 0, this.width, this.height);
+    this.data = this.imageData.data;
+    const targetAlpha = this.getPixel(startX, startY);
+    const isFillMode = targetAlpha !== 255;
+    if (targetAlpha === -1) return;
+    const maskColor = await this.messageBroker.pull("getMaskColor");
+    const stack = [];
+    const visited = new Uint8Array(this.width * this.height);
+    if (this.shouldProcessPixel(
+      targetAlpha,
+      targetAlpha,
+      this.tolerance,
+      isFillMode
+    )) {
+      stack.push([startX, startY]);
+    }
+    while (stack.length > 0) {
+      const [x, y] = stack.pop();
+      const visitedIndex = y * this.width + x;
+      if (visited[visitedIndex]) continue;
+      const currentAlpha = this.getPixel(x, y);
+      if (!this.shouldProcessPixel(
+        currentAlpha,
+        targetAlpha,
+        this.tolerance,
+        isFillMode
+      )) {
+        continue;
+      }
+      visited[visitedIndex] = 1;
+      this.setPixel(x, y, isFillMode ? 255 : 0, maskColor);
+      const checkNeighbor = /* @__PURE__ */ __name((nx, ny) => {
+        if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) return;
+        if (!visited[ny * this.width + nx]) {
+          const alpha = this.getPixel(nx, ny);
+          if (this.shouldProcessPixel(
+            alpha,
+            targetAlpha,
+            this.tolerance,
+            isFillMode
+          )) {
+            stack.push([nx, ny]);
+          }
+        }
+      }, "checkNeighbor");
+      checkNeighbor(x - 1, y);
+      checkNeighbor(x + 1, y);
+      checkNeighbor(x, y - 1);
+      checkNeighbor(x, y + 1);
+    }
+    this.ctx.putImageData(this.imageData, 0, 0);
+    this.imageData = null;
+    this.data = null;
+  }
+  setTolerance(tolerance) {
+    this.tolerance = tolerance;
+  }
+  getTolerance() {
+    return this.tolerance;
+  }
+  //invert mask
+  invertMask() {
+    const imageData = this.ctx.getImageData(
+      0,
+      0,
+      this.canvas.width,
+      this.canvas.height
+    );
+    const data = imageData.data;
+    let maskR = 0, maskG = 0, maskB = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] > 0) {
+        maskR = data[i];
+        maskG = data[i + 1];
+        maskB = data[i + 2];
+        break;
+      }
+    }
+    for (let i = 0; i < data.length; i += 4) {
+      const alpha = data[i + 3];
+      data[i + 3] = 255 - alpha;
+      if (alpha === 0) {
+        data[i] = maskR;
+        data[i + 1] = maskG;
+        data[i + 2] = maskB;
+      }
+    }
+    this.ctx.putImageData(imageData, 0, 0);
+    this.messageBroker.publish("saveState");
+  }
+}
+class ColorSelectTool {
+  static {
+    __name(this, "ColorSelectTool");
+  }
+  maskEditor;
+  messageBroker;
+  width = null;
+  height = null;
+  canvas;
+  maskCTX;
+  imageCTX;
+  maskData = null;
+  imageData = null;
+  tolerance = 20;
+  livePreview = false;
+  lastPoint = null;
+  colorComparisonMethod = "simple";
+  applyWholeImage = false;
+  maskBoundry = false;
+  maskTolerance = 0;
+  constructor(maskEditor) {
+    this.maskEditor = maskEditor;
+    this.messageBroker = maskEditor.getMessageBroker();
+    this.createListeners();
+    this.addPullTopics();
+  }
+  async initColorSelectTool() {
+    await this.pullCanvas();
+  }
+  async pullCanvas() {
+    this.canvas = await this.messageBroker.pull("imgCanvas");
+    this.maskCTX = await this.messageBroker.pull("maskCtx");
+    this.imageCTX = await this.messageBroker.pull("imageCtx");
+  }
+  createListeners() {
+    this.messageBroker.subscribe(
+      "colorSelectFill",
+      (point) => this.fillColorSelection(point)
+    );
+    this.messageBroker.subscribe(
+      "setColorSelectTolerance",
+      (tolerance) => this.setTolerance(tolerance)
+    );
+    this.messageBroker.subscribe(
+      "setLivePreview",
+      (livePreview) => this.setLivePreview(livePreview)
+    );
+    this.messageBroker.subscribe(
+      "setColorComparisonMethod",
+      (method) => this.setComparisonMethod(method)
+    );
+    this.messageBroker.subscribe("clearLastPoint", () => this.clearLastPoint());
+    this.messageBroker.subscribe(
+      "setWholeImage",
+      (applyWholeImage) => this.setApplyWholeImage(applyWholeImage)
+    );
+    this.messageBroker.subscribe(
+      "setMaskBoundary",
+      (maskBoundry) => this.setMaskBoundary(maskBoundry)
+    );
+    this.messageBroker.subscribe(
+      "setMaskTolerance",
+      (maskTolerance) => this.setMaskTolerance(maskTolerance)
+    );
+  }
+  async addPullTopics() {
+    this.messageBroker.createPullTopic(
+      "getLivePreview",
+      async () => this.livePreview
+    );
+  }
+  getPixel(x, y) {
+    const index = (y * this.width + x) * 4;
+    return {
+      r: this.imageData[index],
+      g: this.imageData[index + 1],
+      b: this.imageData[index + 2]
+    };
+  }
+  getMaskAlpha(x, y) {
+    return this.maskData[(y * this.width + x) * 4 + 3];
+  }
+  isPixelInRange(pixel, target) {
+    switch (this.colorComparisonMethod) {
+      case "simple":
+        return this.isPixelInRangeSimple(pixel, target);
+      case "hsl":
+        return this.isPixelInRangeHSL(pixel, target);
+      case "lab":
+        return this.isPixelInRangeLab(pixel, target);
+      default:
+        return this.isPixelInRangeSimple(pixel, target);
+    }
+  }
+  isPixelInRangeSimple(pixel, target) {
+    const distance = Math.sqrt(
+      Math.pow(pixel.r - target.r, 2) + Math.pow(pixel.g - target.g, 2) + Math.pow(pixel.b - target.b, 2)
+    );
+    return distance <= this.tolerance;
+  }
+  isPixelInRangeHSL(pixel, target) {
+    const pixelHSL = this.rgbToHSL(pixel.r, pixel.g, pixel.b);
+    const targetHSL = this.rgbToHSL(target.r, target.g, target.b);
+    const hueDiff = Math.abs(pixelHSL.h - targetHSL.h);
+    const satDiff = Math.abs(pixelHSL.s - targetHSL.s);
+    const lightDiff = Math.abs(pixelHSL.l - targetHSL.l);
+    const distance = Math.sqrt(
+      Math.pow(hueDiff / 360 * 255, 2) + Math.pow(satDiff / 100 * 255, 2) + Math.pow(lightDiff / 100 * 255, 2)
+    );
+    return distance <= this.tolerance;
+  }
+  rgbToHSL(r, g, b) {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const max2 = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0, s = 0, l = (max2 + min) / 2;
+    if (max2 !== min) {
+      const d = max2 - min;
+      s = l > 0.5 ? d / (2 - max2 - min) : d / (max2 + min);
+      switch (max2) {
+        case r:
+          h = (g - b) / d + (g < b ? 6 : 0);
+          break;
+        case g:
+          h = (b - r) / d + 2;
+          break;
+        case b:
+          h = (r - g) / d + 4;
+          break;
+      }
+      h /= 6;
+    }
+    return {
+      h: h * 360,
+      s: s * 100,
+      l: l * 100
+    };
+  }
+  isPixelInRangeLab(pixel, target) {
+    const pixelLab = this.rgbToLab(pixel);
+    const targetLab = this.rgbToLab(target);
+    const deltaE = Math.sqrt(
+      Math.pow(pixelLab.l - targetLab.l, 2) + Math.pow(pixelLab.a - targetLab.a, 2) + Math.pow(pixelLab.b - targetLab.b, 2)
+    );
+    const normalizedDeltaE = deltaE / 100 * 255;
+    return normalizedDeltaE <= this.tolerance;
+  }
+  rgbToLab(rgb) {
+    let r = rgb.r / 255;
+    let g = rgb.g / 255;
+    let b = rgb.b / 255;
+    r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+    g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+    b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+    r *= 100;
+    g *= 100;
+    b *= 100;
+    const x = r * 0.4124 + g * 0.3576 + b * 0.1805;
+    const y = r * 0.2126 + g * 0.7152 + b * 0.0722;
+    const z = r * 0.0193 + g * 0.1192 + b * 0.9505;
+    const xn = 95.047;
+    const yn = 100;
+    const zn = 108.883;
+    const xyz = [x / xn, y / yn, z / zn];
+    for (let i = 0; i < xyz.length; i++) {
+      xyz[i] = xyz[i] > 8856e-6 ? Math.pow(xyz[i], 1 / 3) : 7.787 * xyz[i] + 16 / 116;
+    }
+    return {
+      l: 116 * xyz[1] - 16,
+      a: 500 * (xyz[0] - xyz[1]),
+      b: 200 * (xyz[1] - xyz[2])
+    };
+  }
+  setPixel(x, y, alpha, color) {
+    const index = (y * this.width + x) * 4;
+    this.maskData[index] = color.r;
+    this.maskData[index + 1] = color.g;
+    this.maskData[index + 2] = color.b;
+    this.maskData[index + 3] = alpha;
+  }
+  async fillColorSelection(point) {
+    this.width = this.canvas.width;
+    this.height = this.canvas.height;
+    this.lastPoint = point;
+    const maskData = this.maskCTX.getImageData(0, 0, this.width, this.height);
+    this.maskData = maskData.data;
+    this.imageData = this.imageCTX.getImageData(
+      0,
+      0,
+      this.width,
+      this.height
+    ).data;
+    if (this.applyWholeImage) {
+      const targetPixel = this.getPixel(
+        Math.floor(point.x),
+        Math.floor(point.y)
+      );
+      const maskColor = await this.messageBroker.pull("getMaskColor");
+      const width = this.width;
+      const height = this.height;
+      const CHUNK_SIZE = 1e4;
+      for (let i = 0; i < width * height; i += CHUNK_SIZE) {
+        const endIndex = Math.min(i + CHUNK_SIZE, width * height);
+        for (let pixelIndex = i; pixelIndex < endIndex; pixelIndex++) {
+          const x = pixelIndex % width;
+          const y = Math.floor(pixelIndex / width);
+          if (this.isPixelInRange(this.getPixel(x, y), targetPixel)) {
+            this.setPixel(x, y, 255, maskColor);
+          }
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    } else {
+      let startX = Math.floor(point.x);
+      let startY = Math.floor(point.y);
+      if (startX < 0 || startX >= this.width || startY < 0 || startY >= this.height) {
+        return;
+      }
+      const pixel = this.getPixel(startX, startY);
+      const stack = [];
+      const visited = new Uint8Array(this.width * this.height);
+      stack.push([startX, startY]);
+      const maskColor = await this.messageBroker.pull("getMaskColor");
+      while (stack.length > 0) {
+        const [x, y] = stack.pop();
+        const visitedIndex = y * this.width + x;
+        if (visited[visitedIndex] || !this.isPixelInRange(this.getPixel(x, y), pixel)) {
+          continue;
+        }
+        visited[visitedIndex] = 1;
+        this.setPixel(x, y, 255, maskColor);
+        if (x > 0 && !visited[y * this.width + (x - 1)] && this.isPixelInRange(this.getPixel(x - 1, y), pixel)) {
+          if (!this.maskBoundry || 255 - this.getMaskAlpha(x - 1, y) > this.maskTolerance) {
+            stack.push([x - 1, y]);
+          }
+        }
+        if (x < this.width - 1 && !visited[y * this.width + (x + 1)] && this.isPixelInRange(this.getPixel(x + 1, y), pixel)) {
+          if (!this.maskBoundry || 255 - this.getMaskAlpha(x + 1, y) > this.maskTolerance) {
+            stack.push([x + 1, y]);
+          }
+        }
+        if (y > 0 && !visited[(y - 1) * this.width + x] && this.isPixelInRange(this.getPixel(x, y - 1), pixel)) {
+          if (!this.maskBoundry || 255 - this.getMaskAlpha(x, y - 1) > this.maskTolerance) {
+            stack.push([x, y - 1]);
+          }
+        }
+        if (y < this.height - 1 && !visited[(y + 1) * this.width + x] && this.isPixelInRange(this.getPixel(x, y + 1), pixel)) {
+          if (!this.maskBoundry || 255 - this.getMaskAlpha(x, y + 1) > this.maskTolerance) {
+            stack.push([x, y + 1]);
+          }
+        }
+      }
+    }
+    this.maskCTX.putImageData(maskData, 0, 0);
+    this.messageBroker.publish("saveState");
+    this.maskData = null;
+    this.imageData = null;
+  }
+  setTolerance(tolerance) {
+    this.tolerance = tolerance;
+    if (this.lastPoint && this.livePreview) {
+      this.messageBroker.publish("undo");
+      this.fillColorSelection(this.lastPoint);
+    }
+  }
+  setLivePreview(livePreview) {
+    this.livePreview = livePreview;
+  }
+  setComparisonMethod(method) {
+    this.colorComparisonMethod = method;
+    if (this.lastPoint && this.livePreview) {
+      this.messageBroker.publish("undo");
+      this.fillColorSelection(this.lastPoint);
+    }
+  }
+  clearLastPoint() {
+    this.lastPoint = null;
+  }
+  setApplyWholeImage(applyWholeImage) {
+    this.applyWholeImage = applyWholeImage;
+  }
+  setMaskBoundary(maskBoundry) {
+    this.maskBoundry = maskBoundry;
+  }
+  setMaskTolerance(maskTolerance) {
+    this.maskTolerance = maskTolerance;
+  }
+}
+class BrushTool {
+  static {
+    __name(this, "BrushTool");
+  }
+  brushSettings;
+  //this saves the current brush settings
+  maskBlendMode;
+  isDrawing = false;
+  isDrawingLine = false;
+  lineStartPoint = null;
+  smoothingPrecision = 10;
+  smoothingCordsArray = [];
+  smoothingLastDrawTime;
+  maskCtx = null;
+  initialDraw = true;
+  brushStrokeCanvas = null;
+  brushStrokeCtx = null;
+  //brush adjustment
+  isBrushAdjusting = false;
+  brushPreviewGradient = null;
+  initialPoint = null;
+  useDominantAxis = false;
+  brushAdjustmentSpeed = 1;
+  maskEditor;
+  messageBroker;
+  constructor(maskEditor) {
+    this.maskEditor = maskEditor;
+    this.messageBroker = maskEditor.getMessageBroker();
+    this.createListeners();
+    this.addPullTopics();
+    this.useDominantAxis = app.extensionManager.setting.get(
+      "Comfy.MaskEditor.UseDominantAxis"
+    );
+    this.brushAdjustmentSpeed = app.extensionManager.setting.get(
+      "Comfy.MaskEditor.BrushAdjustmentSpeed"
+    );
+    this.brushSettings = {
+      size: 10,
+      opacity: 100,
+      hardness: 1,
+      type: "arc"
+      /* Arc */
+    };
+    this.maskBlendMode = "black";
+  }
+  createListeners() {
+    this.messageBroker.subscribe(
+      "setBrushSize",
+      (size) => this.setBrushSize(size)
+    );
+    this.messageBroker.subscribe(
+      "setBrushOpacity",
+      (opacity) => this.setBrushOpacity(opacity)
+    );
+    this.messageBroker.subscribe(
+      "setBrushHardness",
+      (hardness) => this.setBrushHardness(hardness)
+    );
+    this.messageBroker.subscribe(
+      "setBrushShape",
+      (type) => this.setBrushType(type)
+    );
+    this.messageBroker.subscribe(
+      "setBrushSmoothingPrecision",
+      (precision) => this.setBrushSmoothingPrecision(precision)
+    );
+    this.messageBroker.subscribe(
+      "brushAdjustmentStart",
+      (event) => this.startBrushAdjustment(event)
+    );
+    this.messageBroker.subscribe(
+      "brushAdjustment",
+      (event) => this.handleBrushAdjustment(event)
+    );
+    this.messageBroker.subscribe(
+      "drawStart",
+      (event) => this.startDrawing(event)
+    );
+    this.messageBroker.subscribe(
+      "draw",
+      (event) => this.handleDrawing(event)
+    );
+    this.messageBroker.subscribe(
+      "drawEnd",
+      (event) => this.drawEnd(event)
+    );
+  }
+  addPullTopics() {
+    this.messageBroker.createPullTopic(
+      "brushSize",
+      async () => this.brushSettings.size
+    );
+    this.messageBroker.createPullTopic(
+      "brushOpacity",
+      async () => this.brushSettings.opacity
+    );
+    this.messageBroker.createPullTopic(
+      "brushHardness",
+      async () => this.brushSettings.hardness
+    );
+    this.messageBroker.createPullTopic(
+      "brushType",
+      async () => this.brushSettings.type
+    );
+    this.messageBroker.createPullTopic(
+      "maskBlendMode",
+      async () => this.maskBlendMode
+    );
+    this.messageBroker.createPullTopic(
+      "brushSettings",
+      async () => this.brushSettings
+    );
+  }
+  async createBrushStrokeCanvas() {
+    if (this.brushStrokeCanvas !== null) {
+      return;
+    }
+    const maskCanvas = await this.messageBroker.pull("maskCanvas");
+    const canvas = document.createElement("canvas");
+    canvas.width = maskCanvas.width;
+    canvas.height = maskCanvas.height;
+    this.brushStrokeCanvas = canvas;
+    this.brushStrokeCtx = canvas.getContext("2d");
+  }
+  async startDrawing(event) {
+    this.isDrawing = true;
+    let compositionOp;
+    let currentTool = await this.messageBroker.pull("currentTool");
+    let coords = { x: event.offsetX, y: event.offsetY };
+    let coords_canvas = await this.messageBroker.pull("screenToCanvas", coords);
+    await this.createBrushStrokeCanvas();
+    if (currentTool === "eraser" || event.buttons == 2) {
+      compositionOp = "destination-out";
+    } else {
+      compositionOp = "source-over";
+    }
+    if (event.shiftKey && this.lineStartPoint) {
+      this.isDrawingLine = true;
+      this.drawLine(this.lineStartPoint, coords_canvas, compositionOp);
+    } else {
+      this.isDrawingLine = false;
+      this.init_shape(compositionOp);
+      this.draw_shape(coords_canvas);
+    }
+    this.lineStartPoint = coords_canvas;
+    this.smoothingCordsArray = [coords_canvas];
+    this.smoothingLastDrawTime = /* @__PURE__ */ new Date();
+  }
+  async handleDrawing(event) {
+    var diff = performance.now() - this.smoothingLastDrawTime.getTime();
+    let coords = { x: event.offsetX, y: event.offsetY };
+    let coords_canvas = await this.messageBroker.pull("screenToCanvas", coords);
+    let currentTool = await this.messageBroker.pull("currentTool");
+    if (diff > 20 && !this.isDrawing)
+      requestAnimationFrame(() => {
+        this.init_shape(
+          "source-over"
+          /* SourceOver */
+        );
+        this.draw_shape(coords_canvas);
+        this.smoothingCordsArray.push(coords_canvas);
+      });
+    else
+      requestAnimationFrame(() => {
+        if (currentTool === "eraser" || event.buttons == 2) {
+          this.init_shape(
+            "destination-out"
+            /* DestinationOut */
+          );
+        } else {
+          this.init_shape(
+            "source-over"
+            /* SourceOver */
+          );
+        }
+        this.drawWithBetterSmoothing(coords_canvas);
+      });
+    this.smoothingLastDrawTime = /* @__PURE__ */ new Date();
+  }
+  async drawEnd(event) {
+    const coords = { x: event.offsetX, y: event.offsetY };
+    const coords_canvas = await this.messageBroker.pull(
+      "screenToCanvas",
+      coords
+    );
+    if (this.isDrawing) {
+      this.isDrawing = false;
+      this.messageBroker.publish("saveState");
+      this.lineStartPoint = coords_canvas;
+      this.initialDraw = true;
+    }
+  }
+  drawWithBetterSmoothing(point) {
+    if (!this.smoothingCordsArray) {
+      this.smoothingCordsArray = [];
+    }
+    const opacityConstant = 1 / (1 + Math.exp(3));
+    const interpolatedOpacity = 1 / (1 + Math.exp(-6 * (this.brushSettings.opacity - 0.5))) - opacityConstant;
+    this.smoothingCordsArray.push(point);
+    const POINTS_NR = 5;
+    if (this.smoothingCordsArray.length < POINTS_NR) {
+      return;
+    }
+    let totalLength = 0;
+    const points = this.smoothingCordsArray;
+    const len = points.length - 1;
+    let dx, dy;
+    for (let i = 0; i < len; i++) {
+      dx = points[i + 1].x - points[i].x;
+      dy = points[i + 1].y - points[i].y;
+      totalLength += Math.sqrt(dx * dx + dy * dy);
+    }
+    const distanceBetweenPoints = this.brushSettings.size / this.smoothingPrecision * 6;
+    const stepNr = Math.ceil(totalLength / distanceBetweenPoints);
+    let interpolatedPoints = points;
+    if (stepNr > 0) {
+      interpolatedPoints = this.generateEquidistantPoints(
+        this.smoothingCordsArray,
+        distanceBetweenPoints
+        // Distance between interpolated points
+      );
+    }
+    if (!this.initialDraw) {
+      const spliceIndex = interpolatedPoints.findIndex(
+        (point2) => point2.x === this.smoothingCordsArray[2].x && point2.y === this.smoothingCordsArray[2].y
+      );
+      if (spliceIndex !== -1) {
+        interpolatedPoints = interpolatedPoints.slice(spliceIndex + 1);
+      }
+    }
+    for (const point2 of interpolatedPoints) {
+      this.draw_shape(point2, interpolatedOpacity);
+    }
+    if (!this.initialDraw) {
+      this.smoothingCordsArray = this.smoothingCordsArray.slice(2);
+    } else {
+      this.initialDraw = false;
+    }
+  }
+  async drawLine(p1, p2, compositionOp) {
+    const brush_size = await this.messageBroker.pull("brushSize");
+    const distance = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+    const steps = Math.ceil(
+      distance / (brush_size / this.smoothingPrecision * 4)
+    );
+    const interpolatedOpacity = 1 / (1 + Math.exp(-6 * (this.brushSettings.opacity - 0.5))) - 1 / (1 + Math.exp(3));
+    this.init_shape(compositionOp);
+    for (let i = 0; i <= steps; i++) {
+      const t2 = i / steps;
+      const x = p1.x + (p2.x - p1.x) * t2;
+      const y = p1.y + (p2.y - p1.y) * t2;
+      const point = { x, y };
+      this.draw_shape(point, interpolatedOpacity);
+    }
+  }
+  //brush adjustment
+  async startBrushAdjustment(event) {
+    event.preventDefault();
+    const coords = { x: event.offsetX, y: event.offsetY };
+    let coords_canvas = await this.messageBroker.pull("screenToCanvas", coords);
+    this.messageBroker.publish("setBrushPreviewGradientVisibility", true);
+    this.initialPoint = coords_canvas;
+    this.isBrushAdjusting = true;
+    return;
+  }
+  async handleBrushAdjustment(event) {
+    const coords = { x: event.offsetX, y: event.offsetY };
+    const brushDeadZone = 5;
+    let coords_canvas = await this.messageBroker.pull("screenToCanvas", coords);
+    const delta_x = coords_canvas.x - this.initialPoint.x;
+    const delta_y = coords_canvas.y - this.initialPoint.y;
+    const effectiveDeltaX = Math.abs(delta_x) < brushDeadZone ? 0 : delta_x;
+    const effectiveDeltaY = Math.abs(delta_y) < brushDeadZone ? 0 : delta_y;
+    let finalDeltaX = effectiveDeltaX;
+    let finalDeltaY = effectiveDeltaY;
+    console.log(this.useDominantAxis);
+    if (this.useDominantAxis) {
+      const ratio = Math.abs(effectiveDeltaX) / Math.abs(effectiveDeltaY);
+      const threshold = 2;
+      if (ratio > threshold) {
+        finalDeltaY = 0;
+      } else if (ratio < 1 / threshold) {
+        finalDeltaX = 0;
+      }
+    }
+    const cappedDeltaX = Math.max(-100, Math.min(100, finalDeltaX));
+    const cappedDeltaY = Math.max(-100, Math.min(100, finalDeltaY));
+    const sizeDelta = cappedDeltaX / 40;
+    const hardnessDelta = cappedDeltaY / 800;
+    const newSize = Math.max(
+      1,
+      Math.min(
+        100,
+        this.brushSettings.size + cappedDeltaX / 35 * this.brushAdjustmentSpeed
+      )
+    );
+    const newHardness = Math.max(
+      0,
+      Math.min(
+        1,
+        this.brushSettings.hardness - cappedDeltaY / 4e3 * this.brushAdjustmentSpeed
+      )
+    );
+    this.brushSettings.size = newSize;
+    this.brushSettings.hardness = newHardness;
+    this.messageBroker.publish("updateBrushPreview");
+  }
+  //helper functions
+  async draw_shape(point, overrideOpacity) {
+    const brushSettings = this.brushSettings;
+    const maskCtx = this.maskCtx || await this.messageBroker.pull("maskCtx");
+    const brushType = await this.messageBroker.pull("brushType");
+    const maskColor = await this.messageBroker.pull("getMaskColor");
+    const size = brushSettings.size;
+    const sliderOpacity = brushSettings.opacity;
+    const opacity = overrideOpacity == void 0 ? sliderOpacity : overrideOpacity;
+    const hardness = brushSettings.hardness;
+    const x = point.x;
+    const y = point.y;
+    const extendedSize = size * (2 - hardness);
+    let gradient = maskCtx.createRadialGradient(x, y, 0, x, y, extendedSize);
+    const isErasing = maskCtx.globalCompositeOperation === "destination-out";
+    if (hardness === 1) {
+      console.log(sliderOpacity, opacity);
+      gradient.addColorStop(
+        0,
+        isErasing ? `rgba(255, 255, 255, ${opacity})` : `rgba(${maskColor.r}, ${maskColor.g}, ${maskColor.b}, ${opacity})`
+      );
+      gradient.addColorStop(
+        1,
+        isErasing ? `rgba(255, 255, 255, ${opacity})` : `rgba(${maskColor.r}, ${maskColor.g}, ${maskColor.b}, ${opacity})`
+      );
+    } else {
+      let softness = 1 - hardness;
+      let innerStop = Math.max(0, hardness - softness);
+      let outerStop = size / extendedSize;
+      if (isErasing) {
+        gradient.addColorStop(0, `rgba(255, 255, 255, ${opacity})`);
+        gradient.addColorStop(innerStop, `rgba(255, 255, 255, ${opacity})`);
+        gradient.addColorStop(outerStop, `rgba(255, 255, 255, ${opacity / 2})`);
+        gradient.addColorStop(1, `rgba(255, 255, 255, 0)`);
+      } else {
+        gradient.addColorStop(
+          0,
+          `rgba(${maskColor.r}, ${maskColor.g}, ${maskColor.b}, ${opacity})`
+        );
+        gradient.addColorStop(
+          innerStop,
+          `rgba(${maskColor.r}, ${maskColor.g}, ${maskColor.b}, ${opacity})`
+        );
+        gradient.addColorStop(
+          outerStop,
+          `rgba(${maskColor.r}, ${maskColor.g}, ${maskColor.b}, ${opacity / 2})`
+        );
+        gradient.addColorStop(
+          1,
+          `rgba(${maskColor.r}, ${maskColor.g}, ${maskColor.b}, 0)`
+        );
+      }
+    }
+    maskCtx.fillStyle = gradient;
+    maskCtx.beginPath();
+    if (brushType === "rect") {
+      maskCtx.rect(
+        x - extendedSize,
+        y - extendedSize,
+        extendedSize * 2,
+        extendedSize * 2
+      );
+    } else {
+      maskCtx.arc(x, y, extendedSize, 0, Math.PI * 2, false);
+    }
+    maskCtx.fill();
+  }
+  async init_shape(compositionOperation) {
+    const maskBlendMode = await this.messageBroker.pull("maskBlendMode");
+    const maskCtx = this.maskCtx || await this.messageBroker.pull("maskCtx");
+    maskCtx.beginPath();
+    if (compositionOperation == "source-over") {
+      maskCtx.fillStyle = maskBlendMode;
+      maskCtx.globalCompositeOperation = "source-over";
+    } else if (compositionOperation == "destination-out") {
+      maskCtx.globalCompositeOperation = "destination-out";
+    }
+  }
+  calculateCubicSplinePoints(points, numSegments = 10) {
+    const result = [];
+    const xCoords = points.map((p) => p.x);
+    const yCoords = points.map((p) => p.y);
+    const xDerivatives = this.calculateSplineCoefficients(xCoords);
+    const yDerivatives = this.calculateSplineCoefficients(yCoords);
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i];
+      const p1 = points[i + 1];
+      const d0x = xDerivatives[i];
+      const d1x = xDerivatives[i + 1];
+      const d0y = yDerivatives[i];
+      const d1y = yDerivatives[i + 1];
+      for (let t2 = 0; t2 <= numSegments; t2++) {
+        const t_normalized = t2 / numSegments;
+        const h00 = 2 * t_normalized ** 3 - 3 * t_normalized ** 2 + 1;
+        const h10 = t_normalized ** 3 - 2 * t_normalized ** 2 + t_normalized;
+        const h01 = -2 * t_normalized ** 3 + 3 * t_normalized ** 2;
+        const h11 = t_normalized ** 3 - t_normalized ** 2;
+        const x = h00 * p0.x + h10 * d0x + h01 * p1.x + h11 * d1x;
+        const y = h00 * p0.y + h10 * d0y + h01 * p1.y + h11 * d1y;
+        result.push({ x, y });
+      }
+    }
+    return result;
+  }
+  generateEvenlyDistributedPoints(splinePoints, numPoints) {
+    const distances = [0];
+    for (let i = 1; i < splinePoints.length; i++) {
+      const dx = splinePoints[i].x - splinePoints[i - 1].x;
+      const dy = splinePoints[i].y - splinePoints[i - 1].y;
+      const dist = Math.hypot(dx, dy);
+      distances.push(distances[i - 1] + dist);
+    }
+    const totalLength = distances[distances.length - 1];
+    const interval = totalLength / (numPoints - 1);
+    const result = [];
+    let currentIndex = 0;
+    for (let i = 0; i < numPoints; i++) {
+      const targetDistance = i * interval;
+      while (currentIndex < distances.length - 1 && distances[currentIndex + 1] < targetDistance) {
+        currentIndex++;
+      }
+      const t2 = (targetDistance - distances[currentIndex]) / (distances[currentIndex + 1] - distances[currentIndex]);
+      const x = splinePoints[currentIndex].x + t2 * (splinePoints[currentIndex + 1].x - splinePoints[currentIndex].x);
+      const y = splinePoints[currentIndex].y + t2 * (splinePoints[currentIndex + 1].y - splinePoints[currentIndex].y);
+      result.push({ x, y });
+    }
+    return result;
+  }
+  generateEquidistantPoints(points, distance) {
+    const result = [];
+    const cumulativeDistances = [0];
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i].x - points[i - 1].x;
+      const dy = points[i].y - points[i - 1].y;
+      const dist = Math.hypot(dx, dy);
+      cumulativeDistances[i] = cumulativeDistances[i - 1] + dist;
+    }
+    const totalLength = cumulativeDistances[cumulativeDistances.length - 1];
+    const numPoints = Math.floor(totalLength / distance);
+    for (let i = 0; i <= numPoints; i++) {
+      const targetDistance = i * distance;
+      let idx = 0;
+      while (idx < cumulativeDistances.length - 1 && cumulativeDistances[idx + 1] < targetDistance) {
+        idx++;
+      }
+      if (idx >= points.length - 1) {
+        result.push(points[points.length - 1]);
+        continue;
+      }
+      const d0 = cumulativeDistances[idx];
+      const d1 = cumulativeDistances[idx + 1];
+      const t2 = (targetDistance - d0) / (d1 - d0);
+      const x = points[idx].x + t2 * (points[idx + 1].x - points[idx].x);
+      const y = points[idx].y + t2 * (points[idx + 1].y - points[idx].y);
+      result.push({ x, y });
+    }
+    return result;
+  }
+  calculateSplineCoefficients(values) {
+    const n = values.length - 1;
+    const matrix = new Array(n + 1).fill(0).map(() => new Array(n + 1).fill(0));
+    const rhs = new Array(n + 1).fill(0);
+    for (let i = 1; i < n; i++) {
+      matrix[i][i - 1] = 1;
+      matrix[i][i] = 4;
+      matrix[i][i + 1] = 1;
+      rhs[i] = 3 * (values[i + 1] - values[i - 1]);
+    }
+    matrix[0][0] = 2;
+    matrix[0][1] = 1;
+    matrix[n][n - 1] = 1;
+    matrix[n][n] = 2;
+    rhs[0] = 3 * (values[1] - values[0]);
+    rhs[n] = 3 * (values[n] - values[n - 1]);
+    for (let i = 1; i <= n; i++) {
+      const m = matrix[i][i - 1] / matrix[i - 1][i - 1];
+      matrix[i][i] -= m * matrix[i - 1][i];
+      rhs[i] -= m * rhs[i - 1];
+    }
+    const solution = new Array(n + 1);
+    solution[n] = rhs[n] / matrix[n][n];
+    for (let i = n - 1; i >= 0; i--) {
+      solution[i] = (rhs[i] - matrix[i][i + 1] * solution[i + 1]) / matrix[i][i];
+    }
+    return solution;
+  }
+  setBrushSize(size) {
+    this.brushSettings.size = size;
+  }
+  setBrushOpacity(opacity) {
+    this.brushSettings.opacity = opacity;
+  }
+  setBrushHardness(hardness) {
+    this.brushSettings.hardness = hardness;
+  }
+  setBrushType(type) {
+    this.brushSettings.type = type;
+  }
+  setBrushSmoothingPrecision(precision) {
+    this.smoothingPrecision = precision;
+  }
+}
+class UIManager {
+  static {
+    __name(this, "UIManager");
+  }
+  rootElement;
+  brush;
+  brushPreviewGradient;
+  maskCtx;
+  imageCtx;
+  maskCanvas;
+  imgCanvas;
+  brushSettingsHTML;
+  paintBucketSettingsHTML;
+  colorSelectSettingsHTML;
+  maskOpacitySlider;
+  brushHardnessSlider;
+  brushSizeSlider;
+  brushOpacitySlider;
+  sidebarImage;
+  saveButton;
+  toolPanel;
+  sidePanel;
+  pointerZone;
+  canvasBackground;
+  canvasContainer;
+  image;
+  imageURL;
+  darkMode = true;
+  maskEditor;
+  messageBroker;
+  mask_opacity = 1;
+  maskBlendMode = "black";
+  zoomTextHTML;
+  dimensionsTextHTML;
+  constructor(rootElement, maskEditor) {
+    this.rootElement = rootElement;
+    this.maskEditor = maskEditor;
+    this.messageBroker = maskEditor.getMessageBroker();
+    this.addListeners();
+    this.addPullTopics();
+  }
+  addListeners() {
+    this.messageBroker.subscribe(
+      "updateBrushPreview",
+      async () => this.updateBrushPreview()
+    );
+    this.messageBroker.subscribe(
+      "paintBucketCursor",
+      (isPaintBucket) => this.handlePaintBucketCursor(isPaintBucket)
+    );
+    this.messageBroker.subscribe(
+      "panCursor",
+      (isPan) => this.handlePanCursor(isPan)
+    );
+    this.messageBroker.subscribe(
+      "setBrushVisibility",
+      (isVisible) => this.setBrushVisibility(isVisible)
+    );
+    this.messageBroker.subscribe(
+      "setBrushPreviewGradientVisibility",
+      (isVisible) => this.setBrushPreviewGradientVisibility(isVisible)
+    );
+    this.messageBroker.subscribe("updateCursor", () => this.updateCursor());
+    this.messageBroker.subscribe(
+      "setZoomText",
+      (text) => this.setZoomText(text)
+    );
+  }
+  addPullTopics() {
+    this.messageBroker.createPullTopic(
+      "maskCanvas",
+      async () => this.maskCanvas
+    );
+    this.messageBroker.createPullTopic("maskCtx", async () => this.maskCtx);
+    this.messageBroker.createPullTopic("imageCtx", async () => this.imageCtx);
+    this.messageBroker.createPullTopic("imgCanvas", async () => this.imgCanvas);
+    this.messageBroker.createPullTopic(
+      "screenToCanvas",
+      async (coords) => this.screenToCanvas(coords)
+    );
+    this.messageBroker.createPullTopic(
+      "getCanvasContainer",
+      async () => this.canvasContainer
+    );
+    this.messageBroker.createPullTopic(
+      "getMaskColor",
+      async () => this.getMaskColor()
+    );
+  }
+  async setlayout() {
+    this.detectLightMode();
+    var user_ui = await this.createUI();
+    var canvasContainer = this.createBackgroundUI();
+    var brush = await this.createBrush();
+    await this.setBrushBorderRadius();
+    this.setBrushOpacity(1);
+    this.rootElement.appendChild(canvasContainer);
+    this.rootElement.appendChild(user_ui);
+    document.body.appendChild(brush);
+  }
+  async createUI() {
+    var ui_container = document.createElement("div");
+    ui_container.id = "maskEditor_uiContainer";
+    var top_bar = await this.createTopBar();
+    var ui_horizontal_container = document.createElement("div");
+    ui_horizontal_container.id = "maskEditor_uiHorizontalContainer";
+    var side_panel_container = await this.createSidePanel();
+    var pointer_zone = this.createPointerZone();
+    var tool_panel = this.createToolPanel();
+    ui_horizontal_container.appendChild(tool_panel);
+    ui_horizontal_container.appendChild(pointer_zone);
+    ui_horizontal_container.appendChild(side_panel_container);
+    ui_container.appendChild(top_bar);
+    ui_container.appendChild(ui_horizontal_container);
+    return ui_container;
+  }
+  createBackgroundUI() {
+    const canvasContainer = document.createElement("div");
+    canvasContainer.id = "maskEditorCanvasContainer";
+    const imgCanvas = document.createElement("canvas");
+    imgCanvas.id = "imageCanvas";
+    const maskCanvas = document.createElement("canvas");
+    maskCanvas.id = "maskCanvas";
+    const canvas_background = document.createElement("div");
+    canvas_background.id = "canvasBackground";
+    canvasContainer.appendChild(imgCanvas);
+    canvasContainer.appendChild(maskCanvas);
+    canvasContainer.appendChild(canvas_background);
+    this.imgCanvas = imgCanvas;
+    this.maskCanvas = maskCanvas;
+    this.canvasContainer = canvasContainer;
+    this.canvasBackground = canvas_background;
+    let maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true });
+    if (maskCtx) {
+      this.maskCtx = maskCtx;
+    }
+    let imgCtx = imgCanvas.getContext("2d", { willReadFrequently: true });
+    if (imgCtx) {
+      this.imageCtx = imgCtx;
+    }
+    this.setEventHandler();
+    this.imgCanvas.style.position = "absolute";
+    this.maskCanvas.style.position = "absolute";
+    this.imgCanvas.style.top = "200";
+    this.imgCanvas.style.left = "0";
+    this.maskCanvas.style.top = this.imgCanvas.style.top;
+    this.maskCanvas.style.left = this.imgCanvas.style.left;
+    const maskCanvasStyle = this.getMaskCanvasStyle();
+    this.maskCanvas.style.mixBlendMode = maskCanvasStyle.mixBlendMode;
+    this.maskCanvas.style.opacity = maskCanvasStyle.opacity.toString();
+    return canvasContainer;
+  }
+  async setBrushBorderRadius() {
+    const brushSettings = await this.messageBroker.pull("brushSettings");
+    if (brushSettings.type === "rect") {
+      this.brush.style.borderRadius = "0%";
+      this.brush.style.MozBorderRadius = "0%";
+      this.brush.style.WebkitBorderRadius = "0%";
+    } else {
+      this.brush.style.borderRadius = "50%";
+      this.brush.style.MozBorderRadius = "50%";
+      this.brush.style.WebkitBorderRadius = "50%";
+    }
+  }
+  async initUI() {
+    this.saveButton.innerText = "Save";
+    this.saveButton.disabled = false;
+    await this.setImages(this.imgCanvas);
+  }
+  async createSidePanel() {
+    const side_panel = this.createContainer(true);
+    side_panel.id = "maskEditor_sidePanel";
+    const brush_settings = await this.createBrushSettings();
+    brush_settings.id = "maskEditor_brushSettings";
+    this.brushSettingsHTML = brush_settings;
+    const paint_bucket_settings = await this.createPaintBucketSettings();
+    paint_bucket_settings.id = "maskEditor_paintBucketSettings";
+    this.paintBucketSettingsHTML = paint_bucket_settings;
+    const color_select_settings = await this.createColorSelectSettings();
+    color_select_settings.id = "maskEditor_colorSelectSettings";
+    this.colorSelectSettingsHTML = color_select_settings;
+    const image_layer_settings = await this.createImageLayerSettings();
+    const separator = this.createSeparator();
+    side_panel.appendChild(brush_settings);
+    side_panel.appendChild(paint_bucket_settings);
+    side_panel.appendChild(color_select_settings);
+    side_panel.appendChild(separator);
+    side_panel.appendChild(image_layer_settings);
+    return side_panel;
+  }
+  async createBrushSettings() {
+    const shapeColor = this.darkMode ? "maskEditor_brushShape_dark" : "maskEditor_brushShape_light";
+    const brush_settings_container = this.createContainer(true);
+    const brush_settings_title = this.createHeadline("Brush Settings");
+    const brush_shape_outer_container = this.createContainer(true);
+    const brush_shape_title = this.createContainerTitle("Brush Shape");
+    const brush_shape_container = this.createContainer(false);
+    const accentColor = this.darkMode ? "maskEditor_accent_bg_dark" : "maskEditor_accent_bg_light";
+    brush_shape_container.classList.add(accentColor);
+    brush_shape_container.classList.add("maskEditor_layerRow");
+    const circle_shape = document.createElement("div");
+    circle_shape.id = "maskEditor_sidePanelBrushShapeCircle";
+    circle_shape.classList.add(shapeColor);
+    circle_shape.style.background = "var(--p-button-text-primary-color)";
+    circle_shape.addEventListener("click", () => {
+      this.messageBroker.publish(
+        "setBrushShape",
+        "arc"
+        /* Arc */
+      );
+      this.setBrushBorderRadius();
+      circle_shape.style.background = "var(--p-button-text-primary-color)";
+      square_shape.style.background = "";
+    });
+    const square_shape = document.createElement("div");
+    square_shape.id = "maskEditor_sidePanelBrushShapeSquare";
+    square_shape.classList.add(shapeColor);
+    square_shape.style.background = "";
+    square_shape.addEventListener("click", () => {
+      this.messageBroker.publish(
+        "setBrushShape",
+        "rect"
+        /* Rect */
+      );
+      this.setBrushBorderRadius();
+      square_shape.style.background = "var(--p-button-text-primary-color)";
+      circle_shape.style.background = "";
+    });
+    brush_shape_container.appendChild(circle_shape);
+    brush_shape_container.appendChild(square_shape);
+    brush_shape_outer_container.appendChild(brush_shape_title);
+    brush_shape_outer_container.appendChild(brush_shape_container);
+    const thicknesSliderObj = this.createSlider(
+      "Thickness",
+      1,
+      100,
+      1,
+      10,
+      (event, value) => {
+        this.messageBroker.publish("setBrushSize", parseInt(value));
+        this.updateBrushPreview();
+      }
+    );
+    this.brushSizeSlider = thicknesSliderObj.slider;
+    const opacitySliderObj = this.createSlider(
+      "Opacity",
+      0,
+      1,
+      0.01,
+      0.7,
+      (event, value) => {
+        this.messageBroker.publish("setBrushOpacity", parseFloat(value));
+        this.updateBrushPreview();
+      }
+    );
+    this.brushOpacitySlider = opacitySliderObj.slider;
+    const hardnessSliderObj = this.createSlider(
+      "Hardness",
+      0,
+      1,
+      0.01,
+      1,
+      (event, value) => {
+        this.messageBroker.publish("setBrushHardness", parseFloat(value));
+        this.updateBrushPreview();
+      }
+    );
+    this.brushHardnessSlider = hardnessSliderObj.slider;
+    const brushSmoothingPrecisionSliderObj = this.createSlider(
+      "Smoothing Precision",
+      1,
+      100,
+      1,
+      10,
+      (event, value) => {
+        this.messageBroker.publish(
+          "setBrushSmoothingPrecision",
+          parseInt(value)
+        );
+      }
+    );
+    brush_settings_container.appendChild(brush_settings_title);
+    brush_settings_container.appendChild(brush_shape_outer_container);
+    brush_settings_container.appendChild(thicknesSliderObj.container);
+    brush_settings_container.appendChild(opacitySliderObj.container);
+    brush_settings_container.appendChild(hardnessSliderObj.container);
+    brush_settings_container.appendChild(
+      brushSmoothingPrecisionSliderObj.container
+    );
+    return brush_settings_container;
+  }
+  async createPaintBucketSettings() {
+    const paint_bucket_settings_container = this.createContainer(true);
+    const paint_bucket_settings_title = this.createHeadline(
+      "Paint Bucket Settings"
+    );
+    const tolerance = await this.messageBroker.pull("getTolerance");
+    const paintBucketToleranceSliderObj = this.createSlider(
+      "Tolerance",
+      0,
+      255,
+      1,
+      tolerance,
+      (event, value) => {
+        this.messageBroker.publish("setPaintBucketTolerance", parseInt(value));
+      }
+    );
+    paint_bucket_settings_container.appendChild(paint_bucket_settings_title);
+    paint_bucket_settings_container.appendChild(
+      paintBucketToleranceSliderObj.container
+    );
+    return paint_bucket_settings_container;
+  }
+  async createColorSelectSettings() {
+    const color_select_settings_container = this.createContainer(true);
+    const color_select_settings_title = this.createHeadline(
+      "Color Select Settings"
+    );
+    var tolerance = await this.messageBroker.pull("getTolerance");
+    const colorSelectToleranceSliderObj = this.createSlider(
+      "Tolerance",
+      0,
+      255,
+      1,
+      tolerance,
+      (event, value) => {
+        this.messageBroker.publish("setColorSelectTolerance", parseInt(value));
+      }
+    );
+    const livePreviewToggle = this.createToggle(
+      "Live Preview",
+      (event, value) => {
+        this.messageBroker.publish("setLivePreview", value);
+      }
+    );
+    const wholeImageToggle = this.createToggle(
+      "Apply to Whole Image",
+      (event, value) => {
+        this.messageBroker.publish("setWholeImage", value);
+      }
+    );
+    const methodOptions = Object.values(ColorComparisonMethod);
+    const methodSelect = this.createDropdown(
+      "Method",
+      methodOptions,
+      (event, value) => {
+        this.messageBroker.publish("setColorComparisonMethod", value);
+      }
+    );
+    const maskBoundaryToggle = this.createToggle(
+      "Stop at mask",
+      (event, value) => {
+        this.messageBroker.publish("setMaskBoundary", value);
+      }
+    );
+    const maskToleranceSliderObj = this.createSlider(
+      "Mask Tolerance",
+      0,
+      255,
+      1,
+      0,
+      (event, value) => {
+        this.messageBroker.publish("setMaskTolerance", parseInt(value));
+      }
+    );
+    color_select_settings_container.appendChild(color_select_settings_title);
+    color_select_settings_container.appendChild(
+      colorSelectToleranceSliderObj.container
+    );
+    color_select_settings_container.appendChild(livePreviewToggle);
+    color_select_settings_container.appendChild(wholeImageToggle);
+    color_select_settings_container.appendChild(methodSelect);
+    color_select_settings_container.appendChild(maskBoundaryToggle);
+    color_select_settings_container.appendChild(
+      maskToleranceSliderObj.container
+    );
+    return color_select_settings_container;
+  }
+  async createImageLayerSettings() {
+    const accentColor = this.darkMode ? "maskEditor_accent_bg_dark" : "maskEditor_accent_bg_light";
+    const image_layer_settings_container = this.createContainer(true);
+    const image_layer_settings_title = this.createHeadline("Layers");
+    const mask_layer_title = this.createContainerTitle("Mask Layer");
+    const mask_layer_container = this.createContainer(false);
+    mask_layer_container.classList.add(accentColor);
+    mask_layer_container.classList.add("maskEditor_layerRow");
+    const mask_layer_visibility_checkbox = document.createElement("input");
+    mask_layer_visibility_checkbox.setAttribute("type", "checkbox");
+    mask_layer_visibility_checkbox.checked = true;
+    mask_layer_visibility_checkbox.classList.add(
+      "maskEditor_sidePanelLayerCheckbox"
+    );
+    mask_layer_visibility_checkbox.addEventListener("change", (event) => {
+      if (!event.target.checked) {
+        this.maskCanvas.style.opacity = "0";
+      } else {
+        this.maskCanvas.style.opacity = String(this.mask_opacity);
+      }
+    });
+    var mask_layer_image_container = document.createElement("div");
+    mask_layer_image_container.classList.add(
+      "maskEditor_sidePanelLayerPreviewContainer"
+    );
+    mask_layer_image_container.innerHTML = '<svg viewBox="0 0 20 20" style="">   <path class="cls-1" d="M1.31,5.32v9.36c0,.55.45,1,1,1h15.38c.55,0,1-.45,1-1V5.32c0-.55-.45-1-1-1H2.31c-.55,0-1,.45-1,1ZM11.19,13.44c-2.91.94-5.57-1.72-4.63-4.63.34-1.05,1.19-1.9,2.24-2.24,2.91-.94,5.57,1.72,4.63,4.63-.34,1.05-1.19,1.9-2.24,2.24Z"/> </svg>';
+    var blending_options = ["black", "white", "negative"];
+    const sidePanelDropdownAccent = this.darkMode ? "maskEditor_sidePanelDropdown_dark" : "maskEditor_sidePanelDropdown_light";
+    var mask_layer_dropdown = document.createElement("select");
+    mask_layer_dropdown.classList.add(sidePanelDropdownAccent);
+    mask_layer_dropdown.classList.add(sidePanelDropdownAccent);
+    blending_options.forEach((option) => {
+      var option_element = document.createElement("option");
+      option_element.value = option;
+      option_element.innerText = option;
+      mask_layer_dropdown.appendChild(option_element);
+      if (option == this.maskBlendMode) {
+        option_element.selected = true;
+      }
+    });
+    mask_layer_dropdown.addEventListener("change", (event) => {
+      const selectedValue = event.target.value;
+      this.maskBlendMode = selectedValue;
+      this.updateMaskColor();
+    });
+    mask_layer_container.appendChild(mask_layer_visibility_checkbox);
+    mask_layer_container.appendChild(mask_layer_image_container);
+    mask_layer_container.appendChild(mask_layer_dropdown);
+    const mask_layer_opacity_sliderObj = this.createSlider(
+      "Mask Opacity",
+      0,
+      1,
+      0.01,
+      this.mask_opacity,
+      (event, value) => {
+        this.mask_opacity = parseFloat(value);
+        this.maskCanvas.style.opacity = String(this.mask_opacity);
+        if (this.mask_opacity == 0) {
+          mask_layer_visibility_checkbox.checked = false;
+        } else {
+          mask_layer_visibility_checkbox.checked = true;
+        }
+      }
+    );
+    this.maskOpacitySlider = mask_layer_opacity_sliderObj.slider;
+    const image_layer_title = this.createContainerTitle("Image Layer");
+    const image_layer_container = this.createContainer(false);
+    image_layer_container.classList.add(accentColor);
+    image_layer_container.classList.add("maskEditor_layerRow");
+    const image_layer_visibility_checkbox = document.createElement("input");
+    image_layer_visibility_checkbox.setAttribute("type", "checkbox");
+    image_layer_visibility_checkbox.classList.add(
+      "maskEditor_sidePanelLayerCheckbox"
+    );
+    image_layer_visibility_checkbox.checked = true;
+    image_layer_visibility_checkbox.addEventListener("change", (event) => {
+      if (!event.target.checked) {
+        this.imgCanvas.style.opacity = "0";
+      } else {
+        this.imgCanvas.style.opacity = "1";
+      }
+    });
+    const image_layer_image_container = document.createElement("div");
+    image_layer_image_container.classList.add(
+      "maskEditor_sidePanelLayerPreviewContainer"
+    );
+    const image_layer_image = document.createElement("img");
+    image_layer_image.id = "maskEditor_sidePanelImageLayerImage";
+    image_layer_image.src = ComfyApp.clipspace?.imgs?.[ComfyApp.clipspace?.selectedIndex ?? 0]?.src ?? "";
+    this.sidebarImage = image_layer_image;
+    image_layer_image_container.appendChild(image_layer_image);
+    image_layer_container.appendChild(image_layer_visibility_checkbox);
+    image_layer_container.appendChild(image_layer_image_container);
+    image_layer_settings_container.appendChild(image_layer_settings_title);
+    image_layer_settings_container.appendChild(mask_layer_title);
+    image_layer_settings_container.appendChild(mask_layer_container);
+    image_layer_settings_container.appendChild(
+      mask_layer_opacity_sliderObj.container
+    );
+    image_layer_settings_container.appendChild(image_layer_title);
+    image_layer_settings_container.appendChild(image_layer_container);
+    return image_layer_settings_container;
+  }
+  createHeadline(title) {
+    var headline = document.createElement("h3");
+    headline.classList.add("maskEditor_sidePanelTitle");
+    headline.innerText = title;
+    return headline;
+  }
+  createContainer(flexDirection) {
+    var container = document.createElement("div");
+    if (flexDirection) {
+      container.classList.add("maskEditor_sidePanelContainerColumn");
+    } else {
+      container.classList.add("maskEditor_sidePanelContainerRow");
+    }
+    return container;
+  }
+  createContainerTitle(title) {
+    var container_title = document.createElement("span");
+    container_title.classList.add("maskEditor_sidePanelSubTitle");
+    container_title.innerText = title;
+    return container_title;
+  }
+  createSlider(title, min, max2, step, value, callback) {
+    var slider_container = this.createContainer(true);
+    var slider_title = this.createContainerTitle(title);
+    var slider = document.createElement("input");
+    slider.classList.add("maskEditor_sidePanelBrushRange");
+    slider.setAttribute("type", "range");
+    slider.setAttribute("min", String(min));
+    slider.setAttribute("max", String(max2));
+    slider.setAttribute("step", String(step));
+    slider.setAttribute("value", String(value));
+    slider.addEventListener("input", (event) => {
+      callback(event, event.target.value);
+    });
+    slider_container.appendChild(slider_title);
+    slider_container.appendChild(slider);
+    return { container: slider_container, slider };
+  }
+  createToggle(title, callback) {
+    var outer_Container = this.createContainer(false);
+    var toggle_title = this.createContainerTitle(title);
+    var toggle_container = document.createElement("label");
+    toggle_container.classList.add("maskEditor_sidePanelToggleContainer");
+    var toggle_checkbox = document.createElement("input");
+    toggle_checkbox.setAttribute("type", "checkbox");
+    toggle_checkbox.classList.add("maskEditor_sidePanelToggleCheckbox");
+    toggle_checkbox.addEventListener("change", (event) => {
+      callback(event, event.target.checked);
+    });
+    var toggleAccentColor = this.darkMode ? "maskEditor_toggle_bg_dark" : "maskEditor_toggle_bg_light";
+    var toggle_switch = document.createElement("div");
+    toggle_switch.classList.add("maskEditor_sidePanelToggleSwitch");
+    toggle_switch.classList.add(toggleAccentColor);
+    toggle_container.appendChild(toggle_checkbox);
+    toggle_container.appendChild(toggle_switch);
+    outer_Container.appendChild(toggle_title);
+    outer_Container.appendChild(toggle_container);
+    return outer_Container;
+  }
+  createDropdown(title, options, callback) {
+    const sidePanelDropdownAccent = this.darkMode ? "maskEditor_sidePanelDropdown_dark" : "maskEditor_sidePanelDropdown_light";
+    var dropdown_container = this.createContainer(false);
+    var dropdown_title = this.createContainerTitle(title);
+    var dropdown = document.createElement("select");
+    dropdown.classList.add(sidePanelDropdownAccent);
+    dropdown.classList.add("maskEditor_containerDropdown");
+    options.forEach((option) => {
+      var option_element = document.createElement("option");
+      option_element.value = option;
+      option_element.innerText = option;
+      dropdown.appendChild(option_element);
+    });
+    dropdown.addEventListener("change", (event) => {
+      callback(event, event.target.value);
+    });
+    dropdown_container.appendChild(dropdown_title);
+    dropdown_container.appendChild(dropdown);
+    return dropdown_container;
+  }
+  createSeparator() {
+    var separator = document.createElement("div");
+    separator.classList.add("maskEditor_sidePanelSeparator");
+    return separator;
+  }
+  //----------------
+  async createTopBar() {
+    const buttonAccentColor = this.darkMode ? "maskEditor_topPanelButton_dark" : "maskEditor_topPanelButton_light";
+    const iconButtonAccentColor = this.darkMode ? "maskEditor_topPanelIconButton_dark" : "maskEditor_topPanelIconButton_light";
+    var top_bar = document.createElement("div");
+    top_bar.id = "maskEditor_topBar";
+    var top_bar_title_container = document.createElement("div");
+    top_bar_title_container.id = "maskEditor_topBarTitleContainer";
+    var top_bar_title = document.createElement("h1");
+    top_bar_title.id = "maskEditor_topBarTitle";
+    top_bar_title.innerText = "ComfyUI";
+    top_bar_title_container.appendChild(top_bar_title);
+    var top_bar_shortcuts_container = document.createElement("div");
+    top_bar_shortcuts_container.id = "maskEditor_topBarShortcutsContainer";
+    var top_bar_undo_button = document.createElement("div");
+    top_bar_undo_button.id = "maskEditor_topBarUndoButton";
+    top_bar_undo_button.classList.add(iconButtonAccentColor);
+    top_bar_undo_button.innerHTML = '<svg viewBox="0 0 15 15"><path d="M8.77,12.18c-.25,0-.46-.2-.46-.46s.2-.46.46-.46c1.47,0,2.67-1.2,2.67-2.67,0-1.57-1.34-2.67-3.26-2.67h-3.98l1.43,1.43c.18.18.18.47,0,.64-.18.18-.47.18-.64,0l-2.21-2.21c-.18-.18-.18-.47,0-.64l2.21-2.21c.18-.18.47-.18.64,0,.18.18.18.47,0,.64l-1.43,1.43h3.98c2.45,0,4.17,1.47,4.17,3.58,0,1.97-1.61,3.58-3.58,3.58Z"></path> </svg>';
+    top_bar_undo_button.addEventListener("click", () => {
+      this.messageBroker.publish("undo");
+    });
+    var top_bar_redo_button = document.createElement("div");
+    top_bar_redo_button.id = "maskEditor_topBarRedoButton";
+    top_bar_redo_button.classList.add(iconButtonAccentColor);
+    top_bar_redo_button.innerHTML = '<svg viewBox="0 0 15 15"> <path class="cls-1" d="M6.23,12.18c-1.97,0-3.58-1.61-3.58-3.58,0-2.11,1.71-3.58,4.17-3.58h3.98l-1.43-1.43c-.18-.18-.18-.47,0-.64.18-.18.46-.18.64,0l2.21,2.21c.09.09.13.2.13.32s-.05.24-.13.32l-2.21,2.21c-.18.18-.47.18-.64,0-.18-.18-.18-.47,0-.64l1.43-1.43h-3.98c-1.92,0-3.26,1.1-3.26,2.67,0,1.47,1.2,2.67,2.67,2.67.25,0,.46.2.46.46s-.2.46-.46.46Z"/></svg>';
+    top_bar_redo_button.addEventListener("click", () => {
+      this.messageBroker.publish("redo");
+    });
+    var top_bar_invert_button = document.createElement("button");
+    top_bar_invert_button.id = "maskEditor_topBarInvertButton";
+    top_bar_invert_button.classList.add(buttonAccentColor);
+    top_bar_invert_button.innerText = "Invert";
+    top_bar_invert_button.addEventListener("click", () => {
+      this.messageBroker.publish("invert");
+    });
+    var top_bar_clear_button = document.createElement("button");
+    top_bar_clear_button.id = "maskEditor_topBarClearButton";
+    top_bar_clear_button.classList.add(buttonAccentColor);
+    top_bar_clear_button.innerText = "Clear";
+    top_bar_clear_button.addEventListener("click", () => {
+      this.maskCtx.clearRect(
+        0,
+        0,
+        this.maskCanvas.width,
+        this.maskCanvas.height
+      );
+      this.messageBroker.publish("saveState");
+    });
+    var top_bar_save_button = document.createElement("button");
+    top_bar_save_button.id = "maskEditor_topBarSaveButton";
+    top_bar_save_button.classList.add(buttonAccentColor);
+    top_bar_save_button.innerText = "Save";
+    this.saveButton = top_bar_save_button;
+    top_bar_save_button.addEventListener("click", () => {
+      this.maskEditor.save();
+    });
+    var top_bar_cancel_button = document.createElement("button");
+    top_bar_cancel_button.id = "maskEditor_topBarCancelButton";
+    top_bar_cancel_button.classList.add(buttonAccentColor);
+    top_bar_cancel_button.innerText = "Cancel";
+    top_bar_cancel_button.addEventListener("click", () => {
+      this.maskEditor.close();
+    });
+    top_bar_shortcuts_container.appendChild(top_bar_undo_button);
+    top_bar_shortcuts_container.appendChild(top_bar_redo_button);
+    top_bar_shortcuts_container.appendChild(top_bar_invert_button);
+    top_bar_shortcuts_container.appendChild(top_bar_clear_button);
+    top_bar_shortcuts_container.appendChild(top_bar_save_button);
+    top_bar_shortcuts_container.appendChild(top_bar_cancel_button);
+    top_bar.appendChild(top_bar_title_container);
+    top_bar.appendChild(top_bar_shortcuts_container);
+    return top_bar;
+  }
+  createToolPanel() {
+    var tool_panel = document.createElement("div");
+    tool_panel.id = "maskEditor_toolPanel";
+    this.toolPanel = tool_panel;
+    var toolPanelHoverAccent = this.darkMode ? "maskEditor_toolPanelContainerDark" : "maskEditor_toolPanelContainerLight";
+    var toolElements = [];
+    var toolPanel_brushToolContainer = document.createElement("div");
+    toolPanel_brushToolContainer.classList.add("maskEditor_toolPanelContainer");
+    toolPanel_brushToolContainer.classList.add(
+      "maskEditor_toolPanelContainerSelected"
+    );
+    toolPanel_brushToolContainer.classList.add(toolPanelHoverAccent);
+    toolPanel_brushToolContainer.innerHTML = `
+    <svg viewBox="0 0 44 44">
+      <path class="cls-1" d="M34,13.93c0,.47-.19.94-.55,1.31l-13.02,13.04c-.09.07-.18.15-.27.22-.07-1.39-1.21-2.48-2.61-2.49.07-.12.16-.24.27-.34l13.04-13.04c.72-.72,1.89-.72,2.6,0,.35.35.55.83.55,1.3Z"/>
+      <path class="cls-1" d="M19.64,29.03c0,4.46-6.46,3.18-9.64,0,3.3-.47,4.75-2.58,7.06-2.58,1.43,0,2.58,1.16,2.58,2.58Z"/>
+    </svg>
+    `;
+    toolElements.push(toolPanel_brushToolContainer);
+    toolPanel_brushToolContainer.addEventListener("click", () => {
+      this.messageBroker.publish(
+        "setTool",
+        "pen"
+        /* Pen */
+      );
+      for (let toolElement of toolElements) {
+        if (toolElement != toolPanel_brushToolContainer) {
+          toolElement.classList.remove("maskEditor_toolPanelContainerSelected");
+        } else {
+          toolElement.classList.add("maskEditor_toolPanelContainerSelected");
+          this.brushSettingsHTML.style.display = "flex";
+          this.colorSelectSettingsHTML.style.display = "none";
+          this.paintBucketSettingsHTML.style.display = "none";
+        }
+      }
+      this.messageBroker.publish(
+        "setTool",
+        "pen"
+        /* Pen */
+      );
+      this.pointerZone.style.cursor = "none";
+    });
+    var toolPanel_brushToolIndicator = document.createElement("div");
+    toolPanel_brushToolIndicator.classList.add("maskEditor_toolPanelIndicator");
+    toolPanel_brushToolContainer.appendChild(toolPanel_brushToolIndicator);
+    var toolPanel_eraserToolContainer = document.createElement("div");
+    toolPanel_eraserToolContainer.classList.add("maskEditor_toolPanelContainer");
+    toolPanel_eraserToolContainer.classList.add(toolPanelHoverAccent);
+    toolPanel_eraserToolContainer.innerHTML = `
+      <svg viewBox="0 0 44 44">
+        <g>
+          <rect class="cls-2" x="16.68" y="10" width="10.63" height="24" rx="1.16" ry="1.16" transform="translate(22 -9.11) rotate(45)"/>
+          <path class="cls-1" d="M17.27,34.27c-.42,0-.85-.16-1.17-.48l-5.88-5.88c-.31-.31-.48-.73-.48-1.17s.17-.86.48-1.17l15.34-15.34c.62-.62,1.72-.62,2.34,0l5.88,5.88c.65.65.65,1.7,0,2.34l-15.34,15.34c-.32.32-.75.48-1.17.48ZM26.73,10.73c-.18,0-.34.07-.46.19l-15.34,15.34c-.12.12-.19.29-.19.46s.07.34.19.46l5.88,5.88c.26.26.67.26.93,0l15.34-15.34c.26-.26.26-.67,0-.93l-5.88-5.88c-.12-.12-.29-.19-.46-.19Z"/>
+        </g>
+        <path class="cls-3" d="M20.33,11.03h8.32c.64,0,1.16.52,1.16,1.16v15.79h-10.63v-15.79c0-.64.52-1.16,1.16-1.16Z" transform="translate(20.97 -11.61) rotate(45)"/>
+      </svg>
+    `;
+    toolElements.push(toolPanel_eraserToolContainer);
+    toolPanel_eraserToolContainer.addEventListener("click", () => {
+      this.messageBroker.publish(
+        "setTool",
+        "eraser"
+        /* Eraser */
+      );
+      for (let toolElement of toolElements) {
+        if (toolElement != toolPanel_eraserToolContainer) {
+          toolElement.classList.remove("maskEditor_toolPanelContainerSelected");
+        } else {
+          toolElement.classList.add("maskEditor_toolPanelContainerSelected");
+          this.brushSettingsHTML.style.display = "flex";
+          this.colorSelectSettingsHTML.style.display = "none";
+          this.paintBucketSettingsHTML.style.display = "none";
+        }
+      }
+      this.messageBroker.publish(
+        "setTool",
+        "eraser"
+        /* Eraser */
+      );
+      this.pointerZone.style.cursor = "none";
+    });
+    var toolPanel_eraserToolIndicator = document.createElement("div");
+    toolPanel_eraserToolIndicator.classList.add("maskEditor_toolPanelIndicator");
+    toolPanel_eraserToolContainer.appendChild(toolPanel_eraserToolIndicator);
+    var toolPanel_paintBucketToolContainer = document.createElement("div");
+    toolPanel_paintBucketToolContainer.classList.add(
+      "maskEditor_toolPanelContainer"
+    );
+    toolPanel_paintBucketToolContainer.classList.add(toolPanelHoverAccent);
+    toolPanel_paintBucketToolContainer.innerHTML = `
+    <svg viewBox="0 0 44 44">
+      <path class="cls-1" d="M33.4,21.76l-11.42,11.41-.04.05c-.61.61-1.6.61-2.21,0l-8.91-8.91c-.61-.61-.61-1.6,0-2.21l.04-.05.3-.29h22.24Z"/>
+      <path class="cls-1" d="M20.83,34.17c-.55,0-1.07-.21-1.46-.6l-8.91-8.91c-.8-.8-.8-2.11,0-2.92l11.31-11.31c.8-.8,2.11-.8,2.92,0l8.91,8.91c.39.39.6.91.6,1.46s-.21,1.07-.6,1.46l-11.31,11.31c-.39.39-.91.6-1.46.6ZM23.24,10.83c-.27,0-.54.1-.75.31l-11.31,11.31c-.41.41-.41,1.09,0,1.5l8.91,8.91c.4.4,1.1.4,1.5,0l11.31-11.31c.2-.2.31-.47.31-.75s-.11-.55-.31-.75l-8.91-8.91c-.21-.21-.48-.31-.75-.31Z"/>
+      <path class="cls-1" d="M34.28,26.85c0,.84-.68,1.52-1.52,1.52s-1.52-.68-1.52-1.52,1.52-2.86,1.52-2.86c0,0,1.52,2.02,1.52,2.86Z"/>
+    </svg>
+    `;
+    toolElements.push(toolPanel_paintBucketToolContainer);
+    toolPanel_paintBucketToolContainer.addEventListener("click", () => {
+      this.messageBroker.publish(
+        "setTool",
+        "paintBucket"
+        /* PaintBucket */
+      );
+      for (let toolElement of toolElements) {
+        if (toolElement != toolPanel_paintBucketToolContainer) {
+          toolElement.classList.remove("maskEditor_toolPanelContainerSelected");
+        } else {
+          toolElement.classList.add("maskEditor_toolPanelContainerSelected");
+          this.brushSettingsHTML.style.display = "none";
+          this.colorSelectSettingsHTML.style.display = "none";
+          this.paintBucketSettingsHTML.style.display = "flex";
+        }
+      }
+      this.messageBroker.publish(
+        "setTool",
+        "paintBucket"
+        /* PaintBucket */
+      );
+      this.pointerZone.style.cursor = "url('/cursor/paintBucket.png') 30 25, auto";
+      this.brush.style.opacity = "0";
+    });
+    var toolPanel_paintBucketToolIndicator = document.createElement("div");
+    toolPanel_paintBucketToolIndicator.classList.add(
+      "maskEditor_toolPanelIndicator"
+    );
+    toolPanel_paintBucketToolContainer.appendChild(
+      toolPanel_paintBucketToolIndicator
+    );
+    var toolPanel_colorSelectToolContainer = document.createElement("div");
+    toolPanel_colorSelectToolContainer.classList.add(
+      "maskEditor_toolPanelContainer"
+    );
+    toolPanel_colorSelectToolContainer.classList.add(toolPanelHoverAccent);
+    toolPanel_colorSelectToolContainer.innerHTML = `
+    <svg viewBox="0 0 44 44">
+      <path class="cls-1" d="M30.29,13.72c-1.09-1.1-2.85-1.09-3.94,0l-2.88,2.88-.75-.75c-.2-.19-.51-.19-.71,0-.19.2-.19.51,0,.71l1.4,1.4-9.59,9.59c-.35.36-.54.82-.54,1.32,0,.14,0,.28.05.41-.05.04-.1.08-.15.13-.39.39-.39,1.01,0,1.4.38.39,1.01.39,1.4,0,.04-.04.08-.09.11-.13.14.04.3.06.45.06.5,0,.97-.19,1.32-.55l9.59-9.59,1.38,1.38c.1.09.22.14.35.14s.26-.05.35-.14c.2-.2.2-.52,0-.71l-.71-.72,2.88-2.89c1.08-1.08,1.08-2.85-.01-3.94ZM19.43,25.82h-2.46l7.15-7.15,1.23,1.23-5.92,5.92Z"/>
+    </svg>
+    `;
+    toolElements.push(toolPanel_colorSelectToolContainer);
+    toolPanel_colorSelectToolContainer.addEventListener("click", () => {
+      this.messageBroker.publish("setTool", "colorSelect");
+      for (let toolElement of toolElements) {
+        if (toolElement != toolPanel_colorSelectToolContainer) {
+          toolElement.classList.remove("maskEditor_toolPanelContainerSelected");
+        } else {
+          toolElement.classList.add("maskEditor_toolPanelContainerSelected");
+          this.brushSettingsHTML.style.display = "none";
+          this.paintBucketSettingsHTML.style.display = "none";
+          this.colorSelectSettingsHTML.style.display = "flex";
+        }
+      }
+      this.messageBroker.publish(
+        "setTool",
+        "colorSelect"
+        /* ColorSelect */
+      );
+      this.pointerZone.style.cursor = "url('/cursor/colorSelect.png') 15 25, auto";
+      this.brush.style.opacity = "0";
+    });
+    var toolPanel_colorSelectToolIndicator = document.createElement("div");
+    toolPanel_colorSelectToolIndicator.classList.add(
+      "maskEditor_toolPanelIndicator"
+    );
+    toolPanel_colorSelectToolContainer.appendChild(
+      toolPanel_colorSelectToolIndicator
+    );
+    var toolPanel_zoomIndicator = document.createElement("div");
+    toolPanel_zoomIndicator.classList.add("maskEditor_toolPanelZoomIndicator");
+    toolPanel_zoomIndicator.classList.add(toolPanelHoverAccent);
+    var toolPanel_zoomText = document.createElement("span");
+    toolPanel_zoomText.id = "maskEditor_toolPanelZoomText";
+    toolPanel_zoomText.innerText = "100%";
+    this.zoomTextHTML = toolPanel_zoomText;
+    var toolPanel_DimensionsText = document.createElement("span");
+    toolPanel_DimensionsText.id = "maskEditor_toolPanelDimensionsText";
+    toolPanel_DimensionsText.innerText = " ";
+    this.dimensionsTextHTML = toolPanel_DimensionsText;
+    toolPanel_zoomIndicator.appendChild(toolPanel_zoomText);
+    toolPanel_zoomIndicator.appendChild(toolPanel_DimensionsText);
+    toolPanel_zoomIndicator.addEventListener("click", () => {
+      this.messageBroker.publish("resetZoom");
+    });
+    tool_panel.appendChild(toolPanel_brushToolContainer);
+    tool_panel.appendChild(toolPanel_eraserToolContainer);
+    tool_panel.appendChild(toolPanel_paintBucketToolContainer);
+    tool_panel.appendChild(toolPanel_colorSelectToolContainer);
+    tool_panel.appendChild(toolPanel_zoomIndicator);
+    return tool_panel;
+  }
+  createPointerZone() {
+    const pointer_zone = document.createElement("div");
+    pointer_zone.id = "maskEditor_pointerZone";
+    this.pointerZone = pointer_zone;
+    pointer_zone.addEventListener("pointerdown", (event) => {
+      this.messageBroker.publish("pointerDown", event);
+    });
+    pointer_zone.addEventListener("pointermove", (event) => {
+      this.messageBroker.publish("pointerMove", event);
+    });
+    pointer_zone.addEventListener("pointerup", (event) => {
+      this.messageBroker.publish("pointerUp", event);
+    });
+    pointer_zone.addEventListener("pointerleave", (event) => {
+      this.brush.style.opacity = "0";
+      this.pointerZone.style.cursor = "";
+    });
+    pointer_zone.addEventListener("touchstart", (event) => {
+      this.messageBroker.publish("handleTouchStart", event);
+    });
+    pointer_zone.addEventListener("touchmove", (event) => {
+      this.messageBroker.publish("handleTouchMove", event);
+    });
+    pointer_zone.addEventListener("touchend", (event) => {
+      this.messageBroker.publish("handleTouchEnd", event);
+    });
+    pointer_zone.addEventListener(
+      "wheel",
+      (event) => this.messageBroker.publish("wheel", event)
+    );
+    pointer_zone.addEventListener(
+      "pointerenter",
+      async (event) => {
+        this.updateCursor();
+      }
+    );
+    return pointer_zone;
+  }
+  async screenToCanvas(clientPoint) {
+    const zoomRatio = await this.messageBroker.pull("zoomRatio");
+    const canvasRect = this.maskCanvas.getBoundingClientRect();
+    const offsetX = clientPoint.x - canvasRect.left + this.toolPanel.clientWidth;
+    const offsetY = clientPoint.y - canvasRect.top + 44;
+    const x = offsetX / zoomRatio;
+    const y = offsetY / zoomRatio;
+    return { x, y };
+  }
+  setEventHandler() {
+    this.maskCanvas.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+    });
+    this.rootElement.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+    });
+    this.rootElement.addEventListener("dragstart", (event) => {
+      if (event.ctrlKey) {
+        event.preventDefault();
+      }
+    });
+  }
+  async createBrush() {
+    var brush = document.createElement("div");
+    const brushSettings = await this.messageBroker.pull("brushSettings");
+    brush.id = "maskEditor_brush";
+    var brush_preview_gradient = document.createElement("div");
+    brush_preview_gradient.id = "maskEditor_brushPreviewGradient";
+    brush.appendChild(brush_preview_gradient);
+    this.brush = brush;
+    this.brushPreviewGradient = brush_preview_gradient;
+    return brush;
+  }
+  async setImages(imgCanvas) {
+    const imgCtx = imgCanvas.getContext("2d", { willReadFrequently: true });
+    const maskCtx = this.maskCtx;
+    const maskCanvas = this.maskCanvas;
+    imgCtx.clearRect(0, 0, this.imgCanvas.width, this.imgCanvas.height);
+    maskCtx.clearRect(0, 0, this.maskCanvas.width, this.maskCanvas.height);
+    const alpha_url = new URL(
+      ComfyApp.clipspace?.imgs?.[ComfyApp.clipspace?.selectedIndex ?? 0]?.src ?? ""
+    );
+    alpha_url.searchParams.delete("channel");
+    alpha_url.searchParams.delete("preview");
+    alpha_url.searchParams.set("channel", "a");
+    let mask_image = await this.loadImage(alpha_url);
+    if (!ComfyApp.clipspace?.imgs?.[ComfyApp.clipspace?.selectedIndex ?? 0]?.src) {
+      throw new Error(
+        "Unable to access image source - clipspace or image is null"
+      );
+    }
+    const rgb_url = new URL(
+      ComfyApp.clipspace.imgs[ComfyApp.clipspace.selectedIndex].src
+    );
+    this.imageURL = rgb_url;
+    console.log(rgb_url);
+    rgb_url.searchParams.delete("channel");
+    rgb_url.searchParams.set("channel", "rgb");
+    this.image = new Image();
+    this.image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = rgb_url.toString();
+    });
+    maskCanvas.width = this.image.width;
+    maskCanvas.height = this.image.height;
+    this.dimensionsTextHTML.innerText = `${this.image.width}x${this.image.height}`;
+    await this.invalidateCanvas(this.image, mask_image);
+    this.messageBroker.publish("initZoomPan", [this.image, this.rootElement]);
+  }
+  async invalidateCanvas(orig_image, mask_image) {
+    this.imgCanvas.width = orig_image.width;
+    this.imgCanvas.height = orig_image.height;
+    this.maskCanvas.width = orig_image.width;
+    this.maskCanvas.height = orig_image.height;
+    let imgCtx = this.imgCanvas.getContext("2d", { willReadFrequently: true });
+    let maskCtx = this.maskCanvas.getContext("2d", {
+      willReadFrequently: true
+    });
+    imgCtx.drawImage(orig_image, 0, 0, orig_image.width, orig_image.height);
+    await this.prepare_mask(
+      mask_image,
+      this.maskCanvas,
+      maskCtx,
+      await this.getMaskColor()
+    );
+  }
+  async prepare_mask(image, maskCanvas, maskCtx, maskColor) {
+    maskCtx.drawImage(image, 0, 0, maskCanvas.width, maskCanvas.height);
+    const maskData = maskCtx.getImageData(
+      0,
+      0,
+      maskCanvas.width,
+      maskCanvas.height
+    );
+    for (let i = 0; i < maskData.data.length; i += 4) {
+      const alpha = maskData.data[i + 3];
+      maskData.data[i] = maskColor.r;
+      maskData.data[i + 1] = maskColor.g;
+      maskData.data[i + 2] = maskColor.b;
+      maskData.data[i + 3] = 255 - alpha;
+    }
+    maskCtx.globalCompositeOperation = "source-over";
+    maskCtx.putImageData(maskData, 0, 0);
+  }
+  async updateMaskColor() {
+    const maskCanvasStyle = this.getMaskCanvasStyle();
+    this.maskCanvas.style.mixBlendMode = maskCanvasStyle.mixBlendMode;
+    this.maskCanvas.style.opacity = maskCanvasStyle.opacity.toString();
+    const maskColor = await this.getMaskColor();
+    this.maskCtx.fillStyle = `rgb(${maskColor.r}, ${maskColor.g}, ${maskColor.b})`;
+    this.setCanvasBackground();
+    const maskData = this.maskCtx.getImageData(
+      0,
+      0,
+      this.maskCanvas.width,
+      this.maskCanvas.height
+    );
+    for (let i = 0; i < maskData.data.length; i += 4) {
+      maskData.data[i] = maskColor.r;
+      maskData.data[i + 1] = maskColor.g;
+      maskData.data[i + 2] = maskColor.b;
+    }
+    this.maskCtx.putImageData(maskData, 0, 0);
+  }
+  getMaskCanvasStyle() {
+    if (this.maskBlendMode === "negative") {
+      return {
+        mixBlendMode: "difference",
+        opacity: "1"
+      };
+    } else {
+      return {
+        mixBlendMode: "initial",
+        opacity: this.mask_opacity
+      };
+    }
+  }
+  detectLightMode() {
+    this.darkMode = document.body.classList.contains("dark-theme");
+  }
+  loadImage(imagePath) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = function() {
+        resolve(image);
+      };
+      image.onerror = function(error) {
+        reject(error);
+      };
+      image.src = imagePath.href;
+    });
+  }
+  async updateBrushPreview() {
+    const cursorPoint = await this.messageBroker.pull("cursorPoint");
+    const pan_offset = await this.messageBroker.pull("panOffset");
+    const brushSettings = await this.messageBroker.pull("brushSettings");
+    const zoom_ratio = await this.messageBroker.pull("zoomRatio");
+    const centerX = cursorPoint.x + pan_offset.x;
+    const centerY = cursorPoint.y + pan_offset.y;
+    const brush = this.brush;
+    const hardness = brushSettings.hardness;
+    const extendedSize = brushSettings.size * (2 - hardness) * 2 * zoom_ratio;
+    this.brushSizeSlider.value = String(brushSettings.size);
+    this.brushHardnessSlider.value = String(hardness);
+    brush.style.width = extendedSize + "px";
+    brush.style.height = extendedSize + "px";
+    brush.style.left = centerX - extendedSize / 2 + "px";
+    brush.style.top = centerY - extendedSize / 2 + "px";
+    if (hardness === 1) {
+      this.brushPreviewGradient.style.background = "rgba(255, 0, 0, 0.5)";
+      return;
+    }
+    const opacityStop = hardness / 4 + 0.25;
+    this.brushPreviewGradient.style.background = `
+        radial-gradient(
+            circle,
+            rgba(255, 0, 0, 0.5) 0%,
+            rgba(255, 0, 0, ${opacityStop}) ${hardness * 100}%,
+            rgba(255, 0, 0, 0) 100%
+        )
+    `;
+  }
+  getMaskBlendMode() {
+    return this.maskBlendMode;
+  }
+  setSidebarImage() {
+    this.sidebarImage.src = this.imageURL.href;
+  }
+  async getMaskColor() {
+    if (this.maskBlendMode === "black") {
+      return { r: 0, g: 0, b: 0 };
+    }
+    if (this.maskBlendMode === "white") {
+      return { r: 255, g: 255, b: 255 };
+    }
+    if (this.maskBlendMode === "negative") {
+      return { r: 255, g: 255, b: 255 };
+    }
+    return { r: 0, g: 0, b: 0 };
+  }
+  async getMaskFillStyle() {
+    const maskColor = await this.getMaskColor();
+    return "rgb(" + maskColor.r + "," + maskColor.g + "," + maskColor.b + ")";
+  }
+  async setCanvasBackground() {
+    if (this.maskBlendMode === "white") {
+      this.canvasBackground.style.background = "black";
+    } else {
+      this.canvasBackground.style.background = "white";
+    }
+  }
+  getMaskCanvas() {
+    return this.maskCanvas;
+  }
+  getImgCanvas() {
+    return this.imgCanvas;
+  }
+  getImage() {
+    return this.image;
+  }
+  setBrushOpacity(opacity) {
+    this.brush.style.opacity = String(opacity);
+  }
+  setSaveButtonEnabled(enabled) {
+    this.saveButton.disabled = !enabled;
+  }
+  setSaveButtonText(text) {
+    this.saveButton.innerText = text;
+  }
+  handlePaintBucketCursor(isPaintBucket) {
+    if (isPaintBucket) {
+      this.pointerZone.style.cursor = "url('/cursor/paintBucket.png') 30 25, auto";
+    } else {
+      this.pointerZone.style.cursor = "none";
+    }
+  }
+  handlePanCursor(isPanning) {
+    if (isPanning) {
+      this.pointerZone.style.cursor = "grabbing";
+    } else {
+      this.pointerZone.style.cursor = "none";
+    }
+  }
+  setBrushVisibility(visible) {
+    this.brush.style.opacity = visible ? "1" : "0";
+  }
+  setBrushPreviewGradientVisibility(visible) {
+    this.brushPreviewGradient.style.display = visible ? "block" : "none";
+  }
+  async updateCursor() {
+    const currentTool = await this.messageBroker.pull("currentTool");
+    if (currentTool === "paintBucket") {
+      this.pointerZone.style.cursor = "url('/cursor/paintBucket.png') 30 25, auto";
+      this.setBrushOpacity(0);
+    } else if (currentTool === "colorSelect") {
+      this.pointerZone.style.cursor = "url('/cursor/colorSelect.png') 15 25, auto";
+      this.setBrushOpacity(0);
+    } else {
+      this.pointerZone.style.cursor = "none";
+      this.setBrushOpacity(1);
+    }
+    this.updateBrushPreview();
+    this.setBrushPreviewGradientVisibility(false);
+  }
+  setZoomText(zoomText) {
+    this.zoomTextHTML.innerText = zoomText;
+  }
+  setDimensionsText(dimensionsText) {
+    this.dimensionsTextHTML.innerText = dimensionsText;
+  }
+}
+class ToolManager {
+  static {
+    __name(this, "ToolManager");
+  }
+  maskEditor;
+  messageBroker;
+  mouseDownPoint = null;
+  currentTool = "pen";
+  isAdjustingBrush = false;
+  // is user adjusting brush size or hardness with alt + right mouse button
+  constructor(maskEditor) {
+    this.maskEditor = maskEditor;
+    this.messageBroker = maskEditor.getMessageBroker();
+    this.addListeners();
+    this.addPullTopics();
+  }
+  addListeners() {
+    this.messageBroker.subscribe("setTool", async (tool) => {
+      this.setTool(tool);
+    });
+    this.messageBroker.subscribe("pointerDown", async (event) => {
+      this.handlePointerDown(event);
+    });
+    this.messageBroker.subscribe("pointerMove", async (event) => {
+      this.handlePointerMove(event);
+    });
+    this.messageBroker.subscribe("pointerUp", async (event) => {
+      this.handlePointerUp(event);
+    });
+    this.messageBroker.subscribe("wheel", async (event) => {
+      this.handleWheelEvent(event);
+    });
+  }
+  async addPullTopics() {
+    this.messageBroker.createPullTopic(
+      "currentTool",
+      async () => this.getCurrentTool()
+    );
+  }
+  //tools
+  setTool(tool) {
+    this.currentTool = tool;
+    if (tool != "colorSelect") {
+      this.messageBroker.publish("clearLastPoint");
+    }
+  }
+  getCurrentTool() {
+    return this.currentTool;
+  }
+  async handlePointerDown(event) {
+    event.preventDefault();
+    if (event.pointerType == "touch") return;
+    var isSpacePressed = await this.messageBroker.pull("isKeyPressed", " ");
+    if (event.buttons === 4 || event.buttons === 1 && isSpacePressed) {
+      this.messageBroker.publish("panStart", event);
+      this.messageBroker.publish("setBrushVisibility", false);
+      return;
+    }
+    if (this.currentTool === "paintBucket" && event.button === 0) {
+      const offset = { x: event.offsetX, y: event.offsetY };
+      const coords_canvas = await this.messageBroker.pull(
+        "screenToCanvas",
+        offset
+      );
+      this.messageBroker.publish("paintBucketFill", coords_canvas);
+      this.messageBroker.publish("saveState");
+      return;
+    }
+    if (this.currentTool === "colorSelect" && event.button === 0) {
+      const offset = { x: event.offsetX, y: event.offsetY };
+      const coords_canvas = await this.messageBroker.pull(
+        "screenToCanvas",
+        offset
+      );
+      this.messageBroker.publish("colorSelectFill", coords_canvas);
+      return;
+    }
+    if (event.altKey && event.button === 2) {
+      this.isAdjustingBrush = true;
+      this.messageBroker.publish("brushAdjustmentStart", event);
+      return;
+    }
+    var isDrawingTool = [
+      "pen",
+      "eraser"
+      /* Eraser */
+    ].includes(this.currentTool);
+    if ([0, 2].includes(event.button) && isDrawingTool) {
+      this.messageBroker.publish("drawStart", event);
+      return;
+    }
+  }
+  async handlePointerMove(event) {
+    event.preventDefault();
+    if (event.pointerType == "touch") return;
+    const newCursorPoint = { x: event.clientX, y: event.clientY };
+    this.messageBroker.publish("cursorPoint", newCursorPoint);
+    var isSpacePressed = await this.messageBroker.pull("isKeyPressed", " ");
+    this.messageBroker.publish("updateBrushPreview");
+    if (event.buttons === 4 || event.buttons === 1 && isSpacePressed) {
+      this.messageBroker.publish("panMove", event);
+      return;
+    }
+    var isDrawingTool = [
+      "pen",
+      "eraser"
+      /* Eraser */
+    ].includes(this.currentTool);
+    if (!isDrawingTool) return;
+    if (this.isAdjustingBrush && (this.currentTool === "pen" || this.currentTool === "eraser") && event.altKey && event.buttons === 2) {
+      this.messageBroker.publish("brushAdjustment", event);
+      return;
+    }
+    if (event.buttons == 1 || event.buttons == 2) {
+      this.messageBroker.publish("draw", event);
+      return;
+    }
+  }
+  handlePointerUp(event) {
+    this.messageBroker.publish("panCursor", false);
+    if (event.pointerType === "touch") return;
+    this.messageBroker.publish("updateCursor");
+    this.isAdjustingBrush = false;
+    this.messageBroker.publish("drawEnd", event);
+    this.mouseDownPoint = null;
+  }
+  handleWheelEvent(event) {
+    this.messageBroker.publish("zoom", event);
+    const newCursorPoint = { x: event.clientX, y: event.clientY };
+    this.messageBroker.publish("cursorPoint", newCursorPoint);
+  }
+}
+class PanAndZoomManager {
+  static {
+    __name(this, "PanAndZoomManager");
+  }
+  maskEditor;
+  messageBroker;
+  DOUBLE_TAP_DELAY = 300;
+  lastTwoFingerTap = 0;
+  isTouchZooming = false;
+  lastTouchZoomDistance = 0;
+  lastTouchMidPoint = { x: 0, y: 0 };
+  lastTouchPoint = { x: 0, y: 0 };
+  zoom_ratio = 1;
+  interpolatedZoomRatio = 1;
+  pan_offset = { x: 0, y: 0 };
+  mouseDownPoint = null;
+  initialPan = { x: 0, y: 0 };
+  canvasContainer = null;
+  maskCanvas = null;
+  rootElement = null;
+  image = null;
+  imageRootWidth = 0;
+  imageRootHeight = 0;
+  cursorPoint = { x: 0, y: 0 };
+  constructor(maskEditor) {
+    this.maskEditor = maskEditor;
+    this.messageBroker = maskEditor.getMessageBroker();
+    this.addListeners();
+    this.addPullTopics();
+  }
+  addListeners() {
+    this.messageBroker.subscribe(
+      "initZoomPan",
+      async (args) => {
+        await this.initializeCanvasPanZoom(args[0], args[1]);
+      }
+    );
+    this.messageBroker.subscribe("panStart", async (event) => {
+      this.handlePanStart(event);
+    });
+    this.messageBroker.subscribe("panMove", async (event) => {
+      this.handlePanMove(event);
+    });
+    this.messageBroker.subscribe("zoom", async (event) => {
+      this.zoom(event);
+    });
+    this.messageBroker.subscribe("cursorPoint", async (point) => {
+      this.updateCursorPosition(point);
+    });
+    this.messageBroker.subscribe(
+      "handleTouchStart",
+      async (event) => {
+        this.handleTouchStart(event);
+      }
+    );
+    this.messageBroker.subscribe(
+      "handleTouchMove",
+      async (event) => {
+        this.handleTouchMove(event);
+      }
+    );
+    this.messageBroker.subscribe(
+      "handleTouchEnd",
+      async (event) => {
+        this.handleTouchEnd(event);
+      }
+    );
+    this.messageBroker.subscribe("resetZoom", async () => {
+      if (this.interpolatedZoomRatio === 1) return;
+      await this.smoothResetView();
+    });
+  }
+  addPullTopics() {
+    this.messageBroker.createPullTopic(
+      "cursorPoint",
+      async () => this.cursorPoint
+    );
+    this.messageBroker.createPullTopic("zoomRatio", async () => this.zoom_ratio);
+    this.messageBroker.createPullTopic("panOffset", async () => this.pan_offset);
+  }
+  handleTouchStart(event) {
+    event.preventDefault();
+    if (event.touches[0].touchType === "stylus") return;
+    this.messageBroker.publish("setBrushVisibility", false);
+    if (event.touches.length === 2) {
+      const currentTime = (/* @__PURE__ */ new Date()).getTime();
+      const tapTimeDiff = currentTime - this.lastTwoFingerTap;
+      if (tapTimeDiff < this.DOUBLE_TAP_DELAY) {
+        this.handleDoubleTap();
+        this.lastTwoFingerTap = 0;
+      } else {
+        this.lastTwoFingerTap = currentTime;
+        this.isTouchZooming = true;
+        this.lastTouchZoomDistance = this.getTouchDistance(event.touches);
+        const midpoint = this.getTouchMidpoint(event.touches);
+        this.lastTouchMidPoint = midpoint;
+      }
+    } else if (event.touches.length === 1) {
+      this.lastTouchPoint = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY
+      };
+    }
+  }
+  async handleTouchMove(event) {
+    event.preventDefault();
+    if (event.touches[0].touchType === "stylus") return;
+    this.lastTwoFingerTap = 0;
+    if (this.isTouchZooming && event.touches.length === 2) {
+      const newDistance = this.getTouchDistance(event.touches);
+      const zoomFactor = newDistance / this.lastTouchZoomDistance;
+      const oldZoom = this.zoom_ratio;
+      this.zoom_ratio = Math.max(
+        0.2,
+        Math.min(10, this.zoom_ratio * zoomFactor)
+      );
+      const newZoom = this.zoom_ratio;
+      const midpoint = this.getTouchMidpoint(event.touches);
+      if (this.lastTouchMidPoint) {
+        const deltaX = midpoint.x - this.lastTouchMidPoint.x;
+        const deltaY = midpoint.y - this.lastTouchMidPoint.y;
+        this.pan_offset.x += deltaX;
+        this.pan_offset.y += deltaY;
+      }
+      if (this.maskCanvas === null) {
+        this.maskCanvas = await this.messageBroker.pull("maskCanvas");
+      }
+      const rect = this.maskCanvas.getBoundingClientRect();
+      const touchX = midpoint.x - rect.left;
+      const touchY = midpoint.y - rect.top;
+      const scaleFactor = newZoom / oldZoom;
+      this.pan_offset.x += touchX - touchX * scaleFactor;
+      this.pan_offset.y += touchY - touchY * scaleFactor;
+      this.invalidatePanZoom();
+      this.lastTouchZoomDistance = newDistance;
+      this.lastTouchMidPoint = midpoint;
+    } else if (event.touches.length === 1) {
+      this.handleSingleTouchPan(event.touches[0]);
+    }
+  }
+  handleTouchEnd(event) {
+    event.preventDefault();
+    if (event.touches.length === 0 && event.touches[0].touchType === "stylus") {
+      return;
+    }
+    this.isTouchZooming = false;
+    this.lastTouchMidPoint = { x: 0, y: 0 };
+    if (event.touches.length === 0) {
+      this.lastTouchPoint = { x: 0, y: 0 };
+    } else if (event.touches.length === 1) {
+      this.lastTouchPoint = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY
+      };
+    }
+  }
+  getTouchDistance(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  getTouchMidpoint(touches) {
+    return {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2
+    };
+  }
+  async handleSingleTouchPan(touch) {
+    if (this.lastTouchPoint === null) {
+      this.lastTouchPoint = { x: touch.clientX, y: touch.clientY };
+      return;
+    }
+    const deltaX = touch.clientX - this.lastTouchPoint.x;
+    const deltaY = touch.clientY - this.lastTouchPoint.y;
+    this.pan_offset.x += deltaX;
+    this.pan_offset.y += deltaY;
+    await this.invalidatePanZoom();
+    this.lastTouchPoint = { x: touch.clientX, y: touch.clientY };
+  }
+  updateCursorPosition(clientPoint) {
+    var cursorX = clientPoint.x - this.pan_offset.x;
+    var cursorY = clientPoint.y - this.pan_offset.y;
+    this.cursorPoint = { x: cursorX, y: cursorY };
+  }
+  //prob redundant
+  handleDoubleTap() {
+    this.messageBroker.publish("undo");
+  }
+  async zoom(event) {
+    const cursorPoint = { x: event.clientX, y: event.clientY };
+    const oldZoom = this.zoom_ratio;
+    const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
+    this.zoom_ratio = Math.max(
+      0.2,
+      Math.min(10, this.zoom_ratio * zoomFactor)
+    );
+    const newZoom = this.zoom_ratio;
+    const maskCanvas = await this.messageBroker.pull("maskCanvas");
+    const rect = maskCanvas.getBoundingClientRect();
+    const mouseX = cursorPoint.x - rect.left;
+    const mouseY = cursorPoint.y - rect.top;
+    console.log(oldZoom, newZoom);
+    const scaleFactor = newZoom / oldZoom;
+    this.pan_offset.x += mouseX - mouseX * scaleFactor;
+    this.pan_offset.y += mouseY - mouseY * scaleFactor;
+    await this.invalidatePanZoom();
+    const newImageWidth = maskCanvas.clientWidth;
+    const zoomRatio = newImageWidth / this.imageRootWidth;
+    this.interpolatedZoomRatio = zoomRatio;
+    this.messageBroker.publish("setZoomText", `${Math.round(zoomRatio * 100)}%`);
+    this.updateCursorPosition(cursorPoint);
+    requestAnimationFrame(() => {
+      this.messageBroker.publish("updateBrushPreview");
+    });
+  }
+  async smoothResetView(duration = 500) {
+    const startZoom = this.zoom_ratio;
+    const startPan = { ...this.pan_offset };
+    const sidePanelWidth = 220;
+    const toolPanelWidth = 64;
+    const topBarHeight = 44;
+    const availableWidth = this.rootElement.clientWidth - sidePanelWidth - toolPanelWidth;
+    const availableHeight = this.rootElement.clientHeight - topBarHeight;
+    const zoomRatioWidth = availableWidth / this.image.width;
+    const zoomRatioHeight = availableHeight / this.image.height;
+    const targetZoom = Math.min(zoomRatioWidth, zoomRatioHeight);
+    const aspectRatio = this.image.width / this.image.height;
+    let finalWidth = 0;
+    let finalHeight = 0;
+    const targetPan = { x: toolPanelWidth, y: topBarHeight };
+    if (zoomRatioHeight > zoomRatioWidth) {
+      finalWidth = availableWidth;
+      finalHeight = finalWidth / aspectRatio;
+      targetPan.y = (availableHeight - finalHeight) / 2 + topBarHeight;
+    } else {
+      finalHeight = availableHeight;
+      finalWidth = finalHeight * aspectRatio;
+      targetPan.x = (availableWidth - finalWidth) / 2 + toolPanelWidth;
+    }
+    const startTime = performance.now();
+    const animate = /* @__PURE__ */ __name((currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const currentZoom = startZoom + (targetZoom - startZoom) * eased;
+      this.zoom_ratio = currentZoom;
+      this.pan_offset.x = startPan.x + (targetPan.x - startPan.x) * eased;
+      this.pan_offset.y = startPan.y + (targetPan.y - startPan.y) * eased;
+      this.invalidatePanZoom();
+      const interpolatedZoomRatio = startZoom + (1 - startZoom) * eased;
+      this.messageBroker.publish(
+        "setZoomText",
+        `${Math.round(interpolatedZoomRatio * 100)}%`
+      );
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    }, "animate");
+    requestAnimationFrame(animate);
+    this.interpolatedZoomRatio = 1;
+  }
+  async initializeCanvasPanZoom(image, rootElement) {
+    let sidePanelWidth = 220;
+    const toolPanelWidth = 64;
+    let topBarHeight = 44;
+    this.rootElement = rootElement;
+    let availableWidth = rootElement.clientWidth - sidePanelWidth - toolPanelWidth;
+    let availableHeight = rootElement.clientHeight - topBarHeight;
+    let zoomRatioWidth = availableWidth / image.width;
+    let zoomRatioHeight = availableHeight / image.height;
+    let aspectRatio = image.width / image.height;
+    let finalWidth = 0;
+    let finalHeight = 0;
+    let pan_offset = { x: toolPanelWidth, y: topBarHeight };
+    if (zoomRatioHeight > zoomRatioWidth) {
+      finalWidth = availableWidth;
+      finalHeight = finalWidth / aspectRatio;
+      pan_offset.y = (availableHeight - finalHeight) / 2 + topBarHeight;
+    } else {
+      finalHeight = availableHeight;
+      finalWidth = finalHeight * aspectRatio;
+      pan_offset.x = (availableWidth - finalWidth) / 2 + toolPanelWidth;
+    }
+    if (this.image === null) {
+      this.image = image;
+    }
+    this.imageRootWidth = finalWidth;
+    this.imageRootHeight = finalHeight;
+    this.zoom_ratio = Math.min(zoomRatioWidth, zoomRatioHeight);
+    this.pan_offset = pan_offset;
+    await this.invalidatePanZoom();
+  }
+  async invalidatePanZoom() {
+    if (!this.image?.width || !this.image?.height || !this.pan_offset || !this.zoom_ratio) {
+      console.warn("Missing required properties for pan/zoom");
+      return;
+    }
+    const raw_width = this.image.width * this.zoom_ratio;
+    const raw_height = this.image.height * this.zoom_ratio;
+    this.canvasContainer ??= await this.messageBroker?.pull("getCanvasContainer");
+    if (!this.canvasContainer) return;
+    Object.assign(this.canvasContainer.style, {
+      width: `${raw_width}px`,
+      height: `${raw_height}px`,
+      left: `${this.pan_offset.x}px`,
+      top: `${this.pan_offset.y}px`
+    });
+  }
+  handlePanStart(event) {
+    let coords_canvas = this.messageBroker.pull("screenToCanvas", {
+      x: event.offsetX,
+      y: event.offsetY
+    });
+    this.mouseDownPoint = { x: event.clientX, y: event.clientY };
+    this.messageBroker.publish("panCursor", true);
+    this.initialPan = this.pan_offset;
+    return;
+  }
+  handlePanMove(event) {
+    if (this.mouseDownPoint === null) throw new Error("mouseDownPoint is null");
+    let deltaX = this.mouseDownPoint.x - event.clientX;
+    let deltaY = this.mouseDownPoint.y - event.clientY;
+    let pan_x = this.initialPan.x - deltaX;
+    let pan_y = this.initialPan.y - deltaY;
+    this.pan_offset = { x: pan_x, y: pan_y };
+    this.invalidatePanZoom();
+  }
+}
+class MessageBroker {
+  static {
+    __name(this, "MessageBroker");
+  }
+  pushTopics = {};
+  pullTopics = {};
+  constructor() {
+    this.registerListeners();
+  }
+  // Push
+  registerListeners() {
+    this.createPushTopic("panStart");
+    this.createPushTopic("paintBucketFill");
+    this.createPushTopic("saveState");
+    this.createPushTopic("brushAdjustmentStart");
+    this.createPushTopic("drawStart");
+    this.createPushTopic("panMove");
+    this.createPushTopic("updateBrushPreview");
+    this.createPushTopic("brushAdjustment");
+    this.createPushTopic("draw");
+    this.createPushTopic("paintBucketCursor");
+    this.createPushTopic("panCursor");
+    this.createPushTopic("drawEnd");
+    this.createPushTopic("zoom");
+    this.createPushTopic("undo");
+    this.createPushTopic("redo");
+    this.createPushTopic("cursorPoint");
+    this.createPushTopic("panOffset");
+    this.createPushTopic("zoomRatio");
+    this.createPushTopic("getMaskCanvas");
+    this.createPushTopic("getCanvasContainer");
+    this.createPushTopic("screenToCanvas");
+    this.createPushTopic("isKeyPressed");
+    this.createPushTopic("isCombinationPressed");
+    this.createPushTopic("setPaintBucketTolerance");
+    this.createPushTopic("setBrushSize");
+    this.createPushTopic("setBrushHardness");
+    this.createPushTopic("setBrushOpacity");
+    this.createPushTopic("setBrushShape");
+    this.createPushTopic("initZoomPan");
+    this.createPushTopic("setTool");
+    this.createPushTopic("pointerDown");
+    this.createPushTopic("pointerMove");
+    this.createPushTopic("pointerUp");
+    this.createPushTopic("wheel");
+    this.createPushTopic("initPaintBucketTool");
+    this.createPushTopic("setBrushVisibility");
+    this.createPushTopic("setBrushPreviewGradientVisibility");
+    this.createPushTopic("handleTouchStart");
+    this.createPushTopic("handleTouchMove");
+    this.createPushTopic("handleTouchEnd");
+    this.createPushTopic("colorSelectFill");
+    this.createPushTopic("setColorSelectTolerance");
+    this.createPushTopic("setLivePreview");
+    this.createPushTopic("updateCursor");
+    this.createPushTopic("setColorComparisonMethod");
+    this.createPushTopic("clearLastPoint");
+    this.createPushTopic("setWholeImage");
+    this.createPushTopic("setMaskBoundary");
+    this.createPushTopic("setMaskTolerance");
+    this.createPushTopic("setBrushSmoothingPrecision");
+    this.createPushTopic("setZoomText");
+    this.createPushTopic("resetZoom");
+    this.createPushTopic("invert");
+  }
+  /**
+   * Creates a new push topic (listener is notified)
+   *
+   * @param {string} topicName - The name of the topic to create.
+   * @throws {Error} If the topic already exists.
+   */
+  createPushTopic(topicName) {
+    if (this.topicExists(this.pushTopics, topicName)) {
+      throw new Error("Topic already exists");
+    }
+    this.pushTopics[topicName] = [];
+  }
+  /**
+   * Subscribe a callback function to the given topic.
+   *
+   * @param {string} topicName - The name of the topic to subscribe to.
+   * @param {Callback} callback - The callback function to be subscribed.
+   * @throws {Error} If the topic does not exist.
+   */
+  subscribe(topicName, callback) {
+    if (!this.topicExists(this.pushTopics, topicName)) {
+      throw new Error(`Topic "${topicName}" does not exist!`);
+    }
+    this.pushTopics[topicName].push(callback);
+  }
+  /**
+   * Removes a callback function from the list of subscribers for a given topic.
+   *
+   * @param {string} topicName - The name of the topic to unsubscribe from.
+   * @param {Callback} callback - The callback function to remove from the subscribers list.
+   * @throws {Error} If the topic does not exist in the list of topics.
+   */
+  unsubscribe(topicName, callback) {
+    if (!this.topicExists(this.pushTopics, topicName)) {
+      throw new Error("Topic does not exist");
+    }
+    const index = this.pushTopics[topicName].indexOf(callback);
+    if (index > -1) {
+      this.pushTopics[topicName].splice(index, 1);
+    }
+  }
+  /**
+   * Publishes data to a specified topic with variable number of arguments.
+   * @param {string} topicName - The name of the topic to publish to.
+   * @param {...any[]} args - Variable number of arguments to pass to subscribers
+   * @throws {Error} If the specified topic does not exist.
+   */
+  publish(topicName, ...args) {
+    if (!this.topicExists(this.pushTopics, topicName)) {
+      throw new Error(`Topic "${topicName}" does not exist!`);
+    }
+    this.pushTopics[topicName].forEach((callback) => {
+      callback(...args);
+    });
+  }
+  // Pull
+  /**
+   * Creates a new pull topic (listener must request data)
+   *
+   * @param {string} topicName - The name of the topic to create.
+   * @param {() => Promise<any>} callBack - The callback function to be called when data is requested.
+   * @throws {Error} If the topic already exists.
+   */
+  createPullTopic(topicName, callBack) {
+    if (this.topicExists(this.pullTopics, topicName)) {
+      throw new Error("Topic already exists");
+    }
+    this.pullTopics[topicName] = callBack;
+  }
+  /**
+   * Requests data from a specified pull topic.
+   * @param {string} topicName - The name of the topic to request data from.
+   * @returns {Promise<any>} - The data from the pull topic.
+   * @throws {Error} If the specified topic does not exist.
+   */
+  async pull(topicName, data) {
+    if (!this.topicExists(this.pullTopics, topicName)) {
+      throw new Error("Topic does not exist");
+    }
+    const callBack = this.pullTopics[topicName];
+    try {
+      const result = await callBack(data);
+      return result;
+    } catch (error) {
+      console.error(`Error pulling data from topic "${topicName}":`, error);
+      throw error;
+    }
+  }
+  // Helper Methods
+  /**
+   * Checks if a topic exists in the given topics object.
+   * @param {Record<string, any>} topics - The topics object to check.
+   * @param {string} topicName - The name of the topic to check.
+   * @returns {boolean} - True if the topic exists, false otherwise.
+   */
+  topicExists(topics, topicName) {
+    return topics.hasOwnProperty(topicName);
+  }
+}
+class KeyboardManager {
+  static {
+    __name(this, "KeyboardManager");
+  }
+  keysDown = [];
+  maskEditor;
+  messageBroker;
+  constructor(maskEditor) {
+    this.maskEditor = maskEditor;
+    this.messageBroker = maskEditor.getMessageBroker();
+    this.addPullTopics();
+  }
+  addPullTopics() {
+    this.messageBroker.createPullTopic(
+      "isKeyPressed",
+      (key) => Promise.resolve(this.isKeyDown(key))
+    );
+  }
+  addListeners() {
+    document.addEventListener("keydown", (event) => this.handleKeyDown(event));
+    document.addEventListener("keyup", (event) => this.handleKeyUp(event));
+    window.addEventListener("blur", () => this.clearKeys());
+  }
+  removeListeners() {
+    document.removeEventListener(
+      "keydown",
+      (event) => this.handleKeyDown(event)
+    );
+    document.removeEventListener("keyup", (event) => this.handleKeyUp(event));
+  }
+  clearKeys() {
+    this.keysDown = [];
+  }
+  handleKeyDown(event) {
+    if (!this.keysDown.includes(event.key)) {
+      this.keysDown.push(event.key);
+    }
+  }
+  handleKeyUp(event) {
+    this.keysDown = this.keysDown.filter((key) => key !== event.key);
+  }
+  isKeyDown(key) {
+    return this.keysDown.includes(key);
+  }
+  // combinations
+  undoCombinationPressed() {
+    const combination = ["ctrl", "z"];
+    const keysDownLower = this.keysDown.map((key) => key.toLowerCase());
+    const result = combination.every((key) => keysDownLower.includes(key));
+    if (result) this.messageBroker.publish("undo");
+    return result;
+  }
+  redoCombinationPressed() {
+    const combination = ["ctrl", "shift", "z"];
+    const keysDownLower = this.keysDown.map((key) => key.toLowerCase());
+    const result = combination.every((key) => keysDownLower.includes(key));
+    if (result) this.messageBroker.publish("redo");
+    return result;
+  }
+}
+app.registerExtension({
+  name: "Comfy.MaskEditor",
+  settings: [
+    {
+      id: "Comfy.MaskEditor.UseNewEditor",
+      category: ["Mask Editor", "NewEditor"],
+      name: "Use new mask editor",
+      tooltip: "Switch to the new mask editor interface",
+      type: "boolean",
+      defaultValue: true,
+      experimental: true
+    },
+    {
+      id: "Comfy.MaskEditor.BrushAdjustmentSpeed",
+      category: ["Mask Editor", "BrushAdjustment", "Sensitivity"],
+      name: "Brush adjustment speed multiplier",
+      tooltip: "Controls how quickly the brush size and hardness change when adjusting. Higher values mean faster changes.",
+      experimental: true,
+      type: "slider",
+      attrs: {
+        min: 0.1,
+        max: 2,
+        step: 0.1
+      },
+      defaultValue: 1,
+      versionAdded: "1.0.0"
+    },
+    {
+      id: "Comfy.MaskEditor.UseDominantAxis",
+      category: ["Mask Editor", "BrushAdjustment", "UseDominantAxis"],
+      name: "Lock brush adjustment to dominant axis",
+      tooltip: "When enabled, brush adjustments will only affect size OR hardness based on which direction you move more",
+      type: "boolean",
+      defaultValue: true,
+      experimental: true
+    }
+  ],
+  init(app2) {
+    function openMaskEditor() {
+      const useNewEditor = app2.extensionManager.setting.get(
+        "Comfy.MaskEditor.UseNewEditor"
+      );
+      if (useNewEditor) {
+        const dlg = MaskEditorDialog.getInstance();
+        if (dlg?.isOpened && !dlg.isOpened()) {
+          dlg.show();
+        }
+      } else {
+        const dlg = MaskEditorDialogOld.getInstance();
+        if (dlg?.isOpened && !dlg.isOpened()) {
+          dlg.show();
+        }
+      }
+    }
+    __name(openMaskEditor, "openMaskEditor");
+    ;
+    ComfyApp.open_maskeditor = openMaskEditor;
+    const context_predicate = /* @__PURE__ */ __name(() => {
+      return !!(ComfyApp.clipspace && ComfyApp.clipspace.imgs && ComfyApp.clipspace.imgs.length > 0);
+    }, "context_predicate");
+    ClipspaceDialog.registerButton(
+      "MaskEditor",
+      context_predicate,
+      openMaskEditor
+    );
+  }
+});
+const id = "Comfy.NodeTemplates";
+const file = "comfy.templates.json";
+class ManageTemplates extends ComfyDialog {
+  static {
+    __name(this, "ManageTemplates");
+  }
+  templates;
+  draggedEl;
+  saveVisualCue;
+  emptyImg;
+  importInput;
+  constructor() {
+    super();
+    this.load().then((v) => {
+      this.templates = v;
+    });
+    this.element.classList.add("comfy-manage-templates");
+    this.draggedEl = null;
+    this.saveVisualCue = null;
+    this.emptyImg = new Image();
+    this.emptyImg.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=";
+    this.importInput = $el("input", {
+      type: "file",
+      accept: ".json",
+      multiple: true,
+      style: { display: "none" },
+      parent: document.body,
+      onchange: /* @__PURE__ */ __name(() => this.importAll(), "onchange")
+    });
+  }
+  createButtons() {
+    const btns = super.createButtons();
+    btns[0].textContent = "Close";
+    btns[0].onclick = (e) => {
+      clearTimeout(this.saveVisualCue);
+      this.close();
+    };
+    btns.unshift(
+      $el("button", {
+        type: "button",
+        textContent: "Export",
+        onclick: /* @__PURE__ */ __name(() => this.exportAll(), "onclick")
+      })
+    );
+    btns.unshift(
+      $el("button", {
+        type: "button",
+        textContent: "Import",
+        onclick: /* @__PURE__ */ __name(() => {
+          this.importInput.click();
+        }, "onclick")
+      })
+    );
+    return btns;
+  }
+  async load() {
+    let templates = [];
+    const res = await api.getUserData(file);
+    if (res.status === 200) {
+      try {
+        templates = await res.json();
+      } catch (error) {
+      }
+    } else if (res.status !== 404) {
+      console.error(res.status + " " + res.statusText);
+    }
+    return templates ?? [];
+  }
+  async store() {
+    const templates = JSON.stringify(this.templates, void 0, 4);
+    try {
+      await api.storeUserData(file, templates, { stringify: false });
+    } catch (error) {
+      console.error(error);
+      useToastStore().addAlert(error.message);
+    }
+  }
+  async importAll() {
+    for (const file2 of this.importInput.files) {
+      if (file2.type === "application/json" || file2.name.endsWith(".json")) {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const importFile = JSON.parse(reader.result);
+          if (importFile?.templates) {
+            for (const template of importFile.templates) {
+              if (template?.name && template?.data) {
+                this.templates.push(template);
+              }
+            }
+            await this.store();
+          }
+        };
+        await reader.readAsText(file2);
+      }
+    }
+    this.importInput.value = null;
+    this.close();
+  }
+  exportAll() {
+    if (this.templates.length == 0) {
+      useToastStore().addAlert("No templates to export.");
+      return;
+    }
+    const json = JSON.stringify({ templates: this.templates }, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = $el("a", {
+      href: url,
+      download: "node_templates.json",
+      style: { display: "none" },
+      parent: document.body
+    });
+    a.click();
+    setTimeout(function() {
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    }, 0);
+  }
+  show() {
+    super.show(
+      $el(
+        "div",
+        {},
+        this.templates.flatMap((t2, i) => {
+          let nameInput;
+          return [
+            $el(
+              "div",
+              {
+                dataset: { id: i.toString() },
+                className: "templateManagerRow",
+                style: {
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  border: "1px dashed transparent",
+                  gap: "5px",
+                  backgroundColor: "var(--comfy-menu-bg)"
+                },
+                ondragstart: /* @__PURE__ */ __name((e) => {
+                  this.draggedEl = e.currentTarget;
+                  e.currentTarget.style.opacity = "0.6";
+                  e.currentTarget.style.border = "1px dashed yellow";
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setDragImage(this.emptyImg, 0, 0);
+                }, "ondragstart"),
+                ondragend: /* @__PURE__ */ __name((e) => {
+                  e.target.style.opacity = "1";
+                  e.currentTarget.style.border = "1px dashed transparent";
+                  e.currentTarget.removeAttribute("draggable");
+                  this.element.querySelectorAll(".templateManagerRow").forEach((el, i2) => {
+                    var prev_i = Number.parseInt(el.dataset.id);
+                    if (el == this.draggedEl && prev_i != i2) {
+                      this.templates.splice(
+                        i2,
+                        0,
+                        this.templates.splice(prev_i, 1)[0]
+                      );
+                    }
+                    el.dataset.id = i2.toString();
+                  });
+                  this.store();
+                }, "ondragend"),
+                ondragover: /* @__PURE__ */ __name((e) => {
+                  e.preventDefault();
+                  if (e.currentTarget == this.draggedEl) return;
+                  let rect = e.currentTarget.getBoundingClientRect();
+                  if (e.clientY > rect.top + rect.height / 2) {
+                    e.currentTarget.parentNode.insertBefore(
+                      this.draggedEl,
+                      e.currentTarget.nextSibling
+                    );
+                  } else {
+                    e.currentTarget.parentNode.insertBefore(
+                      this.draggedEl,
+                      e.currentTarget
+                    );
+                  }
+                }, "ondragover")
+              },
+              [
+                $el(
+                  "label",
+                  {
+                    textContent: "Name: ",
+                    style: {
+                      cursor: "grab"
+                    },
+                    onmousedown: /* @__PURE__ */ __name((e) => {
+                      if (e.target.localName == "label")
+                        e.currentTarget.parentNode.draggable = "true";
+                    }, "onmousedown")
+                  },
+                  [
+                    $el("input", {
+                      value: t2.name,
+                      dataset: { name: t2.name },
+                      style: {
+                        transitionProperty: "background-color",
+                        transitionDuration: "0s"
+                      },
+                      onchange: /* @__PURE__ */ __name((e) => {
+                        clearTimeout(this.saveVisualCue);
+                        var el = e.target;
+                        var row = el.parentNode.parentNode;
+                        this.templates[row.dataset.id].name = el.value.trim() || "untitled";
+                        this.store();
+                        el.style.backgroundColor = "rgb(40, 95, 40)";
+                        el.style.transitionDuration = "0s";
+                        this.saveVisualCue = setTimeout(function() {
+                          el.style.transitionDuration = ".7s";
+                          el.style.backgroundColor = "var(--comfy-input-bg)";
+                        }, 15);
+                      }, "onchange"),
+                      onkeypress: /* @__PURE__ */ __name((e) => {
+                        var el = e.target;
+                        clearTimeout(this.saveVisualCue);
+                        el.style.transitionDuration = "0s";
+                        el.style.backgroundColor = "var(--comfy-input-bg)";
+                      }, "onkeypress"),
+                      $: /* @__PURE__ */ __name((el) => nameInput = el, "$")
+                    })
+                  ]
+                ),
+                $el("div", {}, [
+                  $el("button", {
+                    textContent: "Export",
+                    style: {
+                      fontSize: "12px",
+                      fontWeight: "normal"
+                    },
+                    onclick: /* @__PURE__ */ __name((e) => {
+                      const json = JSON.stringify({ templates: [t2] }, null, 2);
+                      const blob = new Blob([json], {
+                        type: "application/json"
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = $el("a", {
+                        href: url,
+                        download: (nameInput.value || t2.name) + ".json",
+                        style: { display: "none" },
+                        parent: document.body
+                      });
+                      a.click();
+                      setTimeout(function() {
+                        a.remove();
+                        window.URL.revokeObjectURL(url);
+                      }, 0);
+                    }, "onclick")
+                  }),
+                  $el("button", {
+                    textContent: "Delete",
+                    style: {
+                      fontSize: "12px",
+                      color: "red",
+                      fontWeight: "normal"
+                    },
+                    onclick: /* @__PURE__ */ __name((e) => {
+                      const item = e.target.parentNode.parentNode;
+                      item.parentNode.removeChild(item);
+                      this.templates.splice(item.dataset.id * 1, 1);
+                      this.store();
+                      var that = this;
+                      setTimeout(function() {
+                        that.element.querySelectorAll(".templateManagerRow").forEach((el, i2) => {
+                          el.dataset.id = i2.toString();
+                        });
+                      }, 0);
+                    }, "onclick")
+                  })
+                ])
+              ]
+            )
+          ];
+        })
+      )
+    );
+  }
+}
+app.registerExtension({
+  name: id,
+  setup() {
+    const manage = new ManageTemplates();
+    const clipboardAction = /* @__PURE__ */ __name(async (cb) => {
+      const old = localStorage.getItem("litegrapheditor_clipboard");
+      await cb();
+      localStorage.setItem("litegrapheditor_clipboard", old);
+    }, "clipboardAction");
+    const orig = LGraphCanvas.prototype.getCanvasMenuOptions;
+    LGraphCanvas.prototype.getCanvasMenuOptions = function() {
+      const options = orig.apply(this, arguments);
+      options.push(null);
+      options.push({
+        content: `Save Selected as Template`,
+        disabled: !Object.keys(app.canvas.selected_nodes || {}).length,
+        callback: /* @__PURE__ */ __name(async () => {
+          const name = await useDialogService().prompt({
+            title: t("nodeTemplates.saveAsTemplate"),
+            message: t("nodeTemplates.enterName"),
+            defaultValue: ""
+          });
+          if (!name?.trim()) return;
+          clipboardAction(() => {
+            app.canvas.copyToClipboard();
+            let data = localStorage.getItem("litegrapheditor_clipboard");
+            data = JSON.parse(data);
+            const nodeIds = Object.keys(app.canvas.selected_nodes);
+            for (let i = 0; i < nodeIds.length; i++) {
+              const node = app.graph.getNodeById(nodeIds[i]);
+              const nodeData = node?.constructor.nodeData;
+              let groupData = GroupNodeHandler.getGroupData(node);
+              if (groupData) {
+                groupData = groupData.nodeData;
+                if (!data.groupNodes) {
+                  data.groupNodes = {};
+                }
+                data.groupNodes[nodeData.name] = groupData;
+                data.nodes[i].type = nodeData.name;
+              }
+            }
+            manage.templates.push({
+              name,
+              data: JSON.stringify(data)
+            });
+            manage.store();
+          });
+        }, "callback")
+      });
+      const subItems = manage.templates.map((t2) => {
+        return {
+          content: t2.name,
+          callback: /* @__PURE__ */ __name(() => {
+            clipboardAction(async () => {
+              const data = JSON.parse(t2.data);
+              await GroupNodeConfig.registerFromWorkflow(data.groupNodes, {});
+              if (!data.reroutes) {
+                deserialiseAndCreate(t2.data, app.canvas);
+              } else {
+                localStorage.setItem("litegrapheditor_clipboard", t2.data);
+                app.canvas.pasteFromClipboard();
+              }
+            });
+          }, "callback")
+        };
+      });
+      subItems.push(null, {
+        content: "Manage",
+        callback: /* @__PURE__ */ __name(() => manage.show(), "callback")
+      });
+      options.push({
+        content: "Node Templates",
+        submenu: {
+          options: subItems
+        }
+      });
+      return options;
+    };
+  }
+});
+app.registerExtension({
+  name: "Comfy.NoteNode",
+  registerCustomNodes() {
+    class NoteNode extends LGraphNode {
+      static {
+        __name(this, "NoteNode");
+      }
+      static category;
+      color = LGraphCanvas.node_colors.yellow.color;
+      bgcolor = LGraphCanvas.node_colors.yellow.bgcolor;
+      groupcolor = LGraphCanvas.node_colors.yellow.groupcolor;
+      isVirtualNode;
+      collapsable;
+      title_mode;
+      constructor(title) {
+        super(title);
+        if (!this.properties) {
+          this.properties = { text: "" };
+        }
+        ComfyWidgets.STRING(
+          // Should we extends LGraphNode?  Yesss
+          this,
+          "",
+          ["", { default: this.properties.text, multiline: true }],
+          app
+        );
+        this.serialize_widgets = true;
+        this.isVirtualNode = true;
+      }
+    }
+    LiteGraph.registerNodeType(
+      "Note",
+      Object.assign(NoteNode, {
+        title_mode: LiteGraph.NORMAL_TITLE,
+        title: "Note",
+        collapsable: true
+      })
+    );
+    NoteNode.category = "utils";
+    class MarkdownNoteNode extends LGraphNode {
+      static {
+        __name(this, "MarkdownNoteNode");
+      }
+      static title = "Markdown Note";
+      color = LGraphCanvas.node_colors.yellow.color;
+      bgcolor = LGraphCanvas.node_colors.yellow.bgcolor;
+      groupcolor = LGraphCanvas.node_colors.yellow.groupcolor;
+      constructor(title) {
+        super(title);
+        if (!this.properties) {
+          this.properties = { text: "" };
+        }
+        ComfyWidgets.MARKDOWN(
+          this,
+          "",
+          ["", { default: this.properties.text }],
+          app
+        );
+        this.serialize_widgets = true;
+        this.isVirtualNode = true;
+      }
+    }
+    LiteGraph.registerNodeType("MarkdownNote", MarkdownNoteNode);
+    MarkdownNoteNode.category = "utils";
+  }
+});
+app.registerExtension({
+  name: "Comfy.RerouteNode",
+  registerCustomNodes(app2) {
+    class RerouteNode extends LGraphNode {
+      static {
+        __name(this, "RerouteNode");
+      }
+      static category;
+      static defaultVisibility = false;
+      constructor(title) {
+        super(title);
+        if (!this.properties) {
+          this.properties = {};
+        }
+        this.properties.showOutputText = RerouteNode.defaultVisibility;
+        this.properties.horizontal = false;
+        this.addInput("", "*");
+        this.addOutput(this.properties.showOutputText ? "*" : "", "*");
+        this.onAfterGraphConfigured = function() {
+          requestAnimationFrame(() => {
+            this.onConnectionsChange(LiteGraph.INPUT, null, true, null);
+          });
+        };
+        this.onConnectionsChange = (type, index, connected, link_info) => {
+          if (app2.configuringGraph) return;
+          this.applyOrientation();
+          if (connected && type === LiteGraph.OUTPUT) {
+            const types = new Set(
+              this.outputs[0].links.map((l) => app2.graph.links[l].type).filter((t2) => t2 !== "*")
+            );
+            if (types.size > 1) {
+              const linksToDisconnect = [];
+              for (let i = 0; i < this.outputs[0].links.length - 1; i++) {
+                const linkId = this.outputs[0].links[i];
+                const link = app2.graph.links[linkId];
+                linksToDisconnect.push(link);
+              }
+              for (const link of linksToDisconnect) {
+                const node = app2.graph.getNodeById(link.target_id);
+                node.disconnectInput(link.target_slot);
+              }
+            }
+          }
+          let currentNode = this;
+          let updateNodes = [];
+          let inputType = null;
+          let inputNode = null;
+          while (currentNode) {
+            updateNodes.unshift(currentNode);
+            const linkId = currentNode.inputs[0].link;
+            if (linkId !== null) {
+              const link = app2.graph.links[linkId];
+              if (!link) return;
+              const node = app2.graph.getNodeById(link.origin_id);
+              const type2 = node.constructor.type;
+              if (type2 === "Reroute") {
+                if (node === this) {
+                  currentNode.disconnectInput(link.target_slot);
+                  currentNode = null;
+                } else {
+                  currentNode = node;
+                }
+              } else {
+                inputNode = currentNode;
+                inputType = node.outputs[link.origin_slot]?.type ?? null;
+                break;
+              }
+            } else {
+              currentNode = null;
+              break;
+            }
+          }
+          const nodes = [this];
+          let outputType = null;
+          while (nodes.length) {
+            currentNode = nodes.pop();
+            const outputs = (currentNode.outputs ? currentNode.outputs[0].links : []) || [];
+            if (outputs.length) {
+              for (const linkId of outputs) {
+                const link = app2.graph.links[linkId];
+                if (!link) continue;
+                const node = app2.graph.getNodeById(link.target_id);
+                const type2 = node.constructor.type;
+                if (type2 === "Reroute") {
+                  nodes.push(node);
+                  updateNodes.push(node);
+                } else {
+                  const nodeOutType = node.inputs && node.inputs[link?.target_slot] && node.inputs[link.target_slot].type ? node.inputs[link.target_slot].type : null;
+                  if (inputType && !LiteGraph.isValidConnection(inputType, nodeOutType)) {
+                    node.disconnectInput(link.target_slot);
+                  } else {
+                    outputType = nodeOutType;
+                  }
+                }
+              }
+            } else {
+            }
+          }
+          const displayType = inputType || outputType || "*";
+          const color = LGraphCanvas.link_type_colors[displayType];
+          let widgetConfig;
+          let targetWidget;
+          let widgetType;
+          for (const node of updateNodes) {
+            node.outputs[0].type = inputType || "*";
+            node.__outputType = displayType;
+            node.outputs[0].name = node.properties.showOutputText ? displayType : "";
+            node.size = node.computeSize();
+            node.applyOrientation();
+            for (const l of node.outputs[0].links || []) {
+              const link = app2.graph.links[l];
+              if (link) {
+                link.color = color;
+                if (app2.configuringGraph) continue;
+                const targetNode = app2.graph.getNodeById(link.target_id);
+                const targetInput = targetNode.inputs?.[link.target_slot];
+                if (targetInput?.widget) {
+                  const config = getWidgetConfig(targetInput);
+                  if (!widgetConfig) {
+                    widgetConfig = config[1] ?? {};
+                    widgetType = config[0];
+                  }
+                  if (!targetWidget) {
+                    targetWidget = targetNode.widgets?.find(
+                      (w) => w.name === targetInput.widget.name
+                    );
+                  }
+                  const merged = mergeIfValid(targetInput, [
+                    config[0],
+                    widgetConfig
+                  ]);
+                  if (merged.customConfig) {
+                    widgetConfig = merged.customConfig;
+                  }
+                }
+              }
+            }
+          }
+          for (const node of updateNodes) {
+            if (widgetConfig && outputType) {
+              node.inputs[0].widget = { name: "value" };
+              setWidgetConfig(
+                node.inputs[0],
+                [widgetType ?? displayType, widgetConfig],
+                targetWidget
+              );
+            } else {
+              setWidgetConfig(node.inputs[0], null);
+            }
+          }
+          if (inputNode) {
+            const link = app2.graph.links[inputNode.inputs[0].link];
+            if (link) {
+              link.color = color;
+            }
+          }
+        };
+        this.clone = function() {
+          const cloned = RerouteNode.prototype.clone.apply(this);
+          cloned.removeOutput(0);
+          cloned.addOutput(this.properties.showOutputText ? "*" : "", "*");
+          cloned.size = cloned.computeSize();
+          return cloned;
+        };
+        this.isVirtualNode = true;
+      }
+      getExtraMenuOptions(_, options) {
+        options.unshift(
+          {
+            content: (this.properties.showOutputText ? "Hide" : "Show") + " Type",
+            callback: /* @__PURE__ */ __name(() => {
+              this.properties.showOutputText = !this.properties.showOutputText;
+              if (this.properties.showOutputText) {
+                this.outputs[0].name = this.__outputType || this.outputs[0].type;
+              } else {
+                this.outputs[0].name = "";
+              }
+              this.size = this.computeSize();
+              this.applyOrientation();
+              app2.graph.setDirtyCanvas(true, true);
+            }, "callback")
+          },
+          {
+            content: (RerouteNode.defaultVisibility ? "Hide" : "Show") + " Type By Default",
+            callback: /* @__PURE__ */ __name(() => {
+              RerouteNode.setDefaultTextVisibility(
+                !RerouteNode.defaultVisibility
+              );
+            }, "callback")
+          },
+          {
+            // naming is inverted with respect to LiteGraphNode.horizontal
+            // LiteGraphNode.horizontal == true means that
+            // each slot in the inputs and outputs are laid out horizontally,
+            // which is the opposite of the visual orientation of the inputs and outputs as a node
+            content: "Set " + (this.properties.horizontal ? "Horizontal" : "Vertical"),
+            callback: /* @__PURE__ */ __name(() => {
+              this.properties.horizontal = !this.properties.horizontal;
+              this.applyOrientation();
+            }, "callback")
+          }
+        );
+        return [];
+      }
+      applyOrientation() {
+        this.horizontal = this.properties.horizontal;
+        if (this.horizontal) {
+          this.inputs[0].pos = [this.size[0] / 2, 0];
+        } else {
+          delete this.inputs[0].pos;
+        }
+        app2.graph.setDirtyCanvas(true, true);
+      }
+      computeSize() {
+        return [
+          this.properties.showOutputText && this.outputs && this.outputs.length ? Math.max(
+            75,
+            LiteGraph.NODE_TEXT_SIZE * this.outputs[0].name.length * 0.6 + 40
+          ) : 75,
+          26
+        ];
+      }
+      static setDefaultTextVisibility(visible) {
+        RerouteNode.defaultVisibility = visible;
+        if (visible) {
+          localStorage["Comfy.RerouteNode.DefaultVisibility"] = "true";
+        } else {
+          delete localStorage["Comfy.RerouteNode.DefaultVisibility"];
+        }
+      }
+    }
+    RerouteNode.setDefaultTextVisibility(
+      !!localStorage["Comfy.RerouteNode.DefaultVisibility"]
+    );
+    LiteGraph.registerNodeType(
+      "Reroute",
+      Object.assign(RerouteNode, {
+        title_mode: LiteGraph.NO_TITLE,
+        title: "Reroute",
+        collapsable: false
+      })
+    );
+    RerouteNode.category = "utils";
+  }
+});
+app.registerExtension({
+  name: "Comfy.SaveImageExtraOutput",
+  async beforeRegisterNodeDef(nodeType, nodeData, app2) {
+    if (nodeData.name === "SaveImage" || nodeData.name === "SaveAnimatedWEBP") {
+      const onNodeCreated = nodeType.prototype.onNodeCreated;
+      nodeType.prototype.onNodeCreated = function() {
+        const r = onNodeCreated ? onNodeCreated.apply(this, arguments) : void 0;
+        const widget = this.widgets.find((w) => w.name === "filename_prefix");
+        widget.serializeValue = () => {
+          return applyTextReplacements(app2, widget.value);
+        };
+        return r;
+      };
+    } else {
+      const onNodeCreated = nodeType.prototype.onNodeCreated;
+      nodeType.prototype.onNodeCreated = function() {
+        const r = onNodeCreated ? onNodeCreated.apply(this, arguments) : void 0;
+        if (!this.properties || !("Node name for S&R" in this.properties)) {
+          this.addProperty("Node name for S&R", this.constructor.type, "string");
+        }
+        return r;
+      };
+    }
+  }
+});
+let touchZooming;
+let touchCount = 0;
+app.registerExtension({
+  name: "Comfy.SimpleTouchSupport",
+  setup() {
+    let touchDist;
+    let touchTime;
+    let lastTouch;
+    let lastScale;
+    function getMultiTouchPos(e) {
+      return Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }
+    __name(getMultiTouchPos, "getMultiTouchPos");
+    function getMultiTouchCenter(e) {
+      return {
+        clientX: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        clientY: (e.touches[0].clientY + e.touches[1].clientY) / 2
+      };
+    }
+    __name(getMultiTouchCenter, "getMultiTouchCenter");
+    app.canvasEl.parentElement.addEventListener(
+      "touchstart",
+      (e) => {
+        touchCount++;
+        lastTouch = null;
+        lastScale = null;
+        if (e.touches?.length === 1) {
+          touchTime = /* @__PURE__ */ new Date();
+          lastTouch = e.touches[0];
+        } else {
+          touchTime = null;
+          if (e.touches?.length === 2) {
+            lastScale = app.canvas.ds.scale;
+            lastTouch = getMultiTouchCenter(e);
+            touchDist = getMultiTouchPos(e);
+            app.canvas.pointer.isDown = false;
+          }
+        }
+      },
+      true
+    );
+    app.canvasEl.parentElement.addEventListener("touchend", (e) => {
+      touchCount--;
+      if (e.touches?.length !== 1) touchZooming = false;
+      if (touchTime && !e.touches?.length) {
+        if ((/* @__PURE__ */ new Date()).getTime() - touchTime > 600) {
+          if (e.target === app.canvasEl) {
+            app.canvasEl.dispatchEvent(
+              new PointerEvent("pointerdown", {
+                button: 2,
+                clientX: e.changedTouches[0].clientX,
+                clientY: e.changedTouches[0].clientY
+              })
+            );
+            e.preventDefault();
+          }
+        }
+        touchTime = null;
+      }
+    });
+    app.canvasEl.parentElement.addEventListener(
+      "touchmove",
+      (e) => {
+        touchTime = null;
+        if (e.touches?.length === 2 && lastTouch && !e.ctrlKey && !e.shiftKey) {
+          e.preventDefault();
+          app.canvas.pointer.isDown = false;
+          touchZooming = true;
+          LiteGraph.closeAllContextMenus(window);
+          app.canvas.search_box?.close();
+          const newTouchDist = getMultiTouchPos(e);
+          const center = getMultiTouchCenter(e);
+          let scale = lastScale * newTouchDist / touchDist;
+          const newX = (center.clientX - lastTouch.clientX) / scale;
+          const newY = (center.clientY - lastTouch.clientY) / scale;
+          if (scale < app.canvas.ds.min_scale) {
+            scale = app.canvas.ds.min_scale;
+          } else if (scale > app.canvas.ds.max_scale) {
+            scale = app.canvas.ds.max_scale;
+          }
+          const oldScale = app.canvas.ds.scale;
+          app.canvas.ds.scale = scale;
+          if (Math.abs(app.canvas.ds.scale - 1) < 0.01) {
+            app.canvas.ds.scale = 1;
+          }
+          const newScale = app.canvas.ds.scale;
+          const convertScaleToOffset = /* @__PURE__ */ __name((scale2) => [
+            center.clientX / scale2 - app.canvas.ds.offset[0],
+            center.clientY / scale2 - app.canvas.ds.offset[1]
+          ], "convertScaleToOffset");
+          var oldCenter = convertScaleToOffset(oldScale);
+          var newCenter = convertScaleToOffset(newScale);
+          app.canvas.ds.offset[0] += newX + newCenter[0] - oldCenter[0];
+          app.canvas.ds.offset[1] += newY + newCenter[1] - oldCenter[1];
+          lastTouch.clientX = center.clientX;
+          lastTouch.clientY = center.clientY;
+          app.canvas.setDirty(true, true);
+        }
+      },
+      true
+    );
+  }
+});
+const processMouseDown = LGraphCanvas.prototype.processMouseDown;
+LGraphCanvas.prototype.processMouseDown = function(e) {
+  if (touchZooming || touchCount) {
+    return;
+  }
+  app.canvas.pointer.isDown = false;
+  return processMouseDown.apply(this, arguments);
+};
+const processMouseMove = LGraphCanvas.prototype.processMouseMove;
+LGraphCanvas.prototype.processMouseMove = function(e) {
+  if (touchZooming || touchCount > 1) {
+    return;
+  }
+  return processMouseMove.apply(this, arguments);
+};
+app.registerExtension({
+  name: "Comfy.SlotDefaults",
+  suggestionsNumber: null,
+  init() {
+    LiteGraph.search_filter_enabled = true;
+    LiteGraph.middle_click_slot_add_default_node = true;
+    this.suggestionsNumber = app.ui.settings.addSetting({
+      id: "Comfy.NodeSuggestions.number",
+      category: ["Comfy", "Node Search Box", "NodeSuggestions"],
+      name: "Number of nodes suggestions",
+      tooltip: "Only for litegraph searchbox/context menu",
+      type: "slider",
+      attrs: {
+        min: 1,
+        max: 100,
+        step: 1
+      },
+      defaultValue: 5,
+      onChange: /* @__PURE__ */ __name((newVal, oldVal) => {
+        this.setDefaults(newVal);
+      }, "onChange")
+    });
+  },
+  slot_types_default_out: {},
+  slot_types_default_in: {},
+  async beforeRegisterNodeDef(nodeType, nodeData, app2) {
+    var nodeId = nodeData.name;
+    const inputs = nodeData["input"]?.["required"];
+    for (const inputKey in inputs) {
+      var input = inputs[inputKey];
+      if (typeof input[0] !== "string") continue;
+      var type = input[0];
+      if (type in ComfyWidgets) {
+        var customProperties = input[1];
+        if (!customProperties?.forceInput) continue;
+      }
+      if (!(type in this.slot_types_default_out)) {
+        this.slot_types_default_out[type] = ["Reroute"];
+      }
+      if (this.slot_types_default_out[type].includes(nodeId)) continue;
+      this.slot_types_default_out[type].push(nodeId);
+      const lowerType = type.toLocaleLowerCase();
+      if (!(lowerType in LiteGraph.registered_slot_in_types)) {
+        LiteGraph.registered_slot_in_types[lowerType] = { nodes: [] };
+      }
+      LiteGraph.registered_slot_in_types[lowerType].nodes.push(
+        // @ts-expect-error ComfyNode
+        nodeType.comfyClass
+      );
+    }
+    var outputs = nodeData["output"] ?? [];
+    for (const el of outputs) {
+      const type2 = el;
+      if (!(type2 in this.slot_types_default_in)) {
+        this.slot_types_default_in[type2] = ["Reroute"];
+      }
+      this.slot_types_default_in[type2].push(nodeId);
+      if (!(type2 in LiteGraph.registered_slot_out_types)) {
+        LiteGraph.registered_slot_out_types[type2] = { nodes: [] };
+      }
+      LiteGraph.registered_slot_out_types[type2].nodes.push(nodeType.comfyClass);
+      if (!LiteGraph.slot_types_out.includes(type2)) {
+        LiteGraph.slot_types_out.push(type2);
+      }
+    }
+    var maxNum = this.suggestionsNumber.value;
+    this.setDefaults(maxNum);
+  },
+  setDefaults(maxNum) {
+    LiteGraph.slot_types_default_out = {};
+    LiteGraph.slot_types_default_in = {};
+    for (const type in this.slot_types_default_out) {
+      LiteGraph.slot_types_default_out[type] = this.slot_types_default_out[type].slice(0, maxNum);
+    }
+    for (const type in this.slot_types_default_in) {
+      LiteGraph.slot_types_default_in[type] = this.slot_types_default_in[type].slice(0, maxNum);
+    }
+  }
+});
+function splitFilePath(path) {
+  const folder_separator = path.lastIndexOf("/");
+  if (folder_separator === -1) {
+    return ["", path];
+  }
+  return [
+    path.substring(0, folder_separator),
+    path.substring(folder_separator + 1)
+  ];
+}
+__name(splitFilePath, "splitFilePath");
+function getResourceURL(subfolder, filename, type = "input") {
+  const params = [
+    "filename=" + encodeURIComponent(filename),
+    "type=" + type,
+    "subfolder=" + subfolder,
+    app.getRandParam().substring(1)
+  ].join("&");
+  return `/view?${params}`;
+}
+__name(getResourceURL, "getResourceURL");
+async function uploadFile(audioWidget, audioUIWidget, file2, updateNode, pasted = false) {
+  try {
+    const body = new FormData();
+    body.append("image", file2);
+    if (pasted) body.append("subfolder", "pasted");
+    const resp = await api.fetchApi("/upload/image", {
+      method: "POST",
+      body
+    });
+    if (resp.status === 200) {
+      const data = await resp.json();
+      let path = data.name;
+      if (data.subfolder) path = data.subfolder + "/" + path;
+      if (!audioWidget.options.values.includes(path)) {
+        audioWidget.options.values.push(path);
+      }
+      if (updateNode) {
+        audioUIWidget.element.src = api.apiURL(
+          getResourceURL(...splitFilePath(path))
+        );
+        audioWidget.value = path;
+      }
+    } else {
+      useToastStore().addAlert(resp.status + " - " + resp.statusText);
+    }
+  } catch (error) {
+    useToastStore().addAlert(error);
+  }
+}
+__name(uploadFile, "uploadFile");
+app.registerExtension({
+  name: "Comfy.AudioWidget",
+  async beforeRegisterNodeDef(nodeType, nodeData) {
+    if (
+      // @ts-expect-error ComfyNode
+      ["LoadAudio", "SaveAudio", "PreviewAudio"].includes(nodeType.comfyClass)
+    ) {
+      nodeData.input.required.audioUI = ["AUDIO_UI"];
+    }
+  },
+  getCustomWidgets() {
+    return {
+      AUDIO_UI(node, inputName) {
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.classList.add("comfy-audio");
+        audio.setAttribute("name", "media");
+        const audioUIWidget = node.addDOMWidget(
+          inputName,
+          /* name=*/
+          "audioUI",
+          audio,
+          {
+            serialize: false
+          }
+        );
+        const isOutputNode = node.constructor.nodeData.output_node;
+        if (isOutputNode) {
+          audioUIWidget.element.classList.add("empty-audio-widget");
+          const onExecuted = node.onExecuted;
+          node.onExecuted = function(message) {
+            onExecuted?.apply(this, arguments);
+            const audios = message.audio;
+            if (!audios) return;
+            const audio2 = audios[0];
+            audioUIWidget.element.src = api.apiURL(
+              getResourceURL(audio2.subfolder, audio2.filename, audio2.type)
+            );
+            audioUIWidget.element.classList.remove("empty-audio-widget");
+          };
+        }
+        return { widget: audioUIWidget };
+      }
+    };
+  },
+  onNodeOutputsUpdated(nodeOutputs) {
+    for (const [nodeId, output] of Object.entries(nodeOutputs)) {
+      const node = app.graph.getNodeById(nodeId);
+      if ("audio" in output) {
+        const audioUIWidget = node.widgets.find(
+          (w) => w.name === "audioUI"
+        );
+        const audio = output.audio[0];
+        audioUIWidget.element.src = api.apiURL(
+          getResourceURL(audio.subfolder, audio.filename, audio.type)
+        );
+        audioUIWidget.element.classList.remove("empty-audio-widget");
+      }
+    }
+  }
+});
+app.registerExtension({
+  name: "Comfy.UploadAudio",
+  async beforeRegisterNodeDef(nodeType, nodeData) {
+    if (nodeData?.input?.required?.audio?.[1]?.audio_upload === true) {
+      nodeData.input.required.upload = ["AUDIOUPLOAD"];
+    }
+  },
+  getCustomWidgets() {
+    return {
+      AUDIOUPLOAD(node, inputName) {
+        const audioWidget = node.widgets.find(
+          (w) => w.name === "audio"
+        );
+        const audioUIWidget = node.widgets.find(
+          (w) => w.name === "audioUI"
+        );
+        const onAudioWidgetUpdate = /* @__PURE__ */ __name(() => {
+          audioUIWidget.element.src = api.apiURL(
+            getResourceURL(...splitFilePath(audioWidget.value))
+          );
+        }, "onAudioWidgetUpdate");
+        if (audioWidget.value) {
+          onAudioWidgetUpdate();
+        }
+        audioWidget.callback = onAudioWidgetUpdate;
+        const onGraphConfigured = node.onGraphConfigured;
+        node.onGraphConfigured = function() {
+          onGraphConfigured?.apply(this, arguments);
+          if (audioWidget.value) {
+            onAudioWidgetUpdate();
+          }
+        };
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = "audio/*";
+        fileInput.style.display = "none";
+        fileInput.onchange = () => {
+          if (fileInput.files.length) {
+            uploadFile(audioWidget, audioUIWidget, fileInput.files[0], true);
+          }
+        };
+        const uploadWidget = node.addWidget(
+          "button",
+          inputName,
+          /* value=*/
+          "",
+          () => {
+            fileInput.click();
+          },
+          { serialize: false }
+        );
+        uploadWidget.label = "choose file to upload";
+        return { widget: uploadWidget };
+      }
+    };
+  }
+});
+app.registerExtension({
+  name: "Comfy.UploadImage",
+  beforeRegisterNodeDef(nodeType, nodeData) {
+    if (nodeData?.input?.required?.image?.[1]?.image_upload === true) {
+      nodeData.input.required.upload = ["IMAGEUPLOAD"];
+    }
+  }
+});
+const WEBCAM_READY = Symbol();
+app.registerExtension({
+  name: "Comfy.WebcamCapture",
+  getCustomWidgets(app2) {
+    return {
+      WEBCAM(node, inputName) {
+        let res;
+        node[WEBCAM_READY] = new Promise((resolve) => res = resolve);
+        const container = document.createElement("div");
+        container.style.background = "rgba(0,0,0,0.25)";
+        container.style.textAlign = "center";
+        const video = document.createElement("video");
+        video.style.height = video.style.width = "100%";
+        const loadVideo = /* @__PURE__ */ __name(async () => {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false
+            });
+            container.replaceChildren(video);
+            setTimeout(() => res(video), 500);
+            video.addEventListener("loadedmetadata", () => res(video), false);
+            video.srcObject = stream;
+            video.play();
+          } catch (error) {
+            const label = document.createElement("div");
+            label.style.color = "red";
+            label.style.overflow = "auto";
+            label.style.maxHeight = "100%";
+            label.style.whiteSpace = "pre-wrap";
+            if (window.isSecureContext) {
+              label.textContent = "Unable to load webcam, please ensure access is granted:\n" + error.message;
+            } else {
+              label.textContent = "Unable to load webcam. A secure context is required, if you are not accessing ComfyUI on localhost (127.0.0.1) you will have to enable TLS (https)\n\n" + error.message;
+            }
+            container.replaceChildren(label);
+          }
+        }, "loadVideo");
+        loadVideo();
+        return { widget: node.addDOMWidget(inputName, "WEBCAM", container) };
+      }
+    };
+  },
+  nodeCreated(node) {
+    if (node.type, node.constructor.comfyClass !== "WebcamCapture") return;
+    let video;
+    const camera = node.widgets.find((w2) => w2.name === "image");
+    const w = node.widgets.find((w2) => w2.name === "width");
+    const h = node.widgets.find((w2) => w2.name === "height");
+    const captureOnQueue = node.widgets.find(
+      (w2) => w2.name === "capture_on_queue"
+    );
+    const canvas = document.createElement("canvas");
+    const capture = /* @__PURE__ */ __name(() => {
+      canvas.width = w.value;
+      canvas.height = h.value;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, w.value, h.value);
+      const data = canvas.toDataURL("image/png");
+      const img = new Image();
+      img.onload = () => {
+        node.imgs = [img];
+        app.graph.setDirtyCanvas(true);
+        requestAnimationFrame(() => {
+          node.setSizeForImage?.();
+        });
+      };
+      img.src = data;
+    }, "capture");
+    const btn = node.addWidget(
+      "button",
+      "waiting for camera...",
+      "capture",
+      capture
+    );
+    btn.disabled = true;
+    btn.serializeValue = () => void 0;
+    camera.serializeValue = async () => {
+      if (captureOnQueue.value) {
+        capture();
+      } else if (!node.imgs?.length) {
+        const err2 = `No webcam image captured`;
+        useToastStore().addAlert(err2);
+        throw new Error(err2);
+      }
+      const blob = await new Promise((r) => canvas.toBlob(r));
+      const name = `${+/* @__PURE__ */ new Date()}.png`;
+      const file2 = new File([blob], name);
+      const body = new FormData();
+      body.append("image", file2);
+      body.append("subfolder", "webcam");
+      body.append("type", "temp");
+      const resp = await api.fetchApi("/upload/image", {
+        method: "POST",
+        body
+      });
+      if (resp.status !== 200) {
+        const err2 = `Error uploading camera image: ${resp.status} - ${resp.statusText}`;
+        useToastStore().addAlert(err2);
+        throw new Error(err2);
+      }
+      return `webcam/${name} [temp]`;
+    };
+    node[WEBCAM_READY].then((v) => {
+      video = v;
+      if (!w.value) {
+        w.value = video.videoWidth || 640;
+        h.value = video.videoHeight || 480;
+      }
+      btn.disabled = false;
+      btn.label = "capture";
+    });
+  }
+});
+//# sourceMappingURL=index-Bordpmzt.js.map
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/index-Bordpmzt.js

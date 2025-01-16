@@ -311,7 +311,7 @@ class VAEDecodeTiled:
         temporal_compression = vae.temporal_compression_decode()
         if temporal_compression is not None:
             temporal_size = max(2, temporal_size // temporal_compression)
-            temporal_overlap = min(1, temporal_size // 2, temporal_overlap // temporal_compression)
+            temporal_overlap = max(1, min(temporal_size // 2, temporal_overlap // temporal_compression))
         else:
             temporal_size = None
             temporal_overlap = None
@@ -944,16 +944,19 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (get_filename_list_with_downloadable("text_encoders", KNOWN_CLIP_MODELS),),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos"], ),
+                              },
+                "optional": {
+                              "device": (["default", "cpu"], {"advanced": True}),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
     CATEGORY = "advanced/loaders"
 
-    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 / clip-g / clip-l\nstable_audio: t5\nmochi: t5"
+    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 / clip-g / clip-l\nstable_audio: t5\nmochi: t5\ncosmos: old t5 xxl"
 
-    def load_clip(self, clip_name, type="stable_diffusion"):
+    def load_clip(self, clip_name, type="stable_diffusion", device="default"):
         clip_type = sd.CLIPType.STABLE_DIFFUSION
         if type == "stable_cascade":
             clip_type = sd.CLIPType.STABLE_CASCADE
@@ -970,8 +973,12 @@ class CLIPLoader:
         else:
             logging.warning(f"Unknown clip type argument passed: {type} for model {clip_name}")
 
+        model_options = {}
+        if device == "cpu":
+            model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
+
         clip_path = get_or_download("text_encoders", clip_name, KNOWN_CLIP_MODELS)
-        clip = sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
+        clip = sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type, model_options=model_options)
         return (clip,)
 
 class DualCLIPLoader:
@@ -980,6 +987,9 @@ class DualCLIPLoader:
         return {"required": { "clip_name1": (get_filename_list_with_downloadable("text_encoders"),), "clip_name2": (
             get_filename_list_with_downloadable("text_encoders"),),
                               "type": (["sdxl", "sd3", "flux", "hunyuan_video"], ),
+                              },
+                "optional": {
+                              "device": (["default", "cpu"], {"advanced": True}),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -988,7 +998,7 @@ class DualCLIPLoader:
 
     DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5"
 
-    def load_clip(self, clip_name1, clip_name2, type):
+    def load_clip(self, clip_name1, clip_name2, type, device="default"):
         clip_path1 = get_or_download("text_encoders", clip_name1)
         clip_path2 = get_or_download("text_encoders", clip_name2)
         if type == "sdxl":
@@ -1002,7 +1012,11 @@ class DualCLIPLoader:
         else:
             raise ValueError(f"Unknown clip type argument passed: {type} for model {clip_name1} and {clip_name2}")
 
-        clip = sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
+        model_options = {}
+        if device == "cpu":
+            model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
+
+        clip = sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type, model_options=model_options)
         return (clip,)
 
 class CLIPVisionLoader:

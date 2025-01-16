@@ -1,0 +1,7 @@
+
+:root {
+  --p-tag-gap: 0.5rem;
+}
+.comfy-installer {
+  margin-top: max(1rem, max(0px, calc((100vh - 42rem) * 0.5)));
+}

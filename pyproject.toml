@@ -1,3 +1,17 @@
 [build-system]
 requires = ["setuptools", "wheel", "pip"]
 build-backend = "setuptools.build_meta"
+
+# [project] section omitted deliberately to prevent UV from installing using pyproject.toml
+
+[tool.ruff]
+lint.select = [
+  "S307", # suspicious-eval-usage
+  "S102", # exec
+  "T",    # print-usage
+  "W",
+  # The "F" series in Ruff stands for "Pyflakes" rules, which catch various Python syntax errors and undefined names.
+  # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
+  "F",
+]
+exclude = ["*.ipynb"]

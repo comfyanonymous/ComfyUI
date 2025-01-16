@@ -4,6 +4,7 @@ import torch
 class LatentFormat:
     scale_factor = 1.0
     latent_channels = 4
+    latent_dimensions = 2
     latent_rgb_factors = None
     latent_rgb_factors_bias = None
     taesd_decoder_name = None
@@ -153,6 +154,7 @@ class SD3(LatentFormat):
 
 class StableAudio1(LatentFormat):
     latent_channels = 64
+    latent_dimensions = 1
 
 
 class Flux(SD3):
@@ -191,6 +193,7 @@ class Flux(SD3):
 
 class Mochi(LatentFormat):
     latent_channels = 12
+    latent_dimensions = 3
 
     def __init__(self):
         self.scale_factor = 1.0
@@ -233,6 +236,8 @@ class Mochi(LatentFormat):
 
 class LTXV(LatentFormat):
     latent_channels = 128
+    latent_dimensions = 3
+
     def __init__(self):
         self.latent_rgb_factors = [
             [ 1.1202e-02, -6.3815e-04, -1.0021e-02],
@@ -369,6 +374,7 @@ class LTXV(LatentFormat):
 
 class HunyuanVideo(LatentFormat):
     latent_channels = 16
+    latent_dimensions = 3
     scale_factor = 0.476986
     latent_rgb_factors = [
         [-0.0395, -0.0331,  0.0445],
@@ -390,3 +396,28 @@ class HunyuanVideo(LatentFormat):
     ]
 
     latent_rgb_factors_bias = [ 0.0259, -0.0192, -0.0761]
+
+class Cosmos1CV8x8x8(LatentFormat):
+    latent_channels = 16
+    latent_dimensions = 3
+
+    latent_rgb_factors = [
+        [ 0.1817,  0.2284,  0.2423],
+        [-0.0586, -0.0862, -0.3108],
+        [-0.4703, -0.4255, -0.3995],
+        [ 0.0803,  0.1963,  0.1001],
+        [-0.0820, -0.1050,  0.0400],
+        [ 0.2511,  0.3098,  0.2787],
+        [-0.1830, -0.2117, -0.0040],
+        [-0.0621, -0.2187, -0.0939],
+        [ 0.3619,  0.1082,  0.1455],
+        [ 0.3164,  0.3922,  0.2575],
+        [ 0.1152,  0.0231, -0.0462],
+        [-0.1434, -0.3609, -0.3665],
+        [ 0.0635,  0.1471,  0.1680],
+        [-0.3635, -0.1963, -0.3248],
+        [-0.1865,  0.0365,  0.2346],
+        [ 0.0447,  0.0994,  0.0881]
+    ]
+
+    latent_rgb_factors_bias = [-0.1223, -0.1889, -0.1976]

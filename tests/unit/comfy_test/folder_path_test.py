@@ -19,6 +19,7 @@ def clear_folder_paths():
     with context_folder_names_and_paths(FolderNames()):
         yield
 
+
 @pytest.fixture
 def temp_dir():
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -84,7 +85,7 @@ def test_get_filename_list(temp_dir):
     base_path = Path(temp_dir)
     fn = FolderNames(base_paths=[base_path])
     rel_path = Path("test/path")
-    fn.add(ModelPaths(["test_folder"], additional_relative_directory_paths={rel_path}, supported_extensions={".txt"}))
+    fn.add(ModelPaths(["test_folder"], additional_relative_directory_paths=[rel_path], supported_extensions={".txt"}))
     dir_path = base_path / rel_path
     Path.mkdir(dir_path, parents=True, exist_ok=True)
     files = ["file1.txt", "file2.jpg"]

@@ -1,0 +1,75 @@
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+<<<<<<<< HEAD:comfy/web/assets/DownloadGitView-UPm4J-4m.js
+import { a as defineComponent, o as openBlock, f as createElementBlock, z as createBaseVNode, a5 as toDisplayString, g as createVNode, y as unref, C as script, bS as useRouter } from "./index-BK27PIiK.js";
+const _hoisted_1 = { class: "font-sans w-screen h-screen mx-0 grid place-items-center justify-center items-center text-neutral-900 bg-neutral-300 pointer-events-auto" };
+const _hoisted_2 = { class: "col-start-1 h-screen row-start-1 place-content-center mx-auto overflow-y-auto" };
+const _hoisted_3 = { class: "max-w-screen-sm flex flex-col gap-8 p-8 bg-[url('/assets/images/Git-Logo-White.svg')] bg-no-repeat bg-right-top bg-origin-padding" };
+const _hoisted_4 = { class: "mt-24 text-4xl font-bold text-red-500" };
+const _hoisted_5 = { class: "space-y-4" };
+const _hoisted_6 = { class: "text-xl" };
+const _hoisted_7 = { class: "text-xl" };
+const _hoisted_8 = { class: "text-m" };
+const _hoisted_9 = { class: "flex gap-4 flex-row-reverse" };
+========
+import { d as defineComponent, o as openBlock, k as createBlock, M as withCtx, H as createBaseVNode, X as toDisplayString, N as createVNode, j as unref, l as script, bW as useRouter } from "./index-DjNHn37O.js";
+import { _ as _sfc_main$1 } from "./BaseViewTemplate-BNGF4K22.js";
+const _hoisted_1 = { class: "max-w-screen-sm flex flex-col gap-8 p-8 bg-[url('/assets/images/Git-Logo-White.svg')] bg-no-repeat bg-right-top bg-origin-padding" };
+const _hoisted_2 = { class: "mt-24 text-4xl font-bold text-red-500" };
+const _hoisted_3 = { class: "space-y-4" };
+const _hoisted_4 = { class: "text-xl" };
+const _hoisted_5 = { class: "text-xl" };
+const _hoisted_6 = { class: "text-m" };
+const _hoisted_7 = { class: "flex gap-4 flex-row-reverse" };
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/DownloadGitView-DeC7MBzG.js
+const _sfc_main = /* @__PURE__ */ defineComponent({
+  __name: "DownloadGitView",
+  setup(__props) {
+    const openGitDownloads = /* @__PURE__ */ __name(() => {
+      window.open("https://git-scm.com/downloads/", "_blank");
+    }, "openGitDownloads");
+    const skipGit = /* @__PURE__ */ __name(() => {
+      console.warn("pushing");
+      const router = useRouter();
+      router.push("install");
+    }, "skipGit");
+    return (_ctx, _cache) => {
+      return openBlock(), createBlock(_sfc_main$1, null, {
+        default: withCtx(() => [
+          createBaseVNode("div", _hoisted_1, [
+            createBaseVNode("h1", _hoisted_2, toDisplayString(_ctx.$t("downloadGit.title")), 1),
+            createBaseVNode("div", _hoisted_3, [
+              createBaseVNode("p", _hoisted_4, toDisplayString(_ctx.$t("downloadGit.message")), 1),
+              createBaseVNode("p", _hoisted_5, toDisplayString(_ctx.$t("downloadGit.instructions")), 1),
+              createBaseVNode("p", _hoisted_6, toDisplayString(_ctx.$t("downloadGit.warning")), 1)
+            ]),
+            createBaseVNode("div", _hoisted_7, [
+              createVNode(unref(script), {
+                label: _ctx.$t("downloadGit.gitWebsite"),
+                icon: "pi pi-external-link",
+                "icon-pos": "right",
+                onClick: openGitDownloads,
+                severity: "primary"
+              }, null, 8, ["label"]),
+              createVNode(unref(script), {
+                label: _ctx.$t("downloadGit.skip"),
+                icon: "pi pi-exclamation-triangle",
+                onClick: skipGit,
+                severity: "secondary"
+              }, null, 8, ["label"])
+            ])
+          ])
+        ]),
+        _: 1
+      });
+    };
+  }
+});
+export {
+  _sfc_main as default
+};
+<<<<<<<< HEAD:comfy/web/assets/DownloadGitView-UPm4J-4m.js
+//# sourceMappingURL=DownloadGitView-UPm4J-4m.js.map
+========
+//# sourceMappingURL=DownloadGitView-DeC7MBzG.js.map
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/DownloadGitView-DeC7MBzG.js

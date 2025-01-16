@@ -1296,9 +1296,8 @@ def _soft_empty_cache(force=False):
     elif is_ascend_npu():
         torch.npu.empty_cache()  # pylint: disable=no-member
     elif torch.cuda.is_available():
-        if force or is_nvidia():  # This seems to make things worse on ROCm so I only do it for cuda
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
 
 
 def unload_all_models():
@@ -1306,8 +1305,8 @@ def unload_all_models():
         free_memory(1e30, get_torch_device())
 
 
-def resolve_lowvram_weight(weight, model, key):  # TODO: remove
-    logger.warning("The comfy.model_management.resolve_lowvram_weight function will be removed soon, please stop using it.")
+@_deprecate_method(version="*", message="The comfy.model_management.resolve_lowvram_weight function will be removed soon, please stop using it.")
+def resolve_lowvram_weight(weight, model, key):
     return weight
 
 

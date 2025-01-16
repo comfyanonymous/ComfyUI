@@ -34,6 +34,7 @@ from .. import interruption, model_management
 from .. import node_helpers
 from .. import utils
 from ..api_server.routes.internal.internal_routes import InternalRoutes
+from ..app.custom_node_manager import CustomNodeManager
 from ..app.frontend_management import FrontendManager
 from ..app.model_manager import ModelFileManager
 from ..app.user_manager import UserManager
@@ -172,6 +173,7 @@ class PromptServer(ExecutorToClientProgress):
         self.address: str = "0.0.0.0"
         self.user_manager = UserManager()
         self.model_file_manager = ModelFileManager()
+        self.custom_node_manager = CustomNodeManager()
         self.internal_routes = InternalRoutes(self)
         # todo: this is probably read by custom nodes elsewhere
         self.supports: List[str] = ["custom_nodes_from_web"]
@@ -528,7 +530,7 @@ class PromptServer(ExecutorToClientProgress):
                     "os": os.name,
                     "ram_total": ram_total,
                     "ram_free": ram_free,
-                    "comfyui_version": get_comfyui_version(),
+                    "comfyui_version": __version__,
                     "python_version": sys.version,
                     "pytorch_version": torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
@@ -922,6 +924,8 @@ class PromptServer(ExecutorToClientProgress):
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
         self.model_file_manager.add_routes(self.routes)
+        # todo: needs to use module directories
+        self.custom_node_manager.add_routes(self.routes, self.app, {})
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
@@ -938,6 +942,7 @@ class PromptServer(ExecutorToClientProgress):
         self.app.add_routes(api_routes)
         self.app.add_routes(self.routes)
 
+        # Add routes from web extensions.
         for name, dir in self.nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([web.static('/extensions/' + name, dir, follow_symlinks=True)])
 

@@ -1,4 +1,5 @@
 
+<<<<<<<< HEAD:comfy/web/assets/GraphView-D9bTLjwH.css
 .group-title-editor.node-title-editor[data-v-fe2de13a] {
   z-index: 9999;
   padding: 0.25rem;
@@ -80,11 +81,39 @@
   pointer-events: auto;
 }
 .splitter-overlay[data-v-95268c0b] {
+========
+.comfy-menu-hamburger[data-v-5661bed0] {
+  pointer-events: auto;
+  position: fixed;
+  z-index: 9999;
+}
+
+[data-v-e50caa15] .p-splitter-gutter {
+  pointer-events: auto;
+}
+[data-v-e50caa15] .p-splitter-gutter:hover,[data-v-e50caa15] .p-splitter-gutter[data-p-gutter-resizing='true'] {
+  transition: background-color 0.2s ease 300ms;
+  background-color: var(--p-primary-color);
+}
+.side-bar-panel[data-v-e50caa15] {
+  background-color: var(--bg-color);
+  pointer-events: auto;
+}
+.bottom-panel[data-v-e50caa15] {
+  background-color: var(--bg-color);
+  pointer-events: auto;
+}
+.splitter-overlay[data-v-e50caa15] {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-CIRWBKTm.css
   pointer-events: none;
   border-style: none;
   background-color: transparent;
 }
+<<<<<<<< HEAD:comfy/web/assets/GraphView-D9bTLjwH.css
 .splitter-overlay-root[data-v-95268c0b] {
+========
+.splitter-overlay-root[data-v-e50caa15] {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-CIRWBKTm.css
   position: absolute;
   top: 0px;
   left: 0px;
@@ -98,7 +127,50 @@
   z-index: 999;
 }
 
-[data-v-d7cc0bce] .highlight {
+.p-buttongroup-vertical[data-v-cf40dd39] {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--p-button-border-radius);
+  overflow: hidden;
+  border: 1px solid var(--p-panel-border-color);
+}
+.p-buttongroup-vertical .p-button[data-v-cf40dd39] {
+  margin: 0;
+  border-radius: 0;
+}
+
+.node-tooltip[data-v-46859edf] {
+  background: var(--comfy-input-bg);
+  border-radius: 5px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
+  color: var(--input-text);
+  font-family: sans-serif;
+  left: 0;
+  max-width: 30vw;
+  padding: 4px 8px;
+  position: absolute;
+  top: 0;
+  transform: translate(5px, calc(-100% - 5px));
+  white-space: pre-wrap;
+  z-index: 99999;
+}
+
+.group-title-editor.node-title-editor[data-v-12d3fd12] {
+  z-index: 9999;
+  padding: 0.25rem;
+}
+[data-v-12d3fd12] .editable-text {
+  width: 100%;
+  height: 100%;
+}
+[data-v-12d3fd12] .editable-text input {
+  width: 100%;
+  height: 100%;
+  /* Override the default font size */
+  font-size: inherit;
+}
+
+[data-v-5741c9ae] .highlight {
   background-color: var(--p-primary-color);
   color: var(--p-primary-contrast-color);
   font-weight: bold;
@@ -125,41 +197,111 @@
   align-items: flex-start !important;
 }
 
-.node-tooltip[data-v-9ecc8adc] {
-  background: var(--comfy-input-bg);
-  border-radius: 5px;
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
-  color: var(--input-text);
-  font-family: sans-serif;
-  left: 0;
-  max-width: 30vw;
-  padding: 4px 8px;
-  position: absolute;
-  top: 0;
-  transform: translate(5px, calc(-100% - 5px));
-  white-space: pre-wrap;
-  z-index: 99999;
+.side-bar-button-icon {
+  font-size: var(--sidebar-icon-size) !important;
+}
+.side-bar-button-selected .side-bar-button-icon {
+  font-size: var(--sidebar-icon-size) !important;
+  font-weight: bold;
 }
 
-.p-buttongroup-vertical[data-v-94481f39] {
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--p-button-border-radius);
-  overflow: hidden;
-  border: 1px solid var(--p-panel-border-color);
-}
-.p-buttongroup-vertical .p-button[data-v-94481f39] {
-  margin: 0;
+.side-bar-button[data-v-6ab4daa6] {
+  width: var(--sidebar-width);
+  height: var(--sidebar-width);
   border-radius: 0;
 }
-
-.comfy-menu-hamburger[data-v-962c4073] {
-  pointer-events: auto;
-  position: fixed;
-  z-index: 9999;
+.comfyui-body-left .side-bar-button.side-bar-button-selected[data-v-6ab4daa6],
+.comfyui-body-left .side-bar-button.side-bar-button-selected[data-v-6ab4daa6]:hover {
+  border-left: 4px solid var(--p-button-text-primary-color);
+}
+.comfyui-body-right .side-bar-button.side-bar-button-selected[data-v-6ab4daa6],
+.comfyui-body-right .side-bar-button.side-bar-button-selected[data-v-6ab4daa6]:hover {
+  border-right: 4px solid var(--p-button-text-primary-color);
 }
 
+:root {
+  --sidebar-width: 64px;
+  --sidebar-icon-size: 1.5rem;
+}
+:root .small-sidebar {
+  --sidebar-width: 40px;
+  --sidebar-icon-size: 1rem;
+}
+
+.side-tool-bar-container[data-v-37d8d7b4] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  pointer-events: auto;
+
+  width: var(--sidebar-width);
+  height: 100%;
+
+  background-color: var(--comfy-menu-secondary-bg);
+  color: var(--fg-color);
+  box-shadow: var(--bar-shadow);
+}
+.side-tool-bar-end[data-v-37d8d7b4] {
+  align-self: flex-end;
+  margin-top: auto;
+}
+
+<<<<<<<< HEAD:comfy/web/assets/GraphView-D9bTLjwH.css
 .status-indicator[data-v-7381014c] {
+========
+[data-v-b9328350] .p-inputtext {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.comfyui-queue-button[data-v-7f4f551b] .p-splitbutton-dropdown {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.actionbar[data-v-915e5456] {
+  pointer-events: all;
+  position: fixed;
+  z-index: 1000;
+}
+.actionbar.is-docked[data-v-915e5456] {
+  position: static;
+  border-style: none;
+  background-color: transparent;
+  padding: 0px;
+}
+.actionbar.is-dragging[data-v-915e5456] {
+  -webkit-user-select: none;
+     -moz-user-select: none;
+          user-select: none;
+}
+[data-v-915e5456] .p-panel-content {
+  padding: 0.25rem;
+}
+.is-docked[data-v-915e5456] .p-panel-content {
+  padding: 0px;
+}
+[data-v-915e5456] .p-panel-header {
+  display: none;
+}
+
+.top-menubar[data-v-6fecd137] .p-menubar-item-link svg {
+  display: none;
+}
+[data-v-6fecd137] .p-menubar-submenu.dropdown-direction-up {
+  top: auto;
+  bottom: 100%;
+  flex-direction: column-reverse;
+}
+.keybinding-tag[data-v-6fecd137] {
+  background: var(--p-content-hover-background);
+  border-color: var(--p-content-border-color);
+  border-style: solid;
+}
+
+.status-indicator[data-v-8d011a31] {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-CIRWBKTm.css
   position: absolute;
   font-weight: 700;
   font-size: 1.5rem;
@@ -168,16 +310,24 @@
   transform: translate(-50%, -50%)
 }
 
+<<<<<<<< HEAD:comfy/web/assets/GraphView-D9bTLjwH.css
 [data-v-b447982f] .p-togglebutton::before {
   display: none
 }
 [data-v-b447982f] .p-togglebutton {
+========
+[data-v-d485c044] .p-togglebutton::before {
+  display: none
+}
+[data-v-d485c044] .p-togglebutton {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-CIRWBKTm.css
   position: relative;
   flex-shrink: 0;
   border-radius: 0px;
   background-color: transparent;
   padding: 0px
 }
+<<<<<<<< HEAD:comfy/web/assets/GraphView-D9bTLjwH.css
 [data-v-b447982f] .p-togglebutton.p-togglebutton-checked {
   border-bottom-width: 2px;
   border-bottom-color: var(--p-button-text-primary-color)
@@ -243,6 +393,23 @@
 }
 
 .comfyui-menu[data-v-d792da31] {
+========
+[data-v-d485c044] .p-togglebutton.p-togglebutton-checked {
+  border-bottom-width: 2px;
+  border-bottom-color: var(--p-button-text-primary-color)
+}
+[data-v-d485c044] .p-togglebutton-checked .close-button,[data-v-d485c044] .p-togglebutton:hover .close-button {
+  visibility: visible
+}
+[data-v-d485c044] .p-togglebutton:hover .status-indicator {
+  display: none
+}
+[data-v-d485c044] .p-togglebutton .close-button {
+  visibility: hidden
+}
+
+.comfyui-menu[data-v-878b63b8] {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-CIRWBKTm.css
   width: 100vw;
   background: var(--comfy-menu-bg);
   color: var(--fg-color);
@@ -255,16 +422,16 @@
   grid-column: 1/-1;
   max-height: 90vh;
 }
-.comfyui-menu.dropzone[data-v-d792da31] {
+.comfyui-menu.dropzone[data-v-878b63b8] {
   background: var(--p-highlight-background);
 }
-.comfyui-menu.dropzone-active[data-v-d792da31] {
+.comfyui-menu.dropzone-active[data-v-878b63b8] {
   background: var(--p-highlight-background-focus);
 }
-[data-v-d792da31] .p-menubar-item-label {
+[data-v-878b63b8] .p-menubar-item-label {
   line-height: revert;
 }
-.comfyui-logo[data-v-d792da31] {
+.comfyui-logo[data-v-878b63b8] {
   font-size: 1.2em;
   -webkit-user-select: none;
      -moz-user-select: none;

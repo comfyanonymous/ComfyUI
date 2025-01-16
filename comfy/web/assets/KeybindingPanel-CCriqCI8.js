@@ -1,8 +1,16 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+<<<<<<<< HEAD:comfy/web/assets/KeybindingPanel-CCriqCI8.js
 import { a as defineComponent, p as computed, o as openBlock, f as createElementBlock, O as Fragment, P as renderList, g as createVNode, x as withCtx, aw as createTextVNode, a5 as toDisplayString, y as unref, aA as script, h as createCommentVNode, r as ref, cj as FilterMatchMode, N as useKeybindingStore, D as useCommandStore, H as useI18n, aQ as normalizeI18nKey, aL as watchEffect, bk as useToast, q as resolveDirective, v as createBlock, ck as SearchBox, z as createBaseVNode, C as script$2, ao as script$4, bp as withModifiers, bV as script$5, aH as script$6, t as withDirectives, cl as _sfc_main$2, cg as KeyComboImpl, cm as KeybindingImpl, _ as _export_sfc } from "./index-BK27PIiK.js";
 import { s as script$1, a as script$3 } from "./index-BwNYbo7J.js";
 import "./index-4Y1pXkN0.js";
+========
+import { d as defineComponent, c as computed, o as openBlock, f as createElementBlock, F as Fragment, E as renderList, N as createVNode, M as withCtx, aE as createTextVNode, X as toDisplayString, j as unref, aI as script, I as createCommentVNode, ab as ref, cn as FilterMatchMode, a$ as useKeybindingStore, a2 as useCommandStore, a1 as useI18n, af as normalizeI18nKey, w as watchEffect, bs as useToast, r as resolveDirective, k as createBlock, co as SearchBox, H as createBaseVNode, l as script$2, av as script$4, bM as withModifiers, bZ as script$5, aP as script$6, i as withDirectives, cp as _sfc_main$2, aL as pushScopeId, aM as popScopeId, cq as KeyComboImpl, cr as KeybindingImpl, _ as _export_sfc } from "./index-DjNHn37O.js";
+import { s as script$1, a as script$3 } from "./index-B5F0uxTQ.js";
+import { u as useKeybindingService } from "./keybindingService-Bx7YdkXn.js";
+import "./index-B-aVupP5.js";
+import "./index-5HFeZax4.js";
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/KeybindingPanel-Dc3C4lG1.js
 const _hoisted_1$1 = {
   key: 0,
   class: "px-2"
@@ -35,6 +43,10 @@ const _sfc_main$1 = /* @__PURE__ */ defineComponent({
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/KeybindingPanel-CCriqCI8.js
+========
+const _withScopeId = /* @__PURE__ */ __name((n) => (pushScopeId("data-v-2554ab36"), n = n(), popScopeId(), n), "_withScopeId");
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/KeybindingPanel-Dc3C4lG1.js
 const _hoisted_1 = { class: "actions invisible flex flex-row" };
 const _hoisted_2 = ["title"];
 const _hoisted_3 = { key: 1 };
@@ -45,6 +57,7 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
       global: { value: "", matchMode: FilterMatchMode.CONTAINS }
     });
     const keybindingStore = useKeybindingStore();
+    const keybindingService = useKeybindingService();
     const commandStore = useCommandStore();
     const { t } = useI18n();
     const commandsData = computed(() => {
@@ -89,7 +102,7 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
     function removeKeybinding(commandData) {
       if (commandData.keybinding) {
         keybindingStore.unsetKeybinding(commandData.keybinding);
-        keybindingStore.persistUserKeybindings();
+        keybindingService.persistUserKeybindings();
       }
     }
     __name(removeKeybinding, "removeKeybinding");
@@ -113,7 +126,7 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
           })
         );
         if (updated) {
-          keybindingStore.persistUserKeybindings();
+          keybindingService.persistUserKeybindings();
         }
       }
       cancelEdit();
@@ -122,7 +135,7 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
     const toast = useToast();
     async function resetKeybindings() {
       keybindingStore.resetKeybindings();
-      await keybindingStore.persistUserKeybindings();
+      await keybindingService.persistUserKeybindings();
       toast.add({
         severity: "info",
         summary: "Info",
@@ -273,8 +286,16 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/KeybindingPanel-CCriqCI8.js
 const KeybindingPanel = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-108bdfe7"]]);
 export {
   KeybindingPanel as default
 };
 //# sourceMappingURL=KeybindingPanel-CCriqCI8.js.map
+========
+const KeybindingPanel = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-2554ab36"]]);
+export {
+  KeybindingPanel as default
+};
+//# sourceMappingURL=KeybindingPanel-Dc3C4lG1.js.map
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/KeybindingPanel-Dc3C4lG1.js

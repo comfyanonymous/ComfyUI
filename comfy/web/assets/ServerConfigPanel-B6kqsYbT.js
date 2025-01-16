@@ -1,7 +1,12 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+<<<<<<<< HEAD:comfy/web/assets/ServerConfigPanel-B6kqsYbT.js
 import { o as openBlock, f as createElementBlock, z as createBaseVNode, aX as markRaw, a as defineComponent, u as useSettingStore, aK as storeToRefs, w as watch, cH as useCopyToClipboard, H as useI18n, v as createBlock, x as withCtx, y as unref, bV as script, a5 as toDisplayString, P as renderList, O as Fragment, g as createVNode, C as script$1, h as createCommentVNode, bL as script$2, cI as FormItem, cl as _sfc_main$1, bY as electronAPI } from "./index-BK27PIiK.js";
 import { u as useServerConfigStore } from "./serverConfigStore-7qHooIp9.js";
+========
+import { H as createBaseVNode, o as openBlock, f as createElementBlock, Z as markRaw, d as defineComponent, a as useSettingStore, aS as storeToRefs, a5 as watch, cO as useCopyToClipboard, a1 as useI18n, k as createBlock, M as withCtx, j as unref, bZ as script, X as toDisplayString, E as renderList, F as Fragment, N as createVNode, l as script$1, I as createCommentVNode, bQ as script$2, cP as FormItem, cp as _sfc_main$1, c0 as electronAPI } from "./index-DjNHn37O.js";
+import { u as useServerConfigStore } from "./serverConfigStore-CvyKFVuP.js";
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/ServerConfigPanel-Be4StJmv.js
 const _hoisted_1$1 = {
   viewBox: "0 0 24 24",
   width: "1.2em",
@@ -153,4 +158,8 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
 export {
   _sfc_main as default
 };
+<<<<<<<< HEAD:comfy/web/assets/ServerConfigPanel-B6kqsYbT.js
 //# sourceMappingURL=ServerConfigPanel-B6kqsYbT.js.map
+========
+//# sourceMappingURL=ServerConfigPanel-Be4StJmv.js.map
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/ServerConfigPanel-Be4StJmv.js

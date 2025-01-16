@@ -2,6 +2,7 @@ import json
 import os
 
 from aiohttp import web
+import logging
 
 
 class AppSettings():
@@ -12,8 +13,12 @@ class AppSettings():
         file = self.user_manager.get_request_user_filepath(
             request, "comfy.settings.json")
         if os.path.isfile(file):
-            with open(file) as f:
-                return json.load(f)
+            try:
+                with open(file) as f:
+                    return json.load(f)
+            except:
+                logging.error(f"The user settings file is corrupted: {file}")
+                return {}
         else:
             return {}
 

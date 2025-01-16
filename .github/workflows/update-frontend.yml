@@ -1,0 +1,58 @@
+name: Update Frontend Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Frontend version to update to (e.g., 1.0.0)"
+        required: true
+        type: string
+
+jobs:
+  update-frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout ComfyUI
+        uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install requirements
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+          pip install wait-for-it
+      # Frontend asset will be downloaded to ComfyUI/web_custom_versions/Comfy-Org_ComfyUI_frontend/{version}
+      - name: Start ComfyUI server
+        run: |
+          python main.py --cpu --front-end-version Comfy-Org/ComfyUI_frontend@${{ github.event.inputs.version }} 2>&1 | tee console_output.log &
+          wait-for-it --service 127.0.0.1:8188 -t 30
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+      # Replace existing frontend content with the new version and remove .js.map files
+      # See https://github.com/Comfy-Org/ComfyUI_frontend/issues/2145 for why we remove .js.map files
+      - name: Update frontend content
+        run: |
+          rm -rf web/
+          cp -r web_custom_versions/Comfy-Org_ComfyUI_frontend/${{ github.event.inputs.version }} web/
+          rm web/**/*.js.map
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.PR_BOT_PAT }}
+          commit-message: "Update frontend to v${{ github.event.inputs.version }}"
+          title: "Frontend Update: v${{ github.event.inputs.version }}"
+          body: |
+            Automated PR to update frontend content to version ${{ github.event.inputs.version }}
+
+            This PR was created automatically by the frontend update workflow.
+          branch: release-${{ github.event.inputs.version }}
+          base: master
+          labels: Frontend,dependencies

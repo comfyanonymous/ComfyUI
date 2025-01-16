@@ -1,5 +1,6 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 import { d as defineStore, s as shallowRef, a as defineComponent, u as useSettingStore, r as ref, w as watch, L as LGraphGroup, b as app, c as LGraphNode, e as useEventListener, o as openBlock, f as createElementBlock, g as createVNode, E as EditableText, n as normalizeStyle, h as createCommentVNode, i as LiteGraph, _ as _export_sfc, B as BaseStyle, j as script$g, k as resolveComponent, m as mergeProps, l as renderSlot, p as computed, q as resolveDirective, t as withDirectives, v as createBlock, x as withCtx, y as unref, z as createBaseVNode, A as normalizeClass, C as script$h, D as useCommandStore, F as useDialogStore, S as SettingDialogHeader, G as SettingDialogContent, H as useI18n, I as useUserStore, J as onBeforeUnmount, K as resolveDynamicComponent, M as useWorkspaceStore, N as useKeybindingStore, O as Fragment, P as renderList, T as Teleport, Q as script$i, R as getWidth, U as findSingle, V as getOuterHeight, W as getOffset, X as getOuterWidth, Y as getHeight, Z as script$j, $ as script$k, a0 as Ripple, a1 as getAttribute, a2 as focus, a3 as equals, a4 as useBottomPanelStore, a5 as toDisplayString, a6 as script$l, a7 as getVNodeProp, a8 as isArray, a9 as useSidebarTabStore, aa as vShow, ab as isNotEmpty, ac as script$m, ad as UniqueComponentId, ae as ZIndex, af as resolveFieldData, ag as OverlayEventBus, ah as isEmpty, ai as addStyle, aj as relativePosition, ak as absolutePosition, al as ConnectedOverlayScrollHandler, am as isTouchDevice, an as findLastIndex, ao as script$n, ap as script$o, aq as script$p, ar as script$q, as as script$r, at as script$s, au as Transition, av as createSlots, aw as createTextVNode, ax as useNodeFrequencyStore, ay as useNodeBookmarkStore, az as highlightQuery, aA as script$t, aB as formatNumberWithSuffix, aC as NodeSourceType, aD as useNodeDefStore, aE as onMounted, aF as NodePreview, aG as NodeSearchFilter, aH as script$u, aI as SearchFilterChip, aJ as nextTick, aK as storeToRefs, aL as watchEffect, aM as isRef, aN as toRaw, aO as LinkReleaseTriggerAction, aP as st, aQ as normalizeI18nKey, aR as getColorPalette, aS as BadgePosition, aT as LGraphBadge, aU as _, aV as defaultColorPalette, aW as NodeBadgeMode, aX as markRaw, aY as useModelToNodeStore, aZ as CanvasPointer, a_ as useWorkflowStore, a$ as setStorageValue, b0 as api, b1 as usePragmaticDroppable, b2 as ComfyNodeDefImpl, b3 as ComfyModelDef, b4 as LGraph, b5 as LLink, b6 as DragAndScale, b7 as LGraphCanvas, b8 as ContextMenu, b9 as ChangeTracker, ba as workflowService, bb as showNativeMenu, bc as script$v, bd as script$w, be as script$x, bf as script$y, bg as normalizeProps, bh as ToastEventBus, bi as setAttribute, bj as TransitionGroup, bk as useToast, bl as useToastStore, bm as useExecutionStore, bn as useTitle, bo as usePragmaticDraggable, bp as withModifiers, bq as script$z, br as script$A, bs as resolve, bt as script$B, bu as script$C, bv as isPrintableCharacter, bw as guardReactiveProps, bx as useMenuItemStore, by as script$F, bz as nestedPosition, bA as useQueueSettingsStore, bB as script$G, bC as useQueuePendingTaskCountStore, bD as useLocalStorage, bE as useDraggable, bF as watchDebounced, bG as inject, bH as useElementBounding, bI as lodashExports, bJ as useEventBus, bK as provide, bL as script$H, bM as LGraphEventMode, bN as useQueueStore, bO as showTemplateWorkflowsDialog, bP as showSettingsDialog, bQ as i18n, bR as useModelStore } from "./index-BK27PIiK.js";
 import { s as script$D, a as script$E } from "./index-4Y1pXkN0.js";
 import { u as useServerConfigStore } from "./serverConfigStore-7qHooIp9.js";
@@ -17,8 +18,54 @@ const useCanvasStore = defineStore("canvas", () => {
 });
 const _sfc_main$t = /* @__PURE__ */ defineComponent({
   __name: "TitleEditor",
+========
+import { d as defineComponent, u as useExecutionStore, c as computed, a as useSettingStore, b as useWorkflowStore, e as useTitle, o as openBlock, f as createElementBlock, g as useWorkspaceStore, w as watchEffect, h as app, r as resolveDirective, i as withDirectives, v as vShow, j as unref, k as createBlock, n as normalizeStyle, s as showNativeMenu, l as script$d, _ as _export_sfc, m as onMounted, p as onBeforeUnmount, B as BaseStyle, q as script$e, t as getWidth, x as getHeight, y as getOuterWidth, z as getOuterHeight, A as getVNodeProp, C as isArray, D as mergeProps, F as Fragment, E as renderList, G as resolveDynamicComponent, H as createBaseVNode, I as createCommentVNode, J as renderSlot, K as useSidebarTabStore, L as useBottomPanelStore, M as withCtx, N as createVNode, O as getAttribute, P as findSingle, Q as focus, R as equals, S as Ripple, T as normalizeClass, U as getOffset, V as script$f, W as script$g, X as toDisplayString, Y as script$h, Z as markRaw, $ as defineStore, a0 as shallowRef, a1 as useI18n, a2 as useCommandStore, a3 as LiteGraph, a4 as useColorPaletteStore, a5 as watch, a6 as useNodeDefStore, a7 as BadgePosition, a8 as LGraphBadge, a9 as _, aa as NodeBadgeMode, ab as ref, ac as useEventListener, ad as nextTick, ae as st, af as normalizeI18nKey, ag as LGraphGroup, ah as LGraphNode, ai as EditableText, aj as isNotEmpty, ak as UniqueComponentId, al as ZIndex, am as resolveFieldData, an as OverlayEventBus, ao as isEmpty, ap as addStyle, aq as relativePosition, ar as absolutePosition, as as ConnectedOverlayScrollHandler, at as isTouchDevice, au as findLastIndex, av as script$i, aw as script$j, ax as script$k, ay as script$l, az as script$m, aA as script$n, aB as resolveComponent, aC as Transition, aD as createSlots, aE as createTextVNode, aF as useNodeFrequencyStore, aG as useNodeBookmarkStore, aH as highlightQuery, aI as script$o, aJ as formatNumberWithSuffix, aK as NodeSourceType, aL as pushScopeId, aM as popScopeId, aN as NodePreview, aO as NodeSearchFilter, aP as script$p, aQ as SearchFilterChip, aR as useLitegraphService, aS as storeToRefs, aT as isRef, aU as toRaw, aV as LinkReleaseTriggerAction, aW as script$q, aX as useUserStore, aY as useDialogStore, aZ as SettingDialogHeader, a_ as SettingDialogContent, a$ as useKeybindingStore, b0 as Teleport, b1 as LinkMarkerShape, b2 as useModelToNodeStore, b3 as CanvasPointer, b4 as IS_CONTROL_WIDGET, b5 as updateControlWidgetLabel, b6 as useColorPaletteService, b7 as setStorageValue, b8 as api, b9 as usePragmaticDroppable, ba as LGraph, bb as LLink, bc as DragAndScale, bd as LGraphCanvas, be as ContextMenu, bf as ChangeTracker, bg as useWorkflowService, bh as ComfyNodeDefImpl, bi as ComfyModelDef, bj as script$r, bk as script$s, bl as script$t, bm as script$u, bn as script$v, bo as normalizeProps, bp as ToastEventBus, bq as setAttribute, br as TransitionGroup, bs as useToast, bt as useToastStore, bu as resolve, bv as nestedPosition, bw as script$w, bx as isPrintableCharacter, by as useQueueSettingsStore, bz as script$x, bA as useQueuePendingTaskCountStore, bB as useLocalStorage, bC as useDraggable, bD as watchDebounced, bE as inject, bF as useElementBounding, bG as lodashExports, bH as useEventBus, bI as script$z, bJ as guardReactiveProps, bK as useMenuItemStore, bL as usePragmaticDraggable, bM as withModifiers, bN as script$B, bO as script$C, bP as provide, bQ as script$D, bR as useDialogService, bS as LGraphEventMode, bT as useQueueStore, bU as i18n, bV as useModelStore } from "./index-DjNHn37O.js";
+import { s as script$y } from "./index-jXPKy3pP.js";
+import { s as script$A } from "./index-B-aVupP5.js";
+import { u as useKeybindingService } from "./keybindingService-Bx7YdkXn.js";
+import { u as useServerConfigStore } from "./serverConfigStore-CvyKFVuP.js";
+import "./index-5HFeZax4.js";
+const DEFAULT_TITLE = "ComfyUI";
+const TITLE_SUFFIX = " - ComfyUI";
+const _sfc_main$t = /* @__PURE__ */ defineComponent({
+  __name: "BrowserTabTitle",
   setup(__props) {
+    const executionStore = useExecutionStore();
+    const executionText = computed(
+      () => executionStore.isIdle ? "" : `[${executionStore.executionProgress}%]`
+    );
     const settingStore = useSettingStore();
+    const betaMenuEnabled = computed(
+      () => settingStore.get("Comfy.UseNewMenu") !== "Disabled"
+    );
+    const workflowStore = useWorkflowStore();
+    const isUnsavedText = computed(
+      () => workflowStore.activeWorkflow?.isModified || !workflowStore.activeWorkflow?.isPersisted ? " *" : ""
+    );
+    const workflowNameText = computed(() => {
+      const workflowName = workflowStore.activeWorkflow?.filename;
+      return workflowName ? isUnsavedText.value + workflowName + TITLE_SUFFIX : DEFAULT_TITLE;
+    });
+    const nodeExecutionTitle = computed(
+      () => executionStore.executingNode && executionStore.executingNodeProgress ? `${executionText.value}[${executionStore.executingNodeProgress}%] ${executionStore.executingNode.type}` : ""
+    );
+    const workflowTitle = computed(
+      () => executionText.value + (betaMenuEnabled.value ? workflowNameText.value : DEFAULT_TITLE)
+    );
+    const title = computed(() => nodeExecutionTitle.value || workflowTitle.value);
+    useTitle(title);
+    return (_ctx, _cache) => {
+      return openBlock(), createElementBlock("div");
+    };
+  }
+});
+const _sfc_main$s = /* @__PURE__ */ defineComponent({
+  __name: "MenuHamburger",
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
+  setup(__props) {
+    const workspaceState = useWorkspaceStore();
+    const settingStore = useSettingStore();
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     const showInput = ref(false);
     const editedTitle = ref("");
     const inputStyle = ref({
@@ -188,10 +235,32 @@ const _sfc_main$s = /* @__PURE__ */ defineComponent({
     const emit = __emit;
     const overlayValue = computed(
       () => typeof props.iconBadge === "function" ? props.iconBadge() || "" : props.iconBadge
+========
+    const exitFocusMode = /* @__PURE__ */ __name(() => {
+      workspaceState.focusMode = false;
+    }, "exitFocusMode");
+    watchEffect(() => {
+      if (settingStore.get("Comfy.UseNewMenu") !== "Disabled") {
+        return;
+      }
+      if (workspaceState.focusMode) {
+        app.ui.menuContainer.style.display = "none";
+      } else {
+        app.ui.menuContainer.style.display = "block";
+      }
+    });
+    const menuSetting = computed(() => settingStore.get("Comfy.UseNewMenu"));
+    const positionCSS = computed(
+      () => (
+        // 'Bottom' menuSetting shows the hamburger button in the bottom right corner
+        // 'Disabled', 'Top' menuSetting shows the hamburger button in the top right corner
+        menuSetting.value === "Bottom" ? { bottom: "0px", right: "0px" } : { top: "0px", right: "0px" }
+      )
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
     );
-    const shouldShowBadge = computed(() => !!overlayValue.value);
     return (_ctx, _cache) => {
       const _directive_tooltip = resolveDirective("tooltip");
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
       return withDirectives((openBlock(), createBlock(unref(script$h), {
         class: normalizeClass(props.class),
         text: "",
@@ -222,10 +291,25 @@ const _sfc_main$s = /* @__PURE__ */ defineComponent({
         _: 1
       }, 8, ["class", "pt"])), [
         [_directive_tooltip, { value: props.tooltip, showDelay: 300, hideDelay: 300 }]
+========
+      return withDirectives((openBlock(), createBlock(unref(script$d), {
+        class: "comfy-menu-hamburger",
+        style: normalizeStyle(positionCSS.value),
+        icon: "pi pi-bars",
+        severity: "secondary",
+        text: "",
+        size: "large",
+        onClick: exitFocusMode,
+        onContextmenu: unref(showNativeMenu)
+      }, null, 8, ["style", "onContextmenu"])), [
+        [vShow, unref(workspaceState).focusMode],
+        [_directive_tooltip, { value: _ctx.$t("menu.showMenu"), showDelay: 300 }]
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       ]);
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 const SidebarIcon = /* @__PURE__ */ _export_sfc(_sfc_main$s, [["__scopeId", "data-v-caa3ee9c"]]);
 const _sfc_main$r = /* @__PURE__ */ defineComponent({
   __name: "SidebarThemeToggleIcon",
@@ -301,25 +385,32 @@ const _sfc_main$o = /* @__PURE__ */ defineComponent({
     const mountCustomExtension = /* @__PURE__ */ __name((extension, el) => {
       extension.render(el);
     }, "mountCustomExtension");
-    onBeforeUnmount(() => {
-      if (props.extension.type === "custom" && props.extension.destroy) {
-        props.extension.destroy();
+========
+const MenuHamburger = /* @__PURE__ */ _export_sfc(_sfc_main$s, [["__scopeId", "data-v-5661bed0"]]);
+const _sfc_main$r = /* @__PURE__ */ defineComponent({
+  __name: "UnloadWindowConfirmDialog",
+  setup(__props) {
+    const settingStore = useSettingStore();
+    const handleBeforeUnload = /* @__PURE__ */ __name((event) => {
+      if (settingStore.get("Comfy.Window.UnloadConfirmation")) {
+        event.preventDefault();
+        return true;
       }
+      return void 0;
+    }, "handleBeforeUnload");
+    onMounted(() => {
+      window.addEventListener("beforeunload", handleBeforeUnload);
+    });
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
+    onBeforeUnmount(() => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     });
     return (_ctx, _cache) => {
-      return _ctx.extension.type === "vue" ? (openBlock(), createBlock(resolveDynamicComponent(_ctx.extension.component), { key: 0 })) : (openBlock(), createElementBlock("div", {
-        key: 1,
-        ref: /* @__PURE__ */ __name((el) => {
-          if (el)
-            mountCustomExtension(
-              props.extension,
-              el
-            );
-        }, "ref")
-      }, null, 512));
+      return openBlock(), createElementBlock("div");
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 const _hoisted_1$n = { class: "side-tool-bar-end" };
 const _hoisted_2$b = {
   key: 0,
@@ -892,11 +983,14 @@ const _sfc_main$m = /* @__PURE__ */ defineComponent({
   }
 });
 var theme$7 = /* @__PURE__ */ __name(function theme2(_ref) {
+========
+var theme$7 = /* @__PURE__ */ __name(function theme(_ref) {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   var dt = _ref.dt;
   return "\n.p-splitter {\n    display: flex;\n    flex-wrap: nowrap;\n    border: 1px solid ".concat(dt("splitter.border.color"), ";\n    background: ").concat(dt("splitter.background"), ";\n    border-radius: ").concat(dt("border.radius.md"), ";\n    color: ").concat(dt("splitter.color"), ";\n}\n\n.p-splitter-vertical {\n    flex-direction: column;\n}\n\n.p-splitter-gutter {\n    flex-grow: 0;\n    flex-shrink: 0;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    z-index: 1;\n    background: ").concat(dt("splitter.gutter.background"), ";\n}\n\n.p-splitter-gutter-handle {\n    border-radius: ").concat(dt("splitter.handle.border.radius"), ";\n    background: ").concat(dt("splitter.handle.background"), ";\n    transition: outline-color ").concat(dt("splitter.transition.duration"), ", box-shadow ").concat(dt("splitter.transition.duration"), ";\n    outline-color: transparent;\n}\n\n.p-splitter-gutter-handle:focus-visible {\n    box-shadow: ").concat(dt("splitter.handle.focus.ring.shadow"), ";\n    outline: ").concat(dt("splitter.handle.focus.ring.width"), " ").concat(dt("splitter.handle.focus.ring.style"), " ").concat(dt("splitter.handle.focus.ring.color"), ";\n    outline-offset: ").concat(dt("splitter.handle.focus.ring.offset"), ";\n}\n\n.p-splitter-horizontal.p-splitter-resizing {\n    cursor: col-resize;\n    user-select: none;\n}\n\n.p-splitter-vertical.p-splitter-resizing {\n    cursor: row-resize;\n    user-select: none;\n}\n\n.p-splitter-horizontal > .p-splitter-gutter > .p-splitter-gutter-handle {\n    height: ").concat(dt("splitter.handle.size"), ";\n    width: 100%;\n}\n\n.p-splitter-vertical > .p-splitter-gutter > .p-splitter-gutter-handle {\n    width: ").concat(dt("splitter.handle.size"), ";\n    height: 100%;\n}\n\n.p-splitter-horizontal > .p-splitter-gutter {\n    cursor: col-resize;\n}\n\n.p-splitter-vertical > .p-splitter-gutter {\n    cursor: row-resize;\n}\n\n.p-splitterpanel {\n    flex-grow: 1;\n    overflow: hidden;\n}\n\n.p-splitterpanel-nested {\n    display: flex;\n}\n\n.p-splitterpanel .p-splitter {\n    flex-grow: 1;\n    border: 0 none;\n}\n");
 }, "theme");
-var classes$8 = {
-  root: /* @__PURE__ */ __name(function root2(_ref2) {
+var classes$a = {
+  root: /* @__PURE__ */ __name(function root(_ref2) {
     var props = _ref2.props;
     return ["p-splitter p-component", "p-splitter-" + props.layout];
   }, "root"),
@@ -904,7 +998,7 @@ var classes$8 = {
   gutterHandle: "p-splitter-gutter-handle"
 };
 var inlineStyles$4 = {
-  root: /* @__PURE__ */ __name(function root3(_ref3) {
+  root: /* @__PURE__ */ __name(function root2(_ref3) {
     var props = _ref3.props;
     return [{
       display: "flex",
@@ -917,12 +1011,16 @@ var inlineStyles$4 = {
 var SplitterStyle = BaseStyle.extend({
   name: "splitter",
   theme: theme$7,
-  classes: classes$8,
+  classes: classes$a,
   inlineStyles: inlineStyles$4
 });
-var script$1$8 = {
+var script$1$a = {
   name: "BaseSplitter",
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
   "extends": script$i,
+========
+  "extends": script$e,
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   props: {
     layout: {
       type: String,
@@ -946,7 +1044,7 @@ var script$1$8 = {
     }
   },
   style: SplitterStyle,
-  provide: /* @__PURE__ */ __name(function provide5() {
+  provide: /* @__PURE__ */ __name(function provide2() {
     return {
       $pcSplitter: this,
       $parentInstance: this
@@ -985,7 +1083,7 @@ function _arrayLikeToArray$2(r, a) {
 __name(_arrayLikeToArray$2, "_arrayLikeToArray$2");
 var script$c = {
   name: "Splitter",
-  "extends": script$1$8,
+  "extends": script$1$a,
   inheritAttrs: false,
   emits: ["resizestart", "resizeend", "resize"],
   dragging: false,
@@ -1003,19 +1101,48 @@ var script$c = {
   panelSizes: null,
   prevPanelIndex: null,
   timer: null,
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
   mutationObserver: null,
   data: /* @__PURE__ */ __name(function data2() {
+========
+  data: /* @__PURE__ */ __name(function data() {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
     return {
       prevSize: null,
       isRTL: false
     };
   }, "data"),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
   mounted: /* @__PURE__ */ __name(function mounted2() {
     this.initializePanels();
     this.updateDirection();
     this.observeDirectionChanges();
+========
+  mounted: /* @__PURE__ */ __name(function mounted() {
+    var _this = this;
+    if (this.panels && this.panels.length) {
+      var initialized = false;
+      if (this.isStateful()) {
+        initialized = this.restoreState();
+      }
+      if (!initialized) {
+        var children = _toConsumableArray$2(this.$el.children).filter(function(child) {
+          return child.getAttribute("data-pc-name") === "splitterpanel";
+        });
+        var _panelSizes = [];
+        this.panels.map(function(panel, i) {
+          var panelInitialSize = panel.props && panel.props.size ? panel.props.size : null;
+          var panelSize = panelInitialSize || 100 / _this.panels.length;
+          _panelSizes[i] = panelSize;
+          children[i].style.flexBasis = "calc(" + panelSize + "% - " + (_this.panels.length - 1) * _this.gutterSize + "px)";
+        });
+        this.panelSizes = _panelSizes;
+        this.prevSize = parseFloat(_panelSizes[0]).toFixed(4);
+      }
+    }
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   }, "mounted"),
-  beforeUnmount: /* @__PURE__ */ __name(function beforeUnmount2() {
+  beforeUnmount: /* @__PURE__ */ __name(function beforeUnmount() {
     this.clear();
     this.unbindMouseListeners();
     if (this.mutationObserver) {
@@ -1361,9 +1488,15 @@ var script$c = {
     }, "getPTOptions")
   }
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 var _hoisted_1$k = ["onMousedown", "onTouchstart", "onTouchmove", "onTouchend"];
 var _hoisted_2$8 = ["aria-orientation", "aria-valuenow", "onKeydown"];
 function render$i(_ctx, _cache, $props, $setup, $data, $options) {
+========
+var _hoisted_1$m = ["onMousedown", "onTouchstart", "onTouchmove", "onTouchend"];
+var _hoisted_2$j = ["aria-orientation", "aria-valuenow", "onKeydown"];
+function render$j(_ctx, _cache, $props, $setup, $data, $options) {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   return openBlock(), createElementBlock("div", mergeProps({
     "class": _ctx.cx("root"),
     style: _ctx.sx("root"),
@@ -1406,6 +1539,7 @@ function render$i(_ctx, _cache, $props, $setup, $data, $options) {
         return $options.onGutterKeyDown($event, i);
       }, "onKeydown"),
       ref_for: true
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     }, _ctx.ptm("gutterHandle")), null, 16, _hoisted_2$8)], 16, _hoisted_1$k)) : createCommentVNode("", true)], 64);
   }), 128))], 16);
 }
@@ -1413,6 +1547,15 @@ __name(render$i, "render$i");
 script$c.render = render$i;
 var classes$7 = {
   root: /* @__PURE__ */ __name(function root4(_ref) {
+========
+    }, _ctx.ptm("gutterHandle")), null, 16, _hoisted_2$j)], 16, _hoisted_1$m)) : createCommentVNode("", true)], 64);
+  }), 128))], 16);
+}
+__name(render$j, "render$j");
+script$c.render = render$j;
+var classes$9 = {
+  root: /* @__PURE__ */ __name(function root3(_ref) {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
     var instance = _ref.instance;
     return ["p-splitterpanel", {
       "p-splitterpanel-nested": instance.isNested
@@ -1421,11 +1564,15 @@ var classes$7 = {
 };
 var SplitterPanelStyle = BaseStyle.extend({
   name: "splitterpanel",
-  classes: classes$7
+  classes: classes$9
 });
-var script$1$7 = {
+var script$1$9 = {
   name: "BaseSplitterPanel",
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
   "extends": script$i,
+========
+  "extends": script$e,
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   props: {
     size: {
       type: Number,
@@ -1437,7 +1584,7 @@ var script$1$7 = {
     }
   },
   style: SplitterPanelStyle,
-  provide: /* @__PURE__ */ __name(function provide6() {
+  provide: /* @__PURE__ */ __name(function provide3() {
     return {
       $pcSplitterPanel: this,
       $parentInstance: this
@@ -1446,9 +1593,9 @@ var script$1$7 = {
 };
 var script$b = {
   name: "SplitterPanel",
-  "extends": script$1$7,
+  "extends": script$1$9,
   inheritAttrs: false,
-  data: /* @__PURE__ */ __name(function data3() {
+  data: /* @__PURE__ */ __name(function data2() {
     return {
       nestedState: null
     };
@@ -1470,15 +1617,25 @@ var script$b = {
     }, "getPTOptions")
   }
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 function render$h(_ctx, _cache, $props, $setup, $data, $options) {
+========
+function render$i(_ctx, _cache, $props, $setup, $data, $options) {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   return openBlock(), createElementBlock("div", mergeProps({
     ref: "container",
     "class": _ctx.cx("root")
   }, _ctx.ptmi("root", $options.getPTOptions)), [renderSlot(_ctx.$slots, "default")], 16);
 }
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 __name(render$h, "render$h");
 script$b.render = render$h;
 const _sfc_main$l = /* @__PURE__ */ defineComponent({
+========
+__name(render$i, "render$i");
+script$b.render = render$i;
+const _sfc_main$q = /* @__PURE__ */ defineComponent({
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   __name: "LiteGraphCanvasSplitterOverlay",
   setup(__props) {
     const settingStore = useSettingStore();
@@ -1565,8 +1722,1020 @@ const _sfc_main$l = /* @__PURE__ */ defineComponent({
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 const LiteGraphCanvasSplitterOverlay = /* @__PURE__ */ _export_sfc(_sfc_main$l, [["__scopeId", "data-v-95268c0b"]]);
 var theme$6 = /* @__PURE__ */ __name(function theme3(_ref) {
+========
+const LiteGraphCanvasSplitterOverlay = /* @__PURE__ */ _export_sfc(_sfc_main$q, [["__scopeId", "data-v-e50caa15"]]);
+var classes$8 = {
+  root: /* @__PURE__ */ __name(function root4(_ref) {
+    var instance = _ref.instance, props = _ref.props;
+    return ["p-tab", {
+      "p-tab-active": instance.active,
+      "p-disabled": props.disabled
+    }];
+  }, "root")
+};
+var TabStyle = BaseStyle.extend({
+  name: "tab",
+  classes: classes$8
+});
+var script$1$8 = {
+  name: "BaseTab",
+  "extends": script$e,
+  props: {
+    value: {
+      type: [String, Number],
+      "default": void 0
+    },
+    disabled: {
+      type: Boolean,
+      "default": false
+    },
+    as: {
+      type: [String, Object],
+      "default": "BUTTON"
+    },
+    asChild: {
+      type: Boolean,
+      "default": false
+    }
+  },
+  style: TabStyle,
+  provide: /* @__PURE__ */ __name(function provide4() {
+    return {
+      $pcTab: this,
+      $parentInstance: this
+    };
+  }, "provide")
+};
+var script$a = {
+  name: "Tab",
+  "extends": script$1$8,
+  inheritAttrs: false,
+  inject: ["$pcTabs", "$pcTabList"],
+  methods: {
+    onFocus: /* @__PURE__ */ __name(function onFocus() {
+      this.$pcTabs.selectOnFocus && this.changeActiveValue();
+    }, "onFocus"),
+    onClick: /* @__PURE__ */ __name(function onClick() {
+      this.changeActiveValue();
+    }, "onClick"),
+    onKeydown: /* @__PURE__ */ __name(function onKeydown(event) {
+      switch (event.code) {
+        case "ArrowRight":
+          this.onArrowRightKey(event);
+          break;
+        case "ArrowLeft":
+          this.onArrowLeftKey(event);
+          break;
+        case "Home":
+          this.onHomeKey(event);
+          break;
+        case "End":
+          this.onEndKey(event);
+          break;
+        case "PageDown":
+          this.onPageDownKey(event);
+          break;
+        case "PageUp":
+          this.onPageUpKey(event);
+          break;
+        case "Enter":
+        case "NumpadEnter":
+        case "Space":
+          this.onEnterKey(event);
+          break;
+      }
+    }, "onKeydown"),
+    onArrowRightKey: /* @__PURE__ */ __name(function onArrowRightKey(event) {
+      var nextTab = this.findNextTab(event.currentTarget);
+      nextTab ? this.changeFocusedTab(event, nextTab) : this.onHomeKey(event);
+      event.preventDefault();
+    }, "onArrowRightKey"),
+    onArrowLeftKey: /* @__PURE__ */ __name(function onArrowLeftKey(event) {
+      var prevTab = this.findPrevTab(event.currentTarget);
+      prevTab ? this.changeFocusedTab(event, prevTab) : this.onEndKey(event);
+      event.preventDefault();
+    }, "onArrowLeftKey"),
+    onHomeKey: /* @__PURE__ */ __name(function onHomeKey(event) {
+      var firstTab = this.findFirstTab();
+      this.changeFocusedTab(event, firstTab);
+      event.preventDefault();
+    }, "onHomeKey"),
+    onEndKey: /* @__PURE__ */ __name(function onEndKey(event) {
+      var lastTab = this.findLastTab();
+      this.changeFocusedTab(event, lastTab);
+      event.preventDefault();
+    }, "onEndKey"),
+    onPageDownKey: /* @__PURE__ */ __name(function onPageDownKey(event) {
+      this.scrollInView(this.findLastTab());
+      event.preventDefault();
+    }, "onPageDownKey"),
+    onPageUpKey: /* @__PURE__ */ __name(function onPageUpKey(event) {
+      this.scrollInView(this.findFirstTab());
+      event.preventDefault();
+    }, "onPageUpKey"),
+    onEnterKey: /* @__PURE__ */ __name(function onEnterKey(event) {
+      this.changeActiveValue();
+      event.preventDefault();
+    }, "onEnterKey"),
+    findNextTab: /* @__PURE__ */ __name(function findNextTab(tabElement) {
+      var selfCheck = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : false;
+      var element = selfCheck ? tabElement : tabElement.nextElementSibling;
+      return element ? getAttribute(element, "data-p-disabled") || getAttribute(element, "data-pc-section") === "inkbar" ? this.findNextTab(element) : findSingle(element, '[data-pc-name="tab"]') : null;
+    }, "findNextTab"),
+    findPrevTab: /* @__PURE__ */ __name(function findPrevTab(tabElement) {
+      var selfCheck = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : false;
+      var element = selfCheck ? tabElement : tabElement.previousElementSibling;
+      return element ? getAttribute(element, "data-p-disabled") || getAttribute(element, "data-pc-section") === "inkbar" ? this.findPrevTab(element) : findSingle(element, '[data-pc-name="tab"]') : null;
+    }, "findPrevTab"),
+    findFirstTab: /* @__PURE__ */ __name(function findFirstTab() {
+      return this.findNextTab(this.$pcTabList.$refs.content.firstElementChild, true);
+    }, "findFirstTab"),
+    findLastTab: /* @__PURE__ */ __name(function findLastTab() {
+      return this.findPrevTab(this.$pcTabList.$refs.content.lastElementChild, true);
+    }, "findLastTab"),
+    changeActiveValue: /* @__PURE__ */ __name(function changeActiveValue() {
+      this.$pcTabs.updateValue(this.value);
+    }, "changeActiveValue"),
+    changeFocusedTab: /* @__PURE__ */ __name(function changeFocusedTab(event, element) {
+      focus(element);
+      this.scrollInView(element);
+    }, "changeFocusedTab"),
+    scrollInView: /* @__PURE__ */ __name(function scrollInView(element) {
+      var _element$scrollIntoVi;
+      element === null || element === void 0 || (_element$scrollIntoVi = element.scrollIntoView) === null || _element$scrollIntoVi === void 0 || _element$scrollIntoVi.call(element, {
+        block: "nearest"
+      });
+    }, "scrollInView")
+  },
+  computed: {
+    active: /* @__PURE__ */ __name(function active() {
+      var _this$$pcTabs;
+      return equals((_this$$pcTabs = this.$pcTabs) === null || _this$$pcTabs === void 0 ? void 0 : _this$$pcTabs.d_value, this.value);
+    }, "active"),
+    id: /* @__PURE__ */ __name(function id() {
+      var _this$$pcTabs2;
+      return "".concat((_this$$pcTabs2 = this.$pcTabs) === null || _this$$pcTabs2 === void 0 ? void 0 : _this$$pcTabs2.id, "_tab_").concat(this.value);
+    }, "id"),
+    ariaControls: /* @__PURE__ */ __name(function ariaControls() {
+      var _this$$pcTabs3;
+      return "".concat((_this$$pcTabs3 = this.$pcTabs) === null || _this$$pcTabs3 === void 0 ? void 0 : _this$$pcTabs3.id, "_tabpanel_").concat(this.value);
+    }, "ariaControls"),
+    attrs: /* @__PURE__ */ __name(function attrs() {
+      return mergeProps(this.asAttrs, this.a11yAttrs, this.ptmi("root", this.ptParams));
+    }, "attrs"),
+    asAttrs: /* @__PURE__ */ __name(function asAttrs() {
+      return this.as === "BUTTON" ? {
+        type: "button",
+        disabled: this.disabled
+      } : void 0;
+    }, "asAttrs"),
+    a11yAttrs: /* @__PURE__ */ __name(function a11yAttrs() {
+      return {
+        id: this.id,
+        tabindex: this.active ? this.$pcTabs.tabindex : -1,
+        role: "tab",
+        "aria-selected": this.active,
+        "aria-controls": this.ariaControls,
+        "data-pc-name": "tab",
+        "data-p-disabled": this.disabled,
+        "data-p-active": this.active,
+        onFocus: this.onFocus,
+        onKeydown: this.onKeydown
+      };
+    }, "a11yAttrs"),
+    ptParams: /* @__PURE__ */ __name(function ptParams() {
+      return {
+        context: {
+          active: this.active
+        }
+      };
+    }, "ptParams")
+  },
+  directives: {
+    ripple: Ripple
+  }
+};
+function render$h(_ctx, _cache, $props, $setup, $data, $options) {
+  var _directive_ripple = resolveDirective("ripple");
+  return !_ctx.asChild ? withDirectives((openBlock(), createBlock(resolveDynamicComponent(_ctx.as), mergeProps({
+    key: 0,
+    "class": _ctx.cx("root"),
+    onClick: $options.onClick
+  }, $options.attrs), {
+    "default": withCtx(function() {
+      return [renderSlot(_ctx.$slots, "default")];
+    }),
+    _: 3
+  }, 16, ["class", "onClick"])), [[_directive_ripple]]) : renderSlot(_ctx.$slots, "default", {
+    key: 1,
+    "class": normalizeClass(_ctx.cx("root")),
+    active: $options.active,
+    a11yAttrs: $options.a11yAttrs,
+    onClick: $options.onClick
+  });
+}
+__name(render$h, "render$h");
+script$a.render = render$h;
+var classes$7 = {
+  root: "p-tablist",
+  content: /* @__PURE__ */ __name(function content(_ref) {
+    var instance = _ref.instance;
+    return ["p-tablist-content", {
+      "p-tablist-viewport": instance.$pcTabs.scrollable
+    }];
+  }, "content"),
+  tabList: "p-tablist-tab-list",
+  activeBar: "p-tablist-active-bar",
+  prevButton: "p-tablist-prev-button p-tablist-nav-button",
+  nextButton: "p-tablist-next-button p-tablist-nav-button"
+};
+var TabListStyle = BaseStyle.extend({
+  name: "tablist",
+  classes: classes$7
+});
+var script$1$7 = {
+  name: "BaseTabList",
+  "extends": script$e,
+  props: {},
+  style: TabListStyle,
+  provide: /* @__PURE__ */ __name(function provide5() {
+    return {
+      $pcTabList: this,
+      $parentInstance: this
+    };
+  }, "provide")
+};
+var script$9 = {
+  name: "TabList",
+  "extends": script$1$7,
+  inheritAttrs: false,
+  inject: ["$pcTabs"],
+  data: /* @__PURE__ */ __name(function data3() {
+    return {
+      isPrevButtonEnabled: false,
+      isNextButtonEnabled: true
+    };
+  }, "data"),
+  resizeObserver: void 0,
+  watch: {
+    showNavigators: /* @__PURE__ */ __name(function showNavigators(newValue) {
+      newValue ? this.bindResizeObserver() : this.unbindResizeObserver();
+    }, "showNavigators"),
+    activeValue: {
+      flush: "post",
+      handler: /* @__PURE__ */ __name(function handler() {
+        this.updateInkBar();
+      }, "handler")
+    }
+  },
+  mounted: /* @__PURE__ */ __name(function mounted2() {
+    var _this = this;
+    this.$nextTick(function() {
+      _this.updateInkBar();
+    });
+    if (this.showNavigators) {
+      this.updateButtonState();
+      this.bindResizeObserver();
+    }
+  }, "mounted"),
+  updated: /* @__PURE__ */ __name(function updated() {
+    this.showNavigators && this.updateButtonState();
+  }, "updated"),
+  beforeUnmount: /* @__PURE__ */ __name(function beforeUnmount2() {
+    this.unbindResizeObserver();
+  }, "beforeUnmount"),
+  methods: {
+    onScroll: /* @__PURE__ */ __name(function onScroll(event) {
+      this.showNavigators && this.updateButtonState();
+      event.preventDefault();
+    }, "onScroll"),
+    onPrevButtonClick: /* @__PURE__ */ __name(function onPrevButtonClick() {
+      var content2 = this.$refs.content;
+      var width = getWidth(content2);
+      var pos = content2.scrollLeft - width;
+      content2.scrollLeft = pos <= 0 ? 0 : pos;
+    }, "onPrevButtonClick"),
+    onNextButtonClick: /* @__PURE__ */ __name(function onNextButtonClick() {
+      var content2 = this.$refs.content;
+      var width = getWidth(content2) - this.getVisibleButtonWidths();
+      var pos = content2.scrollLeft + width;
+      var lastPos = content2.scrollWidth - width;
+      content2.scrollLeft = pos >= lastPos ? lastPos : pos;
+    }, "onNextButtonClick"),
+    bindResizeObserver: /* @__PURE__ */ __name(function bindResizeObserver() {
+      var _this2 = this;
+      this.resizeObserver = new ResizeObserver(function() {
+        return _this2.updateButtonState();
+      });
+      this.resizeObserver.observe(this.$refs.list);
+    }, "bindResizeObserver"),
+    unbindResizeObserver: /* @__PURE__ */ __name(function unbindResizeObserver() {
+      var _this$resizeObserver;
+      (_this$resizeObserver = this.resizeObserver) === null || _this$resizeObserver === void 0 || _this$resizeObserver.unobserve(this.$refs.list);
+      this.resizeObserver = void 0;
+    }, "unbindResizeObserver"),
+    updateInkBar: /* @__PURE__ */ __name(function updateInkBar() {
+      var _this$$refs = this.$refs, content2 = _this$$refs.content, inkbar = _this$$refs.inkbar, tabs = _this$$refs.tabs;
+      var activeTab = findSingle(content2, '[data-pc-name="tab"][data-p-active="true"]');
+      if (this.$pcTabs.isVertical()) {
+        inkbar.style.height = getOuterHeight(activeTab) + "px";
+        inkbar.style.top = getOffset(activeTab).top - getOffset(tabs).top + "px";
+      } else {
+        inkbar.style.width = getOuterWidth(activeTab) + "px";
+        inkbar.style.left = getOffset(activeTab).left - getOffset(tabs).left + "px";
+      }
+    }, "updateInkBar"),
+    updateButtonState: /* @__PURE__ */ __name(function updateButtonState() {
+      var _this$$refs2 = this.$refs, list = _this$$refs2.list, content2 = _this$$refs2.content;
+      var scrollLeft = content2.scrollLeft, scrollTop = content2.scrollTop, scrollWidth = content2.scrollWidth, scrollHeight = content2.scrollHeight, offsetWidth = content2.offsetWidth, offsetHeight = content2.offsetHeight;
+      var _ref = [getWidth(content2), getHeight(content2)], width = _ref[0], height = _ref[1];
+      if (this.$pcTabs.isVertical()) {
+        this.isPrevButtonEnabled = scrollTop !== 0;
+        this.isNextButtonEnabled = list.offsetHeight >= offsetHeight && parseInt(scrollTop) !== scrollHeight - height;
+      } else {
+        this.isPrevButtonEnabled = scrollLeft !== 0;
+        this.isNextButtonEnabled = list.offsetWidth >= offsetWidth && parseInt(scrollLeft) !== scrollWidth - width;
+      }
+    }, "updateButtonState"),
+    getVisibleButtonWidths: /* @__PURE__ */ __name(function getVisibleButtonWidths() {
+      var _this$$refs3 = this.$refs, prevBtn = _this$$refs3.prevBtn, nextBtn = _this$$refs3.nextBtn;
+      return [prevBtn, nextBtn].reduce(function(acc, el) {
+        return el ? acc + getWidth(el) : acc;
+      }, 0);
+    }, "getVisibleButtonWidths")
+  },
+  computed: {
+    templates: /* @__PURE__ */ __name(function templates() {
+      return this.$pcTabs.$slots;
+    }, "templates"),
+    activeValue: /* @__PURE__ */ __name(function activeValue() {
+      return this.$pcTabs.d_value;
+    }, "activeValue"),
+    showNavigators: /* @__PURE__ */ __name(function showNavigators2() {
+      return this.$pcTabs.scrollable && this.$pcTabs.showNavigators;
+    }, "showNavigators"),
+    prevButtonAriaLabel: /* @__PURE__ */ __name(function prevButtonAriaLabel() {
+      return this.$primevue.config.locale.aria ? this.$primevue.config.locale.aria.previous : void 0;
+    }, "prevButtonAriaLabel"),
+    nextButtonAriaLabel: /* @__PURE__ */ __name(function nextButtonAriaLabel() {
+      return this.$primevue.config.locale.aria ? this.$primevue.config.locale.aria.next : void 0;
+    }, "nextButtonAriaLabel")
+  },
+  components: {
+    ChevronLeftIcon: script$f,
+    ChevronRightIcon: script$g
+  },
+  directives: {
+    ripple: Ripple
+  }
+};
+var _hoisted_1$l = ["aria-label", "tabindex"];
+var _hoisted_2$i = ["aria-orientation"];
+var _hoisted_3$g = ["aria-label", "tabindex"];
+function render$g(_ctx, _cache, $props, $setup, $data, $options) {
+  var _directive_ripple = resolveDirective("ripple");
+  return openBlock(), createElementBlock("div", mergeProps({
+    ref: "list",
+    "class": _ctx.cx("root")
+  }, _ctx.ptmi("root")), [$options.showNavigators && $data.isPrevButtonEnabled ? withDirectives((openBlock(), createElementBlock("button", mergeProps({
+    key: 0,
+    ref: "prevButton",
+    "class": _ctx.cx("prevButton"),
+    "aria-label": $options.prevButtonAriaLabel,
+    tabindex: $options.$pcTabs.tabindex,
+    onClick: _cache[0] || (_cache[0] = function() {
+      return $options.onPrevButtonClick && $options.onPrevButtonClick.apply($options, arguments);
+    })
+  }, _ctx.ptm("prevButton"), {
+    "data-pc-group-section": "navigator"
+  }), [(openBlock(), createBlock(resolveDynamicComponent($options.templates.previcon || "ChevronLeftIcon"), mergeProps({
+    "aria-hidden": "true"
+  }, _ctx.ptm("prevIcon")), null, 16))], 16, _hoisted_1$l)), [[_directive_ripple]]) : createCommentVNode("", true), createBaseVNode("div", mergeProps({
+    ref: "content",
+    "class": _ctx.cx("content"),
+    onScroll: _cache[1] || (_cache[1] = function() {
+      return $options.onScroll && $options.onScroll.apply($options, arguments);
+    })
+  }, _ctx.ptm("content")), [createBaseVNode("div", mergeProps({
+    ref: "tabs",
+    "class": _ctx.cx("tabList"),
+    role: "tablist",
+    "aria-orientation": $options.$pcTabs.orientation || "horizontal"
+  }, _ctx.ptm("tabList")), [renderSlot(_ctx.$slots, "default"), createBaseVNode("span", mergeProps({
+    ref: "inkbar",
+    "class": _ctx.cx("activeBar"),
+    role: "presentation",
+    "aria-hidden": "true"
+  }, _ctx.ptm("activeBar")), null, 16)], 16, _hoisted_2$i)], 16), $options.showNavigators && $data.isNextButtonEnabled ? withDirectives((openBlock(), createElementBlock("button", mergeProps({
+    key: 1,
+    ref: "nextButton",
+    "class": _ctx.cx("nextButton"),
+    "aria-label": $options.nextButtonAriaLabel,
+    tabindex: $options.$pcTabs.tabindex,
+    onClick: _cache[2] || (_cache[2] = function() {
+      return $options.onNextButtonClick && $options.onNextButtonClick.apply($options, arguments);
+    })
+  }, _ctx.ptm("nextButton"), {
+    "data-pc-group-section": "navigator"
+  }), [(openBlock(), createBlock(resolveDynamicComponent($options.templates.nexticon || "ChevronRightIcon"), mergeProps({
+    "aria-hidden": "true"
+  }, _ctx.ptm("nextIcon")), null, 16))], 16, _hoisted_3$g)), [[_directive_ripple]]) : createCommentVNode("", true)], 16);
+}
+__name(render$g, "render$g");
+script$9.render = render$g;
+const _sfc_main$p = /* @__PURE__ */ defineComponent({
+  __name: "ExtensionSlot",
+  props: {
+    extension: {}
+  },
+  setup(__props) {
+    const props = __props;
+    const mountCustomExtension = /* @__PURE__ */ __name((extension, el) => {
+      extension.render(el);
+    }, "mountCustomExtension");
+    onBeforeUnmount(() => {
+      if (props.extension.type === "custom" && props.extension.destroy) {
+        props.extension.destroy();
+      }
+    });
+    return (_ctx, _cache) => {
+      return _ctx.extension.type === "vue" ? (openBlock(), createBlock(resolveDynamicComponent(_ctx.extension.component), { key: 0 })) : (openBlock(), createElementBlock("div", {
+        key: 1,
+        ref: /* @__PURE__ */ __name((el) => {
+          if (el)
+            mountCustomExtension(
+              props.extension,
+              el
+            );
+        }, "ref")
+      }, null, 512));
+    };
+  }
+});
+const _hoisted_1$k = { class: "flex flex-col h-full" };
+const _hoisted_2$h = { class: "w-full flex justify-between" };
+const _hoisted_3$f = { class: "tabs-container" };
+const _hoisted_4$5 = { class: "font-bold" };
+const _hoisted_5$4 = { class: "flex-grow h-0" };
+const _sfc_main$o = /* @__PURE__ */ defineComponent({
+  __name: "BottomPanel",
+  setup(__props) {
+    const bottomPanelStore = useBottomPanelStore();
+    return (_ctx, _cache) => {
+      return openBlock(), createElementBlock("div", _hoisted_1$k, [
+        createVNode(unref(script$h), {
+          value: unref(bottomPanelStore).activeBottomPanelTabId,
+          "onUpdate:value": _cache[1] || (_cache[1] = ($event) => unref(bottomPanelStore).activeBottomPanelTabId = $event)
+        }, {
+          default: withCtx(() => [
+            createVNode(unref(script$9), { "pt:tabList": "border-none" }, {
+              default: withCtx(() => [
+                createBaseVNode("div", _hoisted_2$h, [
+                  createBaseVNode("div", _hoisted_3$f, [
+                    (openBlock(true), createElementBlock(Fragment, null, renderList(unref(bottomPanelStore).bottomPanelTabs, (tab) => {
+                      return openBlock(), createBlock(unref(script$a), {
+                        key: tab.id,
+                        value: tab.id,
+                        class: "p-3 border-none"
+                      }, {
+                        default: withCtx(() => [
+                          createBaseVNode("span", _hoisted_4$5, toDisplayString(tab.title.toUpperCase()), 1)
+                        ]),
+                        _: 2
+                      }, 1032, ["value"]);
+                    }), 128))
+                  ]),
+                  createVNode(unref(script$d), {
+                    class: "justify-self-end",
+                    icon: "pi pi-times",
+                    severity: "secondary",
+                    size: "small",
+                    text: "",
+                    onClick: _cache[0] || (_cache[0] = ($event) => unref(bottomPanelStore).bottomPanelVisible = false)
+                  })
+                ])
+              ]),
+              _: 1
+            })
+          ]),
+          _: 1
+        }, 8, ["value"]),
+        createBaseVNode("div", _hoisted_5$4, [
+          unref(bottomPanelStore).bottomPanelVisible && unref(bottomPanelStore).activeBottomPanelTab ? (openBlock(), createBlock(_sfc_main$p, {
+            key: 0,
+            extension: unref(bottomPanelStore).activeBottomPanelTab
+          }, null, 8, ["extension"])) : createCommentVNode("", true)
+        ])
+      ]);
+    };
+  }
+});
+const _hoisted_1$j = {
+  viewBox: "0 0 1024 1024",
+  width: "1.2em",
+  height: "1.2em"
+};
+const _hoisted_2$g = /* @__PURE__ */ createBaseVNode("path", {
+  fill: "currentColor",
+  d: "M921.088 103.232L584.832 889.024L465.52 544.512L121.328 440.48zM1004.46.769c-6.096 0-13.52 1.728-22.096 5.36L27.708 411.2c-34.383 14.592-36.56 42.704-4.847 62.464l395.296 123.584l129.36 403.264c9.28 15.184 20.496 22.72 31.263 22.72c11.936 0 23.296-9.152 31.04-27.248l408.272-953.728C1029.148 16.368 1022.86.769 1004.46.769"
+}, null, -1);
+const _hoisted_3$e = [
+  _hoisted_2$g
+];
+function render$f(_ctx, _cache) {
+  return openBlock(), createElementBlock("svg", _hoisted_1$j, [..._hoisted_3$e]);
+}
+__name(render$f, "render$f");
+const __unplugin_components_1$2 = markRaw({ name: "simple-line-icons-cursor", render: render$f });
+const _hoisted_1$i = {
+  viewBox: "0 0 24 24",
+  width: "1.2em",
+  height: "1.2em"
+};
+const _hoisted_2$f = /* @__PURE__ */ createBaseVNode("path", {
+  fill: "currentColor",
+  d: "M10.05 23q-.75 0-1.4-.337T7.575 21.7L1.2 12.375l.6-.575q.475-.475 1.125-.55t1.175.3L7 13.575V4q0-.425.288-.712T8 3t.713.288T9 4v13.425l-3.7-2.6l3.925 5.725q.125.2.35.325t.475.125H17q.825 0 1.413-.587T19 19V5q0-.425.288-.712T20 4t.713.288T21 5v14q0 1.65-1.175 2.825T17 23zM11 12V2q0-.425.288-.712T12 1t.713.288T13 2v10zm4 0V3q0-.425.288-.712T16 2t.713.288T17 3v9zm-2.85 4.5"
+}, null, -1);
+const _hoisted_3$d = [
+  _hoisted_2$f
+];
+function render$e(_ctx, _cache) {
+  return openBlock(), createElementBlock("svg", _hoisted_1$i, [..._hoisted_3$d]);
+}
+__name(render$e, "render$e");
+const __unplugin_components_0$2 = markRaw({ name: "material-symbols-pan-tool-outline", render: render$e });
+var theme$6 = /* @__PURE__ */ __name(function theme2(_ref) {
+  _ref.dt;
+  return "\n.p-buttongroup .p-button {\n    margin: 0;\n}\n\n.p-buttongroup .p-button:not(:last-child),\n.p-buttongroup .p-button:not(:last-child):hover {\n    border-right: 0 none;\n}\n\n.p-buttongroup .p-button:not(:first-of-type):not(:last-of-type) {\n    border-radius: 0;\n}\n\n.p-buttongroup .p-button:first-of-type:not(:only-of-type) {\n    border-top-right-radius: 0;\n    border-bottom-right-radius: 0;\n}\n\n.p-buttongroup .p-button:last-of-type:not(:only-of-type) {\n    border-top-left-radius: 0;\n    border-bottom-left-radius: 0;\n}\n\n.p-buttongroup .p-button:focus {\n    position: relative;\n    z-index: 1;\n}\n";
+}, "theme");
+var classes$6 = {
+  root: "p-buttongroup p-component"
+};
+var ButtonGroupStyle = BaseStyle.extend({
+  name: "buttongroup",
+  theme: theme$6,
+  classes: classes$6
+});
+var script$1$6 = {
+  name: "BaseButtonGroup",
+  "extends": script$e,
+  style: ButtonGroupStyle,
+  provide: /* @__PURE__ */ __name(function provide6() {
+    return {
+      $pcButtonGroup: this,
+      $parentInstance: this
+    };
+  }, "provide")
+};
+var script$8 = {
+  name: "ButtonGroup",
+  "extends": script$1$6,
+  inheritAttrs: false
+};
+function render$d(_ctx, _cache, $props, $setup, $data, $options) {
+  return openBlock(), createElementBlock("span", mergeProps({
+    "class": _ctx.cx("root"),
+    role: "group"
+  }, _ctx.ptmi("root")), [renderSlot(_ctx.$slots, "default")], 16);
+}
+__name(render$d, "render$d");
+script$8.render = render$d;
+const useTitleEditorStore = defineStore("titleEditor", () => {
+  const titleEditorTarget = shallowRef(null);
+  return {
+    titleEditorTarget
+  };
+});
+const useCanvasStore = defineStore("canvas", () => {
+  const canvas = shallowRef(null);
+  return {
+    canvas
+  };
+});
+const _sfc_main$n = /* @__PURE__ */ defineComponent({
+  __name: "GraphCanvasMenu",
+  setup(__props) {
+    const { t } = useI18n();
+    const commandStore = useCommandStore();
+    const canvasStore = useCanvasStore();
+    const settingStore = useSettingStore();
+    const linkHidden = computed(
+      () => settingStore.get("Comfy.LinkRenderMode") === LiteGraph.HIDDEN_LINK
+    );
+    let interval = null;
+    const repeat2 = /* @__PURE__ */ __name((command) => {
+      if (interval) return;
+      const cmd = /* @__PURE__ */ __name(() => commandStore.execute(command), "cmd");
+      cmd();
+      interval = window.setInterval(cmd, 100);
+    }, "repeat");
+    const stopRepeat = /* @__PURE__ */ __name(() => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    }, "stopRepeat");
+    return (_ctx, _cache) => {
+      const _component_i_material_symbols58pan_tool_outline = __unplugin_components_0$2;
+      const _component_i_simple_line_icons58cursor = __unplugin_components_1$2;
+      const _directive_tooltip = resolveDirective("tooltip");
+      return openBlock(), createBlock(unref(script$8), { class: "p-buttongroup-vertical absolute bottom-[10px] right-[10px] z-[1000] pointer-events-auto" }, {
+        default: withCtx(() => [
+          withDirectives(createVNode(unref(script$d), {
+            severity: "secondary",
+            icon: "pi pi-plus",
+            onMousedown: _cache[0] || (_cache[0] = ($event) => repeat2("Comfy.Canvas.ZoomIn")),
+            onMouseup: stopRepeat
+          }, null, 512), [
+            [
+              _directive_tooltip,
+              unref(t)("graphCanvasMenu.zoomIn"),
+              void 0,
+              { left: true }
+            ]
+          ]),
+          withDirectives(createVNode(unref(script$d), {
+            severity: "secondary",
+            icon: "pi pi-minus",
+            onMousedown: _cache[1] || (_cache[1] = ($event) => repeat2("Comfy.Canvas.ZoomOut")),
+            onMouseup: stopRepeat
+          }, null, 512), [
+            [
+              _directive_tooltip,
+              unref(t)("graphCanvasMenu.zoomOut"),
+              void 0,
+              { left: true }
+            ]
+          ]),
+          withDirectives(createVNode(unref(script$d), {
+            severity: "secondary",
+            icon: "pi pi-expand",
+            onClick: _cache[2] || (_cache[2] = () => unref(commandStore).execute("Comfy.Canvas.FitView"))
+          }, null, 512), [
+            [
+              _directive_tooltip,
+              unref(t)("graphCanvasMenu.fitView"),
+              void 0,
+              { left: true }
+            ]
+          ]),
+          withDirectives((openBlock(), createBlock(unref(script$d), {
+            severity: "secondary",
+            onClick: _cache[3] || (_cache[3] = () => unref(commandStore).execute("Comfy.Canvas.ToggleLock"))
+          }, {
+            icon: withCtx(() => [
+              unref(canvasStore).canvas?.read_only ? (openBlock(), createBlock(_component_i_material_symbols58pan_tool_outline, { key: 0 })) : (openBlock(), createBlock(_component_i_simple_line_icons58cursor, { key: 1 }))
+            ]),
+            _: 1
+          })), [
+            [
+              _directive_tooltip,
+              unref(t)(
+                "graphCanvasMenu." + (unref(canvasStore).canvas?.read_only ? "panMode" : "selectMode")
+              ) + " (Space)",
+              void 0,
+              { left: true }
+            ]
+          ]),
+          withDirectives(createVNode(unref(script$d), {
+            severity: "secondary",
+            icon: linkHidden.value ? "pi pi-eye-slash" : "pi pi-eye",
+            onClick: _cache[4] || (_cache[4] = () => unref(commandStore).execute("Comfy.Canvas.ToggleLinkVisibility")),
+            "data-testid": "toggle-link-visibility-button"
+          }, null, 8, ["icon"]), [
+            [
+              _directive_tooltip,
+              unref(t)("graphCanvasMenu.toggleLinkVisibility"),
+              void 0,
+              { left: true }
+            ]
+          ])
+        ]),
+        _: 1
+      });
+    };
+  }
+});
+const GraphCanvasMenu = /* @__PURE__ */ _export_sfc(_sfc_main$n, [["__scopeId", "data-v-cf40dd39"]]);
+const _sfc_main$m = /* @__PURE__ */ defineComponent({
+  __name: "NodeBadge",
+  setup(__props) {
+    const settingStore = useSettingStore();
+    const colorPaletteStore = useColorPaletteStore();
+    const nodeSourceBadgeMode = computed(
+      () => settingStore.get("Comfy.NodeBadge.NodeSourceBadgeMode")
+    );
+    const nodeIdBadgeMode = computed(
+      () => settingStore.get("Comfy.NodeBadge.NodeIdBadgeMode")
+    );
+    const nodeLifeCycleBadgeMode = computed(
+      () => settingStore.get("Comfy.NodeBadge.NodeLifeCycleBadgeMode")
+    );
+    watch([nodeSourceBadgeMode, nodeIdBadgeMode, nodeLifeCycleBadgeMode], () => {
+      app.graph?.setDirtyCanvas(true, true);
+    });
+    const nodeDefStore = useNodeDefStore();
+    function badgeTextVisible(nodeDef, badgeMode) {
+      return !(badgeMode === NodeBadgeMode.None || nodeDef?.isCoreNode && badgeMode === NodeBadgeMode.HideBuiltIn);
+    }
+    __name(badgeTextVisible, "badgeTextVisible");
+    onMounted(() => {
+      app.registerExtension({
+        name: "Comfy.NodeBadge",
+        nodeCreated(node) {
+          node.badgePosition = BadgePosition.TopRight;
+          const badge = computed(() => {
+            const nodeDef = nodeDefStore.fromLGraphNode(node);
+            return new LGraphBadge({
+              text: _.truncate(
+                [
+                  badgeTextVisible(nodeDef, nodeIdBadgeMode.value) ? `#${node.id}` : "",
+                  badgeTextVisible(nodeDef, nodeLifeCycleBadgeMode.value) ? nodeDef?.nodeLifeCycleBadgeText ?? "" : "",
+                  badgeTextVisible(nodeDef, nodeSourceBadgeMode.value) ? nodeDef?.nodeSource?.badgeText ?? "" : ""
+                ].filter((s) => s.length > 0).join(" "),
+                {
+                  length: 31
+                }
+              ),
+              fgColor: colorPaletteStore.completedActivePalette.colors.litegraph_base.BADGE_FG_COLOR,
+              bgColor: colorPaletteStore.completedActivePalette.colors.litegraph_base.BADGE_BG_COLOR
+            });
+          });
+          node.badges.push(() => badge.value);
+        }
+      });
+    });
+    return (_ctx, _cache) => {
+      return openBlock(), createElementBlock("div");
+    };
+  }
+});
+const _sfc_main$l = /* @__PURE__ */ defineComponent({
+  __name: "NodeTooltip",
+  setup(__props) {
+    let idleTimeout;
+    const nodeDefStore = useNodeDefStore();
+    const tooltipRef = ref();
+    const tooltipText = ref("");
+    const left = ref();
+    const top = ref();
+    const hideTooltip = /* @__PURE__ */ __name(() => tooltipText.value = null, "hideTooltip");
+    const showTooltip = /* @__PURE__ */ __name(async (tooltip) => {
+      if (!tooltip) return;
+      left.value = app.canvas.mouse[0] + "px";
+      top.value = app.canvas.mouse[1] + "px";
+      tooltipText.value = tooltip;
+      await nextTick();
+      const rect = tooltipRef.value.getBoundingClientRect();
+      if (rect.right > window.innerWidth) {
+        left.value = app.canvas.mouse[0] - rect.width + "px";
+      }
+      if (rect.top < 0) {
+        top.value = app.canvas.mouse[1] + rect.height + "px";
+      }
+    }, "showTooltip");
+    const onIdle = /* @__PURE__ */ __name(() => {
+      const { canvas } = app;
+      const node = canvas.node_over;
+      if (!node) return;
+      const ctor = node.constructor;
+      const nodeDef = nodeDefStore.nodeDefsByName[node.type];
+      if (ctor.title_mode !== LiteGraph.NO_TITLE && canvas.graph_mouse[1] < node.pos[1]) {
+        return showTooltip(nodeDef.description);
+      }
+      if (node.flags?.collapsed) return;
+      const inputSlot = canvas.isOverNodeInput(
+        node,
+        canvas.graph_mouse[0],
+        canvas.graph_mouse[1],
+        [0, 0]
+      );
+      if (inputSlot !== -1) {
+        const inputName = node.inputs[inputSlot].name;
+        const translatedTooltip = st(
+          `nodeDefs.${normalizeI18nKey(node.type)}.inputs.${normalizeI18nKey(inputName)}.tooltip`,
+          nodeDef.inputs.getInput(inputName)?.tooltip
+        );
+        return showTooltip(translatedTooltip);
+      }
+      const outputSlot = canvas.isOverNodeOutput(
+        node,
+        canvas.graph_mouse[0],
+        canvas.graph_mouse[1],
+        [0, 0]
+      );
+      if (outputSlot !== -1) {
+        const translatedTooltip = st(
+          `nodeDefs.${normalizeI18nKey(node.type)}.outputs.${outputSlot}.tooltip`,
+          nodeDef.outputs.all?.[outputSlot]?.tooltip
+        );
+        return showTooltip(translatedTooltip);
+      }
+      const widget = app.canvas.getWidgetAtCursor();
+      if (widget && !widget.element) {
+        const translatedTooltip = st(
+          `nodeDefs.${normalizeI18nKey(node.type)}.inputs.${normalizeI18nKey(widget.name)}.tooltip`,
+          nodeDef.inputs.getInput(widget.name)?.tooltip
+        );
+        return showTooltip(widget.tooltip ?? translatedTooltip);
+      }
+    }, "onIdle");
+    const onMouseMove = /* @__PURE__ */ __name((e) => {
+      hideTooltip();
+      clearTimeout(idleTimeout);
+      if (e.target.nodeName !== "CANVAS") return;
+      idleTimeout = window.setTimeout(onIdle, 500);
+    }, "onMouseMove");
+    useEventListener(window, "mousemove", onMouseMove);
+    useEventListener(window, "click", hideTooltip);
+    return (_ctx, _cache) => {
+      return tooltipText.value ? (openBlock(), createElementBlock("div", {
+        key: 0,
+        ref_key: "tooltipRef",
+        ref: tooltipRef,
+        class: "node-tooltip",
+        style: normalizeStyle({ left: left.value, top: top.value })
+      }, toDisplayString(tooltipText.value), 5)) : createCommentVNode("", true);
+    };
+  }
+});
+const NodeTooltip = /* @__PURE__ */ _export_sfc(_sfc_main$l, [["__scopeId", "data-v-46859edf"]]);
+const _sfc_main$k = /* @__PURE__ */ defineComponent({
+  __name: "TitleEditor",
+  setup(__props) {
+    const settingStore = useSettingStore();
+    const showInput = ref(false);
+    const editedTitle = ref("");
+    const inputStyle = ref({
+      position: "fixed",
+      left: "0px",
+      top: "0px",
+      width: "200px",
+      height: "20px",
+      fontSize: "12px"
+    });
+    const titleEditorStore = useTitleEditorStore();
+    const canvasStore = useCanvasStore();
+    const previousCanvasDraggable = ref(true);
+    const onEdit = /* @__PURE__ */ __name((newValue) => {
+      if (titleEditorStore.titleEditorTarget && newValue.trim() !== "") {
+        titleEditorStore.titleEditorTarget.title = newValue.trim();
+        app.graph.setDirtyCanvas(true, true);
+      }
+      showInput.value = false;
+      titleEditorStore.titleEditorTarget = null;
+      canvasStore.canvas.allow_dragcanvas = previousCanvasDraggable.value;
+    }, "onEdit");
+    watch(
+      () => titleEditorStore.titleEditorTarget,
+      (target) => {
+        if (target === null) {
+          return;
+        }
+        editedTitle.value = target.title;
+        showInput.value = true;
+        previousCanvasDraggable.value = canvasStore.canvas.allow_dragcanvas;
+        canvasStore.canvas.allow_dragcanvas = false;
+        if (target instanceof LGraphGroup) {
+          const group = target;
+          const [x, y] = group.pos;
+          const [w, h] = group.size;
+          const [left, top] = app.canvasPosToClientPos([x, y]);
+          inputStyle.value.left = `${left}px`;
+          inputStyle.value.top = `${top}px`;
+          const width = w * app.canvas.ds.scale;
+          const height = group.titleHeight * app.canvas.ds.scale;
+          inputStyle.value.width = `${width}px`;
+          inputStyle.value.height = `${height}px`;
+          const fontSize = group.font_size * app.canvas.ds.scale;
+          inputStyle.value.fontSize = `${fontSize}px`;
+        } else if (target instanceof LGraphNode) {
+          const node = target;
+          const [x, y] = node.getBounding();
+          const canvasWidth = node.width;
+          const canvasHeight = LiteGraph.NODE_TITLE_HEIGHT;
+          const [left, top] = app.canvasPosToClientPos([x, y]);
+          inputStyle.value.left = `${left}px`;
+          inputStyle.value.top = `${top}px`;
+          const width = canvasWidth * app.canvas.ds.scale;
+          const height = canvasHeight * app.canvas.ds.scale;
+          inputStyle.value.width = `${width}px`;
+          inputStyle.value.height = `${height}px`;
+          const fontSize = 12 * app.canvas.ds.scale;
+          inputStyle.value.fontSize = `${fontSize}px`;
+        }
+      }
+    );
+    const canvasEventHandler = /* @__PURE__ */ __name((event) => {
+      if (event.detail.subType === "group-double-click") {
+        if (!settingStore.get("Comfy.Group.DoubleClickTitleToEdit")) {
+          return;
+        }
+        const group = event.detail.group;
+        const [x, y] = group.pos;
+        const e = event.detail.originalEvent;
+        const relativeY = e.canvasY - y;
+        if (relativeY <= group.titleHeight) {
+          titleEditorStore.titleEditorTarget = group;
+        }
+      } else if (event.detail.subType === "node-double-click") {
+        if (!settingStore.get("Comfy.Node.DoubleClickTitleToEdit")) {
+          return;
+        }
+        const node = event.detail.node;
+        const [x, y] = node.pos;
+        const e = event.detail.originalEvent;
+        const relativeY = e.canvasY - y;
+        if (relativeY <= 0) {
+          titleEditorStore.titleEditorTarget = node;
+        }
+      }
+    }, "canvasEventHandler");
+    useEventListener(document, "litegraph:canvas", canvasEventHandler);
+    return (_ctx, _cache) => {
+      return showInput.value ? (openBlock(), createElementBlock("div", {
+        key: 0,
+        class: "group-title-editor node-title-editor",
+        style: normalizeStyle(inputStyle.value)
+      }, [
+        createVNode(EditableText, {
+          isEditing: showInput.value,
+          modelValue: editedTitle.value,
+          onEdit
+        }, null, 8, ["isEditing", "modelValue"])
+      ], 4)) : createCommentVNode("", true);
+    };
+  }
+});
+const TitleEditor = /* @__PURE__ */ _export_sfc(_sfc_main$k, [["__scopeId", "data-v-12d3fd12"]]);
+const useSearchBoxStore = defineStore("searchBox", () => {
+  const visible = ref(false);
+  function toggleVisible() {
+    visible.value = !visible.value;
+  }
+  __name(toggleVisible, "toggleVisible");
+  return {
+    visible,
+    toggleVisible
+  };
+});
+class ConnectingLinkImpl {
+  static {
+    __name(this, "ConnectingLinkImpl");
+  }
+  constructor(node, slot, input, output, pos, afterRerouteId) {
+    this.node = node;
+    this.slot = slot;
+    this.input = input;
+    this.output = output;
+    this.pos = pos;
+    this.afterRerouteId = afterRerouteId;
+  }
+  static createFromPlainObject(obj) {
+    return new ConnectingLinkImpl(
+      obj.node,
+      obj.slot,
+      obj.input,
+      obj.output,
+      obj.pos,
+      obj.afterRerouteId
+    );
+  }
+  get type() {
+    const result = this.input ? this.input.type : this.output?.type ?? null;
+    return result === -1 ? null : result;
+  }
+  /**
+   * Which slot type is release and need to be reconnected.
+   * - 'output' means we need a new node's outputs slot to connect with this link
+   */
+  get releaseSlotType() {
+    return this.output ? "input" : "output";
+  }
+  connectTo(newNode) {
+    const newNodeSlots = this.releaseSlotType === "output" ? newNode.outputs : newNode.inputs;
+    if (!newNodeSlots) return;
+    const newNodeSlot = newNodeSlots.findIndex(
+      (slot) => LiteGraph.isValidConnection(slot.type, this.type)
+    );
+    if (newNodeSlot === -1) {
+      console.warn(
+        `Could not find slot with type ${this.type} on node ${newNode.title}. This should never happen`
+      );
+      return;
+    }
+    if (this.releaseSlotType === "input") {
+      this.node.connect(this.slot, newNode, newNodeSlot, this.afterRerouteId);
+    } else {
+      newNode.connect(newNodeSlot, this.node, this.slot, this.afterRerouteId);
+    }
+  }
+}
+var theme$5 = /* @__PURE__ */ __name(function theme3(_ref) {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   var dt = _ref.dt;
   return "\n.p-autocomplete {\n    display: inline-flex;\n}\n\n.p-autocomplete-loader {\n    position: absolute;\n    top: 50%;\n    margin-top: -0.5rem;\n    inset-inline-end: ".concat(dt("autocomplete.padding.x"), ";\n}\n\n.p-autocomplete:has(.p-autocomplete-dropdown) .p-autocomplete-loader {\n    inset-inline-end: calc(").concat(dt("autocomplete.dropdown.width"), " + ").concat(dt("autocomplete.padding.x"), ");\n}\n\n.p-autocomplete:has(.p-autocomplete-dropdown) .p-autocomplete-input {\n    flex: 1 1 auto;\n    width: 1%;\n}\n\n.p-autocomplete:has(.p-autocomplete-dropdown) .p-autocomplete-input,\n.p-autocomplete:has(.p-autocomplete-dropdown) .p-autocomplete-input-multiple {\n    border-start-end-radius: 0;\n    border-end-end-radius: 0;\n}\n\n.p-autocomplete-dropdown {\n    cursor: pointer;\n    display: inline-flex;\n    user-select: none;\n    align-items: center;\n    justify-content: center;\n    overflow: hidden;\n    position: relative;\n    width: ").concat(dt("autocomplete.dropdown.width"), ";\n    border-start-end-radius: ").concat(dt("autocomplete.dropdown.border.radius"), ";\n    border-end-end-radius: ").concat(dt("autocomplete.dropdown.border.radius"), ";\n    background: ").concat(dt("autocomplete.dropdown.background"), ";\n    border: 1px solid ").concat(dt("autocomplete.dropdown.border.color"), ";\n    border-inline-start: 0 none;\n    color: ").concat(dt("autocomplete.dropdown.color"), ";\n    transition: background ").concat(dt("autocomplete.transition.duration"), ", color ").concat(dt("autocomplete.transition.duration"), ", border-color ").concat(dt("autocomplete.transition.duration"), ", outline-color ").concat(dt("autocomplete.transition.duration"), ", box-shadow ").concat(dt("autocomplete.transition.duration"), ";\n    outline-color: transparent;\n}\n\n.p-autocomplete-dropdown:not(:disabled):hover {\n    background: ").concat(dt("autocomplete.dropdown.hover.background"), ";\n    border-color: ").concat(dt("autocomplete.dropdown.hover.border.color"), ";\n    color: ").concat(dt("autocomplete.dropdown.hover.color"), ";\n}\n\n.p-autocomplete-dropdown:not(:disabled):active {\n    background: ").concat(dt("autocomplete.dropdown.active.background"), ";\n    border-color: ").concat(dt("autocomplete.dropdown.active.border.color"), ";\n    color: ").concat(dt("autocomplete.dropdown.active.color"), ";\n}\n\n.p-autocomplete-dropdown:focus-visible {\n    box-shadow: ").concat(dt("autocomplete.dropdown.focus.ring.shadow"), ";\n    outline: ").concat(dt("autocomplete.dropdown.focus.ring.width"), " ").concat(dt("autocomplete.dropdown.focus.ring.style"), " ").concat(dt("autocomplete.dropdown.focus.ring.color"), ";\n    outline-offset: ").concat(dt("autocomplete.dropdown.focus.ring.offset"), ";\n}\n\n.p-autocomplete .p-autocomplete-overlay {\n    min-width: 100%;\n}\n\n.p-autocomplete-overlay {\n    position: absolute;\n    top: 0;\n    left: 0;\n    background: ").concat(dt("autocomplete.overlay.background"), ";\n    color: ").concat(dt("autocomplete.overlay.color"), ";\n    border: 1px solid ").concat(dt("autocomplete.overlay.border.color"), ";\n    border-radius: ").concat(dt("autocomplete.overlay.border.radius"), ";\n    box-shadow: ").concat(dt("autocomplete.overlay.shadow"), ";\n}\n\n.p-autocomplete-list-container {\n    overflow: auto;\n}\n\n.p-autocomplete-list {\n    margin: 0;\n    list-style-type: none;\n    display: flex;\n    flex-direction: column;\n    gap: ").concat(dt("autocomplete.list.gap"), ";\n    padding: ").concat(dt("autocomplete.list.padding"), ";\n}\n\n.p-autocomplete-option {\n    cursor: pointer;\n    white-space: nowrap;\n    position: relative;\n    overflow: hidden;\n    display: flex;\n    align-items: center;\n    padding: ").concat(dt("autocomplete.option.padding"), ";\n    border: 0 none;\n    color: ").concat(dt("autocomplete.option.color"), ";\n    background: transparent;\n    transition: background ").concat(dt("autocomplete.transition.duration"), ", color ").concat(dt("autocomplete.transition.duration"), ", border-color ").concat(dt("autocomplete.transition.duration"), ";\n    border-radius: ").concat(dt("autocomplete.option.border.radius"), ";\n}\n\n.p-autocomplete-option:not(.p-autocomplete-option-selected):not(.p-disabled).p-focus {\n    background: ").concat(dt("autocomplete.option.focus.background"), ";\n    color: ").concat(dt("autocomplete.option.focus.color"), ";\n}\n\n.p-autocomplete-option-selected {\n    background: ").concat(dt("autocomplete.option.selected.background"), ";\n    color: ").concat(dt("autocomplete.option.selected.color"), ";\n}\n\n.p-autocomplete-option-selected.p-focus {\n    background: ").concat(dt("autocomplete.option.selected.focus.background"), ";\n    color: ").concat(dt("autocomplete.option.selected.focus.color"), ";\n}\n\n.p-autocomplete-option-group {\n    margin: 0;\n    padding: ").concat(dt("autocomplete.option.group.padding"), ";\n    color: ").concat(dt("autocomplete.option.group.color"), ";\n    background: ").concat(dt("autocomplete.option.group.background"), ";\n    font-weight: ").concat(dt("autocomplete.option.group.font.weight"), ";\n}\n\n.p-autocomplete-input-multiple {\n    margin: 0;\n    list-style-type: none;\n    cursor: text;\n    overflow: hidden;\n    display: flex;\n    align-items: center;\n    flex-wrap: wrap;\n    padding: calc(").concat(dt("autocomplete.padding.y"), " / 2) ").concat(dt("autocomplete.padding.x"), ";\n    gap: calc(").concat(dt("autocomplete.padding.y"), " / 2);\n    color: ").concat(dt("autocomplete.color"), ";\n    background: ").concat(dt("autocomplete.background"), ";\n    border: 1px solid ").concat(dt("autocomplete.border.color"), ";\n    border-radius: ").concat(dt("autocomplete.border.radius"), ";\n    width: 100%;\n    transition: background ").concat(dt("autocomplete.transition.duration"), ", color ").concat(dt("autocomplete.transition.duration"), ", border-color ").concat(dt("autocomplete.transition.duration"), ", outline-color ").concat(dt("autocomplete.transition.duration"), ", box-shadow ").concat(dt("autocomplete.transition.duration"), ";\n    outline-color: transparent;\n    box-shadow: ").concat(dt("autocomplete.shadow"), ";\n}\n\n.p-autocomplete:not(.p-disabled):hover .p-autocomplete-input-multiple {\n    border-color: ").concat(dt("autocomplete.hover.border.color"), ";\n}\n\n.p-autocomplete:not(.p-disabled).p-focus .p-autocomplete-input-multiple {\n    border-color: ").concat(dt("autocomplete.focus.border.color"), ";\n    box-shadow: ").concat(dt("autocomplete.focus.ring.shadow"), ";\n    outline: ").concat(dt("autocomplete.focus.ring.width"), " ").concat(dt("autocomplete.focus.ring.style"), " ").concat(dt("autocomplete.focus.ring.color"), ";\n    outline-offset: ").concat(dt("autocomplete.focus.ring.offset"), ";\n}\n\n.p-autocomplete.p-invalid .p-autocomplete-input-multiple {\n    border-color: ").concat(dt("autocomplete.invalid.border.color"), ";\n}\n\n.p-variant-filled.p-autocomplete-input-multiple {\n    background: ").concat(dt("autocomplete.filled.background"), ";\n}\n\n.p-autocomplete:not(.p-disabled):hover .p-variant-filled.p-autocomplete-input-multiple {\n    background: ").concat(dt("autocomplete.filled.hover.background"), ";\n}\n\n.p-autocomplete:not(.p-disabled).p-focus .p-variant-filled.p-autocomplete-input-multiple  {\n    background: ").concat(dt("autocomplete.filled.focus.background"), ";\n}\n\n.p-autocomplete.p-disabled .p-autocomplete-input-multiple {\n    opacity: 1;\n    background: ").concat(dt("autocomplete.disabled.background"), ";\n    color: ").concat(dt("autocomplete.disabled.color"), ";\n}\n\n.p-autocomplete-chip.p-chip {\n    padding-block-start: calc(").concat(dt("autocomplete.padding.y"), " / 2);\n    padding-block-end: calc(").concat(dt("autocomplete.padding.y"), " / 2);\n    border-radius: ").concat(dt("autocomplete.chip.border.radius"), ";\n}\n\n.p-autocomplete-input-multiple:has(.p-autocomplete-chip) {\n    padding-inline-start: calc(").concat(dt("autocomplete.padding.y"), " / 2);\n    padding-inline-end: calc(").concat(dt("autocomplete.padding.y"), " / 2);\n}\n\n.p-autocomplete-chip-item.p-focus .p-autocomplete-chip {\n    background: ").concat(dt("autocomplete.chip.focus.background"), ";\n    color: ").concat(dt("autocomplete.chip.focus.color"), ";\n}\n\n.p-autocomplete-input-chip {\n    flex: 1 1 auto;\n    display: inline-flex;\n    padding-block-start: calc(").concat(dt("autocomplete.padding.y"), " / 2);\n    padding-block-end: calc(").concat(dt("autocomplete.padding.y"), " / 2);\n}\n\n.p-autocomplete-input-chip input {\n    border: 0 none;\n    outline: 0 none;\n    background: transparent;\n    margin: 0;\n    padding: 0;\n    box-shadow: none;\n    border-radius: 0;\n    width: 100%;\n    font-family: inherit;\n    font-feature-settings: inherit;\n    font-size: 1rem;\n    color: inherit;\n}\n\n.p-autocomplete-input-chip input::placeholder {\n    color: ").concat(dt("autocomplete.placeholder.color"), ";\n}\n\n.p-autocomplete.p-invalid .p-autocomplete-input-chip input::placeholder {\n    color: ").concat(dt("autocomplete.invalid.placeholder.color"), ";\n}\n\n.p-autocomplete-empty-message {\n    padding: ").concat(dt("autocomplete.empty.message.padding"), ";\n}\n\n.p-autocomplete-fluid {\n    display: flex;\n}\n\n.p-autocomplete-fluid:has(.p-autocomplete-dropdown) .p-autocomplete-input {\n    width: 1%;\n}\n\n.p-autocomplete:has(.p-inputtext-sm) .p-autocomplete-dropdown {\n    width: ").concat(dt("autocomplete.dropdown.sm.width"), ";\n}\n\n.p-autocomplete:has(.p-inputtext-sm) .p-autocomplete-dropdown .p-icon {\n    font-size: ").concat(dt("form.field.sm.font.size"), ";\n    width: ").concat(dt("form.field.sm.font.size"), ";\n    height: ").concat(dt("form.field.sm.font.size"), ";\n}\n\n.p-autocomplete:has(.p-inputtext-lg) .p-autocomplete-dropdown {\n    width: ").concat(dt("autocomplete.dropdown.lg.width"), ";\n}\n\n.p-autocomplete:has(.p-inputtext-lg) .p-autocomplete-dropdown .p-icon {\n    font-size: ").concat(dt("form.field.lg.font.size"), ";\n    width: ").concat(dt("form.field.lg.font.size"), ";\n    height: ").concat(dt("form.field.lg.font.size"), ";\n}\n");
 }, "theme");
@@ -1575,7 +2744,7 @@ var inlineStyles$3 = {
     position: "relative"
   }
 };
-var classes$6 = {
+var classes$5 = {
   root: /* @__PURE__ */ __name(function root5(_ref2) {
     var instance = _ref2.instance, props = _ref2.props;
     return ["p-autocomplete p-component p-inputwrapper", {
@@ -1623,13 +2792,17 @@ var classes$6 = {
 };
 var AutoCompleteStyle = BaseStyle.extend({
   name: "autocomplete",
-  theme: theme$6,
-  classes: classes$6,
+  theme: theme$5,
+  classes: classes$5,
   inlineStyles: inlineStyles$3
 });
-var script$1$6 = {
+var script$1$5 = {
   name: "BaseAutoComplete",
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
   "extends": script$m,
+========
+  "extends": script$e,
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   props: {
     suggestions: {
       type: Array,
@@ -1843,9 +3016,13 @@ function _arrayLikeToArray$1(r, a) {
   return n;
 }
 __name(_arrayLikeToArray$1, "_arrayLikeToArray$1");
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 var script$a = {
+========
+var script$7 = {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   name: "AutoComplete",
-  "extends": script$1$6,
+  "extends": script$1$5,
   inheritAttrs: false,
   emits: ["change", "focus", "blur", "item-select", "item-unselect", "option-select", "option-unselect", "dropdown-click", "clear", "complete", "before-show", "before-hide", "show", "hide"],
   inject: {
@@ -2613,12 +3790,21 @@ var script$a = {
     }, "panelId")
   },
   components: {
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     InputText: script$n,
     VirtualScroller: script$o,
     Portal: script$p,
     ChevronDownIcon: script$q,
     SpinnerIcon: script$r,
     Chip: script$s
+========
+    InputText: script$i,
+    VirtualScroller: script$j,
+    Portal: script$k,
+    ChevronDownIcon: script$l,
+    SpinnerIcon: script$m,
+    Chip: script$n
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   },
   directives: {
     ripple: Ripple
@@ -2676,6 +3862,7 @@ function _toPrimitive$4(t, r) {
   return ("string" === r ? String : Number)(t);
 }
 __name(_toPrimitive$4, "_toPrimitive$4");
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 var _hoisted_1$j = ["aria-activedescendant"];
 var _hoisted_2$7 = ["id", "aria-label", "aria-setsize", "aria-posinset"];
 var _hoisted_3$6 = ["id", "placeholder", "tabindex", "disabled", "aria-label", "aria-labelledby", "aria-expanded", "aria-controls", "aria-activedescendant", "aria-invalid"];
@@ -2685,6 +3872,17 @@ var _hoisted_6$2 = ["id", "aria-label"];
 var _hoisted_7$1 = ["id"];
 var _hoisted_8 = ["id", "aria-label", "aria-selected", "aria-disabled", "aria-setsize", "aria-posinset", "onClick", "onMousemove", "data-p-selected", "data-p-focus", "data-p-disabled"];
 function render$g(_ctx, _cache, $props, $setup, $data, $options) {
+========
+var _hoisted_1$h = ["aria-activedescendant"];
+var _hoisted_2$e = ["id", "aria-label", "aria-setsize", "aria-posinset"];
+var _hoisted_3$c = ["id", "placeholder", "tabindex", "disabled", "aria-label", "aria-labelledby", "aria-expanded", "aria-controls", "aria-activedescendant", "aria-invalid"];
+var _hoisted_4$4 = ["disabled", "aria-expanded", "aria-controls"];
+var _hoisted_5$3 = ["id"];
+var _hoisted_6$2 = ["id", "aria-label"];
+var _hoisted_7$1 = ["id"];
+var _hoisted_8$1 = ["id", "aria-label", "aria-selected", "aria-disabled", "aria-setsize", "aria-posinset", "onClick", "onMousemove", "data-p-selected", "data-p-focus", "data-p-disabled"];
+function render$c(_ctx, _cache, $props, $setup, $data, $options) {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   var _component_InputText = resolveComponent("InputText");
   var _component_Chip = resolveComponent("Chip");
   var _component_SpinnerIcon = resolveComponent("SpinnerIcon");
@@ -2791,7 +3989,11 @@ function render$g(_ctx, _cache, $props, $setup, $data, $options) {
         }),
         _: 2
       }, 1032, ["class", "label", "removeIcon", "unstyled", "onRemove", "pt"])];
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     })], 16, _hoisted_2$7);
+========
+    })], 16, _hoisted_2$e);
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   }), 128)), createBaseVNode("li", mergeProps({
     "class": _ctx.cx("inputChip"),
     role: "option"
@@ -2829,7 +4031,11 @@ function render$g(_ctx, _cache, $props, $setup, $data, $options) {
     onChange: _cache[4] || (_cache[4] = function() {
       return $options.onChange && $options.onChange.apply($options, arguments);
     })
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
   }, _ctx.ptm("input")), null, 16, _hoisted_3$6)], 16)], 16, _hoisted_1$j)) : createCommentVNode("", true), $data.searching || _ctx.loading ? renderSlot(_ctx.$slots, _ctx.$slots.loader ? "loader" : "loadingicon", {
+========
+  }, _ctx.ptm("input")), null, 16, _hoisted_3$c)], 16)], 16, _hoisted_1$h)) : createCommentVNode("", true), $data.searching || _ctx.loading ? renderSlot(_ctx.$slots, _ctx.$slots.loader ? "loader" : "loadingicon", {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
     key: 2,
     "class": normalizeClass(_ctx.cx("loader"))
   }, function() {
@@ -2866,7 +4072,11 @@ function render$g(_ctx, _cache, $props, $setup, $data, $options) {
       return [(openBlock(), createBlock(resolveDynamicComponent(_ctx.dropdownIcon ? "span" : "ChevronDownIcon"), mergeProps({
         "class": _ctx.dropdownIcon
       }, _ctx.ptm("dropdownIcon")), null, 16, ["class"]))];
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     })], 16, _hoisted_4$3)) : createCommentVNode("", true)];
+========
+    })], 16, _hoisted_4$4)) : createCommentVNode("", true)];
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   }), createBaseVNode("span", mergeProps({
     role: "status",
     "aria-live": "polite",
@@ -3012,6 +4222,7 @@ function render$g(_ctx, _cache, $props, $setup, $data, $options) {
     _: 3
   }, 8, ["appendTo"])], 16);
 }
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 __name(render$g, "render$g");
 script$a.render = render$g;
 const _sfc_main$k = {
@@ -3021,6 +4232,17 @@ const _sfc_main$k = {
   mounted() {
     if (typeof script$a.mounted === "function") {
       script$a.mounted.call(this);
+========
+__name(render$c, "render$c");
+script$7.render = render$c;
+const _sfc_main$j = {
+  name: "AutoCompletePlus",
+  extends: script$7,
+  emits: ["focused-option-changed"],
+  mounted() {
+    if (typeof script$7.mounted === "function") {
+      script$7.mounted.call(this);
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
     }
     this.$watch(
       () => this.focusedOptionIndex,
@@ -3030,12 +4252,27 @@ const _sfc_main$k = {
     );
   }
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 const _hoisted_1$i = { class: "option-container flex justify-between items-center px-2 py-0 cursor-pointer overflow-hidden w-full" };
 const _hoisted_2$6 = { class: "option-display-name font-semibold flex flex-col" };
 const _hoisted_3$5 = { key: 0 };
 const _hoisted_4$2 = ["innerHTML"];
 const _hoisted_5$2 = ["innerHTML"];
 const _hoisted_6$1 = {
+========
+const _withScopeId$5 = /* @__PURE__ */ __name((n) => (pushScopeId("data-v-5741c9ae"), n = n(), popScopeId(), n), "_withScopeId$5");
+const _hoisted_1$g = { class: "option-container flex justify-between items-center px-2 py-0 cursor-pointer overflow-hidden w-full" };
+const _hoisted_2$d = { class: "option-display-name font-semibold flex flex-col" };
+const _hoisted_3$b = { key: 0 };
+const _hoisted_4$3 = /* @__PURE__ */ _withScopeId$5(() => /* @__PURE__ */ createBaseVNode("i", { class: "pi pi-bookmark-fill text-sm mr-1" }, null, -1));
+const _hoisted_5$2 = [
+  _hoisted_4$3
+];
+const _hoisted_6$1 = ["innerHTML"];
+const _hoisted_7 = /* @__PURE__ */ _withScopeId$5(() => /* @__PURE__ */ createBaseVNode("span", null, " ", -1));
+const _hoisted_8 = ["innerHTML"];
+const _hoisted_9 = {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   key: 0,
   class: "option-category font-light text-sm text-gray-400 overflow-hidden text-ellipsis whitespace-nowrap"
 };
@@ -3067,6 +4304,7 @@ const _sfc_main$j = /* @__PURE__ */ defineComponent({
     );
     const props = __props;
     return (_ctx, _cache) => {
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
       return openBlock(), createElementBlock("div", _hoisted_1$i, [
         createBaseVNode("div", _hoisted_2$6, [
           createBaseVNode("div", null, [
@@ -3078,6 +4316,17 @@ const _sfc_main$j = /* @__PURE__ */ defineComponent({
             }, null, 8, _hoisted_4$2),
             _cache[1] || (_cache[1] = createBaseVNode("span", null, " ", -1)),
             showIdName.value ? (openBlock(), createBlock(unref(script$t), {
+========
+      return openBlock(), createElementBlock("div", _hoisted_1$g, [
+        createBaseVNode("div", _hoisted_2$d, [
+          createBaseVNode("div", null, [
+            isBookmarked.value ? (openBlock(), createElementBlock("span", _hoisted_3$b, _hoisted_5$2)) : createCommentVNode("", true),
+            createBaseVNode("span", {
+              innerHTML: unref(highlightQuery)(_ctx.nodeDef.display_name, _ctx.currentQuery)
+            }, null, 8, _hoisted_6$1),
+            _hoisted_7,
+            showIdName.value ? (openBlock(), createBlock(unref(script$o), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
               key: 1,
               severity: "secondary"
             }, {
@@ -3091,23 +4340,40 @@ const _sfc_main$j = /* @__PURE__ */ defineComponent({
           ]),
           showCategory.value ? (openBlock(), createElementBlock("div", _hoisted_6$1, toDisplayString(_ctx.nodeDef.category.replaceAll("/", " > ")), 1)) : createCommentVNode("", true)
         ]),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
         createBaseVNode("div", _hoisted_7, [
           _ctx.nodeDef.experimental ? (openBlock(), createBlock(unref(script$t), {
+========
+        createBaseVNode("div", _hoisted_10, [
+          _ctx.nodeDef.experimental ? (openBlock(), createBlock(unref(script$o), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
             key: 0,
             value: _ctx.$t("g.experimental"),
             severity: "primary"
           }, null, 8, ["value"])) : createCommentVNode("", true),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
           _ctx.nodeDef.deprecated ? (openBlock(), createBlock(unref(script$t), {
+========
+          _ctx.nodeDef.deprecated ? (openBlock(), createBlock(unref(script$o), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
             key: 1,
             value: _ctx.$t("g.deprecated"),
             severity: "danger"
           }, null, 8, ["value"])) : createCommentVNode("", true),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
           showNodeFrequency.value && nodeFrequency.value > 0 ? (openBlock(), createBlock(unref(script$t), {
+========
+          showNodeFrequency.value && nodeFrequency.value > 0 ? (openBlock(), createBlock(unref(script$o), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
             key: 2,
             value: unref(formatNumberWithSuffix)(nodeFrequency.value, { roundToInt: true }),
             severity: "secondary"
           }, null, 8, ["value"])) : createCommentVNode("", true),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
           _ctx.nodeDef.nodeSource.type !== unref(NodeSourceType).Unknown ? (openBlock(), createBlock(unref(script$s), {
+========
+          _ctx.nodeDef.nodeSource.type !== unref(NodeSourceType).Unknown ? (openBlock(), createBlock(unref(script$n), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
             key: 3,
             class: "text-sm font-light"
           }, {
@@ -3121,6 +4387,7 @@ const _sfc_main$j = /* @__PURE__ */ defineComponent({
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 const NodeSearchItem = /* @__PURE__ */ _export_sfc(_sfc_main$j, [["__scopeId", "data-v-d7cc0bce"]]);
 const _hoisted_1$h = { class: "comfy-vue-node-search-container flex justify-center items-center w-full min-w-96 pointer-events-auto" };
 const _hoisted_2$5 = {
@@ -3129,6 +4396,17 @@ const _hoisted_2$5 = {
 };
 const _hoisted_3$4 = { class: "_dialog-body" };
 const _sfc_main$i = /* @__PURE__ */ defineComponent({
+========
+const NodeSearchItem = /* @__PURE__ */ _export_sfc(_sfc_main$i, [["__scopeId", "data-v-5741c9ae"]]);
+const _hoisted_1$f = { class: "comfy-vue-node-search-container flex justify-center items-center w-full min-w-96 pointer-events-auto" };
+const _hoisted_2$c = {
+  key: 0,
+  class: "comfy-vue-node-preview-container absolute left-[-350px] top-[50px]"
+};
+const _hoisted_3$a = /* @__PURE__ */ createBaseVNode("h3", null, "Add node filter condition", -1);
+const _hoisted_4$2 = { class: "_dialog-body" };
+const _sfc_main$h = /* @__PURE__ */ defineComponent({
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   __name: "NodeSearchBox",
   props: {
     filters: {},
@@ -3191,29 +4469,50 @@ const _sfc_main$i = /* @__PURE__ */ defineComponent({
       hoveredSuggestion.value = value;
     }, "setHoverSuggestion");
     return (_ctx, _cache) => {
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
       return openBlock(), createElementBlock("div", _hoisted_1$h, [
         enableNodePreview.value ? (openBlock(), createElementBlock("div", _hoisted_2$5, [
+========
+      return openBlock(), createElementBlock("div", _hoisted_1$f, [
+        enableNodePreview.value ? (openBlock(), createElementBlock("div", _hoisted_2$c, [
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
           hoveredSuggestion.value ? (openBlock(), createBlock(NodePreview, {
             nodeDef: hoveredSuggestion.value,
             key: hoveredSuggestion.value?.name || ""
           }, null, 8, ["nodeDef"])) : createCommentVNode("", true)
         ])) : createCommentVNode("", true),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
         createVNode(unref(script$h), {
+========
+        createVNode(unref(script$d), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
           icon: "pi pi-filter",
           severity: "secondary",
           class: "filter-button z-10",
           onClick: _cache[0] || (_cache[0] = ($event) => nodeSearchFilterVisible.value = true)
         }),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
         createVNode(unref(script$u), {
+========
+        createVNode(unref(script$p), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
           visible: nodeSearchFilterVisible.value,
           "onUpdate:visible": _cache[1] || (_cache[1] = ($event) => nodeSearchFilterVisible.value = $event),
           class: "min-w-96"
         }, {
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
           header: withCtx(() => _cache[5] || (_cache[5] = [
             createBaseVNode("h3", null, "Add node filter condition", -1)
           ])),
           default: withCtx(() => [
             createBaseVNode("div", _hoisted_3$4, [
+========
+          header: withCtx(() => [
+            _hoisted_3$a
+          ]),
+          default: withCtx(() => [
+            createBaseVNode("div", _hoisted_4$2, [
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
               createVNode(NodeSearchFilter, { onAddFilter })
             ])
           ]),
@@ -3260,6 +4559,7 @@ const _sfc_main$i = /* @__PURE__ */ defineComponent({
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 class ConnectingLinkImpl {
   static {
     __name(this, "ConnectingLinkImpl");
@@ -3324,15 +4624,19 @@ const useSearchBoxStore = defineStore("searchBox", () => {
   };
 });
 const _sfc_main$h = /* @__PURE__ */ defineComponent({
+========
+const _sfc_main$g = /* @__PURE__ */ defineComponent({
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   __name: "NodeSearchBoxPopover",
   setup(__props) {
     const settingStore = useSettingStore();
+    const litegraphService = useLitegraphService();
     const { visible } = storeToRefs(useSearchBoxStore());
     const dismissable = ref(true);
     const triggerEvent = ref(null);
     const getNewNodeLocation = /* @__PURE__ */ __name(() => {
       if (!triggerEvent.value) {
-        return app.getCanvasCenter();
+        return litegraphService.getCanvasCenter();
       }
       const originalEvent = triggerEvent.value.detail.originalEvent;
       return [originalEvent.canvasX, originalEvent.canvasY];
@@ -3353,7 +4657,9 @@ const _sfc_main$h = /* @__PURE__ */ defineComponent({
       visible.value = false;
     }, "closeDialog");
     const addNode = /* @__PURE__ */ __name((nodeDef) => {
-      const node = app.addNodeOnGraph(nodeDef, { pos: getNewNodeLocation() });
+      const node = litegraphService.addNodeOnGraph(nodeDef, {
+        pos: getNewNodeLocation()
+      });
       const eventDetail = triggerEvent.value?.detail;
       if (eventDetail && eventDetail.subType === "empty-release") {
         eventDetail.linkReleaseContext.links.forEach((link) => {
@@ -3479,7 +4785,11 @@ const _sfc_main$h = /* @__PURE__ */ defineComponent({
     useEventListener(document, "litegraph:canvas", canvasEventHandler);
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("div", null, [
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
         createVNode(unref(script$u), {
+========
+        createVNode(unref(script$p), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
           visible: unref(visible),
           "onUpdate:visible": _cache[0] || (_cache[0] = ($event) => isRef(visible) ? visible.value = $event : null),
           modal: "",
@@ -3514,6 +4824,7 @@ const _sfc_main$h = /* @__PURE__ */ defineComponent({
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 const _sfc_main$g = /* @__PURE__ */ defineComponent({
   __name: "NodeTooltip",
   setup(__props) {
@@ -3692,26 +5003,39 @@ const __unplugin_components_0$2 = markRaw({ name: "material-symbols-pan-tool-out
 var theme$5 = /* @__PURE__ */ __name(function theme4(_ref) {
   _ref.dt;
   return "\n.p-buttongroup {\n    display: inline-flex;\n}\n\n.p-buttongroup .p-button {\n    margin: 0;\n}\n\n.p-buttongroup .p-button:not(:last-child),\n.p-buttongroup .p-button:not(:last-child):hover {\n    border-inline-end: 0 none;\n}\n\n.p-buttongroup .p-button:not(:first-of-type):not(:last-of-type) {\n    border-radius: 0;\n}\n\n.p-buttongroup .p-button:first-of-type:not(:only-of-type) {\n    border-start-end-radius: 0;\n    border-end-end-radius: 0;\n}\n\n.p-buttongroup .p-button:last-of-type:not(:only-of-type) {\n    border-start-start-radius: 0;\n    border-end-start-radius: 0;\n}\n\n.p-buttongroup .p-button:focus {\n    position: relative;\n    z-index: 1;\n}\n";
+========
+var theme$4 = /* @__PURE__ */ __name(function theme4(_ref) {
+  var dt = _ref.dt;
+  return "\n.p-overlaybadge {\n    position: relative;\n}\n\n.p-overlaybadge .p-badge {\n    position: absolute;\n    top: 0;\n    right: 0;\n    transform: translate(50%, -50%);\n    transform-origin: 100% 0;\n    margin: 0;\n    outline-width: ".concat(dt("overlaybadge.outline.width"), ";\n    outline-style: solid;\n    outline-color: ").concat(dt("overlaybadge.outline.color"), ";\n}\n");
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
 }, "theme");
-var classes$5 = {
-  root: "p-buttongroup p-component"
+var classes$4 = {
+  root: "p-overlaybadge"
 };
-var ButtonGroupStyle = BaseStyle.extend({
-  name: "buttongroup",
-  theme: theme$5,
-  classes: classes$5
+var OverlayBadgeStyle = BaseStyle.extend({
+  name: "overlaybadge",
+  theme: theme$4,
+  classes: classes$4
 });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 var script$1$5 = {
   name: "BaseButtonGroup",
   "extends": script$i,
   style: ButtonGroupStyle,
+========
+var script$1$4 = {
+  name: "OverlayBadge",
+  "extends": script$q,
+  style: OverlayBadgeStyle,
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   provide: /* @__PURE__ */ __name(function provide8() {
     return {
-      $pcButtonGroup: this,
+      $pcOverlayBadge: this,
       $parentInstance: this
     };
   }, "provide")
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 var script$9 = {
   name: "ButtonGroup",
   "extends": script$1$5,
@@ -3734,24 +5058,55 @@ const _sfc_main$e = /* @__PURE__ */ defineComponent({
     const settingStore = useSettingStore();
     const linkHidden = computed(
       () => settingStore.get("Comfy.LinkRenderMode") === LiteGraph.HIDDEN_LINK
+========
+var script$6 = {
+  name: "OverlayBadge",
+  "extends": script$1$4,
+  inheritAttrs: false,
+  components: {
+    Badge: script$q
+  }
+};
+function render$b(_ctx, _cache, $props, $setup, $data, $options) {
+  var _component_Badge = resolveComponent("Badge");
+  return openBlock(), createElementBlock("div", mergeProps({
+    "class": _ctx.cx("root")
+  }, _ctx.ptmi("root")), [renderSlot(_ctx.$slots, "default"), createVNode(_component_Badge, mergeProps(_ctx.$props, {
+    pt: _ctx.ptm("pcBadge")
+  }), null, 16, ["pt"])], 16);
+}
+__name(render$b, "render$b");
+script$6.render = render$b;
+const _sfc_main$f = /* @__PURE__ */ defineComponent({
+  __name: "SidebarIcon",
+  props: {
+    icon: String,
+    selected: Boolean,
+    tooltip: {
+      type: String,
+      default: ""
+    },
+    class: {
+      type: String,
+      default: ""
+    },
+    iconBadge: {
+      type: [String, Function],
+      default: ""
+    }
+  },
+  emits: ["click"],
+  setup(__props, { emit: __emit }) {
+    const props = __props;
+    const emit = __emit;
+    const overlayValue = computed(
+      () => typeof props.iconBadge === "function" ? props.iconBadge() || "" : props.iconBadge
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
     );
-    let interval = null;
-    const repeat2 = /* @__PURE__ */ __name((command) => {
-      if (interval) return;
-      const cmd = /* @__PURE__ */ __name(() => commandStore.execute(command), "cmd");
-      cmd();
-      interval = window.setInterval(cmd, 100);
-    }, "repeat");
-    const stopRepeat = /* @__PURE__ */ __name(() => {
-      if (interval) {
-        clearInterval(interval);
-        interval = null;
-      }
-    }, "stopRepeat");
+    const shouldShowBadge = computed(() => !!overlayValue.value);
     return (_ctx, _cache) => {
-      const _component_i_material_symbols58pan_tool_outline = __unplugin_components_0$2;
-      const _component_i_simple_line_icons58cursor = __unplugin_components_1$2;
       const _directive_tooltip = resolveDirective("tooltip");
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
       return openBlock(), createBlock(unref(script$9), { class: "p-buttongroup-vertical absolute bottom-[10px] right-[10px] z-[1000] pointer-events-auto" }, {
         default: withCtx(() => [
           withDirectives(createVNode(unref(script$h), {
@@ -3795,11 +5150,31 @@ const _sfc_main$e = /* @__PURE__ */ defineComponent({
           withDirectives((openBlock(), createBlock(unref(script$h), {
             severity: "secondary",
             onClick: _cache[3] || (_cache[3] = () => unref(commandStore).execute("Comfy.Canvas.ToggleLock"))
+========
+      return withDirectives((openBlock(), createBlock(unref(script$d), {
+        class: normalizeClass(props.class),
+        text: "",
+        pt: {
+          root: {
+            class: `side-bar-button ${props.selected ? "p-button-primary side-bar-button-selected" : "p-button-secondary"}`,
+            "aria-label": props.tooltip
+          }
+        },
+        onClick: _cache[0] || (_cache[0] = ($event) => emit("click", $event))
+      }, {
+        icon: withCtx(() => [
+          shouldShowBadge.value ? (openBlock(), createBlock(unref(script$6), {
+            key: 0,
+            value: overlayValue.value
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
           }, {
-            icon: withCtx(() => [
-              unref(canvasStore).canvas?.read_only ? (openBlock(), createBlock(_component_i_material_symbols58pan_tool_outline, { key: 0 })) : (openBlock(), createBlock(_component_i_simple_line_icons58cursor, { key: 1 }))
+            default: withCtx(() => [
+              createBaseVNode("i", {
+                class: normalizeClass(props.icon + " side-bar-button-icon")
+              }, null, 2)
             ]),
             _: 1
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
           })), [
             [
               _directive_tooltip,
@@ -3823,19 +5198,828 @@ const _sfc_main$e = /* @__PURE__ */ defineComponent({
               { left: true }
             ]
           ])
+========
+          }, 8, ["value"])) : (openBlock(), createElementBlock("i", {
+            key: 1,
+            class: normalizeClass(props.icon + " side-bar-button-icon")
+          }, null, 2))
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
         ]),
         _: 1
-      });
+      }, 8, ["class", "pt"])), [
+        [_directive_tooltip, { value: props.tooltip, showDelay: 300, hideDelay: 300 }]
+      ]);
     };
   }
 });
+const SidebarIcon = /* @__PURE__ */ _export_sfc(_sfc_main$f, [["__scopeId", "data-v-6ab4daa6"]]);
+const _sfc_main$e = /* @__PURE__ */ defineComponent({
+  __name: "SidebarLogoutIcon",
+  setup(__props) {
+    const { t } = useI18n();
+    const userStore = useUserStore();
+    const tooltip = computed(
+      () => `${t("sideToolbar.logout")} (${userStore.currentUser?.username})`
+    );
+    const logout = /* @__PURE__ */ __name(() => {
+      userStore.logout();
+      window.location.reload();
+    }, "logout");
+    return (_ctx, _cache) => {
+      return openBlock(), createBlock(SidebarIcon, {
+        icon: "pi pi-sign-out",
+        tooltip: tooltip.value,
+        onClick: logout
+      }, null, 8, ["tooltip"]);
+    };
+  }
+});
+const _sfc_main$d = /* @__PURE__ */ defineComponent({
+  __name: "SidebarSettingsToggleIcon",
+  setup(__props) {
+    const dialogStore = useDialogStore();
+    const showSetting = /* @__PURE__ */ __name(() => {
+      dialogStore.showDialog({
+        key: "global-settings",
+        headerComponent: SettingDialogHeader,
+        component: SettingDialogContent
+      });
+    }, "showSetting");
+    return (_ctx, _cache) => {
+      return openBlock(), createBlock(SidebarIcon, {
+        icon: "pi pi-cog",
+        class: "comfy-settings-btn",
+        onClick: showSetting,
+        tooltip: _ctx.$t("g.settings")
+      }, null, 8, ["tooltip"]);
+    };
+  }
+});
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 const GraphCanvasMenu = /* @__PURE__ */ _export_sfc(_sfc_main$e, [["__scopeId", "data-v-94481f39"]]);
 const _sfc_main$d = /* @__PURE__ */ defineComponent({
+========
+const _sfc_main$c = /* @__PURE__ */ defineComponent({
+  __name: "SidebarThemeToggleIcon",
+  setup(__props) {
+    const settingStore = useSettingStore();
+    const currentTheme = computed(() => settingStore.get("Comfy.ColorPalette"));
+    const icon = computed(
+      () => currentTheme.value !== "light" ? "pi pi-moon" : "pi pi-sun"
+    );
+    const commandStore = useCommandStore();
+    const toggleTheme = /* @__PURE__ */ __name(() => {
+      commandStore.execute("Comfy.ToggleTheme");
+    }, "toggleTheme");
+    return (_ctx, _cache) => {
+      return openBlock(), createBlock(SidebarIcon, {
+        icon: icon.value,
+        onClick: toggleTheme,
+        tooltip: _ctx.$t("sideToolbar.themeToggle"),
+        class: "comfy-vue-theme-toggle"
+      }, null, 8, ["icon", "tooltip"]);
+    };
+  }
+});
+const _withScopeId$4 = /* @__PURE__ */ __name((n) => (pushScopeId("data-v-37d8d7b4"), n = n(), popScopeId(), n), "_withScopeId$4");
+const _hoisted_1$e = { class: "side-tool-bar-end" };
+const _hoisted_2$b = {
+  key: 0,
+  class: "sidebar-content-container h-full overflow-y-auto overflow-x-hidden"
+};
+const _sfc_main$b = /* @__PURE__ */ defineComponent({
+  __name: "SideToolbar",
+  setup(__props) {
+    const workspaceStore = useWorkspaceStore();
+    const settingStore = useSettingStore();
+    const userStore = useUserStore();
+    const teleportTarget = computed(
+      () => settingStore.get("Comfy.Sidebar.Location") === "left" ? ".comfyui-body-left" : ".comfyui-body-right"
+    );
+    const isSmall = computed(
+      () => settingStore.get("Comfy.Sidebar.Size") === "small"
+    );
+    const tabs = computed(() => workspaceStore.getSidebarTabs());
+    const selectedTab = computed(() => workspaceStore.sidebarTab.activeSidebarTab);
+    const onTabClick = /* @__PURE__ */ __name((item3) => {
+      workspaceStore.sidebarTab.toggleSidebarTab(item3.id);
+    }, "onTabClick");
+    const keybindingStore = useKeybindingStore();
+    const getTabTooltipSuffix = /* @__PURE__ */ __name((tab) => {
+      const keybinding = keybindingStore.getKeybindingByCommandId(
+        `Workspace.ToggleSidebarTab.${tab.id}`
+      );
+      return keybinding ? ` (${keybinding.combo.toString()})` : "";
+    }, "getTabTooltipSuffix");
+    return (_ctx, _cache) => {
+      return openBlock(), createElementBlock(Fragment, null, [
+        (openBlock(), createBlock(Teleport, { to: teleportTarget.value }, [
+          createBaseVNode("nav", {
+            class: normalizeClass("side-tool-bar-container" + (isSmall.value ? " small-sidebar" : ""))
+          }, [
+            (openBlock(true), createElementBlock(Fragment, null, renderList(tabs.value, (tab) => {
+              return openBlock(), createBlock(SidebarIcon, {
+                key: tab.id,
+                icon: tab.icon,
+                iconBadge: tab.iconBadge,
+                tooltip: tab.tooltip + getTabTooltipSuffix(tab),
+                selected: tab.id === selectedTab.value?.id,
+                class: normalizeClass(tab.id + "-tab-button"),
+                onClick: /* @__PURE__ */ __name(($event) => onTabClick(tab), "onClick")
+              }, null, 8, ["icon", "iconBadge", "tooltip", "selected", "class", "onClick"]);
+            }), 128)),
+            createBaseVNode("div", _hoisted_1$e, [
+              unref(userStore).isMultiUserServer ? (openBlock(), createBlock(_sfc_main$e, { key: 0 })) : createCommentVNode("", true),
+              createVNode(_sfc_main$c),
+              createVNode(_sfc_main$d)
+            ])
+          ], 2)
+        ], 8, ["to"])),
+        selectedTab.value ? (openBlock(), createElementBlock("div", _hoisted_2$b, [
+          createVNode(_sfc_main$p, { extension: selectedTab.value }, null, 8, ["extension"])
+        ])) : createCommentVNode("", true)
+      ], 64);
+    };
+  }
+});
+const SideToolbar = /* @__PURE__ */ _export_sfc(_sfc_main$b, [["__scopeId", "data-v-37d8d7b4"]]);
+const CORE_SETTINGS = [
+  {
+    id: "Comfy.Validation.Workflows",
+    name: "Validate workflows",
+    type: "boolean",
+    defaultValue: true
+  },
+  {
+    id: "Comfy.NodeSearchBoxImpl",
+    category: ["Comfy", "Node Search Box", "Implementation"],
+    experimental: true,
+    name: "Node search box implementation",
+    type: "combo",
+    options: ["default", "litegraph (legacy)"],
+    defaultValue: "default"
+  },
+  {
+    id: "Comfy.LinkRelease.Action",
+    category: ["LiteGraph", "LinkRelease", "Action"],
+    name: "Action on link release (No modifier)",
+    type: "combo",
+    options: Object.values(LinkReleaseTriggerAction),
+    defaultValue: LinkReleaseTriggerAction.CONTEXT_MENU
+  },
+  {
+    id: "Comfy.LinkRelease.ActionShift",
+    category: ["LiteGraph", "LinkRelease", "ActionShift"],
+    name: "Action on link release (Shift)",
+    type: "combo",
+    options: Object.values(LinkReleaseTriggerAction),
+    defaultValue: LinkReleaseTriggerAction.SEARCH_BOX
+  },
+  {
+    id: "Comfy.NodeSearchBoxImpl.NodePreview",
+    category: ["Comfy", "Node Search Box", "NodePreview"],
+    name: "Node preview",
+    tooltip: "Only applies to the default implementation",
+    type: "boolean",
+    defaultValue: true
+  },
+  {
+    id: "Comfy.NodeSearchBoxImpl.ShowCategory",
+    category: ["Comfy", "Node Search Box", "ShowCategory"],
+    name: "Show node category in search results",
+    tooltip: "Only applies to the default implementation",
+    type: "boolean",
+    defaultValue: true
+  },
+  {
+    id: "Comfy.NodeSearchBoxImpl.ShowIdName",
+    category: ["Comfy", "Node Search Box", "ShowIdName"],
+    name: "Show node id name in search results",
+    tooltip: "Only applies to the default implementation",
+    type: "boolean",
+    defaultValue: false
+  },
+  {
+    id: "Comfy.NodeSearchBoxImpl.ShowNodeFrequency",
+    category: ["Comfy", "Node Search Box", "ShowNodeFrequency"],
+    name: "Show node frequency in search results",
+    tooltip: "Only applies to the default implementation",
+    type: "boolean",
+    defaultValue: false
+  },
+  {
+    id: "Comfy.Sidebar.Location",
+    category: ["Appearance", "Sidebar", "Location"],
+    name: "Sidebar location",
+    type: "combo",
+    options: ["left", "right"],
+    defaultValue: "left"
+  },
+  {
+    id: "Comfy.Sidebar.Size",
+    category: ["Appearance", "Sidebar", "Size"],
+    name: "Sidebar size",
+    type: "combo",
+    options: ["normal", "small"],
+    defaultValue: /* @__PURE__ */ __name(() => window.innerWidth < 1600 ? "small" : "normal", "defaultValue")
+  },
+  {
+    id: "Comfy.TextareaWidget.FontSize",
+    category: ["Appearance", "Node Widget", "TextareaWidget", "FontSize"],
+    name: "Textarea widget font size",
+    type: "slider",
+    defaultValue: 10,
+    attrs: {
+      min: 8,
+      max: 24
+    }
+  },
+  {
+    id: "Comfy.TextareaWidget.Spellcheck",
+    category: ["Comfy", "Node Widget", "TextareaWidget", "Spellcheck"],
+    name: "Textarea widget spellcheck",
+    type: "boolean",
+    defaultValue: false
+  },
+  {
+    id: "Comfy.Workflow.SortNodeIdOnSave",
+    name: "Sort node IDs when saving workflow",
+    type: "boolean",
+    defaultValue: false
+  },
+  {
+    id: "Comfy.Graph.CanvasInfo",
+    category: ["LiteGraph", "Canvas", "CanvasInfo"],
+    name: "Show canvas info on bottom left corner (fps, etc.)",
+    type: "boolean",
+    defaultValue: true
+  },
+  {
+    id: "Comfy.Node.ShowDeprecated",
+    name: "Show deprecated nodes in search",
+    tooltip: "Deprecated nodes are hidden by default in the UI, but remain functional in existing workflows that use them.",
+    type: "boolean",
+    defaultValue: false
+  },
+  {
+    id: "Comfy.Node.ShowExperimental",
+    name: "Show experimental nodes in search",
+    tooltip: "Experimental nodes are marked as such in the UI and may be subject to significant changes or removal in future versions. Use with caution in production workflows",
+    type: "boolean",
+    defaultValue: true
+  },
+  {
+    id: "Comfy.Node.Opacity",
+    category: ["Appearance", "Node", "Opacity"],
+    name: "Node opacity",
+    type: "slider",
+    defaultValue: 1,
+    attrs: {
+      min: 0.01,
+      max: 1,
+      step: 0.01
+    }
+  },
+  {
+    id: "Comfy.Workflow.ShowMissingNodesWarning",
+    name: "Show missing nodes warning",
+    type: "boolean",
+    defaultValue: true
+  },
+  {
+    id: "Comfy.Workflow.ShowMissingModelsWarning",
+    name: "Show missing models warning",
+    type: "boolean",
+    defaultValue: false,
+    experimental: true
+  },
+  {
+    id: "Comfy.Graph.ZoomSpeed",
+    category: ["LiteGraph", "Canvas", "ZoomSpeed"],
+    name: "Canvas zoom speed",
+    type: "slider",
+    defaultValue: 1.1,
+    attrs: {
+      min: 1.01,
+      max: 2.5,
+      step: 0.01
+    }
+  },
+  // Bookmarks are stored in the settings store.
+  // Bookmarks are in format of category/display_name. e.g. "conditioning/CLIPTextEncode"
+  {
+    id: "Comfy.NodeLibrary.Bookmarks",
+    name: "Node library bookmarks with display name (deprecated)",
+    type: "hidden",
+    defaultValue: [],
+    deprecated: true
+  },
+  {
+    id: "Comfy.NodeLibrary.Bookmarks.V2",
+    name: "Node library bookmarks v2 with unique name",
+    type: "hidden",
+    defaultValue: []
+  },
+  // Stores mapping from bookmark folder name to its customization.
+  {
+    id: "Comfy.NodeLibrary.BookmarksCustomization",
+    name: "Node library bookmarks customization",
+    type: "hidden",
+    defaultValue: {}
+  },
+  // Hidden setting used by the queue for how to fit images
+  {
+    id: "Comfy.Queue.ImageFit",
+    name: "Queue image fit",
+    type: "hidden",
+    defaultValue: "cover"
+  },
+  {
+    id: "Comfy.GroupSelectedNodes.Padding",
+    category: ["LiteGraph", "Group", "Padding"],
+    name: "Group selected nodes padding",
+    type: "slider",
+    defaultValue: 10,
+    attrs: {
+      min: 0,
+      max: 100
+    }
+  },
+  {
+    id: "Comfy.Node.DoubleClickTitleToEdit",
+    category: ["LiteGraph", "Node", "DoubleClickTitleToEdit"],
+    name: "Double click node title to edit",
+    type: "boolean",
+    defaultValue: true
+  },
+  {
+    id: "Comfy.Group.DoubleClickTitleToEdit",
+    category: ["LiteGraph", "Group", "DoubleClickTitleToEdit"],
+    name: "Double click group title to edit",
+    type: "boolean",
+    defaultValue: true
+  },
+  {
+    id: "Comfy.Window.UnloadConfirmation",
+    name: "Show confirmation when closing window",
+    type: "boolean",
+    defaultValue: false
+  },
+  {
+    id: "Comfy.TreeExplorer.ItemPadding",
+    category: ["Appearance", "Tree Explorer", "ItemPadding"],
+    name: "Tree explorer item padding",
+    type: "slider",
+    defaultValue: 2,
+    attrs: {
+      min: 0,
+      max: 8,
+      step: 1
+    }
+  },
+  {
+    id: "Comfy.ModelLibrary.AutoLoadAll",
+    name: "Automatically load all model folders",
+    tooltip: "If true, all folders will load as soon as you open the model library (this may cause delays while it loads). If false, root level model folders will only load once you click on them.",
+    type: "boolean",
+    defaultValue: false
+  },
+  {
+    id: "Comfy.ModelLibrary.NameFormat",
+    name: "What name to display in the model library tree view",
+    tooltip: 'Select "filename" to render a simplified view of the raw filename (without directory or ".safetensors" extension) in the model list. Select "title" to display the configurable model metadata title.',
+    type: "combo",
+    options: ["filename", "title"],
+    defaultValue: "title"
+  },
+  {
+    id: "Comfy.Locale",
+    name: "Language",
+    type: "combo",
+    options: [
+      { value: "en", text: "English" },
+      { value: "zh", text: "中文" },
+      { value: "ru", text: "Русский" },
+      { value: "ja", text: "日本語" },
+      { value: "ko", text: "한국어" },
+      { value: "fr", text: "Français" }
+    ],
+    defaultValue: /* @__PURE__ */ __name(() => navigator.language.split("-")[0] || "en", "defaultValue")
+  },
+  {
+    id: "Comfy.NodeBadge.NodeSourceBadgeMode",
+    category: ["LiteGraph", "Node", "NodeSourceBadgeMode"],
+    name: "Node source badge mode",
+    type: "combo",
+    options: Object.values(NodeBadgeMode),
+    defaultValue: NodeBadgeMode.HideBuiltIn
+  },
+  {
+    id: "Comfy.NodeBadge.NodeIdBadgeMode",
+    category: ["LiteGraph", "Node", "NodeIdBadgeMode"],
+    name: "Node ID badge mode",
+    type: "combo",
+    options: [NodeBadgeMode.None, NodeBadgeMode.ShowAll],
+    defaultValue: NodeBadgeMode.ShowAll
+  },
+  {
+    id: "Comfy.NodeBadge.NodeLifeCycleBadgeMode",
+    category: ["LiteGraph", "Node", "NodeLifeCycleBadgeMode"],
+    name: "Node life cycle badge mode",
+    type: "combo",
+    options: [NodeBadgeMode.None, NodeBadgeMode.ShowAll],
+    defaultValue: NodeBadgeMode.ShowAll
+  },
+  {
+    id: "Comfy.ConfirmClear",
+    category: ["Comfy", "Workflow", "ConfirmClear"],
+    name: "Require confirmation when clearing workflow",
+    type: "boolean",
+    defaultValue: true
+  },
+  {
+    id: "Comfy.PromptFilename",
+    category: ["Comfy", "Workflow", "PromptFilename"],
+    name: "Prompt for filename when saving workflow",
+    type: "boolean",
+    defaultValue: true
+  },
+  /**
+   * file format for preview
+   *
+   * format;quality
+   *
+   * ex)
+   * webp;50 -> webp, quality 50
+   * jpeg;80 -> rgb, jpeg, quality 80
+   *
+   * @type {string}
+   */
+  {
+    id: "Comfy.PreviewFormat",
+    category: ["LiteGraph", "Node Widget", "PreviewFormat"],
+    name: "Preview image format",
+    tooltip: "When displaying a preview in the image widget, convert it to a lightweight image, e.g. webp, jpeg, webp;50, etc.",
+    type: "text",
+    defaultValue: ""
+  },
+  {
+    id: "Comfy.DisableSliders",
+    category: ["LiteGraph", "Node Widget", "DisableSliders"],
+    name: "Disable node widget sliders",
+    type: "boolean",
+    defaultValue: false
+  },
+  {
+    id: "Comfy.DisableFloatRounding",
+    category: ["LiteGraph", "Node Widget", "DisableFloatRounding"],
+    name: "Disable default float widget rounding.",
+    tooltip: "(requires page reload) Cannot disable round when round is set by the node in the backend.",
+    type: "boolean",
+    defaultValue: false
+  },
+  {
+    id: "Comfy.FloatRoundingPrecision",
+    category: ["LiteGraph", "Node Widget", "FloatRoundingPrecision"],
+    name: "Float widget rounding decimal places [0 = auto].",
+    tooltip: "(requires page reload)",
+    type: "slider",
+    attrs: {
+      min: 0,
+      max: 6,
+      step: 1
+    },
+    defaultValue: 0
+  },
+  {
+    id: "Comfy.EnableTooltips",
+    category: ["LiteGraph", "Node", "EnableTooltips"],
+    name: "Enable Tooltips",
+    type: "boolean",
+    defaultValue: true
+  },
+  {
+    id: "Comfy.DevMode",
+    name: "Enable dev mode options (API save, etc.)",
+    type: "boolean",
+    defaultValue: false,
+    onChange: /* @__PURE__ */ __name((value) => {
+      const element = document.getElementById("comfy-dev-save-api-button");
+      if (element) {
+        element.style.display = value ? "flex" : "none";
+      }
+    }, "onChange")
+  },
+  {
+    id: "Comfy.UseNewMenu",
+    category: ["Comfy", "Menu", "UseNewMenu"],
+    defaultValue: "Top",
+    name: "Use new menu",
+    type: "combo",
+    options: ["Disabled", "Top", "Bottom"],
+    migrateDeprecatedValue: /* @__PURE__ */ __name((value) => {
+      if (value === "Floating") {
+        return "Top";
+      }
+      return value;
+    }, "migrateDeprecatedValue")
+  },
+  {
+    id: "Comfy.Workflow.WorkflowTabsPosition",
+    name: "Opened workflows position",
+    type: "combo",
+    options: ["Sidebar", "Topbar"],
+    defaultValue: "Topbar"
+  },
+  {
+    id: "Comfy.Graph.CanvasMenu",
+    category: ["LiteGraph", "Canvas", "CanvasMenu"],
+    name: "Show graph canvas menu",
+    type: "boolean",
+    defaultValue: true
+  },
+  {
+    id: "Comfy.QueueButton.BatchCountLimit",
+    name: "Batch count limit",
+    tooltip: "The maximum number of tasks added to the queue at one button click",
+    type: "number",
+    defaultValue: 100,
+    versionAdded: "1.3.5"
+  },
+  {
+    id: "Comfy.Keybinding.UnsetBindings",
+    name: "Keybindings unset by the user",
+    type: "hidden",
+    defaultValue: [],
+    versionAdded: "1.3.7"
+  },
+  {
+    id: "Comfy.Keybinding.NewBindings",
+    name: "Keybindings set by the user",
+    type: "hidden",
+    defaultValue: [],
+    versionAdded: "1.3.7"
+  },
+  {
+    id: "Comfy.Extension.Disabled",
+    name: "Disabled extension names",
+    type: "hidden",
+    defaultValue: [],
+    versionAdded: "1.3.11"
+  },
+  {
+    id: "Comfy.Validation.NodeDefs",
+    name: "Validate node definitions (slow)",
+    type: "boolean",
+    tooltip: "Recommended for node developers. This will validate all node definitions on startup.",
+    defaultValue: false,
+    versionAdded: "1.3.14"
+  },
+  {
+    id: "Comfy.LinkRenderMode",
+    category: ["LiteGraph", "Graph", "LinkRenderMode"],
+    name: "Link Render Mode",
+    defaultValue: 2,
+    type: "combo",
+    options: [
+      { value: LiteGraph.STRAIGHT_LINK, text: "Straight" },
+      { value: LiteGraph.LINEAR_LINK, text: "Linear" },
+      { value: LiteGraph.SPLINE_LINK, text: "Spline" },
+      { value: LiteGraph.HIDDEN_LINK, text: "Hidden" }
+    ]
+  },
+  {
+    id: "Comfy.Node.AutoSnapLinkToSlot",
+    category: ["LiteGraph", "Node", "AutoSnapLinkToSlot"],
+    name: "Auto snap link to node slot",
+    tooltip: "When dragging a link over a node, the link automatically snap to a viable input slot on the node",
+    type: "boolean",
+    defaultValue: true,
+    versionAdded: "1.3.29"
+  },
+  {
+    id: "Comfy.Node.SnapHighlightsNode",
+    category: ["LiteGraph", "Node", "SnapHighlightsNode"],
+    name: "Snap highlights node",
+    tooltip: "When dragging a link over a node with viable input slot, highlight the node",
+    type: "boolean",
+    defaultValue: true,
+    versionAdded: "1.3.29"
+  },
+  {
+    id: "Comfy.Node.BypassAllLinksOnDelete",
+    category: ["LiteGraph", "Node", "BypassAllLinksOnDelete"],
+    name: "Keep all links when deleting nodes",
+    tooltip: "When deleting a node, attempt to reconnect all of its input and output links (bypassing the deleted node)",
+    type: "boolean",
+    defaultValue: true,
+    versionAdded: "1.3.40"
+  },
+  {
+    id: "Comfy.Node.MiddleClickRerouteNode",
+    category: ["LiteGraph", "Node", "MiddleClickRerouteNode"],
+    name: "Middle-click creates a new Reroute node",
+    type: "boolean",
+    defaultValue: true,
+    versionAdded: "1.3.42"
+  },
+  {
+    id: "Comfy.RerouteBeta",
+    category: ["LiteGraph", "RerouteBeta"],
+    name: "Opt-in to the reroute beta test",
+    tooltip: "Enables the new native reroutes.\n\nReroutes can be added by holding alt and dragging from a link line, or on the link menu.\n\nDisabling this option is non-destructive - reroutes are hidden.",
+    experimental: true,
+    type: "boolean",
+    defaultValue: false,
+    versionAdded: "1.3.42"
+  },
+  {
+    id: "Comfy.Graph.LinkMarkers",
+    category: ["LiteGraph", "Link", "LinkMarkers"],
+    name: "Link midpoint markers",
+    defaultValue: LinkMarkerShape.Circle,
+    type: "combo",
+    options: [
+      { value: LinkMarkerShape.None, text: "None" },
+      { value: LinkMarkerShape.Circle, text: "Circle" },
+      { value: LinkMarkerShape.Arrow, text: "Arrow" }
+    ],
+    versionAdded: "1.3.42"
+  },
+  {
+    id: "Comfy.DOMClippingEnabled",
+    category: ["LiteGraph", "Node", "DOMClippingEnabled"],
+    name: "Enable DOM element clipping (enabling may reduce performance)",
+    type: "boolean",
+    defaultValue: true
+  },
+  {
+    id: "Comfy.Graph.CtrlShiftZoom",
+    category: ["LiteGraph", "Canvas", "CtrlShiftZoom"],
+    name: "Enable fast-zoom shortcut (Ctrl + Shift + Drag)",
+    type: "boolean",
+    defaultValue: true,
+    versionAdded: "1.4.0"
+  },
+  {
+    id: "Comfy.Pointer.ClickDrift",
+    category: ["LiteGraph", "Pointer", "ClickDrift"],
+    name: "Pointer click drift (maximum distance)",
+    tooltip: "If the pointer moves more than this distance while holding a button down, it is considered dragging (rather than clicking).\n\nHelps prevent objects from being unintentionally nudged if the pointer is moved whilst clicking.",
+    experimental: true,
+    type: "slider",
+    attrs: {
+      min: 0,
+      max: 20,
+      step: 1
+    },
+    defaultValue: 6,
+    versionAdded: "1.4.3"
+  },
+  {
+    id: "Comfy.Pointer.ClickBufferTime",
+    category: ["LiteGraph", "Pointer", "ClickBufferTime"],
+    name: "Pointer click drift delay",
+    tooltip: "After pressing a pointer button down, this is the maximum time (in milliseconds) that pointer movement can be ignored for.\n\nHelps prevent objects from being unintentionally nudged if the pointer is moved whilst clicking.",
+    experimental: true,
+    type: "slider",
+    attrs: {
+      min: 0,
+      max: 1e3,
+      step: 25
+    },
+    defaultValue: 150,
+    versionAdded: "1.4.3"
+  },
+  {
+    id: "Comfy.Pointer.DoubleClickTime",
+    category: ["LiteGraph", "Pointer", "DoubleClickTime"],
+    name: "Double click interval (maximum)",
+    tooltip: "The maximum time in milliseconds between the two clicks of a double-click.  Increasing this value may assist if double-clicks are sometimes not registered.",
+    type: "slider",
+    attrs: {
+      min: 100,
+      max: 1e3,
+      step: 50
+    },
+    defaultValue: 300,
+    versionAdded: "1.4.3"
+  },
+  {
+    id: "Comfy.SnapToGrid.GridSize",
+    category: ["LiteGraph", "Canvas", "GridSize"],
+    name: "Snap to grid size",
+    type: "slider",
+    attrs: {
+      min: 1,
+      max: 500
+    },
+    tooltip: "When dragging and resizing nodes while holding shift they will be aligned to the grid, this controls the size of that grid.",
+    defaultValue: LiteGraph.CANVAS_GRID_SIZE
+  },
+  // Keep the 'pysssss.SnapToGrid' setting id so we don't need to migrate setting values.
+  // Using a new setting id can cause existing users to lose their existing settings.
+  {
+    id: "pysssss.SnapToGrid",
+    category: ["LiteGraph", "Canvas", "AlwaysSnapToGrid"],
+    name: "Always snap to grid",
+    type: "boolean",
+    defaultValue: false,
+    versionAdded: "1.3.13"
+  },
+  {
+    id: "Comfy.Server.ServerConfigValues",
+    name: "Server config values for frontend display",
+    tooltip: "Server config values used for frontend display only",
+    type: "hidden",
+    // Mapping from server config id to value.
+    defaultValue: {},
+    versionAdded: "1.4.8"
+  },
+  {
+    id: "Comfy.Server.LaunchArgs",
+    name: "Server launch arguments",
+    tooltip: "These are the actual arguments that are passed to the server when it is launched.",
+    type: "hidden",
+    defaultValue: {},
+    versionAdded: "1.4.8"
+  },
+  {
+    id: "Comfy.Queue.MaxHistoryItems",
+    name: "Queue history size",
+    tooltip: "The maximum number of tasks that show in the queue history.",
+    type: "slider",
+    attrs: {
+      min: 16,
+      max: 256,
+      step: 16
+    },
+    defaultValue: 64,
+    versionAdded: "1.4.12"
+  },
+  {
+    id: "LiteGraph.Canvas.MaximumFps",
+    name: "Maxium FPS",
+    tooltip: "The maximum frames per second that the canvas is allowed to render. Caps GPU usage at the cost of smoothness. If 0, the screen refresh rate is used. Default: 0",
+    type: "slider",
+    attrs: {
+      min: 0,
+      max: 120
+    },
+    defaultValue: 0,
+    versionAdded: "1.5.1"
+  },
+  {
+    id: "Comfy.EnableWorkflowViewRestore",
+    category: ["Comfy", "Workflow", "EnableWorkflowViewRestore"],
+    name: "Save and restore canvas position and zoom level in workflows",
+    type: "boolean",
+    defaultValue: true,
+    versionModified: "1.5.4"
+  },
+  {
+    id: "Comfy.Workflow.ConfirmDelete",
+    name: "Show confirmation when deleting workflows",
+    type: "boolean",
+    defaultValue: true,
+    versionAdded: "1.5.6"
+  },
+  {
+    id: "Comfy.ColorPalette",
+    name: "The active color palette id",
+    type: "hidden",
+    defaultValue: "dark",
+    versionModified: "1.6.7",
+    migrateDeprecatedValue(value) {
+      return value.startsWith("custom_") ? value.replace("custom_", "") : value;
+    }
+  },
+  {
+    id: "Comfy.CustomColorPalettes",
+    name: "Custom color palettes",
+    type: "hidden",
+    defaultValue: {},
+    versionModified: "1.6.7"
+  },
+  {
+    id: "Comfy.WidgetControlMode",
+    category: ["Comfy", "Node Widget", "WidgetControlMode"],
+    name: "Widget control mode",
+    tooltip: "Controls when widget values are updated (randomize/increment/decrement), either before the prompt is queued or after.",
+    type: "combo",
+    defaultValue: "after",
+    options: ["before", "after"],
+    versionModified: "1.6.10"
+  }
+];
+const _sfc_main$a = /* @__PURE__ */ defineComponent({
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   __name: "GraphCanvas",
   emits: ["ready"],
   setup(__props, { emit: __emit }) {
     const emit = __emit;
     const canvasRef = ref(null);
+    const litegraphService = useLitegraphService();
     const settingStore = useSettingStore();
     const nodeDefStore = useNodeDefStore();
     const workspaceStore = useWorkspaceStore();
@@ -3945,18 +6129,41 @@ const _sfc_main$d = /* @__PURE__ */ defineComponent({
     watchEffect(() => {
       LiteGraph.alwaysSnapToGrid = settingStore.get("pysssss.SnapToGrid");
     });
-    watchEffect(() => {
-      if (!canvasStore.canvas) return;
-      if (canvasStore.canvas.state.draggingCanvas) {
-        canvasStore.canvas.canvas.style.cursor = "grabbing";
-        return;
+    watch(
+      () => settingStore.get("Comfy.WidgetControlMode"),
+      () => {
+        if (!canvasStore.canvas) return;
+        for (const n of app.graph.nodes) {
+          if (!n.widgets) continue;
+          for (const w of n.widgets) {
+            if (w[IS_CONTROL_WIDGET]) {
+              updateControlWidgetLabel(w);
+              if (w.linkedWidgets) {
+                for (const l of w.linkedWidgets) {
+                  updateControlWidgetLabel(l);
+                }
+              }
+            }
+          }
+        }
+        app.graph.setDirtyCanvas(true);
       }
-      if (canvasStore.canvas.state.readOnly) {
-        canvasStore.canvas.canvas.style.cursor = "grab";
-        return;
+    );
+    const colorPaletteService = useColorPaletteService();
+    const colorPaletteStore = useColorPaletteStore();
+    watch(
+      [() => canvasStore.canvas, () => settingStore.get("Comfy.ColorPalette")],
+      ([canvas, currentPaletteId]) => {
+        if (!canvas) return;
+        colorPaletteService.loadColorPalette(currentPaletteId);
       }
-      canvasStore.canvas.canvas.style.cursor = "default";
-    });
+    );
+    watch(
+      () => colorPaletteStore.activePaletteId,
+      (newValue) => {
+        settingStore.set("Comfy.ColorPalette", newValue);
+      }
+    );
     const workflowStore = useWorkflowStore();
     const persistCurrentWorkflow = /* @__PURE__ */ __name(() => {
       const workflow = JSON.stringify(app.serializeGraph());
@@ -3985,7 +6192,7 @@ const _sfc_main$d = /* @__PURE__ */ defineComponent({
               loc.clientX - 20,
               loc.clientY
             ]);
-            app.addNodeOnGraph(nodeDef, { pos });
+            litegraphService.addNodeOnGraph(nodeDef, { pos });
           } else if (node.data instanceof ComfyModelDef) {
             const model = node.data;
             const pos = app.clientPosToCanvasPos([loc.clientX, loc.clientY]);
@@ -4006,9 +6213,12 @@ const _sfc_main$d = /* @__PURE__ */ defineComponent({
             if (!targetGraphNode) {
               const provider = modelToNodeStore.getNodeProvider(model.directory);
               if (provider) {
-                targetGraphNode = app.addNodeOnGraph(provider.nodeDef, {
-                  pos
-                });
+                targetGraphNode = litegraphService.addNodeOnGraph(
+                  provider.nodeDef,
+                  {
+                    pos
+                  }
+                );
                 targetProvider = provider;
               }
             }
@@ -4038,6 +6248,10 @@ const _sfc_main$d = /* @__PURE__ */ defineComponent({
       app.vueAppReady = true;
       workspaceStore.spinner = true;
       ChangeTracker.init(app);
+      await settingStore.loadSettingValues();
+      CORE_SETTINGS.forEach((setting) => {
+        settingStore.addSetting(setting);
+      });
       await app.setup(canvasRef.value);
       canvasStore.canvas = app.canvas;
       canvasStore.canvas.render_canvas_border = false;
@@ -4045,11 +6259,14 @@ const _sfc_main$d = /* @__PURE__ */ defineComponent({
       window["app"] = app;
       window["graph"] = app.graph;
       comfyAppReady.value = true;
+      colorPaletteStore.customPalettes = settingStore.get(
+        "Comfy.CustomColorPalettes"
+      );
       watch(
         () => settingStore.get("Comfy.Locale"),
         async () => {
           await useCommandStore().execute("Comfy.RefreshNodeDefinitions");
-          workflowService.reloadCurrentWorkflow();
+          useWorkflowService().reloadCurrentWorkflow();
         }
       );
       emit("ready");
@@ -4062,7 +6279,11 @@ const _sfc_main$d = /* @__PURE__ */ defineComponent({
               createVNode(SideToolbar)
             ]),
             "bottom-panel": withCtx(() => [
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
               createVNode(_sfc_main$m)
+========
+              createVNode(_sfc_main$o)
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
             ]),
             "graph-canvas-panel": withCtx(() => [
               canvasMenuEnabled.value ? (openBlock(), createBlock(GraphCanvasMenu, { key: 0 })) : createCommentVNode("", true)
@@ -4080,11 +6301,16 @@ const _sfc_main$d = /* @__PURE__ */ defineComponent({
         ])),
         createVNode(_sfc_main$h),
         tooltipEnabled.value ? (openBlock(), createBlock(NodeTooltip, { key: 0 })) : createCommentVNode("", true),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
         createVNode(_sfc_main$f)
+========
+        createVNode(_sfc_main$m)
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       ], 64);
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 const _sfc_main$c = /* @__PURE__ */ defineComponent({
   __name: "MenuHamburger",
   setup(__props) {
@@ -4130,6 +6356,8 @@ const _sfc_main$c = /* @__PURE__ */ defineComponent({
   }
 });
 const MenuHamburger = /* @__PURE__ */ _export_sfc(_sfc_main$c, [["__scopeId", "data-v-962c4073"]]);
+========
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
 function _typeof$3(o) {
   "@babel/helpers - typeof";
   return _typeof$3 = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o2) {
@@ -4159,7 +6387,7 @@ function _toPrimitive$3(t, r) {
   return ("string" === r ? String : Number)(t);
 }
 __name(_toPrimitive$3, "_toPrimitive$3");
-var theme$4 = /* @__PURE__ */ __name(function theme5(_ref) {
+var theme$3 = /* @__PURE__ */ __name(function theme5(_ref) {
   var dt = _ref.dt;
   return "\n.p-toast {\n    width: ".concat(dt("toast.width"), ";\n    white-space: pre-line;\n    word-break: break-word;\n}\n\n.p-toast-message {\n    margin: 0 0 1rem 0;\n}\n\n.p-toast-message-icon {\n    flex-shrink: 0;\n    font-size: ").concat(dt("toast.icon.size"), ";\n    width: ").concat(dt("toast.icon.size"), ";\n    height: ").concat(dt("toast.icon.size"), ";\n}\n\n.p-toast-message-content {\n    display: flex;\n    align-items: flex-start;\n    padding: ").concat(dt("toast.content.padding"), ";\n    gap: ").concat(dt("toast.content.gap"), ";\n}\n\n.p-toast-message-text {\n    flex: 1 1 auto;\n    display: flex;\n    flex-direction: column;\n    gap: ").concat(dt("toast.text.gap"), ";\n}\n\n.p-toast-summary {\n    font-weight: ").concat(dt("toast.summary.font.weight"), ";\n    font-size: ").concat(dt("toast.summary.font.size"), ";\n}\n\n.p-toast-detail {\n    font-weight: ").concat(dt("toast.detail.font.weight"), ";\n    font-size: ").concat(dt("toast.detail.font.size"), ";\n}\n\n.p-toast-close-button {\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    overflow: hidden;\n    position: relative;\n    cursor: pointer;\n    background: transparent;\n    transition: background ").concat(dt("toast.transition.duration"), ", color ").concat(dt("toast.transition.duration"), ", outline-color ").concat(dt("toast.transition.duration"), ", box-shadow ").concat(dt("toast.transition.duration"), ";\n    outline-color: transparent;\n    color: inherit;\n    width: ").concat(dt("toast.close.button.width"), ";\n    height: ").concat(dt("toast.close.button.height"), ";\n    border-radius: ").concat(dt("toast.close.button.border.radius"), ";\n    margin: -25% 0 0 0;\n    right: -25%;\n    padding: 0;\n    border: none;\n    user-select: none;\n}\n\n.p-toast-close-button:dir(rtl) {\n    margin: -25% 0 0 auto;\n    left: -25%;\n    right: auto;\n}\n\n.p-toast-message-info,\n.p-toast-message-success,\n.p-toast-message-warn,\n.p-toast-message-error,\n.p-toast-message-secondary,\n.p-toast-message-contrast {\n    border-width: ").concat(dt("toast.border.width"), ";\n    border-style: solid;\n    backdrop-filter: blur(").concat(dt("toast.blur"), ");\n    border-radius: ").concat(dt("toast.border.radius"), ";\n}\n\n.p-toast-close-icon {\n    font-size: ").concat(dt("toast.close.icon.size"), ";\n    width: ").concat(dt("toast.close.icon.size"), ";\n    height: ").concat(dt("toast.close.icon.size"), ";\n}\n\n.p-toast-close-button:focus-visible {\n    outline-width: ").concat(dt("focus.ring.width"), ";\n    outline-style: ").concat(dt("focus.ring.style"), ";\n    outline-offset: ").concat(dt("focus.ring.offset"), ";\n}\n\n.p-toast-message-info {\n    background: ").concat(dt("toast.info.background"), ";\n    border-color: ").concat(dt("toast.info.border.color"), ";\n    color: ").concat(dt("toast.info.color"), ";\n    box-shadow: ").concat(dt("toast.info.shadow"), ";\n}\n\n.p-toast-message-info .p-toast-detail {\n    color: ").concat(dt("toast.info.detail.color"), ";\n}\n\n.p-toast-message-info .p-toast-close-button:focus-visible {\n    outline-color: ").concat(dt("toast.info.close.button.focus.ring.color"), ";\n    box-shadow: ").concat(dt("toast.info.close.button.focus.ring.shadow"), ";\n}\n\n.p-toast-message-info .p-toast-close-button:hover {\n    background: ").concat(dt("toast.info.close.button.hover.background"), ";\n}\n\n.p-toast-message-success {\n    background: ").concat(dt("toast.success.background"), ";\n    border-color: ").concat(dt("toast.success.border.color"), ";\n    color: ").concat(dt("toast.success.color"), ";\n    box-shadow: ").concat(dt("toast.success.shadow"), ";\n}\n\n.p-toast-message-success .p-toast-detail {\n    color: ").concat(dt("toast.success.detail.color"), ";\n}\n\n.p-toast-message-success .p-toast-close-button:focus-visible {\n    outline-color: ").concat(dt("toast.success.close.button.focus.ring.color"), ";\n    box-shadow: ").concat(dt("toast.success.close.button.focus.ring.shadow"), ";\n}\n\n.p-toast-message-success .p-toast-close-button:hover {\n    background: ").concat(dt("toast.success.close.button.hover.background"), ";\n}\n\n.p-toast-message-warn {\n    background: ").concat(dt("toast.warn.background"), ";\n    border-color: ").concat(dt("toast.warn.border.color"), ";\n    color: ").concat(dt("toast.warn.color"), ";\n    box-shadow: ").concat(dt("toast.warn.shadow"), ";\n}\n\n.p-toast-message-warn .p-toast-detail {\n    color: ").concat(dt("toast.warn.detail.color"), ";\n}\n\n.p-toast-message-warn .p-toast-close-button:focus-visible {\n    outline-color: ").concat(dt("toast.warn.close.button.focus.ring.color"), ";\n    box-shadow: ").concat(dt("toast.warn.close.button.focus.ring.shadow"), ";\n}\n\n.p-toast-message-warn .p-toast-close-button:hover {\n    background: ").concat(dt("toast.warn.close.button.hover.background"), ";\n}\n\n.p-toast-message-error {\n    background: ").concat(dt("toast.error.background"), ";\n    border-color: ").concat(dt("toast.error.border.color"), ";\n    color: ").concat(dt("toast.error.color"), ";\n    box-shadow: ").concat(dt("toast.error.shadow"), ";\n}\n\n.p-toast-message-error .p-toast-detail {\n    color: ").concat(dt("toast.error.detail.color"), ";\n}\n\n.p-toast-message-error .p-toast-close-button:focus-visible {\n    outline-color: ").concat(dt("toast.error.close.button.focus.ring.color"), ";\n    box-shadow: ").concat(dt("toast.error.close.button.focus.ring.shadow"), ";\n}\n\n.p-toast-message-error .p-toast-close-button:hover {\n    background: ").concat(dt("toast.error.close.button.hover.background"), ";\n}\n\n.p-toast-message-secondary {\n    background: ").concat(dt("toast.secondary.background"), ";\n    border-color: ").concat(dt("toast.secondary.border.color"), ";\n    color: ").concat(dt("toast.secondary.color"), ";\n    box-shadow: ").concat(dt("toast.secondary.shadow"), ";\n}\n\n.p-toast-message-secondary .p-toast-detail {\n    color: ").concat(dt("toast.secondary.detail.color"), ";\n}\n\n.p-toast-message-secondary .p-toast-close-button:focus-visible {\n    outline-color: ").concat(dt("toast.secondary.close.button.focus.ring.color"), ";\n    box-shadow: ").concat(dt("toast.secondary.close.button.focus.ring.shadow"), ";\n}\n\n.p-toast-message-secondary .p-toast-close-button:hover {\n    background: ").concat(dt("toast.secondary.close.button.hover.background"), ";\n}\n\n.p-toast-message-contrast {\n    background: ").concat(dt("toast.contrast.background"), ";\n    border-color: ").concat(dt("toast.contrast.border.color"), ";\n    color: ").concat(dt("toast.contrast.color"), ";\n    box-shadow: ").concat(dt("toast.contrast.shadow"), ";\n}\n\n.p-toast-message-contrast .p-toast-detail {\n    color: ").concat(dt("toast.contrast.detail.color"), ";\n}\n\n.p-toast-message-contrast .p-toast-close-button:focus-visible {\n    outline-color: ").concat(dt("toast.contrast.close.button.focus.ring.color"), ";\n    box-shadow: ").concat(dt("toast.contrast.close.button.focus.ring.shadow"), ";\n}\n\n.p-toast-message-contrast .p-toast-close-button:hover {\n    background: ").concat(dt("toast.contrast.close.button.hover.background"), ";\n}\n\n.p-toast-top-center {\n    transform: translateX(-50%);\n}\n\n.p-toast-bottom-center {\n    transform: translateX(-50%);\n}\n\n.p-toast-center {\n    min-width: 20vw;\n    transform: translate(-50%, -50%);\n}\n\n.p-toast-message-enter-from {\n    opacity: 0;\n    transform: translateY(50%);\n}\n\n.p-toast-message-leave-from {\n    max-height: 1000px;\n}\n\n.p-toast .p-toast-message.p-toast-message-leave-to {\n    max-height: 0;\n    opacity: 0;\n    margin-bottom: 0;\n    overflow: hidden;\n}\n\n.p-toast-message-enter-active {\n    transition: transform 0.3s, opacity 0.3s;\n}\n\n.p-toast-message-leave-active {\n    transition: max-height 0.45s cubic-bezier(0, 1, 0, 1), opacity 0.3s, margin-bottom 0.3s;\n}\n");
 }, "theme");
@@ -4175,7 +6403,7 @@ var inlineStyles$2 = {
     };
   }, "root")
 };
-var classes$4 = {
+var classes$3 = {
   root: /* @__PURE__ */ __name(function root7(_ref3) {
     var props = _ref3.props;
     return ["p-toast p-component p-toast-" + props.position];
@@ -4204,8 +6432,8 @@ var classes$4 = {
 };
 var ToastStyle = BaseStyle.extend({
   name: "toast",
-  theme: theme$4,
-  classes: classes$4,
+  theme: theme$3,
+  classes: classes$3,
   inlineStyles: inlineStyles$2
 });
 var script$8 = {
@@ -4254,7 +6482,11 @@ __name(render$b, "render$b");
 script$7.render = render$b;
 var script$2$2 = {
   name: "BaseToast",
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
   "extends": script$i,
+========
+  "extends": script$e,
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   props: {
     group: {
       type: String,
@@ -4309,10 +6541,14 @@ var script$2$2 = {
     };
   }, "provide")
 };
-var script$1$4 = {
+var script$1$3 = {
   name: "ToastMessage",
   hostName: "Toast",
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
   "extends": script$i,
+========
+  "extends": script$e,
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   emits: ["close"],
   closeTimeout: null,
   props: {
@@ -4384,10 +6620,17 @@ var script$1$4 = {
   computed: {
     iconComponent: /* @__PURE__ */ __name(function iconComponent() {
       return {
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
         info: !this.infoIcon && script$7,
         success: !this.successIcon && script$w,
         warn: !this.warnIcon && script$8,
         error: !this.errorIcon && script$x
+========
+        info: !this.infoIcon && script$r,
+        success: !this.successIcon && script$s,
+        warn: !this.warnIcon && script$t,
+        error: !this.errorIcon && script$u
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       }[this.message.severity];
     }, "iconComponent"),
     closeAriaLabel: /* @__PURE__ */ __name(function closeAriaLabel() {
@@ -4395,11 +6638,19 @@ var script$1$4 = {
     }, "closeAriaLabel")
   },
   components: {
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     TimesIcon: script$y,
     InfoCircleIcon: script$7,
     CheckIcon: script$w,
     ExclamationTriangleIcon: script$8,
     TimesCircleIcon: script$x
+========
+    TimesIcon: script$v,
+    InfoCircleIcon: script$r,
+    CheckIcon: script$s,
+    ExclamationTriangleIcon: script$t,
+    TimesCircleIcon: script$u
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   },
   directives: {
     ripple: Ripple
@@ -4457,8 +6708,8 @@ function _toPrimitive$1(t, r) {
   return ("string" === r ? String : Number)(t);
 }
 __name(_toPrimitive$1, "_toPrimitive$1");
-var _hoisted_1$e = ["aria-label"];
-function render$1$3(_ctx, _cache, $props, $setup, $data, $options) {
+var _hoisted_1$d = ["aria-label"];
+function render$1$2(_ctx, _cache, $props, $setup, $data, $options) {
   var _directive_ripple = resolveDirective("ripple");
   return openBlock(), createElementBlock("div", mergeProps({
     "class": [_ctx.cx("message"), $props.message.styleClass],
@@ -4497,10 +6748,10 @@ function render$1$3(_ctx, _cache, $props, $setup, $data, $options) {
     autofocus: ""
   }, _objectSpread$1(_objectSpread$1({}, $props.closeButtonProps), _ctx.ptm("closeButton"))), [(openBlock(), createBlock(resolveDynamicComponent($props.templates.closeicon || "TimesIcon"), mergeProps({
     "class": [_ctx.cx("closeIcon"), $props.closeIcon]
-  }, _ctx.ptm("closeIcon")), null, 16, ["class"]))], 16, _hoisted_1$e)), [[_directive_ripple]])], 16)) : createCommentVNode("", true)], 16))], 16);
+  }, _ctx.ptm("closeIcon")), null, 16, ["class"]))], 16, _hoisted_1$d)), [[_directive_ripple]])], 16)) : createCommentVNode("", true)], 16))], 16);
 }
-__name(render$1$3, "render$1$3");
-script$1$4.render = render$1$3;
+__name(render$1$2, "render$1$2");
+script$1$3.render = render$1$2;
 function _toConsumableArray(r) {
   return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread();
 }
@@ -4532,7 +6783,7 @@ function _arrayLikeToArray(r, a) {
 }
 __name(_arrayLikeToArray, "_arrayLikeToArray");
 var messageIdx = 0;
-var script$6 = {
+var script$5 = {
   name: "Toast",
   "extends": script$2$2,
   inheritAttrs: false,
@@ -4638,8 +6889,13 @@ var script$6 = {
     }, "destroyStyle")
   },
   components: {
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     ToastMessage: script$1$4,
     Portal: script$p
+========
+    ToastMessage: script$1$3,
+    Portal: script$k
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   }
 };
 function _typeof$2(o) {
@@ -4738,8 +6994,13 @@ function render$a(_ctx, _cache, $props, $setup, $data, $options) {
   });
 }
 __name(render$a, "render$a");
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 script$6.render = render$a;
 const _sfc_main$b = /* @__PURE__ */ defineComponent({
+========
+script$5.render = render$a;
+const _sfc_main$9 = /* @__PURE__ */ defineComponent({
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   __name: "GlobalToast",
   setup(__props) {
     const toast = useToast();
@@ -4809,10 +7070,11 @@ const _sfc_main$b = /* @__PURE__ */ defineComponent({
       { immediate: true }
     );
     return (_ctx, _cache) => {
-      return openBlock(), createBlock(unref(script$6));
+      return openBlock(), createBlock(unref(script$5));
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 const _sfc_main$a = /* @__PURE__ */ defineComponent({
   __name: "UnloadWindowConfirmDialog",
   setup(__props) {
@@ -6386,10 +8648,14 @@ function render$8(_ctx, _cache, $props, $setup, $data, $options) {
 __name(render$8, "render$8");
 script$4.render = render$8;
 const _hoisted_1$9 = {
+========
+const _hoisted_1$c = {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   viewBox: "0 0 24 24",
   width: "1.2em",
   height: "1.2em"
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 function render$7(_ctx, _cache) {
   return openBlock(), createElementBlock("svg", _hoisted_1$9, _cache[0] || (_cache[0] = [
     createBaseVNode("path", {
@@ -6401,14 +8667,30 @@ function render$7(_ctx, _cache) {
       d: "M6 4v16m4-16l10 8l-10 8z"
     }, null, -1)
   ]));
+========
+const _hoisted_2$a = /* @__PURE__ */ createBaseVNode("path", {
+  fill: "none",
+  stroke: "currentColor",
+  "stroke-linecap": "round",
+  "stroke-linejoin": "round",
+  "stroke-width": "2",
+  d: "M6 4v16m4-16l10 8l-10 8z"
+}, null, -1);
+const _hoisted_3$9 = [
+  _hoisted_2$a
+];
+function render$9(_ctx, _cache) {
+  return openBlock(), createElementBlock("svg", _hoisted_1$c, [..._hoisted_3$9]);
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
 }
-__name(render$7, "render$7");
-const __unplugin_components_3 = markRaw({ name: "lucide-step-forward", render: render$7 });
-const _hoisted_1$8 = {
+__name(render$9, "render$9");
+const __unplugin_components_3 = markRaw({ name: "lucide-step-forward", render: render$9 });
+const _hoisted_1$b = {
   viewBox: "0 0 24 24",
   width: "1.2em",
   height: "1.2em"
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 function render$6(_ctx, _cache) {
   return openBlock(), createElementBlock("svg", _hoisted_1$8, _cache[0] || (_cache[0] = [
     createBaseVNode("path", {
@@ -6420,14 +8702,30 @@ function render$6(_ctx, _cache) {
       d: "m13 19l9-7l-9-7zM2 19l9-7l-9-7z"
     }, null, -1)
   ]));
+========
+const _hoisted_2$9 = /* @__PURE__ */ createBaseVNode("path", {
+  fill: "none",
+  stroke: "currentColor",
+  "stroke-linecap": "round",
+  "stroke-linejoin": "round",
+  "stroke-width": "2",
+  d: "m13 19l9-7l-9-7zM2 19l9-7l-9-7z"
+}, null, -1);
+const _hoisted_3$8 = [
+  _hoisted_2$9
+];
+function render$8(_ctx, _cache) {
+  return openBlock(), createElementBlock("svg", _hoisted_1$b, [..._hoisted_3$8]);
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
 }
-__name(render$6, "render$6");
-const __unplugin_components_2 = markRaw({ name: "lucide-fast-forward", render: render$6 });
-const _hoisted_1$7 = {
+__name(render$8, "render$8");
+const __unplugin_components_2 = markRaw({ name: "lucide-fast-forward", render: render$8 });
+const _hoisted_1$a = {
   viewBox: "0 0 24 24",
   width: "1.2em",
   height: "1.2em"
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 function render$5(_ctx, _cache) {
   return openBlock(), createElementBlock("svg", _hoisted_1$7, _cache[0] || (_cache[0] = [
     createBaseVNode("path", {
@@ -6439,14 +8737,30 @@ function render$5(_ctx, _cache) {
       d: "m6 3l14 9l-14 9z"
     }, null, -1)
   ]));
+========
+const _hoisted_2$8 = /* @__PURE__ */ createBaseVNode("path", {
+  fill: "none",
+  stroke: "currentColor",
+  "stroke-linecap": "round",
+  "stroke-linejoin": "round",
+  "stroke-width": "2",
+  d: "m6 3l14 9l-14 9z"
+}, null, -1);
+const _hoisted_3$7 = [
+  _hoisted_2$8
+];
+function render$7(_ctx, _cache) {
+  return openBlock(), createElementBlock("svg", _hoisted_1$a, [..._hoisted_3$7]);
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
 }
-__name(render$5, "render$5");
-const __unplugin_components_1$1 = markRaw({ name: "lucide-play", render: render$5 });
-const _hoisted_1$6 = {
+__name(render$7, "render$7");
+const __unplugin_components_1$1 = markRaw({ name: "lucide-play", render: render$7 });
+const _hoisted_1$9 = {
   viewBox: "0 0 24 24",
   width: "1.2em",
   height: "1.2em"
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 function render$4(_ctx, _cache) {
   return openBlock(), createElementBlock("svg", _hoisted_1$6, _cache[0] || (_cache[0] = [
     createBaseVNode("g", {
@@ -6460,24 +8774,48 @@ function render$4(_ctx, _cache) {
       createBaseVNode("path", { d: "m16 8l-2-2l2-2" })
     ], -1)
   ]));
+========
+const _hoisted_2$7 = /* @__PURE__ */ createBaseVNode("g", {
+  fill: "none",
+  stroke: "currentColor",
+  "stroke-linecap": "round",
+  "stroke-linejoin": "round",
+  "stroke-width": "2"
+}, [
+  /* @__PURE__ */ createBaseVNode("path", { d: "M16 12H3m13 6H3m7-12H3m18 12V8a2 2 0 0 0-2-2h-5" }),
+  /* @__PURE__ */ createBaseVNode("path", { d: "m16 8l-2-2l2-2" })
+], -1);
+const _hoisted_3$6 = [
+  _hoisted_2$7
+];
+function render$6(_ctx, _cache) {
+  return openBlock(), createElementBlock("svg", _hoisted_1$9, [..._hoisted_3$6]);
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
 }
-__name(render$4, "render$4");
-const __unplugin_components_0$1 = markRaw({ name: "lucide-list-start", render: render$4 });
-var theme$1 = /* @__PURE__ */ __name(function theme8(_ref) {
+__name(render$6, "render$6");
+const __unplugin_components_0$1 = markRaw({ name: "lucide-list-start", render: render$6 });
+var theme$2 = /* @__PURE__ */ __name(function theme6(_ref) {
   var dt = _ref.dt;
   return "\n.p-tieredmenu {\n    background: ".concat(dt("tieredmenu.background"), ";\n    color: ").concat(dt("tieredmenu.color"), ";\n    border: 1px solid ").concat(dt("tieredmenu.border.color"), ";\n    border-radius: ").concat(dt("tieredmenu.border.radius"), ";\n    min-width: 12.5rem;\n}\n\n.p-tieredmenu-root-list,\n.p-tieredmenu-submenu {\n    margin: 0;\n    padding: ").concat(dt("tieredmenu.list.padding"), ";\n    list-style: none;\n    outline: 0 none;\n    display: flex;\n    flex-direction: column;\n    gap: ").concat(dt("tieredmenu.list.gap"), ";\n}\n\n.p-tieredmenu-submenu {\n    position: absolute;\n    min-width: 100%;\n    z-index: 1;\n    background: ").concat(dt("tieredmenu.background"), ";\n    color: ").concat(dt("tieredmenu.color"), ";\n    border: 1px solid ").concat(dt("tieredmenu.border.color"), ";\n    border-radius: ").concat(dt("tieredmenu.border.radius"), ";\n    box-shadow: ").concat(dt("tieredmenu.shadow"), ";\n}\n\n.p-tieredmenu-item {\n    position: relative;\n}\n\n.p-tieredmenu-item-content {\n    transition: background ").concat(dt("tieredmenu.transition.duration"), ", color ").concat(dt("tieredmenu.transition.duration"), ";\n    border-radius: ").concat(dt("tieredmenu.item.border.radius"), ";\n    color: ").concat(dt("tieredmenu.item.color"), ";\n}\n\n.p-tieredmenu-item-link {\n    cursor: pointer;\n    display: flex;\n    align-items: center;\n    text-decoration: none;\n    overflow: hidden;\n    position: relative;\n    color: inherit;\n    padding: ").concat(dt("tieredmenu.item.padding"), ";\n    gap: ").concat(dt("tieredmenu.item.gap"), ";\n    user-select: none;\n    outline: 0 none;\n}\n\n.p-tieredmenu-item-label {\n    line-height: 1;\n}\n\n.p-tieredmenu-item-icon {\n    color: ").concat(dt("tieredmenu.item.icon.color"), ";\n}\n\n.p-tieredmenu-submenu-icon {\n    color: ").concat(dt("tieredmenu.submenu.icon.color"), ";\n    margin-left: auto;\n    font-size: ").concat(dt("tieredmenu.submenu.icon.size"), ";\n    width: ").concat(dt("tieredmenu.submenu.icon.size"), ";\n    height: ").concat(dt("tieredmenu.submenu.icon.size"), ";\n}\n\n.p-tieredmenu-submenu-icon:dir(rtl) {\n    margin-left: 0;\n    margin-right: auto;\n}\n\n.p-tieredmenu-item.p-focus > .p-tieredmenu-item-content {\n    color: ").concat(dt("tieredmenu.item.focus.color"), ";\n    background: ").concat(dt("tieredmenu.item.focus.background"), ";\n}\n\n.p-tieredmenu-item.p-focus > .p-tieredmenu-item-content .p-tieredmenu-item-icon {\n    color: ").concat(dt("tieredmenu.item.icon.focus.color"), ";\n}\n\n.p-tieredmenu-item.p-focus > .p-tieredmenu-item-content .p-tieredmenu-submenu-icon {\n    color: ").concat(dt("tieredmenu.submenu.icon.focus.color"), ";\n}\n\n.p-tieredmenu-item:not(.p-disabled) > .p-tieredmenu-item-content:hover {\n    color: ").concat(dt("tieredmenu.item.focus.color"), ";\n    background: ").concat(dt("tieredmenu.item.focus.background"), ";\n}\n\n.p-tieredmenu-item:not(.p-disabled) > .p-tieredmenu-item-content:hover .p-tieredmenu-item-icon {\n    color: ").concat(dt("tieredmenu.item.icon.focus.color"), ";\n}\n\n.p-tieredmenu-item:not(.p-disabled) > .p-tieredmenu-item-content:hover .p-tieredmenu-submenu-icon {\n    color: ").concat(dt("tieredmenu.submenu.icon.focus.color"), ";\n}\n\n.p-tieredmenu-item-active > .p-tieredmenu-item-content {\n    color: ").concat(dt("tieredmenu.item.active.color"), ";\n    background: ").concat(dt("tieredmenu.item.active.background"), ";\n}\n\n.p-tieredmenu-item-active > .p-tieredmenu-item-content .p-tieredmenu-item-icon {\n    color: ").concat(dt("tieredmenu.item.icon.active.color"), ";\n}\n\n.p-tieredmenu-item-active > .p-tieredmenu-item-content .p-tieredmenu-submenu-icon {\n    color: ").concat(dt("tieredmenu.submenu.icon.active.color"), ";\n}\n\n.p-tieredmenu-separator {\n    border-block-start: 1px solid ").concat(dt("tieredmenu.separator.border.color"), ";\n}\n\n.p-tieredmenu-overlay {\n    box-shadow: ").concat(dt("tieredmenu.shadow"), ";\n}\n\n.p-tieredmenu-enter-from,\n.p-tieredmenu-leave-active {\n    opacity: 0;\n}\n\n.p-tieredmenu-enter-active {\n    transition: opacity 250ms;\n}\n\n.p-tieredmenu-mobile .p-tieredmenu-submenu {\n    position: static;\n    box-shadow: none;\n    border: 0 none;\n    padding-inline-start: ").concat(dt("tieredmenu.submenu.mobile.indent"), ";\n    padding-inline-end: 0;\n}\n\n.p-tieredmenu-mobile .p-tieredmenu-submenu:dir(rtl) {\n    padding-inline-start: 0;\n    padding-inline-end: ").concat(dt("tieredmenu.submenu.mobile.indent"), ";\n}\n\n.p-tieredmenu-mobile .p-tieredmenu-submenu-icon {\n    transition: transform 0.2s;\n    transform: rotate(90deg);\n}\n\n.p-tieredmenu-mobile .p-tieredmenu-item-active > .p-tieredmenu-item-content .p-tieredmenu-submenu-icon {\n    transform: rotate(-90deg);\n}\n");
 }, "theme");
-var inlineStyles = {
-  submenu: /* @__PURE__ */ __name(function submenu2(_ref2) {
+var inlineStyles$1 = {
+  submenu: /* @__PURE__ */ __name(function submenu(_ref2) {
     var instance = _ref2.instance, processedItem = _ref2.processedItem;
     return {
       display: instance.isItemActive(processedItem) ? "flex" : "none"
     };
   }, "submenu")
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 var classes$1 = {
   root: /* @__PURE__ */ __name(function root10(_ref3) {
     var props = _ref3.props, instance = _ref3.instance;
+========
+var classes$2 = {
+  root: /* @__PURE__ */ __name(function root8(_ref3) {
+    _ref3.instance;
+    var props = _ref3.props;
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
     return ["p-tieredmenu p-component", {
       "p-tieredmenu-overlay": props.popup,
       "p-tieredmenu-mobile": instance.queryMatches
@@ -6485,7 +8823,7 @@ var classes$1 = {
   }, "root"),
   start: "p-tieredmenu-start",
   rootList: "p-tieredmenu-root-list",
-  item: /* @__PURE__ */ __name(function item2(_ref4) {
+  item: /* @__PURE__ */ __name(function item(_ref4) {
     var instance = _ref4.instance, processedItem = _ref4.processedItem;
     return ["p-tieredmenu-item", {
       "p-tieredmenu-item-active": instance.isItemActive(processedItem),
@@ -6504,13 +8842,17 @@ var classes$1 = {
 };
 var TieredMenuStyle = BaseStyle.extend({
   name: "tieredmenu",
-  theme: theme$1,
-  classes: classes$1,
-  inlineStyles
+  theme: theme$2,
+  classes: classes$2,
+  inlineStyles: inlineStyles$1
 });
-var script$2 = {
+var script$2$1 = {
   name: "BaseTieredMenu",
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
   "extends": script$i,
+========
+  "extends": script$e,
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   props: {
     popup: {
       type: Boolean,
@@ -6554,17 +8896,21 @@ var script$2 = {
     }
   },
   style: TieredMenuStyle,
-  provide: /* @__PURE__ */ __name(function provide12() {
+  provide: /* @__PURE__ */ __name(function provide10() {
     return {
       $pcTieredMenu: this,
       $parentInstance: this
     };
   }, "provide")
 };
-var script$1$1 = {
+var script$1$2 = {
   name: "TieredMenuSub",
   hostName: "TieredMenu",
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
   "extends": script$i,
+========
+  "extends": script$e,
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   emits: ["item-click", "item-mouseenter", "item-mousemove"],
   container: null,
   props: {
@@ -6602,22 +8948,22 @@ var script$1$1 = {
     }
   },
   methods: {
-    getItemId: /* @__PURE__ */ __name(function getItemId2(processedItem) {
+    getItemId: /* @__PURE__ */ __name(function getItemId(processedItem) {
       return "".concat(this.menuId, "_").concat(processedItem.key);
     }, "getItemId"),
-    getItemKey: /* @__PURE__ */ __name(function getItemKey2(processedItem) {
+    getItemKey: /* @__PURE__ */ __name(function getItemKey(processedItem) {
       return this.getItemId(processedItem);
     }, "getItemKey"),
-    getItemProp: /* @__PURE__ */ __name(function getItemProp3(processedItem, name, params) {
+    getItemProp: /* @__PURE__ */ __name(function getItemProp(processedItem, name, params) {
       return processedItem && processedItem.item ? resolve(processedItem.item[name], params) : void 0;
     }, "getItemProp"),
-    getItemLabel: /* @__PURE__ */ __name(function getItemLabel3(processedItem) {
+    getItemLabel: /* @__PURE__ */ __name(function getItemLabel(processedItem) {
       return this.getItemProp(processedItem, "label");
     }, "getItemLabel"),
-    getItemLabelId: /* @__PURE__ */ __name(function getItemLabelId2(processedItem) {
+    getItemLabelId: /* @__PURE__ */ __name(function getItemLabelId(processedItem) {
       return "".concat(this.menuId, "_").concat(processedItem.key, "_label");
     }, "getItemLabelId"),
-    getPTOptions: /* @__PURE__ */ __name(function getPTOptions5(processedItem, index, key) {
+    getPTOptions: /* @__PURE__ */ __name(function getPTOptions4(processedItem, index, key) {
       return this.ptm(key, {
         context: {
           item: processedItem.item,
@@ -6628,27 +8974,27 @@ var script$1$1 = {
         }
       });
     }, "getPTOptions"),
-    isItemActive: /* @__PURE__ */ __name(function isItemActive2(processedItem) {
+    isItemActive: /* @__PURE__ */ __name(function isItemActive(processedItem) {
       return this.activeItemPath.some(function(path) {
         return path.key === processedItem.key;
       });
     }, "isItemActive"),
-    isItemVisible: /* @__PURE__ */ __name(function isItemVisible3(processedItem) {
+    isItemVisible: /* @__PURE__ */ __name(function isItemVisible(processedItem) {
       return this.getItemProp(processedItem, "visible") !== false;
     }, "isItemVisible"),
-    isItemDisabled: /* @__PURE__ */ __name(function isItemDisabled3(processedItem) {
+    isItemDisabled: /* @__PURE__ */ __name(function isItemDisabled(processedItem) {
       return this.getItemProp(processedItem, "disabled");
     }, "isItemDisabled"),
-    isItemFocused: /* @__PURE__ */ __name(function isItemFocused2(processedItem) {
+    isItemFocused: /* @__PURE__ */ __name(function isItemFocused(processedItem) {
       return this.focusedItemId === this.getItemId(processedItem);
     }, "isItemFocused"),
-    isItemGroup: /* @__PURE__ */ __name(function isItemGroup3(processedItem) {
+    isItemGroup: /* @__PURE__ */ __name(function isItemGroup(processedItem) {
       return isNotEmpty(processedItem.items);
     }, "isItemGroup"),
     onEnter: /* @__PURE__ */ __name(function onEnter2() {
       nestedPosition(this.container, this.level);
     }, "onEnter"),
-    onItemClick: /* @__PURE__ */ __name(function onItemClick3(event, processedItem) {
+    onItemClick: /* @__PURE__ */ __name(function onItemClick(event, processedItem) {
       this.getItemProp(processedItem, "command", {
         originalEvent: event,
         item: processedItem.item
@@ -6659,31 +9005,31 @@ var script$1$1 = {
         isFocus: true
       });
     }, "onItemClick"),
-    onItemMouseEnter: /* @__PURE__ */ __name(function onItemMouseEnter3(event, processedItem) {
+    onItemMouseEnter: /* @__PURE__ */ __name(function onItemMouseEnter(event, processedItem) {
       this.$emit("item-mouseenter", {
         originalEvent: event,
         processedItem
       });
     }, "onItemMouseEnter"),
-    onItemMouseMove: /* @__PURE__ */ __name(function onItemMouseMove3(event, processedItem) {
+    onItemMouseMove: /* @__PURE__ */ __name(function onItemMouseMove(event, processedItem) {
       this.$emit("item-mousemove", {
         originalEvent: event,
         processedItem
       });
     }, "onItemMouseMove"),
-    getAriaSetSize: /* @__PURE__ */ __name(function getAriaSetSize2() {
+    getAriaSetSize: /* @__PURE__ */ __name(function getAriaSetSize() {
       var _this = this;
       return this.items.filter(function(processedItem) {
         return _this.isItemVisible(processedItem) && !_this.getItemProp(processedItem, "separator");
       }).length;
     }, "getAriaSetSize"),
-    getAriaPosInset: /* @__PURE__ */ __name(function getAriaPosInset3(index) {
+    getAriaPosInset: /* @__PURE__ */ __name(function getAriaPosInset2(index) {
       var _this2 = this;
       return index - this.items.slice(0, index).filter(function(processedItem) {
         return _this2.isItemVisible(processedItem) && _this2.getItemProp(processedItem, "separator");
       }).length + 1;
     }, "getAriaPosInset"),
-    getMenuItemProps: /* @__PURE__ */ __name(function getMenuItemProps2(processedItem, index) {
+    getMenuItemProps: /* @__PURE__ */ __name(function getMenuItemProps(processedItem, index) {
       return {
         action: mergeProps({
           "class": this.cx("itemLink"),
@@ -6700,22 +9046,34 @@ var script$1$1 = {
         }, this.getPTOptions(processedItem, index, "submenuIcon"))
       };
     }, "getMenuItemProps"),
-    containerRef: /* @__PURE__ */ __name(function containerRef2(el) {
+    containerRef: /* @__PURE__ */ __name(function containerRef(el) {
       this.container = el;
     }, "containerRef")
   },
   components: {
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     AngleRightIcon: script$B
+========
+    AngleRightIcon: script$w
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   },
   directives: {
     ripple: Ripple
   }
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 var _hoisted_1$1$1 = ["tabindex"];
 var _hoisted_2 = ["id", "aria-label", "aria-disabled", "aria-expanded", "aria-haspopup", "aria-level", "aria-setsize", "aria-posinset", "data-p-active", "data-p-focused", "data-p-disabled"];
 var _hoisted_3 = ["onClick", "onMouseenter", "onMousemove"];
 var _hoisted_4 = ["href", "target"];
 var _hoisted_5 = ["id"];
+========
+var _hoisted_1$1$2 = ["tabindex"];
+var _hoisted_2$6 = ["id", "aria-label", "aria-disabled", "aria-expanded", "aria-haspopup", "aria-level", "aria-setsize", "aria-posinset", "data-p-active", "data-p-focused", "data-p-disabled"];
+var _hoisted_3$5 = ["onClick", "onMouseenter", "onMousemove"];
+var _hoisted_4$1 = ["href", "target"];
+var _hoisted_5$1 = ["id"];
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
 var _hoisted_6 = ["id"];
 function render$1$1(_ctx, _cache, $props, $setup, $data, $options) {
   var _component_AngleRightIcon = resolveComponent("AngleRightIcon");
@@ -6784,7 +9142,7 @@ function render$1$1(_ctx, _cache, $props, $setup, $data, $options) {
           id: $options.getItemLabelId(processedItem),
           "class": _ctx.cx("itemLabel"),
           ref_for: true
-        }, $options.getPTOptions(processedItem, index, "itemLabel")), toDisplayString($options.getItemLabel(processedItem)), 17, _hoisted_5), $options.getItemProp(processedItem, "items") ? (openBlock(), createElementBlock(Fragment, {
+        }, $options.getPTOptions(processedItem, index, "itemLabel")), toDisplayString($options.getItemLabel(processedItem)), 17, _hoisted_5$1), $options.getItemProp(processedItem, "items") ? (openBlock(), createElementBlock(Fragment, {
           key: 2
         }, [$props.templates.submenuicon ? (openBlock(), createBlock(resolveDynamicComponent($props.templates.submenuicon), mergeProps({
           key: 0,
@@ -6795,13 +9153,17 @@ function render$1$1(_ctx, _cache, $props, $setup, $data, $options) {
           key: 1,
           "class": _ctx.cx("submenuIcon"),
           ref_for: true
-        }, $options.getPTOptions(processedItem, index, "submenuIcon")), null, 16, ["class"]))], 64)) : createCommentVNode("", true)], 16, _hoisted_4)), [[_directive_ripple]]) : (openBlock(), createBlock(resolveDynamicComponent($props.templates.item), {
+        }, $options.getPTOptions(processedItem, index, "submenuIcon")), null, 16, ["class"]))], 64)) : createCommentVNode("", true)], 16, _hoisted_4$1)), [[_directive_ripple]]) : (openBlock(), createBlock(resolveDynamicComponent($props.templates.item), {
           key: 1,
           item: processedItem.item,
           hasSubmenu: $options.getItemProp(processedItem, "items"),
           label: $options.getItemLabel(processedItem),
           props: $options.getMenuItemProps(processedItem, index)
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
         }, null, 8, ["item", "hasSubmenu", "label", "props"]))], 16, _hoisted_3), $options.isItemVisible(processedItem) && $options.isItemGroup(processedItem) ? (openBlock(), createBlock(_component_TieredMenuSub, mergeProps({
+========
+        }, null, 8, ["item", "hasSubmenu", "label", "props"]))], 16, _hoisted_3$5), $options.isItemVisible(processedItem) && $options.isItemGroup(processedItem) ? (openBlock(), createBlock(_component_TieredMenuSub, {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
           key: 0,
           id: $options.getItemId(processedItem) + "_list",
           "class": _ctx.cx("submenu"),
@@ -6827,9 +9189,14 @@ function render$1$1(_ctx, _cache, $props, $setup, $data, $options) {
           }),
           onItemMousemove: _cache[2] || (_cache[2] = function($event) {
             return _ctx.$emit("item-mousemove", $event);
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
           }),
           ref_for: true
         }, _ctx.ptm("submenu")), null, 16, ["id", "class", "style", "aria-labelledby", "menuId", "focusedItemId", "items", "templates", "activeItemPath", "level", "visible", "pt", "unstyled"])) : createCommentVNode("", true)], 16, _hoisted_2)) : createCommentVNode("", true), $options.isItemVisible(processedItem) && $options.getItemProp(processedItem, "separator") ? (openBlock(), createElementBlock("li", mergeProps({
+========
+          })
+        }, null, 8, ["id", "style", "aria-labelledby", "menuId", "focusedItemId", "items", "templates", "activeItemPath", "level", "visible", "pt", "unstyled"])) : createCommentVNode("", true)], 16, _hoisted_2$6)) : createCommentVNode("", true), $options.isItemVisible(processedItem) && $options.getItemProp(processedItem, "separator") ? (openBlock(), createElementBlock("li", mergeProps({
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
           key: 1,
           id: $options.getItemId(processedItem),
           style: $options.getItemProp(processedItem, "style"),
@@ -6837,16 +9204,20 @@ function render$1$1(_ctx, _cache, $props, $setup, $data, $options) {
           role: "separator",
           ref_for: true
         }, _ctx.ptm("separator")), null, 16, _hoisted_6)) : createCommentVNode("", true)], 64);
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
       }), 128))], 8, _hoisted_1$1$1)) : createCommentVNode("", true)];
+========
+      }), 128))], 16, _hoisted_1$1$2)) : createCommentVNode("", true)];
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
     }),
     _: 1
   }, 16, ["onEnter"]);
 }
 __name(render$1$1, "render$1$1");
-script$1$1.render = render$1$1;
-var script$3 = {
+script$1$2.render = render$1$1;
+var script$4 = {
   name: "TieredMenu",
-  "extends": script$2,
+  "extends": script$2$1,
   inheritAttrs: false,
   emits: ["focus", "blur", "before-show", "before-hide", "hide", "show"],
   outsideClickListener: null,
@@ -6858,7 +9229,7 @@ var script$3 = {
   menubar: null,
   searchTimeout: null,
   searchValue: null,
-  data: /* @__PURE__ */ __name(function data8() {
+  data: /* @__PURE__ */ __name(function data6() {
     return {
       id: this.$attrs.id,
       focused: false,
@@ -6876,10 +9247,10 @@ var script$3 = {
     };
   }, "data"),
   watch: {
-    "$attrs.id": /* @__PURE__ */ __name(function $attrsId4(newValue) {
+    "$attrs.id": /* @__PURE__ */ __name(function $attrsId2(newValue) {
       this.id = newValue || UniqueComponentId();
     }, "$attrsId"),
-    activeItemPath: /* @__PURE__ */ __name(function activeItemPath2(newPath) {
+    activeItemPath: /* @__PURE__ */ __name(function activeItemPath(newPath) {
       if (!this.popup) {
         if (isNotEmpty(newPath)) {
           this.bindOutsideClickListener();
@@ -6891,11 +9262,11 @@ var script$3 = {
       }
     }, "activeItemPath")
   },
-  mounted: /* @__PURE__ */ __name(function mounted8() {
+  mounted: /* @__PURE__ */ __name(function mounted6() {
     this.id = this.id || UniqueComponentId();
     this.bindMatchMediaListener();
   }, "mounted"),
-  beforeUnmount: /* @__PURE__ */ __name(function beforeUnmount7() {
+  beforeUnmount: /* @__PURE__ */ __name(function beforeUnmount6() {
     this.unbindOutsideClickListener();
     this.unbindResizeListener();
     this.unbindMatchMediaListener();
@@ -6910,34 +9281,34 @@ var script$3 = {
     this.container = null;
   }, "beforeUnmount"),
   methods: {
-    getItemProp: /* @__PURE__ */ __name(function getItemProp4(item3, name) {
+    getItemProp: /* @__PURE__ */ __name(function getItemProp2(item3, name) {
       return item3 ? resolve(item3[name]) : void 0;
     }, "getItemProp"),
-    getItemLabel: /* @__PURE__ */ __name(function getItemLabel4(item3) {
+    getItemLabel: /* @__PURE__ */ __name(function getItemLabel2(item3) {
       return this.getItemProp(item3, "label");
     }, "getItemLabel"),
-    isItemDisabled: /* @__PURE__ */ __name(function isItemDisabled4(item3) {
+    isItemDisabled: /* @__PURE__ */ __name(function isItemDisabled2(item3) {
       return this.getItemProp(item3, "disabled");
     }, "isItemDisabled"),
-    isItemVisible: /* @__PURE__ */ __name(function isItemVisible4(item3) {
+    isItemVisible: /* @__PURE__ */ __name(function isItemVisible2(item3) {
       return this.getItemProp(item3, "visible") !== false;
     }, "isItemVisible"),
-    isItemGroup: /* @__PURE__ */ __name(function isItemGroup4(item3) {
+    isItemGroup: /* @__PURE__ */ __name(function isItemGroup2(item3) {
       return isNotEmpty(this.getItemProp(item3, "items"));
     }, "isItemGroup"),
-    isItemSeparator: /* @__PURE__ */ __name(function isItemSeparator2(item3) {
+    isItemSeparator: /* @__PURE__ */ __name(function isItemSeparator(item3) {
       return this.getItemProp(item3, "separator");
     }, "isItemSeparator"),
-    getProccessedItemLabel: /* @__PURE__ */ __name(function getProccessedItemLabel2(processedItem) {
+    getProccessedItemLabel: /* @__PURE__ */ __name(function getProccessedItemLabel(processedItem) {
       return processedItem ? this.getItemLabel(processedItem.item) : void 0;
     }, "getProccessedItemLabel"),
-    isProccessedItemGroup: /* @__PURE__ */ __name(function isProccessedItemGroup2(processedItem) {
+    isProccessedItemGroup: /* @__PURE__ */ __name(function isProccessedItemGroup(processedItem) {
       return processedItem && isNotEmpty(processedItem.items);
     }, "isProccessedItemGroup"),
-    toggle: /* @__PURE__ */ __name(function toggle3(event) {
+    toggle: /* @__PURE__ */ __name(function toggle(event) {
       this.visible ? this.hide(event, true) : this.show(event);
     }, "toggle"),
-    show: /* @__PURE__ */ __name(function show3(event, isFocus) {
+    show: /* @__PURE__ */ __name(function show2(event, isFocus) {
       if (this.popup) {
         this.$emit("before-show");
         this.visible = true;
@@ -6946,7 +9317,7 @@ var script$3 = {
       }
       isFocus && focus(this.menubar);
     }, "show"),
-    hide: /* @__PURE__ */ __name(function hide3(event, isFocus) {
+    hide: /* @__PURE__ */ __name(function hide2(event, isFocus) {
       if (this.popup) {
         this.$emit("before-hide");
         this.visible = false;
@@ -6960,7 +9331,7 @@ var script$3 = {
       isFocus && focus(this.relatedTarget || this.target || this.menubar);
       this.dirty = false;
     }, "hide"),
-    onFocus: /* @__PURE__ */ __name(function onFocus4(event) {
+    onFocus: /* @__PURE__ */ __name(function onFocus3(event) {
       this.focused = true;
       if (!this.popup) {
         this.focusedItemInfo = this.focusedItemInfo.index !== -1 ? this.focusedItemInfo : {
@@ -6971,7 +9342,7 @@ var script$3 = {
       }
       this.$emit("focus", event);
     }, "onFocus"),
-    onBlur: /* @__PURE__ */ __name(function onBlur3(event) {
+    onBlur: /* @__PURE__ */ __name(function onBlur2(event) {
       this.focused = false;
       this.focusedItemInfo = {
         index: -1,
@@ -6982,7 +9353,7 @@ var script$3 = {
       this.dirty = false;
       this.$emit("blur", event);
     }, "onBlur"),
-    onKeyDown: /* @__PURE__ */ __name(function onKeyDown4(event) {
+    onKeyDown: /* @__PURE__ */ __name(function onKeyDown2(event) {
       if (this.disabled) {
         event.preventDefault();
         return;
@@ -7033,7 +9404,11 @@ var script$3 = {
           break;
       }
     }, "onKeyDown"),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     onItemChange: /* @__PURE__ */ __name(function onItemChange2(event, type) {
+========
+    onItemChange: /* @__PURE__ */ __name(function onItemChange(event) {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       var processedItem = event.processedItem, isFocus = event.isFocus;
       if (isEmpty(processedItem)) return;
       var index = processedItem.index, key = processedItem.key, level = processedItem.level, parentKey = processedItem.parentKey, items = processedItem.items;
@@ -7063,10 +9438,10 @@ var script$3 = {
         target: this.target
       });
     }, "onOverlayClick"),
-    onItemClick: /* @__PURE__ */ __name(function onItemClick4(event) {
+    onItemClick: /* @__PURE__ */ __name(function onItemClick2(event) {
       var originalEvent = event.originalEvent, processedItem = event.processedItem;
       var grouped = this.isProccessedItemGroup(processedItem);
-      var root12 = isEmpty(processedItem.parent);
+      var root11 = isEmpty(processedItem.parent);
       var selected = this.isSelected(processedItem);
       if (selected) {
         var index = processedItem.index, key = processedItem.key, level = processedItem.level, parentKey = processedItem.parentKey;
@@ -7078,13 +9453,13 @@ var script$3 = {
           level,
           parentKey
         };
-        this.dirty = !root12;
+        this.dirty = !root11;
         focus(this.menubar);
       } else {
         if (grouped) {
           this.onItemChange(event);
         } else {
-          var rootProcessedItem = root12 ? processedItem : this.activeItemPath.find(function(p) {
+          var rootProcessedItem = root11 ? processedItem : this.activeItemPath.find(function(p) {
             return p.parentKey === "";
           });
           this.hide(originalEvent);
@@ -7093,22 +9468,22 @@ var script$3 = {
         }
       }
     }, "onItemClick"),
-    onItemMouseEnter: /* @__PURE__ */ __name(function onItemMouseEnter4(event) {
+    onItemMouseEnter: /* @__PURE__ */ __name(function onItemMouseEnter2(event) {
       if (this.dirty) {
         this.onItemChange(event, "hover");
       }
     }, "onItemMouseEnter"),
-    onItemMouseMove: /* @__PURE__ */ __name(function onItemMouseMove4(event) {
+    onItemMouseMove: /* @__PURE__ */ __name(function onItemMouseMove2(event) {
       if (this.focused) {
         this.changeFocusedItemIndex(event, event.processedItem.index);
       }
     }, "onItemMouseMove"),
-    onArrowDownKey: /* @__PURE__ */ __name(function onArrowDownKey3(event) {
+    onArrowDownKey: /* @__PURE__ */ __name(function onArrowDownKey2(event) {
       var itemIndex = this.focusedItemInfo.index !== -1 ? this.findNextItemIndex(this.focusedItemInfo.index) : this.findFirstFocusedItemIndex();
       this.changeFocusedItemIndex(event, itemIndex);
       event.preventDefault();
     }, "onArrowDownKey"),
-    onArrowUpKey: /* @__PURE__ */ __name(function onArrowUpKey3(event) {
+    onArrowUpKey: /* @__PURE__ */ __name(function onArrowUpKey2(event) {
       if (event.altKey) {
         if (this.focusedItemInfo.index !== -1) {
           var processedItem = this.visibleItems[this.focusedItemInfo.index];
@@ -7126,14 +9501,14 @@ var script$3 = {
         event.preventDefault();
       }
     }, "onArrowUpKey"),
-    onArrowLeftKey: /* @__PURE__ */ __name(function onArrowLeftKey4(event) {
+    onArrowLeftKey: /* @__PURE__ */ __name(function onArrowLeftKey3(event) {
       var _this = this;
       var processedItem = this.visibleItems[this.focusedItemInfo.index];
       var parentItem = this.activeItemPath.find(function(p) {
         return p.key === processedItem.parentKey;
       });
-      var root12 = isEmpty(processedItem.parent);
-      if (!root12) {
+      var root11 = isEmpty(processedItem.parent);
+      if (!root11) {
         this.focusedItemInfo = {
           index: -1,
           parentKey: parentItem ? parentItem.parentKey : ""
@@ -7146,7 +9521,7 @@ var script$3 = {
       });
       event.preventDefault();
     }, "onArrowLeftKey"),
-    onArrowRightKey: /* @__PURE__ */ __name(function onArrowRightKey4(event) {
+    onArrowRightKey: /* @__PURE__ */ __name(function onArrowRightKey3(event) {
       var processedItem = this.visibleItems[this.focusedItemInfo.index];
       var grouped = this.isProccessedItemGroup(processedItem);
       if (grouped) {
@@ -7163,15 +9538,15 @@ var script$3 = {
       }
       event.preventDefault();
     }, "onArrowRightKey"),
-    onHomeKey: /* @__PURE__ */ __name(function onHomeKey4(event) {
+    onHomeKey: /* @__PURE__ */ __name(function onHomeKey3(event) {
       this.changeFocusedItemIndex(event, this.findFirstItemIndex());
       event.preventDefault();
     }, "onHomeKey"),
-    onEndKey: /* @__PURE__ */ __name(function onEndKey4(event) {
+    onEndKey: /* @__PURE__ */ __name(function onEndKey3(event) {
       this.changeFocusedItemIndex(event, this.findLastItemIndex());
       event.preventDefault();
     }, "onEndKey"),
-    onEnterKey: /* @__PURE__ */ __name(function onEnterKey4(event) {
+    onEnterKey: /* @__PURE__ */ __name(function onEnterKey3(event) {
       if (this.focusedItemInfo.index !== -1) {
         var element = findSingle(this.menubar, 'li[id="'.concat("".concat(this.focusedItemId), '"]'));
         var anchorElement = element && findSingle(element, '[data-pc-section="itemlink"]');
@@ -7184,10 +9559,10 @@ var script$3 = {
       }
       event.preventDefault();
     }, "onEnterKey"),
-    onSpaceKey: /* @__PURE__ */ __name(function onSpaceKey2(event) {
+    onSpaceKey: /* @__PURE__ */ __name(function onSpaceKey(event) {
       this.onEnterKey(event);
     }, "onSpaceKey"),
-    onEscapeKey: /* @__PURE__ */ __name(function onEscapeKey3(event) {
+    onEscapeKey: /* @__PURE__ */ __name(function onEscapeKey2(event) {
       if (this.popup || this.focusedItemInfo.level !== 0) {
         var _focusedItemInfo = this.focusedItemInfo;
         this.hide(event, false);
@@ -7200,7 +9575,7 @@ var script$3 = {
       }
       event.preventDefault();
     }, "onEscapeKey"),
-    onTabKey: /* @__PURE__ */ __name(function onTabKey3(event) {
+    onTabKey: /* @__PURE__ */ __name(function onTabKey2(event) {
       if (this.focusedItemInfo.index !== -1) {
         var processedItem = this.visibleItems[this.focusedItemInfo.index];
         var grouped = this.isProccessedItemGroup(processedItem);
@@ -7250,7 +9625,7 @@ var script$3 = {
         this.container.style.minWidth = getOuterWidth(this.target) + "px";
       }
     }, "alignOverlay"),
-    bindOutsideClickListener: /* @__PURE__ */ __name(function bindOutsideClickListener3() {
+    bindOutsideClickListener: /* @__PURE__ */ __name(function bindOutsideClickListener2() {
       var _this2 = this;
       if (!this.outsideClickListener) {
         this.outsideClickListener = function(event) {
@@ -7263,7 +9638,7 @@ var script$3 = {
         document.addEventListener("click", this.outsideClickListener);
       }
     }, "bindOutsideClickListener"),
-    unbindOutsideClickListener: /* @__PURE__ */ __name(function unbindOutsideClickListener3() {
+    unbindOutsideClickListener: /* @__PURE__ */ __name(function unbindOutsideClickListener2() {
       if (this.outsideClickListener) {
         document.removeEventListener("click", this.outsideClickListener);
         this.outsideClickListener = null;
@@ -7283,7 +9658,7 @@ var script$3 = {
         this.scrollHandler.unbindScrollListener();
       }
     }, "unbindScrollListener"),
-    bindResizeListener: /* @__PURE__ */ __name(function bindResizeListener3() {
+    bindResizeListener: /* @__PURE__ */ __name(function bindResizeListener2() {
       var _this4 = this;
       if (!this.resizeListener) {
         this.resizeListener = function(event) {
@@ -7294,12 +9669,13 @@ var script$3 = {
         window.addEventListener("resize", this.resizeListener);
       }
     }, "bindResizeListener"),
-    unbindResizeListener: /* @__PURE__ */ __name(function unbindResizeListener3() {
+    unbindResizeListener: /* @__PURE__ */ __name(function unbindResizeListener2() {
       if (this.resizeListener) {
         window.removeEventListener("resize", this.resizeListener);
         this.resizeListener = null;
       }
     }, "unbindResizeListener"),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     bindMatchMediaListener: /* @__PURE__ */ __name(function bindMatchMediaListener2() {
       var _this5 = this;
       if (!this.matchMediaListener) {
@@ -7319,62 +9695,95 @@ var script$3 = {
       }
     }, "unbindMatchMediaListener"),
     isItemMatched: /* @__PURE__ */ __name(function isItemMatched2(processedItem) {
+========
+    isItemMatched: /* @__PURE__ */ __name(function isItemMatched(processedItem) {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       var _this$getProccessedIt;
       return this.isValidItem(processedItem) && ((_this$getProccessedIt = this.getProccessedItemLabel(processedItem)) === null || _this$getProccessedIt === void 0 ? void 0 : _this$getProccessedIt.toLocaleLowerCase().startsWith(this.searchValue.toLocaleLowerCase()));
     }, "isItemMatched"),
-    isValidItem: /* @__PURE__ */ __name(function isValidItem2(processedItem) {
+    isValidItem: /* @__PURE__ */ __name(function isValidItem(processedItem) {
       return !!processedItem && !this.isItemDisabled(processedItem.item) && !this.isItemSeparator(processedItem.item) && this.isItemVisible(processedItem.item);
     }, "isValidItem"),
-    isValidSelectedItem: /* @__PURE__ */ __name(function isValidSelectedItem2(processedItem) {
+    isValidSelectedItem: /* @__PURE__ */ __name(function isValidSelectedItem(processedItem) {
       return this.isValidItem(processedItem) && this.isSelected(processedItem);
     }, "isValidSelectedItem"),
-    isSelected: /* @__PURE__ */ __name(function isSelected3(processedItem) {
+    isSelected: /* @__PURE__ */ __name(function isSelected2(processedItem) {
       return this.activeItemPath.some(function(p) {
         return p.key === processedItem.key;
       });
     }, "isSelected"),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     findFirstItemIndex: /* @__PURE__ */ __name(function findFirstItemIndex2() {
       var _this6 = this;
+========
+    findFirstItemIndex: /* @__PURE__ */ __name(function findFirstItemIndex() {
+      var _this5 = this;
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       return this.visibleItems.findIndex(function(processedItem) {
         return _this6.isValidItem(processedItem);
       });
     }, "findFirstItemIndex"),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     findLastItemIndex: /* @__PURE__ */ __name(function findLastItemIndex2() {
       var _this7 = this;
+========
+    findLastItemIndex: /* @__PURE__ */ __name(function findLastItemIndex() {
+      var _this6 = this;
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       return findLastIndex(this.visibleItems, function(processedItem) {
         return _this7.isValidItem(processedItem);
       });
     }, "findLastItemIndex"),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     findNextItemIndex: /* @__PURE__ */ __name(function findNextItemIndex2(index) {
       var _this8 = this;
+========
+    findNextItemIndex: /* @__PURE__ */ __name(function findNextItemIndex(index) {
+      var _this7 = this;
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       var matchedItemIndex = index < this.visibleItems.length - 1 ? this.visibleItems.slice(index + 1).findIndex(function(processedItem) {
         return _this8.isValidItem(processedItem);
       }) : -1;
       return matchedItemIndex > -1 ? matchedItemIndex + index + 1 : index;
     }, "findNextItemIndex"),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     findPrevItemIndex: /* @__PURE__ */ __name(function findPrevItemIndex2(index) {
       var _this9 = this;
+========
+    findPrevItemIndex: /* @__PURE__ */ __name(function findPrevItemIndex(index) {
+      var _this8 = this;
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       var matchedItemIndex = index > 0 ? findLastIndex(this.visibleItems.slice(0, index), function(processedItem) {
         return _this9.isValidItem(processedItem);
       }) : -1;
       return matchedItemIndex > -1 ? matchedItemIndex : index;
     }, "findPrevItemIndex"),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     findSelectedItemIndex: /* @__PURE__ */ __name(function findSelectedItemIndex2() {
       var _this10 = this;
+========
+    findSelectedItemIndex: /* @__PURE__ */ __name(function findSelectedItemIndex() {
+      var _this9 = this;
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       return this.visibleItems.findIndex(function(processedItem) {
         return _this10.isValidSelectedItem(processedItem);
       });
     }, "findSelectedItemIndex"),
-    findFirstFocusedItemIndex: /* @__PURE__ */ __name(function findFirstFocusedItemIndex2() {
+    findFirstFocusedItemIndex: /* @__PURE__ */ __name(function findFirstFocusedItemIndex() {
       var selectedIndex = this.findSelectedItemIndex();
       return selectedIndex < 0 ? this.findFirstItemIndex() : selectedIndex;
     }, "findFirstFocusedItemIndex"),
-    findLastFocusedItemIndex: /* @__PURE__ */ __name(function findLastFocusedItemIndex2() {
+    findLastFocusedItemIndex: /* @__PURE__ */ __name(function findLastFocusedItemIndex() {
       var selectedIndex = this.findSelectedItemIndex();
       return selectedIndex < 0 ? this.findLastItemIndex() : selectedIndex;
     }, "findLastFocusedItemIndex"),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     searchItems: /* @__PURE__ */ __name(function searchItems2(event, _char) {
       var _this11 = this;
+========
+    searchItems: /* @__PURE__ */ __name(function searchItems(event, _char) {
+      var _this10 = this;
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       this.searchValue = (this.searchValue || "") + _char;
       var itemIndex = -1;
       var matched = false;
@@ -7408,13 +9817,13 @@ var script$3 = {
       }, 500);
       return matched;
     }, "searchItems"),
-    changeFocusedItemIndex: /* @__PURE__ */ __name(function changeFocusedItemIndex2(event, index) {
+    changeFocusedItemIndex: /* @__PURE__ */ __name(function changeFocusedItemIndex(event, index) {
       if (this.focusedItemInfo.index !== index) {
         this.focusedItemInfo.index = index;
         this.scrollInView();
       }
     }, "changeFocusedItemIndex"),
-    scrollInView: /* @__PURE__ */ __name(function scrollInView4() {
+    scrollInView: /* @__PURE__ */ __name(function scrollInView3() {
       var index = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : -1;
       var id2 = index !== -1 ? "".concat(this.id, "_").concat(index) : this.focusedItemId;
       var element = findSingle(this.menubar, 'li[id="'.concat(id2, '"]'));
@@ -7425,8 +9834,13 @@ var script$3 = {
         });
       }
     }, "scrollInView"),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     createProcessedItems: /* @__PURE__ */ __name(function createProcessedItems2(items) {
       var _this12 = this;
+========
+    createProcessedItems: /* @__PURE__ */ __name(function createProcessedItems(items) {
+      var _this11 = this;
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       var level = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : 0;
       var parent = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : {};
       var parentKey = arguments.length > 3 && arguments[3] !== void 0 ? arguments[3] : "";
@@ -7446,35 +9860,45 @@ var script$3 = {
       });
       return processedItems3;
     }, "createProcessedItems"),
-    containerRef: /* @__PURE__ */ __name(function containerRef3(el) {
+    containerRef: /* @__PURE__ */ __name(function containerRef2(el) {
       this.container = el;
     }, "containerRef"),
-    menubarRef: /* @__PURE__ */ __name(function menubarRef2(el) {
+    menubarRef: /* @__PURE__ */ __name(function menubarRef(el) {
       this.menubar = el ? el.$el : void 0;
     }, "menubarRef")
   },
   computed: {
-    processedItems: /* @__PURE__ */ __name(function processedItems2() {
+    processedItems: /* @__PURE__ */ __name(function processedItems() {
       return this.createProcessedItems(this.model || []);
     }, "processedItems"),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     visibleItems: /* @__PURE__ */ __name(function visibleItems2() {
       var _this13 = this;
+========
+    visibleItems: /* @__PURE__ */ __name(function visibleItems() {
+      var _this12 = this;
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       var processedItem = this.activeItemPath.find(function(p) {
         return p.key === _this13.focusedItemInfo.parentKey;
       });
       return processedItem ? processedItem.items : this.processedItems;
     }, "visibleItems"),
-    focusedItemId: /* @__PURE__ */ __name(function focusedItemId2() {
+    focusedItemId: /* @__PURE__ */ __name(function focusedItemId() {
       return this.focusedItemInfo.index !== -1 ? "".concat(this.id).concat(isNotEmpty(this.focusedItemInfo.parentKey) ? "_" + this.focusedItemInfo.parentKey : "", "_").concat(this.focusedItemInfo.index) : null;
     }, "focusedItemId")
   },
   components: {
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     TieredMenuSub: script$1$1,
     Portal: script$p
+========
+    TieredMenuSub: script$1$2,
+    Portal: script$k
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   }
 };
-var _hoisted_1$5 = ["id"];
-function render$3(_ctx, _cache, $props, $setup, $data, $options) {
+var _hoisted_1$8 = ["id"];
+function render$5(_ctx, _cache, $props, $setup, $data, $options) {
   var _component_TieredMenuSub = resolveComponent("TieredMenuSub");
   var _component_Portal = resolveComponent("Portal");
   return openBlock(), createBlock(_component_Portal, {
@@ -7530,7 +9954,7 @@ function render$3(_ctx, _cache, $props, $setup, $data, $options) {
           }, _ctx.ptm("rootList")), null, 16, ["id", "class", "tabindex", "aria-label", "aria-labelledby", "aria-disabled", "aria-activedescendant", "menuId", "focusedItemId", "items", "templates", "activeItemPath", "visible", "pt", "unstyled", "onFocus", "onBlur", "onKeydown", "onItemClick", "onItemMouseenter", "onItemMousemove"]), _ctx.$slots.end ? (openBlock(), createElementBlock("div", mergeProps({
             key: 1,
             "class": _ctx.cx("end")
-          }, _ctx.ptm("end")), [renderSlot(_ctx.$slots, "end")], 16)) : createCommentVNode("", true)], 16, _hoisted_1$5)) : createCommentVNode("", true)];
+          }, _ctx.ptm("end")), [renderSlot(_ctx.$slots, "end")], 16)) : createCommentVNode("", true)], 16, _hoisted_1$8)) : createCommentVNode("", true)];
         }),
         _: 3
       }, 16, ["onEnter", "onAfterEnter", "onLeave", "onAfterLeave"])];
@@ -7538,14 +9962,14 @@ function render$3(_ctx, _cache, $props, $setup, $data, $options) {
     _: 3
   }, 8, ["appendTo", "disabled"]);
 }
-__name(render$3, "render$3");
-script$3.render = render$3;
-var theme9 = /* @__PURE__ */ __name(function theme10(_ref) {
+__name(render$5, "render$5");
+script$4.render = render$5;
+var theme$1 = /* @__PURE__ */ __name(function theme7(_ref) {
   var dt = _ref.dt;
   return "\n.p-splitbutton {\n    display: inline-flex;\n    position: relative;\n    border-radius: ".concat(dt("splitbutton.border.radius"), ";\n}\n\n.p-splitbutton-button {\n    border-start-end-radius: 0;\n    border-end-end-radius: 0;\n    border-inline-end: 0 none;\n}\n\n.p-splitbutton-button:focus-visible,\n.p-splitbutton-dropdown:focus-visible {\n    z-index: 1;\n}\n\n.p-splitbutton-button:not(:disabled):hover,\n.p-splitbutton-button:not(:disabled):active {\n    border-inline-end: 0 none;\n}\n\n.p-splitbutton-dropdown {\n    border-start-start-radius: 0;\n    border-end-start-radius: 0;\n}\n\n.p-splitbutton .p-menu {\n    min-width: 100%;\n}\n\n.p-splitbutton-fluid {\n    display: flex;\n}\n\n.p-splitbutton-rounded .p-splitbutton-dropdown {\n    border-start-end-radius: ").concat(dt("splitbutton.rounded.border.radius"), ";\n    border-end-end-radius: ").concat(dt("splitbutton.rounded.border.radius"), ";\n}\n\n.p-splitbutton-rounded .p-splitbutton-button {\n    border-start-start-radius: ").concat(dt("splitbutton.rounded.border.radius"), ";\n    border-end-start-radius: ").concat(dt("splitbutton.rounded.border.radius"), ";\n}\n\n.p-splitbutton-raised {\n    box-shadow: ").concat(dt("splitbutton.raised.shadow"), ";\n}\n");
 }, "theme");
-var classes = {
-  root: /* @__PURE__ */ __name(function root11(_ref2) {
+var classes$1 = {
+  root: /* @__PURE__ */ __name(function root9(_ref2) {
     var instance = _ref2.instance, props = _ref2.props;
     return ["p-splitbutton p-component", {
       "p-splitbutton-raised": props.raised,
@@ -7558,12 +9982,16 @@ var classes = {
 };
 var SplitButtonStyle = BaseStyle.extend({
   name: "splitbutton",
-  theme: theme9,
-  classes
+  theme: theme$1,
+  classes: classes$1
 });
-var script$1 = {
+var script$1$1 = {
   name: "BaseSplitButton",
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
   "extends": script$i,
+========
+  "extends": script$e,
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   props: {
     label: {
       type: String,
@@ -7651,16 +10079,16 @@ var script$1 = {
     }
   },
   style: SplitButtonStyle,
-  provide: /* @__PURE__ */ __name(function provide13() {
+  provide: /* @__PURE__ */ __name(function provide11() {
     return {
       $pcSplitButton: this,
       $parentInstance: this
     };
   }, "provide")
 };
-var script = {
+var script$3 = {
   name: "SplitButton",
-  "extends": script$1,
+  "extends": script$1$1,
   inheritAttrs: false,
   emits: ["click"],
   inject: {
@@ -7668,18 +10096,18 @@ var script = {
       "default": null
     }
   },
-  data: /* @__PURE__ */ __name(function data9() {
+  data: /* @__PURE__ */ __name(function data7() {
     return {
       id: this.$attrs.id,
       isExpanded: false
     };
   }, "data"),
   watch: {
-    "$attrs.id": /* @__PURE__ */ __name(function $attrsId5(newValue) {
+    "$attrs.id": /* @__PURE__ */ __name(function $attrsId3(newValue) {
       this.id = newValue || UniqueComponentId();
     }, "$attrsId")
   },
-  mounted: /* @__PURE__ */ __name(function mounted9() {
+  mounted: /* @__PURE__ */ __name(function mounted7() {
     var _this = this;
     this.id = this.id || UniqueComponentId();
     this.$watch("$refs.menu.visible", function(newValue) {
@@ -7719,13 +10147,19 @@ var script = {
     }, "hasFluid")
   },
   components: {
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
     PVSButton: script$h,
     PVSMenu: script$3,
     ChevronDownIcon: script$q
+========
+    PVSButton: script$d,
+    PVSMenu: script$4,
+    ChevronDownIcon: script$l
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   }
 };
-var _hoisted_1$4 = ["data-p-severity"];
-function render$2(_ctx, _cache, $props, $setup, $data, $options) {
+var _hoisted_1$7 = ["data-p-severity"];
+function render$4(_ctx, _cache, $props, $setup, $data, $options) {
   var _component_PVSButton = resolveComponent("PVSButton");
   var _component_PVSMenu = resolveComponent("PVSMenu");
   return openBlock(), createElementBlock("div", mergeProps({
@@ -7830,12 +10264,12 @@ function render$2(_ctx, _cache, $props, $setup, $data, $options) {
       })];
     }),
     key: "1"
-  } : void 0]), 1032, ["id", "model", "autoZIndex", "baseZIndex", "appendTo", "unstyled", "pt"])], 16, _hoisted_1$4);
+  } : void 0]), 1032, ["id", "model", "autoZIndex", "baseZIndex", "appendTo", "unstyled", "pt"])], 16, _hoisted_1$7);
 }
-__name(render$2, "render$2");
-script.render = render$2;
+__name(render$4, "render$4");
+script$3.render = render$4;
 const minQueueCount = 1;
-const _sfc_main$5 = /* @__PURE__ */ defineComponent({
+const _sfc_main$8 = /* @__PURE__ */ defineComponent({
   __name: "BatchCountEdit",
   props: {
     class: { default: "" }
@@ -7864,7 +10298,11 @@ const _sfc_main$5 = /* @__PURE__ */ defineComponent({
       return withDirectives((openBlock(), createElementBlock("div", {
         class: normalizeClass(["batch-count", props.class])
       }, [
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
         createVNode(unref(script$G), {
+========
+        createVNode(unref(script$x), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
           class: "w-14",
           modelValue: unref(batchCount),
           "onUpdate:modelValue": _cache[0] || (_cache[0] = ($event) => isRef(batchCount) ? batchCount.value = $event : null),
@@ -7898,9 +10336,16 @@ const _sfc_main$5 = /* @__PURE__ */ defineComponent({
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 const BatchCountEdit = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["__scopeId", "data-v-1163a5d2"]]);
 const _hoisted_1$3 = { class: "queue-button-group flex" };
 const _sfc_main$4 = /* @__PURE__ */ defineComponent({
+========
+const BatchCountEdit = /* @__PURE__ */ _export_sfc(_sfc_main$8, [["__scopeId", "data-v-b9328350"]]);
+const _withScopeId$3 = /* @__PURE__ */ __name((n) => (pushScopeId("data-v-7f4f551b"), n = n(), popScopeId(), n), "_withScopeId$3");
+const _hoisted_1$6 = { class: "queue-button-group flex" };
+const _sfc_main$7 = /* @__PURE__ */ defineComponent({
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   __name: "ComfyQueueButton",
   setup(__props) {
     const workspaceStore = useWorkspaceStore();
@@ -7952,8 +10397,8 @@ const _sfc_main$4 = /* @__PURE__ */ defineComponent({
       const _component_i_lucide58fast_forward = __unplugin_components_2;
       const _component_i_lucide58step_forward = __unplugin_components_3;
       const _directive_tooltip = resolveDirective("tooltip");
-      return openBlock(), createElementBlock("div", _hoisted_1$3, [
-        withDirectives((openBlock(), createBlock(unref(script), {
+      return openBlock(), createElementBlock("div", _hoisted_1$6, [
+        withDirectives((openBlock(), createBlock(unref(script$3), {
           class: "comfyui-queue-button",
           label: activeQueueModeMenuItem.value.label,
           severity: "primary",
@@ -7966,7 +10411,11 @@ const _sfc_main$4 = /* @__PURE__ */ defineComponent({
             unref(workspaceStore).shiftDown ? (openBlock(), createBlock(_component_i_lucide58list_start, { key: 0 })) : unref(queueMode) === "disabled" ? (openBlock(), createBlock(_component_i_lucide58play, { key: 1 })) : unref(queueMode) === "instant" ? (openBlock(), createBlock(_component_i_lucide58fast_forward, { key: 2 })) : unref(queueMode) === "change" ? (openBlock(), createBlock(_component_i_lucide58step_forward, { key: 3 })) : createCommentVNode("", true)
           ]),
           item: withCtx(({ item: item3 }) => [
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
             withDirectives(createVNode(unref(script$h), {
+========
+            withDirectives(createVNode(unref(script$d), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
               label: item3.label,
               icon: item3.icon,
               severity: item3.key === unref(queueMode) ? "primary" : "secondary",
@@ -7986,9 +10435,15 @@ const _sfc_main$4 = /* @__PURE__ */ defineComponent({
           ]
         ]),
         createVNode(BatchCountEdit),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
         createVNode(unref(script$9), { class: "execution-actions flex flex-nowrap" }, {
           default: withCtx(() => [
             withDirectives(createVNode(unref(script$h), {
+========
+        createVNode(unref(script$8), { class: "execution-actions flex flex-nowrap" }, {
+          default: withCtx(() => [
+            withDirectives(createVNode(unref(script$d), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
               icon: "pi pi-times",
               severity: executingPrompt.value ? "danger" : "secondary",
               disabled: !executingPrompt.value,
@@ -8002,7 +10457,11 @@ const _sfc_main$4 = /* @__PURE__ */ defineComponent({
                 { bottom: true }
               ]
             ]),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
             withDirectives(createVNode(unref(script$h), {
+========
+            withDirectives(createVNode(unref(script$d), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
               icon: "pi pi-stop",
               severity: hasPendingTasks.value ? "danger" : "secondary",
               disabled: !hasPendingTasks.value,
@@ -8023,9 +10482,9 @@ const _sfc_main$4 = /* @__PURE__ */ defineComponent({
     };
   }
 });
-const ComfyQueueButton = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["__scopeId", "data-v-d3897845"]]);
+const ComfyQueueButton = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["__scopeId", "data-v-7f4f551b"]]);
 const overlapThreshold = 20;
-const _sfc_main$3 = /* @__PURE__ */ defineComponent({
+const _sfc_main$6 = /* @__PURE__ */ defineComponent({
   __name: "ComfyActionbar",
   setup(__props) {
     const settingsStore = useSettingStore();
@@ -8174,7 +10633,7 @@ const _sfc_main$3 = /* @__PURE__ */ defineComponent({
       });
     });
     return (_ctx, _cache) => {
-      return openBlock(), createBlock(unref(script$4), {
+      return openBlock(), createBlock(unref(script$y), {
         class: normalizeClass(["actionbar w-fit", { "is-dragging": unref(isDragging), "is-docked": unref(isDocked) }]),
         style: normalizeStyle(unref(style))
       }, {
@@ -8197,12 +10656,18 @@ const _sfc_main$3 = /* @__PURE__ */ defineComponent({
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 const Actionbar = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["__scopeId", "data-v-6a1bcb8c"]]);
 const _hoisted_1$2 = {
+========
+const Actionbar = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["__scopeId", "data-v-915e5456"]]);
+const _hoisted_1$5 = {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
   viewBox: "0 0 24 24",
   width: "1.2em",
   height: "1.2em"
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 function render$1(_ctx, _cache) {
   return openBlock(), createElementBlock("svg", _hoisted_1$2, _cache[0] || (_cache[0] = [
     createBaseVNode("path", {
@@ -8210,14 +10675,26 @@ function render$1(_ctx, _cache) {
       d: "M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21zm0-5v3h14v-3zm0-2h14V5H5zm0 2v3z"
     }, null, -1)
   ]));
+========
+const _hoisted_2$5 = /* @__PURE__ */ createBaseVNode("path", {
+  fill: "currentColor",
+  d: "M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21zm0-5v3h14v-3zm0-2h14V5H5zm0 2v3z"
+}, null, -1);
+const _hoisted_3$4 = [
+  _hoisted_2$5
+];
+function render$3(_ctx, _cache) {
+  return openBlock(), createElementBlock("svg", _hoisted_1$5, [..._hoisted_3$4]);
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
 }
-__name(render$1, "render$1");
-const __unplugin_components_1 = markRaw({ name: "material-symbols-dock-to-bottom-outline", render: render$1 });
-const _hoisted_1$1 = {
+__name(render$3, "render$3");
+const __unplugin_components_1 = markRaw({ name: "material-symbols-dock-to-bottom-outline", render: render$3 });
+const _hoisted_1$4 = {
   viewBox: "0 0 24 24",
   width: "1.2em",
   height: "1.2em"
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 function render(_ctx, _cache) {
   return openBlock(), createElementBlock("svg", _hoisted_1$1, _cache[0] || (_cache[0] = [
     createBaseVNode("path", {
@@ -8225,10 +10702,21 @@ function render(_ctx, _cache) {
       d: "M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21zm0-7h14V5H5z"
     }, null, -1)
   ]));
+========
+const _hoisted_2$4 = /* @__PURE__ */ createBaseVNode("path", {
+  fill: "currentColor",
+  d: "M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21zm0-7h14V5H5z"
+}, null, -1);
+const _hoisted_3$3 = [
+  _hoisted_2$4
+];
+function render$2(_ctx, _cache) {
+  return openBlock(), createElementBlock("svg", _hoisted_1$4, [..._hoisted_3$3]);
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
 }
-__name(render, "render");
-const __unplugin_components_0 = markRaw({ name: "material-symbols-dock-to-bottom", render });
-const _sfc_main$2 = /* @__PURE__ */ defineComponent({
+__name(render$2, "render$2");
+const __unplugin_components_0 = markRaw({ name: "material-symbols-dock-to-bottom", render: render$2 });
+const _sfc_main$5 = /* @__PURE__ */ defineComponent({
   __name: "BottomPanelToggleButton",
   setup(__props) {
     const bottomPanelStore = useBottomPanelStore();
@@ -8236,7 +10724,11 @@ const _sfc_main$2 = /* @__PURE__ */ defineComponent({
       const _component_i_material_symbols58dock_to_bottom = __unplugin_components_0;
       const _component_i_material_symbols58dock_to_bottom_outline = __unplugin_components_1;
       const _directive_tooltip = resolveDirective("tooltip");
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
       return withDirectives((openBlock(), createBlock(unref(script$h), {
+========
+      return withDirectives((openBlock(), createBlock(unref(script$d), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
         severity: "secondary",
         text: "",
         onClick: unref(bottomPanelStore).toggleBottomPanel
@@ -8252,7 +10744,1365 @@ const _sfc_main$2 = /* @__PURE__ */ defineComponent({
     };
   }
 });
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 const _hoisted_1 = { class: "flex-grow" };
+========
+var theme8 = /* @__PURE__ */ __name(function theme9(_ref) {
+  var dt = _ref.dt;
+  return "\n.p-menubar {\n    display: flex;\n    align-items: center;\n    background: ".concat(dt("menubar.background"), ";\n    border: 1px solid ").concat(dt("menubar.border.color"), ";\n    border-radius: ").concat(dt("menubar.border.radius"), ";\n    color: ").concat(dt("menubar.color"), ";\n    padding: ").concat(dt("menubar.padding"), ";\n    gap: ").concat(dt("menubar.gap"), ";\n}\n\n.p-menubar-start,\n.p-megamenu-end {\n    display: flex;\n    align-items: center;\n}\n\n.p-menubar-root-list,\n.p-menubar-submenu {\n    display: flex;\n    margin: 0;\n    padding: 0;\n    list-style: none;\n    outline: 0 none;\n}\n\n.p-menubar-root-list {\n    align-items: center;\n    flex-wrap: wrap;\n    gap: ").concat(dt("menubar.gap"), ";\n}\n\n.p-menubar-root-list > .p-menubar-item > .p-menubar-item-content {\n    border-radius: ").concat(dt("menubar.base.item.border.radius"), ";\n}\n\n.p-menubar-root-list > .p-menubar-item > .p-menubar-item-content > .p-menubar-item-link {\n    padding: ").concat(dt("menubar.base.item.padding"), ";\n}\n\n.p-menubar-item-content {\n    transition: background ").concat(dt("menubar.transition.duration"), ", color ").concat(dt("menubar.transition.duration"), ";\n    border-radius: ").concat(dt("menubar.item.border.radius"), ";\n    color: ").concat(dt("menubar.item.color"), ";\n}\n\n.p-menubar-item-link {\n    cursor: pointer;\n    display: flex;\n    align-items: center;\n    text-decoration: none;\n    overflow: hidden;\n    position: relative;\n    color: inherit;\n    padding: ").concat(dt("menubar.item.padding"), ";\n    gap: ").concat(dt("menubar.item.gap"), ";\n    user-select: none;\n    outline: 0 none;\n}\n\n.p-menubar-item-label {\n    line-height: 1;\n}\n\n.p-menubar-item-icon {\n    color: ").concat(dt("menubar.item.icon.color"), ";\n}\n\n.p-menubar-submenu-icon {\n    color: ").concat(dt("menubar.submenu.icon.color"), ";\n    margin-left: auto;\n    font-size: ").concat(dt("menubar.submenu.icon.size"), ";\n    width: ").concat(dt("menubar.submenu.icon.size"), ";\n    height: ").concat(dt("menubar.submenu.icon.size"), ";\n}\n\n.p-menubar-item.p-focus > .p-menubar-item-content {\n    color: ").concat(dt("menubar.item.focus.color"), ";\n    background: ").concat(dt("menubar.item.focus.background"), ";\n}\n\n.p-menubar-item.p-focus > .p-menubar-item-content .p-menubar-item-icon {\n    color: ").concat(dt("menubar.item.icon.focus.color"), ";\n}\n\n.p-menubar-item.p-focus > .p-menubar-item-content .p-menubar-submenu-icon {\n    color: ").concat(dt("menubar.submenu.icon.focus.color"), ";\n}\n\n.p-menubar-item:not(.p-disabled) > .p-menubar-item-content:hover {\n    color: ").concat(dt("menubar.item.focus.color"), ";\n    background: ").concat(dt("menubar.item.focus.background"), ";\n}\n\n.p-menubar-item:not(.p-disabled) > .p-menubar-item-content:hover .p-menubar-item-icon {\n    color: ").concat(dt("menubar.item.icon.focus.color"), ";\n}\n\n.p-menubar-item:not(.p-disabled) > .p-menubar-item-content:hover .p-menubar-submenu-icon {\n    color: ").concat(dt("menubar.submenu.icon.focus.color"), ";\n}\n\n.p-menubar-item-active > .p-menubar-item-content {\n    color: ").concat(dt("menubar.item.active.color"), ";\n    background: ").concat(dt("menubar.item.active.background"), ";\n}\n\n.p-menubar-item-active > .p-menubar-item-content .p-menubar-item-icon {\n    color: ").concat(dt("menubar.item.icon.active.color"), ";\n}\n\n.p-menubar-item-active > .p-menubar-item-content .p-menubar-submenu-icon {\n    color: ").concat(dt("menubar.submenu.icon.active.color"), ";\n}\n\n.p-menubar-submenu {\n    display: none;\n    position: absolute;\n    min-width: 12.5rem;\n    z-index: 1;\n    background: ").concat(dt("menubar.submenu.background"), ";\n    border: 1px solid ").concat(dt("menubar.submenu.border.color"), ";\n    border-radius: ").concat(dt("menubar.border.radius"), ";\n    box-shadow: ").concat(dt("menubar.submenu.shadow"), ";\n    color: ").concat(dt("menubar.submenu.color"), ";\n    flex-direction: column;\n    padding: ").concat(dt("menubar.submenu.padding"), ";\n    gap: ").concat(dt("menubar.submenu.gap"), ";\n}\n\n.p-menubar-submenu .p-menubar-separator {\n    border-top: 1px solid ").concat(dt("menubar.separator.border.color"), ";\n}\n\n.p-menubar-submenu .p-menubar-item {\n    position: relative;\n}\n\n .p-menubar-submenu > .p-menubar-item-active > .p-menubar-submenu {\n    display: block;\n    left: 100%;\n    top: 0;\n}\n\n.p-menubar-end {\n    margin-left: auto;\n    align-self: center;\n}\n\n.p-menubar-button {\n    display: none;\n    justify-content: center;\n    align-items: center;\n    cursor: pointer;\n    width: ").concat(dt("menubar.mobile.button.size"), ";\n    height: ").concat(dt("menubar.mobile.button.size"), ";\n    position: relative;\n    color: ").concat(dt("menubar.mobile.button.color"), ";\n    border: 0 none;\n    background: transparent;\n    border-radius: ").concat(dt("menubar.mobile.button.border.radius"), ";\n    transition: background ").concat(dt("menubar.transition.duration"), ", color ").concat(dt("menubar.transition.duration"), ", outline-color ").concat(dt("menubar.transition.duration"), ";\n    outline-color: transparent;\n}\n\n.p-menubar-button:hover {\n    color: ").concat(dt("menubar.mobile.button.hover.color"), ";\n    background: ").concat(dt("menubar.mobile.button.hover.background"), ";\n}\n\n.p-menubar-button:focus-visible {\n    box-shadow: ").concat(dt("menubar.mobile.button.focus.ring.shadow"), ";\n    outline: ").concat(dt("menubar.mobile.button.focus.ring.width"), " ").concat(dt("menubar.mobile.button.focus.ring.style"), " ").concat(dt("menubar.mobile.button.focus.ring.color"), ";\n    outline-offset: ").concat(dt("menubar.mobile.button.focus.ring.offset"), ";\n}\n\n.p-menubar-mobile {\n    position: relative;\n}\n\n.p-menubar-mobile .p-menubar-button {\n    display: flex;\n}\n\n.p-menubar-mobile .p-menubar-root-list {\n    position: absolute;\n    display: none;\n    width: 100%;\n    padding: ").concat(dt("menubar.submenu.padding"), ";\n    background: ").concat(dt("menubar.submenu.background"), ";\n    border: 1px solid ").concat(dt("menubar.submenu.border.color"), ";\n    box-shadow: ").concat(dt("menubar.submenu.shadow"), ";\n}\n\n.p-menubar-mobile .p-menubar-root-list > .p-menubar-item > .p-menubar-item-content {\n    border-radius: ").concat(dt("menubar.item.border.radius"), ";\n}\n\n.p-menubar-mobile .p-menubar-root-list > .p-menubar-item > .p-menubar-item-content > .p-menubar-item-link {\n    padding: ").concat(dt("menubar.item.padding"), ";\n}\n\n.p-menubar-mobile-active .p-menubar-root-list {\n    display: flex;\n    flex-direction: column;\n    top: 100%;\n    left: 0;\n    z-index: 1;\n}\n\n.p-menubar-mobile .p-menubar-root-list .p-menubar-item {\n    width: 100%;\n    position: static;\n}\n\n.p-menubar-mobile .p-menubar-root-list .p-menubar-separator {\n    border-top: 1px solid ").concat(dt("menubar.separator.border.color"), ";\n}\n\n.p-menubar-mobile .p-menubar-root-list > .p-menubar-item > .p-menubar-item-content .p-menubar-submenu-icon {\n    margin-left: auto;\n    transition: transform 0.2s;\n}\n\n.p-menubar-mobile .p-menubar-root-list > .p-menubar-item-active > .p-menubar-item-content .p-menubar-submenu-icon {\n    transform: rotate(-180deg);\n}\n\n.p-menubar-mobile .p-menubar-submenu .p-menubar-submenu-icon {\n    transition: transform 0.2s;\n    transform: rotate(90deg);\n}\n\n.p-menubar-mobile  .p-menubar-item-active > .p-menubar-item-content .p-menubar-submenu-icon {\n    transform: rotate(-90deg);\n}\n\n.p-menubar-mobile .p-menubar-submenu {\n    width: 100%;\n    position: static;\n    box-shadow: none;\n    border: 0 none;\n    padding-left: ").concat(dt("menubar.submenu.mobile.indent"), ";\n}\n");
+}, "theme");
+var inlineStyles = {
+  submenu: /* @__PURE__ */ __name(function submenu2(_ref2) {
+    var instance = _ref2.instance, processedItem = _ref2.processedItem;
+    return {
+      display: instance.isItemActive(processedItem) ? "flex" : "none"
+    };
+  }, "submenu")
+};
+var classes = {
+  root: /* @__PURE__ */ __name(function root10(_ref3) {
+    var instance = _ref3.instance;
+    return ["p-menubar p-component", {
+      "p-menubar-mobile": instance.queryMatches,
+      "p-menubar-mobile-active": instance.mobileActive
+    }];
+  }, "root"),
+  start: "p-menubar-start",
+  button: "p-menubar-button",
+  rootList: "p-menubar-root-list",
+  item: /* @__PURE__ */ __name(function item2(_ref4) {
+    var instance = _ref4.instance, processedItem = _ref4.processedItem;
+    return ["p-menubar-item", {
+      "p-menubar-item-active": instance.isItemActive(processedItem),
+      "p-focus": instance.isItemFocused(processedItem),
+      "p-disabled": instance.isItemDisabled(processedItem)
+    }];
+  }, "item"),
+  itemContent: "p-menubar-item-content",
+  itemLink: "p-menubar-item-link",
+  itemIcon: "p-menubar-item-icon",
+  itemLabel: "p-menubar-item-label",
+  submenuIcon: "p-menubar-submenu-icon",
+  submenu: "p-menubar-submenu",
+  separator: "p-menubar-separator",
+  end: "p-menubar-end"
+};
+var MenubarStyle = BaseStyle.extend({
+  name: "menubar",
+  theme: theme8,
+  classes,
+  inlineStyles
+});
+var script$2 = {
+  name: "BaseMenubar",
+  "extends": script$e,
+  props: {
+    model: {
+      type: Array,
+      "default": null
+    },
+    buttonProps: {
+      type: null,
+      "default": null
+    },
+    breakpoint: {
+      type: String,
+      "default": "960px"
+    },
+    ariaLabelledby: {
+      type: String,
+      "default": null
+    },
+    ariaLabel: {
+      type: String,
+      "default": null
+    }
+  },
+  style: MenubarStyle,
+  provide: /* @__PURE__ */ __name(function provide12() {
+    return {
+      $pcMenubar: this,
+      $parentInstance: this
+    };
+  }, "provide")
+};
+var script$1 = {
+  name: "MenubarSub",
+  hostName: "Menubar",
+  "extends": script$e,
+  emits: ["item-mouseenter", "item-click", "item-mousemove"],
+  props: {
+    items: {
+      type: Array,
+      "default": null
+    },
+    root: {
+      type: Boolean,
+      "default": false
+    },
+    popup: {
+      type: Boolean,
+      "default": false
+    },
+    mobileActive: {
+      type: Boolean,
+      "default": false
+    },
+    templates: {
+      type: Object,
+      "default": null
+    },
+    level: {
+      type: Number,
+      "default": 0
+    },
+    menuId: {
+      type: String,
+      "default": null
+    },
+    focusedItemId: {
+      type: String,
+      "default": null
+    },
+    activeItemPath: {
+      type: Object,
+      "default": null
+    }
+  },
+  list: null,
+  methods: {
+    getItemId: /* @__PURE__ */ __name(function getItemId2(processedItem) {
+      return "".concat(this.menuId, "_").concat(processedItem.key);
+    }, "getItemId"),
+    getItemKey: /* @__PURE__ */ __name(function getItemKey2(processedItem) {
+      return this.getItemId(processedItem);
+    }, "getItemKey"),
+    getItemProp: /* @__PURE__ */ __name(function getItemProp3(processedItem, name, params) {
+      return processedItem && processedItem.item ? resolve(processedItem.item[name], params) : void 0;
+    }, "getItemProp"),
+    getItemLabel: /* @__PURE__ */ __name(function getItemLabel3(processedItem) {
+      return this.getItemProp(processedItem, "label");
+    }, "getItemLabel"),
+    getItemLabelId: /* @__PURE__ */ __name(function getItemLabelId2(processedItem) {
+      return "".concat(this.menuId, "_").concat(processedItem.key, "_label");
+    }, "getItemLabelId"),
+    getPTOptions: /* @__PURE__ */ __name(function getPTOptions5(processedItem, index, key) {
+      return this.ptm(key, {
+        context: {
+          item: processedItem.item,
+          index,
+          active: this.isItemActive(processedItem),
+          focused: this.isItemFocused(processedItem),
+          disabled: this.isItemDisabled(processedItem),
+          level: this.level
+        }
+      });
+    }, "getPTOptions"),
+    isItemActive: /* @__PURE__ */ __name(function isItemActive2(processedItem) {
+      return this.activeItemPath.some(function(path) {
+        return path.key === processedItem.key;
+      });
+    }, "isItemActive"),
+    isItemVisible: /* @__PURE__ */ __name(function isItemVisible3(processedItem) {
+      return this.getItemProp(processedItem, "visible") !== false;
+    }, "isItemVisible"),
+    isItemDisabled: /* @__PURE__ */ __name(function isItemDisabled3(processedItem) {
+      return this.getItemProp(processedItem, "disabled");
+    }, "isItemDisabled"),
+    isItemFocused: /* @__PURE__ */ __name(function isItemFocused2(processedItem) {
+      return this.focusedItemId === this.getItemId(processedItem);
+    }, "isItemFocused"),
+    isItemGroup: /* @__PURE__ */ __name(function isItemGroup3(processedItem) {
+      return isNotEmpty(processedItem.items);
+    }, "isItemGroup"),
+    onItemClick: /* @__PURE__ */ __name(function onItemClick3(event, processedItem) {
+      this.getItemProp(processedItem, "command", {
+        originalEvent: event,
+        item: processedItem.item
+      });
+      this.$emit("item-click", {
+        originalEvent: event,
+        processedItem,
+        isFocus: true
+      });
+    }, "onItemClick"),
+    onItemMouseEnter: /* @__PURE__ */ __name(function onItemMouseEnter3(event, processedItem) {
+      this.$emit("item-mouseenter", {
+        originalEvent: event,
+        processedItem
+      });
+    }, "onItemMouseEnter"),
+    onItemMouseMove: /* @__PURE__ */ __name(function onItemMouseMove3(event, processedItem) {
+      this.$emit("item-mousemove", {
+        originalEvent: event,
+        processedItem
+      });
+    }, "onItemMouseMove"),
+    getAriaPosInset: /* @__PURE__ */ __name(function getAriaPosInset3(index) {
+      return index - this.calculateAriaSetSize.slice(0, index).length + 1;
+    }, "getAriaPosInset"),
+    getMenuItemProps: /* @__PURE__ */ __name(function getMenuItemProps2(processedItem, index) {
+      return {
+        action: mergeProps({
+          "class": this.cx("itemLink"),
+          tabindex: -1,
+          "aria-hidden": true
+        }, this.getPTOptions(processedItem, index, "itemLink")),
+        icon: mergeProps({
+          "class": [this.cx("itemIcon"), this.getItemProp(processedItem, "icon")]
+        }, this.getPTOptions(processedItem, index, "itemIcon")),
+        label: mergeProps({
+          "class": this.cx("itemLabel")
+        }, this.getPTOptions(processedItem, index, "itemLabel")),
+        submenuicon: mergeProps({
+          "class": this.cx("submenuIcon")
+        }, this.getPTOptions(processedItem, index, "submenuIcon"))
+      };
+    }, "getMenuItemProps")
+  },
+  computed: {
+    calculateAriaSetSize: /* @__PURE__ */ __name(function calculateAriaSetSize() {
+      var _this = this;
+      return this.items.filter(function(processedItem) {
+        return _this.isItemVisible(processedItem) && _this.getItemProp(processedItem, "separator");
+      });
+    }, "calculateAriaSetSize"),
+    getAriaSetSize: /* @__PURE__ */ __name(function getAriaSetSize2() {
+      var _this2 = this;
+      return this.items.filter(function(processedItem) {
+        return _this2.isItemVisible(processedItem) && !_this2.getItemProp(processedItem, "separator");
+      }).length;
+    }, "getAriaSetSize")
+  },
+  components: {
+    AngleRightIcon: script$w,
+    AngleDownIcon: script$z
+  },
+  directives: {
+    ripple: Ripple
+  }
+};
+var _hoisted_1$1$1 = ["id", "aria-label", "aria-disabled", "aria-expanded", "aria-haspopup", "aria-level", "aria-setsize", "aria-posinset", "data-p-active", "data-p-focused", "data-p-disabled"];
+var _hoisted_2$3 = ["onClick", "onMouseenter", "onMousemove"];
+var _hoisted_3$2 = ["href", "target"];
+var _hoisted_4 = ["id"];
+var _hoisted_5 = ["id"];
+function render$1(_ctx, _cache, $props, $setup, $data, $options) {
+  var _component_MenubarSub = resolveComponent("MenubarSub", true);
+  var _directive_ripple = resolveDirective("ripple");
+  return openBlock(), createElementBlock("ul", mergeProps({
+    "class": $props.level === 0 ? _ctx.cx("rootList") : _ctx.cx("submenu")
+  }, $props.level === 0 ? _ctx.ptm("rootList") : _ctx.ptm("submenu")), [(openBlock(true), createElementBlock(Fragment, null, renderList($props.items, function(processedItem, index) {
+    return openBlock(), createElementBlock(Fragment, {
+      key: $options.getItemKey(processedItem)
+    }, [$options.isItemVisible(processedItem) && !$options.getItemProp(processedItem, "separator") ? (openBlock(), createElementBlock("li", mergeProps({
+      key: 0,
+      id: $options.getItemId(processedItem),
+      style: $options.getItemProp(processedItem, "style"),
+      "class": [_ctx.cx("item", {
+        processedItem
+      }), $options.getItemProp(processedItem, "class")],
+      role: "menuitem",
+      "aria-label": $options.getItemLabel(processedItem),
+      "aria-disabled": $options.isItemDisabled(processedItem) || void 0,
+      "aria-expanded": $options.isItemGroup(processedItem) ? $options.isItemActive(processedItem) : void 0,
+      "aria-haspopup": $options.isItemGroup(processedItem) && !$options.getItemProp(processedItem, "to") ? "menu" : void 0,
+      "aria-level": $props.level + 1,
+      "aria-setsize": $options.getAriaSetSize,
+      "aria-posinset": $options.getAriaPosInset(index),
+      ref_for: true
+    }, $options.getPTOptions(processedItem, index, "item"), {
+      "data-p-active": $options.isItemActive(processedItem),
+      "data-p-focused": $options.isItemFocused(processedItem),
+      "data-p-disabled": $options.isItemDisabled(processedItem)
+    }), [createBaseVNode("div", mergeProps({
+      "class": _ctx.cx("itemContent"),
+      onClick: /* @__PURE__ */ __name(function onClick2($event) {
+        return $options.onItemClick($event, processedItem);
+      }, "onClick"),
+      onMouseenter: /* @__PURE__ */ __name(function onMouseenter($event) {
+        return $options.onItemMouseEnter($event, processedItem);
+      }, "onMouseenter"),
+      onMousemove: /* @__PURE__ */ __name(function onMousemove($event) {
+        return $options.onItemMouseMove($event, processedItem);
+      }, "onMousemove"),
+      ref_for: true
+    }, $options.getPTOptions(processedItem, index, "itemContent")), [!$props.templates.item ? withDirectives((openBlock(), createElementBlock("a", mergeProps({
+      key: 0,
+      href: $options.getItemProp(processedItem, "url"),
+      "class": _ctx.cx("itemLink"),
+      target: $options.getItemProp(processedItem, "target"),
+      tabindex: "-1",
+      ref_for: true
+    }, $options.getPTOptions(processedItem, index, "itemLink")), [$props.templates.itemicon ? (openBlock(), createBlock(resolveDynamicComponent($props.templates.itemicon), {
+      key: 0,
+      item: processedItem.item,
+      "class": normalizeClass(_ctx.cx("itemIcon"))
+    }, null, 8, ["item", "class"])) : $options.getItemProp(processedItem, "icon") ? (openBlock(), createElementBlock("span", mergeProps({
+      key: 1,
+      "class": [_ctx.cx("itemIcon"), $options.getItemProp(processedItem, "icon")],
+      ref_for: true
+    }, $options.getPTOptions(processedItem, index, "itemIcon")), null, 16)) : createCommentVNode("", true), createBaseVNode("span", mergeProps({
+      id: $options.getItemLabelId(processedItem),
+      "class": _ctx.cx("itemLabel"),
+      ref_for: true
+    }, $options.getPTOptions(processedItem, index, "itemLabel")), toDisplayString($options.getItemLabel(processedItem)), 17, _hoisted_4), $options.getItemProp(processedItem, "items") ? (openBlock(), createElementBlock(Fragment, {
+      key: 2
+    }, [$props.templates.submenuicon ? (openBlock(), createBlock(resolveDynamicComponent($props.templates.submenuicon), {
+      key: 0,
+      root: $props.root,
+      active: $options.isItemActive(processedItem),
+      "class": normalizeClass(_ctx.cx("submenuIcon"))
+    }, null, 8, ["root", "active", "class"])) : (openBlock(), createBlock(resolveDynamicComponent($props.root ? "AngleDownIcon" : "AngleRightIcon"), mergeProps({
+      key: 1,
+      "class": _ctx.cx("submenuIcon"),
+      ref_for: true
+    }, $options.getPTOptions(processedItem, index, "submenuIcon")), null, 16, ["class"]))], 64)) : createCommentVNode("", true)], 16, _hoisted_3$2)), [[_directive_ripple]]) : (openBlock(), createBlock(resolveDynamicComponent($props.templates.item), {
+      key: 1,
+      item: processedItem.item,
+      root: $props.root,
+      hasSubmenu: $options.getItemProp(processedItem, "items"),
+      label: $options.getItemLabel(processedItem),
+      props: $options.getMenuItemProps(processedItem, index)
+    }, null, 8, ["item", "root", "hasSubmenu", "label", "props"]))], 16, _hoisted_2$3), $options.isItemVisible(processedItem) && $options.isItemGroup(processedItem) ? (openBlock(), createBlock(_component_MenubarSub, {
+      key: 0,
+      id: $options.getItemId(processedItem) + "_list",
+      menuId: $props.menuId,
+      role: "menu",
+      style: normalizeStyle(_ctx.sx("submenu", true, {
+        processedItem
+      })),
+      focusedItemId: $props.focusedItemId,
+      items: processedItem.items,
+      mobileActive: $props.mobileActive,
+      activeItemPath: $props.activeItemPath,
+      templates: $props.templates,
+      level: $props.level + 1,
+      "aria-labelledby": $options.getItemLabelId(processedItem),
+      pt: _ctx.pt,
+      unstyled: _ctx.unstyled,
+      onItemClick: _cache[0] || (_cache[0] = function($event) {
+        return _ctx.$emit("item-click", $event);
+      }),
+      onItemMouseenter: _cache[1] || (_cache[1] = function($event) {
+        return _ctx.$emit("item-mouseenter", $event);
+      }),
+      onItemMousemove: _cache[2] || (_cache[2] = function($event) {
+        return _ctx.$emit("item-mousemove", $event);
+      })
+    }, null, 8, ["id", "menuId", "style", "focusedItemId", "items", "mobileActive", "activeItemPath", "templates", "level", "aria-labelledby", "pt", "unstyled"])) : createCommentVNode("", true)], 16, _hoisted_1$1$1)) : createCommentVNode("", true), $options.isItemVisible(processedItem) && $options.getItemProp(processedItem, "separator") ? (openBlock(), createElementBlock("li", mergeProps({
+      key: 1,
+      id: $options.getItemId(processedItem),
+      "class": [_ctx.cx("separator"), $options.getItemProp(processedItem, "class")],
+      style: $options.getItemProp(processedItem, "style"),
+      role: "separator",
+      ref_for: true
+    }, _ctx.ptm("separator")), null, 16, _hoisted_5)) : createCommentVNode("", true)], 64);
+  }), 128))], 16);
+}
+__name(render$1, "render$1");
+script$1.render = render$1;
+var script = {
+  name: "Menubar",
+  "extends": script$2,
+  inheritAttrs: false,
+  emits: ["focus", "blur"],
+  matchMediaListener: null,
+  data: /* @__PURE__ */ __name(function data8() {
+    return {
+      id: this.$attrs.id,
+      mobileActive: false,
+      focused: false,
+      focusedItemInfo: {
+        index: -1,
+        level: 0,
+        parentKey: ""
+      },
+      activeItemPath: [],
+      dirty: false,
+      query: null,
+      queryMatches: false
+    };
+  }, "data"),
+  watch: {
+    "$attrs.id": /* @__PURE__ */ __name(function $attrsId4(newValue) {
+      this.id = newValue || UniqueComponentId();
+    }, "$attrsId"),
+    activeItemPath: /* @__PURE__ */ __name(function activeItemPath2(newPath) {
+      if (isNotEmpty(newPath)) {
+        this.bindOutsideClickListener();
+        this.bindResizeListener();
+      } else {
+        this.unbindOutsideClickListener();
+        this.unbindResizeListener();
+      }
+    }, "activeItemPath")
+  },
+  outsideClickListener: null,
+  container: null,
+  menubar: null,
+  mounted: /* @__PURE__ */ __name(function mounted8() {
+    this.id = this.id || UniqueComponentId();
+    this.bindMatchMediaListener();
+  }, "mounted"),
+  beforeUnmount: /* @__PURE__ */ __name(function beforeUnmount7() {
+    this.mobileActive = false;
+    this.unbindOutsideClickListener();
+    this.unbindResizeListener();
+    this.unbindMatchMediaListener();
+    if (this.container) {
+      ZIndex.clear(this.container);
+    }
+    this.container = null;
+  }, "beforeUnmount"),
+  methods: {
+    getItemProp: /* @__PURE__ */ __name(function getItemProp4(item3, name) {
+      return item3 ? resolve(item3[name]) : void 0;
+    }, "getItemProp"),
+    getItemLabel: /* @__PURE__ */ __name(function getItemLabel4(item3) {
+      return this.getItemProp(item3, "label");
+    }, "getItemLabel"),
+    isItemDisabled: /* @__PURE__ */ __name(function isItemDisabled4(item3) {
+      return this.getItemProp(item3, "disabled");
+    }, "isItemDisabled"),
+    isItemVisible: /* @__PURE__ */ __name(function isItemVisible4(item3) {
+      return this.getItemProp(item3, "visible") !== false;
+    }, "isItemVisible"),
+    isItemGroup: /* @__PURE__ */ __name(function isItemGroup4(item3) {
+      return isNotEmpty(this.getItemProp(item3, "items"));
+    }, "isItemGroup"),
+    isItemSeparator: /* @__PURE__ */ __name(function isItemSeparator2(item3) {
+      return this.getItemProp(item3, "separator");
+    }, "isItemSeparator"),
+    getProccessedItemLabel: /* @__PURE__ */ __name(function getProccessedItemLabel2(processedItem) {
+      return processedItem ? this.getItemLabel(processedItem.item) : void 0;
+    }, "getProccessedItemLabel"),
+    isProccessedItemGroup: /* @__PURE__ */ __name(function isProccessedItemGroup2(processedItem) {
+      return processedItem && isNotEmpty(processedItem.items);
+    }, "isProccessedItemGroup"),
+    toggle: /* @__PURE__ */ __name(function toggle2(event) {
+      var _this = this;
+      if (this.mobileActive) {
+        this.mobileActive = false;
+        ZIndex.clear(this.menubar);
+        this.hide();
+      } else {
+        this.mobileActive = true;
+        ZIndex.set("menu", this.menubar, this.$primevue.config.zIndex.menu);
+        setTimeout(function() {
+          _this.show();
+        }, 1);
+      }
+      this.bindOutsideClickListener();
+      event.preventDefault();
+    }, "toggle"),
+    show: /* @__PURE__ */ __name(function show3() {
+      focus(this.menubar);
+    }, "show"),
+    hide: /* @__PURE__ */ __name(function hide3(event, isFocus) {
+      var _this2 = this;
+      if (this.mobileActive) {
+        this.mobileActive = false;
+        setTimeout(function() {
+          focus(_this2.$refs.menubutton);
+        }, 0);
+      }
+      this.activeItemPath = [];
+      this.focusedItemInfo = {
+        index: -1,
+        level: 0,
+        parentKey: ""
+      };
+      isFocus && focus(this.menubar);
+      this.dirty = false;
+    }, "hide"),
+    onFocus: /* @__PURE__ */ __name(function onFocus4(event) {
+      this.focused = true;
+      this.focusedItemInfo = this.focusedItemInfo.index !== -1 ? this.focusedItemInfo : {
+        index: this.findFirstFocusedItemIndex(),
+        level: 0,
+        parentKey: ""
+      };
+      this.$emit("focus", event);
+    }, "onFocus"),
+    onBlur: /* @__PURE__ */ __name(function onBlur3(event) {
+      this.focused = false;
+      this.focusedItemInfo = {
+        index: -1,
+        level: 0,
+        parentKey: ""
+      };
+      this.searchValue = "";
+      this.dirty = false;
+      this.$emit("blur", event);
+    }, "onBlur"),
+    onKeyDown: /* @__PURE__ */ __name(function onKeyDown3(event) {
+      var metaKey = event.metaKey || event.ctrlKey;
+      switch (event.code) {
+        case "ArrowDown":
+          this.onArrowDownKey(event);
+          break;
+        case "ArrowUp":
+          this.onArrowUpKey(event);
+          break;
+        case "ArrowLeft":
+          this.onArrowLeftKey(event);
+          break;
+        case "ArrowRight":
+          this.onArrowRightKey(event);
+          break;
+        case "Home":
+          this.onHomeKey(event);
+          break;
+        case "End":
+          this.onEndKey(event);
+          break;
+        case "Space":
+          this.onSpaceKey(event);
+          break;
+        case "Enter":
+        case "NumpadEnter":
+          this.onEnterKey(event);
+          break;
+        case "Escape":
+          this.onEscapeKey(event);
+          break;
+        case "Tab":
+          this.onTabKey(event);
+          break;
+        case "PageDown":
+        case "PageUp":
+        case "Backspace":
+        case "ShiftLeft":
+        case "ShiftRight":
+          break;
+        default:
+          if (!metaKey && isPrintableCharacter(event.key)) {
+            this.searchItems(event, event.key);
+          }
+          break;
+      }
+    }, "onKeyDown"),
+    onItemChange: /* @__PURE__ */ __name(function onItemChange2(event) {
+      var processedItem = event.processedItem, isFocus = event.isFocus;
+      if (isEmpty(processedItem)) return;
+      var index = processedItem.index, key = processedItem.key, level = processedItem.level, parentKey = processedItem.parentKey, items = processedItem.items;
+      var grouped = isNotEmpty(items);
+      var activeItemPath3 = this.activeItemPath.filter(function(p) {
+        return p.parentKey !== parentKey && p.parentKey !== key;
+      });
+      grouped && activeItemPath3.push(processedItem);
+      this.focusedItemInfo = {
+        index,
+        level,
+        parentKey
+      };
+      this.activeItemPath = activeItemPath3;
+      grouped && (this.dirty = true);
+      isFocus && focus(this.menubar);
+    }, "onItemChange"),
+    onItemClick: /* @__PURE__ */ __name(function onItemClick4(event) {
+      var originalEvent = event.originalEvent, processedItem = event.processedItem;
+      var grouped = this.isProccessedItemGroup(processedItem);
+      var root11 = isEmpty(processedItem.parent);
+      var selected = this.isSelected(processedItem);
+      if (selected) {
+        var index = processedItem.index, key = processedItem.key, level = processedItem.level, parentKey = processedItem.parentKey;
+        this.activeItemPath = this.activeItemPath.filter(function(p) {
+          return key !== p.key && key.startsWith(p.key);
+        });
+        this.focusedItemInfo = {
+          index,
+          level,
+          parentKey
+        };
+        this.dirty = !root11;
+        focus(this.menubar);
+      } else {
+        if (grouped) {
+          this.onItemChange(event);
+        } else {
+          var rootProcessedItem = root11 ? processedItem : this.activeItemPath.find(function(p) {
+            return p.parentKey === "";
+          });
+          this.hide(originalEvent);
+          this.changeFocusedItemIndex(originalEvent, rootProcessedItem ? rootProcessedItem.index : -1);
+          this.mobileActive = false;
+          focus(this.menubar);
+        }
+      }
+    }, "onItemClick"),
+    onItemMouseEnter: /* @__PURE__ */ __name(function onItemMouseEnter4(event) {
+      if (this.dirty) {
+        this.onItemChange(event);
+      }
+    }, "onItemMouseEnter"),
+    onItemMouseMove: /* @__PURE__ */ __name(function onItemMouseMove4(event) {
+      if (this.focused) {
+        this.changeFocusedItemIndex(event, event.processedItem.index);
+      }
+    }, "onItemMouseMove"),
+    menuButtonClick: /* @__PURE__ */ __name(function menuButtonClick(event) {
+      this.toggle(event);
+    }, "menuButtonClick"),
+    menuButtonKeydown: /* @__PURE__ */ __name(function menuButtonKeydown(event) {
+      (event.code === "Enter" || event.code === "NumpadEnter" || event.code === "Space") && this.menuButtonClick(event);
+    }, "menuButtonKeydown"),
+    onArrowDownKey: /* @__PURE__ */ __name(function onArrowDownKey3(event) {
+      var processedItem = this.visibleItems[this.focusedItemInfo.index];
+      var root11 = processedItem ? isEmpty(processedItem.parent) : null;
+      if (root11) {
+        var grouped = this.isProccessedItemGroup(processedItem);
+        if (grouped) {
+          this.onItemChange({
+            originalEvent: event,
+            processedItem
+          });
+          this.focusedItemInfo = {
+            index: -1,
+            parentKey: processedItem.key
+          };
+          this.onArrowRightKey(event);
+        }
+      } else {
+        var itemIndex = this.focusedItemInfo.index !== -1 ? this.findNextItemIndex(this.focusedItemInfo.index) : this.findFirstFocusedItemIndex();
+        this.changeFocusedItemIndex(event, itemIndex);
+      }
+      event.preventDefault();
+    }, "onArrowDownKey"),
+    onArrowUpKey: /* @__PURE__ */ __name(function onArrowUpKey3(event) {
+      var _this3 = this;
+      var processedItem = this.visibleItems[this.focusedItemInfo.index];
+      var root11 = isEmpty(processedItem.parent);
+      if (root11) {
+        var grouped = this.isProccessedItemGroup(processedItem);
+        if (grouped) {
+          this.onItemChange({
+            originalEvent: event,
+            processedItem
+          });
+          this.focusedItemInfo = {
+            index: -1,
+            parentKey: processedItem.key
+          };
+          var itemIndex = this.findLastItemIndex();
+          this.changeFocusedItemIndex(event, itemIndex);
+        }
+      } else {
+        var parentItem = this.activeItemPath.find(function(p) {
+          return p.key === processedItem.parentKey;
+        });
+        if (this.focusedItemInfo.index === 0) {
+          this.focusedItemInfo = {
+            index: -1,
+            parentKey: parentItem ? parentItem.parentKey : ""
+          };
+          this.searchValue = "";
+          this.onArrowLeftKey(event);
+          this.activeItemPath = this.activeItemPath.filter(function(p) {
+            return p.parentKey !== _this3.focusedItemInfo.parentKey;
+          });
+        } else {
+          var _itemIndex = this.focusedItemInfo.index !== -1 ? this.findPrevItemIndex(this.focusedItemInfo.index) : this.findLastFocusedItemIndex();
+          this.changeFocusedItemIndex(event, _itemIndex);
+        }
+      }
+      event.preventDefault();
+    }, "onArrowUpKey"),
+    onArrowLeftKey: /* @__PURE__ */ __name(function onArrowLeftKey4(event) {
+      var _this4 = this;
+      var processedItem = this.visibleItems[this.focusedItemInfo.index];
+      var parentItem = processedItem ? this.activeItemPath.find(function(p) {
+        return p.key === processedItem.parentKey;
+      }) : null;
+      if (parentItem) {
+        this.onItemChange({
+          originalEvent: event,
+          processedItem: parentItem
+        });
+        this.activeItemPath = this.activeItemPath.filter(function(p) {
+          return p.parentKey !== _this4.focusedItemInfo.parentKey;
+        });
+        event.preventDefault();
+      } else {
+        var itemIndex = this.focusedItemInfo.index !== -1 ? this.findPrevItemIndex(this.focusedItemInfo.index) : this.findLastFocusedItemIndex();
+        this.changeFocusedItemIndex(event, itemIndex);
+        event.preventDefault();
+      }
+    }, "onArrowLeftKey"),
+    onArrowRightKey: /* @__PURE__ */ __name(function onArrowRightKey4(event) {
+      var processedItem = this.visibleItems[this.focusedItemInfo.index];
+      var parentItem = processedItem ? this.activeItemPath.find(function(p) {
+        return p.key === processedItem.parentKey;
+      }) : null;
+      if (parentItem) {
+        var grouped = this.isProccessedItemGroup(processedItem);
+        if (grouped) {
+          this.onItemChange({
+            originalEvent: event,
+            processedItem
+          });
+          this.focusedItemInfo = {
+            index: -1,
+            parentKey: processedItem.key
+          };
+          this.onArrowDownKey(event);
+        }
+      } else {
+        var itemIndex = this.focusedItemInfo.index !== -1 ? this.findNextItemIndex(this.focusedItemInfo.index) : this.findFirstFocusedItemIndex();
+        this.changeFocusedItemIndex(event, itemIndex);
+        event.preventDefault();
+      }
+    }, "onArrowRightKey"),
+    onHomeKey: /* @__PURE__ */ __name(function onHomeKey4(event) {
+      this.changeFocusedItemIndex(event, this.findFirstItemIndex());
+      event.preventDefault();
+    }, "onHomeKey"),
+    onEndKey: /* @__PURE__ */ __name(function onEndKey4(event) {
+      this.changeFocusedItemIndex(event, this.findLastItemIndex());
+      event.preventDefault();
+    }, "onEndKey"),
+    onEnterKey: /* @__PURE__ */ __name(function onEnterKey4(event) {
+      if (this.focusedItemInfo.index !== -1) {
+        var element = findSingle(this.menubar, 'li[id="'.concat("".concat(this.focusedItemId), '"]'));
+        var anchorElement = element && findSingle(element, 'a[data-pc-section="itemlink"]');
+        anchorElement ? anchorElement.click() : element && element.click();
+        var processedItem = this.visibleItems[this.focusedItemInfo.index];
+        var grouped = this.isProccessedItemGroup(processedItem);
+        !grouped && (this.focusedItemInfo.index = this.findFirstFocusedItemIndex());
+      }
+      event.preventDefault();
+    }, "onEnterKey"),
+    onSpaceKey: /* @__PURE__ */ __name(function onSpaceKey2(event) {
+      this.onEnterKey(event);
+    }, "onSpaceKey"),
+    onEscapeKey: /* @__PURE__ */ __name(function onEscapeKey3(event) {
+      if (this.focusedItemInfo.level !== 0) {
+        var _focusedItemInfo = this.focusedItemInfo;
+        this.hide(event, false);
+        this.focusedItemInfo = {
+          index: Number(_focusedItemInfo.parentKey.split("_")[0]),
+          level: 0,
+          parentKey: ""
+        };
+      }
+      event.preventDefault();
+    }, "onEscapeKey"),
+    onTabKey: /* @__PURE__ */ __name(function onTabKey3(event) {
+      if (this.focusedItemInfo.index !== -1) {
+        var processedItem = this.visibleItems[this.focusedItemInfo.index];
+        var grouped = this.isProccessedItemGroup(processedItem);
+        !grouped && this.onItemChange({
+          originalEvent: event,
+          processedItem
+        });
+      }
+      this.hide();
+    }, "onTabKey"),
+    bindOutsideClickListener: /* @__PURE__ */ __name(function bindOutsideClickListener3() {
+      var _this5 = this;
+      if (!this.outsideClickListener) {
+        this.outsideClickListener = function(event) {
+          var isOutsideContainer = _this5.container && !_this5.container.contains(event.target);
+          var isOutsideTarget = !(_this5.target && (_this5.target === event.target || _this5.target.contains(event.target)));
+          if (isOutsideContainer && isOutsideTarget) {
+            _this5.hide();
+          }
+        };
+        document.addEventListener("click", this.outsideClickListener);
+      }
+    }, "bindOutsideClickListener"),
+    unbindOutsideClickListener: /* @__PURE__ */ __name(function unbindOutsideClickListener3() {
+      if (this.outsideClickListener) {
+        document.removeEventListener("click", this.outsideClickListener);
+        this.outsideClickListener = null;
+      }
+    }, "unbindOutsideClickListener"),
+    bindResizeListener: /* @__PURE__ */ __name(function bindResizeListener3() {
+      var _this6 = this;
+      if (!this.resizeListener) {
+        this.resizeListener = function(event) {
+          if (!isTouchDevice()) {
+            _this6.hide(event, true);
+          }
+          _this6.mobileActive = false;
+        };
+        window.addEventListener("resize", this.resizeListener);
+      }
+    }, "bindResizeListener"),
+    unbindResizeListener: /* @__PURE__ */ __name(function unbindResizeListener3() {
+      if (this.resizeListener) {
+        window.removeEventListener("resize", this.resizeListener);
+        this.resizeListener = null;
+      }
+    }, "unbindResizeListener"),
+    bindMatchMediaListener: /* @__PURE__ */ __name(function bindMatchMediaListener() {
+      var _this7 = this;
+      if (!this.matchMediaListener) {
+        var query = matchMedia("(max-width: ".concat(this.breakpoint, ")"));
+        this.query = query;
+        this.queryMatches = query.matches;
+        this.matchMediaListener = function() {
+          _this7.queryMatches = query.matches;
+          _this7.mobileActive = false;
+        };
+        this.query.addEventListener("change", this.matchMediaListener);
+      }
+    }, "bindMatchMediaListener"),
+    unbindMatchMediaListener: /* @__PURE__ */ __name(function unbindMatchMediaListener() {
+      if (this.matchMediaListener) {
+        this.query.removeEventListener("change", this.matchMediaListener);
+        this.matchMediaListener = null;
+      }
+    }, "unbindMatchMediaListener"),
+    isItemMatched: /* @__PURE__ */ __name(function isItemMatched2(processedItem) {
+      var _this$getProccessedIt;
+      return this.isValidItem(processedItem) && ((_this$getProccessedIt = this.getProccessedItemLabel(processedItem)) === null || _this$getProccessedIt === void 0 ? void 0 : _this$getProccessedIt.toLocaleLowerCase().startsWith(this.searchValue.toLocaleLowerCase()));
+    }, "isItemMatched"),
+    isValidItem: /* @__PURE__ */ __name(function isValidItem2(processedItem) {
+      return !!processedItem && !this.isItemDisabled(processedItem.item) && !this.isItemSeparator(processedItem.item) && this.isItemVisible(processedItem.item);
+    }, "isValidItem"),
+    isValidSelectedItem: /* @__PURE__ */ __name(function isValidSelectedItem2(processedItem) {
+      return this.isValidItem(processedItem) && this.isSelected(processedItem);
+    }, "isValidSelectedItem"),
+    isSelected: /* @__PURE__ */ __name(function isSelected3(processedItem) {
+      return this.activeItemPath.some(function(p) {
+        return p.key === processedItem.key;
+      });
+    }, "isSelected"),
+    findFirstItemIndex: /* @__PURE__ */ __name(function findFirstItemIndex2() {
+      var _this8 = this;
+      return this.visibleItems.findIndex(function(processedItem) {
+        return _this8.isValidItem(processedItem);
+      });
+    }, "findFirstItemIndex"),
+    findLastItemIndex: /* @__PURE__ */ __name(function findLastItemIndex2() {
+      var _this9 = this;
+      return findLastIndex(this.visibleItems, function(processedItem) {
+        return _this9.isValidItem(processedItem);
+      });
+    }, "findLastItemIndex"),
+    findNextItemIndex: /* @__PURE__ */ __name(function findNextItemIndex2(index) {
+      var _this10 = this;
+      var matchedItemIndex = index < this.visibleItems.length - 1 ? this.visibleItems.slice(index + 1).findIndex(function(processedItem) {
+        return _this10.isValidItem(processedItem);
+      }) : -1;
+      return matchedItemIndex > -1 ? matchedItemIndex + index + 1 : index;
+    }, "findNextItemIndex"),
+    findPrevItemIndex: /* @__PURE__ */ __name(function findPrevItemIndex2(index) {
+      var _this11 = this;
+      var matchedItemIndex = index > 0 ? findLastIndex(this.visibleItems.slice(0, index), function(processedItem) {
+        return _this11.isValidItem(processedItem);
+      }) : -1;
+      return matchedItemIndex > -1 ? matchedItemIndex : index;
+    }, "findPrevItemIndex"),
+    findSelectedItemIndex: /* @__PURE__ */ __name(function findSelectedItemIndex2() {
+      var _this12 = this;
+      return this.visibleItems.findIndex(function(processedItem) {
+        return _this12.isValidSelectedItem(processedItem);
+      });
+    }, "findSelectedItemIndex"),
+    findFirstFocusedItemIndex: /* @__PURE__ */ __name(function findFirstFocusedItemIndex2() {
+      var selectedIndex = this.findSelectedItemIndex();
+      return selectedIndex < 0 ? this.findFirstItemIndex() : selectedIndex;
+    }, "findFirstFocusedItemIndex"),
+    findLastFocusedItemIndex: /* @__PURE__ */ __name(function findLastFocusedItemIndex2() {
+      var selectedIndex = this.findSelectedItemIndex();
+      return selectedIndex < 0 ? this.findLastItemIndex() : selectedIndex;
+    }, "findLastFocusedItemIndex"),
+    searchItems: /* @__PURE__ */ __name(function searchItems2(event, _char) {
+      var _this13 = this;
+      this.searchValue = (this.searchValue || "") + _char;
+      var itemIndex = -1;
+      var matched = false;
+      if (this.focusedItemInfo.index !== -1) {
+        itemIndex = this.visibleItems.slice(this.focusedItemInfo.index).findIndex(function(processedItem) {
+          return _this13.isItemMatched(processedItem);
+        });
+        itemIndex = itemIndex === -1 ? this.visibleItems.slice(0, this.focusedItemInfo.index).findIndex(function(processedItem) {
+          return _this13.isItemMatched(processedItem);
+        }) : itemIndex + this.focusedItemInfo.index;
+      } else {
+        itemIndex = this.visibleItems.findIndex(function(processedItem) {
+          return _this13.isItemMatched(processedItem);
+        });
+      }
+      if (itemIndex !== -1) {
+        matched = true;
+      }
+      if (itemIndex === -1 && this.focusedItemInfo.index === -1) {
+        itemIndex = this.findFirstFocusedItemIndex();
+      }
+      if (itemIndex !== -1) {
+        this.changeFocusedItemIndex(event, itemIndex);
+      }
+      if (this.searchTimeout) {
+        clearTimeout(this.searchTimeout);
+      }
+      this.searchTimeout = setTimeout(function() {
+        _this13.searchValue = "";
+        _this13.searchTimeout = null;
+      }, 500);
+      return matched;
+    }, "searchItems"),
+    changeFocusedItemIndex: /* @__PURE__ */ __name(function changeFocusedItemIndex2(event, index) {
+      if (this.focusedItemInfo.index !== index) {
+        this.focusedItemInfo.index = index;
+        this.scrollInView();
+      }
+    }, "changeFocusedItemIndex"),
+    scrollInView: /* @__PURE__ */ __name(function scrollInView4() {
+      var index = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : -1;
+      var id2 = index !== -1 ? "".concat(this.id, "_").concat(index) : this.focusedItemId;
+      var element = findSingle(this.menubar, 'li[id="'.concat(id2, '"]'));
+      if (element) {
+        element.scrollIntoView && element.scrollIntoView({
+          block: "nearest",
+          inline: "start"
+        });
+      }
+    }, "scrollInView"),
+    createProcessedItems: /* @__PURE__ */ __name(function createProcessedItems2(items) {
+      var _this14 = this;
+      var level = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : 0;
+      var parent = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : {};
+      var parentKey = arguments.length > 3 && arguments[3] !== void 0 ? arguments[3] : "";
+      var processedItems3 = [];
+      items && items.forEach(function(item3, index) {
+        var key = (parentKey !== "" ? parentKey + "_" : "") + index;
+        var newItem = {
+          item: item3,
+          index,
+          level,
+          key,
+          parent,
+          parentKey
+        };
+        newItem["items"] = _this14.createProcessedItems(item3.items, level + 1, newItem, key);
+        processedItems3.push(newItem);
+      });
+      return processedItems3;
+    }, "createProcessedItems"),
+    containerRef: /* @__PURE__ */ __name(function containerRef3(el) {
+      this.container = el;
+    }, "containerRef"),
+    menubarRef: /* @__PURE__ */ __name(function menubarRef2(el) {
+      this.menubar = el ? el.$el : void 0;
+    }, "menubarRef")
+  },
+  computed: {
+    processedItems: /* @__PURE__ */ __name(function processedItems2() {
+      return this.createProcessedItems(this.model || []);
+    }, "processedItems"),
+    visibleItems: /* @__PURE__ */ __name(function visibleItems2() {
+      var _this15 = this;
+      var processedItem = this.activeItemPath.find(function(p) {
+        return p.key === _this15.focusedItemInfo.parentKey;
+      });
+      return processedItem ? processedItem.items : this.processedItems;
+    }, "visibleItems"),
+    focusedItemId: /* @__PURE__ */ __name(function focusedItemId2() {
+      return this.focusedItemInfo.index !== -1 ? "".concat(this.id).concat(isNotEmpty(this.focusedItemInfo.parentKey) ? "_" + this.focusedItemInfo.parentKey : "", "_").concat(this.focusedItemInfo.index) : null;
+    }, "focusedItemId")
+  },
+  components: {
+    MenubarSub: script$1,
+    BarsIcon: script$A
+  }
+};
+function _typeof(o) {
+  "@babel/helpers - typeof";
+  return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o2) {
+    return typeof o2;
+  } : function(o2) {
+    return o2 && "function" == typeof Symbol && o2.constructor === Symbol && o2 !== Symbol.prototype ? "symbol" : typeof o2;
+  }, _typeof(o);
+}
+__name(_typeof, "_typeof");
+function ownKeys(e, r) {
+  var t = Object.keys(e);
+  if (Object.getOwnPropertySymbols) {
+    var o = Object.getOwnPropertySymbols(e);
+    r && (o = o.filter(function(r2) {
+      return Object.getOwnPropertyDescriptor(e, r2).enumerable;
+    })), t.push.apply(t, o);
+  }
+  return t;
+}
+__name(ownKeys, "ownKeys");
+function _objectSpread(e) {
+  for (var r = 1; r < arguments.length; r++) {
+    var t = null != arguments[r] ? arguments[r] : {};
+    r % 2 ? ownKeys(Object(t), true).forEach(function(r2) {
+      _defineProperty(e, r2, t[r2]);
+    }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function(r2) {
+      Object.defineProperty(e, r2, Object.getOwnPropertyDescriptor(t, r2));
+    });
+  }
+  return e;
+}
+__name(_objectSpread, "_objectSpread");
+function _defineProperty(e, r, t) {
+  return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: true, configurable: true, writable: true }) : e[r] = t, e;
+}
+__name(_defineProperty, "_defineProperty");
+function _toPropertyKey(t) {
+  var i = _toPrimitive(t, "string");
+  return "symbol" == _typeof(i) ? i : i + "";
+}
+__name(_toPropertyKey, "_toPropertyKey");
+function _toPrimitive(t, r) {
+  if ("object" != _typeof(t) || !t) return t;
+  var e = t[Symbol.toPrimitive];
+  if (void 0 !== e) {
+    var i = e.call(t, r || "default");
+    if ("object" != _typeof(i)) return i;
+    throw new TypeError("@@toPrimitive must return a primitive value.");
+  }
+  return ("string" === r ? String : Number)(t);
+}
+__name(_toPrimitive, "_toPrimitive");
+var _hoisted_1$3 = ["aria-haspopup", "aria-expanded", "aria-controls", "aria-label"];
+function render(_ctx, _cache, $props, $setup, $data, $options) {
+  var _component_BarsIcon = resolveComponent("BarsIcon");
+  var _component_MenubarSub = resolveComponent("MenubarSub");
+  return openBlock(), createElementBlock("div", mergeProps({
+    ref: $options.containerRef,
+    "class": _ctx.cx("root")
+  }, _ctx.ptmi("root")), [_ctx.$slots.start ? (openBlock(), createElementBlock("div", mergeProps({
+    key: 0,
+    "class": _ctx.cx("start")
+  }, _ctx.ptm("start")), [renderSlot(_ctx.$slots, "start")], 16)) : createCommentVNode("", true), renderSlot(_ctx.$slots, _ctx.$slots.button ? "button" : "menubutton", {
+    id: $data.id,
+    "class": normalizeClass(_ctx.cx("button")),
+    toggleCallback: /* @__PURE__ */ __name(function toggleCallback(event) {
+      return $options.menuButtonClick(event);
+    }, "toggleCallback")
+  }, function() {
+    var _ctx$$primevue$config;
+    return [_ctx.model && _ctx.model.length > 0 ? (openBlock(), createElementBlock("a", mergeProps({
+      key: 0,
+      ref: "menubutton",
+      role: "button",
+      tabindex: "0",
+      "class": _ctx.cx("button"),
+      "aria-haspopup": _ctx.model.length && _ctx.model.length > 0 ? true : false,
+      "aria-expanded": $data.mobileActive,
+      "aria-controls": $data.id,
+      "aria-label": (_ctx$$primevue$config = _ctx.$primevue.config.locale.aria) === null || _ctx$$primevue$config === void 0 ? void 0 : _ctx$$primevue$config.navigation,
+      onClick: _cache[0] || (_cache[0] = function($event) {
+        return $options.menuButtonClick($event);
+      }),
+      onKeydown: _cache[1] || (_cache[1] = function($event) {
+        return $options.menuButtonKeydown($event);
+      })
+    }, _objectSpread(_objectSpread({}, _ctx.buttonProps), _ctx.ptm("button"))), [renderSlot(_ctx.$slots, _ctx.$slots.buttonicon ? "buttonicon" : "menubuttonicon", {}, function() {
+      return [createVNode(_component_BarsIcon, normalizeProps(guardReactiveProps(_ctx.ptm("buttonicon"))), null, 16)];
+    })], 16, _hoisted_1$3)) : createCommentVNode("", true)];
+  }), createVNode(_component_MenubarSub, {
+    ref: $options.menubarRef,
+    id: $data.id + "_list",
+    role: "menubar",
+    items: $options.processedItems,
+    templates: _ctx.$slots,
+    root: true,
+    mobileActive: $data.mobileActive,
+    tabindex: "0",
+    "aria-activedescendant": $data.focused ? $options.focusedItemId : void 0,
+    menuId: $data.id,
+    focusedItemId: $data.focused ? $options.focusedItemId : void 0,
+    activeItemPath: $data.activeItemPath,
+    level: 0,
+    "aria-labelledby": _ctx.ariaLabelledby,
+    "aria-label": _ctx.ariaLabel,
+    pt: _ctx.pt,
+    unstyled: _ctx.unstyled,
+    onFocus: $options.onFocus,
+    onBlur: $options.onBlur,
+    onKeydown: $options.onKeyDown,
+    onItemClick: $options.onItemClick,
+    onItemMouseenter: $options.onItemMouseEnter,
+    onItemMousemove: $options.onItemMouseMove
+  }, null, 8, ["id", "items", "templates", "mobileActive", "aria-activedescendant", "menuId", "focusedItemId", "activeItemPath", "aria-labelledby", "aria-label", "pt", "unstyled", "onFocus", "onBlur", "onKeydown", "onItemClick", "onItemMouseenter", "onItemMousemove"]), _ctx.$slots.end ? (openBlock(), createElementBlock("div", mergeProps({
+    key: 1,
+    "class": _ctx.cx("end")
+  }, _ctx.ptm("end")), [renderSlot(_ctx.$slots, "end")], 16)) : createCommentVNode("", true)], 16);
+}
+__name(render, "render");
+script.render = render;
+const _withScopeId$2 = /* @__PURE__ */ __name((n) => (pushScopeId("data-v-6fecd137"), n = n(), popScopeId(), n), "_withScopeId$2");
+const _hoisted_1$2 = ["href"];
+const _hoisted_2$2 = { class: "p-menubar-item-label" };
+const _hoisted_3$1 = {
+  key: 1,
+  class: "ml-auto border border-surface rounded text-muted text-xs p-1 keybinding-tag"
+};
+const _sfc_main$4 = /* @__PURE__ */ defineComponent({
+  __name: "CommandMenubar",
+  setup(__props) {
+    const settingStore = useSettingStore();
+    const dropdownDirection = computed(
+      () => settingStore.get("Comfy.UseNewMenu") === "Top" ? "down" : "up"
+    );
+    const menuItemsStore = useMenuItemStore();
+    const { t } = useI18n();
+    const translateMenuItem = /* @__PURE__ */ __name((item3) => {
+      const label = typeof item3.label === "function" ? item3.label() : item3.label;
+      const translatedLabel = label ? t(`menuLabels.${normalizeI18nKey(label)}`, label) : void 0;
+      return {
+        ...item3,
+        label: translatedLabel,
+        items: item3.items?.map(translateMenuItem)
+      };
+    }, "translateMenuItem");
+    const translatedItems = computed(
+      () => menuItemsStore.menuItems.map(translateMenuItem)
+    );
+    return (_ctx, _cache) => {
+      return openBlock(), createBlock(unref(script), {
+        model: translatedItems.value,
+        class: "top-menubar border-none p-0 bg-transparent",
+        pt: {
+          rootList: "gap-0 flex-nowrap w-auto",
+          submenu: `dropdown-direction-${dropdownDirection.value}`,
+          item: "relative"
+        }
+      }, {
+        item: withCtx(({ item: item3, props }) => [
+          createBaseVNode("a", mergeProps({ class: "p-menubar-item-link" }, props.action, {
+            href: item3.url,
+            target: "_blank"
+          }), [
+            item3.icon ? (openBlock(), createElementBlock("span", {
+              key: 0,
+              class: normalizeClass(["p-menubar-item-icon", item3.icon])
+            }, null, 2)) : createCommentVNode("", true),
+            createBaseVNode("span", _hoisted_2$2, toDisplayString(item3.label), 1),
+            item3?.comfyCommand?.keybinding ? (openBlock(), createElementBlock("span", _hoisted_3$1, toDisplayString(item3.comfyCommand.keybinding.combo.toString()), 1)) : createCommentVNode("", true)
+          ], 16, _hoisted_1$2)
+        ]),
+        _: 1
+      }, 8, ["model", "pt"]);
+    };
+  }
+});
+const CommandMenubar = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["__scopeId", "data-v-6fecd137"]]);
+const _withScopeId$1 = /* @__PURE__ */ __name((n) => (pushScopeId("data-v-8d011a31"), n = n(), popScopeId(), n), "_withScopeId$1");
+const _hoisted_1$1 = { class: "workflow-label text-sm max-w-[150px] truncate inline-block" };
+const _hoisted_2$1 = { class: "relative" };
+const _hoisted_3 = {
+  key: 0,
+  class: "status-indicator"
+};
+const _sfc_main$3 = /* @__PURE__ */ defineComponent({
+  __name: "WorkflowTab",
+  props: {
+    class: {},
+    workflowOption: {}
+  },
+  setup(__props) {
+    const props = __props;
+    const workspaceStore = useWorkspaceStore();
+    const workflowStore = useWorkflowStore();
+    const workflowTabRef = ref(null);
+    const closeWorkflows = /* @__PURE__ */ __name(async (options) => {
+      for (const opt of options) {
+        if (!await useWorkflowService().closeWorkflow(opt.workflow, {
+          warnIfUnsaved: !workspaceStore.shiftDown
+        })) {
+          break;
+        }
+      }
+    }, "closeWorkflows");
+    const onCloseWorkflow = /* @__PURE__ */ __name((option2) => {
+      closeWorkflows([option2]);
+    }, "onCloseWorkflow");
+    const tabGetter = /* @__PURE__ */ __name(() => workflowTabRef.value, "tabGetter");
+    usePragmaticDraggable(tabGetter, {
+      getInitialData: /* @__PURE__ */ __name(() => {
+        return {
+          workflowKey: props.workflowOption.workflow.key
+        };
+      }, "getInitialData")
+    });
+    usePragmaticDroppable(tabGetter, {
+      getData: /* @__PURE__ */ __name(() => {
+        return {
+          workflowKey: props.workflowOption.workflow.key
+        };
+      }, "getData"),
+      onDrop: /* @__PURE__ */ __name((e) => {
+        const fromIndex = workflowStore.openWorkflows.findIndex(
+          (wf) => wf.key === e.source.data.workflowKey
+        );
+        const toIndex = workflowStore.openWorkflows.findIndex(
+          (wf) => wf.key === e.location.current.dropTargets[0]?.data.workflowKey
+        );
+        if (fromIndex !== toIndex) {
+          workflowStore.reorderWorkflows(fromIndex, toIndex);
+        }
+      }, "onDrop")
+    });
+    return (_ctx, _cache) => {
+      const _directive_tooltip = resolveDirective("tooltip");
+      return openBlock(), createElementBlock("div", mergeProps({
+        class: "flex p-2 gap-2 workflow-tab",
+        ref_key: "workflowTabRef",
+        ref: workflowTabRef
+      }, _ctx.$attrs), [
+        withDirectives((openBlock(), createElementBlock("span", _hoisted_1$1, [
+          createTextVNode(toDisplayString(_ctx.workflowOption.workflow.filename), 1)
+        ])), [
+          [
+            _directive_tooltip,
+            _ctx.workflowOption.workflow.key,
+            void 0,
+            { bottom: true }
+          ]
+        ]),
+        createBaseVNode("div", _hoisted_2$1, [
+          !unref(workspaceStore).shiftDown && (_ctx.workflowOption.workflow.isModified || !_ctx.workflowOption.workflow.isPersisted) ? (openBlock(), createElementBlock("span", _hoisted_3, "•")) : createCommentVNode("", true),
+          createVNode(unref(script$d), {
+            class: "close-button p-0 w-auto",
+            icon: "pi pi-times",
+            text: "",
+            severity: "secondary",
+            size: "small",
+            onClick: _cache[0] || (_cache[0] = withModifiers(($event) => onCloseWorkflow(_ctx.workflowOption), ["stop"]))
+          })
+        ])
+      ], 16);
+    };
+  }
+});
+const WorkflowTab = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["__scopeId", "data-v-8d011a31"]]);
+const _sfc_main$2 = /* @__PURE__ */ defineComponent({
+  __name: "WorkflowTabs",
+  props: {
+    class: {}
+  },
+  setup(__props) {
+    const props = __props;
+    const { t } = useI18n();
+    const workspaceStore = useWorkspaceStore();
+    const workflowStore = useWorkflowStore();
+    const workflowService = useWorkflowService();
+    const rightClickedTab = ref(null);
+    const menu = ref();
+    const workflowToOption = /* @__PURE__ */ __name((workflow) => ({
+      value: workflow.path,
+      workflow
+    }), "workflowToOption");
+    const options = computed(
+      () => workflowStore.openWorkflows.map(workflowToOption)
+    );
+    const selectedWorkflow = computed(
+      () => workflowStore.activeWorkflow ? workflowToOption(workflowStore.activeWorkflow) : null
+    );
+    const onWorkflowChange = /* @__PURE__ */ __name((option2) => {
+      if (!option2) {
+        return;
+      }
+      if (selectedWorkflow.value?.value === option2.value) {
+        return;
+      }
+      workflowService.openWorkflow(option2.workflow);
+    }, "onWorkflowChange");
+    const closeWorkflows = /* @__PURE__ */ __name(async (options2) => {
+      for (const opt of options2) {
+        if (!await workflowService.closeWorkflow(opt.workflow, {
+          warnIfUnsaved: !workspaceStore.shiftDown
+        })) {
+          break;
+        }
+      }
+    }, "closeWorkflows");
+    const onCloseWorkflow = /* @__PURE__ */ __name((option2) => {
+      closeWorkflows([option2]);
+    }, "onCloseWorkflow");
+    const showContextMenu = /* @__PURE__ */ __name((event, option2) => {
+      rightClickedTab.value = option2;
+      menu.value.show(event);
+    }, "showContextMenu");
+    const contextMenuItems = computed(() => {
+      const tab = rightClickedTab.value;
+      if (!tab) return [];
+      const index = options.value.findIndex((v) => v.workflow === tab.workflow);
+      return [
+        {
+          label: t("tabMenu.duplicateTab"),
+          command: /* @__PURE__ */ __name(() => {
+            workflowService.duplicateWorkflow(tab.workflow);
+          }, "command")
+        },
+        {
+          separator: true
+        },
+        {
+          label: t("tabMenu.closeTab"),
+          command: /* @__PURE__ */ __name(() => onCloseWorkflow(tab), "command")
+        },
+        {
+          label: t("tabMenu.closeTabsToLeft"),
+          command: /* @__PURE__ */ __name(() => closeWorkflows(options.value.slice(0, index)), "command"),
+          disabled: index <= 0
+        },
+        {
+          label: t("tabMenu.closeTabsToRight"),
+          command: /* @__PURE__ */ __name(() => closeWorkflows(options.value.slice(index + 1)), "command"),
+          disabled: index === options.value.length - 1
+        },
+        {
+          label: t("tabMenu.closeOtherTabs"),
+          command: /* @__PURE__ */ __name(() => closeWorkflows([
+            ...options.value.slice(index + 1),
+            ...options.value.slice(0, index)
+          ]), "command"),
+          disabled: options.value.length <= 1
+        }
+      ];
+    });
+    const commandStore = useCommandStore();
+    return (_ctx, _cache) => {
+      return openBlock(), createElementBlock(Fragment, null, [
+        createVNode(unref(script$B), {
+          class: normalizeClass(["workflow-tabs bg-transparent inline", props.class]),
+          modelValue: selectedWorkflow.value,
+          "onUpdate:modelValue": onWorkflowChange,
+          options: options.value,
+          optionLabel: "label",
+          dataKey: "value"
+        }, {
+          option: withCtx(({ option: option2 }) => [
+            createVNode(WorkflowTab, {
+              onContextmenu: /* @__PURE__ */ __name(($event) => showContextMenu($event, option2), "onContextmenu"),
+              onMouseup: withModifiers(($event) => onCloseWorkflow(option2), ["middle"]),
+              "workflow-option": option2
+            }, null, 8, ["onContextmenu", "onMouseup", "workflow-option"])
+          ]),
+          _: 1
+        }, 8, ["class", "modelValue", "options"]),
+        createVNode(unref(script$d), {
+          class: "new-blank-workflow-button",
+          icon: "pi pi-plus",
+          text: "",
+          severity: "secondary",
+          onClick: _cache[0] || (_cache[0] = () => unref(commandStore).execute("Comfy.NewBlankWorkflow"))
+        }),
+        createVNode(unref(script$C), {
+          ref_key: "menu",
+          ref: menu,
+          model: contextMenuItems.value
+        }, null, 8, ["model"])
+      ], 64);
+    };
+  }
+});
+const WorkflowTabs = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["__scopeId", "data-v-d485c044"]]);
+const _withScopeId = /* @__PURE__ */ __name((n) => (pushScopeId("data-v-878b63b8"), n = n(), popScopeId(), n), "_withScopeId");
+const _hoisted_1 = /* @__PURE__ */ _withScopeId(() => /* @__PURE__ */ createBaseVNode("h1", { class: "comfyui-logo mx-2" }, "ComfyUI", -1));
+const _hoisted_2 = { class: "flex-grow" };
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
 const _sfc_main$1 = /* @__PURE__ */ defineComponent({
   __name: "TopMenubar",
   setup(__props) {
@@ -8294,7 +12144,11 @@ const _sfc_main$1 = /* @__PURE__ */ defineComponent({
         }, [
           _cache[1] || (_cache[1] = createBaseVNode("h1", { class: "comfyui-logo mx-2" }, "ComfyUI", -1)),
           createVNode(CommandMenubar),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
           createVNode(unref(script$H), {
+========
+          createVNode(unref(script$D), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
             layout: "vertical",
             class: "mx-2"
           }),
@@ -8307,8 +12161,13 @@ const _sfc_main$1 = /* @__PURE__ */ defineComponent({
             ref: menuRight
           }, null, 512),
           createVNode(Actionbar),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
           createVNode(_sfc_main$2),
           withDirectives(createVNode(unref(script$h), {
+========
+          createVNode(_sfc_main$5),
+          withDirectives(createVNode(unref(script$d), {
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
             icon: "pi pi-bars",
             severity: "secondary",
             text: "",
@@ -8324,37 +12183,7 @@ const _sfc_main$1 = /* @__PURE__ */ defineComponent({
     };
   }
 });
-const TopMenubar = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-d792da31"]]);
-function setupAutoQueueHandler() {
-  const queueCountStore = useQueuePendingTaskCountStore();
-  const queueSettingsStore = useQueueSettingsStore();
-  let graphHasChanged = false;
-  let internalCount = 0;
-  api.addEventListener("graphChanged", () => {
-    if (queueSettingsStore.mode === "change") {
-      if (internalCount) {
-        graphHasChanged = true;
-      } else {
-        graphHasChanged = false;
-        app.queuePrompt(0, queueSettingsStore.batchCount);
-        internalCount++;
-      }
-    }
-  });
-  queueCountStore.$subscribe(
-    () => {
-      internalCount = queueCountStore.count;
-      if (!internalCount && !app.lastExecutionError) {
-        if (queueSettingsStore.mode === "instant" || queueSettingsStore.mode === "change" && graphHasChanged) {
-          graphHasChanged = false;
-          app.queuePrompt(0, queueSettingsStore.batchCount);
-        }
-      }
-    },
-    { detached: true }
-  );
-}
-__name(setupAutoQueueHandler, "setupAutoQueueHandler");
+const TopMenubar = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-878b63b8"]]);
 var LatentPreviewMethod = /* @__PURE__ */ ((LatentPreviewMethod2) => {
   LatentPreviewMethod2["NoPreviews"] = "none";
   LatentPreviewMethod2["Auto"] = "auto";
@@ -8833,7 +12662,10 @@ const SERVER_CONFIG_ITEMS = [
   }
 ];
 function useCoreCommands() {
-  const getTracker = /* @__PURE__ */ __name(() => useWorkflowStore()?.activeWorkflow?.changeTracker, "getTracker");
+  const workflowService = useWorkflowService();
+  const workflowStore = useWorkflowStore();
+  const dialogService = useDialogService();
+  const getTracker = /* @__PURE__ */ __name(() => workflowStore.activeWorkflow?.changeTracker, "getTracker");
   const getSelectedNodes = /* @__PURE__ */ __name(() => {
     const selectedNodes = app.canvas.selected_nodes;
     const result = [];
@@ -9002,7 +12834,9 @@ function useCoreCommands() {
       id: "Comfy.BrowseTemplates",
       icon: "pi pi-folder-open",
       label: "Browse Templates",
-      function: showTemplateWorkflowsDialog
+      function: /* @__PURE__ */ __name(() => {
+        dialogService.showTemplateWorkflowsDialog();
+      }, "function")
     },
     {
       id: "Comfy.Canvas.ZoomIn",
@@ -9099,7 +12933,7 @@ function useCoreCommands() {
       label: "Show Settings Dialog",
       versionAdded: "1.3.7",
       function: /* @__PURE__ */ __name(() => {
-        showSettingsDialog();
+        dialogService.showSettingsDialog();
       }, "function")
     },
     {
@@ -9303,12 +13137,55 @@ function useCoreCommands() {
       menubarLabel: "About ComfyUI",
       versionAdded: "1.6.4",
       function: /* @__PURE__ */ __name(() => {
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
         showSettingsDialog("about");
+========
+        dialogService.showSettingsDialog("about");
+      }, "function")
+    },
+    {
+      id: "Comfy.DuplicateWorkflow",
+      icon: "pi pi-clone",
+      label: "Duplicate Current Workflow",
+      versionAdded: "1.6.15",
+      function: /* @__PURE__ */ __name(() => {
+        workflowService.duplicateWorkflow(workflowStore.activeWorkflow);
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
       }, "function")
     }
   ];
 }
 __name(useCoreCommands, "useCoreCommands");
+function setupAutoQueueHandler() {
+  const queueCountStore = useQueuePendingTaskCountStore();
+  const queueSettingsStore = useQueueSettingsStore();
+  let graphHasChanged = false;
+  let internalCount = 0;
+  api.addEventListener("graphChanged", () => {
+    if (queueSettingsStore.mode === "change") {
+      if (internalCount) {
+        graphHasChanged = true;
+      } else {
+        graphHasChanged = false;
+        app.queuePrompt(0, queueSettingsStore.batchCount);
+        internalCount++;
+      }
+    }
+  });
+  queueCountStore.$subscribe(
+    () => {
+      internalCount = queueCountStore.count;
+      if (!internalCount && !app.lastExecutionError) {
+        if (queueSettingsStore.mode === "instant" || queueSettingsStore.mode === "change" && graphHasChanged) {
+          graphHasChanged = false;
+          app.queuePrompt(0, queueSettingsStore.batchCount);
+        }
+      }
+    },
+    { detached: true }
+  );
+}
+__name(setupAutoQueueHandler, "setupAutoQueueHandler");
 const _sfc_main = /* @__PURE__ */ defineComponent({
   __name: "GraphView",
   setup(__props) {
@@ -9317,9 +13194,9 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
     const toast = useToast();
     const settingStore = useSettingStore();
     const executionStore = useExecutionStore();
-    const theme11 = computed(() => settingStore.get("Comfy.ColorPalette"));
+    const theme10 = computed(() => settingStore.get("Comfy.ColorPalette"));
     watch(
-      theme11,
+      theme10,
       (newTheme) => {
         const DARK_THEME_CLASS = "dark-theme";
         const isDarkTheme = newTheme !== "light";
@@ -9354,7 +13231,7 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
     watchEffect(() => {
       const useNewMenu = settingStore.get("Comfy.UseNewMenu");
       if (useNewMenu === "Disabled") {
-        app.ui.menuContainer.style.removeProperty("display");
+        app.ui.menuContainer.style.setProperty("display", "block");
         app.ui.restoreMenuPosition();
       } else {
         app.ui.menuContainer.style.setProperty("display", "none");
@@ -9366,11 +13243,10 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
       );
     });
     const init = /* @__PURE__ */ __name(() => {
-      settingStore.addSettings(app.ui.settings);
       const coreCommands = useCoreCommands();
       useCommandStore().registerCommands(coreCommands);
       useMenuItemStore().registerCoreMenuCommands();
-      useKeybindingStore().loadCoreKeybindings();
+      useKeybindingService().registerCoreKeybindings();
       useSidebarTabStore().registerCoreSidebarTabs();
       useBottomPanelStore().registerCoreBottomPanelTabs();
       app.extensionManager = useWorkspaceStore();
@@ -9412,10 +13288,11 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
       api.removeEventListener("reconnected", onReconnected);
       executionStore.unbindExecutionEvents();
     });
+    useEventListener(window, "keydown", useKeybindingService().keybindHandler);
     const onGraphReady = /* @__PURE__ */ __name(() => {
       requestIdleCallback(
         () => {
-          useKeybindingStore().loadUserKeybindings();
+          useKeybindingService().registerUserKeybindings();
           useServerConfigStore().loadServerConfig(
             SERVER_CONFIG_ITEMS,
             settingStore.get("Comfy.Server.ServerConfigValues")
@@ -9430,10 +13307,17 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock(Fragment, null, [
         createVNode(TopMenubar),
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
         createVNode(_sfc_main$d, { onReady: onGraphReady }),
         createVNode(_sfc_main$b),
         createVNode(_sfc_main$a),
         createVNode(_sfc_main$9),
+========
+        createVNode(_sfc_main$a, { onReady: onGraphReady }),
+        createVNode(_sfc_main$9),
+        createVNode(_sfc_main$r),
+        createVNode(_sfc_main$t),
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js
         createVNode(MenuHamburger)
       ], 64);
     };
@@ -9442,4 +13326,8 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
 export {
   _sfc_main as default
 };
+<<<<<<<< HEAD:comfy/web/assets/GraphView-CtNN12CD.js
 //# sourceMappingURL=GraphView-CtNN12CD.js.map
+========
+//# sourceMappingURL=GraphView-HVeNbkaW.js.map
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/GraphView-HVeNbkaW.js

@@ -87,7 +87,7 @@ class TestCustomIsChanged:
 
     def custom_is_changed(self, image, should_change=False):
         return (image,)
-    
+
     @classmethod
     def IS_CHANGED(cls, should_change=False, *args, **kwargs):
         if should_change:
@@ -112,7 +112,7 @@ class TestIsChangedWithConstants:
 
     def custom_is_changed(self, image, value):
         return (image * value,)
-    
+
     @classmethod
     def IS_CHANGED(cls, image, value):
         if image is None:

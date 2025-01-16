@@ -2,6 +2,7 @@ torch
 torchvision
 torchdiffeq>=0.2.3
 torchsde>=0.2.6
+numpy>=1.25.0
 einops>=0.6.0
 open-clip-torch>=2.24.0
 transformers>=4.29.1
@@ -53,7 +54,7 @@ opentelemetry-semantic-conventions
 wrapt>=1.16.0
 certifi
 spandrel>=0.3.4
-numpy>=1.24.4,<2.0.0
+numpy>=1.24.4
 soundfile
 watchdog
 PySoundFile

@@ -1,8 +1,15 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+<<<<<<<< HEAD:comfy/web/assets/ExtensionPanel-B4Se9sV5.js
 import { a as defineComponent, r as ref, cj as FilterMatchMode, cn as useExtensionStore, u as useSettingStore, aE as onMounted, p as computed, o as openBlock, v as createBlock, x as withCtx, g as createVNode, ck as SearchBox, y as unref, bV as script, z as createBaseVNode, f as createElementBlock, P as renderList, a5 as toDisplayString, aw as createTextVNode, O as Fragment, C as script$1, h as createCommentVNode, aA as script$3, br as script$4, c4 as script$5, cl as _sfc_main$1 } from "./index-BK27PIiK.js";
 import { s as script$2, a as script$6 } from "./index-BwNYbo7J.js";
 import "./index-4Y1pXkN0.js";
+========
+import { d as defineComponent, ab as ref, cn as FilterMatchMode, cs as useExtensionStore, a as useSettingStore, m as onMounted, c as computed, o as openBlock, k as createBlock, M as withCtx, N as createVNode, co as SearchBox, j as unref, bZ as script, H as createBaseVNode, f as createElementBlock, E as renderList, X as toDisplayString, aE as createTextVNode, F as Fragment, l as script$1, I as createCommentVNode, aI as script$3, bO as script$4, c4 as script$5, cp as _sfc_main$1 } from "./index-DjNHn37O.js";
+import { s as script$2, a as script$6 } from "./index-B5F0uxTQ.js";
+import "./index-B-aVupP5.js";
+import "./index-5HFeZax4.js";
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/ExtensionPanel-D4Phn0Zr.js
 const _hoisted_1 = { class: "flex justify-end" };
 const _sfc_main = /* @__PURE__ */ defineComponent({
   __name: "ExtensionPanel",
@@ -179,4 +186,8 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
 export {
   _sfc_main as default
 };
+<<<<<<<< HEAD:comfy/web/assets/ExtensionPanel-B4Se9sV5.js
 //# sourceMappingURL=ExtensionPanel-B4Se9sV5.js.map
+========
+//# sourceMappingURL=ExtensionPanel-D4Phn0Zr.js.map
+>>>>>>>> 31831e6ef13474b975eee1a94f39078e00b00156:comfy/web/assets/ExtensionPanel-D4Phn0Zr.js

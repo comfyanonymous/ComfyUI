@@ -1,7 +1,8 @@
 from typing import Optional
 
 from .cmd.execution import nodes
-from .component_model.executor_types import DependencyCycleError, NodeInputError, NodeNotFoundError, DependencyExecutionErrorMessage
+from .component_model.executor_types import DependencyCycleError, NodeInputError, NodeNotFoundError, \
+    DependencyExecutionErrorMessage
 from .graph_utils import is_link
 
 
@@ -49,8 +50,8 @@ class DynamicPrompt:
         return self.original_prompt
 
 
-def get_input_info(class_def, input_name):
-    valid_inputs = class_def.INPUT_TYPES()
+def get_input_info(class_def, input_name, valid_inputs=None):
+    valid_inputs = valid_inputs or class_def.INPUT_TYPES()
     input_info = None
     input_category = None
     if "required" in valid_inputs and input_name in valid_inputs["required"]:
@@ -127,7 +128,7 @@ class TopologicalSort:
                     if (include_lazy or not is_lazy) and not self.is_cached(from_node_id):
                         node_ids.append(from_node_id)
                         links.append((from_node_id, from_socket, unique_id))
-                        
+
         for link in links:
             self.add_strong_link(*link)
 
@@ -205,20 +206,20 @@ class ExecutionList(TopologicalSort):
             if is_output(node_id):
                 return node_id
 
-        #This should handle the VAEDecode -> preview case
+        # This should handle the VAEDecode -> preview case
         for node_id in node_list:
             for blocked_node_id in self.blocking[node_id]:
                 if is_output(blocked_node_id):
                     return node_id
 
-        #This should handle the VAELoader -> VAEDecode -> preview case
+        # This should handle the VAELoader -> VAEDecode -> preview case
         for node_id in node_list:
             for blocked_node_id in self.blocking[node_id]:
                 for blocked_node_id1 in self.blocking[blocked_node_id]:
                     if is_output(blocked_node_id1):
                         return node_id
 
-        #TODO: this function should be improved
+        # TODO: this function should be improved
         return node_list[0]
 
     def unstage_node_execution(self):

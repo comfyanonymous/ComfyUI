@@ -8,6 +8,7 @@ from . import sdxl_clip
 from . import supported_models_base
 from . import utils
 from .text_encoders import aura_t5
+from .text_encoders import cosmos
 from .text_encoders import flux
 from .text_encoders import genmo
 from .text_encoders import hunyuan_video
@@ -819,7 +820,7 @@ class HunyuanVideo(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.HunyuanVideo
 
-    memory_usage_factor = 2.0  # TODO
+    memory_usage_factor = 1.8  # TODO
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
@@ -858,6 +859,49 @@ class HunyuanVideo(supported_models_base.BASE):
         return supported_models_base.ClipTarget(hunyuan_video.HunyuanVideoTokenizer, hunyuan_video.hunyuan_video_clip(**hunyuan_detect))
 
 
-models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideo]
+class CosmosT2V(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "cosmos",
+        "in_channels": 16,
+    }
+
+    sampling_settings = {
+        "sigma_data": 0.5,
+        "sigma_max": 80.0,
+        "sigma_min": 0.002,
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.Cosmos1CV8x8x8
+
+    memory_usage_factor = 1.6  # TODO
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]  # TODO
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.CosmosVideo(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        t5_detect = sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
+        return supported_models_base.ClipTarget(cosmos.CosmosT5Tokenizer, cosmos.te(**t5_detect))
+
+
+class CosmosI2V(CosmosT2V):
+    unet_config = {
+        "image_model": "cosmos",
+        "in_channels": 17,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.CosmosVideo(self, image_to_video=True, device=device)
+        return out
+
+
+models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideo, CosmosT2V, CosmosI2V]
 
 models += [SVD_img2vid]
