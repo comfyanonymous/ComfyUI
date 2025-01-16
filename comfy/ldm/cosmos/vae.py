@@ -89,8 +89,8 @@ class CausalContinuousVideoTokenizer(nn.Module):
         self.distribution = IdentityDistribution()  # ContinuousFormulation[formulation_name].value()
 
         num_parameters = sum(param.numel() for param in self.parameters())
-        logging.info(f"model={self.name}, num_parameters={num_parameters:,}")
-        logging.info(
+        logging.debug(f"model={self.name}, num_parameters={num_parameters:,}")
+        logging.debug(
             f"z_channels={z_channels}, latent_channels={self.latent_channels}."
         )
 
