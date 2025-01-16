@@ -5,7 +5,13 @@ from ..cmd import folder_paths
 import glob
 from aiohttp import web
 
+from ..execution_context import context_folder_names_and_paths
+
+
 class CustomNodeManager:
+    def __init__(self):
+        # binds to context at init time
+        self.folder_paths = folder_paths.folder_names_and_paths
     """
     Placeholder to refactor the custom node management features from ComfyUI-Manager.
     Currently it only contains the custom workflow templates feature.
@@ -15,11 +21,12 @@ class CustomNodeManager:
         @routes.get("/workflow_templates")
         async def get_workflow_templates(request):
             """Returns a web response that contains the map of custom_nodes names and their associated workflow templates. The ones without templates are omitted."""
-            files = [
-                file
-                for folder in folder_paths.get_folder_paths("custom_nodes")
-                for file in glob.glob(os.path.join(folder, '*/example_workflows/*.json'))
-            ]
+            with context_folder_names_and_paths(self.folder_paths):
+                files = [
+                    file
+                    for folder in folder_paths.get_folder_paths("custom_nodes")
+                    for file in glob.glob(os.path.join(folder, '*/example_workflows/*.json'))
+                ]
             workflow_templates_dict = {} # custom_nodes folder name -> example workflow names
             for file in files:
                 custom_nodes_name = os.path.basename(os.path.dirname(os.path.dirname(file)))

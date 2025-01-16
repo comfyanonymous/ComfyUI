@@ -118,6 +118,10 @@ class PathsList:
         p: FolderNames = self.parent()
         p.remove_paths(self.folder_name, [value])
 
+    def __len__(self):
+        p: FolderNames = self.parent()
+        return len(list(p.directory_paths(self.folder_name)))
+
 @dataclasses.dataclass
 class SupportedExtensions:
     folder_name: str

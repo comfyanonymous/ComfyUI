@@ -27,7 +27,7 @@ from torchvision import transforms
 from enum import Enum
 import logging
 
-from comfy.ldm.modules.diffusionmodules.mmdit import RMSNorm
+from ..modules.diffusionmodules.mmdit import RMSNorm
 
 from .blocks import (
     FinalLayer,

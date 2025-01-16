@@ -29,6 +29,7 @@ import sys
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
+from pickle import UnpicklingError
 from typing import Optional, Any
 
 import numpy as np
@@ -63,7 +64,7 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
 
     torch.serialization.add_safe_globals([ModelCheckpoint, scalar, dtype, Float64DType, encode])
     ALWAYS_SAFE_LOAD = True
-    logging.info("Checkpoint files will always be loaded safely.")
+    logging.debug("Checkpoint files will always be loaded safely.")
 
 
 # deprecate PROGRESS_BAR_ENABLED

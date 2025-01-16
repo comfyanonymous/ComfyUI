@@ -304,13 +304,13 @@ def pytorch_attention(q, k, v):
 
 def vae_attention():
     if model_management.xformers_enabled_vae():
-        logging.info("Using xformers attention in VAE")
+        logging.debug("Using xformers attention in VAE")
         return xformers_attention
     elif model_management.pytorch_attention_enabled():
-        logging.info("Using pytorch attention in VAE")
+        logging.debug("Using pytorch attention in VAE")
         return pytorch_attention
     else:
-        logging.info("Using split attention in VAE")
+        logging.debug("Using split attention in VAE")
         return normal_attention
 
 
