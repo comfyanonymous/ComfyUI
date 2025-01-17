@@ -293,7 +293,7 @@ class GeneralDIT(nn.Module):
         x_B_T_H_W_D = self.x_embedder(x_B_C_T_H_W)
 
         if self.extra_per_block_abs_pos_emb:
-            extra_pos_emb = self.extra_pos_embedder(x_B_T_H_W_D, fps=fps, device=x_B_C_T_H_W.device)
+            extra_pos_emb = self.extra_pos_embedder(x_B_T_H_W_D, fps=fps, device=x_B_C_T_H_W.device, dtype=x_B_C_T_H_W.dtype)
         else:
             extra_pos_emb = None
 
