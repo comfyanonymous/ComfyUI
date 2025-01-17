@@ -18,6 +18,7 @@ import logging
 import torch
 from torch import nn
 from enum import Enum
+import math
 
 from .cosmos_tokenizer.layers3d import (
     EncoderFactorized,
@@ -89,8 +90,8 @@ class CausalContinuousVideoTokenizer(nn.Module):
         self.distribution = IdentityDistribution()  # ContinuousFormulation[formulation_name].value()
 
         num_parameters = sum(param.numel() for param in self.parameters())
-        logging.info(f"model={self.name}, num_parameters={num_parameters:,}")
-        logging.info(
+        logging.debug(f"model={self.name}, num_parameters={num_parameters:,}")
+        logging.debug(
             f"z_channels={z_channels}, latent_channels={self.latent_channels}."
         )
 
@@ -105,17 +106,23 @@ class CausalContinuousVideoTokenizer(nn.Module):
         z, posteriors = self.distribution(moments)
         latent_ch = z.shape[1]
         latent_t = z.shape[2]
-        dtype = z.dtype
-        mean = self.latent_mean.view(latent_ch, -1)[:, : latent_t].reshape([1, latent_ch, -1, 1, 1]).to(dtype=dtype, device=z.device)
-        std = self.latent_std.view(latent_ch, -1)[:, : latent_t].reshape([1, latent_ch, -1, 1, 1]).to(dtype=dtype, device=z.device)
+        in_dtype = z.dtype
+        mean = self.latent_mean.view(latent_ch, -1)
+        std = self.latent_std.view(latent_ch, -1)
+
+        mean = mean.repeat(1, math.ceil(latent_t / mean.shape[-1]))[:, : latent_t].reshape([1, latent_ch, -1, 1, 1]).to(dtype=in_dtype, device=z.device)
+        std = std.repeat(1, math.ceil(latent_t / std.shape[-1]))[:, : latent_t].reshape([1, latent_ch, -1, 1, 1]).to(dtype=in_dtype, device=z.device)
         return ((z - mean) / std) * self.sigma_data
 
     def decode(self, z):
         in_dtype = z.dtype
         latent_ch = z.shape[1]
         latent_t = z.shape[2]
-        mean = self.latent_mean.view(latent_ch, -1)[:, : latent_t].reshape([1, latent_ch, -1, 1, 1]).to(dtype=in_dtype, device=z.device)
-        std = self.latent_std.view(latent_ch, -1)[:, : latent_t].reshape([1, latent_ch, -1, 1, 1]).to(dtype=in_dtype, device=z.device)
+        mean = self.latent_mean.view(latent_ch, -1)
+        std = self.latent_std.view(latent_ch, -1)
+
+        mean = mean.repeat(1, math.ceil(latent_t / mean.shape[-1]))[:, : latent_t].reshape([1, latent_ch, -1, 1, 1]).to(dtype=in_dtype, device=z.device)
+        std = std.repeat(1, math.ceil(latent_t / std.shape[-1]))[:, : latent_t].reshape([1, latent_ch, -1, 1, 1]).to(dtype=in_dtype, device=z.device)
 
         z = z / self.sigma_data
         z = z * std + mean

@@ -168,7 +168,7 @@ class GeneralDIT(nn.Module):
             operations=operations,
         )
 
-        self.build_pos_embed(device=device)
+        self.build_pos_embed(device=device, dtype=dtype)
         self.block_x_format = block_x_format
         self.use_adaln_lora = use_adaln_lora
         self.adaln_lora_dim = adaln_lora_dim
@@ -210,7 +210,7 @@ class GeneralDIT(nn.Module):
             operations=operations,
         )
 
-    def build_pos_embed(self, device=None):
+    def build_pos_embed(self, device=None, dtype=None):
         if self.pos_emb_cls == "rope3d":
             cls_type = VideoRopePosition3DEmb
         else:
@@ -242,6 +242,7 @@ class GeneralDIT(nn.Module):
             kwargs["w_extrapolation_ratio"] = self.extra_w_extrapolation_ratio
             kwargs["t_extrapolation_ratio"] = self.extra_t_extrapolation_ratio
             kwargs["device"] = device
+            kwargs["dtype"] = dtype
             self.extra_pos_embedder = LearnablePosEmbAxis(
                 **kwargs,
             )
@@ -292,7 +293,7 @@ class GeneralDIT(nn.Module):
         x_B_T_H_W_D = self.x_embedder(x_B_C_T_H_W)
 
         if self.extra_per_block_abs_pos_emb:
-            extra_pos_emb = self.extra_pos_embedder(x_B_T_H_W_D, fps=fps, device=x_B_C_T_H_W.device)
+            extra_pos_emb = self.extra_pos_embedder(x_B_T_H_W_D, fps=fps, device=x_B_C_T_H_W.device, dtype=x_B_C_T_H_W.dtype)
         else:
             extra_pos_emb = None
 
@@ -476,6 +477,8 @@ class GeneralDIT(nn.Module):
             inputs["original_shape"],
         )
         extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D = inputs["extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D"].to(x.dtype)
+        del inputs
+
         if extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D is not None:
             assert (
                 x.shape == extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D.shape
@@ -486,6 +489,8 @@ class GeneralDIT(nn.Module):
                 self.blocks["block0"].x_format == block.x_format
             ), f"First block has x_format {self.blocks[0].x_format}, got {block.x_format}"
 
+            if extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D is not None:
+                x += extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D
             x = block(
                 x,
                 affline_emb_B_D,
@@ -493,7 +498,6 @@ class GeneralDIT(nn.Module):
                 crossattn_mask,
                 rope_emb_L_1_1_D=rope_emb_L_1_1_D,
                 adaln_lora_B_3D=adaln_lora_B_3D,
-                extra_per_block_pos_emb=extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D,
             )
 
         x_B_T_H_W_D = rearrange(x, "T H W B D -> B T H W D")

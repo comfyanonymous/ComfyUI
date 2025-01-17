@@ -788,7 +788,7 @@ class HunyuanVideo(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.HunyuanVideo
 
-    memory_usage_factor = 2.0 #TODO
+    memory_usage_factor = 1.8 #TODO
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
@@ -839,7 +839,7 @@ class CosmosT2V(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.Cosmos1CV8x8x8
 
-    memory_usage_factor = 2.4 #TODO
+    memory_usage_factor = 1.6 #TODO
 
     supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32] #TODO
 
