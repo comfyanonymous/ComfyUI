@@ -140,8 +140,25 @@ patchzluda.bat
   windows store and installing the one from the website, be sure the delete venv folder, and run install.bat once again.
 - `rocBLAS`-error: If you have an integrated GPU by AMD (e.g. AMD Radeon(TM) Graphics) you need to add `HIP_VISIBLE_DEVICES=1` to your
   environment variables. Otherwise it will default to using your iGPU, which will most likely not work. This behavior is caused by a bug in the ROCm-driver.
-
 ___
+
+## Example Workflows
+
+- Image Models
+   - [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/)
+   - [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
+   - [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/)
+   - [SD3 and SD3.5](https://comfyanonymous.github.io/ComfyUI_examples/sd3/)
+   - [AuraFlow](https://comfyanonymous.github.io/ComfyUI_examples/aura_flow/)
+   - [HunyuanDiT](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_dit/)
+   - [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
+- Video Models
+   - [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
+   - [Mochi](https://comfyanonymous.github.io/ComfyUI_examples/mochi/)
+   - [LTX-Video](https://comfyanonymous.github.io/ComfyUI_examples/ltxv/)
+   - [Hunyuan Video](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_video/)
+   - [Nvidia Cosmos](https://comfyanonymous.github.io/ComfyUI_examples/cosmos/)
+- [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
 
 ## Shortcuts
 
