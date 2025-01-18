@@ -34,6 +34,7 @@ from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
 from typing import Optional
 from api_server.routes.internal.internal_routes import InternalRoutes
+from auth import validate_request
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -55,6 +56,8 @@ async def cache_control(request: web.Request, handler):
 def create_cors_middleware(allowed_origin: str):
     @web.middleware
     async def cors_middleware(request: web.Request, handler):
+        validate_request(request)
+
         if request.method == "OPTIONS":
             # Pre-flight request. Reply successfully:
             response = web.Response()
@@ -98,6 +101,7 @@ def is_loopback(host):
 def create_origin_only_middleware():
     @web.middleware
     async def origin_only_middleware(request: web.Request, handler):
+        validate_request(request)
         #this code is used to prevent the case where a random website can queue comfy workflows by making a POST to 127.0.0.1 which browsers don't prevent for some dumb reason.
         #in that case the Host and Origin hostnames won't match
         #I know the proper fix would be to add a cookie but this should take care of the problem in the meantime
