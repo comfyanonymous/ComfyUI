@@ -12,7 +12,6 @@ import collections
 from comfy import model_management
 import math
 import logging
-import comfy.samplers
 import comfy.sampler_helpers
 import comfy.model_patcher
 import comfy.patcher_extension
@@ -178,7 +177,7 @@ def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.H
         cond = default_conds[i]
         for x in cond:
             # do get_area_and_mult to get all the expected values
-            p = comfy.samplers.get_area_and_mult(x, x_in, timestep)
+            p = get_area_and_mult(x, x_in, timestep)
             if p is None:
                 continue
             # replace p's mult with calculated mult
@@ -215,7 +214,7 @@ def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Te
                     default_c.append(x)
                     has_default_conds = True
                     continue
-                p = comfy.samplers.get_area_and_mult(x, x_in, timestep)
+                p = get_area_and_mult(x, x_in, timestep)
                 if p is None:
                     continue
                 if p.hooks is not None:
