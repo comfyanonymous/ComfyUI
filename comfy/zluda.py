@@ -1,3 +1,15 @@
+# hide rocm and hip
+import os
+os.environ.pop("ROCM_HOME",None)
+os.environ.pop("HIP_HOME",None)
+os.environ.pop("ROCM_VERSION",None)
+paths=os.environ["PATH"].split(";")
+paths_no_rocm=[]
+for path_ in paths:
+    if "rocm" not in path_.lower():
+        paths_no_rocm.append(path_)
+os.environ["PATH"]=";".join(paths_no_rocm)
+
 import torch
 
 if torch.cuda.get_device_name().endswith("[ZLUDA]"):
