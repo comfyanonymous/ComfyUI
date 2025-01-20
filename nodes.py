@@ -2128,7 +2128,7 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
         logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
         return False
 
-def init_external_custom_nodes():
+def init_external_custom_nodes(requested_nodes=None):
     """
     Initializes the external custom nodes.
 
@@ -2137,6 +2137,9 @@ def init_external_custom_nodes():
 
     Returns:
         None
+    
+    Args:
+        requested_nodes (list, optional): List of custom node names to load. If None, loads all nodes.
     """
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
@@ -2150,6 +2153,20 @@ def init_external_custom_nodes():
             module_path = os.path.join(custom_node_path, possible_module)
             if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
             if module_path.endswith(".disabled"): continue
+                
+            # Skip if not in requested nodes
+            module_name = get_module_name(module_path)
+            if requested_nodes is not None:
+                # Check if this module should be loaded based on requested nodes
+                should_load = False
+                for requested_node in requested_nodes:
+                    if requested_node.lower() in module_name.lower():
+                        should_load = True
+                        break
+                if not should_load:
+                    logging.debug(f"Skipping {module_name} as it's not in requested nodes")
+                    continue
+                    
             time_before = time.perf_counter()
             success = load_custom_node(module_path, base_node_names, module_parent="custom_nodes")
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
@@ -2236,11 +2253,11 @@ def init_builtin_extra_nodes():
     return import_failed
 
 
-def init_extra_nodes(init_custom_nodes=True):
+def init_extra_nodes(init_custom_nodes=True, requested_nodes=None):
     import_failed = init_builtin_extra_nodes()
 
     if init_custom_nodes:
-        init_external_custom_nodes()
+        init_external_custom_nodes(requested_nodes)
     else:
         logging.info("Skipping loading of custom nodes")
 

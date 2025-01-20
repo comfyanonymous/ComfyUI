@@ -178,6 +178,8 @@ parser.add_argument(
 
 parser.add_argument("--user-directory", type=is_valid_directory, default=None, help="Set the ComfyUI user directory with an absolute path.")
 
+parser.add_argument('--custom-nodes', type=str, nargs='*', help='Specify which custom nodes to load')
+
 if comfy.options.args_parsing:
     args = parser.parse_args()
 else:
