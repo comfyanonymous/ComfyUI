@@ -22,15 +22,13 @@ class MultiGPUInitialize:
     CATEGORY = "DevTools"
 
     def init_multigpu(self, model: ModelPatcher, max_gpus: int):
-        model = model.clone()
         extra_devices = comfy.model_management.get_all_torch_devices(exclude_current=True)
         extra_devices = extra_devices[:max_gpus-1]
         if len(extra_devices) > 0:
+            model = model.clone()
             comfy.model_management.unload_all_models()
             for device in extra_devices:
-                device_patcher = model.clone()
-                device_patcher.model = copy.deepcopy(model.model)
-                device_patcher.load_device = device
+                device_patcher = model.multigpu_clone(new_load_device=device)
                 device_patcher.is_multigpu_clone = True
                 multigpu_models = model.get_additional_models_with_key("multigpu")
                 multigpu_models.append(device_patcher)
