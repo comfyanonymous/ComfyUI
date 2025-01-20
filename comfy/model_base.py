@@ -148,7 +148,9 @@ class BaseModel(torch.nn.Module):
 
         xc = xc.to(dtype)
         t = self.model_sampling.timestep(t).float()
-        context = context.to(dtype)
+        if context is not None:
+            context = context.to(dtype)
+
         extra_conds = {}
         for o in kwargs:
             extra = kwargs[o]
@@ -549,6 +551,10 @@ class SD_X4Upscaler(BaseModel):
 
         out['c_concat'] = comfy.conds.CONDNoiseShape(image)
         out['y'] = comfy.conds.CONDRegular(noise_level)
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDCrossAttn(cross_attn)
         return out
 
 class IP2P:
