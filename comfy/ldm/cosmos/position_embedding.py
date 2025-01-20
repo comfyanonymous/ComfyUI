@@ -41,12 +41,12 @@ def normalize(x: torch.Tensor, dim: Optional[List[int]] = None, eps: float = 0) 
 
 
 class VideoPositionEmb(nn.Module):
-    def forward(self, x_B_T_H_W_C: torch.Tensor, fps=Optional[torch.Tensor], device=None) -> torch.Tensor:
+    def forward(self, x_B_T_H_W_C: torch.Tensor, fps=Optional[torch.Tensor], device=None, dtype=None) -> torch.Tensor:
         """
         It delegates the embedding generation to generate_embeddings function.
         """
         B_T_H_W_C = x_B_T_H_W_C.shape
-        embeddings = self.generate_embeddings(B_T_H_W_C, fps=fps, device=device)
+        embeddings = self.generate_embeddings(B_T_H_W_C, fps=fps, device=device, dtype=dtype)
 
         return embeddings
 
@@ -104,6 +104,7 @@ class VideoRopePosition3DEmb(VideoPositionEmb):
         w_ntk_factor: Optional[float] = None,
         t_ntk_factor: Optional[float] = None,
         device=None,
+        dtype=None,
     ):
         """
         Generate embeddings for the given input size.
@@ -173,6 +174,7 @@ class LearnablePosEmbAxis(VideoPositionEmb):
         len_w: int,
         len_t: int,
         device=None,
+        dtype=None,
         **kwargs,
     ):
         """
@@ -184,17 +186,16 @@ class LearnablePosEmbAxis(VideoPositionEmb):
         self.interpolation = interpolation
         assert self.interpolation in ["crop"], f"Unknown interpolation method {self.interpolation}"
 
-        self.pos_emb_h = nn.Parameter(torch.empty(len_h, model_channels, device=device))
-        self.pos_emb_w = nn.Parameter(torch.empty(len_w, model_channels, device=device))
-        self.pos_emb_t = nn.Parameter(torch.empty(len_t, model_channels, device=device))
+        self.pos_emb_h = nn.Parameter(torch.empty(len_h, model_channels, device=device, dtype=dtype))
+        self.pos_emb_w = nn.Parameter(torch.empty(len_w, model_channels, device=device, dtype=dtype))
+        self.pos_emb_t = nn.Parameter(torch.empty(len_t, model_channels, device=device, dtype=dtype))
 
-
-    def generate_embeddings(self, B_T_H_W_C: torch.Size, fps=Optional[torch.Tensor], device=None) -> torch.Tensor:
+    def generate_embeddings(self, B_T_H_W_C: torch.Size, fps=Optional[torch.Tensor], device=None, dtype=None) -> torch.Tensor:
         B, T, H, W, _ = B_T_H_W_C
         if self.interpolation == "crop":
-            emb_h_H = self.pos_emb_h[:H].to(device=device)
-            emb_w_W = self.pos_emb_w[:W].to(device=device)
-            emb_t_T = self.pos_emb_t[:T].to(device=device)
+            emb_h_H = self.pos_emb_h[:H].to(device=device, dtype=dtype)
+            emb_w_W = self.pos_emb_w[:W].to(device=device, dtype=dtype)
+            emb_t_T = self.pos_emb_t[:T].to(device=device, dtype=dtype)
             emb = (
                 repeat(emb_t_T, "t d-> b t h w d", b=B, h=H, w=W)
                 + repeat(emb_h_H, "h d-> b t h w d", b=B, t=T, w=W)

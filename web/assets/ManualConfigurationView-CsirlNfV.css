@@ -1,0 +1,7 @@
+
+.p-tag[data-v-dc169863] {
+  --p-tag-gap: 0.5rem;
+}
+.comfy-installer[data-v-dc169863] {
+  margin-top: max(1rem, max(0px, calc((100vh - 42rem) * 0.5)));
+}

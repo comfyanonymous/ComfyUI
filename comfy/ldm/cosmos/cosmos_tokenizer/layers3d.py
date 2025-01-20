@@ -30,6 +30,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import logging
 
+from comfy.ldm.modules.diffusionmodules.model import vae_attention
+
 from .patching import (
     Patcher,
     Patcher3D,
@@ -400,6 +402,8 @@ class CausalAttnBlock(nn.Module):
             in_channels, in_channels, kernel_size=1, stride=1, padding=0
         )
 
+        self.optimized_attention = vae_attention()
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h_ = x
         h_ = self.norm(h_)
@@ -413,18 +417,7 @@ class CausalAttnBlock(nn.Module):
         v, batch_size = time2batch(v)
 
         b, c, h, w = q.shape
-        q = q.reshape(b, c, h * w)
-        q = q.permute(0, 2, 1)
-        k = k.reshape(b, c, h * w)
-        w_ = torch.bmm(q, k)
-        w_ = w_ * (int(c) ** (-0.5))
-        w_ = F.softmax(w_, dim=2)
-
-        # attend to values
-        v = v.reshape(b, c, h * w)
-        w_ = w_.permute(0, 2, 1)
-        h_ = torch.bmm(v, w_)
-        h_ = h_.reshape(b, c, h, w)
+        h_ = self.optimized_attention(q, k, v)
 
         h_ = batch2time(h_, batch_size)
         h_ = self.proj_out(h_)
@@ -871,18 +864,16 @@ class EncoderFactorized(nn.Module):
         x = self.patcher3d(x)
 
         # downsampling
-        hs = [self.conv_in(x)]
+        h = self.conv_in(x)
         for i_level in range(self.num_resolutions):
             for i_block in range(self.num_res_blocks):
-                h = self.down[i_level].block[i_block](hs[-1])
+                h = self.down[i_level].block[i_block](h)
                 if len(self.down[i_level].attn) > 0:
                     h = self.down[i_level].attn[i_block](h)
-                hs.append(h)
             if i_level != self.num_resolutions - 1:
-                hs.append(self.down[i_level].downsample(hs[-1]))
+                h = self.down[i_level].downsample(h)
 
         # middle
-        h = hs[-1]
         h = self.mid.block_1(h)
         h = self.mid.attn_1(h)
         h = self.mid.block_2(h)
