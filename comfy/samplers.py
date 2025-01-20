@@ -232,7 +232,7 @@ def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Te
     if has_default_conds:
         finalize_default_conds(model, hooked_to_run, default_conds, x_in, timestep, model_options)
 
-    model.current_patcher.prepare_state(timestep)
+    model.current_patcher.prepare_state(timestep, model_options)
 
     # run every hooked_to_run separately
     for hooks, to_run in hooked_to_run.items():
@@ -368,39 +368,53 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
     if has_default_conds:
         finalize_default_conds(model, hooked_to_run, default_conds, x_in, timestep, model_options)
 
-    model.current_patcher.prepare_state(timestep)
+    model.current_patcher.prepare_state(timestep, model_options)
 
-    devices = [dev_m for dev_m in model_options["multigpu_clones"].keys()]
+    devices = [dev_m for dev_m in model_options['multigpu_clones'].keys()]
     device_batched_hooked_to_run: dict[torch.device, list[tuple[comfy.hooks.HookGroup, tuple]]] = {}
-    count = 0
+    
+    total_conds = 0
+    for to_run in hooked_to_run.values():
+        total_conds += len(to_run)
+    conds_per_device = max(1, math.ceil(total_conds//len(devices)))
+    index_device = 0
+    current_device = devices[index_device]
     # run every hooked_to_run separately
     for hooks, to_run in hooked_to_run.items():
         while len(to_run) > 0:
+            current_device = devices[index_device % len(devices)]
+            batched_to_run = device_batched_hooked_to_run.setdefault(current_device, [])
+            # keep track of conds currently scheduled onto this device
+            batched_to_run_length = 0
+            for btr in batched_to_run:
+                batched_to_run_length += len(btr[1])
+
             first = to_run[0]
             first_shape = first[0][0].shape
             to_batch_temp = []
+            # make sure not over conds_per_device limit when creating temp batch
             for x in range(len(to_run)):
-                if can_concat_cond(to_run[x][0], first[0]):
+                if can_concat_cond(to_run[x][0], first[0]) and len(to_batch_temp) < (conds_per_device - batched_to_run_length):
                     to_batch_temp += [x]
 
             to_batch_temp.reverse()
             to_batch = to_batch_temp[:1]
 
-            current_device = devices[count % len(devices)]
             free_memory = model_management.get_free_memory(current_device)
             for i in range(1, len(to_batch_temp) + 1):
                 batch_amount = to_batch_temp[:len(to_batch_temp)//i]
                 input_shape = [len(batch_amount) * first_shape[0]] + list(first_shape)[1:]
-                # if model.memory_required(input_shape) * 1.5 < free_memory:
-                #     to_batch = batch_amount
-                #     break
+                if model.memory_required(input_shape) * 1.5 < free_memory:
+                    to_batch = batch_amount
+                    break
             conds_to_batch = []
             for x in to_batch:
                 conds_to_batch.append(to_run.pop(x))
-            
-            batched_to_run = device_batched_hooked_to_run.setdefault(current_device, [])
+            batched_to_run_length += len(conds_to_batch)
+
             batched_to_run.append((hooks, conds_to_batch))
-            count += 1
+            if batched_to_run_length >= conds_per_device:
+                index_device += 1
 
     thread_result = collections.namedtuple('thread_result', ['output', 'mult', 'area', 'batch_chunks', 'cond_or_uncond'])
     def _handle_batch(device: torch.device, batch_tuple: tuple[comfy.hooks.HookGroup, tuple], results: list[thread_result]):
@@ -1112,13 +1126,7 @@ class CFGGuider:
         self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds, self.model_options)
         device = self.model_patcher.load_device
 
-        multigpu_patchers: list[ModelPatcher] = [x for x in self.loaded_models if x.is_multigpu_clone]
-        if len(multigpu_patchers) > 0:
-            multigpu_dict: dict[torch.device, ModelPatcher] = {}
-            multigpu_dict[device] = self.model_patcher
-            for x in multigpu_patchers:
-                multigpu_dict[x.load_device] = x
-            self.model_options["multigpu_clones"] = multigpu_dict
+        multigpu_patchers = comfy.sampler_helpers.prepare_model_patcher_multigpu_clones(self.model_patcher, self.loaded_models, self.model_options)
 
         if denoise_mask is not None:
             denoise_mask = comfy.sampler_helpers.prepare_mask(denoise_mask, noise.shape, device)

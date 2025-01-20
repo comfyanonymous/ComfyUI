@@ -84,12 +84,15 @@ def set_model_options_pre_cfg_function(model_options, pre_cfg_function, disable_
 def create_model_options_clone(orig_model_options: dict):
     return comfy.patcher_extension.copy_nested_dicts(orig_model_options)
 
-def create_hook_patches_clone(orig_hook_patches):
+def create_hook_patches_clone(orig_hook_patches, copy_tuples=False):
     new_hook_patches = {}
     for hook_ref in orig_hook_patches:
         new_hook_patches[hook_ref] = {}
         for k in orig_hook_patches[hook_ref]:
             new_hook_patches[hook_ref][k] = orig_hook_patches[hook_ref][k][:]
+            if copy_tuples:
+                for i in range(len(new_hook_patches[hook_ref][k])):
+                    new_hook_patches[hook_ref][k][i] = tuple(new_hook_patches[hook_ref][k][i])
     return new_hook_patches
 
 def wipe_lowvram_weight(m):
@@ -303,7 +306,7 @@ class ModelPatcher:
             callback(self, n)
         return n
 
-    def multigpu_clone(self, new_load_device=None, models_cache: dict[ModelPatcher,ModelPatcher]=None):
+    def multigpu_deepclone(self, new_load_device=None, models_cache: dict[ModelPatcher,ModelPatcher]=None):
         n = self.clone()
         # set load device, if present
         if new_load_device is not None:
@@ -312,6 +315,7 @@ class ModelPatcher:
         # otherwise, patchers that have deep copies of base models will erroneously influence each other.
         n.backup = copy.deepcopy(n.backup)
         n.object_patches_backup = copy.deepcopy(n.object_patches_backup)
+        n.hook_backup = copy.deepcopy(n.hook_backup)
         n.model = copy.deepcopy(n.model)
         # multigpu clone should not have multigpu additional_models entry
         n.remove_additional_models("multigpu")
@@ -322,7 +326,7 @@ class ModelPatcher:
             for i in range(len(model_list)):
                 add_model = n.additional_models[key][i]
                 if i not in models_cache:
-                    models_cache[add_model] = add_model.multigpu_clone(new_load_device=new_load_device, models_cache=models_cache)
+                    models_cache[add_model] = add_model.multigpu_deepclone(new_load_device=new_load_device, models_cache=models_cache)
                 n.additional_models[key][i] = models_cache[add_model]
         return n
 
@@ -952,9 +956,13 @@ class ModelPatcher:
         for callback in self.get_all_callbacks(CallbacksMP.ON_PRE_RUN):
             callback(self)
 
-    def prepare_state(self, timestep):
+    def prepare_state(self, timestep, model_options, ignore_multigpu=False):
         for callback in self.get_all_callbacks(CallbacksMP.ON_PREPARE_STATE):
-            callback(self, timestep)
+            callback(self, timestep, model_options, ignore_multigpu)
+        if not ignore_multigpu and "multigpu_clones" in model_options:
+            for p in model_options["multigpu_clones"].values():
+                p: ModelPatcher
+                p.prepare_state(timestep, model_options, ignore_multigpu=True)
 
     def restore_hook_patches(self):
         if self.hook_patches_backup is not None:
@@ -967,12 +975,18 @@ class ModelPatcher:
     def prepare_hook_patches_current_keyframe(self, t: torch.Tensor, hook_group: comfy.hooks.HookGroup, model_options: dict[str]):
         curr_t = t[0]
         reset_current_hooks = False
+        multigpu_kf_changed_cache = None
         transformer_options = model_options.get("transformer_options", {})
         for hook in hook_group.hooks:
             changed = hook.hook_keyframe.prepare_current_keyframe(curr_t=curr_t, transformer_options=transformer_options)
             # if keyframe changed, remove any cached HookGroups that contain hook with the same hook_ref;
             # this will cause the weights to be recalculated when sampling
             if changed:
+                # cache changed for multigpu usage
+                if "multigpu_clones" in model_options:
+                    if multigpu_kf_changed_cache is None:
+                        multigpu_kf_changed_cache = []
+                    multigpu_kf_changed_cache.append(hook)
                 # reset current_hooks if contains hook that changed
                 if self.current_hooks is not None:
                     for current_hook in self.current_hooks.hooks:
@@ -982,6 +996,28 @@ class ModelPatcher:
                 for cached_group in list(self.cached_hook_patches.keys()):
                     if cached_group.contains(hook):
                         self.cached_hook_patches.pop(cached_group)
+        if reset_current_hooks:
+            self.patch_hooks(None)
+        if "multigpu_clones" in model_options:
+            for p in model_options["multigpu_clones"].values():
+                p: ModelPatcher
+                p._handle_changed_hook_keyframes(multigpu_kf_changed_cache)
+
+    def _handle_changed_hook_keyframes(self, kf_changed_cache: list[comfy.hooks.Hook]):
+        'Used to handle multigpu behavior inside prepare_hook_patches_current_keyframe.'
+        if kf_changed_cache is None:
+            return
+        reset_current_hooks = False
+        # reset current_hooks if contains hook that changed
+        for hook in kf_changed_cache:
+            if self.current_hooks is not None:
+                for current_hook in self.current_hooks.hooks:
+                    if current_hook == hook:
+                        reset_current_hooks = True
+                        break
+            for cached_group in list(self.cached_hook_patches.keys()):
+                if cached_group.contains(hook):
+                    self.cached_hook_patches.pop(cached_group)
         if reset_current_hooks:
             self.patch_hooks(None)
 
