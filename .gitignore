@@ -14,6 +14,8 @@ __pycache__/
 !custom_nodes/example_node.py.example
 !custom_nodes/MemedeckComfyNodes/
 !custom_nodes/MemedeckComfyNodes/**
+!comfy/ldm/models/autoencoder.py
+!comfy/ldm/models/
 
 extra_model_paths.yaml
 /.vs
@@ -43,4 +45,3 @@ comfy_venv_3.11
 models-2
 
 !comfy/ldm/models/autoencoder.py
-

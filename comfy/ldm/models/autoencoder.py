@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import logging
 import math
 import torch
@@ -7,6 +8,15 @@ from typing import Any, Dict, Tuple, Union
 from comfy.ldm.modules.distributions.distributions import DiagonalGaussianDistribution
 
 from comfy.ldm.util import get_obj_from_str, instantiate_from_config
+=======
+import torch
+from contextlib import contextmanager
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+from comfy.ldm.modules.distributions.distributions import DiagonalGaussianDistribution
+
+from comfy.ldm.util import instantiate_from_config
+>>>>>>> 0e1536b4 (logic to upload images from this server)
 from comfy.ldm.modules.ema import LitEma
 import comfy.ops
 
@@ -54,7 +64,11 @@ class AbstractAutoencoder(torch.nn.Module):
 
         if self.use_ema:
             self.model_ema = LitEma(self, decay=ema_decay)
+<<<<<<< HEAD
             logging.info(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
+=======
+            logpy.info(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
+>>>>>>> 0e1536b4 (logic to upload images from this server)
 
     def get_input(self, batch) -> Any:
         raise NotImplementedError()
@@ -70,14 +84,22 @@ class AbstractAutoencoder(torch.nn.Module):
             self.model_ema.store(self.parameters())
             self.model_ema.copy_to(self)
             if context is not None:
+<<<<<<< HEAD
                 logging.info(f"{context}: Switched to EMA weights")
+=======
+                logpy.info(f"{context}: Switched to EMA weights")
+>>>>>>> 0e1536b4 (logic to upload images from this server)
         try:
             yield None
         finally:
             if self.use_ema:
                 self.model_ema.restore(self.parameters())
                 if context is not None:
+<<<<<<< HEAD
                     logging.info(f"{context}: Restored training weights")
+=======
+                    logpy.info(f"{context}: Restored training weights")
+>>>>>>> 0e1536b4 (logic to upload images from this server)
 
     def encode(self, *args, **kwargs) -> torch.Tensor:
         raise NotImplementedError("encode()-method of abstract base class called")
@@ -86,7 +108,11 @@ class AbstractAutoencoder(torch.nn.Module):
         raise NotImplementedError("decode()-method of abstract base class called")
 
     def instantiate_optimizer_from_config(self, params, lr, cfg):
+<<<<<<< HEAD
         logging.info(f"loading >>> {cfg['target']} <<< optimizer from config")
+=======
+        logpy.info(f"loading >>> {cfg['target']} <<< optimizer from config")
+>>>>>>> 0e1536b4 (logic to upload images from this server)
         return get_obj_from_str(cfg["target"])(
             params, lr=lr, **cfg.get("params", dict())
         )
@@ -114,7 +140,11 @@ class AutoencodingEngine(AbstractAutoencoder):
 
         self.encoder: torch.nn.Module = instantiate_from_config(encoder_config)
         self.decoder: torch.nn.Module = instantiate_from_config(decoder_config)
+<<<<<<< HEAD
         self.regularization = instantiate_from_config(
+=======
+        self.regularization: AbstractRegularizer = instantiate_from_config(
+>>>>>>> 0e1536b4 (logic to upload images from this server)
             regularizer_config
         )
 
@@ -162,6 +192,7 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
             },
             **kwargs,
         )
+<<<<<<< HEAD
 
         if ddconfig.get("conv3d", False):
             conv_op = comfy.ops.disable_weight_init.Conv3d
@@ -169,12 +200,19 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
             conv_op = comfy.ops.disable_weight_init.Conv2d
 
         self.quant_conv = conv_op(
+=======
+        self.quant_conv = comfy.ops.disable_weight_init.Conv2d(
+>>>>>>> 0e1536b4 (logic to upload images from this server)
             (1 + ddconfig["double_z"]) * ddconfig["z_channels"],
             (1 + ddconfig["double_z"]) * embed_dim,
             1,
         )
+<<<<<<< HEAD
 
         self.post_quant_conv = conv_op(embed_dim, ddconfig["z_channels"], 1)
+=======
+        self.post_quant_conv = comfy.ops.disable_weight_init.Conv2d(embed_dim, ddconfig["z_channels"], 1)
+>>>>>>> 0e1536b4 (logic to upload images from this server)
         self.embed_dim = embed_dim
 
     def get_autoencoder_params(self) -> list:
