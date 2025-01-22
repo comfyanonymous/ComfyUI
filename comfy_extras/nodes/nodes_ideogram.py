@@ -1,4 +1,5 @@
 import json
+import os
 from io import BytesIO
 from itertools import chain
 from typing import Tuple, Dict, Any
@@ -12,7 +13,6 @@ from comfy.nodes.package_typing import CustomNode
 from comfy.utils import pil2tensor, tensor2pil
 from comfy_extras.constants.resolutions import IDEOGRAM_RESOLUTIONS
 from comfy_extras.nodes.nodes_mask import MaskToImage
-from comfy.cli_args import args
 
 ASPECT_RATIOS = [(10, 6), (16, 10), (9, 16), (3, 2), (4, 3)]
 ASPECT_RATIO_ENUM = ["ASPECT_1_1"] + list(chain.from_iterable(
@@ -24,12 +24,12 @@ AUTO_PROMPT_ENUM = ["AUTO", "ON", "OFF"]
 RESOLUTION_ENUM = [f"RESOLUTION_{w}_{h}" for w, h in IDEOGRAM_RESOLUTIONS]
 
 
-
 def api_key_in_env_or_workflow(api_key_from_workflow: str):
-    if api_key_from_workflow is not None and "" != api_key_from_workflow:
+    from comfy.cli_args import args
+    if api_key_from_workflow is not None and "" != api_key_from_workflow.strip():
         return api_key_from_workflow
 
-    return args.ideogram_api_key
+    return os.environ.get("IDEOGRAM_API_KEY", args.ideogram_api_key)
 
 
 class IdeogramGenerate(CustomNode):
