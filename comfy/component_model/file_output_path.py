@@ -22,6 +22,8 @@ def file_output_path(filename: str, type: Literal["input", "output", "temp"] = "
     if output_dir is None:
         raise ValueError(f"no such output directory because invalid type specified (type={type})")
     output_dir = Path(output_dir)
+    # seems to misbehave
+    subfolder = subfolder.replace("\\", "/")
     subfolder = Path(subfolder or "")
     try:
         relative_to = (output_dir / subfolder / filename).relative_to(output_dir)
