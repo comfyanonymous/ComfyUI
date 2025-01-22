@@ -65,7 +65,8 @@ class CustomNodeManager:
         translations = {}
 
         for folder in folder_paths.get_folder_paths("custom_nodes"):
-            for custom_node_dir in glob.glob(os.path.join(folder, "*/")):
+            # Sort glob results for deterministic ordering
+            for custom_node_dir in sorted(glob.glob(os.path.join(folder, "*/"))):
                 locales_dir = os.path.join(custom_node_dir, "locales")
                 if not os.path.exists(locales_dir):
                     continue
