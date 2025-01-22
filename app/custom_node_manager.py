@@ -32,11 +32,6 @@ def safe_load_json_file(file_path: str) -> dict:
 
 
 class CustomNodeManager:
-    """
-    Placeholder to refactor the custom node management features from ComfyUI-Manager.
-    Currently it only contains the custom workflow templates feature.
-    """
-
     @lru_cache(maxsize=1)
     def build_translations(self):
         """Load all custom nodes translations during initialization. Translations are
