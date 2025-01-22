@@ -937,6 +937,8 @@ class CLIPLoader:
             clip_type = comfy.sd.CLIPType.LTXV
         elif type == "pixart":
             clip_type = comfy.sd.CLIPType.PIXART
+        elif type == "cosmos":
+            clip_type = comfy.sd.CLIPType.COSMOS
         else:
             clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
 
