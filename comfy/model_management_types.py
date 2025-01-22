@@ -7,10 +7,11 @@ import torch
 import torch.nn
 from typing_extensions import TypedDict, NotRequired
 
-from comfy.latent_formats import LatentFormat
+from .latent_formats import LatentFormat
 
 ModelManageableT = TypeVar('ModelManageableT', bound='ModelManageable')
 LatentFormatT = TypeVar('LatentFormatT', bound=LatentFormat)
+
 
 @runtime_checkable
 class DeviceSettable(Protocol):
