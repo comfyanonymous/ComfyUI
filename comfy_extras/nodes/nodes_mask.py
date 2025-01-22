@@ -2,6 +2,7 @@ import numpy as np
 import scipy.ndimage
 import torch
 from comfy import utils
+from comfy.component_model.tensor_types import MaskBatch, RGBImageBatch
 
 from comfy.nodes.common import MAX_RESOLUTION
 
@@ -106,7 +107,7 @@ class MaskToImage:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "mask_to_image"
 
-    def mask_to_image(self, mask):
+    def mask_to_image(self, mask: MaskBatch) -> tuple[RGBImageBatch]:
         result = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])).movedim(1, -1).expand(-1, -1, -1, 3)
         return (result,)
 

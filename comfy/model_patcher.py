@@ -21,6 +21,7 @@ import collections
 import copy
 import inspect
 import logging
+import typing
 import uuid
 from math import isclose
 from typing import Callable, Optional
@@ -38,7 +39,7 @@ from .float import stochastic_rounding
 from .hooks import EnumHookMode, _HookRef, HookGroup, EnumHookType, WeightHook, create_transformer_options_from_hooks
 from .lora_types import PatchDict, PatchDictKey, PatchTuple, PatchWeightTuple, ModelPatchesDictValue
 from .model_base import BaseModel
-from .model_management_types import ModelManageable, MemoryMeasurements, ModelOptions
+from .model_management_types import ModelManageable, MemoryMeasurements, ModelOptions, LatentFormatT
 from .patcher_extension import CallbacksMP, WrappersMP, PatcherInjection
 
 logger = logging.getLogger(__name__)
@@ -437,7 +438,7 @@ class ModelPatcher(ModelManageable):
     def add_object_patch(self, name, obj):
         self.object_patches[name] = obj
 
-    def get_model_object(self, name: str) -> torch.nn.Module:
+    def get_model_object(self, name: str) -> torch.nn.Module | typing.Any:
         """Retrieves a nested attribute from an object using dot notation considering
         object patches.
 
@@ -466,6 +467,10 @@ class ModelPatcher(ModelManageable):
     @diffusion_model.setter
     def diffusion_model(self, value: torch.nn.Module):
         self.add_object_patch("diffusion_model", value)
+
+    @property
+    def latent_format(self) -> LatentFormatT:
+        return self.get_model_object("latent_format")
 
     def model_patches_to(self, device):
         to = self.model_options["transformer_options"]

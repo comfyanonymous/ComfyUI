@@ -222,6 +222,15 @@ def _create_parser() -> EnhancedConfigArgParser:
         default=None
     )
 
+    parser.add_argument(
+        "--ideogram-api-key",
+        required=False,
+        type=str,
+        help="Configures the Ideogram API Key for the Ideogram nodes. Visit https://ideogram.ai/manage-api to create this key.",
+        env_var="IDEOGRAM_API_KEY",
+        default=None
+    )
+
     parser.add_argument("--user-directory", type=is_valid_directory, default=None, help="Set the ComfyUI user directory with an absolute path.")
 
     # now give plugins a chance to add configuration

@@ -14,6 +14,8 @@ from comfy.component_model.tensor_types import ImageBatch, RGBImageBatch
 from comfy.nodes.base_nodes import ImageScale
 from comfy.nodes.common import MAX_RESOLUTION
 from comfy.nodes.package_typing import CustomNode
+from comfy_extras.constants.resolutions import SDXL_SD3_FLUX_RESOLUTIONS, LTVX_RESOLUTIONS, SD_RESOLUTIONS, \
+    IDEOGRAM_RESOLUTIONS
 
 
 def levels_adjustment(image: ImageBatch, black_level: float = 0.0, mid_level: float = 0.5, white_level: float = 1.0, clip: bool = True) -> ImageBatch:
@@ -271,7 +273,7 @@ class ImageResize:
             "required": {
                 "image": ("IMAGE",),
                 "resize_mode": (["cover", "contain", "auto"], {"default": "cover"}),
-                "resolutions": (["SDXL/SD3/Flux", "SD1.5", "LTXV"], {"default": "SDXL/SD3/Flux"}),
+                "resolutions": (["SDXL/SD3/Flux", "SD1.5", "LTXV", "Ideogram"], {"default": "SDXL/SD3/Flux"}),
                 "interpolation": (ImageScale.upscale_methods, {"default": "bilinear"}),
             }
         }
@@ -282,26 +284,16 @@ class ImageResize:
 
     def resize_image(self, image: RGBImageBatch, resize_mode: Literal["cover", "contain", "auto"], resolutions: Literal["SDXL/SD3/Flux", "SD1.5"], interpolation: str) -> Tuple[RGBImageBatch]:
         if resolutions == "SDXL/SD3/Flux":
-            supported_resolutions = [
-                (640, 1536),
-                (768, 1344),
-                (832, 1216),
-                (896, 1152),
-                (1024, 1024),
-                (1152, 896),
-                (1216, 832),
-                (1344, 768),
-                (1536, 640),
-            ]
+            supported_resolutions = SDXL_SD3_FLUX_RESOLUTIONS
         elif resolutions == "ltxv":
-            supported_resolutions = [
-                (768, 512)
-            ]
+            supported_resolutions = LTVX_RESOLUTIONS
+        elif resolutions == "ideogram":
+            supported_resolutions = IDEOGRAM_RESOLUTIONS
         else:
-            supported_resolutions = [
-                (512, 512),
-            ]
+            supported_resolutions = SD_RESOLUTIONS
+        return self.resize_image_with_supported_resolutions(image, resize_mode, supported_resolutions, interpolation)
 
+    def resize_image_with_supported_resolutions(self, image: RGBImageBatch, resize_mode: Literal["cover", "contain", "auto"], supported_resolutions: list[tuple[int, int]], interpolation: str):
         resized_images = []
         for img in image:
             h, w = img.shape[:2]

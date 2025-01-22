@@ -118,6 +118,7 @@ class Configuration(dict):
         executor_factory (str): Either ThreadPoolExecutor or ProcessPoolExecutor, defaulting to ThreadPoolExecutor
         preview_size (int): Sets the maximum preview size for sampler nodes. Defaults to 512.
         openai_api_key (str): Configures the OpenAI API Key for the OpenAI nodes
+        ideogram_api_key (str): Configures the Ideogram API Key for the Ideogram nodes. Visit https://ideogram.ai/manage-api to create this key.
         user_directory (Optional[str]): Set the ComfyUI user directory with an absolute path.
         log_stdout (bool): Send normal process output to stdout instead of stderr (default)
     """
@@ -215,6 +216,7 @@ class Configuration(dict):
 
         self.executor_factory: str = "ThreadPoolExecutor"
         self.openai_api_key: Optional[str] = None
+        self.ideogram_api_key: Optional[str] = None
         self.user_directory: Optional[str] = None
 
     def __getattr__(self, item):
