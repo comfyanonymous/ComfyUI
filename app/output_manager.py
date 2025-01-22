@@ -35,7 +35,7 @@ class OutputManager:
                     # TODO get video cover preview
 
                 elif os.path.isdir(filepath):
-                    files = self.get_items_by_directory(filepath)
+                    files = self.get_folder_items(filepath)
                     return web.json_response(files)
 
                 return web.Response(status=404)
@@ -59,28 +59,27 @@ class OutputManager:
     def get_output_filepath(self, pathname: str):
         return f"{self.output_uri}/{pathname}"
 
-    def get_items_by_directory(self, pathname: str):
+    def get_folder_items(self, folder: str):
         result = []
-        items = os.listdir(pathname)
 
-        for name in items:
-            filepath = os.path.join(pathname, name)
+        with os.scandir(folder) as it:
+            for entry in it:
+                filepath = entry.path
+                is_dir = entry.is_dir()
 
-            if os.path.isfile(filepath) and not self.assert_file_type(filepath, ["image", "video", "audio"]):
-                continue
+                if not is_dir and not self.assert_file_type(filepath, ["image", "video", "audio"]):
+                    continue
 
-            state = os.stat(filepath)
-            is_dir = os.path.isdir(filepath)
-
-            result.append(
-                {
-                    "name": name,
-                    "type": "folder" if is_dir else self.get_file_content_type(filepath),
-                    "size": 0 if is_dir else state.st_size,
-                    "createdAt": round(state.st_ctime_ns / 1000000),
-                    "updatedAt": round(state.st_mtime_ns / 1000000),
-                }
-            )
+                state = entry.stat()
+                result.append(
+                    {
+                        "name": entry.name,
+                        "type": "folder" if entry.is_dir() else self.get_file_content_type(filepath),
+                        "size": 0 if is_dir else state.st_size,
+                        "createdAt": round(state.st_ctime_ns / 1000000),
+                        "updatedAt": round(state.st_mtime_ns / 1000000),
+                    }
+                )
 
         return result
 
