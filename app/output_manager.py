@@ -13,7 +13,18 @@ from typing import Literal
 
 class OutputManager:
     def __init__(self) -> None:
+        self.cache: dict[str, tuple[list, float]] = {}
         self.output_uri = folder_paths.get_output_directory()
+
+    def get_cache(self, key: str):
+        return self.cache.get(key, ([], 0))
+
+    def set_cache(self, key: str, value: tuple[list, float]):
+        self.cache[key] = value
+
+    def rm_cache(self, key: str):
+        if key in self.cache:
+            del self.cache[key]
 
     def add_routes(self, routes) -> None:
         @routes.get("/output{pathname:.*}")
@@ -53,6 +64,7 @@ class OutputManager:
                     os.remove(filepath)
                 elif os.path.isdir(filepath):
                     shutil.rmtree(filepath)
+                    self.rm_cache(filepath)
                 return web.Response(status=200)
             except Exception as e:
                 return web.Response(status=500)
@@ -61,6 +73,12 @@ class OutputManager:
         return f"{self.output_uri}/{pathname}"
 
     def get_folder_items(self, folder: str):
+        result, m_time = self.get_cache(folder)
+        folder_m_time = os.path.getmtime(folder)
+
+        if folder_m_time == m_time:
+            return result
+
         result = []
 
         def get_file_info(entry: os.DirEntry[str]):
@@ -87,6 +105,7 @@ class OutputManager:
                     continue
                 result.append(file_info)
 
+        self.set_cache(folder, (result, os.path.getmtime(folder)))
         return result
 
     def assert_file_type(self, filename: str, content_types: Literal["image", "video", "audio"]):
