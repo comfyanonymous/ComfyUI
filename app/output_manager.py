@@ -5,6 +5,7 @@ import folder_paths
 import mimetypes
 import shutil
 from aiohttp import web
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from PIL import Image
 from typing import Literal
@@ -62,24 +63,29 @@ class OutputManager:
     def get_folder_items(self, folder: str):
         result = []
 
-        with os.scandir(folder) as it:
-            for entry in it:
-                filepath = entry.path
-                is_dir = entry.is_dir()
+        def get_file_info(entry: os.DirEntry[str]):
+            filepath = entry.path
+            is_dir = entry.is_dir()
 
-                if not is_dir and not self.assert_file_type(filepath, ["image", "video", "audio"]):
+            if not is_dir and not self.assert_file_type(filepath, ["image", "video", "audio"]):
+                return None
+
+            stat = entry.stat()
+            return {
+                "name": entry.name,
+                "type": "folder" if entry.is_dir() else self.get_file_content_type(filepath),
+                "size": 0 if is_dir else stat.st_size,
+                "createdAt": round(stat.st_ctime_ns / 1000000),
+                "updatedAt": round(stat.st_mtime_ns / 1000000),
+            }
+
+        with os.scandir(folder) as it, ThreadPoolExecutor() as executor:
+            future_to_entry = {executor.submit(get_file_info, entry): entry for entry in it}
+            for future in as_completed(future_to_entry):
+                file_info = future.result()
+                if file_info is None:
                     continue
-
-                state = entry.stat()
-                result.append(
-                    {
-                        "name": entry.name,
-                        "type": "folder" if entry.is_dir() else self.get_file_content_type(filepath),
-                        "size": 0 if is_dir else state.st_size,
-                        "createdAt": round(state.st_ctime_ns / 1000000),
-                        "updatedAt": round(state.st_mtime_ns / 1000000),
-                    }
-                )
+                result.append(file_info)
 
         return result
 
