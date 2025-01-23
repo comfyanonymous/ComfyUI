@@ -173,6 +173,7 @@ def prepare_model_patcher_multigpu_clones(model_patcher: ModelPatcher, loaded_mo
         multigpu_dict[model_patcher.load_device] = model_patcher
         for x in multigpu_patchers:
             x.hook_patches = comfy.model_patcher.create_hook_patches_clone(model_patcher.hook_patches, copy_tuples=True)
+            x.hook_mode = model_patcher.hook_mode # match main model's hook_mode
             multigpu_dict[x.load_device] = x
         model_options["multigpu_clones"] = multigpu_dict
     return multigpu_patchers

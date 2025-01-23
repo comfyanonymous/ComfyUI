@@ -26,7 +26,7 @@ class MultiGPUInitialize:
         extra_devices = extra_devices[:max_gpus-1]
         if len(extra_devices) > 0:
             model = model.clone()
-            comfy.model_management.unload_all_models()
+            comfy.model_management.unload_model_and_clones(model)
             for device in extra_devices:
                 device_patcher = model.multigpu_deepclone(new_load_device=device)
                 device_patcher.is_multigpu_clone = True

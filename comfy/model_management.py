@@ -1146,6 +1146,16 @@ def soft_empty_cache(force=False):
 def unload_all_models():
     free_memory(1e30, get_torch_device())
 
+def unload_model_and_clones(model: ModelPatcher):
+    'Unload only model and its clones - primarily for multigpu cloning purposes.'
+    initial_keep_loaded: list[LoadedModel] = current_loaded_models.copy()
+    keep_loaded = []
+    for loaded_model in initial_keep_loaded:
+        if loaded_model.model is not None:
+            if model.clone_base_uuid == loaded_model.model.clone_base_uuid:
+                continue
+        keep_loaded.append(loaded_model)
+    free_memory(1e30, get_torch_device(), keep_loaded)
 
 #TODO: might be cleaner to put this somewhere else
 import threading

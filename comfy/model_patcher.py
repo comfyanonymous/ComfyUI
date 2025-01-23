@@ -222,7 +222,7 @@ class ModelPatcher:
         self.hook_mode = comfy.hooks.EnumHookMode.MaxSpeed
 
         self.is_multigpu_clone = False
-        self.clone_uuid = uuid.uuid4()
+        self.clone_base_uuid = uuid.uuid4()
 
         if not hasattr(self.model, 'model_loaded_weight_memory'):
             self.model.model_loaded_weight_memory = 0
@@ -300,7 +300,7 @@ class ModelPatcher:
         n.hook_mode = self.hook_mode
 
         n.is_multigpu_clone = self.is_multigpu_clone
-        n.clone_uuid = self.clone_uuid
+        n.clone_base_uuid = self.clone_base_uuid
 
         for callback in self.get_all_callbacks(CallbacksMP.ON_CLONE):
             callback(self, n)
