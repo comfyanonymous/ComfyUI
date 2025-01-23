@@ -4,7 +4,7 @@ import os
 import time
 import mimetypes
 import logging
-from typing import Literal
+from typing import Literal, TypedDict
 from collections.abc import Collection
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
@@ -13,30 +13,75 @@ folder_names_and_paths: dict[str, tuple[list[str], set[str] | list[str]]] = {}
 
 base_path = os.path.dirname(os.path.realpath(__file__))
 models_dir = os.path.join(base_path, "models")
-folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)
-folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
 
-folder_names_and_paths["loras"] = ([os.path.join(models_dir, "loras")], supported_pt_extensions)
-folder_names_and_paths["vae"] = ([os.path.join(models_dir, "vae")], supported_pt_extensions)
-folder_names_and_paths["text_encoders"] = ([os.path.join(models_dir, "text_encoders"), os.path.join(models_dir, "clip")], supported_pt_extensions)
-folder_names_and_paths["diffusion_models"] = ([os.path.join(models_dir, "unet"), os.path.join(models_dir, "diffusion_models")], supported_pt_extensions)
-folder_names_and_paths["clip_vision"] = ([os.path.join(models_dir, "clip_vision")], supported_pt_extensions)
-folder_names_and_paths["style_models"] = ([os.path.join(models_dir, "style_models")], supported_pt_extensions)
-folder_names_and_paths["embeddings"] = ([os.path.join(models_dir, "embeddings")], supported_pt_extensions)
-folder_names_and_paths["diffusers"] = ([os.path.join(models_dir, "diffusers")], ["folder"])
-folder_names_and_paths["vae_approx"] = ([os.path.join(models_dir, "vae_approx")], supported_pt_extensions)
 
-folder_names_and_paths["controlnet"] = ([os.path.join(models_dir, "controlnet"), os.path.join(models_dir, "t2i_adapter")], supported_pt_extensions)
-folder_names_and_paths["gligen"] = ([os.path.join(models_dir, "gligen")], supported_pt_extensions)
+class DefaultModelSubdirOptions(TypedDict, total=False):
+    extensions: set[str] | list[str]
+    alternate_names: list[str]
 
-folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
 
-folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
+# Default models subdirs
+default_paths: dict[str, DefaultModelSubdirOptions] = {
+    "checkpoints": {},
+    "configs": {
+        "extensions": [".yaml"],
+    },
+    "loras": {},
+    "vae": {},
+    "text_encoders": {
+        "alternate_names": ["clip"],
+    },
+    "clip_vision": {},
+    "style_models": {},
+    "embeddings": {},
+    "diffusers": {
+        "extensions": ["folder"],
+    },
+    "vae_approx": {},
+    "controlnet": {
+        "alternate_names": ["t2i_adapter"],
+    },
+    "gligen": {},
+    "upscale_models": {},
+    "hypernetworks": {},
+    "photomaker": {},
+    "classifiers": {
+        "extensions": {""},
+    },
+}
 
-folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")], supported_pt_extensions)
+def add_default_model_paths(models_path: str, is_default: bool = False) -> None:
+    """
+    Adds all built-in model paths under a specified directory to the known folder paths.
 
-folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
+    Args:
+        models_path: The path to the models directory that contains default folders, e.g. ``checkpoints``, ``loras``.
+        is_default: If the created paths should be the new default paths.
+    """
 
+    for [name, options] in default_paths.items():
+        valid_extensions = options.get("extensions", supported_pt_extensions)
+        subdirs = [name, *options.get("alternate_names", [])]
+
+        for subdir in subdirs:
+            add_model_folder_path(
+                name,
+                os.path.join(models_path, subdir),
+                is_default=is_default,
+                is_legacy=True,
+                valid_extensions=valid_extensions,
+            )
+
+    # diffusion_models config shipped with the reverse order of other paths.
+    # Maintain original order, as this may impact ordering in extensions / UI.
+    add_model_folder_path("diffusion_models", os.path.join(models_path, "unet"), is_default=is_default, is_legacy=True, valid_extensions=supported_pt_extensions)
+    add_model_folder_path("diffusion_models", os.path.join(models_path, "diffusion_models"), is_default=is_default, is_legacy=True, valid_extensions=supported_pt_extensions)
+
+
+# Default configuration: add model paths relative to this file.
+add_default_model_paths(base_path)
+
+# TODO: custom_nodes is now added out of original order; confirm no impact.
 folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], set())
 
 output_directory = os.path.join(base_path, "output")
