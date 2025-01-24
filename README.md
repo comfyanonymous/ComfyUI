@@ -121,6 +121,7 @@ patchzluda.bat
 
 ## Troubleshooting
 
+- DO NOT use non-english characters as folder names to put comfyui-zluda under.
 - Wipe your pip cache "C:\Users\USERNAME\AppData\Local\pip\cache" You can also do this when venv is active with :
   `pip cache purge`
 - `xformers` isn't usable with zluda so any nodes / packages that require it doesn't work. `Flash attention`
