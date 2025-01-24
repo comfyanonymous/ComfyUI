@@ -93,8 +93,8 @@ class OutputManager:
                 "name": entry.name,
                 "type": "folder" if entry.is_dir() else self.get_file_content_type(filepath),
                 "size": 0 if is_dir else stat.st_size,
-                "createdAt": round(stat.st_ctime_ns / 1000000),
-                "updatedAt": round(stat.st_mtime_ns / 1000000),
+                "createTime": round(stat.st_ctime_ns / 1000000),
+                "modifyTime": round(stat.st_mtime_ns / 1000000),
             }
 
         with os.scandir(folder) as it, ThreadPoolExecutor() as executor:
