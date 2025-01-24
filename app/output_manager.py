@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+import logging
 import folder_paths
 import mimetypes
 import shutil
+import traceback
 from aiohttp import web
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
@@ -29,8 +31,8 @@ class OutputManager:
     def add_routes(self, routes) -> None:
         @routes.get("/output{pathname:.*}")
         async def get_output_file_or_files(request):
+            pathname = request.match_info.get("pathname", None)
             try:
-                pathname = request.match_info.get("pathname", None)
                 filepath = self.get_output_filepath(pathname)
 
                 if os.path.isfile(filepath):
@@ -51,13 +53,15 @@ class OutputManager:
                     return web.json_response(files)
 
                 return web.Response(status=404)
-            except Exception as e:
+            except Exception:
+                logging.error(f"File '{pathname}' retrieval failed")
+                logging.error(traceback.format_exc())
                 return web.Response(status=500)
 
         @routes.delete("/output{pathname:.*}")
         async def delete_output_file_or_files(request):
+            pathname = request.match_info.get("pathname", None)
             try:
-                pathname = request.match_info.get("pathname", None)
                 filepath = self.get_output_filepath(pathname)
 
                 if os.path.isfile(filepath):
@@ -66,7 +70,9 @@ class OutputManager:
                     shutil.rmtree(filepath)
                     self.rm_cache(filepath)
                 return web.Response(status=200)
-            except Exception as e:
+            except Exception:
+                logging.error(f"File '{pathname}' deletion failed")
+                logging.error(traceback.format_exc())
                 return web.Response(status=500)
 
     def get_output_filepath(self, pathname: str):
