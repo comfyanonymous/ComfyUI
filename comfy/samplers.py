@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import comfy.model_management
 from .k_diffusion import sampling as k_diffusion_sampling
 from .extra_samplers import uni_pc
 from typing import TYPE_CHECKING, Callable, NamedTuple
@@ -427,7 +429,7 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
                 cond_or_uncond = []
                 uuids = []
                 area = []
-                control = None
+                control: ControlBase = None
                 patches = None
                 for x in to_batch:
                     o = x
@@ -473,7 +475,8 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
                 c['transformer_options'] = transformer_options
 
                 if control is not None:
-                    c['control'] = control.get_control(input_x, timestep_, c, len(cond_or_uncond), transformer_options)
+                    device_control = control.get_instance_for_device(device)
+                    c['control'] = device_control.get_control(input_x, timestep_, c, len(cond_or_uncond), transformer_options)
 
                 if 'model_function_wrapper' in model_options:
                     output = model_options['model_function_wrapper'](model_current.apply_model, {"input": input_x, "timestep": timestep_, "c": c, "cond_or_uncond": cond_or_uncond}).to(output_device).chunk(batch_chunks)
@@ -799,6 +802,8 @@ def pre_run_control(model, conds):
         percent_to_timestep_function = lambda a: s.percent_to_sigma(a)
         if 'control' in x:
             x['control'].pre_run(model, percent_to_timestep_function)
+            for device_cnet in x['control'].multigpu_clones.values():
+                device_cnet.pre_run(model, percent_to_timestep_function)
 
 def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
     cond_cnets = []
@@ -1080,6 +1085,48 @@ def cast_to_load_options(model_options: dict[str], device=None, dtype=None):
                                 wc_list[i] = wc_list[i].to(cast)
 
 
+def preprocess_multigpu_conds(conds: dict[str, list[dict[str]]], model_options: dict[str], model: ModelPatcher):
+    '''If multigpu acceleration required, creates deepclones of ControlNets and GLIGEN per device.'''
+    multigpu_models: list[ModelPatcher] = model.get_additional_models_with_key("multigpu")
+    if len(multigpu_models) == 0:
+        return
+    extra_devices = [x.load_device for x in multigpu_models]
+    # handle controlnets
+    controlnets: set[ControlBase] = set()
+    for k in conds:
+        for kk in conds[k]:
+            if 'control' in kk:
+                controlnets.add(kk['control'])
+    if len(controlnets) > 0:
+        # first, unload all controlnet clones
+        for cnet in list(controlnets):
+            cnet_models = cnet.get_models()
+            for cm in cnet_models:
+                comfy.model_management.unload_model_and_clones(cm, unload_additional_models=True)
+
+        # next, make sure each controlnet has a deepclone for all relevant devices
+        for cnet in controlnets:
+            curr_cnet = cnet
+            while curr_cnet is not None:
+                for device in extra_devices:
+                    if device not in curr_cnet.multigpu_clones:
+                        curr_cnet.deepclone_multigpu(device, autoregister=True)
+                curr_cnet = curr_cnet.previous_controlnet
+        # since all device clones are now present, recreate the linked list for cloned cnets per device
+        for cnet in controlnets:
+            curr_cnet = cnet
+            while curr_cnet is not None:
+                prev_cnet = curr_cnet.previous_controlnet
+                for device in extra_devices:
+                    device_cnet = curr_cnet.get_instance_for_device(device)
+                    prev_device_cnet = None
+                    if prev_cnet is not None:
+                        prev_device_cnet = prev_cnet.get_instance_for_device(device)
+                    device_cnet.set_previous_controlnet(prev_device_cnet)
+                curr_cnet = prev_cnet
+    # TODO: handle gligen
+
+
 class CFGGuider:
     def __init__(self, model_patcher: ModelPatcher):
         self.model_patcher = model_patcher
@@ -1122,6 +1169,7 @@ class CFGGuider:
         return self.inner_model.process_latent_out(samples.to(torch.float32))
 
     def outer_sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
+        preprocess_multigpu_conds(self.conds, self.model_options, self.model_patcher)
         self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds, self.model_options)
         device = self.model_patcher.load_device
 
