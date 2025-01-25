@@ -7,88 +7,11 @@ import logging
 from typing import Literal, TypedDict
 from collections.abc import Collection
 
+# Path initialisation occurs on import at the end of this file.
+
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
 
 folder_names_and_paths: dict[str, tuple[list[str], set[str] | list[str]]] = {}
-
-base_path = os.path.dirname(os.path.realpath(__file__))
-models_dir = os.path.join(base_path, "models")
-
-
-class DefaultModelSubdirOptions(TypedDict, total=False):
-    extensions: set[str] | list[str]
-    alternate_names: list[str]
-
-
-# Default models subdirs
-default_paths: dict[str, DefaultModelSubdirOptions] = {
-    "checkpoints": {},
-    "configs": {
-        "extensions": [".yaml"],
-    },
-    "loras": {},
-    "vae": {},
-    "text_encoders": {
-        "alternate_names": ["clip"],
-    },
-    "clip_vision": {},
-    "style_models": {},
-    "embeddings": {},
-    "diffusers": {
-        "extensions": ["folder"],
-    },
-    "vae_approx": {},
-    "controlnet": {
-        "alternate_names": ["t2i_adapter"],
-    },
-    "gligen": {},
-    "upscale_models": {},
-    "hypernetworks": {},
-    "photomaker": {},
-    "classifiers": {
-        "extensions": {""},
-    },
-}
-
-def add_default_model_paths(models_path: str, is_default: bool = False) -> None:
-    """
-    Adds all built-in model paths under a specified directory to the known folder paths.
-
-    Args:
-        models_path: The path to the models directory that contains default folders, e.g. ``checkpoints``, ``loras``.
-        is_default: If the created paths should be the new default paths.
-    """
-
-    for [name, options] in default_paths.items():
-        valid_extensions = options.get("extensions", supported_pt_extensions)
-        subdirs = [name, *options.get("alternate_names", [])]
-
-        for subdir in subdirs:
-            add_model_folder_path(
-                name,
-                os.path.join(models_path, subdir),
-                is_default=is_default,
-                is_legacy=True,
-                valid_extensions=valid_extensions,
-            )
-
-    # diffusion_models config shipped with the reverse order of other paths.
-    # Maintain original order, as this may impact ordering in extensions / UI.
-    add_model_folder_path("diffusion_models", os.path.join(models_path, "unet"), is_default=is_default, is_legacy=True, valid_extensions=supported_pt_extensions)
-    add_model_folder_path("diffusion_models", os.path.join(models_path, "diffusion_models"), is_default=is_default, is_legacy=True, valid_extensions=supported_pt_extensions)
-
-
-# Default configuration: add model paths relative to this file.
-add_default_model_paths(base_path)
-
-# TODO: custom_nodes is now added out of original order; confirm no impact.
-folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], set())
-
-output_directory = os.path.join(base_path, "output")
-temp_directory = os.path.join(base_path, "temp")
-input_directory = os.path.join(base_path, "input")
-user_directory = os.path.join(base_path, "user")
-
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
 class CacheHelper:
@@ -129,12 +52,6 @@ def map_legacy(folder_name: str) -> str:
     legacy = {"unet": "diffusion_models",
               "clip": "text_encoders"}
     return legacy.get(folder_name, folder_name)
-
-if not os.path.exists(input_directory):
-    try:
-        os.makedirs(input_directory)
-    except:
-        logging.error("Failed to create input directory")
 
 def set_output_directory(output_dir: str) -> None:
     global output_directory
@@ -436,3 +353,122 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         os.makedirs(full_output_folder, exist_ok=True)
         counter = 1
     return full_output_folder, filename, counter, subfolder, filename_prefix
+
+
+class DefaultModelSubdirOptions(TypedDict, total=False):
+    extensions: set[str] | list[str]
+    alternate_names: list[str]
+
+
+# Default models subdirs
+default_paths: dict[str, DefaultModelSubdirOptions] = {
+    "checkpoints": {},
+    "configs": {
+        "extensions": [".yaml"],
+    },
+    "loras": {},
+    "vae": {},
+    "text_encoders": {
+        "alternate_names": ["clip"],
+    },
+    "clip_vision": {},
+    "style_models": {},
+    "embeddings": {},
+    "diffusers": {
+        "extensions": ["folder"],
+    },
+    "vae_approx": {},
+    "controlnet": {
+        "alternate_names": ["t2i_adapter"],
+    },
+    "gligen": {},
+    "upscale_models": {},
+    "hypernetworks": {},
+    "photomaker": {},
+    "classifiers": {
+        "extensions": {""},
+    },
+}
+
+
+def reset_all_paths(new_base_path: str) -> None:
+    """
+    Internal use only. Designed for use immediately after startup.
+
+    Removes all existing known paths, clears the filename cache, and creates the defaults under a new base path.
+
+    Paths:
+    - All default model paths
+    - input
+    - output
+    - temp
+    - user
+    - custom_nodes
+
+    Also creates the input directory if missing.
+
+    Args:
+        new_base_path: The base path to prepend to all default relative paths.
+    """
+
+    global base_path
+    global models_dir
+    global output_directory
+    global temp_directory
+    global input_directory
+    global user_directory
+
+    filename_list_cache.clear()
+    folder_names_and_paths.clear()
+
+    base_path = new_base_path
+    models_dir = os.path.join(base_path, "models")
+
+    add_default_model_paths(base_path)
+
+    output_directory = os.path.join(base_path, "output")
+    temp_directory = os.path.join(base_path, "temp")
+    input_directory = os.path.join(base_path, "input")
+    user_directory = os.path.join(base_path, "user")
+
+    # custom_nodes uses a different path format.
+    add_model_folder_path("custom_nodes", os.path.join(base_path, "custom_nodes"))
+
+    # Create input dir if it does not already exist.
+    if not os.path.exists(input_directory):
+        try:
+            os.makedirs(input_directory)
+        except:
+            logging.error("Failed to create input directory")
+
+
+def add_default_model_paths(models_path: str, is_default: bool = False) -> None:
+    """
+    Adds all built-in model paths under a specified directory to the known folder paths.
+
+    Args:
+        models_path: The path to the models directory that contains default folders, e.g. ``checkpoints``, ``loras``.
+        is_default: If the created paths should be the new default paths.
+    """
+
+    for [name, options] in default_paths.items():
+        valid_extensions = options.get("extensions", supported_pt_extensions)
+        subdirs = [name, *options.get("alternate_names", [])]
+
+        for subdir in subdirs:
+            add_model_folder_path(
+                name,
+                os.path.join(models_path, subdir),
+                is_default=is_default,
+                is_legacy=True,
+                valid_extensions=valid_extensions,
+            )
+
+    # diffusion_models config shipped with the reverse order of other paths.
+    # Maintain original order, as this may impact ordering in extensions / UI.
+    add_model_folder_path("diffusion_models", os.path.join(models_path, "unet"), is_default=is_default, is_legacy=True, valid_extensions=supported_pt_extensions)
+    add_model_folder_path("diffusion_models", os.path.join(models_path, "diffusion_models"), is_default=is_default, is_legacy=True, valid_extensions=supported_pt_extensions)
+
+
+# Default configuration: add all paths relative to this file.
+reset_all_paths(os.path.dirname(os.path.realpath(__file__)))
