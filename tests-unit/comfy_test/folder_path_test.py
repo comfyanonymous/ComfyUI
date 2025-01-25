@@ -4,24 +4,22 @@ import pytest
 import os
 import tempfile
 from unittest.mock import patch
+from importlib import reload
 
 import folder_paths
 
 @pytest.fixture()
 def clear_folder_paths():
-    # Clear the global dictionary before each test to ensure isolation
-    original = folder_paths.folder_names_and_paths.copy()
-    folder_paths.folder_names_and_paths.clear()
+    # Reload the module after each test to ensure isolation
     yield
-    folder_paths.folder_names_and_paths = original
+    reload(folder_paths)
 
 @pytest.fixture
 def temp_dir():
     with tempfile.TemporaryDirectory() as tmpdirname:
         yield tmpdirname
 
-
-def test_get_directory_by_type():
+def test_get_directory_by_type(clear_folder_paths):
     test_dir = "/test/dir"
     folder_paths.set_output_directory(test_dir)
     assert folder_paths.get_directory_by_type("output") == test_dir
@@ -98,7 +96,7 @@ def test_get_save_image_path(temp_dir):
         assert filename_prefix == "test"
 
 
-def test_base_path_changes():
+def test_base_path_changes(clear_folder_paths):
     test_dir = "/test/dir"
     folder_paths.reset_all_paths(test_dir)
     assert folder_paths.base_path == test_dir
@@ -114,7 +112,7 @@ def test_base_path_changes():
         assert folder_paths.get_folder_paths(name)[0] == os.path.join(test_dir, name)
 
 
-def test_add_default_paths_preseves_dirs():
+def test_add_default_paths_preseves_dirs(clear_folder_paths):
     test_dir = os.path.abspath(os.path.join(os.path.curdir, "..", ".."))
     base_path = folder_paths.base_path
     models_dir = folder_paths.models_dir
@@ -126,8 +124,7 @@ def test_add_default_paths_preseves_dirs():
     assert folder_paths.input_directory == input_directory
 
 
-def test_add_default_paths_preseves_paths():
-    folder_paths.reset_all_paths("/test/dir")
+def test_add_default_paths_preseves_paths(clear_folder_paths):
     test_dir = os.path.abspath(os.path.join(os.path.curdir, "invalid"))
     checkpoints = folder_paths.get_folder_paths("checkpoints")[0]
     text_encoders = folder_paths.get_folder_paths("text_encoders")[0]
@@ -140,8 +137,7 @@ def test_add_default_paths_preseves_paths():
     assert folder_paths.get_folder_paths("clip")[1] == clip
 
 
-def test_add_default_model_paths():
-    folder_paths.reset_all_paths("/test/dir")
+def test_add_default_model_paths(clear_folder_paths):
     test_dir = os.path.abspath(os.path.join(os.path.curdir, "bad_path"))
     folder_paths.add_default_model_paths(test_dir)
 
