@@ -9,20 +9,30 @@ import logging
 
 MAX_PREVIEW_RESOLUTION = args.preview_size
 
-def preview_to_image(latent_image):
-        latents_ubyte = (((latent_image + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
-                            .mul(0xFF)  # to 0..255
-                            ).to(device="cpu", dtype=torch.uint8, non_blocking=comfy.model_management.device_supports_non_blocking(latent_image.device))
-
-        return Image.fromarray(latents_ubyte.numpy())
-
 class LatentPreviewer:
     def decode_latent_to_preview(self, x0):
         pass
 
     def decode_latent_to_preview_image(self, preview_format, x0):
-        preview_image = self.decode_latent_to_preview(x0)
-        return ("JPEG", preview_image, MAX_PREVIEW_RESOLUTION)
+        if hasattr(self, 'event') and not self.event.query():
+            # A previous preview is still being processed
+            return None
+        preview_tensor = self.decode_latent_to_preview(x0)
+        if comfy.model_management.device_supports_non_blocking(preview_tensor.device):
+            latents_ubyte = (((preview_tensor + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
+                                .mul(0xFF)  # to 0..255
+                                ).to(device="cpu", dtype=torch.uint8, non_blocking=True)
+            latents_rgbx = torch.zeros(latents_ubyte.shape[:2] + (4,), device="cpu", dtype=torch.uint8)
+            latents_rgbx[:,:,:3] = latents_ubyte
+            self.event = torch.cuda.Event()
+            self.event.record()
+            preview_image = Image.frombuffer('RGBX', (latents_ubyte.shape[1], latents_ubyte.shape[0]),
+                                             latents_rgbx.numpy().data, 'raw', 'RGBX', 0, 1)
+            return ("JPEG", preview_image, MAX_PREVIEW_RESOLUTION, self.event)
+        latents_ubyte = (((preview_tensor + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
+                            .mul(0xFF)  # to 0..255
+                            ).to(device="cpu", dtype=torch.uint8, non_blocking=False)
+        return ("JPEG", Image.fromarray(latents_ubyte.numpy()), MAX_PREVIEW_RESOLUTION)
 
 class TAESDPreviewerImpl(LatentPreviewer):
     def __init__(self, taesd):
@@ -30,7 +40,7 @@ class TAESDPreviewerImpl(LatentPreviewer):
 
     def decode_latent_to_preview(self, x0):
         x_sample = self.taesd.decode(x0[:1])[0].movedim(0, 2)
-        return preview_to_image(x_sample)
+        return x_sample
 
 
 class Latent2RGBPreviewer(LatentPreviewer):
@@ -53,7 +63,7 @@ class Latent2RGBPreviewer(LatentPreviewer):
         latent_image = torch.nn.functional.linear(x0.movedim(0, -1), self.latent_rgb_factors, bias=self.latent_rgb_factors_bias)
         # latent_image = x0[0].permute(1, 2, 0) @ self.latent_rgb_factors
 
-        return preview_to_image(latent_image)
+        return latent_image
 
 
 def get_previewer(device, latent_format):
