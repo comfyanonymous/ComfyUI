@@ -96,3 +96,61 @@ def test_get_save_image_path(temp_dir):
         assert counter == 1
         assert subfolder == ""
         assert filename_prefix == "test"
+
+
+def test_base_path_changes():
+    test_dir = "/test/dir"
+    folder_paths.reset_all_paths(test_dir)
+    assert folder_paths.base_path == test_dir
+    assert folder_paths.models_dir == os.path.join(test_dir, "models")
+    assert folder_paths.input_directory == os.path.join(test_dir, "input")
+    assert folder_paths.output_directory == os.path.join(test_dir, "output")
+    assert folder_paths.temp_directory == os.path.join(test_dir, "temp")
+    assert folder_paths.user_directory == os.path.join(test_dir, "user")
+
+    assert os.path.join(test_dir, "custom_nodes") in folder_paths.get_folder_paths("custom_nodes")
+
+    for name in ["checkpoints", "loras", "vae", "configs", "embeddings", "controlnet", "classifiers", "configs"]:
+        assert folder_paths.get_folder_paths(name)[0] == os.path.join(test_dir, name)
+
+
+def test_add_default_paths_preseves_dirs():
+    test_dir = os.path.abspath(os.path.join(os.path.curdir, "..", ".."))
+    base_path = folder_paths.base_path
+    models_dir = folder_paths.models_dir
+    input_directory = folder_paths.input_directory
+
+    folder_paths.add_default_model_paths(test_dir)
+    assert folder_paths.base_path == base_path
+    assert folder_paths.models_dir == models_dir
+    assert folder_paths.input_directory == input_directory
+
+
+def test_add_default_paths_preseves_paths():
+    folder_paths.reset_all_paths("/test/dir")
+    test_dir = os.path.abspath(os.path.join(os.path.curdir, "invalid"))
+    checkpoints = folder_paths.get_folder_paths("checkpoints")[0]
+    text_encoders = folder_paths.get_folder_paths("text_encoders")[0]
+    clip = folder_paths.get_folder_paths("clip")[1]
+
+    folder_paths.add_default_model_paths(test_dir)
+    assert not os.path.join(test_dir, "custom_nodes") in folder_paths.get_folder_paths("custom_nodes")
+    assert folder_paths.get_folder_paths("checkpoints")[0] == checkpoints
+    assert folder_paths.get_folder_paths("text_encoders")[0] == text_encoders
+    assert folder_paths.get_folder_paths("clip")[1] == clip
+
+
+def test_add_default_model_paths():
+    folder_paths.reset_all_paths("/test/dir")
+    test_dir = os.path.abspath(os.path.join(os.path.curdir, "bad_path"))
+    folder_paths.add_default_model_paths(test_dir)
+
+    for name in ["checkpoints", "loras", "vae", "configs", "embeddings", "controlnet", "classifiers", "configs"]:
+        paths = folder_paths.get_folder_paths(name)
+        # Handle multiple default paths
+        assert len(paths) % 2 == 0
+        index = int(len(paths) / 2)
+        assert folder_paths.get_folder_paths(name)[index] == os.path.join(test_dir, name)
+
+    assert folder_paths.get_folder_paths("clip")[2] == os.path.join(test_dir, "text_encoders")
+    assert folder_paths.get_folder_paths("clip")[3] == os.path.join(test_dir, "clip")
