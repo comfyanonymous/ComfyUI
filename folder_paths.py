@@ -14,6 +14,43 @@ supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetenso
 folder_names_and_paths: dict[str, tuple[list[str], set[str] | list[str]]] = {}
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
+
+class DefaultModelSubdirOptions(TypedDict, total=False):
+    extensions: set[str] | list[str]
+    alternate_names: list[str]
+
+
+# Default models subdirs
+default_paths: dict[str, DefaultModelSubdirOptions] = {
+    "checkpoints": {},
+    "configs": {
+        "extensions": [".yaml"],
+    },
+    "loras": {},
+    "vae": {},
+    "text_encoders": {
+        "alternate_names": ["clip"],
+    },
+    "clip_vision": {},
+    "style_models": {},
+    "embeddings": {},
+    "diffusers": {
+        "extensions": ["folder"],
+    },
+    "vae_approx": {},
+    "controlnet": {
+        "alternate_names": ["t2i_adapter"],
+    },
+    "gligen": {},
+    "upscale_models": {},
+    "hypernetworks": {},
+    "photomaker": {},
+    "classifiers": {
+        "extensions": {""},
+    },
+}
+
+
 class CacheHelper:
     """
     Helper class for managing file list cache data.
@@ -353,42 +390,6 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         os.makedirs(full_output_folder, exist_ok=True)
         counter = 1
     return full_output_folder, filename, counter, subfolder, filename_prefix
-
-
-class DefaultModelSubdirOptions(TypedDict, total=False):
-    extensions: set[str] | list[str]
-    alternate_names: list[str]
-
-
-# Default models subdirs
-default_paths: dict[str, DefaultModelSubdirOptions] = {
-    "checkpoints": {},
-    "configs": {
-        "extensions": [".yaml"],
-    },
-    "loras": {},
-    "vae": {},
-    "text_encoders": {
-        "alternate_names": ["clip"],
-    },
-    "clip_vision": {},
-    "style_models": {},
-    "embeddings": {},
-    "diffusers": {
-        "extensions": ["folder"],
-    },
-    "vae_approx": {},
-    "controlnet": {
-        "alternate_names": ["t2i_adapter"],
-    },
-    "gligen": {},
-    "upscale_models": {},
-    "hypernetworks": {},
-    "photomaker": {},
-    "classifiers": {
-        "extensions": {""},
-    },
-}
 
 
 def reset_all_paths(new_base_path: str) -> None:
