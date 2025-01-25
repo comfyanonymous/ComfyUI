@@ -196,9 +196,17 @@ def exists_annotated_filepath(name) -> bool:
     return os.path.exists(filepath)
 
 
-def add_model_folder_path(folder_name: str, full_folder_path: str, is_default: bool = False) -> None:
+def add_model_folder_path(
+    folder_name: str,
+    full_folder_path: str,
+    is_default: bool = False,
+    is_legacy: bool = False,
+    valid_extensions: set[str] | list[str] = set(),
+) -> None:
     global folder_names_and_paths
-    folder_name = map_legacy(folder_name)
+    if not is_legacy:
+        folder_name = map_legacy(folder_name)
+
     if folder_name in folder_names_and_paths:
         paths, _exts = folder_names_and_paths[folder_name]
         if full_folder_path in paths:
@@ -212,7 +220,7 @@ def add_model_folder_path(folder_name: str, full_folder_path: str, is_default: b
             else:
                 paths.append(full_folder_path)
     else:
-        folder_names_and_paths[folder_name] = ([full_folder_path], set())
+        folder_names_and_paths[folder_name] = ([full_folder_path], valid_extensions)
 
 def get_folder_paths(folder_name: str) -> list[str]:
     folder_name = map_legacy(folder_name)
