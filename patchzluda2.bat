@@ -84,9 +84,15 @@ if not exist "%torch_dir%" (
 
 :: Copy necessary files
 echo Copying files to Torch library...
-copy zluda\cublas.dll "%torch_dir%\cublas64_11.dll" /Y >nul 2>&1
-copy zluda\cusparse.dll "%torch_dir%\cusparse64_11.dll" /Y >nul 2>&1
-copy zluda\nvrtc.dll "%torch_dir%\nvrtc64_112_0.dll" /Y >nul 2>&1
+if "%target_dir%"=="zluda" (
+    copy cublas.dll "%torch_dir%\cublas64_11.dll" /Y >nul 2>&1
+    copy cusparse.dll "%torch_dir%\cusparse64_11.dll" /Y >nul 2>&1
+    copy nvrtc.dll "%torch_dir%\nvrtc64_112_0.dll" /Y >nul 2>&1
+) else (
+    copy zluda\cublas.dll "%torch_dir%\cublas64_11.dll" /Y >nul 2>&1
+    copy zluda\cusparse.dll "%torch_dir%\cusparse64_11.dll" /Y >nul 2>&1
+    copy zluda\nvrtc.dll "%torch_dir%\nvrtc64_112_0.dll" /Y >nul 2>&1
+)
 
 if "%target_dir%"=="zluda" (
     cd ..
