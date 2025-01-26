@@ -108,45 +108,34 @@ def test_base_path_changes(clear_folder_paths):
 
     assert os.path.join(test_dir, "custom_nodes") in folder_paths.get_folder_paths("custom_nodes")
 
-    for name in ["checkpoints", "loras", "vae", "configs", "embeddings", "controlnet", "classifiers", "configs"]:
-        assert folder_paths.get_folder_paths(name)[0] == os.path.join(test_dir, name)
+    for name in ["checkpoints", "loras", "vae", "configs", "embeddings", "controlnet", "classifiers"]:
+        assert folder_paths.get_folder_paths(name)[0] == os.path.join(test_dir, "models", name)
 
 
-def test_add_default_paths_preseves_dirs(clear_folder_paths):
-    test_dir = os.path.abspath(os.path.join(os.path.curdir, "..", ".."))
-    base_path = folder_paths.base_path
-    models_dir = folder_paths.models_dir
-    input_directory = folder_paths.input_directory
+def test_base_path_change_clears_old(clear_folder_paths):
+    test_dir = "/test/path"
+    folder_paths.reset_all_paths(test_dir)
 
-    folder_paths.add_default_model_paths(test_dir)
-    assert folder_paths.base_path == base_path
-    assert folder_paths.models_dir == models_dir
-    assert folder_paths.input_directory == input_directory
+    assert len(folder_paths.get_folder_paths("custom_nodes")) == 1
 
+    single_model_paths = [
+        "checkpoints",
+        "loras",
+        "vae",
+        "configs",
+        "clip_vision",
+        "style_models",
+        "diffusers",
+        "vae_approx",
+        "gligen",
+        "upscale_models",
+        "embeddings",
+        "hypernetworks",
+        "photomaker",
+        "classifiers",
+    ]
+    for name in single_model_paths:
+        assert len(folder_paths.get_folder_paths(name)) == 1
 
-def test_add_default_paths_preseves_paths(clear_folder_paths):
-    test_dir = os.path.abspath(os.path.join(os.path.curdir, "invalid"))
-    checkpoints = folder_paths.get_folder_paths("checkpoints")[0]
-    text_encoders = folder_paths.get_folder_paths("text_encoders")[0]
-    clip = folder_paths.get_folder_paths("clip")[1]
-
-    folder_paths.add_default_model_paths(test_dir)
-    assert not os.path.join(test_dir, "custom_nodes") in folder_paths.get_folder_paths("custom_nodes")
-    assert folder_paths.get_folder_paths("checkpoints")[0] == checkpoints
-    assert folder_paths.get_folder_paths("text_encoders")[0] == text_encoders
-    assert folder_paths.get_folder_paths("clip")[1] == clip
-
-
-def test_add_default_model_paths(clear_folder_paths):
-    test_dir = os.path.abspath(os.path.join(os.path.curdir, "bad_path"))
-    folder_paths.add_default_model_paths(test_dir)
-
-    for name in ["checkpoints", "loras", "vae", "configs", "embeddings", "controlnet", "classifiers", "configs"]:
-        paths = folder_paths.get_folder_paths(name)
-        # Handle multiple default paths
-        assert len(paths) % 2 == 0
-        index = int(len(paths) / 2)
-        assert folder_paths.get_folder_paths(name)[index] == os.path.join(test_dir, name)
-
-    assert folder_paths.get_folder_paths("clip")[2] == os.path.join(test_dir, "text_encoders")
-    assert folder_paths.get_folder_paths("clip")[3] == os.path.join(test_dir, "clip")
+    for name in ["controlnet", "diffusion_models", "text_encoders"]:
+        assert len(folder_paths.get_folder_paths(name)) == 2
