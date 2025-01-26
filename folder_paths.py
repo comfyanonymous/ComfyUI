@@ -4,52 +4,47 @@ import os
 import time
 import mimetypes
 import logging
-from typing import Literal, TypedDict
+from typing import Literal
 from collections.abc import Collection
-
-# Path initialisation occurs on import at the end of this file.
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
 
-folder_names_and_paths: dict[str, tuple[list[str], set[str] | list[str]]] = {}
+folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
+
+base_path = os.path.dirname(os.path.realpath(__file__))
+models_dir = os.path.join(base_path, "models")
+folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)
+folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
+
+folder_names_and_paths["loras"] = ([os.path.join(models_dir, "loras")], supported_pt_extensions)
+folder_names_and_paths["vae"] = ([os.path.join(models_dir, "vae")], supported_pt_extensions)
+folder_names_and_paths["text_encoders"] = ([os.path.join(models_dir, "text_encoders"), os.path.join(models_dir, "clip")], supported_pt_extensions)
+folder_names_and_paths["diffusion_models"] = ([os.path.join(models_dir, "unet"), os.path.join(models_dir, "diffusion_models")], supported_pt_extensions)
+folder_names_and_paths["clip_vision"] = ([os.path.join(models_dir, "clip_vision")], supported_pt_extensions)
+folder_names_and_paths["style_models"] = ([os.path.join(models_dir, "style_models")], supported_pt_extensions)
+folder_names_and_paths["embeddings"] = ([os.path.join(models_dir, "embeddings")], supported_pt_extensions)
+folder_names_and_paths["diffusers"] = ([os.path.join(models_dir, "diffusers")], ["folder"])
+folder_names_and_paths["vae_approx"] = ([os.path.join(models_dir, "vae_approx")], supported_pt_extensions)
+
+folder_names_and_paths["controlnet"] = ([os.path.join(models_dir, "controlnet"), os.path.join(models_dir, "t2i_adapter")], supported_pt_extensions)
+folder_names_and_paths["gligen"] = ([os.path.join(models_dir, "gligen")], supported_pt_extensions)
+
+folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
+
+folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], set())
+
+folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
+
+folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")], supported_pt_extensions)
+
+folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
+
+output_directory = os.path.join(base_path, "output")
+temp_directory = os.path.join(base_path, "temp")
+input_directory = os.path.join(base_path, "input")
+user_directory = os.path.join(base_path, "user")
+
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
-
-
-class DefaultModelSubdirOptions(TypedDict, total=False):
-    extensions: set[str] | list[str]
-    alternate_names: list[str]
-
-
-# Default models subdirs
-default_paths: dict[str, DefaultModelSubdirOptions] = {
-    "checkpoints": {},
-    "configs": {
-        "extensions": [".yaml"],
-    },
-    "loras": {},
-    "vae": {},
-    "text_encoders": {
-        "alternate_names": ["clip"],
-    },
-    "clip_vision": {},
-    "style_models": {},
-    "embeddings": {},
-    "diffusers": {
-        "extensions": ["folder"],
-    },
-    "vae_approx": {},
-    "controlnet": {
-        "alternate_names": ["t2i_adapter"],
-    },
-    "gligen": {},
-    "upscale_models": {},
-    "hypernetworks": {},
-    "photomaker": {},
-    "classifiers": {
-        "extensions": {""},
-    },
-}
-
 
 class CacheHelper:
     """
@@ -89,6 +84,12 @@ def map_legacy(folder_name: str) -> str:
     legacy = {"unet": "diffusion_models",
               "clip": "text_encoders"}
     return legacy.get(folder_name, folder_name)
+
+if not os.path.exists(input_directory):
+    try:
+        os.makedirs(input_directory)
+    except:
+        logging.error("Failed to create input directory")
 
 def set_output_directory(output_dir: str) -> None:
     global output_directory
@@ -195,17 +196,9 @@ def exists_annotated_filepath(name) -> bool:
     return os.path.exists(filepath)
 
 
-def add_model_folder_path(
-    folder_name: str,
-    full_folder_path: str,
-    is_default: bool = False,
-    is_legacy: bool = False,
-    valid_extensions: set[str] | list[str] = set(),
-) -> None:
+def add_model_folder_path(folder_name: str, full_folder_path: str, is_default: bool = False) -> None:
     global folder_names_and_paths
-    if not is_legacy:
-        folder_name = map_legacy(folder_name)
-
+    folder_name = map_legacy(folder_name)
     if folder_name in folder_names_and_paths:
         paths, _exts = folder_names_and_paths[folder_name]
         if full_folder_path in paths:
@@ -219,7 +212,7 @@ def add_model_folder_path(
             else:
                 paths.append(full_folder_path)
     else:
-        folder_names_and_paths[folder_name] = ([full_folder_path], valid_extensions)
+        folder_names_and_paths[folder_name] = ([full_folder_path], set())
 
 def get_folder_paths(folder_name: str) -> list[str]:
     folder_name = map_legacy(folder_name)
@@ -390,86 +383,3 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         os.makedirs(full_output_folder, exist_ok=True)
         counter = 1
     return full_output_folder, filename, counter, subfolder, filename_prefix
-
-
-def reset_all_paths(new_base_path: str) -> None:
-    """
-    Internal use only. Designed for use immediately after startup.
-
-    Removes all existing known paths, clears the filename cache, and creates the defaults under a new base path.
-
-    Paths:
-    - All default model paths
-    - input
-    - output
-    - temp
-    - user
-    - custom_nodes
-
-    Also creates the input directory if missing.
-
-    Args:
-        new_base_path: The base path to prepend to all default relative paths.
-    """
-
-    global base_path
-    global models_dir
-    global output_directory
-    global temp_directory
-    global input_directory
-    global user_directory
-
-    filename_list_cache.clear()
-    folder_names_and_paths.clear()
-
-    base_path = new_base_path
-    models_dir = os.path.join(base_path, "models")
-
-    add_default_model_paths(base_path)
-
-    output_directory = os.path.join(base_path, "output")
-    temp_directory = os.path.join(base_path, "temp")
-    input_directory = os.path.join(base_path, "input")
-    user_directory = os.path.join(base_path, "user")
-
-    # custom_nodes uses a different path format.
-    add_model_folder_path("custom_nodes", os.path.join(base_path, "custom_nodes"))
-
-    # Create input dir if it does not already exist.
-    if not os.path.exists(input_directory):
-        try:
-            os.makedirs(input_directory)
-        except:
-            logging.error("Failed to create input directory")
-
-
-def add_default_model_paths(models_path: str, is_default: bool = False) -> None:
-    """
-    Adds all built-in model paths under a specified directory to the known folder paths.
-
-    Args:
-        models_path: The path to the models directory that contains default folders, e.g. ``checkpoints``, ``loras``.
-        is_default: If the created paths should be the new default paths.
-    """
-
-    for [name, options] in default_paths.items():
-        valid_extensions = options.get("extensions", supported_pt_extensions)
-        subdirs = [name, *options.get("alternate_names", [])]
-
-        for subdir in subdirs:
-            add_model_folder_path(
-                name,
-                os.path.join(models_path, subdir),
-                is_default=is_default,
-                is_legacy=True,
-                valid_extensions=valid_extensions,
-            )
-
-    # diffusion_models config shipped with the reverse order of other paths.
-    # Maintain original order, as this may impact ordering in extensions / UI.
-    add_model_folder_path("diffusion_models", os.path.join(models_path, "unet"), is_default=is_default, is_legacy=True, valid_extensions=supported_pt_extensions)
-    add_model_folder_path("diffusion_models", os.path.join(models_path, "diffusion_models"), is_default=is_default, is_legacy=True, valid_extensions=supported_pt_extensions)
-
-
-# Default configuration: add all paths relative to this file.
-reset_all_paths(os.path.dirname(os.path.realpath(__file__)))
