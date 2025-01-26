@@ -10,6 +10,7 @@ from collections.abc import Collection
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
 
 folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
+filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
 base_path = os.path.dirname(os.path.realpath(__file__))
 models_dir = os.path.join(base_path, "models")
@@ -43,8 +44,6 @@ output_directory = os.path.join(base_path, "output")
 temp_directory = os.path.join(base_path, "temp")
 input_directory = os.path.join(base_path, "input")
 user_directory = os.path.join(base_path, "user")
-
-filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
 class CacheHelper:
     """
