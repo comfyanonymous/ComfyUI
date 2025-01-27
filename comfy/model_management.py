@@ -218,7 +218,7 @@ def is_amd():
 
 MIN_WEIGHT_MEMORY_RATIO = 0.4
 if is_nvidia():
-    MIN_WEIGHT_MEMORY_RATIO = 0.2
+    MIN_WEIGHT_MEMORY_RATIO = 0.1
 
 ENABLE_PYTORCH_ATTENTION = False
 if args.use_pytorch_cross_attention:
