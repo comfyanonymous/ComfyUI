@@ -20,7 +20,6 @@ class Load3D():
             "width": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
             "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
             "material": (["original", "normal", "wireframe", "depth"],),
-            "bg_color": ("STRING", {"default": "#000000", "multiline": False}),
             "light_intensity": ("INT", {"default": 10, "min": 1, "max": 20, "step": 1}),
             "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
             "fov": ("INT", {"default": 75, "min": 10, "max": 150, "step": 1}),
@@ -67,7 +66,6 @@ class Load3DAnimation():
             "width": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
             "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
             "material": (["original", "normal", "wireframe", "depth"],),
-            "bg_color": ("STRING", {"default": "#000000", "multiline": False}),
             "light_intensity": ("INT", {"default": 10, "min": 1, "max": 20, "step": 1}),
             "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
             "animation_speed": (["0.1", "0.5", "1", "1.5", "2"], {"default": "1"}),
@@ -104,7 +102,6 @@ class Preview3D():
         return {"required": {
             "model_file": ("STRING", {"default": "", "multiline": False}),
             "material": (["original", "normal", "wireframe", "depth"],),
-            "bg_color": ("STRING", {"default": "#000000", "multiline": False}),
             "light_intensity": ("INT", {"default": 10, "min": 1, "max": 20, "step": 1}),
             "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
             "fov": ("INT", {"default": 75, "min": 10, "max": 150, "step": 1}),
@@ -127,7 +124,6 @@ class Preview3DAnimation():
         return {"required": {
             "model_file": ("STRING", {"default": "", "multiline": False}),
             "material": (["original", "normal", "wireframe", "depth"],),
-            "bg_color": ("STRING", {"default": "#000000", "multiline": False}),
             "light_intensity": ("INT", {"default": 10, "min": 1, "max": 20, "step": 1}),
             "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
             "animation_speed": (["0.1", "0.5", "1", "1.5", "2"], {"default": "1"}),
