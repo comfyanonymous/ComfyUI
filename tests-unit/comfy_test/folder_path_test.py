@@ -28,7 +28,6 @@ def temp_dir():
 @pytest.fixture
 def set_base_dir():
     def _set_base_dir(base_dir):
-        base_dir = os.path.abspath(base_dir)
         # Mock CLI args
         with patch.object(sys, 'argv', ["main.py", "--base-directory", base_dir]):
             reload(comfy.cli_args)
@@ -114,7 +113,7 @@ def test_get_save_image_path(temp_dir):
 
 
 def test_base_path_changes(set_base_dir):
-    test_dir = "/test/dir"
+    test_dir = os.path.abspath("/test/dir")
     set_base_dir(test_dir)
 
     assert folder_paths.base_path == test_dir
@@ -131,7 +130,7 @@ def test_base_path_changes(set_base_dir):
 
 
 def test_base_path_change_clears_old(set_base_dir):
-    test_dir = "/test/dir"
+    test_dir = os.path.abspath("/test/dir")
     set_base_dir(test_dir)
 
     assert len(folder_paths.get_folder_paths("custom_nodes")) == 1
