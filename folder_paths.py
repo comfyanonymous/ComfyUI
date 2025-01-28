@@ -39,10 +39,10 @@ folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")]
 
 folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
 
-output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
-temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
-input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
-user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user")
+output_directory = os.path.join(base_path, "output")
+temp_directory = os.path.join(base_path, "temp")
+input_directory = os.path.join(base_path, "input")
+user_directory = os.path.join(base_path, "user")
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 

@@ -63,6 +63,8 @@ class CLIPTextEncode(ComfyNodeABC):
     DESCRIPTION = "Encodes a text prompt using a CLIP model into an embedding that can be used to guide the diffusion model towards generating specific images."
 
     def encode(self, clip, text):
+        if clip is None:
+            raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
         tokens = clip.tokenize(text)
         return (clip.encode_from_tokens_scheduled(tokens), )
 
@@ -937,6 +939,8 @@ class CLIPLoader:
             clip_type = comfy.sd.CLIPType.LTXV
         elif type == "pixart":
             clip_type = comfy.sd.CLIPType.PIXART
+        elif type == "cosmos":
+            clip_type = comfy.sd.CLIPType.COSMOS
         else:
             clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
 
