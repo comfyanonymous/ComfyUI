@@ -1,5 +1,6 @@
 ### 🗻 This file is created through the spirit of Mount Fuji at its peak
 # TODO(yoland): clean up this after I get back down
+import sys
 import pytest
 import os
 import tempfile
@@ -7,6 +8,10 @@ from unittest.mock import patch
 from importlib import reload
 
 import folder_paths
+import comfy.cli_args
+from comfy.options import enable_args_parsing
+enable_args_parsing()
+
 
 @pytest.fixture()
 def clear_folder_paths():
@@ -18,6 +23,18 @@ def clear_folder_paths():
 def temp_dir():
     with tempfile.TemporaryDirectory() as tmpdirname:
         yield tmpdirname
+
+
+@pytest.fixture
+def set_base_dir():
+    def _set_base_dir(base_dir):
+        base_dir = os.path.abspath(base_dir)
+        # Mock CLI args
+        with patch.object(sys, 'argv', ["main.py", "--base-directory", base_dir]):
+            reload(comfy.cli_args)
+            reload(folder_paths)
+    return _set_base_dir
+
 
 def test_get_directory_by_type(clear_folder_paths):
     test_dir = "/test/dir"
@@ -96,9 +113,10 @@ def test_get_save_image_path(temp_dir):
         assert filename_prefix == "test"
 
 
-def test_base_path_changes(clear_folder_paths):
+def test_base_path_changes(set_base_dir):
     test_dir = "/test/dir"
-    folder_paths.reset_all_paths(test_dir)
+    set_base_dir(test_dir)
+
     assert folder_paths.base_path == test_dir
     assert folder_paths.models_dir == os.path.join(test_dir, "models")
     assert folder_paths.input_directory == os.path.join(test_dir, "input")
@@ -112,9 +130,9 @@ def test_base_path_changes(clear_folder_paths):
         assert folder_paths.get_folder_paths(name)[0] == os.path.join(test_dir, "models", name)
 
 
-def test_base_path_change_clears_old(clear_folder_paths):
-    test_dir = "/test/path"
-    folder_paths.reset_all_paths(test_dir)
+def test_base_path_change_clears_old(set_base_dir):
+    test_dir = "/test/dir"
+    set_base_dir(test_dir)
 
     assert len(folder_paths.get_folder_paths("custom_nodes")) == 1
 
