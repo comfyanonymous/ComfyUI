@@ -365,6 +365,9 @@ class PromptServer(ExecutorToClientProgress):
                 original_ref = json.loads(post.get("original_ref"))
                 filename, output_dir = folder_paths.annotated_filepath(original_ref['filename'])
 
+                if not filename:
+                    return web.Response(status=400)
+
                 # validation for security: prevent accessing arbitrary path
                 if filename[0] == '/' or '..' in filename:
                     return web.Response(status=400)
@@ -404,6 +407,10 @@ class PromptServer(ExecutorToClientProgress):
         async def view_image(request):
             if "filename" in request.rel_url.query:
                 filename = request.rel_url.query["filename"]
+
+                if not filename:
+                    return web.Response(status=400)
+
                 type = request.rel_url.query.get("type", "output")
                 subfolder = request.rel_url.query["subfolder"] if "subfolder" in request.rel_url.query else None
 

@@ -15,6 +15,7 @@
 # Python web server
 /api_server/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 /app/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
+/utils/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 
 # Frontend assets
 /web/ @huchenlei @webfiltered @pythongosssss @yoland68 @robinjhuang

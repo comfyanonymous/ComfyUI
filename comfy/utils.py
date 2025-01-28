@@ -65,6 +65,9 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
     torch.serialization.add_safe_globals([ModelCheckpoint, scalar, dtype, Float64DType, encode])
     ALWAYS_SAFE_LOAD = True
     logging.debug("Checkpoint files will always be loaded safely.")
+else:
+    logging.debug("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
+
 
 
 # deprecate PROGRESS_BAR_ENABLED
@@ -86,7 +89,16 @@ def load_torch_file(ckpt: str, safe_load=False, device=None):
     if ckpt is None:
         raise FileNotFoundError("the checkpoint was not found")
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
-        sd = safetensors.torch.load_file(Path(ckpt).resolve(strict=True), device=device.type)
+        try:
+            sd = safetensors.torch.load_file(Path(ckpt).resolve(strict=True), device=device.type)
+        except Exception as e:
+            if len(e.args) > 0:
+                message = e.args[0]
+                if "HeaderTooLarge" in message:
+                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt or invalid. Make sure this is actually a safetensors file and not a ckpt or pt or other filetype.".format(message, ckpt))
+                if "MetadataIncompleteBuffer" in message:
+                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is incomplete. Check the file size and make sure you have copied/downloaded it correctly.".format(message, ckpt))
+            raise e
     elif ckpt.lower().endswith("index.json"):
         # from accelerate
         index_filename = ckpt

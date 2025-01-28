@@ -1,7 +1,6 @@
 # pytorch_diffusion + derived encoder decoder
 import logging
 import math
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -712,9 +711,6 @@ class Decoder(nn.Module):
                                     padding=1)
 
     def forward(self, z, **kwargs):
-        # assert z.shape[1:] == self.z_shape[1:]
-        self.last_z_shape = z.shape
-
         # timestep embedding
         temb = None
 
