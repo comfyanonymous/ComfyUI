@@ -20,12 +20,6 @@ if __name__ == "__main__":
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
 def apply_custom_paths():
-    # --base-directory - Resets all default paths configured in folder_paths with a new base path
-    if args.base_directory:
-        new_base_path = os.path.abspath(args.base_directory)
-        logging.info(f"Setting base directory to: {new_base_path}")
-        folder_paths.reset_all_paths(new_base_path)
-
     # extra model paths
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
     if os.path.isfile(extra_model_paths_config_path):
