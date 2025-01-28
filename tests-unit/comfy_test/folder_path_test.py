@@ -32,7 +32,11 @@ def set_base_dir():
         with patch.object(sys, 'argv', ["main.py", "--base-directory", base_dir]):
             reload(comfy.cli_args)
             reload(folder_paths)
-    return _set_base_dir
+    yield _set_base_dir
+    # Reload the modules after each test to ensure isolation
+    with patch.object(sys, 'argv', ["main.py"]):
+        reload(comfy.cli_args)
+        reload(folder_paths)
 
 
 def test_get_directory_by_type(clear_folder_paths):
