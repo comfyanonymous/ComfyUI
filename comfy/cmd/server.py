@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import glob
+import io
 import ipaddress
 import json
 import logging
@@ -343,7 +344,7 @@ class PromptServer(ExecutorToClientProgress):
 
                 if not image_is_duplicate:
                     if image_save_function is not None:
-                        image_save_function(image, post, filepath)
+                        await image_save_function(image, post, filepath)
                     else:
                         async with aiofiles.open(filepath, mode='wb') as file:
                             await file.write(image.file.read())
@@ -361,7 +362,7 @@ class PromptServer(ExecutorToClientProgress):
         async def upload_mask(request):
             post = await request.post()
 
-            def image_save_function(image, post, filepath):
+            async def image_save_function(image, post, filepath):
                 original_ref = json.loads(post.get("original_ref"))
                 filename, output_dir = folder_paths.annotated_filepath(original_ref['filename'])
 
@@ -399,9 +400,14 @@ class PromptServer(ExecutorToClientProgress):
                         # alpha copy
                         new_alpha = mask_pil.getchannel('A')
                         original_pil.putalpha(new_alpha)
-                        original_pil.save(filepath, compress_level=4, pnginfo=metadata)
 
-            return image_upload(post, image_save_function)
+                        output_buffer = io.BytesIO()
+                        original_pil.save(output_buffer, format='PNG', compress_level=4, pnginfo=metadata)
+                        output_data = output_buffer.getvalue()
+                    async with aiofiles.open(filepath, mode='wb') as file_dest:
+                        await file_dest.write(output_data)
+
+            return await image_upload(post, image_save_function)
 
         @routes.get("/view")
         async def view_image(request):
