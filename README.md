@@ -62,7 +62,7 @@ If coming from the very start, you need :
 1. **Git**: Download from https://git-scm.com/download/win.
    During installation don't forget to check the box for "Use Git from the Windows Command line and also from
    3rd-party-software" to add Git to your system's PATH.
-2. **Python** (3.10.11 or 3.11 from the official website): Install the latest release from python.org. **Don't Use
+2. **Python** ([3.10.11](https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe) 3.11 also works, but 3.10 is used by most popular nodes atm): Install the latest release from python.org. **Don't Use
    Windows Store Version**. If you have that installed, uninstall and please install from python.org. During
    installation remember to check the box for "Add Python to PATH when you are at the "Customize Python" screen.
 3. **Visual C++ Runtime**: Download [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe) and install it.
