@@ -17,7 +17,7 @@ on:
         description: 'cuda version'
         required: true
         type: string
-        default: "124"
+        default: "126"
 
       python_minor:
         description: 'python minor version'
