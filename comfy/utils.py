@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import itertools
 import json
 import logging
@@ -1150,7 +1151,9 @@ def comfy_tqdm():
     :return:
     """
     _original_init = tqdm.__init__
+    _original_call = tqdm.__call__
     _original_update = tqdm.update
+    context = contextvars.copy_context()
     try:
         def __init(self, *args, **kwargs):
             _original_init(self, *args, **kwargs)
@@ -1161,13 +1164,23 @@ def comfy_tqdm():
             _original_update(self, n)
             self._progress_bar.update(n)
 
+        def __call(self, *args, **kwargs):
+            # When TQDM is called to wrap an iterable, ensure the instance is created
+            # with the captured context
+            instance = context.run(lambda: _original_call(self, *args, **kwargs))
+            return instance
+
         tqdm.__init__ = __init
+        tqdm.__call__ = __call
         tqdm.update = __update
+        # todo: modify the tqdm class here to correctly copy the context into the function that tqdm is passed
         yield
     finally:
         # Restore original tqdm
         tqdm.__init__ = _original_init
+        tqdm.__call__ = _original_call
         tqdm.update = _original_update
+        # todo: restore the context copying away
 
 
 @contextmanager

@@ -36,7 +36,7 @@ aio-pika
 pyjwt[crypto]
 kornia>=0.7.0
 mpmath>=1.0,!=1.4.0a0
-huggingface_hub
+huggingface_hub[hf_transfer]
 lazy-object-proxy
 lazy_loader>=0.3
 can_ada

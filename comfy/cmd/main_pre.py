@@ -62,6 +62,7 @@ except Exception:
     pass
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 
 
 def _fix_pytorch_240():

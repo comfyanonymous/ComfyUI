@@ -12,6 +12,9 @@ from os.path import join
 from pathlib import Path
 from typing import List, Optional, Final, Set
 
+# enable better transfer
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+
 import tqdm
 from huggingface_hub import hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem
 from huggingface_hub.file_download import are_symlinks_supported
@@ -582,6 +585,11 @@ def get_huggingface_repo_list(*extra_cache_dirs: str) -> List[str]:
 
 
 def get_or_download_huggingface_repo(repo_id: str, cache_dirs: Optional[list] = None, local_dirs: Optional[list] = None) -> Optional[str]:
+    with comfy_tqdm():
+        return _get_or_download_huggingface_repo(repo_id, cache_dirs, local_dirs)
+
+
+def _get_or_download_huggingface_repo(repo_id: str, cache_dirs: Optional[list] = None, local_dirs: Optional[list] = None) -> Optional[str]:
     cache_dirs = cache_dirs or folder_paths.get_folder_paths("huggingface_cache")
     local_dirs = local_dirs or folder_paths.get_folder_paths("huggingface")
     cache_dirs_snapshots, local_dirs_snapshots = _get_cache_hits(cache_dirs, local_dirs, repo_id)

@@ -266,7 +266,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "v1-5-pruned-emaonly.safetensors"
+        "v1-5-pruned-emaonly-fp16.safetensors"
       ]
     }
   ],
@@ -349,8 +349,8 @@
   "extra": {},
   "version": 0.4,
   "models": [{
-    "name": "v1-5-pruned-emaonly.safetensors",
-    "url": "https://huggingface.co/Comfy-Org/stable-diffusion-v1-5-archive/resolve/main/v1-5-pruned-emaonly.safetensors?download=true",
+    "name": "v1-5-pruned-emaonly-fp16.safetensors",
+    "url": "https://huggingface.co/Comfy-Org/stable-diffusion-v1-5-archive/resolve/main/v1-5-pruned-emaonly-fp16.safetensors?download=true",
     "directory": "checkpoints"
   }]
 }

@@ -1,0 +1,19 @@
+
+.sad-container {
+&[data-v-ebb20958] {
+  display: grid;
+  align-items: center;
+  justify-content: space-evenly;
+  grid-template-columns: 25rem 1fr;
+}
+&[data-v-ebb20958] > * {
+    grid-row: 1;
+}
+}
+.sad-text[data-v-ebb20958] {
+  grid-column: 1/3;
+}
+.sad-girl[data-v-ebb20958] {
+  grid-column: 2/3;
+  width: min(75vw, 100vh);
+}
