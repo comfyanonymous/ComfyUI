@@ -357,7 +357,7 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
                     default_c.append(x)
                     has_default_conds = True
                     continue
-                p = comfy.samplers.get_area_and_mult(x, x_in, timestep)
+                p = get_area_and_mult(x, x_in, timestep)
                 if p is None:
                     continue
                 if p.hooks is not None:
