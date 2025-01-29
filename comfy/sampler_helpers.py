@@ -115,11 +115,6 @@ def prepare_sampling(model: ModelPatcher, noise_shape, conds, model_options=None
     minimum_memory_required = model.memory_required([noise_shape[0]] + list(noise_shape[1:])) + inference_memory
     comfy.model_management.load_models_gpu([model] + models, memory_required=memory_required, minimum_memory_required=minimum_memory_required)
     real_model = model.model
-    if args.openvino and real_model.diffusion_model.__class__.__name__=="UNetModel":
-        import openvino.torch
-        import torch
-        print("Unet is being compiled using OpenVINO")
-        real_model.diffusion_model = torch.compile(real_model.diffusion_model, backend="openvino", options = {"device" : args.openvino, "model_caching" : False, "cache_dir": "./model_cache"})
     return real_model, conds, models
 
 def cleanup_models(conds, models):
