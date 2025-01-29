@@ -973,7 +973,7 @@ class CLIPLoader:
         elif type == "pixart":
             clip_type = sd.CLIPType.PIXART
         elif type == "cosmos":
-            clip_type = comfy.sd.CLIPType.COSMOS
+            clip_type = sd.CLIPType.COSMOS
         else:
             logging.warning(f"Unknown clip type argument passed: {type} for model {clip_name}")
 

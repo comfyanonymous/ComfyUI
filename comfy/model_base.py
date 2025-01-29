@@ -580,7 +580,7 @@ class SD_X4Upscaler(BaseModel):
 
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
-            out['c_crossattn'] = comfy.conds.CONDCrossAttn(cross_attn)
+            out['c_crossattn'] = conds.CONDCrossAttn(cross_attn)
         return out
 
 
