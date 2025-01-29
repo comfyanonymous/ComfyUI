@@ -16,7 +16,6 @@ folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
 # --base-directory - Resets all default paths configured in folder_paths with a new base path
 if args.base_directory:
     base_path = os.path.abspath(args.base_directory)
-    logging.info(f"Setting base directory to: {base_path}")
 else:
     base_path = os.path.dirname(os.path.realpath(__file__))
 
