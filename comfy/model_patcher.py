@@ -470,7 +470,7 @@ class ModelPatcher:
                     current_patches.append((strength_patch, patches[k], strength_model, offset, function))
                     self.patches[key] = current_patches
                 else:
-                    new_key=key.replace("diffusion_model","diffusion_model._orig_mod")
+                    new_key=key.replace("diffusion_model", "diffusion_model._orig_mod")
                     if new_key in model_sd:
                         p.add(k)
                         if key in self.patches:

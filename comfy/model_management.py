@@ -93,7 +93,7 @@ try:
 except:
     npu_available = False
 
-if args.cpu or args.openvino:
+if args.cpu:
     cpu_state = CPUState.CPU
 
 def is_intel_xpu():
