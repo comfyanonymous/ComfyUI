@@ -7,11 +7,18 @@ import logging
 from typing import Literal
 from collections.abc import Collection
 
+from comfy.cli_args import args
+
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
 
 folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
 
-base_path = os.path.dirname(os.path.realpath(__file__))
+# --base-directory - Resets all default paths configured in folder_paths with a new base path
+if args.base_directory:
+    base_path = os.path.abspath(args.base_directory)
+else:
+    base_path = os.path.dirname(os.path.realpath(__file__))
+
 models_dir = os.path.join(base_path, "models")
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)
 folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
