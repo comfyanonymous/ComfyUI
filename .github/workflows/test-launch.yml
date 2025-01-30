@@ -17,7 +17,7 @@ jobs:
         path: "ComfyUI"
     - uses: actions/setup-python@v4
       with:
-        python-version: '3.8'
+        python-version: '3.9'
     - name: Install requirements
       run: |
         python -m pip install --upgrade pip
@@ -28,7 +28,7 @@ jobs:
     - name: Start ComfyUI server
       run: |
         python main.py --cpu 2>&1 | tee console_output.log &
-        wait-for-it --service 127.0.0.1:8188 -t 600
+        wait-for-it --service 127.0.0.1:8188 -t 30
       working-directory: ComfyUI
     - name: Check for unhandled exceptions in server log
       run: |

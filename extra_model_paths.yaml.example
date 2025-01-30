@@ -1,0 +1,47 @@
+#Rename this to extra_model_paths.yaml and ComfyUI will load it
+
+
+#config for a1111 ui
+#all you have to do is change the base_path to where yours is installed
+a111:
+    base_path: path/to/stable-diffusion-webui/
+
+    checkpoints: models/Stable-diffusion
+    configs: models/Stable-diffusion
+    vae: models/VAE
+    loras: |
+         models/Lora
+         models/LyCORIS
+    upscale_models: |
+                  models/ESRGAN
+                  models/RealESRGAN
+                  models/SwinIR
+    embeddings: embeddings
+    hypernetworks: models/hypernetworks
+    controlnet: models/ControlNet
+
+#config for comfyui
+#your base path should be either an existing comfy install or a central folder where you store all of your models, loras, etc.
+
+#comfyui:
+#     base_path: path/to/comfyui/
+#     # You can use is_default to mark that these folders should be listed first, and used as the default dirs for eg downloads
+#     #is_default: true
+#     checkpoints: models/checkpoints/
+#     clip: models/clip/
+#     clip_vision: models/clip_vision/
+#     configs: models/configs/
+#     controlnet: models/controlnet/
+#     diffusion_models: |
+#                  models/diffusion_models
+#                  models/unet
+#     embeddings: models/embeddings/
+#     loras: models/loras/
+#     upscale_models: models/upscale_models/
+#     vae: models/vae/
+
+#other_ui:
+#    base_path: path/to/ui
+#    checkpoints: models/checkpoints
+#    gligen: models/gligen
+#    custom_nodes: path/custom_nodes

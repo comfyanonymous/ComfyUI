@@ -145,7 +145,7 @@ class TestAccumulationGetLengthNode:
 
     def accumlength(self, accumulation):
         return (len(accumulation['accum']),)
-        
+
 @VariantSupport()
 class TestAccumulationGetItemNode:
     def __init__(self):
@@ -168,7 +168,7 @@ class TestAccumulationGetItemNode:
 
     def get_item(self, accumulation, index):
         return (accumulation['accum'][index],)
-        
+
 @VariantSupport()
 class TestAccumulationSetItemNode:
     def __init__(self):
@@ -259,7 +259,7 @@ class TestForLoopOpen:
         graph = GraphBuilder()
         if "initial_value0" in kwargs:
             remaining = kwargs["initial_value0"]
-        while_open = graph.node("TestWhileLoopOpen", condition=remaining, initial_value0=remaining, **{(f"initial_value{i}"): kwargs.get(f"initial_value{i}", None) for i in range(1, NUM_FLOW_SOCKETS)})
+        graph.node("TestWhileLoopOpen", condition=remaining, initial_value0=remaining, **{(f"initial_value{i}"): kwargs.get(f"initial_value{i}", None) for i in range(1, NUM_FLOW_SOCKETS)})
         outputs = [kwargs.get(f"initial_value{i}", None) for i in range(1, NUM_FLOW_SOCKETS)]
         return {
             "result": tuple(["stub", remaining] + outputs),

@@ -8,7 +8,7 @@ from folder_paths import models_dir, user_directory, output_directory
 
 @pytest.fixture
 def internal_routes():
-    return InternalRoutes()
+    return InternalRoutes(None)
 
 @pytest.fixture
 def aiohttp_client_factory(aiohttp_client, internal_routes):
@@ -89,9 +89,9 @@ async def test_routes_added_to_app(aiohttp_client_factory, internal_routes):
     client = await aiohttp_client_factory()
     try:
         resp = await client.get('/files')
-        print(f"Response received: status {resp.status}")
+        print(f"Response received: status {resp.status}")  # noqa: T201
     except Exception as e:
-        print(f"Exception occurred during GET request: {e}")
+        print(f"Exception occurred during GET request: {e}")  # noqa: T201
         raise
 
     assert resp.status != 404, "Route /files does not exist"
@@ -102,7 +102,7 @@ async def test_file_service_initialization():
         # Create a mock instance
         mock_file_service_instance = MagicMock(spec=FileService)
         MockFileService.return_value = mock_file_service_instance
-        internal_routes = InternalRoutes()
+        internal_routes = InternalRoutes(None)
 
         # Check if FileService was initialized with the correct parameters
         MockFileService.assert_called_once_with({

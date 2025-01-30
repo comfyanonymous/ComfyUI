@@ -13,7 +13,7 @@ def prepare_noise(latent_image, seed, noise_inds=None):
     generator = torch.manual_seed(seed)
     if noise_inds is None:
         return torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
-    
+
     unique_inds, inverse = np.unique(noise_inds, return_inverse=True)
     noises = []
     for i in range(unique_inds[-1]+1):
@@ -25,9 +25,11 @@ def prepare_noise(latent_image, seed, noise_inds=None):
     return noises
 
 def fix_empty_latent_channels(model, latent_image):
-    latent_channels = model.get_model_object("latent_format").latent_channels #Resize the empty latent image so it has the right number of channels
-    if latent_channels != latent_image.shape[1] and torch.count_nonzero(latent_image) == 0:
-        latent_image = comfy.utils.repeat_to_batch_size(latent_image, latent_channels, dim=1)
+    latent_format = model.get_model_object("latent_format") #Resize the empty latent image so it has the right number of channels
+    if latent_format.latent_channels != latent_image.shape[1] and torch.count_nonzero(latent_image) == 0:
+        latent_image = comfy.utils.repeat_to_batch_size(latent_image, latent_format.latent_channels, dim=1)
+    if latent_format.latent_dimensions == 3 and latent_image.ndim == 4:
+        latent_image = latent_image.unsqueeze(2)
     return latent_image
 
 def prepare_sampling(model, noise_shape, positive, negative, noise_mask):

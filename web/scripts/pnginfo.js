@@ -1,4 +1,4 @@
-// Shim for scripts\pnginfo.ts
+// Shim for scripts/pnginfo.ts
 export const getPngMetadata = window.comfyAPI.pnginfo.getPngMetadata;
 export const getFlacMetadata = window.comfyAPI.pnginfo.getFlacMetadata;
 export const getWebpMetadata = window.comfyAPI.pnginfo.getWebpMetadata;

@@ -18,10 +18,7 @@ class CLIPTextEncodeFlux:
         tokens = clip.tokenize(clip_l)
         tokens["t5xxl"] = clip.tokenize(t5xxl)["t5xxl"]
 
-        output = clip.encode_from_tokens(tokens, return_pooled=True, return_dict=True)
-        cond = output.pop("cond")
-        output["guidance"] = guidance
-        return ([[cond, output]], )
+        return (clip.encode_from_tokens_scheduled(tokens, add_dict={"guidance": guidance}), )
 
 class FluxGuidance:
     @classmethod
@@ -41,7 +38,26 @@ class FluxGuidance:
         return (c, )
 
 
+class FluxDisableGuidance:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "conditioning": ("CONDITIONING", ),
+            }}
+
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "advanced/conditioning/flux"
+    DESCRIPTION = "This node completely disables the guidance embed on Flux and Flux like models"
+
+    def append(self, conditioning):
+        c = node_helpers.conditioning_set_values(conditioning, {"guidance": None})
+        return (c, )
+
+
 NODE_CLASS_MAPPINGS = {
     "CLIPTextEncodeFlux": CLIPTextEncodeFlux,
     "FluxGuidance": FluxGuidance,
+    "FluxDisableGuidance": FluxDisableGuidance,
 }

@@ -21,14 +21,14 @@ def args_pytest(pytestconfig):
 
 def pytest_collection_modifyitems(items):
     # Modifies items so tests run in the correct order
-    
+
     LAST_TESTS = ['test_quality']
 
     # Move the last items to the end
     last_items = []
     for test_name in LAST_TESTS:
         for item in items.copy():
-            print(item.module.__name__, item)
+            print(item.module.__name__, item)  # noqa: T201
             if item.module.__name__  == test_name:
                 last_items.append(item)
                 items.remove(item)
