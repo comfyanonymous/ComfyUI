@@ -246,7 +246,7 @@ class CLIP:
         return self.patcher.get_key_patches()
 
 class VAE:
-    def __init__(self, sd=None, device=None, config=None, dtype=None):
+    def __init__(self, sd=None, device=None, config=None, dtype=None, meta=None):
         if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys(): #diffusers format
             sd = diffusers_convert.convert_vae_state_dict(sd)
 
@@ -415,6 +415,15 @@ class VAE:
         self.vae_dtype = dtype
         self.first_stage_model.to(self.vae_dtype)
         self.output_device = model_management.intermediate_device()
+
+        self.png_chunks = {}
+
+        if meta is not None:
+            meta_color_space = meta.get("modelspec.color_space")
+            if str(meta_color_space).lower().startswith("cicp:"):
+                cicp_chunk = meta_color_space.split("cicp:")[-1].split(",")
+                cicp_chunk = bytes([1 if b.lower() == 'true' else 0 if b.lower() == 'false' else int(b) for b in cicp_chunk])
+                self.png_chunks[b"cICP"] = cicp_chunk
 
         self.patcher = comfy.model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
         logging.info("VAE load device: {}, offload device: {}, dtype: {}".format(self.device, offload_device, self.vae_dtype))
