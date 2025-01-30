@@ -23,3 +23,5 @@ comfyui.prev.log
 *.log
 web_custom_versions/
 .DS_Store
+login/PASSWORD
+chun_test.py
