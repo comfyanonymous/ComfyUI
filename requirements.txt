@@ -16,7 +16,7 @@ attrs==24.2.0
 bcrypt==4.2.0
 bitsandbytes==0.44.1
 cachetools==5.5.0
-came-pytorch==0.1.3D:
+came-pytorch==0.1.3
 certifi==2024.7.4
 cffi==1.17.1
 chardet==5.2.0
