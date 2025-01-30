@@ -1,16 +1,25 @@
 import torch
+import importlib
 
 
 class TorchCompileModel:
     @classmethod
     def INPUT_TYPES(s):
+        if importlib.util.find_spec("openvino") is not None:
+            import openvino as ov
+
+            core = ov.Core()
+            available_devices = core.available_devices
+        else:
+            available_devices = []
+
         return {
             "required": {
                 "model": ("MODEL",),
                 "backend": (["inductor", "cudagraphs", "openvino"],),
             },
             "optional": {
-                "openvino_device": (["CPU", "GPU", "NPU"],),
+                "openvino_device": (available_devices,),
             },
         }
 
