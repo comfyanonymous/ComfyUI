@@ -57,6 +57,10 @@ def setup_logger(log_level: str = 'INFO', capacity: int = 300, use_stdout: bool 
     if logs:
         return
 
+    # workaround for google collab
+    if not hasattr(sys.stdout, "buffer") or not hasattr(sys.stdout, "encoding") or not hasattr(sys.stdout, "line_buffering"):
+        return
+
     # Override output streams and log to buffer
     logs = deque(maxlen=capacity)
 
