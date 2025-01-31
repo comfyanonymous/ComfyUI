@@ -142,7 +142,7 @@ To run it on services like paperspace, kaggle or colab you can use my [Jupyter N
 
 ## Manual Install (Windows, Linux)
 
-Note that some dependencies do not yet support python 3.13 so using 3.12 is recommended.
+python 3.13 is supported but using 3.12 is recommended because some custom nodes and their dependencies might not support it yet.
 
 Git clone this repo.
 
@@ -154,7 +154,7 @@ Put your VAE in: models/vae
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2.4```
 
 This is the command to install the nightly with ROCm 6.3 which might have some performance improvements:
 
