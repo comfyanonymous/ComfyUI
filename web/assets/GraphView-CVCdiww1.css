@@ -1,0 +1,306 @@
+
+.comfy-menu-hamburger[data-v-7ed57d1a] {
+    pointer-events: auto;
+    position: fixed;
+    z-index: 9999;
+    display: flex;
+    flex-direction: row
+}
+
+[data-v-e50caa15] .p-splitter-gutter {
+  pointer-events: auto;
+}
+[data-v-e50caa15] .p-splitter-gutter:hover,[data-v-e50caa15] .p-splitter-gutter[data-p-gutter-resizing='true'] {
+  transition: background-color 0.2s ease 300ms;
+  background-color: var(--p-primary-color);
+}
+.side-bar-panel[data-v-e50caa15] {
+  background-color: var(--bg-color);
+  pointer-events: auto;
+}
+.bottom-panel[data-v-e50caa15] {
+  background-color: var(--bg-color);
+  pointer-events: auto;
+}
+.splitter-overlay[data-v-e50caa15] {
+  pointer-events: none;
+  border-style: none;
+  background-color: transparent;
+}
+.splitter-overlay-root[data-v-e50caa15] {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  height: 100%;
+  width: 100%;
+
+  /* Set it the same as the ComfyUI menu */
+  /* Note: Lite-graph DOM widgets have the same z-index as the node id, so
+  999 should be sufficient to make sure splitter overlays on node's DOM
+  widgets */
+  z-index: 999;
+}
+
+.p-buttongroup-vertical[data-v-cb8f9a1a] {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--p-button-border-radius);
+  overflow: hidden;
+  border: 1px solid var(--p-panel-border-color);
+}
+.p-buttongroup-vertical .p-button[data-v-cb8f9a1a] {
+  margin: 0;
+  border-radius: 0;
+}
+
+.node-tooltip[data-v-46859edf] {
+  background: var(--comfy-input-bg);
+  border-radius: 5px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
+  color: var(--input-text);
+  font-family: sans-serif;
+  left: 0;
+  max-width: 30vw;
+  padding: 4px 8px;
+  position: absolute;
+  top: 0;
+  transform: translate(5px, calc(-100% - 5px));
+  white-space: pre-wrap;
+  z-index: 99999;
+}
+
+.group-title-editor.node-title-editor[data-v-12d3fd12] {
+  z-index: 9999;
+  padding: 0.25rem;
+}
+[data-v-12d3fd12] .editable-text {
+  width: 100%;
+  height: 100%;
+}
+[data-v-12d3fd12] .editable-text input {
+  width: 100%;
+  height: 100%;
+  /* Override the default font size */
+  font-size: inherit;
+}
+
+[data-v-fd0a74bd] .highlight {
+  background-color: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
+  font-weight: bold;
+  border-radius: 0.25rem;
+  padding: 0rem 0.125rem;
+  margin: -0.125rem 0.125rem;
+}
+
+.invisible-dialog-root {
+  width: 60%;
+  min-width: 24rem;
+  max-width: 48rem;
+  border: 0 !important;
+  background-color: transparent !important;
+  margin-top: 25vh;
+  margin-left: 400px;
+}
+@media all and (max-width: 768px) {
+.invisible-dialog-root {
+    margin-left: 0px;
+}
+}
+.node-search-box-dialog-mask {
+  align-items: flex-start !important;
+}
+
+.side-bar-button-icon {
+  font-size: var(--sidebar-icon-size) !important;
+}
+.side-bar-button-selected .side-bar-button-icon {
+  font-size: var(--sidebar-icon-size) !important;
+  font-weight: bold;
+}
+
+.side-bar-button[data-v-6ab4daa6] {
+  width: var(--sidebar-width);
+  height: var(--sidebar-width);
+  border-radius: 0;
+}
+.comfyui-body-left .side-bar-button.side-bar-button-selected[data-v-6ab4daa6],
+.comfyui-body-left .side-bar-button.side-bar-button-selected[data-v-6ab4daa6]:hover {
+  border-left: 4px solid var(--p-button-text-primary-color);
+}
+.comfyui-body-right .side-bar-button.side-bar-button-selected[data-v-6ab4daa6],
+.comfyui-body-right .side-bar-button.side-bar-button-selected[data-v-6ab4daa6]:hover {
+  border-right: 4px solid var(--p-button-text-primary-color);
+}
+
+.side-tool-bar-container[data-v-33cac83a] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  pointer-events: auto;
+
+  width: var(--sidebar-width);
+  height: 100%;
+
+  background-color: var(--comfy-menu-secondary-bg);
+  color: var(--fg-color);
+  box-shadow: var(--bar-shadow);
+
+  --sidebar-width: 4rem;
+  --sidebar-icon-size: 1.5rem;
+}
+.side-tool-bar-container.small-sidebar[data-v-33cac83a] {
+  --sidebar-width: 2.5rem;
+  --sidebar-icon-size: 1rem;
+}
+.side-tool-bar-end[data-v-33cac83a] {
+  align-self: flex-end;
+  margin-top: auto;
+}
+
+.status-indicator[data-v-8d011a31] {
+  position: absolute;
+  font-weight: 700;
+  font-size: 1.5rem;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%)
+}
+
+[data-v-54fadc45] .p-togglebutton {
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 0px;
+  border-width: 0px;
+  border-right-width: 1px;
+  border-style: solid;
+  background-color: transparent;
+  padding: 0px;
+  border-right-color: var(--border-color)
+}
+[data-v-54fadc45] .p-togglebutton::before {
+  display: none
+}
+[data-v-54fadc45] .p-togglebutton:first-child {
+  border-left-width: 1px;
+  border-style: solid;
+  border-left-color: var(--border-color)
+}
+[data-v-54fadc45] .p-togglebutton:not(:first-child) {
+  border-left-width: 0px
+}
+[data-v-54fadc45] .p-togglebutton.p-togglebutton-checked {
+  height: 100%;
+  border-bottom-width: 1px;
+  border-style: solid;
+  border-bottom-color: var(--p-button-text-primary-color)
+}
+[data-v-54fadc45] .p-togglebutton:not(.p-togglebutton-checked) {
+  opacity: 0.75
+}
+[data-v-54fadc45] .p-togglebutton-checked .close-button,[data-v-54fadc45] .p-togglebutton:hover .close-button {
+  visibility: visible
+}
+[data-v-54fadc45] .p-togglebutton:hover .status-indicator {
+  display: none
+}
+[data-v-54fadc45] .p-togglebutton .close-button {
+  visibility: hidden
+}
+[data-v-54fadc45] .p-scrollpanel-content {
+  height: 100%
+}
+
+/* Scrollbar half opacity to avoid blocking the active tab bottom border */
+[data-v-54fadc45] .p-scrollpanel:hover .p-scrollpanel-bar,[data-v-54fadc45] .p-scrollpanel:active .p-scrollpanel-bar {
+  opacity: 0.5
+}
+[data-v-54fadc45] .p-selectbutton {
+  height: 100%;
+  border-radius: 0px
+}
+
+[data-v-38831d8e] .workflow-tabs {
+  background-color: var(--comfy-menu-bg);
+}
+
+[data-v-26957f1f] .p-inputtext {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.comfyui-queue-button[data-v-91a628af] .p-splitbutton-dropdown {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.actionbar[data-v-915e5456] {
+  pointer-events: all;
+  position: fixed;
+  z-index: 1000;
+}
+.actionbar.is-docked[data-v-915e5456] {
+  position: static;
+  border-style: none;
+  background-color: transparent;
+  padding: 0px;
+}
+.actionbar.is-dragging[data-v-915e5456] {
+  -webkit-user-select: none;
+     -moz-user-select: none;
+          user-select: none;
+}
+[data-v-915e5456] .p-panel-content {
+  padding: 0.25rem;
+}
+.is-docked[data-v-915e5456] .p-panel-content {
+  padding: 0px;
+}
+[data-v-915e5456] .p-panel-header {
+  display: none;
+}
+
+.top-menubar[data-v-56df69d2] .p-menubar-item-link svg {
+  display: none;
+}
+[data-v-56df69d2] .p-menubar-submenu.dropdown-direction-up {
+  top: auto;
+  bottom: 100%;
+  flex-direction: column-reverse;
+}
+.keybinding-tag[data-v-56df69d2] {
+  background: var(--p-content-hover-background);
+  border-color: var(--p-content-border-color);
+  border-style: solid;
+}
+
+.comfyui-menu[data-v-929e7543] {
+  width: 100vw;
+  height: var(--comfy-topbar-height);
+  background: var(--comfy-menu-bg);
+  color: var(--fg-color);
+  box-shadow: var(--bar-shadow);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.8em;
+  box-sizing: border-box;
+  z-index: 1000;
+  order: 0;
+  grid-column: 1/-1;
+}
+.comfyui-menu.dropzone[data-v-929e7543] {
+  background: var(--p-highlight-background);
+}
+.comfyui-menu.dropzone-active[data-v-929e7543] {
+  background: var(--p-highlight-background-focus);
+}
+[data-v-929e7543] .p-menubar-item-label {
+  line-height: revert;
+}
+.comfyui-logo[data-v-929e7543] {
+  font-size: 1.2em;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+          user-select: none;
+  cursor: default;
+}
