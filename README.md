@@ -156,7 +156,7 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
 
    To enable `torchaudio` support on Windows, install it directly:
    ```powershell
-   uv pip install torchaudio==2.5.1+cu121 --index-url https://download.pytorch.org/whl/cu121
+   uv pip install torchaudio==2.6.0+cu124 --index-url https://download.pytorch.org/whl/cu124
    ```
 7. To run the web server:
    ```shell

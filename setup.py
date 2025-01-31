@@ -28,13 +28,13 @@ version = "0.3.11"
 """
 The package index to the torch built with AMD ROCm.
 """
-amd_torch_index = ("https://download.pytorch.org/whl/rocm6.0", "https://download.pytorch.org/whl/nightly/rocm6.1")
+amd_torch_index = ("https://download.pytorch.org/whl/rocm6.2", "https://download.pytorch.org/whl/nightly/rocm6.2.4")
 
 """
 The package index to torch built with CUDA.
 Observe the CUDA version is in this URL.
 """
-nvidia_torch_index = ("https://download.pytorch.org/whl/cu121", "https://download.pytorch.org/whl/nightly/cu124")
+nvidia_torch_index = ("https://download.pytorch.org/whl/cu124", "https://download.pytorch.org/whl/nightly/cu126")
 
 """
 The package index to torch built against CPU features.
