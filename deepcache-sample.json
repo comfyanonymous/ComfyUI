@@ -1,5 +1,5 @@
 {
-  "last_node_id": 11,
+  "last_node_id": 12,
   "last_link_id": 11,
   "nodes": [
     {
@@ -9,18 +9,19 @@
         413,
         389
       ],
-      "size": {
-        "0": 425.27801513671875,
-        "1": 180.6060791015625
-      },
+      "size": [
+        425.27801513671875,
+        180.6060791015625
+      ],
       "flags": {},
-      "order": 5,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 5
+          "link": 5,
+          "localized_name": "clip"
         }
       ],
       "outputs": [
@@ -30,11 +31,19 @@
           "links": [
             6
           ],
-          "slot_index": 0
+          "slot_index": 0,
+          "localized_name": "CONDITIONING"
         }
       ],
       "properties": {
-        "Node name for S&R": "CLIPTextEncode"
+        "Node name for S&R": "CLIPTextEncode",
+        "enableTabs": false,
+        "tabWidth": 65,
+        "tabXOffset": 10,
+        "hasSecondTab": false,
+        "secondTabText": "Send Back",
+        "secondTabOffset": 80,
+        "secondTabWidth": 65
       },
       "widgets_values": [
         "text, watermark"
@@ -47,18 +56,19 @@
         415,
         186
       ],
-      "size": {
-        "0": 422.84503173828125,
-        "1": 164.31304931640625
-      },
+      "size": [
+        422.84503173828125,
+        164.31304931640625
+      ],
       "flags": {},
-      "order": 4,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 3
+          "link": 3,
+          "localized_name": "clip"
         }
       ],
       "outputs": [
@@ -68,47 +78,22 @@
           "links": [
             4
           ],
-          "slot_index": 0
+          "slot_index": 0,
+          "localized_name": "CONDITIONING"
         }
       ],
       "properties": {
-        "Node name for S&R": "CLIPTextEncode"
+        "Node name for S&R": "CLIPTextEncode",
+        "enableTabs": false,
+        "tabWidth": 65,
+        "tabXOffset": 10,
+        "hasSecondTab": false,
+        "secondTabText": "Send Back",
+        "secondTabOffset": 80,
+        "secondTabWidth": 65
       },
       "widgets_values": [
         "beautiful scenery nature glass bottle landscape, , purple galaxy bottle,"
-      ]
-    },
-    {
-      "id": 5,
-      "type": "EmptyLatentImage",
-      "pos": [
-        473,
-        609
-      ],
-      "size": {
-        "0": 315,
-        "1": 106
-      },
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "outputs": [
-        {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            2
-          ],
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "EmptyLatentImage"
-      },
-      "widgets_values": [
-        512,
-        512,
-        1
       ]
     },
     {
@@ -118,33 +103,37 @@
         863,
         186
       ],
-      "size": {
-        "0": 315,
-        "1": 262
-      },
+      "size": [
+        315,
+        262
+      ],
       "flags": {},
-      "order": 6,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 11
+          "link": 11,
+          "localized_name": "model"
         },
         {
           "name": "positive",
           "type": "CONDITIONING",
-          "link": 4
+          "link": 4,
+          "localized_name": "positive"
         },
         {
           "name": "negative",
           "type": "CONDITIONING",
-          "link": 6
+          "link": 6,
+          "localized_name": "negative"
         },
         {
           "name": "latent_image",
           "type": "LATENT",
-          "link": 2
+          "link": 2,
+          "localized_name": "latent_image"
         }
       ],
       "outputs": [
@@ -154,11 +143,19 @@
           "links": [
             7
           ],
-          "slot_index": 0
+          "slot_index": 0,
+          "localized_name": "LATENT"
         }
       ],
       "properties": {
-        "Node name for S&R": "KSampler"
+        "Node name for S&R": "KSampler",
+        "enableTabs": false,
+        "tabWidth": 65,
+        "tabXOffset": 10,
+        "hasSecondTab": false,
+        "secondTabText": "Send Back",
+        "secondTabOffset": 80,
+        "secondTabWidth": 65
       },
       "widgets_values": [
         156680208700286,
@@ -177,23 +174,25 @@
         1209,
         188
       ],
-      "size": {
-        "0": 210,
-        "1": 46
-      },
+      "size": [
+        210,
+        46
+      ],
       "flags": {},
-      "order": 7,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
           "name": "samples",
           "type": "LATENT",
-          "link": 7
+          "link": 7,
+          "localized_name": "samples"
         },
         {
           "name": "vae",
           "type": "VAE",
-          "link": 8
+          "link": 8,
+          "localized_name": "vae"
         }
       ],
       "outputs": [
@@ -203,12 +202,21 @@
           "links": [
             9
           ],
-          "slot_index": 0
+          "slot_index": 0,
+          "localized_name": "IMAGE"
         }
       ],
       "properties": {
-        "Node name for S&R": "VAEDecode"
-      }
+        "Node name for S&R": "VAEDecode",
+        "enableTabs": false,
+        "tabWidth": 65,
+        "tabXOffset": 10,
+        "hasSecondTab": false,
+        "secondTabText": "Send Back",
+        "secondTabOffset": 80,
+        "secondTabWidth": 65
+      },
+      "widgets_values": []
     },
     {
       "id": 9,
@@ -217,22 +225,31 @@
         1451,
         189
       ],
-      "size": {
-        "0": 210,
-        "1": 58
-      },
+      "size": [
+        210,
+        58
+      ],
       "flags": {},
-      "order": 8,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 9
+          "link": 9,
+          "localized_name": "images"
         }
       ],
+      "outputs": [],
       "properties": {
-        "Node name for S&R": "SaveImage"
+        "Node name for S&R": "SaveImage",
+        "enableTabs": false,
+        "tabWidth": 65,
+        "tabXOffset": 10,
+        "hasSecondTab": false,
+        "secondTabText": "Send Back",
+        "secondTabOffset": 80,
+        "secondTabWidth": 65
       },
       "widgets_values": [
         "ComfyUI"
@@ -245,18 +262,19 @@
         37,
         187
       ],
-      "size": {
-        "0": 315,
-        "1": 130
-      },
+      "size": [
+        315,
+        130
+      ],
       "flags": {},
-      "order": 3,
+      "order": 4,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
-          "link": 10
+          "link": 10,
+          "localized_name": "model"
         }
       ],
       "outputs": [
@@ -267,18 +285,52 @@
             11
           ],
           "shape": 3,
-          "slot_index": 0
+          "slot_index": 0,
+          "localized_name": "MODEL"
         }
       ],
       "properties": {
-        "Node name for S&R": "DeepCache"
+        "Node name for S&R": "DeepCache",
+        "enableTabs": false,
+        "tabWidth": 65,
+        "tabXOffset": 10,
+        "hasSecondTab": false,
+        "secondTabText": "Send Back",
+        "secondTabOffset": 80,
+        "secondTabWidth": 65
       },
       "widgets_values": [
         5,
         3,
         350,
         1000
-      ]
+      ],
+      "color": "#c09430"
+    },
+    {
+      "id": 11,
+      "type": "Note",
+      "pos": [
+        30,
+        353
+      ],
+      "size": [
+        309.5799865722656,
+        202.76998901367188
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "Deepcache starts doing its stuff at \"start_step\", if it is 0,  it works on all steps but that lowers the output quality and derives much from the original output. 350 aka one third of the steps as starting point, produces almost the same output and significantly makes the generation faster. "
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
     },
     {
       "id": 4,
@@ -287,13 +339,14 @@
         -377,
         220
       ],
-      "size": {
-        "0": 315,
-        "1": 98
-      },
+      "size": [
+        315,
+        98
+      ],
       "flags": {},
-      "order": 1,
+      "order": 2,
       "mode": 0,
+      "inputs": [],
       "outputs": [
         {
           "name": "MODEL",
@@ -301,7 +354,8 @@
           "links": [
             10
           ],
-          "slot_index": 0
+          "slot_index": 0,
+          "localized_name": "MODEL"
         },
         {
           "name": "CLIP",
@@ -310,7 +364,8 @@
             3,
             5
           ],
-          "slot_index": 1
+          "slot_index": 1,
+          "localized_name": "CLIP"
         },
         {
           "name": "VAE",
@@ -318,35 +373,87 @@
           "links": [
             8
           ],
-          "slot_index": 2
+          "slot_index": 2,
+          "localized_name": "VAE"
         }
       ],
       "properties": {
-        "Node name for S&R": "CheckpointLoaderSimple"
+        "Node name for S&R": "CheckpointLoaderSimple",
+        "enableTabs": false,
+        "tabWidth": 65,
+        "tabXOffset": 10,
+        "hasSecondTab": false,
+        "secondTabText": "Send Back",
+        "secondTabOffset": 80,
+        "secondTabWidth": 65
       },
       "widgets_values": [
         "(pony)autismmixConfetti.safetensors"
       ]
     },
     {
-      "id": 11,
-      "type": "Note",
+      "id": 5,
+      "type": "EmptyLatentImage",
       "pos": [
-        -127,
-        382
+        473,
+        609
       ],
       "size": [
-        481.58000000000004,
-        286.7700000000001
+        315,
+        106
       ],
       "flags": {},
-      "order": 2,
+      "order": 0,
       "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            2
+          ],
+          "slot_index": 0,
+          "localized_name": "LATENT"
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage",
+        "enableTabs": false,
+        "tabWidth": 65,
+        "tabXOffset": 10,
+        "hasSecondTab": false,
+        "secondTabText": "Send Back",
+        "secondTabOffset": 80,
+        "secondTabWidth": 65
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        1
+      ]
+    },
+    {
+      "id": 12,
+      "type": "Note",
+      "pos": [
+        -361,
+        357
+      ],
+      "size": [
+        309.5799865722656,
+        202.76998901367188
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
       "properties": {
         "text": ""
       },
       "widgets_values": [
-        "Deepcache starts doing its stuff at \"start_step\", if it 0 it works on all steps but that lowers the output quality and derives from the original output. 350 aka one third of the steps as starting point, produces almost the same output and significantly makes the generation faster. "
+        "any sdxl checkpoint you would like here"
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -438,12 +545,16 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.8264462809917354,
-      "offset": [
-        522.3200000000006,
-        234.36999999999998
-      ]
-    }
+      "scale": 1,
+      "offset": {
+        "0": 413,
+        "1": -26
+      }
+    },
+    "node_versions": {
+      "comfy-core": "0.3.13"
+    },
+    "ue_links": []
   },
   "version": 0.4
 }
