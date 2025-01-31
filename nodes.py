@@ -1615,22 +1615,22 @@ class SaveImage:
         for (batch_number, image) in enumerate(images):
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            metadata = PngInfo()
+            metadata = None
             if not args.disable_metadata:
+                metadata = PngInfo()
                 if prompt is not None:
                     metadata.add_text("prompt", json.dumps(prompt))
                 if extra_pnginfo is not None:
                     for x in extra_pnginfo:
                         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
-            if hasattr(images, "png_chunks"):
-                for name, data in images.png_chunks.items():
-                    if name in self.extra_chunks:
-                        metadata.add(name.lower(), data)
-                    else:
-                        metadata.add(name, data)
+                if hasattr(images, "png_chunks"):
+                    for name, data in images.png_chunks.items():
+                        if name in self.extra_chunks:
+                            metadata.add(name.lower(), data)
+                        else:
+                            metadata.add(name, data)
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.png"
-
 
             #TODO: revert to using img.save once Pillow supports cICP chunk
             img.encoderinfo = {"pnginfo": metadata, "compress_level": self.compress_level}
