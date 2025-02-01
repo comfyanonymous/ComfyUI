@@ -307,7 +307,6 @@ def model_lora_keys_unet(model, key_map={}):
             if k.endswith(".weight"):
                 key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
                 key_map["lora_unet_{}".format(key_lora)] = k
-                key_map["lora_prior_unet_{}".format(key_lora)] = k #cascade lora: TODO put lora key prefix in the model config
                 key_map["{}".format(k[:-len(".weight")])] = k #generic lora format without any weird key names
             else:
                 key_map["{}".format(k)] = k #generic lora format for not .weight without any weird key names
@@ -326,6 +325,13 @@ def model_lora_keys_unet(model, key_map={}):
                 if diffusers_lora_key.endswith(".to_out.0"):
                     diffusers_lora_key = diffusers_lora_key[:-2]
                 key_map[diffusers_lora_key] = unet_key
+
+    if isinstance(model, comfy.model_base.StableCascade_C):
+        for k in sdk:
+            if k.startswith("diffusion_model."):
+                if k.endswith(".weight"):
+                    key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
+                    key_map["lora_prior_unet_{}".format(key_lora)] = k
 
     if isinstance(model, comfy.model_base.SD3): #Diffusers lora SD3
         diffusers_keys = comfy.utils.mmdit_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
