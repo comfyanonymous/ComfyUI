@@ -1,0 +1,87 @@
+
+.task-card-ok[data-v-c3bd7658] {
+
+  position: absolute;
+
+  right: -1rem;
+
+  bottom: -1rem;
+
+  grid-column: 1 / -1;
+
+  grid-row: 1 / -1;
+
+  --tw-text-opacity: 1;
+
+  color: rgb(150 206 76 / var(--tw-text-opacity));
+
+  opacity: 1;
+
+  transition-property: opacity;
+
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+
+  transition-duration: 150ms;
+
+  font-size: 4rem;
+  text-shadow: 0.25rem 0 0.5rem black;
+  z-index: 10;
+}
+.p-card {
+&[data-v-c3bd7658] {
+
+  transition-property: opacity;
+
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+
+  transition-duration: 150ms;
+
+  --p-card-background: var(--p-button-secondary-background);
+  opacity: 0.9;
+  }
+&.opacity-65[data-v-c3bd7658] {
+    opacity: 0.4;
+}
+&[data-v-c3bd7658]:hover {
+    opacity: 1;
+}
+}
+[data-v-c3bd7658] .p-card-header {
+  z-index: 0;
+}
+[data-v-c3bd7658] .p-card-body {
+  z-index: 1;
+  flex-grow: 1;
+  justify-content: space-between;
+}
+.task-div {
+> i[data-v-c3bd7658] {
+    pointer-events: none;
+}
+&:hover > i[data-v-c3bd7658] {
+    opacity: 0.2;
+}
+}
+
+[data-v-74b78f7d] .p-tag {
+  --p-tag-gap: 0.375rem;
+}
+.backspan[data-v-74b78f7d]::before {
+  position: absolute;
+  margin: 0px;
+  color: var(--p-text-muted-color);
+  font-family: 'primeicons';
+  top: -2rem;
+  right: -2rem;
+  speak: none;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  display: inline-block;
+  -webkit-font-smoothing: antialiased;
+  opacity: 0.02;
+  font-size: min(14rem, 90vw);
+  z-index: 0;
+}

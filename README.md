@@ -130,6 +130,8 @@ Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you 
 
 If you have trouble extracting it, right click the file -> properties -> unblock
 
+If you have a 50 series Blackwell card like a 5090 or 5080 see [this discussion thread](https://github.com/comfyanonymous/ComfyUI/discussions/6643)
+
 #### How do I share models between another UI and ComfyUI?
 
 See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
@@ -140,7 +142,7 @@ To run it on services like paperspace, kaggle or colab you can use my [Jupyter N
 
 ## Manual Install (Windows, Linux)
 
-Note that some dependencies do not yet support python 3.13 so using 3.12 is recommended.
+python 3.13 is supported but using 3.12 is recommended because some custom nodes and their dependencies might not support it yet.
 
 Git clone this repo.
 
@@ -152,7 +154,7 @@ Put your VAE in: models/vae
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2.4```
 
 This is the command to install the nightly with ROCm 6.3 which might have some performance improvements:
 
@@ -186,7 +188,7 @@ Additional discussion and help can be found [here](https://github.com/comfyanony
 
 Nvidia users should install stable pytorch using this command:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu124```
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu126```
 
 This is the command to install pytorch nightly instead which might have performance improvements:
 
