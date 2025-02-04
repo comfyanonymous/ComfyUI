@@ -451,6 +451,7 @@ KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
     'THUDM/chatglm3-6b',
     'roborovski/superprompt-v1',
     'Qwen/Qwen2-VL-7B-Instruct',
+    'microsoft/Florence-2-large-ft',
 }
 
 KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([

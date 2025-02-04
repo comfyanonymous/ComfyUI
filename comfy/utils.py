@@ -70,7 +70,6 @@ else:
     logging.debug("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
 
 
-
 # deprecate PROGRESS_BAR_ENABLED
 def _get_progress_bar_enabled():
     warnings.warn(
@@ -1228,6 +1227,12 @@ def pil2tensor(image: Image) -> torch.Tensor:
 
 def tensor2pil(t_image: torch.Tensor) -> Image:
     return Image.fromarray(np.clip(255.0 * t_image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8))
+
+
+def pil2mask(image):
+    image_np = np.array(image.convert("L")).astype(np.float32) / 255.0
+    mask = torch.from_numpy(image_np)
+    return 1.0 - mask
 
 
 def reshape_mask(input_mask, output_shape):

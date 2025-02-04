@@ -5,7 +5,6 @@ import inspect
 import logging
 import operator
 import pathlib
-import warnings
 from functools import reduce
 from typing import Optional, Any, Callable
 
@@ -24,8 +23,13 @@ from ..component_model.tensor_types import RGBImageBatch
 from ..model_downloader import get_or_download_huggingface_repo
 from ..model_management import unet_offload_device, get_torch_device, unet_dtype, load_models_gpu
 from ..model_management_types import ModelManageable
-from ..utils import comfy_tqdm, ProgressBar, comfy_progress, seed_for_block, tensor2pil
+from ..utils import comfy_tqdm, ProgressBar, comfy_progress, seed_for_block
 
+# tweaks to support florence 2
+_OVERRIDDEN_MODEL_FOR_CAUSAL_LM_MAPPING_NAMES = list(MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.keys()) + ['florence2']
+
+# should be added if the expectation is that this model emits special tokens
+_DO_NOT_SKIP_SPECIAL_TOKENS = {'florence2'}
 
 class TransformersManagedModel(ModelManageable, LanguageModel):
     def __init__(
@@ -46,6 +50,7 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
         self.offload_device = unet_offload_device()
         self._config_dict = config_dict
         self._on_set_processor(self._processor)
+        self._model_type = ""
         if model.device != self.offload_device:
             model.to(device=self.offload_device)
 
@@ -94,7 +99,7 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
                         model = AutoModelForVision2Seq.from_pretrained(**from_pretrained_kwargs, **props)
                     elif model_type in MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
                         model = AutoModelForSeq2SeqLM.from_pretrained(**from_pretrained_kwargs, **props)
-                    elif model_type in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
+                    elif model_type in _OVERRIDDEN_MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
                         model = AutoModelForCausalLM.from_pretrained(**from_pretrained_kwargs, **props)
                     else:
                         model = AutoModel.from_pretrained(**from_pretrained_kwargs, **props)
@@ -138,6 +143,8 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
             config_dict=config_dict,
             processor=processor
         )
+
+        model_managed._model_type = model_type
 
         return model_managed
 
@@ -229,7 +236,7 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
             prev_src_lang = None
         # todo: is this redundant consider I'm decoding in the on_finalized_text block?
         try:
-            outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+            outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=self._model_type not in _DO_NOT_SKIP_SPECIAL_TOKENS, clean_up_tokenization_spaces=False)
         finally:
             if prev_src_lang is not None:
                 tokenizer.src_lang = prev_src_lang
