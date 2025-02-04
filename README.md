@@ -47,6 +47,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
    - [AuraFlow](https://comfyanonymous.github.io/ComfyUI_examples/aura_flow/)
    - [HunyuanDiT](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_dit/)
    - [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
+   - [Lumina Image 2.0](https://comfyanonymous.github.io/ComfyUI_examples/lumina2/)
 - Video Models
    - [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
    - [Mochi](https://comfyanonymous.github.io/ComfyUI_examples/mochi/)
