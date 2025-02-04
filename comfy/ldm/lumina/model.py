@@ -1,4 +1,5 @@
 # Code from: https://github.com/Alpha-VLLM/Lumina-Image-2.0/blob/main/models/model.py
+from __future__ import annotations
 
 from typing import List, Optional, Tuple
 
