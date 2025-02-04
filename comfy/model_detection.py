@@ -239,7 +239,7 @@ def detect_unet_config(state_dict, key_prefix):
             dit_config["micro_condition"] = False
         return dit_config
 
-    if '{}blocks.block0.blocks.0.block.attn.to_q.0.weight'.format(key_prefix) in state_dict_keys:
+    if '{}blocks.block0.blocks.0.block.attn.to_q.0.weight'.format(key_prefix) in state_dict_keys:  # Cosmos
         dit_config = {}
         dit_config["image_model"] = "cosmos"
         dit_config["max_img_h"] = 240
@@ -282,6 +282,21 @@ def detect_unet_config(state_dict, key_prefix):
             dit_config["extra_w_extrapolation_ratio"] = 2.0
             dit_config["extra_t_extrapolation_ratio"] = 2.0
             dit_config["extra_per_block_abs_pos_emb_type"] = "learnable"
+        return dit_config
+
+    if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2
+        dit_config = {}
+        dit_config["image_model"] = "lumina2"
+        dit_config["patch_size"] = 2
+        dit_config["in_channels"] = 16
+        dit_config["dim"] = 2304
+        dit_config["cap_feat_dim"] = 2304
+        dit_config["n_layers"] = 26
+        dit_config["n_heads"] = 24
+        dit_config["n_kv_heads"] = 8
+        dit_config["qk_norm"] = True
+        dit_config["axes_dims"] = [32, 32, 32]
+        dit_config["axes_lens"] = [300, 512, 512]
         return dit_config
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
