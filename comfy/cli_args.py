@@ -166,7 +166,7 @@ def _create_parser() -> EnhancedConfigArgParser:
                         help="This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID")
     parser.add_argument("--external-address", required=False,
                         help="Specifies a base URL for external addresses reported by the API, such as for image paths.")
-    parser.add_argument("--logging-level", type=str, default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set the logging level')
+    parser.add_argument("--logging-level", type=lambda x: str(x).upper(), default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set the logging level')
     parser.add_argument("--disable-known-models", action="store_true", help="Disables automatic downloads of known models and prevents them from appearing in the UI.")
     parser.add_argument("--max-queue-size", type=int, default=65536, help="The API will reject prompt requests if the queue's size exceeds this value.")
     # tracing
@@ -217,7 +217,7 @@ def _create_parser() -> EnhancedConfigArgParser:
         "--openai-api-key",
         required=False,
         type=str,
-        help="Configures the OpenAI API Key for the OpenAI nodes",
+        help="Configures the OpenAI API Key for the OpenAI nodes. Visit https://platform.openai.com/api-keys to create this key.",
         env_var="OPENAI_API_KEY",
         default=None
     )
@@ -229,6 +229,14 @@ def _create_parser() -> EnhancedConfigArgParser:
         help="Configures the Ideogram API Key for the Ideogram nodes. Visit https://ideogram.ai/manage-api to create this key.",
         env_var="IDEOGRAM_API_KEY",
         default=None
+    )
+
+    parser.add_argument(
+        "--anthropic-api-key",
+        required=False,
+        type=str,
+        help="Configures the Anthropic API key for its nodes related to Claude functionality. Visit https://console.anthropic.com/settings/keys to create this key.",
+        env_var="ANTHROPIC_API_KEY"
     )
 
     parser.add_argument("--user-directory", type=is_valid_directory, default=None, help="Set the ComfyUI user directory with an absolute path.")

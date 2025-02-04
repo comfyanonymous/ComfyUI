@@ -149,10 +149,6 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
    uv pip install setuptools wheel
    uv pip install "comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git"
    ```
-   **Recommended**: Install `xformers`:
-   ```powershell
-   uv pip install --no-build-isolation --no-deps xformers==0.0.28.post3 --index-url https://download.pytorch.org/whl/
-   ```
 
    To enable `torchaudio` support on Windows, install it directly:
    ```powershell
@@ -460,16 +456,21 @@ choco install -y visualstudio2022buildtools
 # purposefully executed separately
 choco install -y visualstudio2022-workload-vctools
 choco install -y vcredist2010 vcredist2013 vcredist140
-choco install -y cuda
 ```
 
-If you have `xformers` installed, disable it, as it will be preferred over Sage Attention:
+Then, visit [NVIDIA.com's CUDA Toolkit Download Page](https://developer.nvidia.com/cuda-12-6-0-download-archive?target_os=Windows&target_arch=x86_64&target_version=Server2022&target_type=exe_network) and download and install the CUDA Toolkit. Verify it is correctly installed by running `nvcc --version`.
+
+You are now ready to install Sage Attention 2:
 
 ```shell
-comfyui --disable-xformers
+uv pip install --no-build-isolation --no-deps "git+https://github.com/thu-ml/SageAttention.git"
 ```
 
-Sage Attention is not compatible with Flux. It does not appear to be compatible with Mochi when using `torch.compile`
+To start ComfyUI with it:
+
+```shell
+comfyui --use-sage-attention
+```
 
 ![with_sage_attention.webp](./docs/assets/with_sage_attention.webp)
 **With SageAttention**

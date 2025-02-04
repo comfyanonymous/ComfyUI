@@ -117,8 +117,9 @@ class Configuration(dict):
         force_hf_local_dir_mode (bool): Download repos from huggingface.co to the models/huggingface directory with the "local_dir" argument instead of models/huggingface_cache with the "cache_dir" argument, recreating the traditional file structure.
         executor_factory (str): Either ThreadPoolExecutor or ProcessPoolExecutor, defaulting to ThreadPoolExecutor
         preview_size (int): Sets the maximum preview size for sampler nodes. Defaults to 512.
-        openai_api_key (str): Configures the OpenAI API Key for the OpenAI nodes
+        openai_api_key (str): Configures the OpenAI API Key for the OpenAI nodes. Visit https://platform.openai.com/api-keys to create this key.
         ideogram_api_key (str): Configures the Ideogram API Key for the Ideogram nodes. Visit https://ideogram.ai/manage-api to create this key.
+        anthropic_api_key (str): Configures the Anthropic API key for its nodes related to Claude functionality. Visit https://console.anthropic.com/settings/keys to create this key.
         user_directory (Optional[str]): Set the ComfyUI user directory with an absolute path.
         log_stdout (bool): Send normal process output to stdout instead of stderr (default)
     """
@@ -217,6 +218,7 @@ class Configuration(dict):
         self.executor_factory: str = "ThreadPoolExecutor"
         self.openai_api_key: Optional[str] = None
         self.ideogram_api_key: Optional[str] = None
+        self.anthropic_api_key: Optional[str] = None
         self.user_directory: Optional[str] = None
 
     def __getattr__(self, item):

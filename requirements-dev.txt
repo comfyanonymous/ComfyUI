@@ -3,7 +3,7 @@ pytest-asyncio
 pytest-mock
 pytest-aiohttp
 pytest-xdist
-websocket-client==1.6.1
+websocket-client>=1.6.1
 PyInstaller
 testcontainers
 testcontainers-rabbitmq
