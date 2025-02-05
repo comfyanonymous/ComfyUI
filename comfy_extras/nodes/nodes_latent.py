@@ -3,7 +3,7 @@ import torch
 
 import comfy.utils
 from comfy.component_model.tensor_types import Latent
-from comfy.nodes.package_typing import Seed
+from comfy.nodes.package_typing import Seed, Seed64
 from .nodes_post_processing import gaussian_kernel
 
 
@@ -169,7 +169,7 @@ class LatentAddNoiseChannels:
             "required": {
                 "samples": ("LATENT",),
                 "std_dev": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "seed": Seed,
+                "seed": Seed64,
                 "slice_i": ("INT", {"default": 0, "min": -16, "max": 16}),
                 "slice_j": ("INT", {"default": 16, "min": -16, "max": 16}),
             }
