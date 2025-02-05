@@ -23,6 +23,7 @@ import numpy as np
 import torch
 
 from comfy.nodes.common import MAX_RESOLUTION
+from comfy.nodes.package_typing import Seed
 from comfy.utils import ProgressBar
 import logging as log
 # Sync with theoritical limit from Comfy base
@@ -73,7 +74,7 @@ class INPUT(Enum):
     def MASK():
         return ("MASK",)
     def SEED(default=0):
-        return ("INT", dict(default=default, min=0, max=0xffffffffffffffff))
+        return Seed
     def RESOLUTION(default=512, min=64, max=MAX_RESOLUTION, step=64):
         return ("INT", dict(default=default, min=min, max=max, step=step))
     def INT(default=0, min=0, max=MAX_RESOLUTION, step=1):

@@ -142,7 +142,7 @@ class Configuration(dict):
         self.disable_auto_launch: bool = False
         self.cuda_device: Optional[int] = None
         self.cuda_malloc: bool = True
-        self.disable_cuda_malloc: bool = False
+        self.disable_cuda_malloc: bool = True
         self.dont_upcast_attention: bool = False
         self.force_upcast_attention: bool = False
         self.force_fp32: bool = False

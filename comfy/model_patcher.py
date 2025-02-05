@@ -265,9 +265,6 @@ class ModelPatcher(ModelManageable):
     def lowvram_patch_counter(self):
         return self._memory_measurements.lowvram_patch_counter
 
-        if not hasattr(self.model, 'current_weight_patches_uuid'):
-            self.model.current_weight_patches_uuid = None
-
     def model_size(self):
         if self.size > 0:
             return self.size
@@ -845,7 +842,10 @@ class ModelPatcher(ModelManageable):
 
     def __str__(self):
         if hasattr(self.model, "operations"):
-            operations_str = self.model.operations.__name__
+            if hasattr(self.model.operations, "__name__"):
+                operations_str = self.model.operations.__name__
+            else:
+                operations_str = str(self.model.operations)
         else:
             operations_str = None
         info_str = f"model_dtype={self.model_dtype()} device={self.model_device} size={naturalsize(self._memory_measurements.model_loaded_weight_memory, binary=True)} operations={operations_str}"

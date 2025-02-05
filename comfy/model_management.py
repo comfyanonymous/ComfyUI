@@ -551,7 +551,7 @@ def load_models_gpu(models: Sequence[ModelManageable], memory_required: int = 0,
         _load_models_gpu(models, memory_required, force_patch_weights, minimum_memory_required, force_full_load)
         to_load = list(map(str, models))
         span.set_attribute("models", to_load)
-        logger.info(f"Loaded {to_load}")
+        logger.debug(f"Loaded {to_load}")
 
 
 def _load_models_gpu(models: Sequence[ModelManageable], memory_required: int = 0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False) -> None:
@@ -627,6 +627,8 @@ def _load_models_gpu(models: Sequence[ModelManageable], memory_required: int = 0
 
         loaded_model.model_load(lowvram_model_memory, force_patch_weights=force_patch_weights)
         current_loaded_models.insert(0, loaded_model)
+        logger.debug(f"Loaded {loaded_model}")
+
 
     span = get_current_span()
     span.set_attribute("models_to_load", list(map(str, models_to_load)))

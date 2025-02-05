@@ -20,7 +20,7 @@ from comfy.language.language_types import GENERATION_KWARGS_TYPE, GENERATION_KWA
 from comfy.language.transformers_model_management import TransformersManagedModel
 from comfy.model_downloader import get_huggingface_repo_list, get_or_download_huggingface_repo
 from comfy.model_management import get_torch_device_name, unet_dtype, unet_offload_device
-from comfy.nodes.package_typing import CustomNode, InputTypes, ValidatedNodeResult
+from comfy.nodes.package_typing import CustomNode, InputTypes, ValidatedNodeResult, Seed
 
 _AUTO_CHAT_TEMPLATE = "default"
 
@@ -339,7 +339,7 @@ class TransformersGenerate(CustomNode):
                 "tokens": (TOKENS_TYPE_NAME, {}),
                 "max_new_tokens": ("INT", {"default": 512, "min": 1}),
                 "repetition_penalty": ("FLOAT", {"default": 0.0, "min": 0}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 2 ** 32 - 1}),
+                "seed": Seed,
             },
             "optional": {
                 "sampler": (GENERATION_KWARGS_TYPE_NAME, {}),

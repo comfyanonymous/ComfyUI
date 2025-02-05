@@ -49,7 +49,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     cm_group = parser.add_mutually_exclusive_group()
     cm_group.add_argument("--cuda-malloc", action="store_true",
                           help="Enable cudaMallocAsync (enabled by default for torch 2.0 and up).")
-    cm_group.add_argument("--disable-cuda-malloc", action="store_true", help="Disable cudaMallocAsync.")
+    cm_group.add_argument("--disable-cuda-malloc", action="store_true", default=True, help="Disable cudaMallocAsync.")
 
     fp_group = parser.add_mutually_exclusive_group()
     fp_group.add_argument("--force-fp32", action="store_true",

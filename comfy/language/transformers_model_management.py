@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import copy
 import inspect
 import logging
@@ -29,7 +30,8 @@ from ..utils import comfy_tqdm, ProgressBar, comfy_progress, seed_for_block
 _OVERRIDDEN_MODEL_FOR_CAUSAL_LM_MAPPING_NAMES = list(MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.keys()) + ['florence2']
 
 # should be added if the expectation is that this model emits special tokens
-_DO_NOT_SKIP_SPECIAL_TOKENS = {'florence2'}
+_DO_NOT_SKIP_SPECIAL_TOKENS = {'florence2', 'paligemma'}
+
 
 class TransformersManagedModel(ModelManageable, LanguageModel):
     def __init__(
@@ -214,7 +216,13 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
 
             text_streamer = _ProgressTextStreamer(on_finalized_text, tokenizer, True)
 
-            with seed_for_block(seed):
+            try:
+                import triton  # pylint: disable=import-error
+                has_triton = True
+            except (ImportError, ModuleNotFoundError):
+                has_triton = False
+
+            with seed_for_block(seed), torch.inference_mode(mode=True) if has_triton else contextlib.nullcontext():
                 if hasattr(inputs, "encodings") and inputs.encodings is not None and all(hasattr(encoding, "attention_mask") for encoding in inputs.encodings) and "attention_mask" in inputs:
                     inputs.pop("attention_mask")
                 output_ids = transformers_model.generate(
@@ -310,7 +318,6 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
     def model_dtype(self) -> torch.dtype:
         return self.model.dtype
 
-
     def patch_model(self, device_to: torch.device | None = None, lowvram_model_memory: int = 0, load_weights: bool = True, force_patch_weights: bool = False) -> torch.nn.Module:
         return self.model.to(device=device_to)
 
@@ -344,11 +351,12 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
         if isinstance(images, list):
             images = torch.stack(images, dim=0)
         if images is not None:
-            # PIL it for the sake of simplicity
             image_sizes = [(image.shape[-2], image.shape[-3]) for image in images]
         else:
             image_sizes = []
-            images = []
+            # todo: what is the best choice for this?
+            # probably select a size that related to the vision tower?
+            images = torch.zeroes((0, 0, 0, 3))
 
         try:
             if hasattr(tokenizer, "apply_chat_template"):
@@ -383,8 +391,8 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
         else:
             if hasattr(self.processor, "to"):
                 self.processor.to(device=self.load_device)
-
-            batch_feature: BatchFeature = self.processor(text=[prompt], images=images.unbind(), return_tensors="pt", padding=True)
+            # convert tuple to list from images.unbind() for paligemma workaround
+            batch_feature: BatchFeature = self.processor(text=[prompt], images=list(images.unbind()) if images is not None and len(images) > 0 else None, return_tensors="pt", padding=True)
             if hasattr(self.processor, "to"):
                 self.processor.to(device=self.offload_device)
             assert "input_ids" in batch_feature

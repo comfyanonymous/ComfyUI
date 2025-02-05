@@ -290,8 +290,10 @@ def format_value(x) -> FormattedValue:
         return None
     elif isinstance(x, (int, float, bool, str)):
         return x
-    else:
+    elif isinstance(x, dict) and not any(isinstance(v, torch.Tensor) for v in x.values()):
         return str(x)
+    else:
+        return str(x.__class__)
 
 
 def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, caches, _node_id: str, extra_data: dict, executed, prompt_id, execution_list, pending_subgraph_results) -> RecursiveExecutionTuple:

@@ -138,7 +138,7 @@ class Florence2PostProcess(CustomNode):
         return model.processor.post_process_generation(generated_text, task=task, image_size=(images.shape[-2], images.shape[-3])),
 
 
-class Florence2OutputToPolygon(CustomNode):
+class Florence2OutputToMask(CustomNode):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
         return {
@@ -166,6 +166,6 @@ NODE_CLASS_MAPPINGS = {}
 for cls in (
         Florence2PostProcess,
         Florence2TaskTokenize,
-        Florence2OutputToPolygon
+        Florence2OutputToMask
 ):
     NODE_CLASS_MAPPINGS[cls.__name__] = cls

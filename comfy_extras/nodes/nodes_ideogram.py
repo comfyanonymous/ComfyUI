@@ -9,7 +9,7 @@ import torch
 from PIL import Image
 
 from comfy.component_model.tensor_types import RGBImageBatch, MaskBatch
-from comfy.nodes.package_typing import CustomNode
+from comfy.nodes.package_typing import CustomNode, Seed
 from comfy.utils import pil2tensor, tensor2pil
 from comfy_extras.constants.resolutions import IDEOGRAM_RESOLUTIONS
 from comfy_extras.nodes.nodes_mask import MaskToImage
@@ -46,7 +46,7 @@ class IdeogramGenerate(CustomNode):
                 "api_key": ("STRING", {"default": ""}),
                 "negative_prompt": ("STRING", {"multiline": True}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 8}),
-                "seed": ("INT", {"default": 0}),
+                "seed": Seed,
             }
         }
 

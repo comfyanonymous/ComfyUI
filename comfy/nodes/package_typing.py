@@ -63,6 +63,10 @@ NonPrimitiveTypeSpec = Tuple[CommonReturnTypes, Any]
 
 InputTypeSpec = Union[IntSpec, FloatSpec, StringSpec, BooleanSpec, ChoiceSpec, NonPrimitiveTypeSpec]
 
+# numpy seeds must be between 0 and 2**32 - 1
+Seed = ("INT", {"default": 0, "min": 0, "max": 2**32 - 1})
+SeedSpec = tuple[Literal["INT"], TypedDict("SeedSpecOptions", {"default": Literal[0], "min": Literal[0], "max": Literal[4294967295]})]
+
 
 class HiddenSpec(TypedDict, total=True):
     prompt: Literal["PROMPT"]
