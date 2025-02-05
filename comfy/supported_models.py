@@ -873,7 +873,7 @@ class Lumina2(supported_models_base.BASE):
 
     sampling_settings = {
         "multiplier": 1.0,
-        "shift": 3.0,
+        "shift": 6.0,
     }
 
     memory_usage_factor = 1.2
