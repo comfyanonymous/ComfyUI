@@ -2162,7 +2162,6 @@ def init_external_custom_nodes():
         for possible_module in possible_modules:
             # Skip modules that are not in INCLUDED_CUSTOM_NODES
             if included_custom_nodes and possible_module not in included_custom_nodes:
-                logging.debug(f"Skipping {possible_module} (not in INCLUDED_CUSTOM_NODES)")
                 continue
 
             module_path = os.path.join(custom_node_path, possible_module)

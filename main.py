@@ -88,7 +88,6 @@ def execute_prestartup_script():
 
             # Skip modules that are not in INCLUDED_CUSTOM_NODES
             if included_custom_nodes and possible_module not in included_custom_nodes:
-                logging.debug(f"Skipping {possible_module} (not in INCLUDED_CUSTOM_NODES)")
                 continue
 
             script_path = os.path.join(module_path, "prestartup_script.py")
