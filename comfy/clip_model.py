@@ -108,7 +108,7 @@ class CLIPTextModel_(torch.nn.Module):
             causal_mask = torch.empty(x.shape[1], x.shape[1], dtype=x.dtype, device=x.device).triu_(1)
         else:
             causal_mask = torch.empty(x.shape[1], x.shape[1], dtype=x.dtype, device=x.device).fill_(float("-inf")).triu_(1)
-        
+
         if mask is not None:
             mask += causal_mask
         else:

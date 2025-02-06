@@ -997,7 +997,7 @@ def is_directml_enabled():
     global directml_enabled
     if directml_enabled:
         return True
-    
+
     return False
 
 def should_use_fp16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
