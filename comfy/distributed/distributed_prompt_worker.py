@@ -42,7 +42,7 @@ class DistributedPromptWorker:
         self._health_check_site: Optional[web.TCPSite] = None
 
     async def _health_check(self, request):
-        if self._connection is None:
+        if not hasattr(self, "_connection") or self._connection is None:
             return web.Response(text="UNHEALTHY: RabbitMQ connection is not established", status=503)
 
         is_healthy = await self._is_connection_healthy()
