@@ -141,6 +141,12 @@ def get_all_torch_devices(exclude_current=False):
         if is_nvidia():
             for i in range(torch.cuda.device_count()):
                 devices.append(torch.device(i))
+        elif is_intel_xpu():
+            for i in range(torch.xpu.device_count()):
+                devices.append(torch.device(i))
+        elif is_ascend_npu():
+            for i in range(torch.npu.device_count()):
+                devices.append(torch.device(i))
     else:
         devices.append(get_torch_device())
     if exclude_current:
@@ -320,10 +326,14 @@ def get_torch_device_name(device):
         return "CUDA {}: {}".format(device, torch.cuda.get_device_name(device))
 
 try:
-    logging.info("Device: {}".format(get_torch_device_name(get_torch_device())))
+    logging.info("Device [X]: {}".format(get_torch_device_name(get_torch_device())))
 except:
     logging.warning("Could not pick default device.")
-
+try:
+    for device in get_all_torch_devices(exclude_current=True):
+        logging.info("Device [ ]: {}".format(get_torch_device_name(device)))
+except:
+    pass
 
 current_loaded_models = []
 
