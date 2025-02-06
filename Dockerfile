@@ -9,6 +9,11 @@ ENV UV_SYSTEM_PYTHON=1
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PIP_NO_CACHE_DIR=1
 ENV DEBIAN_FRONTEND="noninteractive"
+# mitigates
+# RuntimeError: Failed to import transformers.generation.utils because of the following error (look up to see its traceback):
+# numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject
+RUN echo "numpy<2" > numpy-override.txt
+
 # mitigates https://stackoverflow.com/questions/55313610/importerror-libgl-so-1-cannot-open-shared-object-file-no-such-file-or-directo
 # mitigates AttributeError: module 'cv2.dnn' has no attribute 'DictValue' \
 # see https://github.com/facebookresearch/nougat/issues/40
@@ -18,7 +23,7 @@ RUN pip install uv && uv --version && \
     rm -rf /usr/local/lib/python3.10/dist-packages/cv2/ && \
     uv pip install wheel && \
     uv pip install --no-build-isolation opencv-python-headless && \
-    uv pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git && \
+    uv pip install --no-build-isolation --overrides=numpy-override.txt "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git" && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
