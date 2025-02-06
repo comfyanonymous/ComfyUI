@@ -1064,7 +1064,8 @@ class StyleModelApply:
         for t in conditioning:
             (txt, keys) = t
             keys = keys.copy()
-            if strength_type == "attn_bias" and strength != 1.0:
+            # even if the strength is 1.0 (i.e, no change), if there's already a mask, we have to add to it
+            if strength_type == "attn_bias" and strength != 1.0 and "attention_mask" not in keys:
                 # math.log raises an error if the argument is zero
                 # torch.log returns -inf, which is what we want
                 attn_bias = torch.log(torch.Tensor([strength]))
