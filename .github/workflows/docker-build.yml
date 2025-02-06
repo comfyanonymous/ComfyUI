@@ -5,7 +5,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ toLowerCase(github.repository) }}
+  IMAGE_NAME: hiddenswitch/comfyui
 jobs:
   build:
     runs-on: ubuntu-latest
