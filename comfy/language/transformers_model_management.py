@@ -356,7 +356,7 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
             image_sizes = []
             # todo: what is the best choice for this?
             # probably select a size that related to the vision tower?
-            images = torch.zeroes((0, 0, 0, 3))
+            images = torch.zeros((0, 0, 0, 3))
 
         try:
             if hasattr(tokenizer, "apply_chat_template"):
