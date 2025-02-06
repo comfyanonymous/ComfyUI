@@ -1,0 +1,81 @@
+
+.p-tag[data-v-79125ff6] {
+  --p-tag-gap: 0.5rem;
+}
+.hover-brighten {
+&[data-v-79125ff6] {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+  transition-property: filter, box-shadow;
+  }
+&[data-v-79125ff6]:hover {
+    filter: brightness(107%) contrast(105%);
+    box-shadow: 0 0 0.25rem #ffffff79;
+}
+}
+.p-accordioncontent-content[data-v-79125ff6] {
+  border-radius: 0.5rem;
+  --tw-bg-opacity: 1;
+  background-color: rgb(23 23 23 / var(--tw-bg-opacity));
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+div.selected {
+.gpu-button[data-v-79125ff6]:not(.selected) {
+    opacity: 0.5;
+}
+.gpu-button[data-v-79125ff6]:not(.selected):hover {
+    opacity: 1;
+}
+}
+.gpu-button[data-v-79125ff6] {
+  margin: 0px;
+  display: flex;
+  width: 50%;
+  cursor: pointer;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  border-radius: 0.5rem;
+  background-color: rgb(38 38 38 / var(--tw-bg-opacity));
+  --tw-bg-opacity: 0.5;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.gpu-button[data-v-79125ff6]:hover {
+  --tw-bg-opacity: 0.75;
+}
+.gpu-button {
+&.selected[data-v-79125ff6] {
+    --tw-bg-opacity: 1;
+    background-color: rgb(64 64 64 / var(--tw-bg-opacity));
+}
+&.selected[data-v-79125ff6] {
+    --tw-bg-opacity: 0.5;
+}
+&.selected[data-v-79125ff6] {
+    opacity: 1;
+}
+&.selected[data-v-79125ff6]:hover {
+    --tw-bg-opacity: 0.6;
+}
+}
+.disabled[data-v-79125ff6] {
+  pointer-events: none;
+  opacity: 0.4;
+}
+.p-card-header[data-v-79125ff6] {
+  flex-grow: 1;
+  text-align: center;
+}
+.p-card-body[data-v-79125ff6] {
+  padding-top: 0px;
+  text-align: center;
+}
+
+[data-v-cd6731d2] .p-steppanel {
+    background-color: transparent
+}

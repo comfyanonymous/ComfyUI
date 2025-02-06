@@ -102,7 +102,7 @@ class CLIPTextModel_(torch.nn.Module):
         mask = None
         if attention_mask is not None:
             mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])).expand(attention_mask.shape[0], 1, attention_mask.shape[-1], attention_mask.shape[-1])
-            mask = mask.masked_fill(mask.to(torch.bool), float("-inf"))
+            mask = mask.masked_fill(mask.to(torch.bool), -torch.finfo(x.dtype).max)
 
         if comfy.model_management.is_directml_enabled():
             causal_mask = torch.empty(x.shape[1], x.shape[1], dtype=x.dtype, device=x.device).triu_(1)

@@ -421,10 +421,10 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
     return embed_out
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, tokenizer_data={}):
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, tokenizer_data={}, tokenizer_args={}):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
-        self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path)
+        self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path, **tokenizer_args)
         self.max_length = max_length
         self.min_length = min_length
         self.end_token = None
@@ -585,9 +585,14 @@ class SDTokenizer:
         return {}
 
 class SD1Tokenizer:
-    def __init__(self, embedding_directory=None, tokenizer_data={}, clip_name="l", tokenizer=SDTokenizer):
-        self.clip_name = clip_name
-        self.clip = "clip_{}".format(self.clip_name)
+    def __init__(self, embedding_directory=None, tokenizer_data={}, clip_name="l", tokenizer=SDTokenizer, name=None):
+        if name is not None:
+            self.clip_name = name
+            self.clip = "{}".format(self.clip_name)
+        else:
+            self.clip_name = clip_name
+            self.clip = "clip_{}".format(self.clip_name)
+
         tokenizer = tokenizer_data.get("{}_tokenizer_class".format(self.clip), tokenizer)
         setattr(self, self.clip, tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data))
 
@@ -600,7 +605,7 @@ class SD1Tokenizer:
         return getattr(self, self.clip).untokenize(token_weight_pair)
 
     def state_dict(self):
-        return {}
+        return getattr(self, self.clip).state_dict()
 
 class SD1CheckpointClipModel(SDClipModel):
     def __init__(self, device="cpu", dtype=None, model_options={}):

@@ -1,4 +1,6 @@
 import math
+import sys
+
 import torch
 import torch.nn.functional as F
 from torch import nn, einsum
@@ -16,7 +18,11 @@ if model_management.xformers_enabled():
     import xformers.ops
 
 if model_management.sage_attention_enabled():
-    from sageattention import sageattn
+    try:
+        from sageattention import sageattn
+    except ModuleNotFoundError:
+        logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
+        exit(-1)
 
 from comfy.cli_args import args
 import comfy.ops
