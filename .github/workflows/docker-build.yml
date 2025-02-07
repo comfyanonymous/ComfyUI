@@ -7,7 +7,7 @@ env:
 jobs:
   build:
     runs-on: [ self-hosted, Linux, X64, cpu ]
-    container: gcr.io/kaniko-project/executor:v1.23.2
+    container: "ubuntu:22.04"
     permissions:
       contents: read
       packages: write
