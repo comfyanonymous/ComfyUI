@@ -1,43 +1,21 @@
 name: Build and Publish Docker Image
-
 on:
   push:
-
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: hiddenswitch/comfyui
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [ self-hosted, Linux, X64, cpu ]
+    container: gcr.io/kaniko-project/executor:v1.23.2
     permissions:
       contents: read
       packages: write
-
     steps:
-      - uses: jlumbroso/free-disk-space@main
-        with:
-          # this might remove tools that are actually needed,
-          # if set to "true" but frees about 6 GB
-          tool-cache: false
-
-          # all of these default to true, but feel free to set to
-          # "false" if necessary for your workflow
-          android: false
-          dotnet: false
-          haskell: false
-          large-packages: false
-          docker-images: true
-          swap-storage: false
       - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+      - name: Kaniko build
+        uses: aevea/action-kaniko@master
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          registry: ghcr.io
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          image: comfyui

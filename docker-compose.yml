@@ -1,0 +1,56 @@
+name: "comfyui"
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - workspace_data:/workspace
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+    environment:
+      - COMFYUI_DISTRIBUTED_QUEUE_CONNECTION_URI=amqp://guest:guest@rabbitmq:5672
+      - COMFYUI_LOGGING_LEVEL=ERROR
+    command:
+      - comfyui-worker
+    healthcheck:
+      test: curl -f http://localhost:9090/health
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    deploy:
+      replicas: 1
+    volumes:
+      - workspace_data:/workspace
+    environment:
+      - COMFYUI_DISTRIBUTED_QUEUE_CONNECTION_URI=amqp://guest:guest@rabbitmq:5672
+      - COMFYUI_DISTRIBUTED_QUEUE_FRONTEND=1
+      - COMFYUI_LOGGING_LEVEL=INFO
+    ports:
+      - "8188:8188"
+    command:
+      - comfyui
+      - --listen
+    healthcheck:
+      test: curl -f http://localhost:8188/object_info
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+  rabbitmq:
+    image: rabbitmq:3
+volumes:
+  workspace_data: {}
