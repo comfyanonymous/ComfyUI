@@ -179,7 +179,7 @@ parser.add_argument(
 
 parser.add_argument("--user-directory", type=is_valid_directory, default=None, help="Set the ComfyUI user directory with an absolute path. Overrides --base-directory.")
 
-parser.add_argument("--disable-compres-response-body", action="store_true", help="Disable compressing response body.")
+parser.add_argument("--enable-compress-response-body", action="store_true", help="Enable compressing response body.")
 
 if comfy.options.args_parsing:
     args = parser.parse_args()

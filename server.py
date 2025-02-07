@@ -57,8 +57,6 @@ async def cache_control(request: web.Request, handler):
 async def compress_body(request: web.Request, handler):
     accept_encoding = request.headers.get("Accept-Encoding", "")
     response: web.Response = await handler(request)
-    if args.disable_compres_response_body:
-        return response
     if not isinstance(response, web.Response):
         return response
     if response.content_type not in ["application/json", "text/plain"]:
@@ -165,7 +163,10 @@ class PromptServer():
         self.client_session:Optional[aiohttp.ClientSession] = None
         self.number = 0
 
-        middlewares = [cache_control, compress_body]
+        middlewares = [cache_control]
+        if args.enable_compress_response_body:
+            middlewares.append(compress_body)
+
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
         else:
