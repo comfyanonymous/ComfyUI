@@ -15,6 +15,7 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+from __future__ import annotations
 
 import psutil
 import logging
@@ -25,6 +26,11 @@ import sys
 import platform
 import weakref
 import gc
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from comfy.model_patcher import ModelPatcher
+    from comfy.model_base import BaseModel
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -127,6 +133,25 @@ def get_torch_device():
             return torch.device("npu", torch.npu.current_device())
         else:
             return torch.device(torch.cuda.current_device())
+
+def get_all_torch_devices(exclude_current=False):
+    global cpu_state
+    devices = []
+    if cpu_state == CPUState.GPU:
+        if is_nvidia():
+            for i in range(torch.cuda.device_count()):
+                devices.append(torch.device(i))
+        elif is_intel_xpu():
+            for i in range(torch.xpu.device_count()):
+                devices.append(torch.device(i))
+        elif is_ascend_npu():
+            for i in range(torch.npu.device_count()):
+                devices.append(torch.device(i))
+    else:
+        devices.append(get_torch_device())
+    if exclude_current:
+        devices.remove(get_torch_device())
+    return devices
 
 def get_total_memory(dev=None, torch_total_too=False):
     global directml_enabled
@@ -301,10 +326,14 @@ def get_torch_device_name(device):
         return "CUDA {}: {}".format(device, torch.cuda.get_device_name(device))
 
 try:
-    logging.info("Device: {}".format(get_torch_device_name(get_torch_device())))
+    logging.info("Device [X]: {}".format(get_torch_device_name(get_torch_device())))
 except:
     logging.warning("Could not pick default device.")
-
+try:
+    for device in get_all_torch_devices(exclude_current=True):
+        logging.info("Device [ ]: {}".format(get_torch_device_name(device)))
+except:
+    pass
 
 current_loaded_models = []
 
@@ -317,7 +346,7 @@ def module_size(module):
     return module_mem
 
 class LoadedModel:
-    def __init__(self, model):
+    def __init__(self, model: ModelPatcher):
         self._set_model(model)
         self.device = model.load_device
         self.real_model = None
@@ -325,7 +354,7 @@ class LoadedModel:
         self.model_finalizer = None
         self._patcher_finalizer = None
 
-    def _set_model(self, model):
+    def _set_model(self, model: ModelPatcher):
         self._model = weakref.ref(model)
         if model.parent is not None:
             self._parent_model = weakref.ref(model.parent)
@@ -1124,6 +1153,27 @@ def soft_empty_cache(force=False):
 def unload_all_models():
     free_memory(1e30, get_torch_device())
 
+def unload_model_and_clones(model: ModelPatcher, unload_additional_models=True):
+    'Unload only model and its clones - primarily for multigpu cloning purposes.'
+    initial_keep_loaded: list[LoadedModel] = current_loaded_models.copy()
+    additional_models = []
+    if unload_additional_models:
+        additional_models = model.get_nested_additional_models()
+    keep_loaded = []
+    for loaded_model in initial_keep_loaded:
+        if loaded_model.model is not None:
+            if model.clone_base_uuid == loaded_model.model.clone_base_uuid:
+                continue
+            # check additional models if they are a match
+            skip = False
+            for add_model in additional_models:
+                if add_model.clone_base_uuid == loaded_model.model.clone_base_uuid:
+                    skip = True
+                    break
+            if skip:
+                continue
+        keep_loaded.append(loaded_model)
+    free_memory(1e30, get_torch_device(), keep_loaded)
 
 #TODO: might be cleaner to put this somewhere else
 import threading

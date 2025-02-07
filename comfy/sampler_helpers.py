@@ -1,7 +1,9 @@
 from __future__ import annotations
+import torch
 import uuid
 import comfy.model_management
 import comfy.conds
+import comfy.model_patcher
 import comfy.utils
 import comfy.hooks
 import comfy.patcher_extension
@@ -126,7 +128,7 @@ def cleanup_models(conds, models):
 
     cleanup_additional_models(set(control_cleanup))
 
-def prepare_model_patcher(model: 'ModelPatcher', conds, model_options: dict):
+def prepare_model_patcher(model: ModelPatcher, conds, model_options: dict):
     '''
     Registers hooks from conds.
     '''
@@ -159,3 +161,18 @@ def prepare_model_patcher(model: 'ModelPatcher', conds, model_options: dict):
         comfy.patcher_extension.merge_nested_dicts(to_load_options.setdefault(wc_name, {}), model_options["transformer_options"][wc_name],
                                                     copy_dict1=False)
     return to_load_options
+
+def prepare_model_patcher_multigpu_clones(model_patcher: ModelPatcher, loaded_models: list[ModelPatcher], model_options: dict):
+    '''
+    In case multigpu acceleration is enabled, prep ModelPatchers for each device.
+    '''
+    multigpu_patchers: list[ModelPatcher] = [x for x in loaded_models if x.is_multigpu_clone]
+    if len(multigpu_patchers) > 0:
+        multigpu_dict: dict[torch.device, ModelPatcher] = {}
+        multigpu_dict[model_patcher.load_device] = model_patcher
+        for x in multigpu_patchers:
+            x.hook_patches = comfy.model_patcher.create_hook_patches_clone(model_patcher.hook_patches, copy_tuples=True)
+            x.hook_mode = model_patcher.hook_mode # match main model's hook_mode
+            multigpu_dict[x.load_device] = x
+        model_options["multigpu_clones"] = multigpu_dict
+    return multigpu_patchers
