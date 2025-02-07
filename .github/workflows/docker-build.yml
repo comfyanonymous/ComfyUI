@@ -6,16 +6,29 @@ env:
   IMAGE_NAME: hiddenswitch/comfyui
 jobs:
   build:
-    runs-on: [ self-hosted, Linux, X64, cpu ]
-    container: "ubuntu:22.04"
+    runs-on: "ubuntu-latest"
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
-      - name: Kaniko build
-        uses: aevea/action-kaniko@master
+      - uses: insightsengineering/disk-space-reclaimer@v1
         with:
-          registry: ghcr.io
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          image: comfyui
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
