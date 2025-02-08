@@ -1064,10 +1064,11 @@ class StyleModelApply:
         for t in conditioning:
             (txt, keys) = t
             keys = keys.copy()
-            if strength_type == "attn_bias" and strength != 1.0:
+            # even if the strength is 1.0 (i.e, no change), if there's already a mask, we have to add to it
+            if "attention_mask" in keys or (strength_type == "attn_bias" and strength != 1.0):
                 # math.log raises an error if the argument is zero
                 # torch.log returns -inf, which is what we want
-                attn_bias = torch.log(torch.Tensor([strength]))
+                attn_bias = torch.log(torch.Tensor([strength if strength_type == "attn_bias" else 1.0]))
                 # get the size of the mask image
                 mask_ref_size = keys.get("attention_mask_img_shape", (1, 1))
                 n_ref = mask_ref_size[0] * mask_ref_size[1]
