@@ -58,7 +58,7 @@ def load_torch_file(ckpt, safe_load=False, device=None):
                 if "HeaderTooLarge" in message:
                     raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt or invalid. Make sure this is actually a safetensors file and not a ckpt or pt or other filetype.".format(message, ckpt))
                 if "MetadataIncompleteBuffer" in message:
-                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is incomplete. Check the file size and make sure you have copied/downloaded it correctly.".format(message, ckpt))
+                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt/incomplete. Check the file size and make sure you have copied/downloaded it correctly.".format(message, ckpt))
             raise e
     else:
         if safe_load or ALWAYS_SAFE_LOAD:
