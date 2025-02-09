@@ -166,9 +166,6 @@ class BaseModel(torch.nn.Module):
     def get_dtype(self):
         return self.diffusion_model.dtype
 
-    def is_adm(self):
-        return self.adm_channels > 0
-
     def encode_adm(self, **kwargs):
         return None
 
