@@ -191,3 +191,6 @@ if args.windows_standalone_build:
 
 if args.disable_auto_launch:
     args.auto_launch = False
+
+if args.force_fp16:
+    args.fp16_unet = True

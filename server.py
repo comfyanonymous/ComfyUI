@@ -150,7 +150,8 @@ class PromptServer():
         PromptServer.instance = self
 
         mimetypes.init()
-        mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
+        mimetypes.add_type('application/javascript; charset=utf-8', '.js')
+        mimetypes.add_type('image/webp', '.webp')
 
         self.user_manager = UserManager()
         self.model_file_manager = ModelFileManager()
