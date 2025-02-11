@@ -991,6 +991,13 @@ def is_device_mps(device):
 def is_device_cuda(device):
     return is_device_type(device, 'cuda')
 
+def is_directml_enabled():
+    global directml_enabled
+    if directml_enabled:
+        return True
+
+    return False
+
 def should_use_fp16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
     global directml_enabled
 
