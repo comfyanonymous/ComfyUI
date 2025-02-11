@@ -463,21 +463,13 @@ class ModelPatcher:
                     key = k[0]
                     if len(k) > 2:
                         function = k[2]
-
-                if key in model_sd:
+                org_key=key.replace("diffusion_model", "diffusion_model._orig_mod")
+                if key in model_sd or org_key in model_sd:
                     p.add(k)
                     current_patches = self.patches.get(key, [])
                     current_patches.append((strength_patch, patches[k], strength_model, offset, function))
                     self.patches[key] = current_patches
-                else:
-                    new_key=key.replace("diffusion_model", "diffusion_model._orig_mod")
-                    if new_key in model_sd:
-                        p.add(k)
-                        if key in self.patches:
-                            self.patches.pop(key)
-                        current_patches = self.patches.get(new_key, [])
-                        current_patches.append((strength_patch, patches[k], strength_model, offset, function))
-                        self.patches[new_key] = current_patches
+                    self.patches[org_key] = current_patches
 
             self.patches_uuid = uuid.uuid4()
             return list(p)
