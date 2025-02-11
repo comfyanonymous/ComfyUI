@@ -129,13 +129,8 @@ class InputTypeOptions(TypedDict):
     # class InputTypeCombo(InputTypeOptions):
     image_upload: bool
     """Specifies whether the input should have an image upload button and image preview attached to it. Requires that the input's name is `image`."""
-    image_folder: str
+    image_folder: Literal["input", "output", "temp"]
     """Specifies which folder to get preview images from if the input has the ``image_upload`` flag.
-    
-    Valid values are:
-    - "input"
-    - "output"
-    - "temp"
     """
     remote: RemoteInputOptions
     """Specifies the configuration for a remote input."""
