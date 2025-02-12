@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Union, Optional, Sequence, Dict, ClassVar, Protocol, Tuple, TypeVar, Any, Literal, \
-    Callable, List, Type
+    Callable, List, Type, runtime_checkable
 
 from typing_extensions import TypedDict, NotRequired
 
@@ -64,7 +64,7 @@ NonPrimitiveTypeSpec = Tuple[CommonReturnTypes, Any]
 InputTypeSpec = Union[IntSpec, FloatSpec, StringSpec, BooleanSpec, ChoiceSpec, NonPrimitiveTypeSpec]
 
 # numpy seeds must be between 0 and 2**32 - 1
-Seed = ("INT", {"default": 0, "min": 0, "max": 2**32 - 1})
+Seed = ("INT", {"default": 0, "min": 0, "max": 2 ** 32 - 1})
 Seed64 = ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
 SeedSpec = tuple[Literal["INT"], TypedDict("SeedSpecOptions", {"default": Literal[0], "min": Literal[0], "max": Literal[4294967295]})]
 

@@ -20,6 +20,7 @@ from comfy.language.language_types import GENERATION_KWARGS_TYPE, GENERATION_KWA
 from comfy.language.transformers_model_management import TransformersManagedModel
 from comfy.model_downloader import get_huggingface_repo_list, get_or_download_huggingface_repo
 from comfy.model_management import get_torch_device_name, unet_dtype, unet_offload_device
+from comfy.node_helpers import export_custom_nodes
 from comfy.nodes.package_typing import CustomNode, InputTypes, ValidatedNodeResult, Seed
 
 _AUTO_CHAT_TEMPLATE = "default"
@@ -370,7 +371,7 @@ class PreviewString(CustomNode):
             }
         }
 
-    CATEGORY = "language"
+    CATEGORY = "strings"
     FUNCTION = "execute"
     RETURN_TYPES = ("STRING",)
     OUTPUT_NODE = True
@@ -392,7 +393,7 @@ class SaveString(CustomNode):
             }
         }
 
-    CATEGORY = "language"
+    CATEGORY = "strings"
     FUNCTION = "execute"
     OUTPUT_NODE = True
     RETURN_TYPES = ()
@@ -412,24 +413,4 @@ class SaveString(CustomNode):
         return {"ui": {"string": value}}
 
 
-NODE_CLASS_MAPPINGS = {}
-for cls in (
-        TransformerTopKSampler,
-        TransformerTopPSampler,
-        TransformerTemperatureSampler,
-        TransformerGreedySampler,
-        TransformerContrastiveSearchSampler,
-        TransformerBeamSearchSampler,
-        TransformerMergeSamplers,
-        TransformersLoader,
-        TransformersImageProcessorLoader,
-        TransformersGenerate,
-        OneShotInstructTokenize,
-        TransformersM2M100LanguageCodes,
-        TransformersTokenize,
-        TransformersFlores200LanguageCodes,
-        TransformersTranslationTokenize,
-        PreviewString,
-        SaveString,
-):
-    NODE_CLASS_MAPPINGS[cls.__name__] = cls
+export_custom_nodes()
