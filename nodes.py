@@ -924,7 +924,7 @@ class CLIPLoader:
 
     CATEGORY = "advanced/loaders"
 
-    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 / clip-g / clip-l\nstable_audio: t5\nmochi: t5\ncosmos: old t5 xxl"
+    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 / clip-g / clip-l\nstable_audio: t5\nmochi: t5\ncosmos: old t5 xxl\nlumina2: gemma 2 2B"
 
     def load_clip(self, clip_name, type="stable_diffusion", device="default"):
         if type == "stable_cascade":
@@ -1065,10 +1065,10 @@ class StyleModelApply:
             (txt, keys) = t
             keys = keys.copy()
             # even if the strength is 1.0 (i.e, no change), if there's already a mask, we have to add to it
-            if strength_type == "attn_bias" and strength != 1.0 and "attention_mask" not in keys:
+            if "attention_mask" in keys or (strength_type == "attn_bias" and strength != 1.0):
                 # math.log raises an error if the argument is zero
                 # torch.log returns -inf, which is what we want
-                attn_bias = torch.log(torch.Tensor([strength]))
+                attn_bias = torch.log(torch.Tensor([strength if strength_type == "attn_bias" else 1.0]))
                 # get the size of the mask image
                 mask_ref_size = keys.get("attention_mask_img_shape", (1, 1))
                 n_ref = mask_ref_size[0] * mask_ref_size[1]

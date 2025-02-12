@@ -267,6 +267,12 @@ if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_mem_efficient_sdp(True)
 
 try:
+    if is_nvidia() and args.fast:
+        torch.backends.cuda.matmul.allow_fp16_accumulation = True
+except:
+    pass
+
+try:
     if int(torch_version[0]) == 2 and int(torch_version[2]) >= 5:
         torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
 except:
@@ -281,14 +287,9 @@ elif args.highvram or args.gpu_only:
     vram_state = VRAMState.HIGH_VRAM
 
 FORCE_FP32 = False
-FORCE_FP16 = False
 if args.force_fp32:
     logging.info("Forcing FP32, if this improves things please report it.")
     FORCE_FP32 = True
-
-if args.force_fp16:
-    logging.info("Forcing FP16.")
-    FORCE_FP16 = True
 
 if lowvram_available:
     if set_vram_to in (VRAMState.LOW_VRAM, VRAMState.NO_VRAM):
@@ -1019,6 +1020,13 @@ def is_device_mps(device):
 def is_device_cuda(device):
     return is_device_type(device, 'cuda')
 
+def is_directml_enabled():
+    global directml_enabled
+    if directml_enabled:
+        return True
+
+    return False
+
 def should_use_fp16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
     global directml_enabled
 
@@ -1026,7 +1034,7 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
         if is_device_cpu(device):
             return False
 
-    if FORCE_FP16:
+    if args.force_fp16:
         return True
 
     if FORCE_FP32:
