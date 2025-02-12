@@ -12,7 +12,6 @@ import collections
 from comfy import model_management
 import math
 import logging
-import comfy.samplers
 import comfy.sampler_helpers
 import comfy.model_patcher
 import comfy.patcher_extension
@@ -178,7 +177,7 @@ def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.H
         cond = default_conds[i]
         for x in cond:
             # do get_area_and_mult to get all the expected values
-            p = comfy.samplers.get_area_and_mult(x, x_in, timestep)
+            p = get_area_and_mult(x, x_in, timestep)
             if p is None:
                 continue
             # replace p's mult with calculated mult
@@ -215,7 +214,7 @@ def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Te
                     default_c.append(x)
                     has_default_conds = True
                     continue
-                p = comfy.samplers.get_area_and_mult(x, x_in, timestep)
+                p = get_area_and_mult(x, x_in, timestep)
                 if p is None:
                     continue
                 if p.hooks is not None:
@@ -687,7 +686,8 @@ class Sampler:
 KSAMPLER_NAMES = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_cfg_pp", "heun", "heunpp2","dpm_2", "dpm_2_ancestral",
                   "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_2s_ancestral_cfg_pp", "dpmpp_sde", "dpmpp_sde_gpu",
                   "dpmpp_2m", "dpmpp_2m_cfg_pp", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm",
-                  "ipndm", "ipndm_v", "deis", "res_multistep", "res_multistep_cfg_pp"]
+                  "ipndm", "ipndm_v", "deis", "res_multistep", "res_multistep_cfg_pp", "res_multistep_ancestral", "res_multistep_ancestral_cfg_pp",
+                  "gradient_estimation"]
 
 class KSAMPLER(Sampler):
     def __init__(self, sampler_function, extra_options={}, inpaint_options={}):

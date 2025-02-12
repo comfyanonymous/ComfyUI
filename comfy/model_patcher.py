@@ -96,8 +96,28 @@ def wipe_lowvram_weight(m):
     if hasattr(m, "prev_comfy_cast_weights"):
         m.comfy_cast_weights = m.prev_comfy_cast_weights
         del m.prev_comfy_cast_weights
-    m.weight_function = None
-    m.bias_function = None
+
+    if hasattr(m, "weight_function"):
+        m.weight_function = []
+
+    if hasattr(m, "bias_function"):
+        m.bias_function = []
+
+def move_weight_functions(m, device):
+    if device is None:
+        return 0
+
+    memory = 0
+    if hasattr(m, "weight_function"):
+        for f in m.weight_function:
+            if hasattr(f, "move_to"):
+                memory += f.move_to(device=device)
+
+    if hasattr(m, "bias_function"):
+        for f in m.bias_function:
+            if hasattr(f, "move_to"):
+                memory += f.move_to(device=device)
+    return memory
 
 class LowVramPatch:
     def __init__(self, key, patches):
@@ -192,6 +212,7 @@ class ModelPatcher:
         self.backup = {}
         self.object_patches = {}
         self.object_patches_backup = {}
+        self.weight_wrapper_patches = {}
         self.model_options = {"transformer_options":{}}
         self.model_size()
         self.load_device = load_device
@@ -250,6 +271,7 @@ class ModelPatcher:
         n.patches_uuid = self.patches_uuid
 
         n.object_patches = self.object_patches.copy()
+        n.weight_wrapper_patches = self.weight_wrapper_patches.copy()
         n.model_options = copy.deepcopy(self.model_options)
         n.backup = self.backup
         n.object_patches_backup = self.object_patches_backup
@@ -401,6 +423,10 @@ class ModelPatcher:
 
     def add_object_patch(self, name, obj):
         self.object_patches[name] = obj
+
+    def add_weight_wrapper(self, name, function):
+        self.weight_wrapper_patches[name] = self.weight_wrapper_patches.get(name, []) + [function]
+        self.patches_uuid = uuid.uuid4()
 
     def get_model_object(self, name: str) -> torch.nn.Module:
         """Retrieves a nested attribute from an object using dot notation considering
@@ -566,6 +592,9 @@ class ModelPatcher:
 
                 lowvram_weight = False
 
+                weight_key = "{}.weight".format(n)
+                bias_key = "{}.bias".format(n)
+
                 if not full_load and hasattr(m, "comfy_cast_weights"):
                     if mem_counter + module_mem >= lowvram_model_memory:
                         lowvram_weight = True
@@ -573,33 +602,41 @@ class ModelPatcher:
                         if hasattr(m, "prev_comfy_cast_weights"): #Already lowvramed
                             continue
 
-                weight_key = "{}.weight".format(n)
-                bias_key = "{}.bias".format(n)
-
                 if lowvram_weight:
+                    if hasattr(m, "comfy_cast_weights"):
+                        m.weight_function = []
+                        m.bias_function = []
+
                     if weight_key in self.patches:
                         if force_patch_weights:
                             self.patch_weight_to_device(weight_key)
                         else:
-                            m.weight_function = LowVramPatch(weight_key, self.patches)
+                            m.weight_function = [LowVramPatch(weight_key, self.patches)]
                             patch_counter += 1
                     if bias_key in self.patches:
                         if force_patch_weights:
                             self.patch_weight_to_device(bias_key)
                         else:
-                            m.bias_function = LowVramPatch(bias_key, self.patches)
+                            m.bias_function = [LowVramPatch(bias_key, self.patches)]
                             patch_counter += 1
 
                     m.prev_comfy_cast_weights = m.comfy_cast_weights
                     m.comfy_cast_weights = True
                 else:
                     if hasattr(m, "comfy_cast_weights"):
-                        if m.comfy_cast_weights:
-                            wipe_lowvram_weight(m)
+                        wipe_lowvram_weight(m)
 
                     if full_load or mem_counter + module_mem < lowvram_model_memory:
                         mem_counter += module_mem
                         load_completely.append((module_mem, n, m, params))
+
+                if weight_key in self.weight_wrapper_patches:
+                    m.weight_function.extend(self.weight_wrapper_patches[weight_key])
+
+                if bias_key in self.weight_wrapper_patches:
+                    m.bias_function.extend(self.weight_wrapper_patches[bias_key])
+
+                mem_counter += move_weight_functions(m, device_to)
 
             load_completely.sort(reverse=True)
             for x in load_completely:
@@ -662,6 +699,7 @@ class ModelPatcher:
             self.unpatch_hooks()
             if self.model.model_lowvram:
                 for m in self.model.modules():
+                    move_weight_functions(m, device_to)
                     wipe_lowvram_weight(m)
 
                 self.model.model_lowvram = False
@@ -729,12 +767,13 @@ class ModelPatcher:
                     bias_key = "{}.bias".format(n)
                     if move_weight:
                         m.to(device_to)
+                        module_mem += move_weight_functions(m, device_to)
                         if lowvram_possible:
                             if weight_key in self.patches:
-                                m.weight_function = LowVramPatch(weight_key, self.patches)
+                                m.weight_function.append(LowVramPatch(weight_key, self.patches))
                                 patch_counter += 1
                             if bias_key in self.patches:
-                                m.bias_function = LowVramPatch(bias_key, self.patches)
+                                m.bias_function.append(LowVramPatch(bias_key, self.patches))
                                 patch_counter += 1
 
                             m.prev_comfy_cast_weights = m.comfy_cast_weights

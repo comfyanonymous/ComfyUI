@@ -218,7 +218,7 @@ def is_amd():
 
 MIN_WEIGHT_MEMORY_RATIO = 0.4
 if is_nvidia():
-    MIN_WEIGHT_MEMORY_RATIO = 0.2
+    MIN_WEIGHT_MEMORY_RATIO = 0.1
 
 ENABLE_PYTORCH_ATTENTION = False
 if args.use_pytorch_cross_attention:
@@ -242,6 +242,12 @@ if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_mem_efficient_sdp(True)
 
 try:
+    if is_nvidia() and args.fast:
+        torch.backends.cuda.matmul.allow_fp16_accumulation = True
+except:
+    pass
+
+try:
     if int(torch_version[0]) == 2 and int(torch_version[2]) >= 5:
         torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
 except:
@@ -256,14 +262,9 @@ elif args.highvram or args.gpu_only:
     vram_state = VRAMState.HIGH_VRAM
 
 FORCE_FP32 = False
-FORCE_FP16 = False
 if args.force_fp32:
     logging.info("Forcing FP32, if this improves things please report it.")
     FORCE_FP32 = True
-
-if args.force_fp16:
-    logging.info("Forcing FP16.")
-    FORCE_FP16 = True
 
 if lowvram_available:
     if set_vram_to in (VRAMState.LOW_VRAM, VRAMState.NO_VRAM):
@@ -535,14 +536,11 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             vram_set_state = vram_state
         lowvram_model_memory = 0
         if lowvram_available and (vram_set_state == VRAMState.LOW_VRAM or vram_set_state == VRAMState.NORMAL_VRAM) and not force_full_load:
-            model_size = loaded_model.model_memory_required(torch_dev)
             loaded_memory = loaded_model.model_loaded_memory()
             current_free_mem = get_free_memory(torch_dev) + loaded_memory
 
             lowvram_model_memory = max(64 * 1024 * 1024, (current_free_mem - minimum_memory_required), min(current_free_mem * MIN_WEIGHT_MEMORY_RATIO, current_free_mem - minimum_inference_memory()))
             lowvram_model_memory = max(0.1, lowvram_model_memory - loaded_memory)
-            if model_size <= lowvram_model_memory: #only switch to lowvram if really necessary
-                lowvram_model_memory = 0
 
         if vram_set_state == VRAMState.NO_VRAM:
             lowvram_model_memory = 0.1
@@ -998,6 +996,13 @@ def is_device_mps(device):
 def is_device_cuda(device):
     return is_device_type(device, 'cuda')
 
+def is_directml_enabled():
+    global directml_enabled
+    if directml_enabled:
+        return True
+
+    return False
+
 def should_use_fp16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
     global directml_enabled
 
@@ -1005,7 +1010,7 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
         if is_device_cpu(device):
             return False
 
-    if FORCE_FP16:
+    if args.force_fp16:
         return True
 
     if FORCE_FP32:
@@ -1081,6 +1086,9 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
         return False
 
     if is_intel_xpu():
+        return True
+
+    if is_ascend_npu():
         return True
 
     props = torch.cuda.get_device_properties(device)

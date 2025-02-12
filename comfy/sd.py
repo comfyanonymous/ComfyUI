@@ -36,6 +36,7 @@ import comfy.text_encoders.genmo
 import comfy.text_encoders.lt
 import comfy.text_encoders.hunyuan_video
 import comfy.text_encoders.cosmos
+import comfy.text_encoders.lumina2
 
 import comfy.model_patcher
 import comfy.lora
@@ -657,6 +658,7 @@ class CLIPType(Enum):
     HUNYUAN_VIDEO = 9
     PIXART = 10
     COSMOS = 11
+    LUMINA2 = 12
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -675,6 +677,7 @@ class TEModel(Enum):
     T5_BASE = 6
     LLAMA3_8 = 7
     T5_XXL_OLD = 8
+    GEMMA_2_2B = 9
 
 def detect_te_model(sd):
     if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
@@ -693,6 +696,8 @@ def detect_te_model(sd):
         return TEModel.T5_XXL_OLD
     if "encoder.block.0.layer.0.SelfAttention.k.weight" in sd:
         return TEModel.T5_BASE
+    if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
+        return TEModel.GEMMA_2_2B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
         return TEModel.LLAMA3_8
     return None
@@ -730,6 +735,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             if "text_projection" in clip_data[i]:
                 clip_data[i]["text_projection.weight"] = clip_data[i]["text_projection"].transpose(0, 1) #old models saved with the CLIPSave node
 
+    tokenizer_data = {}
     clip_target = EmptyClass()
     clip_target.params = {}
     if len(clip_data) == 1:
@@ -769,6 +775,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.T5_BASE:
             clip_target.clip = comfy.text_encoders.sa_t5.SAT5Model
             clip_target.tokenizer = comfy.text_encoders.sa_t5.SAT5Tokenizer
+        elif te_model == TEModel.GEMMA_2_2B:
+            clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.lumina2.LuminaTokenizer
+            tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
         else:
             if clip_type == CLIPType.SD3:
                 clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=True, clip_g=False, t5=False)
@@ -798,7 +808,6 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
 
     parameters = 0
-    tokenizer_data = {}
     for c in clip_data:
         parameters += comfy.utils.calculate_parameters(c)
         tokenizer_data, model_options = comfy.text_encoders.long_clipl.model_options_long_clip(c, tokenizer_data, model_options)

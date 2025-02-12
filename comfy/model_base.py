@@ -34,6 +34,7 @@ import comfy.ldm.flux.model
 import comfy.ldm.lightricks.model
 import comfy.ldm.hunyuan_video.model
 import comfy.ldm.cosmos.model
+import comfy.ldm.lumina.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -148,7 +149,9 @@ class BaseModel(torch.nn.Module):
 
         xc = xc.to(dtype)
         t = self.model_sampling.timestep(t).float()
-        context = context.to(dtype)
+        if context is not None:
+            context = context.to(dtype)
+
         extra_conds = {}
         for o in kwargs:
             extra = kwargs[o]
@@ -162,9 +165,6 @@ class BaseModel(torch.nn.Module):
 
     def get_dtype(self):
         return self.diffusion_model.dtype
-
-    def is_adm(self):
-        return self.adm_channels > 0
 
     def encode_adm(self, **kwargs):
         return None
@@ -549,6 +549,10 @@ class SD_X4Upscaler(BaseModel):
 
         out['c_concat'] = comfy.conds.CONDNoiseShape(image)
         out['y'] = comfy.conds.CONDRegular(noise_level)
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDCrossAttn(cross_attn)
         return out
 
 class IP2P:
@@ -806,7 +810,10 @@ class Flux(BaseModel):
             (h_tok, w_tok) = (math.ceil(shape[2] / self.diffusion_model.patch_size), math.ceil(shape[3] / self.diffusion_model.patch_size))
             attention_mask = utils.upscale_dit_mask(attention_mask, mask_ref_size, (h_tok, w_tok))
             out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
-        out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([kwargs.get("guidance", 3.5)]))
+
+        guidance = kwargs.get("guidance", 3.5)
+        if guidance is not None:
+            out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
 
 class GenmoMochi(BaseModel):
@@ -863,7 +870,10 @@ class HunyuanVideo(BaseModel):
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
-        out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([kwargs.get("guidance", 6.0)]))
+
+        guidance = kwargs.get("guidance", 6.0)
+        if guidance is not None:
+            out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
 
 class CosmosVideo(BaseModel):
@@ -892,3 +902,19 @@ class CosmosVideo(BaseModel):
             latent_image = latent_image + noise
         latent_image = self.model_sampling.calculate_input(torch.tensor([sigma_noise_augmentation], device=latent_image.device, dtype=latent_image.dtype), latent_image)
         return latent_image * ((sigma ** 2 + self.model_sampling.sigma_data ** 2) ** 0.5)
+
+class Lumina2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.lumina.model.NextDiT)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            if torch.numel(attention_mask) != attention_mask.sum():
+                out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+            out['num_tokens'] = comfy.conds.CONDConstant(max(1, torch.sum(attention_mask).item()))
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        return out
