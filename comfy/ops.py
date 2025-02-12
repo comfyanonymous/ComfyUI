@@ -38,21 +38,23 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
     bias = None
     non_blocking = comfy.model_management.device_supports_non_blocking(device)
     if s.bias is not None:
-        has_function = s.bias_function is not None
+        has_function = len(s.bias_function) > 0
         bias = comfy.model_management.cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking, copy=has_function)
         if has_function:
-            bias = s.bias_function(bias)
+            for f in s.bias_function:
+                bias = f(bias)
 
-    has_function = s.weight_function is not None
+    has_function = len(s.weight_function) > 0
     weight = comfy.model_management.cast_to(s.weight, dtype, device, non_blocking=non_blocking, copy=has_function)
     if has_function:
-        weight = s.weight_function(weight)
+        for f in s.weight_function:
+            weight = f(weight)
     return weight, bias
 
 class CastWeightBiasOp:
     comfy_cast_weights = False
-    weight_function = None
-    bias_function = None
+    weight_function = []
+    bias_function = []
 
 class disable_weight_init:
     class Linear(torch.nn.Linear, CastWeightBiasOp):
@@ -64,7 +66,7 @@ class disable_weight_init:
             return torch.nn.functional.linear(input, weight, bias)
 
         def forward(self, *args, **kwargs):
-            if self.comfy_cast_weights:
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
                 return super().forward(*args, **kwargs)
@@ -78,7 +80,7 @@ class disable_weight_init:
             return self._conv_forward(input, weight, bias)
 
         def forward(self, *args, **kwargs):
-            if self.comfy_cast_weights:
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
                 return super().forward(*args, **kwargs)
@@ -92,7 +94,7 @@ class disable_weight_init:
             return self._conv_forward(input, weight, bias)
 
         def forward(self, *args, **kwargs):
-            if self.comfy_cast_weights:
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
                 return super().forward(*args, **kwargs)
@@ -106,7 +108,7 @@ class disable_weight_init:
             return self._conv_forward(input, weight, bias)
 
         def forward(self, *args, **kwargs):
-            if self.comfy_cast_weights:
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
                 return super().forward(*args, **kwargs)
@@ -120,11 +122,10 @@ class disable_weight_init:
             return torch.nn.functional.group_norm(input, self.num_groups, weight, bias, self.eps)
 
         def forward(self, *args, **kwargs):
-            if self.comfy_cast_weights:
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
                 return super().forward(*args, **kwargs)
-
 
     class LayerNorm(torch.nn.LayerNorm, CastWeightBiasOp):
         def reset_parameters(self):
@@ -139,7 +140,7 @@ class disable_weight_init:
             return torch.nn.functional.layer_norm(input, self.normalized_shape, weight, bias, self.eps)
 
         def forward(self, *args, **kwargs):
-            if self.comfy_cast_weights:
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
                 return super().forward(*args, **kwargs)
@@ -160,7 +161,7 @@ class disable_weight_init:
                 output_padding, self.groups, self.dilation)
 
         def forward(self, *args, **kwargs):
-            if self.comfy_cast_weights:
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
                 return super().forward(*args, **kwargs)
@@ -181,7 +182,7 @@ class disable_weight_init:
                 output_padding, self.groups, self.dilation)
 
         def forward(self, *args, **kwargs):
-            if self.comfy_cast_weights:
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
                 return super().forward(*args, **kwargs)
@@ -199,7 +200,7 @@ class disable_weight_init:
             return torch.nn.functional.embedding(input, weight, self.padding_idx, self.max_norm, self.norm_type, self.scale_grad_by_freq, self.sparse).to(dtype=output_dtype)
 
         def forward(self, *args, **kwargs):
-            if self.comfy_cast_weights:
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
                 if "out_dtype" in kwargs:
