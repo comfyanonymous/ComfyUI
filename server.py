@@ -14,6 +14,7 @@ import struct
 import ssl
 import socket
 import ipaddress
+import io,base64
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
@@ -333,10 +334,44 @@ class PromptServer():
             else:
                 return web.Response(status=400)
 
+        def str2pil(img_str:str)->Image.Image:
+            """
+            Convert Image Byte Stream to PIL Image
+            """
+
+            img_data = base64.b64decode(img_str)
+            img_io = io.BytesIO(img_data)
+            img = Image.open(img_io)
+            return img
+
         @routes.post("/upload/image")
         async def upload_image(request):
             post = await request.post()
             return image_upload(post)
+
+        @routes.post("/upload/image_stream")
+        async def upload_image(request):
+            post = await request.post()
+            
+            # Get Image Byte Stream
+            image = str2pil(post.get("img_str"))
+            
+            file_name = post.get("file_name")
+            if not file_name.endswith((".png",".jpg")):
+                return web.Response(text="The file name must end in .jpg or .png.", status=400)
+            
+            # PATH
+            if post.get("subfolder","") =="":
+                UPLOAD_PATH = os.path.join(os.getcwd(),post.get("type"),file_name)
+            else:
+                sub = post.get("subfolder")
+                sub_dir_path = os.path.join(os.getcwd(),post.get("type"),post.get("subfolder"))
+                os.makedirs(sub_dir_path,exist_ok=True)
+                UPLOAD_PATH = os.path.join(sub_dir_path,file_name)
+
+            image.save(UPLOAD_PATH)
+
+            return web.Response(status=200,text=f"Success Save Image PATH :{UPLOAD_PATH}")
 
 
         @routes.post("/upload/mask")
