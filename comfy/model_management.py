@@ -909,6 +909,8 @@ def pytorch_attention_flash_attention():
             return True
         if is_ascend_npu():
             return True
+        if is_amd():
+            return True #if you have pytorch attention enabled on AMD it probably supports at least mem efficient attention
     return False
 
 def mac_version():
