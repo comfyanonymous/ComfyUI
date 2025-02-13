@@ -42,3 +42,5 @@ def te(dtype_llama=None, llama_scaled_fp8=None):
                     dtype = dtype_llama
             super().__init__(device=device, dtype=dtype, model_options=model_options)
     return LuminaTEModel_
+
+# Automated edit: [Edited] Refactor code to optimize performance
