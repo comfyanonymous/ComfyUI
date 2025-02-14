@@ -4,7 +4,7 @@ import folder_paths
 import logging
 
 def load_extra_path_config(yaml_path):
-    with open(yaml_path, 'r') as stream:
+    with open(yaml_path, 'r', encoding='utf-8') as stream:
         config = yaml.safe_load(stream)
     yaml_dir = os.path.dirname(os.path.abspath(yaml_path))
     for c in config:
