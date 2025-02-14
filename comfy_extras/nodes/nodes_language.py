@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import operator
 import os.path
+from abc import ABC, abstractmethod
 from functools import reduce
 from typing import Optional, List
 
@@ -26,11 +27,16 @@ from comfy.nodes.package_typing import CustomNode, InputTypes, ValidatedNodeResu
 _AUTO_CHAT_TEMPLATE = "default"
 
 
-class TransformerSamplerBase(CustomNode):
+class TransformerSamplerBase(CustomNode, ABC):
     RETURN_TYPES = GENERATION_KWARGS_TYPE_NAME,
     RETURN_NAMES = "GENERATION ARGS",
     FUNCTION = "execute"
     CATEGORY = "language/samplers"
+
+    @classmethod
+    @abstractmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return ...
 
     @property
     def do_sample(self):

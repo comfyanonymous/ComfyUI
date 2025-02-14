@@ -45,11 +45,13 @@ def hasher():
 
 def export_custom_nodes():
     """
-    Finds all classes in the current module that extend CustomNode and creates
+    Finds all non-abstract classes in the current module that extend CustomNode and creates
     a NODE_CLASS_MAPPINGS dictionary mapping class names to class objects.
     Must be called from within the module where the CustomNode classes are defined.
     """
     import inspect
+    from abc import ABC
+    from comfy.nodes.package_typing import CustomNode
 
     # Get the calling module
     frame = inspect.currentframe()
@@ -60,7 +62,8 @@ def export_custom_nodes():
         for name, obj in inspect.getmembers(module):
             if (inspect.isclass(obj) and
                     CustomNode in obj.__mro__ and
-                    obj != CustomNode):
+                    obj != CustomNode and
+                    not inspect.isabstract(obj)):
                 custom_nodes[name] = obj
         if hasattr(module, 'NODE_CLASS_MAPPINGS'):
             node_class_mappings: dict = getattr(module, 'NODE_CLASS_MAPPINGS')
