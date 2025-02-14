@@ -408,6 +408,26 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             comfy.model_management.unload_all_models()
 
         return (ExecutionResult.FAILURE, error_details, ex)
+    except SystemExit as ex:
+        typ, _, tb = sys.exc_info()
+        exception_type = full_type_name(typ)
+        input_data_formatted = {}
+        if input_data_all is not None:
+            input_data_formatted = {}
+            for name, inputs in input_data_all.items():
+                input_data_formatted[name] = [format_value(x) for x in inputs]
+        
+        logging.error(f"!!! SystemExit during processing !!!")
+        logging.error(traceback.format_exc())
+
+        error_details = {
+            "node_id": real_node_id,
+            "exception_message": "SystemExit",
+            "exception_type": exception_type,
+            "traceback": traceback.format_tb(tb),
+            "current_inputs": input_data_formatted
+        }
+        return (ExecutionResult.FAILURE, error_details, ex)
 
     executed.add(unique_id)
 
