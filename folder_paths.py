@@ -14,10 +14,11 @@ supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.pt2', '.bin', '.pth', '.s
 folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
 
 # --base-directory - Resets all default paths configured in folder_paths with a new base path
+comfy_base_path = os.path.dirname(os.path.realpath(__file__))
 if args.base_directory:
     base_path = os.path.abspath(args.base_directory)
 else:
-    base_path = os.path.dirname(os.path.realpath(__file__))
+    base_path = comfy_base_path
 
 models_dir = os.path.join(base_path, "models")
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)
@@ -50,6 +51,14 @@ output_directory = os.path.join(base_path, "output")
 temp_directory = os.path.join(base_path, "temp")
 input_directory = os.path.join(base_path, "input")
 user_directory = os.path.join(base_path, "user")
+
+app_directory = os.path.join(comfy_base_path, "app")
+comfy_directory = os.path.join(comfy_base_path, "comfy")
+comfy_execution_directory = os.path.join(comfy_base_path, "comfy_execution")
+comfy_extras_directory = os.path.join(comfy_base_path, "comfy_extras")
+notebooks_directory = os.path.join(comfy_base_path, "notebooks")
+utils_directory = os.path.join(comfy_base_path, "utils")
+web_directory = os.path.join(comfy_base_path, "web")
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
