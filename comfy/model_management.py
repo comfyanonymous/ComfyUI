@@ -25,6 +25,7 @@ import sys
 import platform
 import weakref
 import gc
+import zluda
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -249,10 +250,10 @@ except:
     pass
 
 
-if ENABLE_PYTORCH_ATTENTION:
-    torch.backends.cuda.enable_math_sdp(True)
-    torch.backends.cuda.enable_flash_sdp(True)
-    torch.backends.cuda.enable_mem_efficient_sdp(True)
+# if ENABLE_PYTORCH_ATTENTION:
+    # torch.backends.cuda.enable_math_sdp(True)
+    # torch.backends.cuda.enable_flash_sdp(True)
+    # torch.backends.cuda.enable_mem_efficient_sdp(True)
 
 try:
     if is_nvidia() and args.fast:
