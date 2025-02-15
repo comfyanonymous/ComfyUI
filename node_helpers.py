@@ -1,4 +1,5 @@
 import hashlib
+import torch
 
 from comfy.cli_args import args
 
@@ -35,3 +36,11 @@ def hasher():
         "sha512": hashlib.sha512
     }
     return hashfuncs[args.default_hashing_function]
+
+def string_to_torch_dtype(string):
+    if string == "fp32":
+        return torch.float32
+    if string == "fp16":
+        return torch.float16
+    if string == "bf16":
+        return torch.bfloat16
