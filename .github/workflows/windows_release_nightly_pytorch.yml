@@ -43,9 +43,9 @@ jobs:
           run: |
             cd ..
             cp -r ComfyUI ComfyUI_copy
-            curl https://www.python.org/ftp/python/3.${{ inputs.python_minor }}.${{ inputs.python_patch }}/python-3.${{ inputs.python_minor }}.${{ inputs.python_patch }}-embed-amd64.zip -o python_embeded.zip
-            unzip python_embeded.zip -d python_embeded
-            cd python_embeded
+            curl https://www.python.org/ftp/python/3.${{ inputs.python_minor }}.${{ inputs.python_patch }}/python-3.${{ inputs.python_minor }}.${{ inputs.python_patch }}-embed-amd64.zip -o python_embedded.zip
+            unzip python_embedded.zip -d python_embedded
+            cd python_embedded
             echo 'import site' >> ./python3${{ inputs.python_minor }}._pth
             curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
             ./python.exe get-pip.py
@@ -59,7 +59,7 @@ jobs:
             cp taesd/*.pth ./ComfyUI_copy/models/vae_approx/
 
             mkdir ComfyUI_windows_portable_nightly_pytorch
-            mv python_embeded ComfyUI_windows_portable_nightly_pytorch
+            mv python_embedded ComfyUI_windows_portable_nightly_pytorch
             mv ComfyUI_copy ComfyUI_windows_portable_nightly_pytorch/ComfyUI
 
             cd ComfyUI_windows_portable_nightly_pytorch
@@ -70,7 +70,7 @@ jobs:
             cp -r ComfyUI/.ci/windows_nightly_base_files/* ./
 
             echo "call update_comfyui.bat nopause
-            ..\python_embeded\python.exe -s -m pip install --upgrade --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2
+            ..\python_embedded\python.exe -s -m pip install --upgrade --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2
             pause" > ./update/update_comfyui_and_python_dependencies.bat
             cd ..
 
@@ -78,7 +78,7 @@ jobs:
             mv ComfyUI_windows_portable_nightly_pytorch.7z ComfyUI/ComfyUI_windows_portable_nvidia_or_cpu_nightly_pytorch.7z
 
             cd ComfyUI_windows_portable_nightly_pytorch
-            python_embeded/python.exe -s ComfyUI/main.py --quick-test-for-ci --cpu
+            python_embedded/python.exe -s ComfyUI/main.py --quick-test-for-ci --cpu
 
             ls
 

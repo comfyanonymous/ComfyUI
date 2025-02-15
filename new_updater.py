@@ -19,14 +19,14 @@ def update_windows_updater():
     except:
         return
 
-    if not contents.startswith(b"..\\python_embeded\\python.exe .\\update.py"):
+    if not contents.startswith(b"..\\python_embedded\\python.exe .\\update.py"):
         return
 
     shutil.copy(updater_path, dest_updater_path)
     try:
         with open(dest_bat_deps_path, 'rb') as f:
             contents = f.read()
-            contents = contents.replace(b'..\\python_embeded\\python.exe .\\update.py ..\\ComfyUI\\', b'call update_comfyui.bat nopause')
+            contents = contents.replace(b'..\\python_embedded\\python.exe .\\update.py ..\\ComfyUI\\', b'call update_comfyui.bat nopause')
         with open(dest_bat_deps_path, 'wb') as f:
             f.write(contents)
     except:
