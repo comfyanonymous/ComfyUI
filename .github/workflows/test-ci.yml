@@ -1,6 +1,7 @@
 # This is the GitHub Workflow that drives automatic full-GPU-enabled tests of all new commits to the master branch of ComfyUI
 # Results are reported as checkmarks on the commits, as well as onto https://ci.comfy.org/
 name: Full Comfy CI Workflow Runs
+
 on:
   push:
     branches:
@@ -22,19 +23,19 @@ jobs:
       matrix:
         # os: [macos, linux, windows]
         os: [macos, linux]
-        python_version: ["3.9", "3.10", "3.11", "3.12"]
-        cuda_version: ["12.1"]
-        torch_version: ["stable"]
+        python_version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+        cuda_version: ['12.1']
+        torch_version: ['stable']
         include:
           - os: macos
             runner_label: [self-hosted, macOS]
-            flags: "--use-pytorch-cross-attention"
+            flags: '--use-pytorch-cross-attention'
           - os: linux
             runner_label: [self-hosted, Linux]
-            flags: ""
+            flags: ''
           # - os: windows
           #   runner_label: [self-hosted, Windows]
-          #   flags: ""
+          #   flags: ''
     runs-on: ${{ matrix.runner_label }}
     steps:
       - name: Test Workflows
@@ -51,13 +52,13 @@ jobs:
   #     fail-fast: true
   #     matrix:
   #       os: [windows]
-  #       python_version: ["3.9", "3.10", "3.11", "3.12"]
-  #       cuda_version: ["12.1"]
-  #       torch_version: ["nightly"]
+  #       python_version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+  #       cuda_version: ['12.1']
+  #       torch_version: ['nightly']
   #       include:
   #         - os: windows
   #           runner_label: [self-hosted, Windows]
-  #           flags: ""
+  #           flags: ''
   #   runs-on: ${{ matrix.runner_label }}
   #   steps:
   #     - name: Test Workflows
@@ -74,16 +75,16 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos, linux]
-        python_version: ["3.11"]
-        cuda_version: ["12.1"]
-        torch_version: ["nightly"]
+        python_version: ['3.11']
+        cuda_version: ['12.1']
+        torch_version: ['nightly']
         include:
           - os: macos
             runner_label: [self-hosted, macOS]
-            flags: "--use-pytorch-cross-attention"
+            flags: '--use-pytorch-cross-attention'
           - os: linux
             runner_label: [self-hosted, Linux]
-            flags: ""
+            flags: ''
     runs-on: ${{ matrix.runner_label }}
     steps:
       - name: Test Workflows

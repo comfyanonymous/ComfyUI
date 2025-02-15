@@ -3,15 +3,14 @@ name: Update Version File
 on:
   pull_request:
     paths:
-      - "pyproject.toml"
-    branches:
-      - master
+      - 'pyproject.toml'
+    branches: master
 
 jobs:
   update-version:
     runs-on: ubuntu-latest
     # Don't run on fork PRs
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       pull-requests: write
       contents: write
@@ -23,7 +22,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |

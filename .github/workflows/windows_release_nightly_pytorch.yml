@@ -1,4 +1,4 @@
-name: "Windows Release Nightly pytorch"
+name: Windows Release Nightly pytorch
 
 on:
   workflow_dispatch:
@@ -7,29 +7,32 @@ on:
         description: 'cuda version'
         required: true
         type: string
-        default: "126"
+        default: '126'
 
       python_minor:
         description: 'python minor version'
         required: true
         type: string
-        default: "13"
+        default: '13'
 
       python_patch:
         description: 'python patch version'
         required: true
         type: string
-        default: "1"
+        default: '1'
 #  push:
-#    branches:
-#      - master
+#    branches: master
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   build:
     permissions:
-      contents: "write"
-      packages: "write"
-      pull-requests: "read"
+      contents: write
+      packages: write
+      pull-requests: read
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,15 +42,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.${{ inputs.python_minor }}.${{ inputs.python_patch }}
-      - shell: bash
-        run: |
+      - run: |
           cd ..
           cp -r ComfyUI ComfyUI_copy
           curl https://www.python.org/ftp/python/3.${{ inputs.python_minor }}.${{ inputs.python_patch }}/python-3.${{ inputs.python_minor }}.${{ inputs.python_patch }}-embed-amd64.zip -o python_embedded.zip
           unzip python_embedded.zip -d python_embedded
           cd python_embedded
           echo 'import site' >> ./python3${{ inputs.python_minor }}._pth
-          curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+          curl -fLO https://bootstrap.pypa.io/get-pip.py
           ./python.exe get-pip.py
           python -m pip wheel torch torchvision torchaudio --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2 -w ../temp_wheel_dir
           ls ../temp_wheel_dir
@@ -74,18 +76,17 @@ jobs:
           pause" > ./update/update_comfyui_and_python_dependencies.bat
           cd ..
 
-          "C:\Program Files\7-Zip\7z.exe" a -t7z -m0=lzma2 -mx=8 -mfb=64 -md=32m -ms=on -mf=BCJ2 ComfyUI_windows_portable_nightly_pytorch.7z ComfyUI_windows_portable_nightly_pytorch
+          7z a -t7z -m0=lzma2 -mx=8 -mfb=64 -md=32m -ms=on -mf=BCJ2 ComfyUI_windows_portable_nightly_pytorch.7z ComfyUI_windows_portable_nightly_pytorch
           mv ComfyUI_windows_portable_nightly_pytorch.7z ComfyUI/ComfyUI_windows_portable_nvidia_or_cpu_nightly_pytorch.7z
 
           cd ComfyUI_windows_portable_nightly_pytorch
           python_embedded/python.exe -s ComfyUI/main.py --quick-test-for-ci --cpu
 
           ls
-
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ComfyUI_windows_portable_nvidia_or_cpu_nightly_pytorch.7z
-          tag: "latest"
+          tag: latest
           overwrite: true

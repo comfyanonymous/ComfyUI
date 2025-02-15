@@ -1,9 +1,10 @@
 # This is the GitHub Workflow that drives full-GPU-enabled tests of pull requests to ComfyUI, when the 'Run-CI-Test' label is added
 # Results are reported as checkmarks on the commits, as well as onto https://ci.comfy.org/
 name: Pull Request CI Workflow Runs
+
 on:
   pull_request_target:
-    types: [labeled]
+    types: labeled
 
 jobs:
   pr-test-stable:
@@ -12,19 +13,19 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos, linux, windows]
-        python_version: ["3.9", "3.10", "3.11", "3.12"]
-        cuda_version: ["12.1"]
-        torch_version: ["stable"]
+        python_version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+        cuda_version: ['12.1']
+        torch_version: ['stable']
         include:
           - os: macos
             runner_label: [self-hosted, macOS]
-            flags: "--use-pytorch-cross-attention"
+            flags: '--use-pytorch-cross-attention'
           - os: linux
             runner_label: [self-hosted, Linux]
-            flags: ""
+            flags: ''
           - os: windows
             runner_label: [self-hosted, Windows]
-            flags: ""
+            flags: ''
     runs-on: ${{ matrix.runner_label }}
     steps:
       - name: Test Workflows
@@ -35,7 +36,8 @@ jobs:
           torch_version: ${{ matrix.torch_version }}
           google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
           comfyui_flags: ${{ matrix.flags }}
-          use_prior_commit: 'true'
+          use_prior_commit: true
+
   comment:
     if: ${{ github.event.label.name == 'Run-CI-Test' }}
     runs-on: ubuntu-latest

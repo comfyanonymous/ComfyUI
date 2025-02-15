@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Frontend version to update to (e.g., 1.0.0)"
+        description: 'Frontend version to update to (e.g., 1.0.0)'
         required: true
         type: string
 
@@ -14,7 +14,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-
     steps:
       - name: Checkout ComfyUI
         uses: actions/checkout@v4
@@ -47,8 +46,8 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.PR_BOT_PAT }}
-          commit-message: "Update frontend to v${{ github.event.inputs.version }}"
-          title: "Frontend Update: v${{ github.event.inputs.version }}"
+          commit-message: Update frontend to v${{ github.event.inputs.version }}
+          title: 'Frontend Update: v${{ github.event.inputs.version }}'
           body: |
             Automated PR to update frontend content to version ${{ github.event.inputs.version }}
 

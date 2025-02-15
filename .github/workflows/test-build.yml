@@ -1,15 +1,13 @@
 name: Build package
-
 #
 # This workflow is a test of the python package build.
 # Install Python dependencies across different Python versions.
 #
-
 on:
   push:
     paths:
-      - "requirements.txt"
-      - ".github/workflows/test-build.yml"
+      - 'requirements.txt'
+      - '.github/workflows/test-build.yml'
 
 jobs:
   build:
@@ -18,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
