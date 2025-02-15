@@ -63,7 +63,7 @@ class UserManager():
 
         return user
 
-    def get_request_user_filepath(self, request, file, type="userdata", create_dir=True):
+    def get_request_user_filepath(self, request, target, type="userdata", create_dir=True, target_is_file=True):
         user_directory = folder_paths.get_user_directory()
 
         if type == "userdata":
@@ -78,20 +78,23 @@ class UserManager():
         if os.path.commonpath((root_dir, user_root)) != root_dir:
             return None
 
-        if file is not None:
+        if target is not None:
             # Check if filename is url encoded
-            if "%" in file:
-                file = parse.unquote(file)
+            if "%" in target:
+                target = parse.unquote(target)
 
             # prevent leaving /{type}/{user}
-            path = os.path.abspath(os.path.join(user_root, file))
+            path = os.path.abspath(os.path.join(user_root, target))
             if os.path.commonpath((user_root, path)) != user_root:
                 return None
 
-        parent = os.path.split(path)[0]
+        if target_is_file:
+            dir_path = os.path.dirname(path)
+        else:
+            dir_path = path
 
-        if create_dir and not os.path.exists(parent):
-            os.makedirs(parent, exist_ok=True)
+        if create_dir and not os.path.exists(dir_path):
+            os.makedirs(dir_path, exist_ok=True)
 
         return path
 
@@ -162,7 +165,7 @@ class UserManager():
             if not directory:
                 return web.Response(status=400, text="Directory not provided")
 
-            path = self.get_request_user_filepath(request, directory)
+            path = self.get_request_user_filepath(request, directory, target_is_file=False)
             if not path:
                 return web.Response(status=403, text="Invalid directory")
 
