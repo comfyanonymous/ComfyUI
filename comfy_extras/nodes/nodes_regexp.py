@@ -9,8 +9,7 @@ MATCH_TYPE_NAME = "MATCH"
 class RegexFlags(CustomNode):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
-        flags_ = {flag_name: ("BOOLEAN", {}) for flag_name in ["ASCII", "IGNORECASE", "LOCALE", "MULTILINE", "DOTALL", "VERBOSE",
-                                                               "UNICODE", "NOFLAG"]}
+        flags_ = {flag_name: ("BOOLEAN", {}) for flag_name in ["ASCII", "IGNORECASE", "LOCALE", "MULTILINE", "DOTALL", "VERBOSE", "UNICODE"]}
         return {
             "required": flags_,
         }
@@ -20,11 +19,11 @@ class RegexFlags(CustomNode):
     RETURN_TYPES = ("INT",)
 
     def execute(self, **kwargs) -> tuple[int]:
-        flags = re.RegexFlag.NOFLAG
-
+        has_noflag = hasattr(re.RegexFlag, "NOFLAG")
+        flags = re.RegexFlag.NOFLAG if has_noflag else 0
         for name, on in kwargs.items():
-            if on:
-                flags |= re.RegexFlag[name]
+            if on and hasattr(re.RegexFlag, name):
+                flags |= int(re.RegexFlag[name])
 
         return int(flags),
 
