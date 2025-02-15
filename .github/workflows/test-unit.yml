@@ -14,17 +14,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     continue-on-error: true
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-    - name: Install requirements
-      run: |
-        python -m pip install --upgrade pip
-        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-        pip install -r requirements.txt
-    - name: Run Unit Tests
-      run: |
-        pip install -r tests-unit/requirements.txt
-        python -m pytest tests-unit
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - name: Install requirements
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+      - name: Run Unit Tests
+        run: |
+          pip install -r tests-unit/requirements.txt
+          python -m pytest tests-unit
