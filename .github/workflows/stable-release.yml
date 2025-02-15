@@ -84,7 +84,7 @@ jobs:
 
           cd ..
 
-          7z a -t7z -m0=lzma2 -mx=8 -mfb=64 -md=32m -ms=on -mf=BCJ2 ComfyUI_windows_portable.7z ComfyUI_windows_portable
+          7z a -mx=9 -md=32m ComfyUI_windows_portable.7z ComfyUI_windows_portable
           mv ComfyUI_windows_portable.7z ComfyUI/ComfyUI_windows_portable_nvidia.7z
 
           cd ComfyUI_windows_portable
