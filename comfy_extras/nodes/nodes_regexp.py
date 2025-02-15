@@ -98,7 +98,7 @@ class RegexMatchExpand(CustomNode):
 
     CATEGORY = "regular_expressions"
     FUNCTION = "execute"
-    RETURN_TYPES = (MATCH_TYPE_NAME,)
+    RETURN_TYPES = ("STRING",)
 
     def execute(self, match: re.Match, template: str = "") -> tuple[str]:
         return match.expand(template),
