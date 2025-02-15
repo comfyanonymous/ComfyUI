@@ -1,0 +1,20 @@
+
+.download-bg[data-v-8d77828d]::before {
+  position: absolute;
+  margin: 0px;
+  color: var(--p-text-muted-color);
+  font-family: 'primeicons';
+  top: -2rem;
+  right: 2rem;
+  speak: none;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  display: inline-block;
+  -webkit-font-smoothing: antialiased;
+  opacity: 0.02;
+  font-size: min(14rem, 90vw);
+  z-index: 0
+}
