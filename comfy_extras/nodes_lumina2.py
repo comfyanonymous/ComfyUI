@@ -25,11 +25,11 @@ class RenormCFG:
 
             if timestep[0] < cfg_trunc:
                 cond_eps, uncond_eps = cond_denoised[:, :in_channels], uncond_denoised[:, :in_channels]
-                cond_rest, uncond_rest = cond_denoised[:, in_channels:], uncond_denoised[:, in_channels:]
-                half_eps = uncond_eps + cond_scale * (cond_eps - uncond_eps)  
+                cond_rest, _ = cond_denoised[:, in_channels:], uncond_denoised[:, in_channels:]
+                half_eps = uncond_eps + cond_scale * (cond_eps - uncond_eps)
                 half_rest = cond_rest
 
-                if float(renorm_cfg) > 0.0: 
+                if float(renorm_cfg) > 0.0:
                     ori_pos_norm = torch.linalg.vector_norm(cond_eps
                             , dim=tuple(range(1, len(cond_eps.shape))), keepdim=True
                     )
@@ -41,10 +41,10 @@ class RenormCFG:
                         half_eps = half_eps * (max_new_norm / new_pos_norm)
             else:
                 cond_eps, uncond_eps = cond_denoised[:, :in_channels], uncond_denoised[:, :in_channels]
-                cond_rest, uncond_rest = cond_denoised[:, in_channels:], uncond_denoised[:, in_channels:]
+                cond_rest, _ = cond_denoised[:, in_channels:], uncond_denoised[:, in_channels:]
                 half_eps = cond_eps
                 half_rest = cond_rest
-            
+
             cfg_result = torch.cat([half_eps, half_rest], dim=1)
 
             # cfg_result = uncond_denoised + (cond_denoised - uncond_denoised) * cond_scale
@@ -59,7 +59,7 @@ class RenormCFG:
 class CLIPTextEncodeLumina2(ComfyNodeABC):
     SYSTEM_PROMPT = {
         "superior": "You are an assistant designed to generate superior images with the superior "\
-            "degree of image-text alignment based on textual prompts or user prompts.", 
+            "degree of image-text alignment based on textual prompts or user prompts.",
         "alignment": "You are an assistant designed to generate high-quality images with the "\
             "highest degree of image-text alignment based on textual prompts."
     }
@@ -94,7 +94,7 @@ class CLIPTextEncodeLumina2(ComfyNodeABC):
 
 
 NODE_CLASS_MAPPINGS = {
-    "CLIPTextEncodeLumina": CLIPTextEncodeLumina2, 
+    "CLIPTextEncodeLumina2": CLIPTextEncodeLumina2,
     "RenormCFG": RenormCFG
 }
 
