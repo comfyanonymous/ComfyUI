@@ -34,6 +34,9 @@ from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
 from typing import Optional
 from api_server.routes.internal.internal_routes import InternalRoutes
+from app.database.entities import get_entity, init_entities
+from app.database.db import db
+from app.model_hasher import model_hasher
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -682,11 +685,25 @@ class PromptServer():
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
         self.client_session = aiohttp.ClientSession(timeout=timeout)
 
+    def init_db(self, routes):
+        init_entities(routes)
+        models = get_entity("models")
+        
+        if db.exists:
+            model_hasher.start(models)
+        else:
+            def on_db_update(_, __):
+                model_hasher.start(models)
+
+            db.register_after_update_callback(on_db_update)
+
+
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
         self.model_file_manager.add_routes(self.routes)
         self.custom_node_manager.add_routes(self.routes, self.app, nodes.LOADED_MODULE_DIRS.items())
         self.app.add_subapp('/internal', self.internal_routes.get_app())
+        self.init_db(self.routes)
 
         # Prefix every route with /api for easier matching for delegation.
         # This is very useful for frontend dev server, which need to forward

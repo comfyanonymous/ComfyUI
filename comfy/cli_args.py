@@ -144,9 +144,11 @@ parser.add_argument("--verbose", default='INFO', const='DEBUG', nargs="?", choic
 parser.add_argument("--log-stdout", action="store_true", help="Send normal process output to stdout instead of stderr (default).")
 
 parser.add_argument("--memory-database", default=False, action="store_true", help="Use an in-memory database instead of a file-based one.")
+parser.add_argument("--disable-model-hashing", action="store_true", help="Disable model hashing.")
 
 # The default built-in provider hosted under web/
 DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
+
 
 parser.add_argument(
     "--front-end-version",
