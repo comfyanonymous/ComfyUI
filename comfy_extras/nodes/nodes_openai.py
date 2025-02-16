@@ -66,7 +66,7 @@ class OpenAILanguageModelWrapper(LanguageModel):
         sampler = sampler or {}
         prompt = tokens.get("inputs", [])
         prompt = "".join(prompt)
-        images = tokens.get("images", [])
+        images = tokens.get("images", []) or []
         images = [image for image in images if image is not None]
         messages: list[ChatCompletionMessageParam] = [
             {
