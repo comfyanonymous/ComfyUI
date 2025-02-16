@@ -142,7 +142,15 @@ def test_image_batch():
 def test_image_pad_for_outpaint():
     padded, mask = ImagePadForOutpaint().expand_image(_image_1x1, 1, 1, 1, 1, 0)
     assert padded.shape == (1, 3, 3, 3)
-    assert mask.shape == (3, 3)
+    # the mask should now be batched
+    assert mask.shape == (1, 3, 3)
+
+
+def test_image_pad_for_outpaint_batched():
+    padded, mask = ImagePadForOutpaint().expand_image(_image_1x1.expand(2, -1, -1, -1), 1, 1, 1, 1, 0)
+    assert padded.shape == (2, 3, 3, 3)
+    # the mask should now be batched
+    assert mask.shape == (2, 3, 3)
 
 
 def test_empty_image():
