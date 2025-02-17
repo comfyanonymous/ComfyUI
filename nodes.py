@@ -2233,6 +2233,7 @@ def init_builtin_extra_nodes():
         "nodes_hooks.py",
         "nodes_load_3d.py",
         "nodes_cosmos.py",
+        "nodes_lumina2.py",
     ]
 
     import_failed = []
