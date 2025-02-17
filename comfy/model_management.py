@@ -1111,6 +1111,8 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
     if is_amd():
         arch = torch.cuda.get_device_properties(device).gcnArchName
         if arch in ["gfx1030", "gfx1031", "gfx1010", "gfx1011", "gfx1012", "gfx906", "gfx900", "gfx803"]:  # RDNA2 and older don't support bf16
+            if manual_cast:
+                return True
             return False
 
     props = torch.cuda.get_device_properties(device)
