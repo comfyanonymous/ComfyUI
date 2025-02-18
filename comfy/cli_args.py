@@ -190,6 +190,17 @@ def _create_parser() -> EnhancedConfigArgParser:
         """,
     )
 
+    parser.add_argument(
+        '--panic-when',
+        action='append',
+        help="""
+        List of fully qualified exception class names to panic (os.exit(1)) when a workflow raises it.
+        Example: --panic-when=torch.cuda.OutOfMemoryError. Can be specified multiple times or as a 
+        comma-separated list.""",
+        type=str,
+        default=[]
+    )
+
     def is_valid_directory(path: Optional[str]) -> Optional[str]:
         """Validate if the given path is a directory."""
         if path is None:

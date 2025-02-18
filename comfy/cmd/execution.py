@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import copy
 import heapq
 import inspect
@@ -20,6 +21,7 @@ from opentelemetry.trace import get_current_span, StatusCode, Status
 from .main_pre import tracer
 from .. import interruption
 from .. import model_management
+from ..cli_args import args
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, ValidationTuple, ValidateInputsTuple, \
     ValidationErrorDict, NodeErrorsDictValue, ValidationErrorExtraInfoDict, FormattedValue, RecursiveExecutionTuple, \
@@ -28,6 +30,7 @@ from ..component_model.executor_types import ExecutorToClientProgress, Validatio
 from ..component_model.files import canonicalize_path
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
 from ..execution_context import context_execute_node, context_execute_prompt
+from ..execution_ext import should_panic_on_exception
 from ..nodes.package import import_all_nodes_in_workspace
 from ..nodes.package_typing import ExportedNodes, InputTypeSpec, FloatSpecOptions, IntSpecOptions, CustomNode
 
@@ -110,6 +113,7 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
     for x in inputs:
         input_data = inputs[x]
         input_type, input_category, input_info = get_input_info(class_def, x, valid_inputs)
+
         def mark_missing():
             missing_keys[x] = True
             input_data_all[x] = (None,)
@@ -479,6 +483,14 @@ def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra_data,
         if isinstance(ex, model_management.OOM_EXCEPTION):
             logging.error("Got an OOM, unloading all loaded models.")
             model_management.unload_all_models()
+
+        if should_panic_on_exception(ex, args.panic_when):
+            logging.error(f"The exception {ex} was configured as unrecoverable, scheduling an exit")
+
+            def sys_exit(*args):
+                sys.exit(1)
+
+            asyncio.get_event_loop().call_soon_threadsafe(sys_exit, ())
 
         return RecursiveExecutionTuple(ExecutionResult.FAILURE, error_details, ex)
 

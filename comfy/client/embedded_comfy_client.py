@@ -41,12 +41,14 @@ def _execute_prompt(
     span_context: Context = propagate.extract(span_context)
     token = attach(span_context)
     try:
-        return __execute_prompt(prompt, prompt_id, client_id, span_context, progress_handler, configuration)
+        # there is never an event loop running on a thread or process pool thread here
+        # this also guarantees nodes will be able to successfully call await
+        return asyncio.run(__execute_prompt(prompt, prompt_id, client_id, span_context, progress_handler, configuration))
     finally:
         detach(token)
 
 
-def __execute_prompt(
+async def __execute_prompt(
         prompt: dict,
         prompt_id: str,
         client_id: str,
