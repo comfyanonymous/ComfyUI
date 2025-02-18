@@ -310,7 +310,7 @@ class HunyuanVideo(nn.Module):
             shape[i] = shape[i] // self.patch_size[i]
         img = img.reshape([img.shape[0]] + shape + [self.out_channels] + self.patch_size)
         img = img.permute(0, 4, 1, 5, 2, 6, 3, 7)
-        img = img.reshape(initial_shape)
+        img = img.reshape(initial_shape[0], self.out_channels, initial_shape[2], initial_shape[3], initial_shape[4])
         return img
 
     def forward(self, x, timestep, context, y, guidance=None, attention_mask=None, control=None, transformer_options={}, **kwargs):
