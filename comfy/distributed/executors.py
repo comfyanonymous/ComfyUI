@@ -1,7 +1,4 @@
-import asyncio
-import concurrent
 import contextvars
-import threading
 import typing
 from concurrent.futures import Future, ThreadPoolExecutor
 from functools import partial
@@ -20,7 +17,4 @@ class ContextVarExecutor(ThreadPoolExecutor):
 
 
 class ContextVarProcessPoolExecutor(ProcessPoolExecutor):
-
-    def submit(self, fn, /, *args, **kwargs) -> concurrent.futures.Future:
-        # TODO: serialize the "comfyui_execution_context"
-        pass
+    pass

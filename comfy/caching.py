@@ -1,9 +1,9 @@
 import itertools
 from typing import Sequence, Mapping, Dict
 
-from .cmd.execution import nodes
 from .graph import DynamicPrompt
 from .graph_utils import is_link
+from .nodes_context import get_nodes
 
 NODE_CLASS_CONTAINS_UNIQUE_ID: Dict[str, bool] = {}
 
@@ -11,7 +11,7 @@ NODE_CLASS_CONTAINS_UNIQUE_ID: Dict[str, bool] = {}
 def include_unique_id_in_input(class_type: str) -> bool:
     if class_type in NODE_CLASS_CONTAINS_UNIQUE_ID:
         return NODE_CLASS_CONTAINS_UNIQUE_ID[class_type]
-    class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+    class_def = get_nodes().NODE_CLASS_MAPPINGS[class_type]
     NODE_CLASS_CONTAINS_UNIQUE_ID[class_type] = "UNIQUE_ID" in class_def.INPUT_TYPES().get("hidden", {}).values()
     return NODE_CLASS_CONTAINS_UNIQUE_ID[class_type]
 
@@ -110,7 +110,7 @@ class CacheKeySetInputSignature(CacheKeySet):
             return [float("NaN")]
         node = dynprompt.get_node(node_id)
         class_type = node["class_type"]
-        class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+        class_def = get_nodes().NODE_CLASS_MAPPINGS[class_type]
         signature = [class_type, self.is_changed_cache.get(node_id)]
         if self.include_node_id_in_input() or (hasattr(class_def, "NOT_IDEMPOTENT") and class_def.NOT_IDEMPOTENT) or include_unique_id_in_input(class_type):
             signature.append(node_id)

@@ -2,11 +2,10 @@ import asyncio
 import itertools
 import logging
 import os
-from concurrent.futures import ProcessPoolExecutor
 
-from .main_pre import args
 from .extra_model_paths import load_extra_path_config
-from ..distributed.executors import ContextVarExecutor
+from .main_pre import args
+from ..distributed.executors import ContextVarExecutor, ContextVarProcessPoolExecutor
 
 
 async def main():
@@ -42,9 +41,18 @@ async def main():
             load_extra_path_config(config_path)
 
     from ..distributed.distributed_prompt_worker import DistributedPromptWorker
+
+    if args.executor_factory in ("ThreadPoolExecutor", "ContextVarExecutor"):
+        executor = ContextVarExecutor()
+    elif args.executor_factory in ("ProcessPoolExecutor", "ContextVarProcessPoolExecutor"):
+        executor = ContextVarProcessPoolExecutor()
+    else:
+        # default executor
+        executor = ContextVarExecutor()
+
     async with DistributedPromptWorker(connection_uri=args.distributed_queue_connection_uri,
                                        queue_name=args.distributed_queue_name,
-                                       executor=ContextVarExecutor(max_workers=1) if args.executor_factory == "ThreadPoolExecutor" else ProcessPoolExecutor(max_workers=1)):
+                                       executor=executor):
         stop = asyncio.Event()
         try:
             await stop.wait()

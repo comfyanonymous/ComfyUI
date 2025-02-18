@@ -7,9 +7,11 @@ import torch
 
 from comfy.cli_args_types import Configuration
 from comfy.client.embedded_comfy_client import EmbeddedComfyClient
-from comfy.cmd.execution import nodes
 from comfy.component_model.make_mutable import make_mutable
 from comfy.component_model.tensor_types import RGBImageBatch
+from comfy.distributed.executors import ContextVarExecutor
+from comfy.distributed.process_pool_executor import ProcessPoolExecutor
+from comfy.execution_context import context_add_custom_nodes
 from comfy.nodes.package_typing import CustomNode, ExportedNodes
 
 
@@ -80,7 +82,7 @@ async def test_separate_thread_callback():
 
 
 # Custom test exception that we'll configure to panic on
-class TestUnrecoverableError(Exception):
+class UnrecoverableError(Exception):
     pass
 
 
@@ -102,7 +104,7 @@ class TestExceptionNode(CustomNode):
 
     def raise_exception(self, should_raise=True) -> tuple[RGBImageBatch]:
         if should_raise:
-            raise TestUnrecoverableError("Test exception from node")
+            raise UnrecoverableError("Test exception from node")
         else:
             # Return a dummy image if not raising
             return (torch.zeros([1, 64, 64, 3]),)
@@ -116,6 +118,11 @@ TEST_NODE_CLASS_MAPPINGS = {
 TEST_NODE_DISPLAY_NAME_MAPPINGS = {
     "TestExceptionNode": "Test Exception Node",
 }
+
+EXECUTOR_FACTORIES = [
+    (ContextVarExecutor, {"max_workers": 1}),
+    (ProcessPoolExecutor, {"max_workers": 1}),
+]
 
 
 def create_failing_workflow():
@@ -131,52 +138,113 @@ def create_failing_workflow():
 
 
 @pytest.mark.asyncio
-async def test_panic_on_exception():
-    # Set up the test nodes
-    nodes.update(ExportedNodes(NODE_CLASS_MAPPINGS=TEST_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS=TEST_NODE_DISPLAY_NAME_MAPPINGS))
-
+@pytest.mark.parametrize("executor_cls,executor_kwargs", EXECUTOR_FACTORIES)
+async def test_panic_on_exception_with_executor(executor_cls, executor_kwargs):
+    """Test panic behavior with different executor types"""
     # Create configuration with our test exception in panic_when
     config = Configuration()
-    config.panic_when = [f"{__name__}.TestUnrecoverableError"]
+    config.panic_when = [f"{__name__}.UnrecoverableError"]
+
+    # Initialize the specific executor
+    executor = executor_cls(**executor_kwargs)
 
     # Mock sys.exit to prevent actual exit and verify it's called
-    with patch('sys.exit') as mock_exit:
+    with (context_add_custom_nodes(ExportedNodes(NODE_CLASS_MAPPINGS=TEST_NODE_CLASS_MAPPINGS,
+                                                 NODE_DISPLAY_NAME_MAPPINGS=TEST_NODE_DISPLAY_NAME_MAPPINGS)),
+          patch('sys.exit') as mock_exit):
         try:
-            async with EmbeddedComfyClient(configuration=config) as client:
+            async with EmbeddedComfyClient(configuration=config, executor=executor) as client:
                 # Queue our failing workflow
                 await client.queue_prompt(create_failing_workflow())
-        except TestUnrecoverableError:
+        except SystemExit:
+            sys_exit_called = True
+        except UnrecoverableError:
             # We expect the exception to be raised here
-            pass
+            sys_exit_called = False
 
         # Give the event loop a chance to process the exit callback
         await asyncio.sleep(0)
 
         # Verify sys.exit was called with code 1
-        mock_exit.assert_called_once_with(1)
+        if executor_cls == ProcessPoolExecutor:
+            assert sys_exit_called
+        else:
+            mock_exit.assert_called_once_with(1)
 
 
 @pytest.mark.asyncio
-async def test_no_panic_when_disabled():
-    """Verify that the same exception doesn't trigger exit when not in panic_when"""
-    # Set up the test nodes
-    nodes.update(ExportedNodes(NODE_CLASS_MAPPINGS=TEST_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS=TEST_NODE_DISPLAY_NAME_MAPPINGS))
+@pytest.mark.parametrize("executor_cls,executor_kwargs", EXECUTOR_FACTORIES)
+async def test_no_panic_when_disabled_with_executor(executor_cls, executor_kwargs):
+    """Test no-panic behavior with different executor types"""
 
     # Create configuration without the exception in panic_when
     config = Configuration()
 
+    # Initialize the specific executor
+    executor = executor_cls(**executor_kwargs)
+
     # Mock sys.exit to verify it's not called
-    with patch('sys.exit') as mock_exit:
+    with (context_add_custom_nodes(ExportedNodes(NODE_CLASS_MAPPINGS=TEST_NODE_CLASS_MAPPINGS,
+                                                 NODE_DISPLAY_NAME_MAPPINGS=TEST_NODE_DISPLAY_NAME_MAPPINGS)),
+          patch('sys.exit') as mock_exit):
         try:
-            async with EmbeddedComfyClient(configuration=config) as client:
+            async with EmbeddedComfyClient(configuration=config, executor=executor) as client:
                 # Queue our failing workflow
                 await client.queue_prompt(create_failing_workflow())
-        except TestUnrecoverableError:
+        except SystemExit:
+            sys_exit_called = True
+        except UnrecoverableError:
             # We expect the exception to be raised here
-            pass
+            sys_exit_called = False
 
         # Give the event loop a chance to process any callbacks
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0)
 
         # Verify sys.exit was not called
         mock_exit.assert_not_called()
+        assert not sys_exit_called
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("executor_cls,executor_kwargs", EXECUTOR_FACTORIES)
+async def test_executor_cleanup(executor_cls, executor_kwargs):
+    """Test that executors are properly cleaned up after use"""
+    executor = executor_cls(**executor_kwargs)
+
+    with context_add_custom_nodes(ExportedNodes(NODE_CLASS_MAPPINGS=TEST_NODE_CLASS_MAPPINGS,
+                                                NODE_DISPLAY_NAME_MAPPINGS=TEST_NODE_DISPLAY_NAME_MAPPINGS)):
+        async with EmbeddedComfyClient(executor=executor) as client:
+            # Create a simple workflow that doesn't raise
+            workflow = create_failing_workflow()
+            workflow["1"]["inputs"]["should_raise"] = False
+
+            # Run it
+            result = await client.queue_prompt(workflow)
+            assert isinstance(result, dict), "Expected workflow to return results"
+
+
+# Add a test for parallel execution to verify multi-worker behavior
+@pytest.mark.asyncio
+@pytest.mark.parametrize("executor_cls,executor_kwargs", [
+    (ContextVarExecutor, {"max_workers": 2}),
+    (ProcessPoolExecutor, {"max_workers": 2}),
+])
+async def test_parallel_execution(executor_cls, executor_kwargs):
+    """Test that executors can handle multiple workflows in parallel"""
+    executor = executor_cls(**executor_kwargs)
+
+    with context_add_custom_nodes(ExportedNodes(NODE_CLASS_MAPPINGS=TEST_NODE_CLASS_MAPPINGS,
+                                                NODE_DISPLAY_NAME_MAPPINGS=TEST_NODE_DISPLAY_NAME_MAPPINGS)):
+        async with EmbeddedComfyClient(executor=executor) as client:
+            # Create multiple non-failing workflows
+            workflow = create_failing_workflow()
+            workflow["1"]["inputs"]["should_raise"] = False
+
+            # Run multiple workflows concurrently
+            results = await asyncio.gather(*[
+                client.queue_prompt(workflow)
+                for _ in range(3)
+            ])
+
+            assert len(results) == 3, "Expected all workflows to complete"
+            assert all(isinstance(r, dict) for r in results), "Expected all workflows to return results"

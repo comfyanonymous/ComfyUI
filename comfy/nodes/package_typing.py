@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections import ChainMap
 from dataclasses import dataclass, field
 from typing import Union, Optional, Sequence, Dict, ClassVar, Protocol, Tuple, TypeVar, Any, Literal, \
-    Callable, List, Type, runtime_checkable
+    Callable, List, Type, MutableMapping
 
 from typing_extensions import TypedDict, NotRequired
 
@@ -159,9 +160,9 @@ class CustomNode(Protocol):
 
 @dataclass
 class ExportedNodes:
-    NODE_CLASS_MAPPINGS: Dict[str, CustomNode] = field(default_factory=dict)
-    NODE_DISPLAY_NAME_MAPPINGS: Dict[str, str] = field(default_factory=dict)
-    EXTENSION_WEB_DIRS: Dict[str, str] = field(default_factory=dict)
+    NODE_CLASS_MAPPINGS: MutableMapping[str, CustomNode] = field(default_factory=dict)
+    NODE_DISPLAY_NAME_MAPPINGS: MutableMapping[str, str] = field(default_factory=dict)
+    EXTENSION_WEB_DIRS: MutableMapping[str, str] = field(default_factory=dict)
 
     def update(self, exported_nodes: ExportedNodes) -> ExportedNodes:
         self.NODE_CLASS_MAPPINGS.update(exported_nodes.NODE_CLASS_MAPPINGS)
@@ -187,3 +188,28 @@ class ExportedNodes:
     def __add__(self, other):
         exported_nodes = ExportedNodes().update(self)
         return exported_nodes.update(other)
+
+
+class _ExportedNodesAsChainMap(ExportedNodes):
+    NODE_CLASS_MAPPINGS: ChainMap[str, CustomNode] = field(default_factory=ChainMap)
+    NODE_DISPLAY_NAME_MAPPINGS: ChainMap[str, str] = field(default_factory=ChainMap)
+    EXTENSION_WEB_DIRS: ChainMap[str, str] = field(default_factory=ChainMap)
+
+    @classmethod
+    def from_iter(cls, *exported_nodes: ExportedNodes):
+        en = _ExportedNodesAsChainMap()
+        en.NODE_CLASS_MAPPINGS = ChainMap(*[ncm.NODE_CLASS_MAPPINGS for ncm in exported_nodes])
+        en.NODE_DISPLAY_NAME_MAPPINGS = ChainMap(*[ncm.NODE_DISPLAY_NAME_MAPPINGS for ncm in exported_nodes])
+        en.EXTENSION_WEB_DIRS = ChainMap(*[ncm.EXTENSION_WEB_DIRS for ncm in exported_nodes])
+        return en
+
+    def update(self, exported_nodes: ExportedNodes) -> ExportedNodes:
+        self.NODE_CLASS_MAPPINGS = self.NODE_CLASS_MAPPINGS.new_child(exported_nodes.NODE_CLASS_MAPPINGS)
+        self.NODE_DISPLAY_NAME_MAPPINGS = self.NODE_DISPLAY_NAME_MAPPINGS.new_child(exported_nodes.NODE_DISPLAY_NAME_MAPPINGS)
+        self.EXTENSION_WEB_DIRS = self.EXTENSION_WEB_DIRS.new_child(exported_nodes.EXTENSION_WEB_DIRS)
+        return self
+
+
+def exported_nodes_view(*exported_nodes: ExportedNodes) -> ExportedNodes:
+    """Gets a view of all the provided exported nodes, concatenating them together using a ChainMap internally"""
+    return _ExportedNodesAsChainMap.from_iter(*exported_nodes)

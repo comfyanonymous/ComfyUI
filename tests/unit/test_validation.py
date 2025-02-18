@@ -5,7 +5,8 @@ import pytest
 from pytest_mock import MockerFixture
 
 from comfy.cli_args import args
-from comfy.cmd.execution import validate_prompt, nodes
+from comfy.cmd.execution import validate_prompt
+from comfy.nodes_context import nodes
 
 valid_prompt: Final[dict] = {
     "1": {

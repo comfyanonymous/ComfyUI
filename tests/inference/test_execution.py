@@ -13,6 +13,7 @@ from comfy.client.embedded_comfy_client import EmbeddedComfyClient
 from comfy.component_model.executor_types import SendSyncEvent, SendSyncData, ExecutingMessage, ExecutionErrorMessage, \
     DependencyCycleError
 from comfy.distributed.server_stub import ServerStub
+from comfy.execution_context import context_add_custom_nodes
 from comfy.graph_utils import GraphBuilder, Node
 from comfy.nodes.package_typing import ExportedNodes
 
@@ -108,16 +109,15 @@ class TestExecution:
         (100,),
     ])
     async def client(self, request) -> ComfyClient:
-        from comfy.cmd.execution import nodes
         from .testing_pack import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 
-        nodes.update(ExportedNodes(NODE_CLASS_MAPPINGS=NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS=NODE_DISPLAY_NAME_MAPPINGS))
         lru_size, = request.param
         configuration = default_configuration()
         configuration.cache_lru = lru_size
         progress_handler = _ProgressHandler()
-        async with EmbeddedComfyClient(configuration, progress_handler=progress_handler) as embedded_client:
-            yield ComfyClient(embedded_client, progress_handler)
+        with context_add_custom_nodes(ExportedNodes(NODE_CLASS_MAPPINGS=NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS=NODE_DISPLAY_NAME_MAPPINGS)):
+            async with EmbeddedComfyClient(configuration, progress_handler=progress_handler) as embedded_client:
+                yield ComfyClient(embedded_client, progress_handler)
 
     @fixture
     def builder(self, request):
