@@ -355,6 +355,20 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         return digits, prefix
 
     def compute_vars(input: str, image_width: int, image_height: int) -> str:
+        if "%date:" in input:
+            dateformat_conversion_map = [
+                ("%date:", ""),
+                ("%", ""),  #  Important:  This must be before year, month, etc.
+                ("yyyy", "%year%"),
+                ("yy", "%year%"),
+                ("MM", "%month%"),
+                ("dd", "%day%"),
+                ("hh", "%hour%"),
+                ("mm", "%minute%"),
+                ("ss", "%second%"),
+            ]
+            for old, new in dateformat_conversion_map:
+                input = input.replace(old, new)
         input = input.replace("%width%", str(image_width))
         input = input.replace("%height%", str(image_height))
         now = time.localtime()
