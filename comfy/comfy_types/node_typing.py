@@ -66,6 +66,19 @@ class IO(StrEnum):
         b = frozenset(value.split(","))
         return not (b.issubset(a) or a.issubset(b))
 
+class RemoteInputOptions(TypedDict):
+    route: str
+    """The route to the remote source."""
+    refresh_button: bool
+    """Specifies whether to show a refresh button in the UI below the widget."""
+    control_after_refresh: Literal["first", "last"]
+    """Specifies the control after the refresh button is clicked. If "first", the first item will be automatically selected, and so on."""
+    timeout: int
+    """The maximum amount of time to wait for a response from the remote source in milliseconds."""
+    max_retries: int
+    """The maximum number of retries before aborting the request."""
+    refresh: int
+    """The TTL of the remote input's value in milliseconds. Specifies the interval at which the remote input's value is refreshed."""
 
 class InputTypeOptions(TypedDict):
     """Provides type hinting for the return type of the INPUT_TYPES node function.
@@ -113,6 +126,14 @@ class InputTypeOptions(TypedDict):
     # defaultVal: str
     dynamicPrompts: bool
     """Causes the front-end to evaluate dynamic prompts (``STRING``)"""
+    # class InputTypeCombo(InputTypeOptions):
+    image_upload: bool
+    """Specifies whether the input should have an image upload button and image preview attached to it. Requires that the input's name is `image`."""
+    image_folder: Literal["input", "output", "temp"]
+    """Specifies which folder to get preview images from if the input has the ``image_upload`` flag.
+    """
+    remote: RemoteInputOptions
+    """Specifies the configuration for a remote input."""
 
 
 class HiddenInputTypeDict(TypedDict):
