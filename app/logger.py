@@ -11,7 +11,7 @@ stderr_interceptor = None
 
 
 class LogInterceptor(io.TextIOWrapper):
-    def __init__(self, stream,  *args, **kwargs):
+    def __init__(self, stream, *args, **kwargs):
         buffer = stream.buffer
         encoding = stream.encoding
         super().__init__(buffer, *args, **kwargs, encoding=encoding, line_buffering=stream.line_buffering)
