@@ -877,8 +877,8 @@ class HunyuanVideo(BaseModel):
         if image is not None:
             padding_shape = (noise.shape[0], 16, noise.shape[2] - 1, noise.shape[3], noise.shape[4])
             latent_padding = torch.zeros(padding_shape, device=noise.device, dtype=noise.dtype)
-            image_latents = torch.cat([image.to(noise), latent_padding], dim=2) * 0.476986
-            out['c_concat'] = comfy.conds.CONDNoiseShape(image_latents)
+            image_latents = torch.cat([image.to(noise), latent_padding], dim=2)
+            out['c_concat'] = comfy.conds.CONDNoiseShape(self.process_latent_in(image_latents))
 
         guidance = kwargs.get("guidance", 6.0)
         if guidance is not None:
