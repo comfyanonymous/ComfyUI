@@ -122,7 +122,7 @@ class Configuration(dict):
         anthropic_api_key (str): Configures the Anthropic API key for its nodes related to Claude functionality. Visit https://console.anthropic.com/settings/keys to create this key.
         user_directory (Optional[str]): Set the ComfyUI user directory with an absolute path.
         log_stdout (bool): Send normal process output to stdout instead of stderr (default)
-        panic_when (list[str]): List of fully qualified exception class names to panic (os.exit(1)) when a workflow raises it.
+        panic_when (list[str]): List of fully qualified exception class names to panic (sys.exit(1)) when a workflow raises it.
     """
 
     def __init__(self, **kwargs):

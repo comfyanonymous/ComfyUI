@@ -194,7 +194,7 @@ def _create_parser() -> EnhancedConfigArgParser:
         '--panic-when',
         action='append',
         help="""
-        List of fully qualified exception class names to panic (os.exit(1)) when a workflow raises it.
+        List of fully qualified exception class names to panic (sys.exit(1)) when a workflow raises it.
         Example: --panic-when=torch.cuda.OutOfMemoryError. Can be specified multiple times or as a 
         comma-separated list.""",
         type=str,

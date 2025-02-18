@@ -16,6 +16,8 @@ services:
               capabilities: [ gpu ]
     environment:
       - COMFYUI_DISTRIBUTED_QUEUE_CONNECTION_URI=amqp://guest:guest@rabbitmq:5672
+      - COMFYUI_EXECUTOR_FACTORY=ProcessPoolExecutor
+      - COMFYUI_PANIC_WHEN=torch.cuda.OutOfMemoryError
       - COMFYUI_LOGGING_LEVEL=ERROR
     command:
       - comfyui-worker
