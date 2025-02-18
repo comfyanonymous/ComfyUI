@@ -20,9 +20,7 @@ class Load3D():
             "width": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
             "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
             "material": (["original", "normal", "wireframe", "depth"],),
-            "light_intensity": ("INT", {"default": 10, "min": 1, "max": 20, "step": 1}),
             "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
-            "fov": ("INT", {"default": 75, "min": 10, "max": 150, "step": 1}),
         }}
 
     RETURN_TYPES = ("IMAGE", "MASK", "STRING")
@@ -34,22 +32,14 @@ class Load3D():
     CATEGORY = "3d"
 
     def process(self, model_file, image, **kwargs):
-        if isinstance(image, dict):
-            image_path = folder_paths.get_annotated_filepath(image['image'])
-            mask_path = folder_paths.get_annotated_filepath(image['mask'])
+        image_path = folder_paths.get_annotated_filepath(image['image'])
+        mask_path = folder_paths.get_annotated_filepath(image['mask'])
 
-            load_image_node = nodes.LoadImage()
-            output_image, ignore_mask = load_image_node.load_image(image=image_path)
-            ignore_image, output_mask = load_image_node.load_image(image=mask_path)
+        load_image_node = nodes.LoadImage()
+        output_image, ignore_mask = load_image_node.load_image(image=image_path)
+        ignore_image, output_mask = load_image_node.load_image(image=mask_path)
 
-            return output_image, output_mask, model_file,
-        else:
-            # to avoid the format is not dict which will happen the FE code is not compatibility to core,
-            # we need to this to double-check, it can be removed after merged FE into the core
-            image_path = folder_paths.get_annotated_filepath(image)
-            load_image_node = nodes.LoadImage()
-            output_image, output_mask = load_image_node.load_image(image=image_path)
-            return output_image, output_mask, model_file,
+        return output_image, output_mask, model_file,
 
 class Load3DAnimation():
     @classmethod
@@ -66,9 +56,7 @@ class Load3DAnimation():
             "width": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
             "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
             "material": (["original", "normal", "wireframe", "depth"],),
-            "light_intensity": ("INT", {"default": 10, "min": 1, "max": 20, "step": 1}),
             "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
-            "fov": ("INT", {"default": 75, "min": 10, "max": 150, "step": 1}),
         }}
 
     RETURN_TYPES = ("IMAGE", "MASK", "STRING")
@@ -80,20 +68,14 @@ class Load3DAnimation():
     CATEGORY = "3d"
 
     def process(self, model_file, image, **kwargs):
-        if isinstance(image, dict):
-            image_path = folder_paths.get_annotated_filepath(image['image'])
-            mask_path = folder_paths.get_annotated_filepath(image['mask'])
+        image_path = folder_paths.get_annotated_filepath(image['image'])
+        mask_path = folder_paths.get_annotated_filepath(image['mask'])
 
-            load_image_node = nodes.LoadImage()
-            output_image, ignore_mask = load_image_node.load_image(image=image_path)
-            ignore_image, output_mask = load_image_node.load_image(image=mask_path)
+        load_image_node = nodes.LoadImage()
+        output_image, ignore_mask = load_image_node.load_image(image=image_path)
+        ignore_image, output_mask = load_image_node.load_image(image=mask_path)
 
-            return output_image, output_mask, model_file,
-        else:
-            image_path = folder_paths.get_annotated_filepath(image)
-            load_image_node = nodes.LoadImage()
-            output_image, output_mask = load_image_node.load_image(image=image_path)
-            return output_image, output_mask, model_file,
+        return output_image, output_mask, model_file,
 
 class Preview3D():
     @classmethod
@@ -101,9 +83,7 @@ class Preview3D():
         return {"required": {
             "model_file": ("STRING", {"default": "", "multiline": False}),
             "material": (["original", "normal", "wireframe", "depth"],),
-            "light_intensity": ("INT", {"default": 10, "min": 1, "max": 20, "step": 1}),
             "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
-            "fov": ("INT", {"default": 75, "min": 10, "max": 150, "step": 1}),
         }}
 
     OUTPUT_NODE = True
@@ -123,9 +103,7 @@ class Preview3DAnimation():
         return {"required": {
             "model_file": ("STRING", {"default": "", "multiline": False}),
             "material": (["original", "normal", "wireframe", "depth"],),
-            "light_intensity": ("INT", {"default": 10, "min": 1, "max": 20, "step": 1}),
             "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
-            "fov": ("INT", {"default": 75, "min": 10, "max": 150, "step": 1}),
         }}
 
     OUTPUT_NODE = True

@@ -2234,6 +2234,7 @@ def init_builtin_extra_nodes():
         "nodes_multigpu.py",
         "nodes_load_3d.py",
         "nodes_cosmos.py",
+        "nodes_lumina2.py",
     ]
 
     import_failed = []

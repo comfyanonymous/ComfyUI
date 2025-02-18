@@ -56,7 +56,9 @@ xpu_available = False
 torch_version = ""
 try:
     torch_version = torch.version.__version__
-    xpu_available = (int(torch_version[0]) < 2 or (int(torch_version[0]) == 2 and int(torch_version[2]) <= 4)) and torch.xpu.is_available()
+    temp = torch_version.split(".")
+    torch_version_numeric = (int(temp[0]), int(temp[1]))
+    xpu_available = (torch_version_numeric[0] < 2 or (torch_version_numeric[0] == 2 and torch_version_numeric[1] <= 4)) and torch.xpu.is_available()
 except:
     pass
 
@@ -252,7 +254,7 @@ if args.use_pytorch_cross_attention:
 
 try:
     if is_nvidia():
-        if int(torch_version[0]) >= 2:
+        if torch_version_numeric[0] >= 2:
             if ENABLE_PYTORCH_ATTENTION == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
                 ENABLE_PYTORCH_ATTENTION = True
     if is_intel_xpu() or is_ascend_npu():
@@ -260,6 +262,19 @@ try:
             ENABLE_PYTORCH_ATTENTION = True
 except:
     pass
+
+
+try:
+    if is_amd():
+        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
+        logging.info("AMD arch: {}".format(arch))
+        if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
+            if torch_version_numeric[0] >= 2 and torch_version_numeric[1] >= 7:  # works on 2.6 but doesn't actually seem to improve much
+                if any((a in arch) for a in ["gfx1100", "gfx1101"]):  # TODO: more arches
+                    ENABLE_PYTORCH_ATTENTION = True
+except:
+    pass
+
 
 if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_math_sdp(True)
@@ -273,7 +288,7 @@ except:
     pass
 
 try:
-    if int(torch_version[0]) == 2 and int(torch_version[2]) >= 5:
+    if torch_version_numeric[0] == 2 and torch_version_numeric[1] >= 5:
         torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
 except:
     logging.warning("Warning, could not set allow_fp16_bf16_reduction_math_sdp")
@@ -928,6 +943,11 @@ def pytorch_attention_enabled():
     global ENABLE_PYTORCH_ATTENTION
     return ENABLE_PYTORCH_ATTENTION
 
+def pytorch_attention_enabled_vae():
+    if is_amd():
+        return False  # enabling pytorch attention on AMD currently causes crash when doing high res
+    return pytorch_attention_enabled()
+
 def pytorch_attention_flash_attention():
     global ENABLE_PYTORCH_ATTENTION
     if ENABLE_PYTORCH_ATTENTION:
@@ -938,6 +958,8 @@ def pytorch_attention_flash_attention():
             return True
         if is_ascend_npu():
             return True
+        if is_amd():
+            return True #if you have pytorch attention enabled on AMD it probably supports at least mem efficient attention
     return False
 
 def mac_version():
@@ -1112,6 +1134,16 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
     if is_intel_xpu():
         return True
 
+    if is_ascend_npu():
+        return True
+
+    if is_amd():
+        arch = torch.cuda.get_device_properties(device).gcnArchName
+        if any((a in arch) for a in ["gfx1030", "gfx1031", "gfx1010", "gfx1011", "gfx1012", "gfx906", "gfx900", "gfx803"]):  # RDNA2 and older don't support bf16
+            if manual_cast:
+                return True
+            return False
+
     props = torch.cuda.get_device_properties(device)
     if props.major >= 8:
         return True
@@ -1137,11 +1169,11 @@ def supports_fp8_compute(device=None):
     if props.minor < 9:
         return False
 
-    if int(torch_version[0]) < 2 or (int(torch_version[0]) == 2 and int(torch_version[2]) < 3):
+    if torch_version_numeric[0] < 2 or (torch_version_numeric[0] == 2 and torch_version_numeric[1] < 3):
         return False
 
     if WINDOWS:
-        if (int(torch_version[0]) == 2 and int(torch_version[2]) < 4):
+        if (torch_version_numeric[0] == 2 and torch_version_numeric[1] < 4):
             return False
 
     return True
