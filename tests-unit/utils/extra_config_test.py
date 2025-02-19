@@ -145,7 +145,7 @@ def test_load_extra_model_paths_expands_appdata(
     else:
         expected_base_path = '/Users/TestUser/AppData/Roaming/ComfyUI'
     expected_calls = [
-        ('checkpoints', os.path.join(expected_base_path, 'models/checkpoints'), False),
+        ('checkpoints', os.path.normpath(os.path.join(expected_base_path, 'models/checkpoints')), False),
     ]
 
     assert mock_add_model_folder_path.call_count == len(expected_calls)
