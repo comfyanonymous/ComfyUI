@@ -1628,6 +1628,79 @@ class SaveImage:
 
         return { "ui": { "images": results } }
 
+class SaveImageWEBP:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+        self.type = "output"
+        self.prefix_append = ""
+
+    methods = {"default": 4, "fastest": 0, "slowest": 6}
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE", {"tooltip": "The images to save."}),
+                "filename_prefix": ("STRING", {"default": "ComfyUI", "tooltip": "The prefix for the file to save."}),
+                "lossless": ("BOOLEAN", {"default": True}),
+                "quality": ("INT", {"default": 80, "min": 0, "max": 100}),
+                "method": (list(s.methods.keys()), {"default": "default"}),
+            },
+            "hidden": {
+                "prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"
+            },
+        }
+
+    RETURN_TYPES = ()
+    FUNCTION = "save_images"
+
+    OUTPUT_NODE = True
+
+    CATEGORY = "image"
+
+    def save_images(self, images, filename_prefix, lossless, quality, method, prompt=None, extra_pnginfo=None):
+        filename_prefix += self.prefix_append
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
+        results = []
+        method = self.methods.get(method, 4)
+
+        for (batch_number, image) in enumerate(images):
+            # Convert tensor to PIL image
+            i = 255. * image.cpu().numpy()
+            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+            
+            metadata = None
+            if not args.disable_metadata:
+                # Create Exif metadata
+                exif_data = img.getexif()
+                if prompt is not None:
+                    exif_data[0x0110] = "prompt:{}".format(json.dumps(prompt))
+                if extra_pnginfo is not None:
+                    initial_exif = 0x010f  # Starting tag for custom metadata
+                    for key in extra_pnginfo:
+                        exif_data[initial_exif] = "{}:{}".format(key, json.dumps(extra_pnginfo[key]))
+                        initial_exif -= 1  # Use lower tags for additional data
+                metadata = exif_data
+
+            # Construct filename
+            filename_with_batch = filename.replace("%batch_num%", str(batch_number))
+            file = f"{filename_with_batch}_{counter:05}_.webp"
+            img.save(
+                os.path.join(full_output_folder, file),
+                exif=metadata,
+                lossless=lossless,
+                quality=quality,
+                method=method
+            )
+            results.append({
+                "filename": file,
+                "subfolder": subfolder,
+                "type": self.type
+            })
+            counter += 1
+
+        return {"ui": {"images": results}}
+
 class PreviewImage(SaveImage):
     def __init__(self):
         self.output_dir = folder_paths.get_temp_directory()
@@ -1976,6 +2049,7 @@ NODE_CLASS_MAPPINGS = {
     "LatentFromBatch": LatentFromBatch,
     "RepeatLatentBatch": RepeatLatentBatch,
     "SaveImage": SaveImage,
+    "SaveImageWEBP": SaveImageWEBP,
     "PreviewImage": PreviewImage,
     "LoadImage": LoadImage,
     "LoadImageMask": LoadImageMask,
@@ -2077,6 +2151,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RepeatLatentBatch": "Repeat Latent Batch",
     # Image
     "SaveImage": "Save Image",
+    "SaveImageWEBP": "Save Image (WEBP)",
     "PreviewImage": "Preview Image",
     "LoadImage": "Load Image",
     "LoadImageMask": "Load Image (as Mask)",
