@@ -197,8 +197,8 @@ def test_load_extra_path_config_relative_base_path(
 
     load_extra_path_config(dummy_yaml_name)
 
-    expected_checkpoints = os.path.abspath(os.path.join(str(tmp_path), sub_folder, "checkpoints"))
-    expected_some_value = os.path.abspath(os.path.join(str(tmp_path), sub_folder, "some_value"))
+    expected_checkpoints = os.path.abspath(os.path.join(str(tmp_path), "my_rel_base", "checkpoints"))
+    expected_some_value = os.path.abspath(os.path.join(str(tmp_path), "my_rel_base", "some_value"))
 
     actual_paths = folder_paths.folder_names_and_paths["checkpoints"][0]
     assert len(actual_paths) == 1, "Should have one path added for 'checkpoints'."
