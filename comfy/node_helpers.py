@@ -51,7 +51,7 @@ def export_custom_nodes():
     """
     import inspect
     from abc import ABC
-    from comfy.nodes.package_typing import CustomNode
+    from .nodes.package_typing import CustomNode
 
     # Get the calling module
     frame = inspect.currentframe()
