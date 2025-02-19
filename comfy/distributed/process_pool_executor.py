@@ -21,7 +21,9 @@ class ProcessPoolExecutor(ProcessPool, Executor):
                  max_tasks: int = 0,
                  initializer: Callable = None,
                  initargs: list | tuple = (),
-                 context: multiprocessing.context.BaseContext = multiprocessing):
+                 context: multiprocessing.context.BaseContext = None):
+        if context is None:
+            context = multiprocessing.get_context('spawn')
         super().__init__(max_workers=max_workers, max_tasks=max_tasks, initializer=initializer, initargs=initargs, context=context)
 
     def shutdown(self, wait=True, *, cancel_futures=False):
