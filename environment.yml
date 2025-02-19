@@ -1,0 +1,4 @@
+name: comfyui
+dependencies:
+  - python=3.12
+  - pip
