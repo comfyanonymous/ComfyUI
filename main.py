@@ -260,6 +260,14 @@ def start_comfyui(asyncio_loop=None):
     prompt_server = server.PromptServer(asyncio_loop)
     q = execution.PromptQueue(prompt_server)
 
+    if os.name =="nt":
+        for path in os.environ.get("PATH", "").split(";"):
+            if os.path.exists(path):
+                try:
+                    os.add_dll_directory(path)
+                except Exception:
+                    pass
+
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
 
     cuda_malloc_warning()
