@@ -20,7 +20,8 @@ class RegexFlags(CustomNode):
 
     def execute(self, **kwargs) -> tuple[int]:
         has_noflag = hasattr(re.RegexFlag, "NOFLAG")
-        flags = re.RegexFlag.NOFLAG if has_noflag else 0
+        # use getattr for python 3.10 compatibility
+        flags = getattr(re.RegexFlag, "NOFLAG") if has_noflag else 0
         for name, on in kwargs.items():
             if on and hasattr(re.RegexFlag, name):
                 flags |= int(re.RegexFlag[name])

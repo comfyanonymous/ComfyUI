@@ -79,7 +79,7 @@ class ForgeParams4bit(Params4bit):
         if device is not None and device.type == "cuda" and not self.bnb_quantized:
             return self._quantize(device)
         else:
-            n = ForgeParams4bit(
+            n = ForgeParams4bit(  # pylint: disable=unexpected-keyword-arg
                 torch.nn.Parameter.to(self, device=device, dtype=dtype, non_blocking=non_blocking),
                 requires_grad=self.requires_grad,
                 quant_state=copy_quant_state(self.quant_state, device),
@@ -134,7 +134,7 @@ class ForgeLoader4Bit(torch.nn.Module):
             del self.dummy
         elif hasattr(self, 'dummy'):
             if prefix + 'weight' in state_dict:
-                self.weight = ForgeParams4bit(
+                self.weight = ForgeParams4bit(  # pylint: disable=unexpected-keyword-arg
                     state_dict[prefix + 'weight'].to(self.dummy),
                     requires_grad=False,
                     compress_statistics=True,
