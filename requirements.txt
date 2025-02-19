@@ -19,3 +19,4 @@ psutil
 kornia>=0.7.1
 spandrel
 soundfile
+av
