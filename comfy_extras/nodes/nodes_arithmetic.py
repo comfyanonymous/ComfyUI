@@ -513,6 +513,40 @@ class IntToFloat(CustomNode):
         return float(value),
 
 
+class IntToString(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "value": ("INT", {}),
+            }
+        }
+
+    CATEGORY = "arithmetic"
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "execute"
+
+    def execute(self, value: int = 0):
+        return str(value),
+
+
+class FloatToString(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "value": ("FLOAT", {}),
+            }
+        }
+
+    CATEGORY = "arithmetic"
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "execute"
+
+    def execute(self, value: float = 0):
+        return str(value),
+
+
 class FloatToInt(CustomNode):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:

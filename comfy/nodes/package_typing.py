@@ -191,10 +191,6 @@ class ExportedNodes:
 
 
 class _ExportedNodesAsChainMap(ExportedNodes):
-    NODE_CLASS_MAPPINGS: ChainMap[str, CustomNode] = field(default_factory=ChainMap)
-    NODE_DISPLAY_NAME_MAPPINGS: ChainMap[str, str] = field(default_factory=ChainMap)
-    EXTENSION_WEB_DIRS: ChainMap[str, str] = field(default_factory=ChainMap)
-
     @classmethod
     def from_iter(cls, *exported_nodes: ExportedNodes):
         en = _ExportedNodesAsChainMap()
