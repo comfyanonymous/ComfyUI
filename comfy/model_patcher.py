@@ -97,7 +97,7 @@ def wipe_lowvram_weight(m):
         m.comfy_cast_weights = m.prev_comfy_cast_weights
         del m.prev_comfy_cast_weights
 
-    if hasattr(m, "weight_function"):
+    if not hasattr(m, "weight_function"):
         m.weight_function = []
 
     if hasattr(m, "bias_function"):
