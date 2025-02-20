@@ -141,7 +141,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 
 # Installing
 
-## Windows
+## Windows Portable
 
 There is a portable standalone build for Windows that should work for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
 
