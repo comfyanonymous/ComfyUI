@@ -29,5 +29,6 @@ def load_extra_path_config(yaml_path):
                     full_path = os.path.join(base_path, full_path)
                 elif not os.path.isabs(full_path):
                     full_path = os.path.abspath(os.path.join(yaml_dir, y))
-                logging.info("Adding extra search path {} {}".format(x, full_path))
-                folder_paths.add_model_folder_path(x, full_path, is_default)
+                normalized_path = os.path.normpath(full_path)
+                logging.info("Adding extra search path {} {}".format(x, normalized_path))
+                folder_paths.add_model_folder_path(x, normalized_path, is_default)
