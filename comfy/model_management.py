@@ -1021,8 +1021,6 @@ def is_directml_enabled():
     return False
 
 def should_use_fp16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
-    global directml_enabled
-
     if device is not None:
         if is_device_cpu(device):
             return False
@@ -1033,8 +1031,8 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     if FORCE_FP32:
         return False
 
-    if directml_enabled:
-        return False
+    if is_directml_enabled():
+        return True
 
     if (device is not None and is_device_mps(device)) or mps_mode():
         return True
