@@ -85,7 +85,7 @@ class InputTypeOptions(TypedDict):
 
     Due to IDE limitations with unions, for now all options are available for all types (e.g. `label_on` is hinted even when the type is not `IO.BOOLEAN`).
 
-    Comfy Docs: https://docs.comfy.org/essentials/custom_node_datatypes
+    Comfy Docs: https://docs.comfy.org/custom-nodes/backend/datatypes
     """
 
     default: bool | str | float | int | list | tuple
