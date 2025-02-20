@@ -29,7 +29,9 @@ from natsort import natsorted
 from torch import Tensor
 
 from comfy.cmd import folder_paths
+from comfy.comfy_types import IO
 from comfy.digest import digest
+from comfy.node_helpers import export_custom_nodes
 from comfy.nodes.package_typing import CustomNode, InputTypes, FunctionReturnsUIVariables, SaveNodeResult, \
     InputTypeSpec, ValidatedNodeResult
 
@@ -299,6 +301,25 @@ class StringJoin(CustomNode):
     def execute(self, separator: str = "_", *args: str, **kwargs) -> ValidatedNodeResult:
         sorted_keys = natsorted(kwargs.keys())
         return (separator.join([kwargs[key] for key in sorted_keys if kwargs[key] != ""]),)
+
+
+class StringJoin1(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        optional = {f"value{i}": (IO.ANY, {}) for i in range(5)}
+        optional["separator"] = (IO.STRING, {"default": "_"})
+        return {
+            "required": {},
+            "optional": optional
+        }
+
+    RETURN_TYPES = ("STRING",)
+    CATEGORY = "api/openapi"
+    FUNCTION = "execute"
+
+    def execute(self, separator: str = "_", *args: str, **kwargs) -> ValidatedNodeResult:
+        sorted_keys = natsorted(kwargs.keys())
+        return (separator.join([str(kwargs[key]) for key in sorted_keys if kwargs[key] is not None]),)
 
 
 class StringToUri(CustomNode):
@@ -711,25 +732,4 @@ class ImageRequestParameter(CustomNode):
         return (output_image,)
 
 
-NODE_CLASS_MAPPINGS = {}
-for cls in (
-        IntRequestParameter,
-        FloatRequestParameter,
-        StringRequestParameter,
-        StringEnumRequestParameter,
-        BooleanRequestParameter,
-        HashImage,
-        StringPosixPathJoin,
-        LegacyOutputURIs,
-        DevNullUris,
-        StringJoin,
-        StringToUri,
-        UriFormat,
-        ImageExif,
-        ImageExifMerge,
-        ImageExifUncommon,
-        ImageExifCreationDateAndBatchNumber,
-        SaveImagesResponse,
-        ImageRequestParameter
-):
-    NODE_CLASS_MAPPINGS[cls.__name__] = cls
+export_custom_nodes()
