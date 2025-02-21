@@ -43,12 +43,6 @@ ComfyUI lets you design and execute advanced stable diffusion pipelines using a 
 - Get the latest commits and completely portable.
 - Available on Windows.
 
-#### [cli](https://docs.comfy.org/comfy-cli/getting-started)
-```bash
-pip install comfy-cli
-comfy install
-```
-
 #### [Manual Install](#manual-install-windows-linux)
 Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon, Ascend).
 
@@ -160,6 +154,15 @@ See the [Config file](extra_model_paths.yaml.example) to set the search paths fo
 ## Jupyter Notebook
 
 To run it on services like paperspace, kaggle or colab you can use my [Jupyter Notebook](notebooks/comfyui_colab.ipynb)
+
+
+## [comfy-cli](https://docs.comfy.org/comfy-cli/getting-started)
+
+You can install and start ComfyUI using comfy-cli:
+```bash
+pip install comfy-cli
+comfy install
+```
 
 ## Manual Install (Windows, Linux)
 
