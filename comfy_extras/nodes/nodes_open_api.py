@@ -10,11 +10,13 @@ import ssl
 import sys
 import uuid
 from datetime import datetime
+from fractions import Fraction
 from typing import Sequence, Optional, TypedDict, Dict, List, Literal, Callable, Tuple
 
 import PIL
 import aiohttp
 import certifi
+import cv2
 import fsspec
 import numpy as np
 import torch
@@ -30,10 +32,14 @@ from torch import Tensor
 
 from comfy.cmd import folder_paths
 from comfy.comfy_types import IO
+from comfy.component_model.tensor_types import RGBAImageBatch, RGBImageBatch
 from comfy.digest import digest
 from comfy.node_helpers import export_custom_nodes
 from comfy.nodes.package_typing import CustomNode, InputTypes, FunctionReturnsUIVariables, SaveNodeResult, \
     InputTypeSpec, ValidatedNodeResult
+from comfy.open_exr import mut_srgb_to_linear
+
+logger = logging.getLogger(__name__)
 
 _open_api_common_schema: Dict[str, InputTypeSpec] = {
     "name": ("STRING", {}),
@@ -77,6 +83,54 @@ class FsSpecComfyMetadata(TypedDict, total=True):
 
 class SaveNodeResultWithName(SaveNodeResult):
     name: str
+
+
+from PIL import ExifTags
+from PIL.Image import Exif
+from typing import Any, Dict
+
+
+def create_exif_from_pnginfo(metadata: Dict[str, Any]) -> Exif:
+    """Convert PNG metadata dictionary to PIL Exif object"""
+    exif = Exif()
+
+    gps_data = {}
+    for key, value in metadata.items():
+        if key.startswith('GPS'):
+            tag_name = key[3:]
+            try:
+                tag = getattr(ExifTags.GPS, tag_name)
+                if tag_name in ('Latitude', 'Longitude', 'Altitude'):
+                    decimal = float(value)
+                    fraction = Fraction(decimal).limit_denominator(1000000)
+                    gps_data[tag] = ((fraction.numerator, fraction.denominator),)
+                else:
+                    gps_data[tag] = value
+            except (AttributeError, ValueError):
+                continue
+
+    if gps_data:
+        gps_data[ExifTags.GPS.GPSVersionID] = (2, 2, 0, 0)
+        if 'Latitude' in metadata:
+            gps_data[ExifTags.GPS.GPSLatitudeRef] = 'N' if float(metadata['Latitude']) >= 0 else 'S'
+        if 'Longitude' in metadata:
+            gps_data[ExifTags.GPS.GPSLongitudeRef] = 'E' if float(metadata['Longitude']) >= 0 else 'W'
+        if 'Altitude' in metadata:
+            gps_data[ExifTags.GPS.GPSAltitudeRef] = 0  # Above sea level
+
+        exif[ExifTags.Base.GPSInfo] = gps_data
+
+    for key, value in metadata.items():
+        if key.startswith('GPS'):
+            continue
+
+        try:
+            tag = getattr(ExifTags.Base, key)
+            exif[tag] = value
+        except AttributeError:
+            pass
+
+    return exif
 
 
 @dataclasses.dataclass
@@ -533,6 +587,7 @@ class SaveImagesResponse(CustomNode):
                 "exif": ("EXIF", {}),
                 "metadata_uris": ("URIS", {}),
                 "local_uris": ("URIS", {}),
+                "bits": ([8, 16], {}),
                 **_open_api_common_schema,
             },
             "hidden": {
@@ -548,11 +603,12 @@ class SaveImagesResponse(CustomNode):
 
     def execute(self,
                 name: str = "",
-                images: Sequence[Tensor] = tuple(),
+                images: RGBImageBatch | RGBAImageBatch = tuple(),
                 uris: Sequence[str] = ("",),
                 exif: Sequence[ExifContainer] = None,
                 metadata_uris: Optional[Sequence[str | None]] = None,
                 local_uris: Optional[Sequence[Optional[str]]] = None,
+                bits: int = 8,
                 pil_save_format="png",
                 # from comfyui
                 prompt: Optional[dict] = None,
@@ -572,56 +628,82 @@ class SaveImagesResponse(CustomNode):
         if exif is None:
             exif = [ExifContainer() for _ in range(len(images))]
 
-        assert len(uris) == len(images) == len(metadata_uris) == len(local_uris) == len(exif), f"len(uris)={len(uris)} == len(images)={len(images)} == len(metadata_uris)={len(metadata_uris)} == len(local_uris)={len(local_uris)} == len(exif)={len(exif)}"
-
-        image: Tensor
-        uri: str
-        metadata_uri: str | None
-        local_uri: str | Callable[[bytearray | memoryview], str]
+        assert len(uris) == len(images) == len(metadata_uris) == len(local_uris) == len(exif), \
+            f"len(uris)={len(uris)} == len(images)={len(images)} == len(metadata_uris)={len(metadata_uris)} == len(local_uris)={len(local_uris)} == len(exif)={len(exif)}"
 
         images_ = ui_images_result["ui"]["images"]
 
-        exif_inst: ExifContainer
-        for batch_number, (image, uri, metadata_uri, local_uri, exif_inst) in enumerate(zip(images, uris, metadata_uris, local_uris, exif)):
-            image_as_numpy_array: np.ndarray = 255. * image.float().cpu().numpy()
-            image_as_numpy_array = np.ascontiguousarray(np.clip(image_as_numpy_array, 0, 255).astype(np.uint8))
-            image_as_pil: PIL.Image = Image.fromarray(image_as_numpy_array)
+        for batch_number, (image, uri, metadata_uri, local_path, exif_inst) in enumerate(zip(images, uris, metadata_uris, local_uris, exif)):
+            image_as_numpy_array: np.ndarray = image.float().cpu().numpy()
 
-            if prompt is not None and "prompt" not in exif_inst.exif:
-                exif_inst.exif["prompt"] = json.dumps(prompt)
-            if extra_pnginfo is not None:
-                for x in extra_pnginfo:
-                    exif_inst.exif[x] = json.dumps(extra_pnginfo[x])
+            cv_save_options = []
+            if bits == 8:
+                image_scaled = np.ascontiguousarray(np.clip(image_as_numpy_array * 255, 0, 255).astype(np.uint8))
 
-            png_metadata = PngInfo()
-            for tag, value in exif_inst.exif.items():
-                png_metadata.add_text(tag, value)
+                channels = image_scaled.shape[-1]
+                if channels == 1:
+                    mode = "L"
+                elif channels == 3:
+                    mode = "RGB"
+                elif channels == 4:
+                    mode = "RGBA"
+                else:
+                    raise ValueError(f"invalid channels {channels}")
 
+                image_as_pil: PIL.Image = Image.fromarray(image_scaled, mode=mode)
+
+                if prompt is not None and "prompt" not in exif_inst.exif:
+                    exif_inst.exif["prompt"] = json.dumps(prompt)
+                if extra_pnginfo is not None:
+                    for x in extra_pnginfo:
+                        exif_inst.exif[x] = json.dumps(extra_pnginfo[x])
+
+                png_metadata = PngInfo()
+                for tag, value in exif_inst.exif.items():
+                    png_metadata.add_text(tag, value)
+
+                additional_args = {"pnginfo": png_metadata, "compress_level": 9}
+                save_method = 'pil'
+                save_format = pil_save_format
+
+            elif bits >= 16:
+                if 'exr' in pil_save_format:
+                    image_as_numpy_array = image_as_numpy_array.copy()
+                    mut_srgb_to_linear(image_as_numpy_array[:, :, :3])
+                    image_scaled = image_as_numpy_array.astype(np.float32)
+                    if bits == 16:
+                        cv_save_options = [cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_HALF]
+                else:
+                    image_scaled = np.clip(image_as_numpy_array * 65535, 0, 65535).astype(np.uint16)
+
+                # Ensure BGR color order for OpenCV
+                if image_scaled.shape[-1] == 3:
+                    image_scaled = image_scaled[..., ::-1]
+
+                save_method = 'opencv'
+                save_format = pil_save_format
+
+            else:
+                raise ValueError(f"invalid bits {bits}")
+
+            # Prepare metadata
             fsspec_metadata: FsSpecComfyMetadata = {
                 "prompt_json_str": json.dumps(prompt, separators=(',', ':')),
                 "batch_number_str": str(batch_number),
             }
 
-            _, file_ext = os.path.splitext(uri)
-
-            additional_args = {}
-            if pil_save_format.lower() == "png":
-                additional_args = {"pnginfo": png_metadata, "compress_level": 9}
-
-            # save it to the local directory when None is passed with a random name
             output_directory = folder_paths.get_output_directory()
             test_open: OpenFile = fsspec.open(uri)
             fs: GenericFileSystem = test_open.fs
             uri_is_remote = not isinstance(fs, LocalFileSystem)
 
-            local_uri: str
-            if uri_is_remote and local_uri is None:
-                filename_for_ui = f"{uuid.uuid4()}.png"
-                local_uri = os.path.join(output_directory, filename_for_ui)
+            if uri_is_remote and local_path is None:
+                filename_for_ui = f"{uuid.uuid4()}.{save_format}"
+                local_path = os.path.join(output_directory, filename_for_ui)
                 subfolder = ""
-            elif uri_is_remote and local_uri is not None:
-                filename_for_ui = os.path.basename(local_uri)
-                subfolder = self.subfolder_of(local_uri, output_directory)
+            elif uri_is_remote and local_path is not None:
+                filename_for_ui = os.path.basename(local_path)
+                subfolder = self.subfolder_of(local_path, output_directory)
             else:
                 filename_for_ui = os.path.basename(uri)
                 subfolder = self.subfolder_of(uri, output_directory) if os.path.isabs(uri) else os.path.dirname(uri)
@@ -629,34 +711,49 @@ class SaveImagesResponse(CustomNode):
             if not uri_is_remote and not os.path.isabs(uri):
                 uri = os.path.join(output_directory, uri)
             abs_path = uri
+
             fsspec_kwargs = {}
             if not uri_is_remote:
                 fsspec_kwargs["auto_mkdir"] = True
             # todo: this might need special handling for s3 URLs too
             if uri.startswith("http"):
                 fsspec_kwargs['get_client'] = get_client
+
             try:
-                with fsspec.open(uri, mode="wb", **fsspec_kwargs) as f:
-                    image_as_pil.save(f, format=pil_save_format, **additional_args)
+                if save_method == 'pil':
+                    with fsspec.open(uri, mode="wb", **fsspec_kwargs) as f:
+                        image_as_pil.save(f, format=save_format, **additional_args)
+                else:
+                    _, img_encode = cv2.imencode(f'.{save_format}', image_scaled, cv_save_options)
+
+                    with fsspec.open(uri, mode="wb", **fsspec_kwargs) as f:
+                        f.write(img_encode.tobytes())
+
                 if metadata_uri is not None:
                     # all values are stringified for the metadata
                     # in case these are going to be used as S3, google blob storage key-value tags
                     fsspec_metadata_img = {k: v for k, v in fsspec_metadata.items()}
-                    fsspec_metadata_img.update(exif)
+                    fsspec_metadata_img.update(exif_inst.exif)
 
                     with fsspec.open(metadata_uri, mode="wt") as f:
                         json.dump(fsspec_metadata, f)
+
             except Exception as e:
                 logging.error(f"Error while trying to save file with fsspec_url {uri}", exc_info=e)
-                abs_path = os.path.abspath(local_uri)
+                abs_path = os.path.abspath(local_path)
 
-            if is_null_uri(local_uri):
+            if is_null_uri(local_path):
                 filename_for_ui = ""
                 subfolder = ""
+            # this results in a second file being saved - when a local path
             elif uri_is_remote:
-                logging.debug(f"saving this uri locally: {local_uri}")
-                os.makedirs(os.path.dirname(local_uri), exist_ok=True)
-                image_as_pil.save(local_uri, format=pil_save_format, **additional_args)
+                logging.debug(f"saving this uri locally : {local_path}")
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+
+                if save_method == 'pil':
+                    image_as_pil.save(local_path, format=save_format, **additional_args)
+                else:
+                    cv2.imwrite(local_path, image_scaled)
 
             img_item: SaveNodeResultWithName = {
                 "abs_path": str(abs_path),
@@ -667,10 +764,12 @@ class SaveImagesResponse(CustomNode):
             }
 
             images_.append(img_item)
+
         if "ui" in ui_images_result and "images" in ui_images_result["ui"]:
             ui_images_result["result"] = (ui_images_result["ui"]["images"],)
 
         return ui_images_result
+
 
     def subfolder_of(self, local_uri, output_directory):
         return os.path.dirname(os.path.relpath(os.path.abspath(local_uri), os.path.abspath(output_directory)))
