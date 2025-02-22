@@ -23,6 +23,22 @@ class ExecutionResult(Enum):
     FAILURE = 1
     PENDING = 2
 
+# Add global variables to track the number of nodes
+total_nodes = 0
+executed_nodes = 0
+
+# Add a function to clear statistical information
+def reset_node_counts():
+    global total_nodes, executed_nodes
+    total_nodes = 0
+    executed_nodes = 0
+
+# Add a function to count the total number of nodes
+def count_total_nodes(task_graph):
+    global total_nodes
+    total_nodes = len(task_graph)
+#end
+
 class DuplicateNodeError(Exception):
     pass
 
@@ -39,6 +55,9 @@ class IsChangedCache:
         node = self.dynprompt.get_node(node_id)
         class_type = node["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+        #Initialization statistics <start>
+        reset_node_counts()
+        #Initialization statistics <end>
         if not hasattr(class_def, "IS_CHANGED"):
             self.is_changed[node_id] = False
             return self.is_changed[node_id]
@@ -253,6 +272,10 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
     inputs = dynprompt.get_node(unique_id)['inputs']
     class_type = dynprompt.get_node(unique_id)['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+    #execute node count <start>
+    global executed_nodes
+    executed_nodes+=1
+    #execute node count <end>
     if caches.outputs.get(unique_id) is not None:
         if server.client_id is not None:
             cached_output = caches.ui.get(unique_id) or {}
@@ -483,6 +506,11 @@ class PromptExecutor:
             for node_id in prompt:
                 if self.caches.outputs.get(node_id) is not None:
                     cached_nodes.append(node_id)
+                #Count the number of task nodes <start>
+                else:
+                    global total_nodes
+                    total_nodes+=1
+                #Count the number of task nodes <end>
 
             comfy.model_management.cleanup_models_gc()
             self.add_message("execution_cached",
