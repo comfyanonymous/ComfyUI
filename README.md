@@ -1,6 +1,8 @@
 <div align="center">
 
 # ComfyUI
+Fork for added PWA (Progressive Web Apps) iOS support.
+
 **The most powerful and modular diffusion model GUI and backend.**
 
 
