@@ -436,7 +436,7 @@ class Noise_EmptyNoise:
 
     def generate_noise(self, input_latent):
         latent_image = input_latent["samples"]
-        return torch.zeros(latent_image.shape, dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+        return comfy.sample.prepare_noise(latent_image, self.seed, disable_noise=True)
 
 
 class Noise_RandomNoise:
