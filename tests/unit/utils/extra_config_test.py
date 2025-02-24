@@ -118,7 +118,7 @@ def test_load_extra_model_paths_expands_userpath(
     mock_yaml_safe_load.assert_called_once()
 
     # Check if open was called with the correct file path
-    mock_file.assert_called_once_with(dummy_yaml_file_name, 'r')
+    mock_file.assert_called_once_with(dummy_yaml_file_name, 'r', encoding='utf-8')
 
 
 @patch('builtins.open', new_callable=mock_open)
@@ -149,7 +149,7 @@ def test_load_extra_model_paths_expands_appdata(
     else:
         expected_base_path = '/Users/TestUser/AppData/Roaming/ComfyUI'
     expected_calls = [
-        ('checkpoints', os.path.join(expected_base_path, 'models/checkpoints'), False),
+        ('checkpoints', os.path.normpath(os.path.join(expected_base_path, 'models/checkpoints')), False),
     ]
 
     assert mock_add_model_folder_path.call_count == len(expected_calls)

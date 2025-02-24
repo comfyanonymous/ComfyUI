@@ -305,7 +305,7 @@ def vae_attention():
     if model_management.xformers_enabled_vae():
         logging.debug("Using xformers attention in VAE")
         return xformers_attention
-    elif model_management.pytorch_attention_enabled():
+    elif model_management.pytorch_attention_enabled_vae():
         logging.debug("Using pytorch attention in VAE")
         return pytorch_attention
     else:

@@ -80,6 +80,19 @@ async def cache_control(request: web.Request, handler):
     return response
 
 
+@web.middleware
+async def compress_body(request: web.Request, handler):
+    accept_encoding = request.headers.get("Accept-Encoding", "")
+    response: web.Response = await handler(request)
+    if not isinstance(response, web.Response):
+        return response
+    if response.content_type not in ["application/json", "text/plain"]:
+        return response
+    if response.body and "gzip" in accept_encoding:
+        response.enable_compression()
+    return response
+
+
 def create_cors_middleware(allowed_origin: str):
     @web.middleware
     async def cors_middleware(request: web.Request, handler):
@@ -169,7 +182,8 @@ class PromptServer(ExecutorToClientProgress):
         PromptServer.instance = self
 
         mimetypes.init()
-        mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
+        mimetypes.add_type('application/javascript; charset=utf-8', '.js')
+        mimetypes.add_type('image/webp', '.webp')
 
         self.address: str = "0.0.0.0"
         self.user_manager = UserManager()
@@ -188,6 +202,9 @@ class PromptServer(ExecutorToClientProgress):
         self.background_tasks: dict[str, Task] = dict()
 
         middlewares = [cache_control]
+        if args.enable_compress_response_body:
+            middlewares.append(compress_body)
+
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
         else:

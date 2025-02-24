@@ -14,6 +14,7 @@ from .text_encoders import genmo
 from .text_encoders import hunyuan_video
 from .text_encoders import hydit
 from .text_encoders import lt
+from .text_encoders import lumina2
 from .text_encoders import pixart_t5
 from .text_encoders import sa_t5
 from .text_encoders import sd2_clip
@@ -63,7 +64,9 @@ class SD15(supported_models_base.BASE):
         replace_prefix = {"clip_l.": "cond_stage_model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(sd1_clip.SD1Tokenizer, sd1_clip.SD1ClipModel)
 
 
@@ -108,7 +111,9 @@ class SD20(supported_models_base.BASE):
         state_dict = diffusers_convert.convert_text_enc_state_dict_v20(state_dict)
         return state_dict
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(sd2_clip.SD2Tokenizer, sd2_clip.SD2ClipModel)
 
 
@@ -173,7 +178,9 @@ class SDXLRefiner(supported_models_base.BASE):
         state_dict_g = utils.state_dict_prefix_replace(state_dict_g, replace_prefix)
         return state_dict_g
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(sdxl_clip.SDXLTokenizer, sdxl_clip.SDXLRefinerClipModel)
 
 
@@ -246,7 +253,9 @@ class SDXL(supported_models_base.BASE):
         state_dict_g = utils.state_dict_prefix_replace(state_dict_g, replace_prefix)
         return state_dict_g
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(sdxl_clip.SDXLTokenizer, sdxl_clip.SDXLClipModel)
 
 
@@ -322,7 +331,9 @@ class SVD_img2vid(supported_models_base.BASE):
         out = model_base.SVD_img2vid(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return None
 
 
@@ -390,7 +401,9 @@ class Stable_Zero123(supported_models_base.BASE):
         out = model_base.Stable_Zero123(self, device=device, cc_projection_weight=state_dict["cc_projection.weight"], cc_projection_bias=state_dict["cc_projection.bias"])
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return None
 
 
@@ -466,7 +479,9 @@ class Stable_Cascade_C(supported_models_base.BASE):
         out = model_base.StableCascade_C(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(sdxl_clip.StableCascadeTokenizer, sdxl_clip.StableCascadeClipModel)
 
 
@@ -541,7 +556,9 @@ class SD3(supported_models_base.BASE):
         out = model_base.SD3(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         clip_l = False
         clip_g = False
         t5 = False
@@ -585,7 +602,9 @@ class StableAudio(supported_models_base.BASE):
         replace_prefix = {"": "model.model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(sa_t5.SAT5Tokenizer, sa_t5.SAT5Model)
 
 
@@ -609,7 +628,9 @@ class AuraFlow(supported_models_base.BASE):
         out = model_base.AuraFlow(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(aura_t5.AuraT5Tokenizer, aura_t5.AuraT5Model)
 
 
@@ -675,7 +696,9 @@ class HunyuanDiT(supported_models_base.BASE):
         out = model_base.HunyuanDiT(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(hydit.HyditTokenizer, hydit.HyditModel)
 
 
@@ -715,7 +738,9 @@ class Flux(supported_models_base.BASE):
         out = model_base.Flux(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         t5_detect = sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(flux.FluxTokenizer, flux.flux_clip(**t5_detect))
@@ -802,7 +827,9 @@ class LTXV(supported_models_base.BASE):
         out = model_base.LTXV(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         t5_detect = sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(lt.LTXVT5Tokenizer, lt.ltxv_te(**t5_detect))
@@ -885,7 +912,9 @@ class CosmosT2V(supported_models_base.BASE):
         out = model_base.CosmosVideo(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         t5_detect = sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(cosmos.CosmosT5Tokenizer, cosmos.te(**t5_detect))
@@ -902,6 +931,38 @@ class CosmosI2V(CosmosT2V):
         return out
 
 
-models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideo, CosmosT2V, CosmosI2V]
+class Lumina2(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "lumina2",
+    }
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 6.0,
+    }
+
+    memory_usage_factor = 1.2
+
+    unet_extra_config = {}
+    latent_format = latent_formats.Flux
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.Lumina2(self, device=device)
+        return out
+
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
+        pref = self.text_encoder_key_prefix[0]
+        hunyuan_detect = hunyuan_video.llama_detect(state_dict, "{}gemma2_2b.transformer.".format(pref))
+        return supported_models_base.ClipTarget(lumina2.LuminaTokenizer, lumina2.te(**hunyuan_detect))
+
+
+models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideo, CosmosT2V, CosmosI2V, Lumina2]
 
 models += [SVD_img2vid]

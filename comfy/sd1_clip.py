@@ -500,9 +500,11 @@ SDTokenizerT = TypeVar('SDTokenizerT', bound='SDTokenizer')
 
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path: torch.Tensor | bytes | bytearray | memoryview | str | Path | Traversable = None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, tokenizer_data=None):
+    def __init__(self, tokenizer_path: torch.Tensor | bytes | bytearray | memoryview | str | Path | Traversable = None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, tokenizer_data=None, tokenizer_args=None):
         if tokenizer_data is None:
             tokenizer_data = dict()
+        if tokenizer_args is None:
+            tokenizer_args = dict()
         if tokenizer_path is None:
             tokenizer_path = files.get_package_as_path("comfy.sd1_tokenizer")
         if isinstance(tokenizer_path, Path):
@@ -515,7 +517,7 @@ class SDTokenizer:
             tokenizer_path = get_package_as_path('comfy.sd1_tokenizer')
         self.tokenizer_class = tokenizer_class
         self.tokenizer_path = tokenizer_path
-        self.tokenizer: PreTrainedTokenizerBase | SPieceTokenizer = tokenizer_class.from_pretrained(tokenizer_path)
+        self.tokenizer: PreTrainedTokenizerBase | SPieceTokenizer = tokenizer_class.from_pretrained(tokenizer_path, **tokenizer_args)
         self.max_length = max_length
         self.min_length = min_length
         self.end_token = None
@@ -699,11 +701,15 @@ SD1TokenizerT = TypeVar("SD1TokenizerT", bound="SD1Tokenizer")
 
 
 class SD1Tokenizer:
-    def __init__(self, embedding_directory=None, tokenizer_data=None, clip_name="l", tokenizer=SDTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data: dict=None, clip_name="l", tokenizer=SDTokenizer, name=None):
         if tokenizer_data is None:
             tokenizer_data = {}
-        self.clip_name = clip_name
-        self.clip = "clip_{}".format(self.clip_name)
+        if name is not None:
+            self.clip_name = name
+            self.clip = "{}".format(self.clip_name)
+        else:
+            self.clip_name = clip_name
+            self.clip = "clip_{}".format(self.clip_name)
         tokenizer = tokenizer_data.get("{}_tokenizer_class".format(self.clip), tokenizer)
         self.sd_tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
 
@@ -729,7 +735,7 @@ class SD1Tokenizer:
         return sd1_tokenizer
 
     def state_dict(self):
-        return {}
+        return getattr(self, self.clip).state_dict()
 
 class SD1CheckpointClipModel(SDClipModel):
     def __init__(self, device="cpu", dtype=None, model_options=None, textmodel_json_config=None):

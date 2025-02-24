@@ -39,6 +39,7 @@ from .ldm.genmo.joint_model.asymm_models_joint import AsymmDiTJoint
 from .ldm.hunyuan_video.model import HunyuanVideo as HunyuanVideoModel
 from .ldm.hydit.models import HunYuanDiT
 from .ldm.lightricks.model import LTXVModel
+from .ldm.lumina.model import NextDiT
 from .ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
 from .ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
@@ -180,9 +181,6 @@ class BaseModel(torch.nn.Module):
 
     def get_dtype(self):
         return self.diffusion_model.dtype
-
-    def is_adm(self):
-        return self.adm_channels > 0
 
     def encode_adm(self, **kwargs):
         return None
@@ -908,6 +906,15 @@ class HunyuanVideo(BaseModel):
         if cross_attn is not None:
             out['c_crossattn'] = conds.CONDRegular(cross_attn)
 
+        image = kwargs.get("concat_latent_image", None)
+        noise = kwargs.get("noise", None)
+
+        if image is not None:
+            padding_shape = (noise.shape[0], 16, noise.shape[2] - 1, noise.shape[3], noise.shape[4])
+            latent_padding = torch.zeros(padding_shape, device=noise.device, dtype=noise.dtype)
+            image_latents = torch.cat([image.to(noise), latent_padding], dim=2)
+            out['c_concat'] = conds.CONDNoiseShape(self.process_latent_in(image_latents))
+
         guidance = kwargs.get("guidance", 6.0)
         if guidance is not None:
             out['guidance'] = conds.CONDRegular(torch.FloatTensor([guidance]))
@@ -940,3 +947,19 @@ class CosmosVideo(BaseModel):
             latent_image = latent_image + noise
         latent_image = self.model_sampling.calculate_input(torch.tensor([sigma_noise_augmentation], device=latent_image.device, dtype=latent_image.dtype), latent_image)
         return latent_image * ((sigma ** 2 + self.model_sampling.sigma_data ** 2) ** 0.5)
+
+class Lumina2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=NextDiT)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            if torch.numel(attention_mask) != attention_mask.sum():
+                out['attention_mask'] = conds.CONDRegular(attention_mask)
+            out['num_tokens'] = conds.CONDConstant(max(1, torch.sum(attention_mask).item()))
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = conds.CONDRegular(cross_attn)
+        return out

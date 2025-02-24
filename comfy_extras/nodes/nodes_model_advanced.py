@@ -2,6 +2,8 @@ import comfy.sd
 import comfy.model_sampling
 import comfy.latent_formats
 import torch
+import node_helpers
+
 
 from comfy.nodes.common import MAX_RESOLUTION
 
@@ -302,6 +304,24 @@ class RescaleCFG:
         m.set_model_sampler_cfg_function(rescale_cfg)
         return (m, )
 
+class ModelComputeDtype:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "dtype": (["default", "fp32", "fp16", "bf16"],),
+                              }}
+
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "advanced/debug/model"
+
+    def patch(self, model, dtype):
+        m = model.clone()
+        m.set_model_compute_dtype(node_helpers.string_to_torch_dtype(dtype))
+        return (m, )
+
+
 NODE_CLASS_MAPPINGS = {
     "ModelSamplingDiscrete": ModelSamplingDiscrete,
     "ModelSamplingContinuousEDM": ModelSamplingContinuousEDM,
@@ -311,4 +331,5 @@ NODE_CLASS_MAPPINGS = {
     "ModelSamplingAuraFlow": ModelSamplingAuraFlow,
     "ModelSamplingFlux": ModelSamplingFlux,
     "RescaleCFG": RescaleCFG,
+    "ModelComputeDtype": ModelComputeDtype,
 }

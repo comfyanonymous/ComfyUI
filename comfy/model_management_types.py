@@ -126,6 +126,16 @@ class ModelManageable(Protocol):
             self.unpatch_model(self.offload_device, unpatch_weights=unpatch_all)
         return self.model
 
+    def set_model_compute_dtype(self, dtype: torch.dtype):
+        pass
+
+    def add_weight_wrapper(self, name, function):
+        pass
+
+    @property
+    def force_cast_weights(self) -> bool:
+        return False
+
 
 @dataclasses.dataclass
 class MemoryMeasurements:

@@ -30,11 +30,12 @@ FORCE_UPCAST_ATTENTION_DTYPE = model_management.force_upcast_attention_dtype()
 logger = logging.getLogger(__name__)
 
 
-def get_attn_precision(attn_precision):
+def get_attn_precision(attn_precision, current_dtype):
     if args.dont_upcast_attention:
         return None
-    if FORCE_UPCAST_ATTENTION_DTYPE is not None:
-        return FORCE_UPCAST_ATTENTION_DTYPE
+
+    if FORCE_UPCAST_ATTENTION_DTYPE is not None and current_dtype in FORCE_UPCAST_ATTENTION_DTYPE:
+        return FORCE_UPCAST_ATTENTION_DTYPE[current_dtype]
     return attn_precision
 
 
@@ -50,17 +51,6 @@ def default(val, d):
     if exists(val):
         return val
     return d
-
-
-def max_neg_value(t):
-    return -torch.finfo(t.dtype).max
-
-
-def init_(tensor):
-    dim = tensor.shape[-1]
-    std = 1 / math.sqrt(dim)
-    tensor.uniform_(-std, std)
-    return tensor
 
 
 # feedforward
@@ -99,7 +89,7 @@ def Normalize(in_channels, dtype=None, device=None):
 
 
 def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
-    attn_precision = get_attn_precision(attn_precision)
+    attn_precision = get_attn_precision(attn_precision, q.dtype)
 
     if skip_reshape:
         b, _, _, dim_head = q.shape
@@ -168,7 +158,7 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
 
 
 def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
-    attn_precision = get_attn_precision(attn_precision)
+    attn_precision = get_attn_precision(attn_precision, query.dtype)
 
     if skip_reshape:
         b, _, _, dim_head = query.shape
@@ -238,7 +228,7 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None,
 
 
 def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
-    attn_precision = get_attn_precision(attn_precision)
+    attn_precision = get_attn_precision(attn_precision, q.dtype)
 
     if skip_reshape:
         b, _, _, dim_head = q.shape
@@ -430,6 +420,7 @@ def pytorch_style_decl(func):
     :param func:
     :return:
     """
+
     @wraps(func)
     def wrapper(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
         if skip_reshape:
@@ -487,12 +478,12 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
             m = mask
             if mask is not None:
                 if mask.shape[0] > 1:
-                    m = mask[i : i + SDP_BATCH_LIMIT]
+                    m = mask[i: i + SDP_BATCH_LIMIT]
 
-            out[i : i + SDP_BATCH_LIMIT] = torch.nn.functional.scaled_dot_product_attention(
-                q[i : i + SDP_BATCH_LIMIT],
-                k[i : i + SDP_BATCH_LIMIT],
-                v[i : i + SDP_BATCH_LIMIT],
+            out[i: i + SDP_BATCH_LIMIT] = torch.nn.functional.scaled_dot_product_attention(
+                q[i: i + SDP_BATCH_LIMIT],
+                k[i: i + SDP_BATCH_LIMIT],
+                v[i: i + SDP_BATCH_LIMIT],
                 attn_mask=m,
                 dropout_p=0.0, is_causal=False
             ).transpose(1, 2).reshape(-1, q.shape[2], heads * dim_head)
@@ -502,7 +493,7 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
 def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
     if skip_reshape:
         b, _, _, dim_head = q.shape
-        tensor_layout="HND"
+        tensor_layout = "HND"
     else:
         b, _, dim_head = q.shape
         dim_head //= heads
@@ -510,7 +501,7 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
             lambda t: t.view(b, -1, heads, dim_head),
             (q, k, v),
         )
-        tensor_layout="NHD"
+        tensor_layout = "NHD"
 
     if mask is not None:
         # add a batch dimension if there isn't already one

@@ -13,7 +13,8 @@ torchinfo
 safetensors>=0.4.2
 bitsandbytes>=0.43.0 ;platform_system != 'Darwin'
 bitsandbytes ;platform_system == 'Darwin'
-aiohttp>=3.8.4
+aiohttp>=3.11.8
+yarl>=1.18.0
 accelerate>=0.25.0
 pyyaml>=6.0
 scikit-image>=0.20.0
@@ -74,3 +75,4 @@ lightning
 flax
 jax
 colour
+av

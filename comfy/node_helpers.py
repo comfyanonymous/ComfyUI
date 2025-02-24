@@ -3,7 +3,6 @@ import hashlib
 from PIL import ImageFile, UnidentifiedImageError
 
 from .cli_args import args
-from .nodes.package_typing import CustomNode
 
 
 def conditioning_set_values(conditioning, values: dict = None):
@@ -50,7 +49,6 @@ def export_custom_nodes():
     Must be called from within the module where the CustomNode classes are defined.
     """
     import inspect
-    from abc import ABC
     from .nodes.package_typing import CustomNode
 
     # Get the calling module
@@ -76,3 +74,13 @@ def export_custom_nodes():
         del frame
 
     return custom_nodes
+
+
+def string_to_torch_dtype(string):
+    import torch
+    if string == "fp32":
+        return torch.float32
+    if string == "fp16":
+        return torch.float16
+    if string == "bf16":
+        return torch.bfloat16

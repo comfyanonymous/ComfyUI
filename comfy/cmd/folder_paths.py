@@ -65,7 +65,7 @@ def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optio
     from ..cmd.main_pre import args
     configuration = configuration or args
 
-    base_paths = [Path(configuration.cwd) if configuration.cwd is not None else None] + configuration.base_paths
+    base_paths = [Path(configuration.cwd) if configuration.cwd is not None else None] + [Path(configuration.base_directory) if configuration.base_directory is not None else None] + configuration.base_paths
     base_paths = [Path(path) for path in base_paths if path is not None]
     if len(base_paths) == 0:
         base_paths = [Path(os.getcwd())]
