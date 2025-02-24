@@ -1,5 +1,7 @@
+import typing
 from decimal import Decimal
 
+from comfy.comfy_types import IO
 from comfy.node_helpers import export_custom_nodes
 from comfy.nodes.package_typing import CustomNode, InputTypes
 
@@ -119,6 +121,23 @@ class StringSplit(CustomNode):
 
     def execute(self, value: str = "", delimiter: str = ",") -> tuple[list[str]]:
         return value.split(delimiter),
+
+
+class IterateList(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "value": (IO.ANY, {})
+            }
+        }
+
+    CATEGORY = "generators"
+    RETURN_TYPES = IO.ANY,
+    FUNCTION = "execute"
+
+    def execute(self, value: typing.Any) -> tuple[typing.Any]:
+        return value,
 
 
 export_custom_nodes()
