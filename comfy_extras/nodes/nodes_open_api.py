@@ -637,6 +637,8 @@ class SaveImagesResponse(CustomNode):
             image_as_numpy_array: np.ndarray = image.float().cpu().numpy()
 
             cv_save_options = []
+            image_as_pil: PIL.Image = None
+            additional_args = {}
             if bits == 8:
                 image_scaled = np.ascontiguousarray(np.clip(image_as_numpy_array * 255, 0, 255).astype(np.uint8))
 
@@ -672,7 +674,7 @@ class SaveImagesResponse(CustomNode):
                     mut_srgb_to_linear(image_as_numpy_array[:, :, :3])
                     image_scaled = image_as_numpy_array.astype(np.float32)
                     if bits == 16:
-                        cv_save_options = [cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_HALF]
+                        cv_save_options = [cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_HALF]  # pylint: disable=no-member
                 else:
                     image_scaled = np.clip(image_as_numpy_array * 65535, 0, 65535).astype(np.uint16)
 
@@ -724,7 +726,7 @@ class SaveImagesResponse(CustomNode):
                     with fsspec.open(uri, mode="wb", **fsspec_kwargs) as f:
                         image_as_pil.save(f, format=save_format, **additional_args)
                 else:
-                    _, img_encode = cv2.imencode(f'.{save_format}', image_scaled, cv_save_options)
+                    _, img_encode = cv2.imencode(f'.{save_format}', image_scaled, cv_save_options)  # pylint: disable=no-member
 
                     with fsspec.open(uri, mode="wb", **fsspec_kwargs) as f:
                         f.write(img_encode.tobytes())
@@ -753,7 +755,7 @@ class SaveImagesResponse(CustomNode):
                 if save_method == 'pil':
                     image_as_pil.save(local_path, format=save_format, **additional_args)
                 else:
-                    cv2.imwrite(local_path, image_scaled)
+                    cv2.imwrite(local_path, image_scaled)  # pylint: disable=no-member
 
             img_item: SaveNodeResultWithName = {
                 "abs_path": str(abs_path),
