@@ -19,8 +19,6 @@ class Load3D():
             "image": ("LOAD_3D", {}),
             "width": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
             "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
-            "material": (["original", "normal", "wireframe", "depth"],),
-            "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
         }}
 
     RETURN_TYPES = ("IMAGE", "MASK", "STRING")
@@ -55,8 +53,6 @@ class Load3DAnimation():
             "image": ("LOAD_3D_ANIMATION", {}),
             "width": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
             "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
-            "material": (["original", "normal", "wireframe", "depth"],),
-            "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
         }}
 
     RETURN_TYPES = ("IMAGE", "MASK", "STRING")
@@ -82,8 +78,6 @@ class Preview3D():
     def INPUT_TYPES(s):
         return {"required": {
             "model_file": ("STRING", {"default": "", "multiline": False}),
-            "material": (["original", "normal", "wireframe", "depth"],),
-            "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
         }}
 
     OUTPUT_NODE = True
@@ -102,8 +96,6 @@ class Preview3DAnimation():
     def INPUT_TYPES(s):
         return {"required": {
             "model_file": ("STRING", {"default": "", "multiline": False}),
-            "material": (["original", "normal", "wireframe", "depth"],),
-            "up_direction": (["original", "-x", "+x", "-y", "+y", "-z", "+z"],),
         }}
 
     OUTPUT_NODE = True
