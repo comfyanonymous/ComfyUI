@@ -211,9 +211,31 @@ class UserManager():
 
             return path
 
+        def get_user_data_path_v1(request, check_exists=False, param="file"):
+            file = request.query.get(param)
+            if not file:
+                return web.Response(status=400)
+
+            path = self.get_request_user_filepath(request, file)
+            if not path:
+                return web.Response(status=403)
+
+            if check_exists and not os.path.exists(path):
+                return web.Response(status=404)
+
+            return path
+
         @routes.get("/userdata/{file}")
         async def getuserdata(request):
             path = get_user_data_path(request, check_exists=True)
+            if not isinstance(path, str):
+                return path
+
+            return web.FileResponse(path)
+
+        @routes.get("/v1/userdata/file")
+        async def getuserdata_v1(request):
+            path = get_user_data_path_v1(request, check_exists=True)
             if not isinstance(path, str):
                 return path
 
@@ -268,9 +290,66 @@ class UserManager():
 
             return web.json_response(resp)
 
+        @routes.post("/v1/userdata/file")
+        async def post_userdata_v1(request):
+            """
+            Upload or update a user data file.
+
+            This endpoint handles file uploads to a user's data directory, with options for
+            controlling overwrite behavior and response format.
+
+            Query Parameters:
+            - file: The target file path (URL encoded if necessary).
+            - overwrite (optional): If "false", prevents overwriting existing files. Defaults to "true".
+            - full_info (optional): If "true", returns detailed file information (path, size, modified time).
+                                  If "false", returns only the relative file path.
+
+            Returns:
+            - 400: If 'file' parameter is missing.
+            - 403: If the requested path is not allowed.
+            - 409: If overwrite=false and the file already exists.
+            - 200: JSON response with either:
+                  - Full file information (if full_info=true)
+                  - Relative file path (if full_info=false)
+
+            The request body should contain the raw file content to be written.
+            """
+            path = get_user_data_path_v1(request)
+            if not isinstance(path, str):
+                return path
+
+            overwrite = request.query.get("overwrite", 'true') != "false"
+            full_info = request.query.get("full_info", 'false').lower() == "true"
+
+            if not overwrite and os.path.exists(path):
+                return web.Response(status=409, text="File already exists")
+
+            body = await request.read()
+
+            with open(path, "wb") as f:
+                f.write(body)
+
+            user_path = self.get_request_user_filepath(request, None)
+            if full_info:
+                resp = get_file_info(path, user_path)
+            else:
+                resp = os.path.relpath(path, user_path)
+
+            return web.json_response(resp)
+
         @routes.delete("/userdata/{file}")
         async def delete_userdata(request):
             path = get_user_data_path(request, check_exists=True)
+            if not isinstance(path, str):
+                return path
+
+            os.remove(path)
+
+            return web.Response(status=204)
+
+        @routes.delete("/v1/userdata/file")
+        async def delete_userdata_v1(request):
+            path = get_user_data_path_v1(request, check_exists=True)
             if not isinstance(path, str):
                 return path
 
@@ -310,6 +389,55 @@ class UserManager():
 
             dest = get_user_data_path(request, check_exists=False, param="dest")
             if not isinstance(source, str):
+                return dest
+
+            overwrite = request.query.get("overwrite", 'true') != "false"
+            full_info = request.query.get('full_info', 'false').lower() == "true"
+
+            if not overwrite and os.path.exists(dest):
+                return web.Response(status=409, text="File already exists")
+
+            logging.info(f"moving '{source}' -> '{dest}'")
+            shutil.move(source, dest)
+
+            user_path = self.get_request_user_filepath(request, None)
+            if full_info:
+                resp = get_file_info(dest, user_path)
+            else:
+                resp = os.path.relpath(dest, user_path)
+
+            return web.json_response(resp)
+
+        @routes.post("/v1/userdata/file/move")
+        async def move_userdata_v1(request):
+            """
+            Move or rename a user data file.
+
+            This endpoint handles moving or renaming files within a user's data directory, with options for
+            controlling overwrite behavior and response format.
+
+            Query Parameters:
+            - source: The source file path (URL encoded if necessary)
+            - dest: The destination file path (URL encoded if necessary)
+            - overwrite (optional): If "false", prevents overwriting existing files. Defaults to "true".
+            - full_info (optional): If "true", returns detailed file information (path, size, modified time).
+                                  If "false", returns only the relative file path.
+
+            Returns:
+            - 400: If either 'file' or 'dest' parameter is missing
+            - 403: If either requested path is not allowed
+            - 404: If the source file does not exist
+            - 409: If overwrite=false and the destination file already exists
+            - 200: JSON response with either:
+                  - Full file information (if full_info=true)
+                  - Relative file path (if full_info=false)
+            """
+            source = get_user_data_path_v1(request, check_exists=True, param="source")
+            if not isinstance(source, str):
+                return source
+
+            dest = get_user_data_path_v1(request, check_exists=False, param="dest")
+            if not isinstance(dest, str):
                 return dest
 
             overwrite = request.query.get("overwrite", 'true') != "false"
