@@ -136,7 +136,7 @@ def detect_unet_config(state_dict, key_prefix):
     if '{}txt_in.individual_token_refiner.blocks.0.norm1.weight'.format(key_prefix) in state_dict_keys: #Hunyuan Video
         dit_config = {}
         dit_config["image_model"] = "hunyuan_video"
-        dit_config["in_channels"] = 16
+        dit_config["in_channels"] = state_dict['{}img_in.proj.weight'.format(key_prefix)].shape[1] #SkyReels img2video has 32 input channels
         dit_config["patch_size"] = [1, 2, 2]
         dit_config["out_channels"] = 16
         dit_config["vec_in_dim"] = 768

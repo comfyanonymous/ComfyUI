@@ -31,10 +31,24 @@
 ![ComfyUI Screenshot](https://github.com/user-attachments/assets/7ccaf2c1-9b72-41ae-9a89-5688c94b7abe)
 </div>
 
-This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
-### [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
+ComfyUI lets you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. Available on Windows, Linux, and macOS.
 
-### [Installing ComfyUI](#installing)
+## Get Started
+
+#### [Desktop Application](https://www.comfy.org/download)
+- The easiest way to get started. 
+- Available on Windows & macOS.
+
+#### [Windows Portable Package](#installing)
+- Get the latest commits and completely portable.
+- Available on Windows.
+
+#### [Manual Install](#manual-install-windows-linux)
+Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon, Ascend).
+
+## Examples
+See what ComfyUI can do with the [example workflows](https://comfyanonymous.github.io/ComfyUI_examples/).
+
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
@@ -121,7 +135,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 
 # Installing
 
-## Windows
+## Windows Portable
 
 There is a portable standalone build for Windows that should work for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
 
@@ -140,6 +154,15 @@ See the [Config file](extra_model_paths.yaml.example) to set the search paths fo
 ## Jupyter Notebook
 
 To run it on services like paperspace, kaggle or colab you can use my [Jupyter Notebook](notebooks/comfyui_colab.ipynb)
+
+
+## [comfy-cli](https://docs.comfy.org/comfy-cli/getting-started)
+
+You can install and start ComfyUI using comfy-cli:
+```bash
+pip install comfy-cli
+comfy install
+```
 
 ## Manual Install (Windows, Linux)
 
@@ -293,6 +316,8 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 
 ## Support and dev channel
 
+[Discord](https://comfy.org/discord): Try the #help or #feedback channels.
+
 [Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
 
 See also: [https://www.comfy.org/](https://www.comfy.org/)
@@ -309,7 +334,7 @@ For any bugs, issues, or feature requests related to the frontend, please use th
 
 The new frontend is now the default for ComfyUI. However, please note:
 
-1. The frontend in the main ComfyUI repository is updated weekly.
+1. The frontend in the main ComfyUI repository is updated fortnightly.
 2. Daily releases are available in the separate frontend repository.
 
 To use the most up-to-date frontend version:
@@ -326,7 +351,7 @@ To use the most up-to-date frontend version:
    --front-end-version Comfy-Org/ComfyUI_frontend@1.2.2
    ```
 
-This approach allows you to easily switch between the stable weekly release and the cutting-edge daily updates, or even specific versions for testing purposes.
+This approach allows you to easily switch between the stable fortnightly release and the cutting-edge daily updates, or even specific versions for testing purposes.
 
 ### Accessing the Legacy Frontend
 

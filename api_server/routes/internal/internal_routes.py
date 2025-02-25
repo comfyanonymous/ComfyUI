@@ -1,8 +1,9 @@
 from aiohttp import web
 from typing import Optional
-from folder_paths import folder_names_and_paths
+from folder_paths import folder_names_and_paths, get_directory_by_type
 from api_server.services.terminal_service import TerminalService
 import app.logger
+import os
 
 class InternalRoutes:
     '''
@@ -49,6 +50,20 @@ class InternalRoutes:
             for key in folder_names_and_paths:
                 response[key] = folder_names_and_paths[key][0]
             return web.json_response(response)
+
+        @self.routes.get('/files/{directory_type}')
+        async def get_files(request: web.Request) -> web.Response:
+            directory_type = request.match_info['directory_type']
+            if directory_type not in ("output", "input", "temp"):
+                return web.json_response({"error": "Invalid directory type"}, status=400)
+
+            directory = get_directory_by_type(directory_type)
+            sorted_files = sorted(
+                (entry for entry in os.scandir(directory) if entry.is_file()),
+                key=lambda entry: -entry.stat().st_mtime
+            )
+            return web.json_response([entry.name for entry in sorted_files], status=200)
+
 
     def get_app(self):
         if self._app is None:
