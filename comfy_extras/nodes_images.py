@@ -9,6 +9,8 @@ import numpy as np
 import json
 import os
 
+from comfy.comfy_types import FileLocator
+
 MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
 class ImageCrop:
@@ -99,7 +101,7 @@ class SaveAnimatedWEBP:
         method = self.methods.get(method)
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
-        results = list()
+        results: list[FileLocator] = []
         pil_images = []
         for image in images:
             i = 255. * image.cpu().numpy()

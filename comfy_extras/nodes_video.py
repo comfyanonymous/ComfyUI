@@ -4,6 +4,7 @@ import torch
 import folder_paths
 import json
 from fractions import Fraction
+from comfy.comfy_types import FileLocator
 
 
 class SaveWEBM:
@@ -61,7 +62,7 @@ class SaveWEBM:
                 container.mux(packet)
         container.close()
 
-        results = [{
+        results: list[FileLocator] = [{
             "filename": file,
             "subfolder": subfolder,
             "type": self.type
