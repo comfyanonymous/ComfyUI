@@ -1,0 +1,620 @@
+{
+  "last_node_id": 50,
+  "last_link_id": 108,
+  "nodes": [
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [1320, 302],
+      "size": [210, 46],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 7
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 36
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [49],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [175, 496],
+      "size": [425.28, 180.61],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 101
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [6],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "(hands), text, error, cropped, (worst quality:1.2), (low quality:1.2), normal quality, (jpeg artifacts:1.3), signature, watermark, username, blurry, artist name, monochrome, sketch, censorship, censor, (copyright:1.2), extra legs, (forehead mark) (depth of field) (emotionless) (penis) (pumpkin)"
+      ]
+    },
+    {
+      "id": 27,
+      "type": "CLIPTextEncode",
+      "pos": [1570, -336],
+      "size": [400, 200],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 103
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [47],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "(hands), text, error, cropped, (worst quality:1.2), (low quality:1.2), normal quality, (jpeg artifacts:1.3), signature, watermark, username, blurry, artist name, monochrome, sketch, censorship, censor, (copyright:1.2), extra legs, (forehead mark) (depth of field) (emotionless) (penis) (pumpkin)"
+      ]
+    },
+    {
+      "id": 22,
+      "type": "LatentUpscale",
+      "pos": [1412, 79],
+      "size": [315, 130],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 41
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [42],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LatentUpscale"
+      },
+      "widgets_values": ["nearest-exact", 1920, 1088, "disabled"]
+    },
+    {
+      "id": 5,
+      "type": "EmptyLatentImage",
+      "pos": [695, 531],
+      "size": [315, 106],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [2],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [1280, 704, 1]
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "pos": [1556, 303],
+      "size": [210, 250],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 49
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": ["ComfyUI"]
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [156, 269],
+      "size": [422.85, 164.31],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 102
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [98],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "(solo:1.3) (best quality) (HDR:1.0) colourful, nature wilderness snow mountain peak, (winter:1.2), on landscape mountain in Switzerland alps sunset, aerial view (cityscape:1.3) skyscrapers modern city satellite view, (sunset)\ngirl with fennec ears fox ears, sweater, sitting\n"
+      ]
+    },
+    {
+      "id": 47,
+      "type": "ConditioningCombine",
+      "pos": [530, 71],
+      "size": [342.6, 46],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning_1",
+          "type": "CONDITIONING",
+          "link": 97
+        },
+        {
+          "name": "conditioning_2",
+          "type": "CONDITIONING",
+          "link": 98
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [99],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ConditioningCombine"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 45,
+      "type": "CLIPTextEncode",
+      "pos": [-88, -224],
+      "size": [400, 200],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 105,
+          "slot_index": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [93],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "(solo:1.3) (best quality) (HDR:1.0) girl colourful of (flat chest:0.9), (fennec ears:1.0)\u00a0 (fox ears:1.0), blonde twintails medium (messy hair:1.2), (eyes:1.0), sweater, (pink:0.8) , long sleeves, sweatpants (pants), gloves, nature wilderness (sitting:1.3) on snow mountain peak, (:d:0.5) (blush:0.9), (winter:1.2), on landscape mountain in Switzerland alps sunset, comfortable, (spread legs:1.1), aerial view (cityscape:1.3) skyscrapers modern city satellite view, (sunset)"
+      ]
+    },
+    {
+      "id": 31,
+      "type": "VAEDecode",
+      "pos": [2419, 10],
+      "size": [210, 46],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 50
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 51
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [100],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 46,
+      "type": "ConditioningSetArea",
+      "pos": [344, -227],
+      "size": [317.4, 154],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 93
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [97],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ConditioningSetArea"
+      },
+      "widgets_values": [640, 640, 0, 64, 1]
+    },
+    {
+      "id": 26,
+      "type": "CLIPTextEncode",
+      "pos": [1573, -583],
+      "size": [400, 200],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 104
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [46],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "masterpiece solo (realistic) (best quality) (HDR:1.0) girl colourful of (flat chest:0.9), (fox ears:0.9), blonde twintails messy hair, (eyes:1.0), sweater, (pink:0.8) , long sleeves, sweatpants pants, gloves, nature wilderness sitting on snow mountain peak aerial view, (:d:0.5) (blush:0.9), (winter:0.9), mountain in Switzerland, comfortable, aerial view (cityscape:1.2) skyscrapers modern city satellite view, (sunset)\n"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "KSampler",
+      "pos": [885, 136],
+      "size": [315, 262],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 106
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 99
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [7, 41],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        830459492315490,
+        "randomize",
+        13,
+        7,
+        "dpmpp_sde",
+        "normal",
+        1
+      ]
+    },
+    {
+      "id": 32,
+      "type": "SaveImage",
+      "pos": [2648, -11],
+      "size": [210, 250],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 100
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": ["ComfyUI"]
+    },
+    {
+      "id": 24,
+      "type": "KSampler",
+      "pos": [2047, -270],
+      "size": [315, 262],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 107
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 46
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 47
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 42
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [50],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        626842672818096,
+        "randomize",
+        7,
+        5,
+        "dpmpp_sde",
+        "simple",
+        0.52
+      ]
+    },
+    {
+      "id": 20,
+      "type": "VAELoader",
+      "pos": [1086, 563],
+      "size": [315, 58],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [36, 51],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": ["vae-ft-mse-840000-ema-pruned.safetensors"]
+    },
+    {
+      "id": 49,
+      "type": "CLIPSetLastLayer",
+      "pos": [-227, 630],
+      "size": [315, 58],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 108
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [101, 102, 103, 104, 105],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPSetLastLayer"
+      },
+      "widgets_values": [-2]
+    },
+    {
+      "id": 48,
+      "type": "CheckpointLoaderSimple",
+      "pos": [-621, 603],
+      "size": [315, 98],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [106, 107],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [108],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": ["Anything-V3.0.ckpt"]
+    },
+    {
+      "id": 50,
+      "type": "MarkdownNote",
+      "pos": [-615, 765],
+      "size": [225, 60],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "\ud83d\udec8 [Learn more about this workflow](https://comfyanonymous.github.io/ComfyUI_examples/area_composition/#increasing-consistency-of-images-with-area-composition)"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [2, 5, 0, 3, 3, "LATENT"],
+    [6, 7, 0, 3, 2, "CONDITIONING"],
+    [7, 3, 0, 8, 0, "LATENT"],
+    [36, 20, 0, 8, 1, "VAE"],
+    [41, 3, 0, 22, 0, "LATENT"],
+    [42, 22, 0, 24, 3, "LATENT"],
+    [46, 26, 0, 24, 1, "CONDITIONING"],
+    [47, 27, 0, 24, 2, "CONDITIONING"],
+    [49, 8, 0, 9, 0, "IMAGE"],
+    [50, 24, 0, 31, 0, "LATENT"],
+    [51, 20, 0, 31, 1, "VAE"],
+    [93, 45, 0, 46, 0, "CONDITIONING"],
+    [97, 46, 0, 47, 0, "CONDITIONING"],
+    [98, 6, 0, 47, 1, "CONDITIONING"],
+    [99, 47, 0, 3, 1, "CONDITIONING"],
+    [100, 31, 0, 32, 0, "IMAGE"],
+    [101, 49, 0, 7, 0, "CLIP"],
+    [102, 49, 0, 6, 0, "CLIP"],
+    [103, 49, 0, 27, 0, "CLIP"],
+    [104, 49, 0, 26, 0, "CLIP"],
+    [105, 49, 0, 45, 0, "CLIP"],
+    [106, 48, 0, 3, 0, "MODEL"],
+    [107, 48, 0, 24, 0, "MODEL"],
+    [108, 48, 1, 49, 0, "CLIP"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.53,
+      "offset": [1214.17, 1188.8]
+    }
+  },
+  "version": 0.4,
+  "models": [
+    {
+      "name": "vae-ft-mse-840000-ema-pruned.safetensors",
+      "url": "https://huggingface.co/stabilityai/sd-vae-ft-mse-original/resolve/main/vae-ft-mse-840000-ema-pruned.safetensors?download=true",
+      "directory": "vae"
+    }
+  ]
+}

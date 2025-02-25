@@ -1,0 +1,470 @@
+{
+  "last_node_id": 52,
+  "last_link_id": 105,
+  "nodes": [
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [1152, 48],
+      "size": [210, 46],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 63
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [13],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 33,
+      "type": "EmptySD3LatentImage",
+      "pos": [576, 336],
+      "size": [210, 106],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "shape": 3,
+          "links": [66],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptySD3LatentImage"
+      },
+      "widgets_values": [1024, 1024, 1]
+    },
+    {
+      "id": 48,
+      "type": "ImageScale",
+      "pos": [-320, 448],
+      "size": [315, 130],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 91
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "shape": 3,
+          "links": [92],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageScale"
+      },
+      "widgets_values": ["bilinear", 1024, 1024, "center"]
+    },
+    {
+      "id": 49,
+      "type": "PreviewImage",
+      "pos": [384, 512],
+      "size": [443.1, 520.83],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 93
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 50,
+      "type": "ConditioningZeroOut",
+      "pos": [203, 133],
+      "size": [317.4, 26],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 98
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "shape": 3,
+          "links": [102],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ConditioningZeroOut"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 3,
+      "type": "KSampler",
+      "pos": [816, 48],
+      "size": [284.12, 262],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 14
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 103,
+          "slot_index": 1
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 104
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 66
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [63],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        790192293768778,
+        "randomize",
+        32,
+        4.5,
+        "euler",
+        "simple",
+        1
+      ]
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "pos": [1392, 48],
+      "size": [882.45, 927.85],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 13
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": ["ComfyUI"]
+    },
+    {
+      "id": 45,
+      "type": "LoadImage",
+      "pos": [-666, 447],
+      "size": [288, 336],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "shape": 3,
+          "links": [91]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "shape": 3,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": ["sd3_controlnet_example.png", "image"]
+    },
+    {
+      "id": 47,
+      "type": "Canny",
+      "pos": [20, 449],
+      "size": [315, 82],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 92
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "shape": 3,
+          "links": [93, 99],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Canny"
+      },
+      "widgets_values": [0.4, 0.8]
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [0, -128],
+      "size": [320, 192],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 65
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [98, 101],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "happy cute anime fox girl with massive fluffy fennec ears and blonde fluffy hair long hair blue eyes wearing a red scarf a pink sweater and blue jeans\n\nstanding in a beautiful forest with mountains\n\n"
+      ]
+    },
+    {
+      "id": 51,
+      "type": "ControlNetApplyAdvanced",
+      "pos": [470, 60],
+      "size": [315, 186],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 101
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 102
+        },
+        {
+          "name": "control_net",
+          "type": "CONTROL_NET",
+          "link": 100
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 99
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "shape": 7,
+          "link": 105
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [103],
+          "slot_index": 0
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [104],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ControlNetApplyAdvanced"
+      },
+      "widgets_values": [0.66, 0, 1]
+    },
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [-576, 64],
+      "size": [499.99, 98],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [14],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [65],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [8, 105],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": ["sd3.5_large_fp8_scaled.safetensors"]
+    },
+    {
+      "id": 46,
+      "type": "ControlNetLoader",
+      "pos": [-128, 320],
+      "size": [460.34, 58],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CONTROL_NET",
+          "type": "CONTROL_NET",
+          "shape": 3,
+          "links": [100],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ControlNetLoader"
+      },
+      "widgets_values": ["sd3.5_large_controlnet_canny.safetensors"]
+    },
+    {
+      "id": 52,
+      "type": "MarkdownNote",
+      "pos": [-570, 210],
+      "size": [225, 60],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "\ud83d\udec8 [Learn more about this workflow](https://comfyanonymous.github.io/ComfyUI_examples/sd3/#sd35-controlnets)"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [8, 4, 2, 8, 1, "VAE"],
+    [13, 8, 0, 9, 0, "IMAGE"],
+    [14, 4, 0, 3, 0, "MODEL"],
+    [63, 3, 0, 8, 0, "LATENT"],
+    [65, 4, 1, 6, 0, "CLIP"],
+    [66, 33, 0, 3, 3, "LATENT"],
+    [91, 45, 0, 48, 0, "IMAGE"],
+    [92, 48, 0, 47, 0, "IMAGE"],
+    [93, 47, 0, 49, 0, "IMAGE"],
+    [98, 6, 0, 50, 0, "CONDITIONING"],
+    [99, 47, 0, 51, 3, "IMAGE"],
+    [100, 46, 0, 51, 2, "CONTROL_NET"],
+    [101, 6, 0, 51, 0, "CONDITIONING"],
+    [102, 50, 0, 51, 1, "CONDITIONING"],
+    [103, 51, 0, 3, 1, "CONDITIONING"],
+    [104, 51, 1, 3, 2, "CONDITIONING"],
+    [105, 4, 2, 51, 4, "VAE"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.91,
+      "offset": [686.52, 188.52]
+    }
+  },
+  "version": 0.4,
+  "models": [
+    {
+      "name": "sd3.5_large_controlnet_canny.safetensors",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-3.5-controlnets/resolve/main/sd3.5_large_controlnet_canny.safetensors?download=true",
+      "directory": "controlnet"
+    },
+    {
+      "name": "sd3.5_large_fp8_scaled.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/stable-diffusion-3.5-fp8/resolve/main/sd3.5_large_fp8_scaled.safetensors?download=true",
+      "directory": "checkpoints"
+    }
+  ]
+}

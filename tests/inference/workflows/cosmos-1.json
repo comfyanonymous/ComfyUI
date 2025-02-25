@@ -1,0 +1,165 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 959521281192720,
+      "steps": 1,
+      "cfg": 6.5,
+      "sampler_name": "res_multistep",
+      "scheduler": "karras",
+      "denoise": 1,
+      "model": [
+        "37",
+        0
+      ],
+      "positive": [
+        "42",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "83",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "The video captures a series of frames showing ugly scenes, static with no motion, motion blur, over-saturation, shaky footage, low resolution, grainy texture, pixelated images, poorly lit areas, underexposed and overexposed scenes, poor color balance, washed out colors, choppy sequences, jerky movements, low frame rate, artifacting, color banding, unnatural transitions, outdated special effects, fake elements, unconvincing visuals, poorly edited content, jump cuts, visual noise, and flickering. Overall, the video is of poor quality.",
+      "clip": [
+        "38",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "37": {
+    "inputs": {
+      "unet_name": "Cosmos-1_0-Diffusion-7B-Video2World.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "38": {
+    "inputs": {
+      "clip_name": "oldt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "cosmos",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "39": {
+    "inputs": {
+      "vae_name": "cosmos_cv8x8x8_1.0.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "42": {
+    "inputs": {
+      "text": "a robot dancing in a white corridor\n\n",
+      "clip": [
+        "38",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "69": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "fps": 24,
+      "lossless": false,
+      "quality": 80,
+      "method": "default",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveAnimatedWEBP",
+    "_meta": {
+      "title": "SaveAnimatedWEBP"
+    }
+  },
+  "83": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "length": 121,
+      "batch_size": 1,
+      "vae": [
+        "39",
+        0
+      ],
+      "start_image": [
+        "85",
+        0
+      ]
+    },
+    "class_type": "CosmosImageToVideoLatent",
+    "_meta": {
+      "title": "CosmosImageToVideoLatent"
+    }
+  },
+  "84": {
+    "inputs": {
+      "value": "https://m.media-amazon.com/images/I/71lI3ioM1ZL.jpg"
+    },
+    "class_type": "ImageRequestParameter",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "85": {
+    "inputs": {
+      "resize_mode": "cover",
+      "resolutions": "Cosmos",
+      "interpolation": "bilinear",
+      "image": [
+        "84",
+        0
+      ]
+    },
+    "class_type": "ImageResize",
+    "_meta": {
+      "title": "Fit Image to Diffusion Size"
+    }
+  }
+}

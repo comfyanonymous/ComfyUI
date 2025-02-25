@@ -57,9 +57,9 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
             model.to(device=self.offload_device)
 
     @staticmethod
-    def from_pretrained(ckpt_name: str, subfolder: Optional[str] = None) -> "TransformersManagedModel":
+    def from_pretrained(ckpt_name: str, subfolder: Optional[str] = None, config_dict: PretrainedConfig | dict | None = None) -> "TransformersManagedModel":
         hub_kwargs = {}
-        if subfolder is not None and subfolder != "":
+        if subfolder is not None and subfolder.strip() != "":
             hub_kwargs["subfolder"] = subfolder
         repo_id = ckpt_name
         with comfy_tqdm():
@@ -77,7 +77,10 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
             except ImportError:
                 pass
 
-            config_dict, _ = PretrainedConfig.get_config_dict(ckpt_name, **hub_kwargs)
+            if config_dict is None:
+                config_dict, _ = PretrainedConfig.get_config_dict(ckpt_name, **hub_kwargs)
+            elif isinstance(config_dict, PretrainedConfig):
+                config_dict: dict = config_dict.to_dict()
             model_type = config_dict["model_type"]
             # language models prefer to use bfloat16 over float16
             kwargs_to_try = ({"torch_dtype": unet_dtype(supported_dtypes=(torch.bfloat16, torch.float16, torch.float32)),

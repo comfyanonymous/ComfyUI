@@ -133,7 +133,7 @@ class Configuration(dict):
         self.config_files = []
         self.cwd: Optional[str] = None
         self.base_paths: list[str] = []
-        self.base_directory = Optional[str] = None
+        self.base_directory: Optional[str] = None
         self.listen: str = "127.0.0.1"
         self.port: int = 8188
         self.enable_cors_header: Optional[str] = None

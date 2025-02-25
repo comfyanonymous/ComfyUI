@@ -1,0 +1,302 @@
+{
+  "last_node_id": 18,
+  "last_link_id": 26,
+  "nodes": [
+    {
+      "id": 3,
+      "type": "KSampler",
+      "pos": [864, 96],
+      "size": [315, 262],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 18
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 4
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 12,
+          "slot_index": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [13],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        840755638734093,
+        "randomize",
+        50,
+        4.98,
+        "dpmpp_3m_sde_gpu",
+        "exponential",
+        1
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [0, 240],
+      "size": [336, 98],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [18],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [14],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": ["stable_audio_open_1.0.safetensors"]
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [384, 96],
+      "size": [432, 144],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 25
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [4],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": ["heaven church electronic dance music"],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [384, 288],
+      "size": [432, 144],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 26
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [6],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [""],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 10,
+      "type": "CLIPLoader",
+      "pos": [0, 96],
+      "size": [335.65, 82],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "shape": 3,
+          "links": [25, 26],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": ["t5_base.safetensors", "stable_audio", "default"]
+    },
+    {
+      "id": 11,
+      "type": "EmptyLatentAudio",
+      "pos": [576, 480],
+      "size": [240, 82],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "shape": 3,
+          "links": [12]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentAudio"
+      },
+      "widgets_values": [47.6, 1]
+    },
+    {
+      "id": 12,
+      "type": "VAEDecodeAudio",
+      "pos": [1200, 96],
+      "size": [210, 46],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 13
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 14,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "AUDIO",
+          "type": "AUDIO",
+          "shape": 3,
+          "links": [15],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecodeAudio"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 13,
+      "type": "SaveAudio",
+      "pos": [1440, 96],
+      "size": [355.22, 100],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": 15
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "SaveAudio"
+      },
+      "widgets_values": ["audio/ComfyUI", ""]
+    },
+    {
+      "id": 18,
+      "type": "MarkdownNote",
+      "pos": [15, 390],
+      "size": [225, 60],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "\ud83d\udec8 [Learn more about this workflow](https://comfyanonymous.github.io/ComfyUI_examples/audio/)"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [4, 6, 0, 3, 1, "CONDITIONING"],
+    [6, 7, 0, 3, 2, "CONDITIONING"],
+    [12, 11, 0, 3, 3, "LATENT"],
+    [13, 3, 0, 12, 0, "LATENT"],
+    [14, 4, 2, 12, 1, "VAE"],
+    [15, 12, 0, 13, 0, "AUDIO"],
+    [18, 4, 0, 3, 0, "MODEL"],
+    [25, 10, 0, 6, 0, "CLIP"],
+    [26, 10, 0, 7, 0, "CLIP"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [201.78, 380.0]
+    }
+  },
+  "version": 0.4,
+  "models": [
+    {
+      "name": "t5_base.safetensors",
+      "url": "https://huggingface.co/google-t5/t5-base/resolve/main/model.safetensors",
+      "directory": "text_encoders"
+    },
+    {
+      "name": "stable_audio_open_1.0.safetensors",
+      "url": "https://huggingface.co/stabilityai/stable-audio-open-1.0/resolve/main/model.safetensors?download=true",
+      "directory": "checkpoints"
+    }
+  ]
+}

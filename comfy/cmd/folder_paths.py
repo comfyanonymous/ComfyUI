@@ -53,27 +53,29 @@ def _resolve_path_with_compatibility(path: Path | str) -> PurePosixPath | Path:
     return Path(path).resolve()
 
 
-def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optional[Configuration] = None, create_all_directories=False, replace_existing=True):
+def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optional[Configuration] = None, create_all_directories=False, replace_existing=True, base_paths_from_configuration=True):
     """
     Populates the folder names and paths object with the default, upstream model directories and custom_nodes directory.
     :param folder_names_and_paths: the object to populate with paths
     :param configuration: a configuration whose base_paths and other path settings will be used to set the values on this object
     :param create_all_directories: create all the possible directories by calling create_directories() after the object is populated
     :param replace_existing: when true, removes existing model paths objects for the built-in folder names; and, replaces the base paths
+    :param base_paths_from_configuration: when true (default), populates folder_names_and_paths using the configuration's base paths, otherwise does not alter base paths as passed from folder_names_and_paths.base_paths
     :return:
     """
     from ..cmd.main_pre import args
     configuration = configuration or args
 
-    base_paths = [Path(configuration.cwd) if configuration.cwd is not None else None] + [Path(configuration.base_directory) if configuration.base_directory is not None else None] + configuration.base_paths
-    base_paths = [Path(path) for path in base_paths if path is not None]
-    if len(base_paths) == 0:
-        base_paths = [Path(os.getcwd())]
-    base_paths = reduce(lambda uniq_list, item: uniq_list.append(item) or uniq_list if item not in uniq_list else uniq_list, base_paths, [])
-    if replace_existing:
-        folder_names_and_paths.base_paths.clear()
-    for base_path in base_paths:
-        folder_names_and_paths.add_base_path(base_path)
+    if base_paths_from_configuration:
+        base_paths = [Path(configuration.cwd) if configuration.cwd is not None else None] + [Path(configuration.base_directory) if configuration.base_directory is not None else None] + configuration.base_paths
+        base_paths = [Path(path) for path in base_paths if path is not None]
+        if len(base_paths) == 0:
+            base_paths = [Path(os.getcwd())]
+        base_paths = reduce(lambda uniq_list, item: uniq_list.append(item) or uniq_list if item not in uniq_list else uniq_list, base_paths, [])
+        if replace_existing:
+            folder_names_and_paths.base_paths.clear()
+        for base_path in base_paths:
+            folder_names_and_paths.add_base_path(base_path)
     hf_cache_paths = ModelPaths(["huggingface_cache"], supported_extensions=set())
     # TODO: explore if there is a better way to do this
     if "HF_HUB_CACHE" in os.environ:

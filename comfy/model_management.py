@@ -1172,8 +1172,8 @@ def is_device_cuda(device):
 
 
 def is_directml_enabled():
-    global directml_enabled
-    if directml_enabled:
+    global directml_device
+    if directml_device is not None:
         return True
 
     return False

@@ -1,0 +1,728 @@
+{
+  "last_node_id": 49,
+  "last_link_id": 44,
+  "nodes": [
+    {
+      "id": 36,
+      "type": "Note",
+      "pos": [-74, -470],
+      "size": [315.7, 147.96],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Note - Load Checkpoint BASE",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "This is a checkpoint model loader. \n - This is set up automatically with the optimal settings for whatever SD model version you choose to use.\n - In this example, it is for the Base SDXL model\n - This node is also used for SD1.5 and SD2.x models\n \nNOTE: When loading in another person's workflow, be sure to manually choose your own *local* model. This also applies to LoRas and all their deviations"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 37,
+      "type": "Note",
+      "pos": [610, -460],
+      "size": [330, 140],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Note - Load Checkpoint REFINER",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "This is a checkpoint model loader. \n - This is set up automatically with the optimal settings for whatever SD model version you choose to use.\n - In this example, it is for the Refiner SDXL model\n\nNOTE: When loading in another person's workflow, be sure to manually choose your own *local* model. This also applies to LoRas and all their deviations."
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 40,
+      "type": "Note",
+      "pos": [1325, 234],
+      "size": [451.5, 424.42],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Note - KSampler  ADVANCED General Information",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "Here are the settings that SHOULD stay in place if you want this workflow to work correctly:\n - add_noise: enable = This adds random noise into the picture so the model can denoise it\n\n - return_with_leftover_noise: enable = This sends the latent image data and all it's leftover noise to the next KSampler node.\n\nThe settings to pay attention to:\n - control_after_generate = generates a new random seed after each workflow job completed.\n - steps = This is the amount of iterations you would like to run the positive and negative CLIP prompts through. Each Step will add (positive) or remove (negative) pixels based on what stable diffusion \"thinks\" should be there according to the model's training\n - cfg = This is how much you want SDXL to adhere to the prompt. Lower CFG gives you more creative but often blurrier results. Higher CFG (recommended max 10) gives you stricter results according to the CLIP prompt. If the CFG value is too high, it can also result in \"burn-in\" where the edges of the picture become even stronger, often highlighting details in unnatural ways.\n - sampler_name = This is the sampler type, and unfortunately different samplers and schedulers have better results with fewer steps, while others have better success with higher steps. This will require experimentation on your part!\n - scheduler = The algorithm/method used to choose the timesteps to denoise the picture.\n - start_at_step = This is the step number the KSampler will start out it's process of de-noising the picture or \"removing the random noise to reveal the picture within\". The first KSampler usually starts with Step 0. Starting at step 0 is the same as setting denoise to 1.0 in the regular Sampler node.\n - end_at_step = This is the step number the KSampler will stop it's process of de-noising the picture. If there is any remaining leftover noise and return_with_leftover_noise is enabled, then it will pass on the left over noise to the next KSampler (assuming there is another one)."
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 5,
+      "type": "EmptyLatentImage",
+      "pos": [544.5, 651.12],
+      "size": [300, 110],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [27],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [1024, 1024, 1],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 17,
+      "type": "VAEDecode",
+      "pos": [2220.77, 129.6],
+      "size": [200, 50],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 25
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 34
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "shape": 3,
+          "links": [28],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": [],
+      "color": "#332922",
+      "bgcolor": "#593930"
+    },
+    {
+      "id": 41,
+      "type": "Note",
+      "pos": [2160.77, 229.6],
+      "size": [320, 120],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Note - VAE Decoder",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "This node will take the latent data from the KSampler and, using the VAE, it will decode it into visible data\n\nVAE = Latent --> Visible\n\nThis can then be sent to the Save Image node to be saved as a PNG."
+      ],
+      "color": "#332922",
+      "bgcolor": "#593930"
+    },
+    {
+      "id": 42,
+      "type": "Note",
+      "pos": [564.5, 801.12],
+      "size": [260, 210],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Note - Empty Latent Image",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "This node sets the image's resolution in Width and Height.\n\nNOTE: For SDXL, it is recommended to use trained values listed below:\n - 1024 x 1024\n - 1152 x 896\n - 896  x 1152\n - 1216 x 832\n - 832  x 1216\n - 1344 x 768\n - 768  x 1344\n - 1536 x 640\n - 640  x 1536"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 11,
+      "type": "KSamplerAdvanced",
+      "pos": [1800, 130],
+      "size": [300, 340],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 14,
+          "slot_index": 0
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 23
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 24
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 13
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": 38,
+          "slot_index": 4
+        },
+        {
+          "name": "start_at_step",
+          "type": "INT",
+          "widget": {
+            "name": "start_at_step"
+          },
+          "link": 44
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "shape": 3,
+          "links": [25],
+          "slot_index": 0
+        }
+      ],
+      "title": "KSampler (Advanced) - REFINER",
+      "properties": {
+        "Node name for S&R": "KSamplerAdvanced"
+      },
+      "widgets_values": [
+        "disable",
+        0,
+        "fixed",
+        25,
+        8,
+        "euler",
+        "normal",
+        20,
+        10000,
+        "disable"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 12,
+      "type": "CheckpointLoaderSimple",
+      "pos": [600, -611],
+      "size": [350, 100],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "shape": 3,
+          "links": [14],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "shape": 3,
+          "links": [19, 20],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "shape": 3,
+          "links": [34],
+          "slot_index": 2
+        }
+      ],
+      "title": "Load Checkpoint - REFINER",
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": ["sd_xl_refiner_1.0.safetensors"],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [-90, -620],
+      "size": [350, 100],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [10],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [3, 5],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [],
+          "slot_index": 2
+        }
+      ],
+      "title": "Load Checkpoint - BASE",
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": ["sd_xl_base_1.0.safetensors"],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 47,
+      "type": "PrimitiveNode",
+      "pos": [1037.53, 881.61],
+      "size": [210, 82],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "widget": {
+            "name": "end_at_step"
+          },
+          "links": [43, 44],
+          "slot_index": 0
+        }
+      ],
+      "title": "end_at_step",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [20, "fixed"],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 45,
+      "type": "PrimitiveNode",
+      "pos": [1039.53, 734.61],
+      "size": [210, 82],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "links": [38, 41]
+        }
+      ],
+      "title": "steps",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [25, "fixed"],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 48,
+      "type": "Note",
+      "pos": [1036, 1018],
+      "size": [213.91, 110.17],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "These can be used to control the total sampling steps and the step at which the sampling switches to the refiner."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 10,
+      "type": "KSamplerAdvanced",
+      "pos": [1000, 230],
+      "size": [300, 334],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 10
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 11
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 12
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 27
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": 41,
+          "slot_index": 4
+        },
+        {
+          "name": "end_at_step",
+          "type": "INT",
+          "widget": {
+            "name": "end_at_step"
+          },
+          "link": 43,
+          "slot_index": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "shape": 3,
+          "links": [13],
+          "slot_index": 0
+        }
+      ],
+      "title": "KSampler (Advanced) - BASE",
+      "properties": {
+        "Node name for S&R": "KSamplerAdvanced"
+      },
+      "widgets_values": [
+        "enable",
+        6767725640732,
+        "randomize",
+        25,
+        8,
+        "euler",
+        "normal",
+        0,
+        20,
+        "enable"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 16,
+      "type": "CLIPTextEncode",
+      "pos": [1110, -90],
+      "size": [340, 140],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [24],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": ["text, watermark"],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 15,
+      "type": "CLIPTextEncode",
+      "pos": [1110, -270],
+      "size": [340, 140],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 19
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [23],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "daytime scenery  sky nature dark blue bottle with a galaxy stars milky way in it"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [610, 30],
+      "size": [320, 160],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [11],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": ["daytime sky nature dark blue galaxy bottle"],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [610, 240],
+      "size": [320, 150],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [12],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": ["text, watermark"],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 19,
+      "type": "SaveImage",
+      "pos": [2600, 130],
+      "size": [735.55, 823.98],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 28
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": ["ComfyUI"],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 49,
+      "type": "MarkdownNote",
+      "pos": [-90, -255],
+      "size": [225, 60],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "\ud83d\udec8 [Learn more about this workflow](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/)"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [3, 4, 1, 6, 0, "CLIP"],
+    [5, 4, 1, 7, 0, "CLIP"],
+    [10, 4, 0, 10, 0, "MODEL"],
+    [11, 6, 0, 10, 1, "CONDITIONING"],
+    [12, 7, 0, 10, 2, "CONDITIONING"],
+    [13, 10, 0, 11, 3, "LATENT"],
+    [14, 12, 0, 11, 0, "MODEL"],
+    [19, 12, 1, 15, 0, "CLIP"],
+    [20, 12, 1, 16, 0, "CLIP"],
+    [23, 15, 0, 11, 1, "CONDITIONING"],
+    [24, 16, 0, 11, 2, "CONDITIONING"],
+    [25, 11, 0, 17, 0, "LATENT"],
+    [27, 5, 0, 10, 3, "LATENT"],
+    [28, 17, 0, 19, 0, "IMAGE"],
+    [34, 12, 2, 17, 1, "VAE"],
+    [38, 45, 0, 11, 4, "INT"],
+    [41, 45, 0, 10, 4, "INT"],
+    [43, 47, 0, 10, 5, "INT"],
+    [44, 47, 0, 11, 5, "INT"]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Base Prompt",
+      "bounding": [585, -60, 366, 463],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "Refiner Prompt",
+      "bounding": [1095, -360, 376, 429],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "Load in BASE SDXL Model",
+      "bounding": [-105, -705, 369, 399],
+      "color": "#a1309b",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 4,
+      "title": "Load in REFINER SDXL Model",
+      "bounding": [585, -705, 391, 400],
+      "color": "#a1309b",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 5,
+      "title": "Empty Latent Image",
+      "bounding": [525, 570, 339, 443],
+      "color": "#a1309b",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 6,
+      "title": "VAE Decoder",
+      "bounding": [2145, 45, 360, 350],
+      "color": "#b06634",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 7,
+      "title": "Step Control",
+      "bounding": [1005, 630, 284, 524],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.63,
+      "offset": [1264.03, 812.09]
+    }
+  },
+  "version": 0.4,
+  "models": [
+    {
+      "name": "sd_xl_base_1.0.safetensors",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors?download=true",
+      "directory": "checkpoints"
+    },
+    {
+      "name": "sd_xl_refiner_1.0.safetensors",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors?download=true",
+      "directory": "checkpoints"
+    }
+  ]
+}

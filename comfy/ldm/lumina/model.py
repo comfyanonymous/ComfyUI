@@ -6,11 +6,11 @@ from typing import List, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import comfy.ldm.common_dit
 
-from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder, RMSNorm
-from comfy.ldm.modules.attention import optimized_attention_masked
-from comfy.ldm.flux.layers import EmbedND
+from ..common_dit import pad_to_patch_size
+from ..modules.diffusionmodules.mmdit import TimestepEmbedder, RMSNorm
+from ..modules.attention import optimized_attention_masked
+from ..flux.layers import EmbedND
 
 
 def modulate(x, scale):
@@ -596,7 +596,7 @@ class NextDiT(nn.Module):
         cap_feats = context
         cap_mask = attention_mask
         bs, c, h, w = x.shape
-        x = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
+        x = pad_to_patch_size(x, (self.patch_size, self.patch_size))
         """
         Forward pass of NextDiT.
         t: (N,) tensor of diffusion timesteps

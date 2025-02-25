@@ -27,14 +27,15 @@ def temp_dir():
 
 
 @pytest.fixture
-def set_base_dir():
+def set_base_dir_t():
     fn = FolderNames()
-    with context_folder_names_and_paths(FolderNames()):
-        def _set_base_dir(base_dir):
-            fn.base_paths.clear()
-            fn.add_base_path(Path(base_dir))
 
-        yield _set_base_dir
+    def _set_base_dir(base_dir):
+        fn.base_paths.clear()
+        fn.add_base_path(Path(base_dir))
+        init_default_paths(fn, base_paths_from_configuration=False)
+
+    yield _set_base_dir, fn
 
 
 def test_get_directory_by_type(clear_folder_paths):
@@ -131,47 +132,50 @@ def test_add_output_path_absolute(temp_dir):
         assert list(mp.additional_relative_directory_paths)[0] == (Path("output") / "diffusion_models")
 
 
-def test_base_path_changes(set_base_dir):
+def test_base_path_changes(set_base_dir_t):
     test_dir = os.path.abspath("/test/dir")
+    set_base_dir, fn = set_base_dir_t
     set_base_dir(test_dir)
 
-    assert folder_paths.base_path == test_dir
-    assert folder_paths.models_dir == os.path.join(test_dir, "models")
-    assert folder_paths.input_directory == os.path.join(test_dir, "input")
-    assert folder_paths.output_directory == os.path.join(test_dir, "output")
-    assert folder_paths.temp_directory == os.path.join(test_dir, "temp")
-    assert folder_paths.user_directory == os.path.join(test_dir, "user")
+    with context_folder_names_and_paths(fn):
+        assert str(folder_paths.base_path) == test_dir
+        assert str(folder_paths.models_dir) == os.path.join(test_dir, "models")
+        assert str(folder_paths.input_directory) == os.path.join(test_dir, "input")
+        assert str(folder_paths.output_directory) == os.path.join(test_dir, "output")
+        assert str(folder_paths.temp_directory) == os.path.join(test_dir, "temp")
+        assert str(folder_paths.user_directory) == os.path.join(test_dir, "user")
 
-    assert os.path.join(test_dir, "custom_nodes") in folder_paths.get_folder_paths("custom_nodes")
+        assert os.path.join(test_dir, "custom_nodes") in folder_paths.get_folder_paths("custom_nodes")
 
-    for name in ["checkpoints", "loras", "vae", "configs", "embeddings", "controlnet", "classifiers"]:
-        assert folder_paths.get_folder_paths(name)[0] == os.path.join(test_dir, "models", name)
+        for name in ["checkpoints", "loras", "vae", "configs", "embeddings", "controlnet", "classifiers"]:
+            assert folder_paths.get_folder_paths(name)[0] == os.path.join(test_dir, "models", name)
 
 
-def test_base_path_change_clears_old(set_base_dir):
+def test_base_path_change_clears_old(set_base_dir_t):
     test_dir = os.path.abspath("/test/dir")
+    set_base_dir, fn = set_base_dir_t
     set_base_dir(test_dir)
 
-    assert len(folder_paths.get_folder_paths("custom_nodes")) == 1
+    with context_folder_names_and_paths(fn):
+        assert len(folder_paths.get_folder_paths("custom_nodes")) == 1
 
-    single_model_paths = [
-        "checkpoints",
-        "loras",
-        "vae",
-        "configs",
-        "clip_vision",
-        "style_models",
-        "diffusers",
-        "vae_approx",
-        "gligen",
-        "upscale_models",
-        "embeddings",
-        "hypernetworks",
-        "photomaker",
-        "classifiers",
-    ]
-    for name in single_model_paths:
-        assert len(folder_paths.get_folder_paths(name)) == 1
+        single_model_paths = [
+            "checkpoints",
+            "loras",
+            "vae",
+            "clip_vision",
+            "style_models",
+            "diffusers",
+            "vae_approx",
+            "gligen",
+            "upscale_models",
+            "embeddings",
+            "hypernetworks",
+            "photomaker",
+            "classifiers",
+        ]
+        for name in single_model_paths:
+            assert len(folder_paths.get_folder_paths(name)) == 1
 
-    for name in ["controlnet", "diffusion_models", "text_encoders"]:
-        assert len(folder_paths.get_folder_paths(name)) == 2
+        for name in ["controlnet", "diffusion_models", "text_encoders", "configs"]:
+            assert len(folder_paths.get_folder_paths(name)) == 2

@@ -74,7 +74,7 @@ class TransformerTemperatureSampler(TransformerSamplerBase):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "temperature": ("FLOAT", {"default": 1.0, "min": 0})
+                "temperature": ("FLOAT", {"default": 1.0, "min": 0, "step": 0.001})
             }
         }
 
@@ -191,8 +191,10 @@ class TransformersLoader(CustomNode):
         return {
             "required": {
                 "ckpt_name": (get_huggingface_repo_list(),),
-                "subfolder": ("STRING", {})
             },
+            "optional": {
+                "subfolder": ("STRING", {}),
+            }
         }
 
     CATEGORY = "language"
@@ -324,7 +326,7 @@ class OneShotInstructTokenize(CustomNode):
     RETURN_TYPES = (TOKENS_TYPE_NAME,)
     FUNCTION = "execute"
 
-    def execute(self, model: LanguageModel, prompt: str, images: List[torch.Tensor] | torch.Tensor = None, chat_template: str = "__auto__") -> ValidatedNodeResult:
+    def execute(self, model: LanguageModel, prompt: str, images: List[torch.Tensor] | torch.Tensor = None, chat_template: str = _AUTO_CHAT_TEMPLATE) -> ValidatedNodeResult:
         if chat_template == _AUTO_CHAT_TEMPLATE:
             # use an exact match
             model_name = os.path.basename(model.repo_id)

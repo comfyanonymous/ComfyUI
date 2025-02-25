@@ -39,6 +39,10 @@ warnings.filterwarnings("ignore", message="torch.utils._pytree._register_pytree_
 warnings.filterwarnings("ignore", message="Torch was not compiled with flash attention.")
 warnings.filterwarnings("ignore", message=".*Torch was not compiled with flash attention.*")
 warnings.filterwarnings('ignore', category=FutureWarning, message=r'`torch\.cuda\.amp\.custom_fwd.*')
+warnings.filterwarnings("ignore", message="Importing from timm.models.registry is deprecated, please import via timm.models", category=FutureWarning)
+warnings.filterwarnings("ignore", message="Importing from timm.models.layers is deprecated, please import via timm.layers", category=FutureWarning)
+warnings.filterwarnings("ignore", message="Inheritance class _InstrumentedApplication from web.Application is discouraged", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message="Please import `gaussian_filter` from the `scipy.ndimage` namespace; the `scipy.ndimage.filters` namespace is deprecated", category=DeprecationWarning)
 
 from ..cli_args import args
 
@@ -55,7 +59,6 @@ if args.oneapi_device_selector is not None:
     os.environ['ONEAPI_DEVICE_SELECTOR'] = args.oneapi_device_selector
     this_logger.info("Set oneapi device selector to: {}".format(args.oneapi_device_selector))
 
-
 try:
     from . import cuda_malloc
 except Exception:
@@ -65,6 +68,7 @@ os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
 os.environ["TORCHINDUCTOR_AUTOGRAD_CACHE"] = "1"
+
 
 def _fix_pytorch_240():
     """Fixes pytorch 2.4.0"""

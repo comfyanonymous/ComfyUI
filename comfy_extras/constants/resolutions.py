@@ -42,3 +42,11 @@ LTVX_RESOLUTIONS = [
 SD_RESOLUTIONS = [
     (512, 512),
 ]
+
+COSMOS_RESOLUTIONS = [
+    (960, 960),
+    (960, 704),
+    (704, 960),
+    (1280, 704),
+    (704, 1280)
+]

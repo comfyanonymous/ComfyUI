@@ -291,6 +291,8 @@ class Llama2_(nn.Module):
 
 
 class BaseLlama:
+    model: Llama2_
+
     def get_input_embeddings(self):
         return self.model.embed_tokens
 

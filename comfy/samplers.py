@@ -720,14 +720,6 @@ class Sampler:
         sigma = float(sigmas[0])
         return math.isclose(max_sigma, sigma, rel_tol=1e-05) or sigma > max_sigma
 
-
-KSAMPLER_NAMES = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_cfg_pp", "heun", "heunpp2", "dpm_2", "dpm_2_ancestral",
-                  "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_2s_ancestral_cfg_pp", "dpmpp_sde", "dpmpp_sde_gpu",
-                  "dpmpp_2m", "dpmpp_2m_cfg_pp", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm",
-                  "ipndm", "ipndm_v", "deis", "res_multistep", "res_multistep_cfg_pp", "res_multistep_ancestral", "res_multistep_ancestral_cfg_pp",
-                  "gradient_estimation"]
-
-
 class KSAMPLER(Sampler):
     def __init__(self, sampler_function, extra_options={}, inpaint_options={}):
         self.sampler_function = sampler_function
@@ -1095,7 +1087,7 @@ class KSampler:
         self.model = model
         self.device = device
         if scheduler not in self.SCHEDULERS:
-            scheduler = self.SCHEDULERS[0]
+            sheduler = self.SCHEDULERS[0]
         if sampler not in self.SAMPLERS:
             sampler = self.SAMPLERS[0]
         self.scheduler = scheduler

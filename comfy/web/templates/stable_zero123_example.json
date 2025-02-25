@@ -1,0 +1,273 @@
+{
+  "last_node_id": 27,
+  "last_link_id": 55,
+  "nodes": [
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [1207.8, 375.7],
+      "size": [210, 46],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 7
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 26
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [49],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 3,
+      "type": "KSampler",
+      "pos": [868, 376],
+      "size": [315, 262],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 42
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 53
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 54
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 55
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [7],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        237514639057560,
+        "fixed",
+        20,
+        5,
+        "euler",
+        "sgm_uniform",
+        1
+      ]
+    },
+    {
+      "id": 25,
+      "type": "SaveImage",
+      "pos": [1459, 378],
+      "size": [262.29, 308.65],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 49
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": ["3d/ComfyUI"]
+    },
+    {
+      "id": 23,
+      "type": "LoadImage",
+      "pos": [175, 438],
+      "size": [316.52, 405.71],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "shape": 3,
+          "links": [51],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "shape": 3,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": ["hypernetwork_example_output.png", "image"]
+    },
+    {
+      "id": 26,
+      "type": "StableZero123_Conditioning",
+      "pos": [514, 394],
+      "size": [315, 194],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip_vision",
+          "type": "CLIP_VISION",
+          "link": 50
+        },
+        {
+          "name": "init_image",
+          "type": "IMAGE",
+          "link": 51
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 52
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "shape": 3,
+          "links": [53],
+          "slot_index": 0
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "shape": 3,
+          "links": [54],
+          "slot_index": 1
+        },
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "shape": 3,
+          "links": [55],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "StableZero123_Conditioning"
+      },
+      "widgets_values": [256, 256, 1, 10, 142]
+    },
+    {
+      "id": 15,
+      "type": "ImageOnlyCheckpointLoader",
+      "pos": [89, 290],
+      "size": [369.6, 98],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "shape": 3,
+          "links": [42],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP_VISION",
+          "type": "CLIP_VISION",
+          "shape": 3,
+          "links": [50],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "shape": 3,
+          "links": [26, 52],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageOnlyCheckpointLoader"
+      },
+      "widgets_values": ["stable_zero123.ckpt"]
+    },
+    {
+      "id": 27,
+      "type": "MarkdownNote",
+      "pos": [-75, 450],
+      "size": [225, 60],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "\ud83d\udec8 [Learn more about this workflow](https://comfyanonymous.github.io/ComfyUI_examples/3d/)"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [7, 3, 0, 8, 0, "LATENT"],
+    [26, 15, 2, 8, 1, "VAE"],
+    [42, 15, 0, 3, 0, "MODEL"],
+    [49, 8, 0, 25, 0, "IMAGE"],
+    [50, 15, 1, 26, 0, "CLIP_VISION"],
+    [51, 23, 0, 26, 1, "IMAGE"],
+    [52, 15, 2, 26, 2, "VAE"],
+    [53, 26, 0, 3, 1, "CONDITIONING"],
+    [54, 26, 1, 3, 2, "CONDITIONING"],
+    [55, 26, 2, 3, 3, "LATENT"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [439.73, 40.67]
+    }
+  },
+  "version": 0.4,
+  "models": [
+    {
+      "name": "stable_zero123.ckpt",
+      "url": "https://huggingface.co/stabilityai/stable-zero123/resolve/main/stable_zero123.ckpt",
+      "directory": "checkpoints"
+    }
+  ]
+}

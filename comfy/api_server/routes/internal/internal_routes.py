@@ -1,9 +1,12 @@
-from aiohttp import web
-from typing import Optional
-from folder_paths import folder_names_and_paths, get_directory_by_type
-from api_server.services.terminal_service import TerminalService
-import app.logger
 import os
+from typing import Optional
+
+from aiohttp import web
+
+from ...services.terminal_service import TerminalService
+from ....app.logger import get_logs as _logger_get_logs
+from ....cmd.folder_paths import folder_names_and_paths, get_directory_by_type  # pylint: disable=import-error
+
 
 class InternalRoutes:
     '''
@@ -21,13 +24,13 @@ class InternalRoutes:
     def setup_routes(self):
         @self.routes.get('/logs')
         async def get_logs(request):
-            return web.json_response("".join([(l["t"] + " - " + l["m"]) for l in app.logger.get_logs()]))
+            return web.json_response("".join([(l["t"] + " - " + l["m"]) for l in _logger_get_logs()]))
 
         @self.routes.get('/logs/raw')
         async def get_raw_logs(request):
             self.terminal_service.update_size()
             return web.json_response({
-                "entries": list(app.logger.get_logs()),
+                "entries": list(_logger_get_logs()),
                 "size": {"cols": self.terminal_service.cols, "rows": self.terminal_service.rows}
             })
 
@@ -42,7 +45,6 @@ class InternalRoutes:
                 self.terminal_service.unsubscribe(client_id)
 
             return web.Response(status=200)
-
 
         @self.routes.get('/folder_paths')
         async def get_folder_paths(request):
@@ -63,7 +65,6 @@ class InternalRoutes:
                 key=lambda entry: -entry.stat().st_mtime
             )
             return web.json_response([entry.name for entry in sorted_files], status=200)
-
 
     def get_app(self):
         if self._app is None:

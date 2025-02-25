@@ -15,7 +15,7 @@ from comfy.nodes.base_nodes import ImageScale
 from comfy.nodes.common import MAX_RESOLUTION
 from comfy.nodes.package_typing import CustomNode
 from comfy_extras.constants.resolutions import SDXL_SD3_FLUX_RESOLUTIONS, LTVX_RESOLUTIONS, SD_RESOLUTIONS, \
-    IDEOGRAM_RESOLUTIONS
+    IDEOGRAM_RESOLUTIONS, COSMOS_RESOLUTIONS
 
 
 def levels_adjustment(image: ImageBatch, black_level: float = 0.0, mid_level: float = 0.5, white_level: float = 1.0, clip: bool = True) -> ImageBatch:
@@ -273,7 +273,7 @@ class ImageResize:
             "required": {
                 "image": ("IMAGE",),
                 "resize_mode": (["cover", "contain", "auto"], {"default": "cover"}),
-                "resolutions": (["SDXL/SD3/Flux", "SD1.5", "LTXV", "Ideogram"], {"default": "SDXL/SD3/Flux"}),
+                "resolutions": (["SDXL/SD3/Flux", "SD1.5", "LTXV", "Ideogram", "Cosmos"], {"default": "SDXL/SD3/Flux"}),
                 "interpolation": (ImageScale.upscale_methods, {"default": "bilinear"}),
             }
         }
@@ -282,18 +282,21 @@ class ImageResize:
     FUNCTION = "resize_image"
     CATEGORY = "image/transform"
 
-    def resize_image(self, image: RGBImageBatch, resize_mode: Literal["cover", "contain", "auto"], resolutions: Literal["SDXL/SD3/Flux", "SD1.5"], interpolation: str) -> Tuple[RGBImageBatch]:
-        if resolutions == "SDXL/SD3/Flux":
+    def resize_image(self, image: RGBImageBatch, resize_mode: Literal["cover", "contain", "auto"], resolutions: Literal["SDXL/SD3/Flux", "SD1.5"], interpolation: str) -> tuple[RGBImageBatch]:
+        resolutions = resolutions.lower()
+        if resolutions == "sdxl/sd3/flux":
             supported_resolutions = SDXL_SD3_FLUX_RESOLUTIONS
         elif resolutions == "ltxv":
             supported_resolutions = LTVX_RESOLUTIONS
         elif resolutions == "ideogram":
             supported_resolutions = IDEOGRAM_RESOLUTIONS
+        elif resolutions == "cosmos":
+            supported_resolutions = COSMOS_RESOLUTIONS
         else:
             supported_resolutions = SD_RESOLUTIONS
         return self.resize_image_with_supported_resolutions(image, resize_mode, supported_resolutions, interpolation)
 
-    def resize_image_with_supported_resolutions(self, image: RGBImageBatch, resize_mode: Literal["cover", "contain", "auto"], supported_resolutions: list[tuple[int, int]], interpolation: str):
+    def resize_image_with_supported_resolutions(self, image: RGBImageBatch, resize_mode: Literal["cover", "contain", "auto"], supported_resolutions: list[tuple[int, int]], interpolation: str) -> tuple[RGBImageBatch]:
         resized_images = []
         for img in image:
             h, w = img.shape[:2]
@@ -341,6 +344,25 @@ class ImageResize:
             resized_images.append(resized.squeeze(0).permute(1, 2, 0).clamp(0.0, 1.0))
 
         return (torch.stack(resized_images),)
+
+
+class ImageResize1(ImageResize):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "resize_mode": (["cover", "contain", "auto"], {"default": "cover"}),
+                "width": ("INT", {"min": 1}),
+                "height": ("INT", {"min": 1}),
+                "interpolation": (ImageScale.upscale_methods, {"default": "bilinear"}),
+            }
+        }
+
+    FUNCTION = "execute"
+    RETURN_TYPES = ("IMAGE",)
+    def execute(self, image: RGBImageBatch, resize_mode: Literal["cover", "contain", "auto"], width: int, height: int, interpolation: str) -> tuple[RGBImageBatch]:
+        return self.resize_image_with_supported_resolutions(image, resize_mode, [(width, height)], interpolation)
 
 
 class ImageLevels(CustomNode):
@@ -392,6 +414,7 @@ class ImageLuminance:
 
 NODE_CLASS_MAPPINGS = {
     "ImageResize": ImageResize,
+    "ImageResize1": ImageResize1,
     "ImageShape": ImageShape,
     "ImageCrop": ImageCrop,
     "ImageLevels": ImageLevels,
@@ -403,5 +426,6 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "ImageResize": "Fit Image to Diffusion Size"
+    "ImageResize": "Fit Image to Diffusion Size",
+    "ImageResize1": "Fit Image to Width Height"
 }

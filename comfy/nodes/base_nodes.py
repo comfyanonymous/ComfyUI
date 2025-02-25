@@ -975,7 +975,7 @@ class CLIPLoader:
         elif type == "cosmos":
             clip_type = sd.CLIPType.COSMOS
         elif type == "lumina2":
-            clip_type = comfy.sd.CLIPType.LUMINA2
+            clip_type = sd.CLIPType.LUMINA2
         else:
             logging.warning(f"Unknown clip type argument passed: {type} for model {clip_name}")
 

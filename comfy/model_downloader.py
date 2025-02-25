@@ -278,6 +278,8 @@ KNOWN_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("lllyasviel/flux1-dev-bnb-nf4", "flux1-dev-bnb-nf4-v2.safetensors"),
     HuggingFile("silveroxides/flux1-nf4-weights", "flux1-schnell-bnb-nf4.safetensors"),
     HuggingFile("Lightricks/LTX-Video", "ltx-video-2b-v0.9.safetensors"),
+    HuggingFile("Lightricks/LTX-Video", "ltx-video-2b-v0.9.1.safetensors"),
+    HuggingFile("Comfy-Org/Lumina_Image_2.0_Repackaged", "all_in_one/lumina_2.safetensors"),
 ], folder_name="checkpoints")
 
 KNOWN_UNCLIP_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
@@ -440,6 +442,7 @@ KNOWN_VAES: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/mochi_preview_repackaged", "split_files/vae/mochi_vae.safetensors"),
     HuggingFile("Comfy-Org/HunyuanVideo_repackaged", "split_files/vae/hunyuan_video_vae_bf16.safetensors"),
     HuggingFile("comfyanonymous/cosmos_1.0_text_encoder_and_VAE_ComfyUI", "vae/cosmos_cv8x8x8_1.0.safetensors"),
+    HuggingFile("Comfy-Org/Lumina_Image_2.0_Repackaged", "split_files/vae/ae.safetensors", save_with_filename="lumina_image_2.0-ae.safetensors"),
 ], folder_name="vae")
 
 KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
@@ -456,6 +459,7 @@ KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
     'google/paligemma2-28b-pt-896',
     'google/paligemma-3b-ft-refcoco-seg-896',
     'microsoft/phi-4',
+    'appmana/Cosmos-1.0-Prompt-Upsampler-12B-Text2World-hf'
 }
 
 KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
@@ -474,6 +478,7 @@ KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("mcmonkey/cosmos-1.0", "Cosmos-1_0-Diffusion-14B-Video2World.safetensors"),
     HuggingFile("mcmonkey/cosmos-1.0", "Cosmos-1_0-Diffusion-7B-Text2World.safetensors"),
     HuggingFile("mcmonkey/cosmos-1.0", "Cosmos-1_0-Diffusion-7B-Video2World.safetensors"),
+    HuggingFile("Comfy-Org/Lumina_Image_2.0_Repackaged", "split_files/diffusion_models/lumina_2_model_bf16.safetensors"),
 ], folder_names=["diffusion_models", "unet"])
 
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
@@ -490,6 +495,7 @@ KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("zer0int/CLIP-GmP-ViT-L-14", "ViT-L-14-TEXT-detail-improved-hiT-GmP-TE-only-HF.safetensors"),
     HuggingFile("comfyanonymous/cosmos_1.0_text_encoder_and_VAE_ComfyUI", "text_encoders/oldt5_xxl_fp16.safetensors"),
     HuggingFile("comfyanonymous/cosmos_1.0_text_encoder_and_VAE_ComfyUI", "text_encoders/oldt5_xxl_fp8_e4m3fn_scaled.safetensors"),
+    HuggingFile("Comfy-Org/Lumina_Image_2.0_Repackaged", "split_files/text_encoders/gemma_2_2b_fp16.safetensors"),
 ], folder_names=["clip", "text_encoders"])
 
 KNOWN_STYLE_MODELS: Final[KnownDownloadables] = KnownDownloadables([

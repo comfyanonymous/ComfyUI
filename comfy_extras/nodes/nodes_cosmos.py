@@ -2,10 +2,14 @@ import torch
 
 import comfy.model_management
 import comfy.utils
+from comfy.language.language_types import LanguageModel
+from comfy.node_helpers import export_custom_nodes
 from comfy.nodes.common import MAX_RESOLUTION
+from comfy.nodes.package_typing import CustomNode, InputTypes, ValidatedNodeResult
+from comfy_extras.nodes.nodes_language import TransformersLoader, OneShotInstructTokenize, _AUTO_CHAT_TEMPLATE
 
 
-class EmptyCosmosLatentVideo:
+class EmptyCosmosLatentVideo(CustomNode):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"width": ("INT", {"default": 1280, "min": 16, "max": MAX_RESOLUTION, "step": 16}),
@@ -34,7 +38,7 @@ def vae_encode_with_padding(vae, image, width, height, length, padding=0):
     return latent_temp[:, :, :latent_len]
 
 
-class CosmosImageToVideoLatent:
+class CosmosImageToVideoLatent(CustomNode):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"vae": ("VAE",),
@@ -77,7 +81,32 @@ class CosmosImageToVideoLatent:
         return (out_latent,)
 
 
-NODE_CLASS_MAPPINGS = {
-    "EmptyCosmosLatentVideo": EmptyCosmosLatentVideo,
-    "CosmosImageToVideoLatent": CosmosImageToVideoLatent,
-}
+class CosmosPromptUpsamplerTransformersLoader(TransformersLoader):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "ckpt_name": ("STRING", {}),
+            },
+        }
+
+
+# from https://github.com/NVIDIA/Cosmos/blob/b867572b99d08f450ddb8bcd6661d8c35bf6b967/cosmos1/models/diffusion/nemo/inference/inference_utils.py#L54
+FROM_COSMOS_REPO_PROMPT_PREFIX = "Upsample the short caption to a long caption: "
+
+
+class CosmosUpsamplePromptTokenize(OneShotInstructTokenize):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "prompt": ("STRING", {"default": "", "multiline": True}),
+            },
+        }
+
+    def execute(self, model: LanguageModel, prompt: str, images: list[torch.Tensor] | torch.Tensor = None, chat_template: str = "__auto__") -> ValidatedNodeResult:
+        return super().execute(model, f"{FROM_COSMOS_REPO_PROMPT_PREFIX}{prompt}", images=None, chat_template=_AUTO_CHAT_TEMPLATE)
+
+
+export_custom_nodes()
