@@ -21,6 +21,7 @@ ASPECT_RATIO_ENUM = ["ASPECT_1_1"] + list(chain.from_iterable(
 ))
 MODELS_ENUM = ["V_2", "V_2_TURBO"]
 AUTO_PROMPT_ENUM = ["AUTO", "ON", "OFF"]
+STYLES_ENUM = ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"]
 RESOLUTION_ENUM = [f"RESOLUTION_{w}_{h}" for w, h in IDEOGRAM_RESOLUTIONS]
 
 
@@ -47,6 +48,7 @@ class IdeogramGenerate(CustomNode):
                 "negative_prompt": ("STRING", {"multiline": True}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 8}),
                 "seed": Seed,
+                "style_type": (STYLES_ENUM, {}),
             }
         }
 
@@ -55,7 +57,7 @@ class IdeogramGenerate(CustomNode):
     CATEGORY = "ideogram"
 
     def generate(self, prompt: str, resolution: str, model: str, magic_prompt_option: str,
-                 api_key: str = "", negative_prompt: str = "", num_images: int = 1, seed: int = 0) -> Tuple[torch.Tensor]:
+                 api_key: str = "", negative_prompt: str = "", num_images: int = 1, seed: int = 0, style_type: str = "AUTO") -> Tuple[torch.Tensor]:
         api_key = api_key_in_env_or_workflow(api_key)
         headers = {"Api-Key": api_key, "Content-Type": "application/json"}
 
@@ -65,7 +67,8 @@ class IdeogramGenerate(CustomNode):
                 "resolution": resolution,
                 "model": model,
                 "magic_prompt_option": magic_prompt_option,
-                "num_images": num_images
+                "num_images": num_images,
+                "style_type": style_type,
             }
         }
 
@@ -103,6 +106,7 @@ class IdeogramEdit(CustomNode):
                 "magic_prompt_option": (AUTO_PROMPT_ENUM, {"default": AUTO_PROMPT_ENUM[0]}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 8}),
                 "seed": ("INT", {"default": 0}),
+                "style_type": (STYLES_ENUM, {}),
             }
         }
 
@@ -112,7 +116,7 @@ class IdeogramEdit(CustomNode):
 
     def edit(self, images: RGBImageBatch, masks: MaskBatch, prompt: str, model: str,
              api_key: str = "", magic_prompt_option: str = "AUTO",
-             num_images: int = 1, seed: int = 0) -> Tuple[torch.Tensor]:
+             num_images: int = 1, seed: int = 0, style_type: str = "AUTO") -> Tuple[torch.Tensor]:
         api_key = api_key_in_env_or_workflow(api_key)
         headers = {"Api-Key": api_key}
         image_responses = []
@@ -137,7 +141,8 @@ class IdeogramEdit(CustomNode):
                 "prompt": prompt,
                 "model": model,
                 "magic_prompt_option": magic_prompt_option,
-                "num_images": num_images
+                "num_images": num_images,
+                "style_type": style_type,
             }
             if seed:
                 data["seed"] = seed
@@ -172,6 +177,7 @@ class IdeogramRemix(CustomNode):
                 "negative_prompt": ("STRING", {"multiline": True}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 8}),
                 "seed": ("INT", {"default": 0}),
+                "style_type": (STYLES_ENUM, {}),
             }
         }
 
@@ -181,7 +187,7 @@ class IdeogramRemix(CustomNode):
 
     def remix(self, images: torch.Tensor, prompt: str, resolution: str, model: str,
               api_key: str = "", image_weight: int = 50, magic_prompt_option: str = "AUTO",
-              negative_prompt: str = "", num_images: int = 1, seed: int = 0) -> Tuple[torch.Tensor]:
+              negative_prompt: str = "", num_images: int = 1, seed: int = 0, style_type: str = "AUTO") -> Tuple[torch.Tensor]:
         api_key = api_key_in_env_or_workflow(api_key)
         headers = {"Api-Key": api_key}
 
@@ -201,7 +207,8 @@ class IdeogramRemix(CustomNode):
                 "model": model,
                 "image_weight": image_weight,
                 "magic_prompt_option": magic_prompt_option,
-                "num_images": num_images
+                "num_images": num_images,
+                "style_type": style_type,
             }
 
             if negative_prompt:
