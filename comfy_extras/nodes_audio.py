@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torchaudio
 import torch
 import comfy.model_management
