@@ -378,6 +378,8 @@ class WanModel(torch.nn.Module):
 
         if model_type == 'i2v':
             self.img_emb = MLPProj(1280, dim, operation_settings=operation_settings)
+        else:
+            self.img_emb = None
 
     def forward_orig(
         self,
@@ -421,7 +423,7 @@ class WanModel(torch.nn.Module):
         # context
         context = self.text_embedding(torch.cat([context, context.new_zeros(context.size(0), self.text_len - context.size(1), context.size(2))], dim=1))
 
-        if clip_fea is not None:
+        if clip_fea is not None and self.img_emb is not None:
             context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
             context = torch.concat([context_clip, context], dim=1)
 
