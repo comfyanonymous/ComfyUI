@@ -5,13 +5,6 @@ import comfy.model_management
 import comfy.utils
 
 
-def masked_images(num_images):
-    rem = 4 - (num_images % 4)
-    if rem == 4:
-        return num_images
-    return rem + num_images
-
-
 class WanImageToVideo:
     @classmethod
     def INPUT_TYPES(s):
@@ -41,8 +34,8 @@ class WanImageToVideo:
             image[:start_image.shape[0]] = start_image
 
             concat_latent_image = vae.encode(image[:, :, :, :3])
-            mask = torch.ones((1, 1, latent.shape[2] * 4, concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
-            mask[:, :, :masked_images(start_image.shape[0])] = 0.0
+            mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
+            mask[:, :, :((start_image.shape[0] - 1) // 4) + 1] = 0.0
 
             positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
             negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
