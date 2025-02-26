@@ -88,9 +88,9 @@ class WanSelfAttention(nn.Module):
         q, k = apply_rope(q, k, freqs)
 
         x = optimized_attention(
-            q=q.view(b, s, n * d),
-            k=k.view(b, s, n * d),
-            v=v,
+            q.view(b, s, n * d),
+            k.view(b, s, n * d),
+            v,
             heads=self.num_heads,
         )
 
