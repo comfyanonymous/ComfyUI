@@ -313,6 +313,7 @@ def detect_unet_config(state_dict, key_prefix):
         dit_config["qk_norm"] = True
         dit_config["cross_attn_norm"] = True
         dit_config["eps"] = 1e-6
+        dit_config["in_dim"] = state_dict['{}patch_embedding.weight'.format(key_prefix)].shape[1]
         if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
             dit_config["model_type"] = "i2v"
         else:

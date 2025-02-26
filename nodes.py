@@ -2269,6 +2269,7 @@ def init_builtin_extra_nodes():
         "nodes_cosmos.py",
         "nodes_video.py",
         "nodes_lumina2.py",
+        "nodes_wan.py",
     ]
 
     import_failed = []
