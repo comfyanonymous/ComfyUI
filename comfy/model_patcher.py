@@ -639,7 +639,7 @@ class ModelPatcher:
                         mem_counter += module_mem
                         load_completely.append((module_mem, n, m, params))
 
-                if cast_weight:
+                if cast_weight and hasattr(m, "comfy_cast_weights"):
                     m.prev_comfy_cast_weights = m.comfy_cast_weights
                     m.comfy_cast_weights = True
 
