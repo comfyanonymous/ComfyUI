@@ -1,7 +1,7 @@
 <div align="center">
 
 # ComfyUI
-**The most powerful and modular diffusion model GUI and backend.**
+**The most powerful and modular visual AI engine and application.**
 
 
 [![Website][website-shield]][website-url]
