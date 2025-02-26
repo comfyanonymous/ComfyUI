@@ -28,6 +28,7 @@ import logging
 import itertools
 from torch.nn.functional import interpolate
 from einops import rearrange
+from comfy.cli_args import args
 
 ALWAYS_SAFE_LOAD = False
 if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in pytorch 2.4, the unsafe path should be removed once earlier versions are deprecated
@@ -46,18 +47,30 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
 else:
     logging.info("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
 
-def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
+def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False, disable_mmap=None):
     if device is None:
         device = torch.device("cpu")
     metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
-                sd = {}
-                for k in f.keys():
-                    sd[k] = f.get_tensor(k)
+            if disable_mmap is None:
+                disable_mmap_decision = args.disable_mmap
+            else:
+                disable_mmap_decision = True
+
+            if disable_mmap_decision:
+                pl_sd = safetensors.torch.load(open(ckpt, 'rb').read())
+                sd = {k: v.to(device) for k, v in pl_sd.items()}
                 if return_metadata:
-                    metadata = f.metadata()
+                    with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
+                        metadata = f.metadata()
+            else:
+                with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
+                    sd = {}
+                    for k in f.keys():
+                        sd[k] = f.get_tensor(k)
+                    if return_metadata:
+                        metadata = f.metadata()
         except Exception as e:
             if len(e.args) > 0:
                 message = e.args[0]
