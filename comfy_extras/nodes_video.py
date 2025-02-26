@@ -59,6 +59,7 @@ class SaveWEBM:
             frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :3] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgb24")
             for packet in stream.encode(frame):
                 container.mux(packet)
+        container.mux(stream.encode())
         container.close()
 
         results = [{
