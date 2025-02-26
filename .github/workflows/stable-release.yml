@@ -58,9 +58,9 @@ jobs:
         run: |
           cd ..
           cp -r ComfyUI ComfyUI_copy
-          curl https://www.python.org/ftp/python/3.${{ inputs.python_minor }}.${{ inputs.python_patch }}/python-3.${{ inputs.python_minor }}.${{ inputs.python_patch }}-embed-amd64.zip -o python_embeded.zip
-          unzip python_embeded.zip -d python_embeded
-          cd python_embeded
+          curl https://www.python.org/ftp/python/3.${{ inputs.python_minor }}.${{ inputs.python_patch }}/python-3.${{ inputs.python_minor }}.${{ inputs.python_patch }}-embed-amd64.zip -o python_embedded.zip
+          unzip python_embedded.zip -d python_embedded
+          cd python_embedded
           echo ${{ env.MINOR_VERSION }}
           echo 'import site' >> ./python3${{ inputs.python_minor }}._pth
           curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
@@ -73,7 +73,7 @@ jobs:
           cp taesd/*.pth ./ComfyUI_copy/models/vae_approx/
 
           mkdir ComfyUI_windows_portable
-          mv python_embeded ComfyUI_windows_portable
+          mv python_embedded ComfyUI_windows_portable
           mv ComfyUI_copy ComfyUI_windows_portable/ComfyUI
 
           cd ComfyUI_windows_portable
@@ -89,7 +89,7 @@ jobs:
           mv ComfyUI_windows_portable.7z ComfyUI/ComfyUI_windows_portable_nvidia.7z
 
           cd ComfyUI_windows_portable
-          python_embeded/python.exe -s ComfyUI/main.py --quick-test-for-ci --cpu
+          python_embedded/python.exe -s ComfyUI/main.py --quick-test-for-ci --cpu
 
           ls
 
