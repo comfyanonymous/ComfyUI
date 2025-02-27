@@ -1,0 +1,42 @@
+# 配置docker配置文件启用gpu
+#{
+#    "runtimes": {
+#        "nvidia": {
+#            "args": [],
+#            "path": "nvidia-container-runtime"
+#        }
+#    }
+#}
+# 打包启动镜像命令：docker compose build up -d
+
+version: '1'
+
+services:
+  app:
+    build: .
+    container_name: comfyui
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+
+    volumes:
+      - .:/app
+      - ./app/models/Stable-diffusion:/app/models/Stable-diffusion  # 绑定模型目录
+    ports:
+      - "8188:8188"  # 如果你的应用需要暴露端口
+    command: python main.py  # 启动 main.py 文件
+    environment:
+      - PYTHONUNBUFFERED=1  # 确保输出不会被缓冲
+    working_dir: /app
+    restart: always
+
+    networks:
+      - my_custom_network
+networks:
+  my_custom_network:
+    name: comfyui
