@@ -96,7 +96,7 @@ except:
     npu_available = False
 
 try:
-    import torch_mlu
+    import torch_mlu  # noqa: F401
     _ = torch.mlu.device_count()
     mlu_available = torch.mlu.is_available()
 except:
