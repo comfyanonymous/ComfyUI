@@ -421,7 +421,7 @@ class WanModel(torch.nn.Module):
         e0 = self.time_projection(e).unflatten(1, (6, self.dim))
 
         # context
-        context = self.text_embedding(torch.cat([context, context.new_zeros(context.size(0), self.text_len - context.size(1), context.size(2))], dim=1))
+        context = self.text_embedding(context)
 
         if clip_fea is not None and self.img_emb is not None:
             context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
