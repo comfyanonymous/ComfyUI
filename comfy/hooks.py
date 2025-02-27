@@ -587,7 +587,7 @@ def get_sorted_list_via_attr(objects: list, attr: str) -> list:
         sorted_list.extend(object_list)
     return sorted_list
 
-def create_transformer_options_from_hooks(model: ModelPatcher, hooks: HookGroup,  transformer_options: dict[str]=None):
+def create_transformer_options_from_hooks(model: ModelPatcher, hooks: HookGroup, transformer_options: dict[str]=None):
     # if no hooks or is not a ModelPatcher for sampling, return empty dict
     if hooks is None or model.is_clip:
         return {}
