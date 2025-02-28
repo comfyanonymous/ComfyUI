@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TypedDict, Optional
 
 import requests
-from comfyui_frontend import static
+import comfyui_frontend_package
 from typing_extensions import NotRequired
 
 from comfy.cli_args import DEFAULT_VERSION_STRING
@@ -112,7 +112,7 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 
 class FrontendManager:
-    DEFAULT_FRONTEND_PATH = importlib.resources.path(static, ".")
+    DEFAULT_FRONTEND_PATH = str(importlib.resources.files(comfyui_frontend_package) / "static")
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
 
     @classmethod
