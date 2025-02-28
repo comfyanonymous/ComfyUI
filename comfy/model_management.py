@@ -273,8 +273,8 @@ except:
     pass
 
 
-# if ENABLE_PYTORCH_ATTENTION:
-    # torch.backends.cuda.enable_math_sdp(True)
+if ENABLE_PYTORCH_ATTENTION:
+    torch.backends.cuda.enable_math_sdp(True)
     # torch.backends.cuda.enable_flash_sdp(True)
     # torch.backends.cuda.enable_mem_efficient_sdp(True)
 
