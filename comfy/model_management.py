@@ -19,7 +19,7 @@
 import psutil
 import logging
 from enum import Enum
-from comfy.cli_args import args
+from comfy.cli_args import args, PerformanceFeature
 import torch
 import sys
 import platform
@@ -280,7 +280,7 @@ if ENABLE_PYTORCH_ATTENTION:
 
 PRIORITIZE_FP16 = False  # TODO: remove and replace with something that shows exactly which dtype is faster than the other
 try:
-    if is_nvidia() and args.fast >= 2:
+    if is_nvidia() and PerformanceFeature.Fp16Accumulation in args.fast:
         torch.backends.cuda.matmul.allow_fp16_accumulation = True
         PRIORITIZE_FP16 = True  # TODO: limit to cards where it actually boosts performance
         logging.info("Enabled fp16 accumulation.")
