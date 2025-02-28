@@ -360,7 +360,7 @@ def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_
     if scaled_fp8 is not None:
         return scaled_fp8_ops(fp8_matrix_mult=fp8_compute, scale_input=True, override_dtype=scaled_fp8)
 
-    if fp8_compute and (fp8_optimizations or args.fast) and not disable_fast_fp8:
+    if fp8_compute and (fp8_optimizations or args.fast >= 5) and not disable_fast_fp8:
         return fp8_ops
 
     if compute_dtype is None or weight_dtype == compute_dtype:

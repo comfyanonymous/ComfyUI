@@ -896,14 +896,14 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
         return None
 
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
-    if weight_dtype is not None and model_config.scaled_fp8 is None:
-        unet_weight_dtype.append(weight_dtype)
+    if model_config.scaled_fp8 is not None:
+        weight_dtype = None
 
     model_config.custom_operations = model_options.get("custom_operations", None)
     unet_dtype = model_options.get("dtype", model_options.get("weight_dtype", None))
 
     if unet_dtype is None:
-        unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=unet_weight_dtype)
+        unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=unet_weight_dtype, weight_dtype=weight_dtype)
 
     manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
@@ -994,11 +994,11 @@ def load_diffusion_model_state_dict(sd, model_options={}): #load unet in diffuse
 
     offload_device = model_management.unet_offload_device()
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
-    if weight_dtype is not None and model_config.scaled_fp8 is None:
-        unet_weight_dtype.append(weight_dtype)
+    if model_config.scaled_fp8 is not None:
+        weight_dtype = None
 
     if dtype is None:
-        unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=unet_weight_dtype)
+        unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=unet_weight_dtype, weight_dtype=weight_dtype)
     else:
         unet_dtype = dtype
 
