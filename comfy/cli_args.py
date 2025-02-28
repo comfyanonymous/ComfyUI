@@ -130,7 +130,7 @@ parser.add_argument("--default-hashing-function", type=str, choices=['md5', 'sha
 
 parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
 parser.add_argument("--deterministic", action="store_true", help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")
-parser.add_argument("--fast", action="store_true", help="Enable some untested and potentially quality deteriorating optimizations.")
+parser.add_argument("--fast", metavar="number", type=int, const=99, default=0, nargs="?", help="Enable some untested and potentially quality deteriorating optimizations. You can pass a number from 0 to 10 for a bigger speed vs quality tradeoff. Using --fast with no number means maximum speed. 2 or larger enables fp16 accumulation, 5 or larger enables fp8 matrix multiplication.")
 
 parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
 parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
