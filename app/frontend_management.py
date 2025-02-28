@@ -12,10 +12,17 @@ from pathlib import Path
 from typing import TypedDict, Optional
 
 import requests
-import comfyui_frontend_package
 from typing_extensions import NotRequired
 
 from comfy.cli_args import DEFAULT_VERSION_STRING
+
+
+try:
+    import comfyui_frontend_package
+except ImportError as e:
+    # TODO: Remove the check after roll out of 0.3.16
+    logging.error("comfyui-frontend-package is not installed. Please install the updated requirements.txt file by running: pip install -r requirements.txt")
+    raise e
 
 
 REQUEST_TIMEOUT = 10  # seconds
