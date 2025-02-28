@@ -46,7 +46,7 @@ if torch.cuda.get_device_name().endswith("[ZLUDA]"):
     print("  ::  ZLUDA detected, disabling non-supported functions.      ")
     torch.backends.cudnn.enabled = False
     print("  ::  CuDNN, flash_sdp, mem_efficient_sdp disabled).          ")
-    torch.backends.cuda.enable_flash_sdp(False)
+    torch.backends.cuda.enable_flash_sdp(False) # enable if using 6.2 with latest nightly zluda
     torch.backends.cuda.enable_math_sdp(True)
     torch.backends.cuda.enable_mem_efficient_sdp(False)
     print("***--------------------------------------------------------***")
