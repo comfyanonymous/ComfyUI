@@ -28,6 +28,7 @@ import logging
 import itertools
 from torch.nn.functional import interpolate
 from einops import rearrange
+from comfy.cli_args import args
 
 ALWAYS_SAFE_LOAD = False
 if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in pytorch 2.4, the unsafe path should be removed once earlier versions are deprecated
@@ -46,12 +47,16 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
 else:
     logging.info("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
 
-def load_torch_file(ckpt, safe_load=False, device=None):
+def load_torch_file(ckpt, safe_load=False, device=None, disable_mmap=False):
     if device is None:
         device = torch.device("cpu")
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            sd = safetensors.torch.load_file(ckpt, device=device.type)
+            if args.disable_mmap or disable_mmap:
+                pl_sd = safetensors.torch.load(open(ckpt, 'rb').read())
+                sd = {k: v.to(device) for k, v in pl_sd.items()}
+            else:
+                sd = safetensors.torch.load_file(ckpt, device=device.type)
         except Exception as e:
             if len(e.args) > 0:
                 message = e.args[0]
