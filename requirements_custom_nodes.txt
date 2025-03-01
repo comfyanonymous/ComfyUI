@@ -1,0 +1,52 @@
+# torch
+# torchsde
+# torchvision
+# torchaudio
+# numpy>=1.25.0
+# einops
+# transformers>=4.28.1
+# tokenizers>=0.13.3
+# sentencepiece
+# safetensors>=0.4.2
+# aiohttp>=3.11.8
+# yarl>=1.18.0
+# pyyaml
+# Pillow
+# scipy
+# tqdm
+# psutil
+
+# Custom node depdencies
+tiktoken
+duckdb
+beautifulsoup4
+html2text
+huggingface_hub
+openai
+pandas
+pyarrow
+pydantic
+pytest
+pytest-asyncio
+requests
+anthropic
+aiofiles
+cohere
+httpx
+rasterio
+ComfyUI-EasyNodes
+mysql-connector-python
+networkx
+autoscraper
+backoff
+playwright
+PyPDF2
+pytest-playwright
+matplotlib
+
+# non essential dependencies:
+kornia>=0.7.1
+spandrel
+soundfile
+av
+
