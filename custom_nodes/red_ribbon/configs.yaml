@@ -1,0 +1,22 @@
+# Main Configuration File
+# These are the default settings that can be overridden by private_configs.yaml
+
+# API Settings
+API_URL: "http://localhost:8000"
+DEBUG_MODE: false
+MAX_BATCH_SIZE: 4
+
+# Model Paths
+MODEL_PATHS:
+  stable_diffusion: "models/stable-diffusion"
+  controlnet: "models/controlnet"
+  vae: "models/vae"
+  lora: "models/lora"
+
+# Custom Settings
+CUSTOM_SETTINGS:
+  cache_dir: "cache"
+  temp_dir: "temp"
+  max_image_size: 2048
+  default_sampler: "euler_a"
+  default_scheduler: "normal"

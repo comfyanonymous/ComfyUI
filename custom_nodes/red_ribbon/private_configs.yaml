@@ -1,0 +1,14 @@
+# Private Configuration File
+# These settings override the ones in configs.yaml
+# Add this file to .gitignore to keep sensitive information private
+
+# API Settings
+API_URL: "http://localhost:8001"  # Override the default port
+
+# Custom private settings
+DEBUG_MODE: true  # Enable debug mode in development environment
+
+# Custom Settings with overrides
+CUSTOM_SETTINGS:
+  api_key: "your_secret_api_key_here"  # Add private API keys
+  database_url: "postgresql://user:password@localhost:5432/db"
