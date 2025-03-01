@@ -362,7 +362,7 @@ def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_
 
     if (
         fp8_compute and
-        (fp8_optimizations or PerformanceFeature.Fp8Optimization in args.fast) and
+        (fp8_optimizations or PerformanceFeature.Fp8MatrixMultiplication in args.fast) and
         not disable_fast_fp8
     ):
         return fp8_ops
