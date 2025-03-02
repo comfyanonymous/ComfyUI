@@ -16,6 +16,7 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 
 ## What's New?
 
+* Added installing the new required package to be installed `comfyui-frontend-package` inside zluda patch, comfyui removed its web frontend from the main and it is now to be installed like the other packages, new installs will do this but previous users have to install it somehow. So here it is. It will install only one time and that would be brief. So don't be afraid if you see "Comfyui Frontend Package installed." in the commandline.
 * Changed how ZLUDA is patched into the Comfyui itself. Now code is in external file , much cleaner and easier for me the change if it becomes necessary.
 * Added a way to use any zluda you want (to use with HIP versions you want to use such as 6.1 - 6.2) After installing, close the app, run `patchzluda2.bat`. It will ask for url of the zluda build you want to use. You can choose from them here,
  [lshyqqtiger's ZLUDA Fork](https://github.com/lshqqytiger/ZLUDA/releases) then you can use `patchzluda2.bat`, run it paste the link via right click (A correct link would be like this, `https://github.com/lshqqytiger/ZLUDA/releases/download/rel.d60bddbc870827566b3d2d417e00e1d2d8acc026/ZLUDA-windows-rocm6-amd64.zip`)
