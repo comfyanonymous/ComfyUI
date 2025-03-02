@@ -1,7 +1,6 @@
 import argparse
 import enum
 import os
-from typing import Optional
 import comfy.options
 
 
