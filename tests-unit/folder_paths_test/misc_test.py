@@ -9,31 +9,31 @@ def mock_folder_structure():
         # Create a nested folder structure
         folders = [
             "folder1",
-            os.path.join("folder1", "subfolder1"),
-            os.path.join("folder1", "subfolder2"),
+            "folder1/subfolder1",
+            "folder1/subfolder2",
             "folder2",
-            os.path.join("folder2", "deep"),
-            os.path.join("folder2", "deep", "nested"),
+            "folder2/deep",
+            "folder2/deep/nested",
             "empty_folder"
         ]
-        
+
         # Create the folders
         for folder in folders:
             os.makedirs(os.path.join(temp_dir, folder))
-            
+
         # Add some files to test they're not included
         with open(os.path.join(temp_dir, "root_file.txt"), "w") as f:
             f.write("test")
         with open(os.path.join(temp_dir, "folder1", "test.txt"), "w") as f:
             f.write("test")
-            
+
         set_input_directory(temp_dir)
         yield temp_dir
 
 
 def test_gets_all_folders(mock_folder_structure):
     folders = get_input_subfolders()
-    expected = ["folder1", "folder1/subfolder1", "folder1/subfolder2", 
+    expected = ["folder1", "folder1/subfolder1", "folder1/subfolder2",
                 "folder2", "folder2/deep", "folder2/deep/nested", "empty_folder"]
     assert sorted(folders) == sorted(expected)
 

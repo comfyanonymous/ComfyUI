@@ -1,10 +1,9 @@
 import datetime
-import io
 import json
 import math
 import os
+import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 import safetensors
 import torch
@@ -17,7 +16,6 @@ import folder_paths
 import node_helpers
 from comfy.cli_args import args
 from comfy.comfy_types.node_typing import IO
-from nodes import LoadImage
 
 class TrainSampler(comfy.samplers.Sampler):
 
@@ -30,9 +28,9 @@ class TrainSampler(comfy.samplers.Sampler):
         self.optimizer.zero_grad()
         noise = model_wrap.inner_model.model_sampling.noise_scaling(sigmas, noise, latent_image, False)
         latent = model_wrap.inner_model.model_sampling.noise_scaling(
-            torch.zeros_like(sigmas), 
-            torch.zeros_like(noise, requires_grad=True), 
-            latent_image, 
+            torch.zeros_like(sigmas),
+            torch.zeros_like(noise, requires_grad=True),
+            latent_image,
             False
         )
 
@@ -42,9 +40,9 @@ class TrainSampler(comfy.samplers.Sampler):
             loss = self.loss_fn(denoised, latent.clone())
         except RuntimeError as e:
             if "does not require grad and does not have a grad_fn" in str(e):
-                print("WARNING: This is likely due to the model is loaded in inference mode.")
+                logging.info("WARNING: This is likely due to the model is loaded in inference mode.")
         loss.backward()
-        print(f"Current Training Loss: {loss.item():.6f}")
+        logging.info(f"Current Training Loss: {loss.item():.6f}")
         if self.loss_callback:
             self.loss_callback(loss.item())
 
@@ -99,7 +97,7 @@ def load_and_process_images(image_files, input_dir, resize_method="None"):
         torch.Tensor: Batch of processed images
     """
     if not image_files:
-        raise ValueError(f"No valid images found in input")
+        raise ValueError("No valid images found in input")
 
     output_images = []
     w, h = None, None
@@ -406,9 +404,7 @@ class TrainLoraNode:
                                     )
                             else:
                                 if existing_lora != "[None]":
-                                    print(
-                                        f"Warning: No existing weights found for {lora_up_key} or {lora_down_key}"
-                                    )
+                                    logging.info(f"Warning: No existing weights found for {lora_up_key} or {lora_down_key}")
                                 # Initialize new weights
                                 lora_down = torch.nn.Parameter(
                                     torch.zeros(
