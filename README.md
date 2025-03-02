@@ -12,6 +12,7 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 - [Dependencies](#dependencies)
 - [Setup (Windows-Only)](#setup-windows-only)
 - [Troubleshooting](#troubleshooting)
+- [Examples](#examples)
 - [Credits](#credits)
 
 ## What's New?
@@ -144,7 +145,7 @@ patchzluda.bat
   environment variables. Otherwise it will default to using your iGPU, which will most likely not work. This behavior is caused by a bug in the ROCm-driver.
 ___
 
-## Example Workflows
+## Examples
 
 - Image Models
    - [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/)
