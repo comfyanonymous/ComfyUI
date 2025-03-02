@@ -34,6 +34,9 @@ def get_area_and_mult(conds, x_in, timestep_in):
             return None
     if 'area' in conds:
         area = list(conds['area'])
+        while (len(area) // 2) < len(dims):
+            area = [2147483648] + area[:len(area) // 2] + [0] + area[len(area) // 2:]
+
     if 'strength' in conds:
         strength = conds['strength']
 
