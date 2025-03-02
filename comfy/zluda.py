@@ -16,6 +16,16 @@ os.environ['DISABLE_ADDMM_CUDA_LT'] = '1'
         
 import torch
 
+# Check and install comfyui-frontend-package if not installed
+try:
+    import comfyui_frontend_package
+except ImportError:
+    import subprocess
+    import sys
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'comfyui-frontend-package==1.10.17', '--quiet'])
+    print(" ")
+    print("Comfyui Frontend Package missing, it is installed. (one time only) ")
+
 #audio patch
 import torch._dynamo
 
