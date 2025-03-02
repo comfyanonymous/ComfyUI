@@ -399,23 +399,23 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
 
 def get_input_subfolders() -> list[str]:
     """Returns a list of all subfolder paths in the input directory, recursively.
-    
+
     Returns:
         List of folder paths relative to the input directory, excluding the root directory
     """
     input_dir = get_input_directory()
     folders = []
-    
+
     try:
         if not os.path.exists(input_dir):
             return []
-            
+
         for root, dirs, _ in os.walk(input_dir):
             rel_path = os.path.relpath(root, input_dir)
             if rel_path != ".":  # Only include non-root directories
                 # Normalize path separators to forward slashes
                 folders.append(rel_path.replace(os.sep, '/'))
-                
+
         return sorted(folders)
     except FileNotFoundError:
         return []

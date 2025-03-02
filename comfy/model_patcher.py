@@ -266,7 +266,7 @@ class ModelPatcher:
 
     def lowvram_patch_counter(self):
         return self.model.lowvram_patch_counter
-    
+
     def clone(self):
         n = self.__class__(self.model, self.load_device, self.offload_device, self.size, weight_inplace_update=self.weight_inplace_update)
         n.patches = {}
