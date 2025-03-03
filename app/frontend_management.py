@@ -20,7 +20,7 @@ from comfy.cli_args import DEFAULT_VERSION_STRING
 
 try:
     import comfyui_frontend_package
-except ImportError as e:
+except ImportError:
     # TODO: Remove the check after roll out of 0.3.16
     logging.error(f"\n\n********** ERROR ***********\n\ncomfyui-frontend-package is not installed. Please install the updated requirements.txt file by running:\n{sys.executable} -m pip install -r requirements.txt\n\nThis error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.\n********** ERROR **********\n")
     exit(-1)
