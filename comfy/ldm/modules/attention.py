@@ -1,4 +1,6 @@
 import math
+import sys
+
 import torch
 import torch.nn.functional as F
 from torch import nn, einsum
@@ -16,7 +18,11 @@ if model_management.xformers_enabled():
     import xformers.ops
 
 if model_management.sage_attention_enabled():
-    from sageattention import sageattn
+    try:
+        from sageattention import sageattn
+    except ModuleNotFoundError:
+        logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
+        exit(-1)
 
 from comfy.cli_args import args
 import comfy.ops
@@ -24,36 +30,22 @@ ops = comfy.ops.disable_weight_init
 
 FORCE_UPCAST_ATTENTION_DTYPE = model_management.force_upcast_attention_dtype()
 
-def get_attn_precision(attn_precision):
+def get_attn_precision(attn_precision, current_dtype):
     if args.dont_upcast_attention:
         return None
-    if FORCE_UPCAST_ATTENTION_DTYPE is not None:
-        return FORCE_UPCAST_ATTENTION_DTYPE
+
+    if FORCE_UPCAST_ATTENTION_DTYPE is not None and current_dtype in FORCE_UPCAST_ATTENTION_DTYPE:
+        return FORCE_UPCAST_ATTENTION_DTYPE[current_dtype]
     return attn_precision
 
 def exists(val):
     return val is not None
 
 
-def uniq(arr):
-    return{el: True for el in arr}.keys()
-
-
 def default(val, d):
     if exists(val):
         return val
     return d
-
-
-def max_neg_value(t):
-    return -torch.finfo(t.dtype).max
-
-
-def init_(tensor):
-    dim = tensor.shape[-1]
-    std = 1 / math.sqrt(dim)
-    tensor.uniform_(-std, std)
-    return tensor
 
 
 # feedforward
@@ -90,7 +82,7 @@ def Normalize(in_channels, dtype=None, device=None):
     return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype, device=device)
 
 def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
-    attn_precision = get_attn_precision(attn_precision)
+    attn_precision = get_attn_precision(attn_precision, q.dtype)
 
     if skip_reshape:
         b, _, _, dim_head = q.shape
@@ -159,7 +151,7 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
 
 
 def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
-    attn_precision = get_attn_precision(attn_precision)
+    attn_precision = get_attn_precision(attn_precision, query.dtype)
 
     if skip_reshape:
         b, _, _, dim_head = query.shape
@@ -229,7 +221,7 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None,
     return hidden_states
 
 def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
-    attn_precision = get_attn_precision(attn_precision)
+    attn_precision = get_attn_precision(attn_precision, q.dtype)
 
     if skip_reshape:
         b, _, _, dim_head = q.shape

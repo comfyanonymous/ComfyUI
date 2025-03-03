@@ -118,7 +118,7 @@ class BertModel_(torch.nn.Module):
         mask = None
         if attention_mask is not None:
             mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])).expand(attention_mask.shape[0], 1, attention_mask.shape[-1], attention_mask.shape[-1])
-            mask = mask.masked_fill(mask.to(torch.bool), float("-inf"))
+            mask = mask.masked_fill(mask.to(torch.bool), -torch.finfo(x.dtype).max)
 
         x, i = self.encoder(x, mask, intermediate_output)
         return x, i

@@ -1,21 +1,21 @@
 import torch
 
 class SPieceTokenizer:
-    add_eos = True
-
     @staticmethod
-    def from_pretrained(path):
-        return SPieceTokenizer(path)
+    def from_pretrained(path, **kwargs):
+        return SPieceTokenizer(path, **kwargs)
 
-    def __init__(self, tokenizer_path):
+    def __init__(self, tokenizer_path, add_bos=False, add_eos=True):
+        self.add_bos = add_bos
+        self.add_eos = add_eos
         import sentencepiece
         if torch.is_tensor(tokenizer_path):
             tokenizer_path = tokenizer_path.numpy().tobytes()
 
         if isinstance(tokenizer_path, bytes):
-            self.tokenizer = sentencepiece.SentencePieceProcessor(model_proto=tokenizer_path, add_eos=self.add_eos)
+            self.tokenizer = sentencepiece.SentencePieceProcessor(model_proto=tokenizer_path, add_bos=self.add_bos, add_eos=self.add_eos)
         else:
-            self.tokenizer = sentencepiece.SentencePieceProcessor(model_file=tokenizer_path, add_eos=self.add_eos)
+            self.tokenizer = sentencepiece.SentencePieceProcessor(model_file=tokenizer_path, add_bos=self.add_bos, add_eos=self.add_eos)
 
     def get_vocab(self):
         out = {}
