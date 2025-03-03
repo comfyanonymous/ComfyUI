@@ -399,14 +399,21 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
             if hasattr(self.processor, "to"):
                 self.processor.to(device=self.offload_device)
             assert "input_ids" in batch_feature
-            batch_feature.to(device=self.load_device, dtype=self.model_dtype())
+            try:
+                batch_feature.to(device=self.load_device, dtype=self.model_dtype())
+            except TypeError:
+                # works around Pixtral processor bug
+                batch_feature.to(self.load_device)
+                batch_feature.to(self.model_dtype())
             # noinspection PyTypeChecker
-            return {
-                "image_sizes": image_sizes,
-                "images": batch_feature["pixel_values"],
+            batch_feature_dict = {
                 "inputs": batch_feature["input_ids"],
                 **batch_feature
             }
+            if "pixel_values" in batch_feature:
+                batch_feature_dict["image_sizes"] = image_sizes
+                batch_feature_dict["images"] = batch_feature["pixel_values"]
+            return batch_feature_dict
 
     @property
     def repo_id(self) -> str:
