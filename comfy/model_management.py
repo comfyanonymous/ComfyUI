@@ -345,16 +345,16 @@ def get_torch_device_name(device):
         return "CUDA {}: {}".format(device, torch.cuda.get_device_name(device))
 
 try:
-    logging.info("Device [X]: {}".format(get_torch_device_name(get_torch_device())))
+    logging.info("Device: {}".format(get_torch_device_name(get_torch_device())))
 except:
     logging.warning("Could not pick default device.")
 try:
     for device in get_all_torch_devices(exclude_current=True):
-        logging.info("Device [ ]: {}".format(get_torch_device_name(device)))
+        logging.info("Device: {}".format(get_torch_device_name(device)))
 except:
     pass
 
-current_loaded_models = []
+current_loaded_models: list[LoadedModel] = []
 
 def module_size(module):
     module_mem = 0
@@ -1198,7 +1198,7 @@ def soft_empty_cache(force=False):
 def unload_all_models():
     free_memory(1e30, get_torch_device())
 
-def unload_model_and_clones(model: ModelPatcher, unload_additional_models=True):
+def unload_model_and_clones(model: ModelPatcher, unload_additional_models=True, all_devices=False):
     'Unload only model and its clones - primarily for multigpu cloning purposes.'
     initial_keep_loaded: list[LoadedModel] = current_loaded_models.copy()
     additional_models = []
@@ -1218,7 +1218,11 @@ def unload_model_and_clones(model: ModelPatcher, unload_additional_models=True):
             if skip:
                 continue
         keep_loaded.append(loaded_model)
-    free_memory(1e30, get_torch_device(), keep_loaded)
+    if not all_devices:
+        free_memory(1e30, get_torch_device(), keep_loaded)
+    else:
+        for device in get_all_torch_devices():
+            free_memory(1e30, device, keep_loaded)
 
 #TODO: might be cleaner to put this somewhere else
 import threading

@@ -243,7 +243,7 @@ class ModelPatcher:
         self.is_clip = False
         self.hook_mode = comfy.hooks.EnumHookMode.MaxSpeed
 
-        self.is_multigpu_clone = False
+        self.is_multigpu_base_clone = False
         self.clone_base_uuid = uuid.uuid4()
 
         if not hasattr(self.model, 'model_loaded_weight_memory'):
@@ -324,14 +324,16 @@ class ModelPatcher:
         n.is_clip = self.is_clip
         n.hook_mode = self.hook_mode
 
-        n.is_multigpu_clone = self.is_multigpu_clone
+        n.is_multigpu_base_clone = self.is_multigpu_base_clone
         n.clone_base_uuid = self.clone_base_uuid
 
         for callback in self.get_all_callbacks(CallbacksMP.ON_CLONE):
             callback(self, n)
         return n
 
-    def multigpu_deepclone(self, new_load_device=None, models_cache: dict[ModelPatcher,ModelPatcher]=None):
+    def deepclone_multigpu(self, new_load_device=None, models_cache: dict[uuid.UUID,ModelPatcher]=None):
+        logging.info(f"Creating deepclone of {self.model.__class__.__name__} for {new_load_device if new_load_device else self.load_device}.")
+        comfy.model_management.unload_model_and_clones(self)
         n = self.clone()
         # set load device, if present
         if new_load_device is not None:
@@ -350,19 +352,64 @@ class ModelPatcher:
         for key, model_list in n.additional_models.items():
             for i in range(len(model_list)):
                 add_model = n.additional_models[key][i]
-                if i not in models_cache:
-                    models_cache[add_model] = add_model.multigpu_deepclone(new_load_device=new_load_device, models_cache=models_cache)
-                n.additional_models[key][i] = models_cache[add_model]
+                if add_model.clone_base_uuid not in models_cache:
+                    models_cache[add_model.clone_base_uuid] = add_model.deepclone_multigpu(new_load_device=new_load_device, models_cache=models_cache)
+                n.additional_models[key][i] = models_cache[add_model.clone_base_uuid]
+        for callback in self.get_all_callbacks(CallbacksMP.ON_DEEPCLONE_MULTIGPU):
+            callback(self, n)
         return n
+
+    def match_multigpu_clones(self):
+        multigpu_models = self.get_additional_models_with_key("multigpu")
+        if len(multigpu_models) > 0:
+            new_multigpu_models = []
+            for mm in multigpu_models:
+                # clone main model, but bring over relevant props from existing multigpu clone
+                n = self.clone()
+                n.load_device = mm.load_device
+                n.backup = mm.backup
+                n.object_patches_backup = mm.object_patches_backup
+                n.hook_backup = mm.hook_backup
+                n.model = mm.model
+                n.is_multigpu_base_clone = mm.is_multigpu_base_clone
+                n.remove_additional_models("multigpu")
+                orig_additional_models: dict[str, list[ModelPatcher]] = comfy.patcher_extension.copy_nested_dicts(n.additional_models)
+                n.additional_models = comfy.patcher_extension.copy_nested_dicts(mm.additional_models)
+                # figure out which additional models are not present in multigpu clone
+                models_cache = {}
+                for mm_add_model in mm.get_additional_models():
+                    models_cache[mm_add_model.clone_base_uuid] = mm_add_model
+                remove_models_uuids = set(list(models_cache.keys()))
+                for key, model_list in orig_additional_models.items():
+                    for orig_add_model in model_list:
+                        if orig_add_model.clone_base_uuid not in models_cache:
+                            models_cache[orig_add_model.clone_base_uuid] = orig_add_model.deepclone_multigpu(new_load_device=n.load_device, models_cache=models_cache)
+                            existing_list = n.get_additional_models_with_key(key)
+                            existing_list.append(models_cache[orig_add_model.clone_base_uuid])
+                            n.set_additional_models(key, existing_list)
+                        if orig_add_model.clone_base_uuid in remove_models_uuids:
+                            remove_models_uuids.remove(orig_add_model.clone_base_uuid)
+                # remove duplicate additional models
+                for key, model_list in n.additional_models.items():
+                    new_model_list = [x for x in model_list if x.clone_base_uuid not in remove_models_uuids]
+                    n.set_additional_models(key, new_model_list)
+                for callback in self.get_all_callbacks(CallbacksMP.ON_MATCH_MULTIGPU_CLONES):
+                    callback(self, n)
+                new_multigpu_models.append(n)
+            self.set_additional_models("multigpu", new_multigpu_models)
 
     def is_clone(self, other):
         if hasattr(other, 'model') and self.model is other.model:
             return True
         return False
 
-    def clone_has_same_weights(self, clone: 'ModelPatcher'):
-        if not self.is_clone(clone):
-            return False
+    def clone_has_same_weights(self, clone: ModelPatcher, allow_multigpu=False):
+        if allow_multigpu:
+            if self.clone_base_uuid != clone.clone_base_uuid:
+                return False
+        else:
+            if not self.is_clone(clone):
+                return False
 
         if self.current_hooks != clone.current_hooks:
             return False
@@ -957,7 +1004,7 @@ class ModelPatcher:
         return self.additional_models.get(key, [])
 
     def get_additional_models(self):
-        all_models = []
+        all_models: list[ModelPatcher] = []
         for models in self.additional_models.values():
             all_models.extend(models)
         return all_models

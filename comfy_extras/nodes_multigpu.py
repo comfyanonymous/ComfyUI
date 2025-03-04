@@ -1,15 +1,24 @@
 from __future__ import annotations
+import logging
+from inspect import cleandoc
 
-from comfy.model_patcher import ModelPatcher
-import comfy.utils
-import comfy.patcher_extension
-import comfy.model_management
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from comfy.model_patcher import ModelPatcher
 import comfy.multigpu
 
 
-class MultiGPUInitialize:
-    NodeId = "MultiGPU_Initialize"
-    NodeName = "MultiGPU Initialize"
+class MultiGPUWorkUnitsNode:
+    """
+    Prepares model to have sampling accelerated via splitting work units.
+    
+    Should be placed after nodes that modify the model object itself, such as compile or attention-switch nodes.
+
+    Other than those exceptions, this node can be placed in any order.
+    """
+
+    NodeId = "MultiGPU_WorkUnits"
+    NodeName = "MultiGPU Work Units"
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -25,25 +34,17 @@ class MultiGPUInitialize:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "init_multigpu"
     CATEGORY = "advanced/multigpu"
+    DESCRIPTION = cleandoc(__doc__)
 
     def init_multigpu(self, model: ModelPatcher, max_gpus: int, gpu_options: comfy.multigpu.GPUOptionsGroup=None):
-        extra_devices = comfy.model_management.get_all_torch_devices(exclude_current=True)
-        extra_devices = extra_devices[:max_gpus-1]
-        if len(extra_devices) > 0:
-            model = model.clone()
-            comfy.model_management.unload_model_and_clones(model)
-            for device in extra_devices:
-                device_patcher = model.multigpu_deepclone(new_load_device=device)
-                device_patcher.is_multigpu_clone = True
-                multigpu_models = model.get_additional_models_with_key("multigpu")
-                multigpu_models.append(device_patcher)
-                model.set_additional_models("multigpu", multigpu_models)
-            if gpu_options is None:
-                gpu_options = comfy.multigpu.GPUOptionsGroup()
-            gpu_options.register(model)
+        model = comfy.multigpu.create_multigpu_deepclones(model, max_gpus, gpu_options, reuse_loaded=True)
         return (model,)
 
 class MultiGPUOptionsNode:
+    """
+    Select the relative speed of GPUs in the special case they have significantly different performance from one another.
+    """
+
     NodeId = "MultiGPU_Options"
     NodeName = "MultiGPU Options"
     @classmethod
@@ -61,6 +62,7 @@ class MultiGPUOptionsNode:
     RETURN_TYPES = ("GPU_OPTIONS",)
     FUNCTION = "create_gpu_options"
     CATEGORY = "advanced/multigpu"
+    DESCRIPTION = cleandoc(__doc__)
 
     def create_gpu_options(self, device_index: int, relative_speed: float, gpu_options: comfy.multigpu.GPUOptionsGroup=None):
         if not gpu_options:
@@ -74,7 +76,7 @@ class MultiGPUOptionsNode:
 
 
 node_list = [
-    MultiGPUInitialize,
+    MultiGPUWorkUnitsNode,
     MultiGPUOptionsNode
 ]
 NODE_CLASS_MAPPINGS = {}
@@ -83,6 +85,3 @@ NODE_DISPLAY_NAME_MAPPINGS = {}
 for node in node_list:
     NODE_CLASS_MAPPINGS[node.NodeId] = node
     NODE_DISPLAY_NAME_MAPPINGS[node.NodeId] = node.NodeName
-
-# TODO: remove
-NODE_CLASS_MAPPINGS["test_multigpuinit"] = MultiGPUInitialize

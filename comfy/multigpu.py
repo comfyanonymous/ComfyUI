@@ -1,10 +1,14 @@
 from __future__ import annotations
 import torch
+import logging
 
 from collections import namedtuple
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
+import comfy.utils
+import comfy.patcher_extension
+import comfy.model_management
 
 
 class GPUOptions:
@@ -53,6 +57,53 @@ class GPUOptionsGroup:
         model.model_options['multigpu_options'] = opts_dict
 
 
+def create_multigpu_deepclones(model: ModelPatcher, max_gpus: int, gpu_options: GPUOptionsGroup=None, reuse_loaded=False):
+    'Prepare ModelPatcher to contain deepclones of its BaseModel and related properties.'
+    model = model.clone()
+    # check if multigpu is already prepared - get the load devices from them if possible to exclude
+    skip_devices = set()
+    multigpu_models = model.get_additional_models_with_key("multigpu")
+    if len(multigpu_models) > 0:
+        for mm in multigpu_models:
+            skip_devices.add(mm.load_device)
+    skip_devices = list(skip_devices)
+
+    extra_devices = comfy.model_management.get_all_torch_devices(exclude_current=True)
+    extra_devices = extra_devices[:max_gpus-1]
+    # exclude skipped devices
+    for skip in skip_devices:
+        if skip in extra_devices:
+            extra_devices.remove(skip)
+    # create new deepclones
+    if len(extra_devices) > 0:
+        for device in extra_devices:
+            device_patcher = None
+            if reuse_loaded:
+                # check if there are any ModelPatchers currently loaded that could be referenced here after a clone
+                loaded_models: list[ModelPatcher] = comfy.model_management.loaded_models()
+                for lm in loaded_models:
+                    if lm.model is not None and lm.clone_base_uuid == model.clone_base_uuid and lm.load_device == device:
+                        device_patcher = lm.clone()
+                        logging.info(f"Reusing loaded deepclone of {device_patcher.model.__class__.__name__} for {device}")
+                        break
+            if device_patcher is None:        
+                device_patcher = model.deepclone_multigpu(new_load_device=device)
+                device_patcher.is_multigpu_base_clone = True
+            multigpu_models = model.get_additional_models_with_key("multigpu")
+            multigpu_models.append(device_patcher)
+            model.set_additional_models("multigpu", multigpu_models)
+        model.match_multigpu_clones()
+        if gpu_options is None:
+            gpu_options = GPUOptionsGroup()
+        gpu_options.register(model)
+    else:
+        logging.info("No extra torch devices need initialization, skipping initializing MultiGPU Work Units.")
+    # persist skip_devices for use in sampling code
+    # if len(skip_devices) > 0 or "multigpu_skip_devices" in model.model_options:
+    #     model.model_options["multigpu_skip_devices"] = skip_devices
+    return model
+
+
 LoadBalance = namedtuple('LoadBalance', ['work_per_device', 'idle_time'])
 def load_balance_devices(model_options: dict[str], total_work: int, return_idle_time=False, work_normalized: int=None):
     'Optimize work assigned to different devices, accounting for their relative speeds and splittable work.'
@@ -84,6 +135,7 @@ def load_balance_devices(model_options: dict[str], total_work: int, return_idle_
     completion_time = [w/r for w,r in zip(work_per_device, speed_per_device)]
     # calculate relative time spent by the devices waiting on each other after their work is completed
     idle_time = abs(min(completion_time) - max(completion_time))
+    # if need to compare work idle time, need to normalize to a common total work
     if work_normalized:
         idle_time *= (work_normalized/total_work)
     
