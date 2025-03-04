@@ -6,6 +6,7 @@ import inspect
 import logging
 import operator
 import pathlib
+import weakref
 from functools import reduce
 from typing import Optional, Any, Callable
 
@@ -43,9 +44,10 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
             processor: Optional[ProcessorMixin | AutoProcessor] = None
     ):
         self._repo_id = repo_id
-        self.model = model
+        self._model = model
         self._tokenizer = tokenizer
         self._processor = processor
+        self._object_patches: dict[str, Any] = {}
         self._parameter_count = sum(param.nelement() for param in self.model.state_dict().values())
         self._size = sum(param.nelement() * param.element_size() for param in self.model.state_dict().values())
         self.load_device = get_torch_device()
@@ -53,6 +55,7 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
         self._config_dict = config_dict
         self._on_set_processor(self._processor)
         self._model_type = ""
+        self._original_transformers_managed_model: weakref.ReferenceType["TransformersManagedModel"] = weakref.ref(self)
         if model.device != self.offload_device:
             model.to(device=self.offload_device)
 
@@ -425,6 +428,28 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
             return f"<TransformersManagedModel for {'/'.join(repo_id_as_path.parts[-2:])} ({self.model.__class__.__name__})>"
         else:
             return f"<TransformersManagedModel for {self.model.__class__.__name__}>"
+
+    def clone(self) -> TransformersManagedModel:
+        m = copy.copy(self)
+        # deep copy a few objects
+        m._object_patches = copy.copy(self._object_patches)
+        return m
+
+    def add_object_patch(self, name: str, obj: Any):
+        # for the sake of compatibility, rewrite the name to the actual model field
+        if name == "diffusion_model":
+            name = "model"
+
+        self._object_patches[name] = obj
+
+    def get_model_object(self, name: str) -> torch.nn.Module:
+        if name == "diffusion_model":
+            name = "model"
+        return super().get_model_object(name)
+
+    @property
+    def model(self) -> PreTrainedModel | torch.nn.Module:
+        return self._object_patches.get("model", self._model)
 
 
 class _ProgressTextStreamer(TextStreamer):

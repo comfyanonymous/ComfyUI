@@ -8,6 +8,8 @@ import torch._inductor.codecache
 from torch.nn import LayerNorm
 
 from comfy import model_management
+from comfy.language.language_types import LanguageModel
+from comfy.language.transformers_model_management import TransformersManagedModel
 from comfy.model_patcher import ModelPatcher
 from comfy.nodes.package_typing import CustomNode, InputTypes
 
@@ -97,7 +99,7 @@ class TorchCompileModel(CustomNode):
                 }
                 move_to_gpu = True
                 del compile_kwargs["mode"]
-            if isinstance(model, ModelPatcher):
+            if isinstance(model, ModelPatcher) or isinstance(model, TransformersManagedModel):
                 m = model.clone()
                 if move_to_gpu:
                     model_management.load_models_gpu([m])
@@ -115,12 +117,19 @@ class TorchCompileModel(CustomNode):
             else:
                 logging.warning("Encountered a model that cannot be compiled")
                 return model,
-        except OSError:
+        except OSError as os_error:
             try:
                 torch._inductor.utils.clear_inductor_caches()  # pylint: disable=no-member
             except Exception:
                 pass
-            raise
+            raise os_error
+        except Exception as exc_info:
+            try:
+                torch._inductor.utils.clear_inductor_caches()  # pylint: disable=no-member
+            except Exception:
+                pass
+            logging.error(f"An exception occurred while trying to compile {str(model)}, gracefully skipping compilation", exc_info=exc_info)
+            return model,
 
 
 _QUANTIZATION_STRATEGIES = [

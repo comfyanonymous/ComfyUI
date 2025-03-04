@@ -39,7 +39,7 @@ from .float import stochastic_rounding
 from .hooks import EnumHookMode, _HookRef, HookGroup, EnumHookType, WeightHook, create_transformer_options_from_hooks
 from .lora_types import PatchDict, PatchDictKey, PatchTuple, PatchWeightTuple, ModelPatchesDictValue
 from .model_base import BaseModel
-from .model_management_types import ModelManageable, MemoryMeasurements, ModelOptions, LatentFormatT
+from .model_management_types import ModelManageable, MemoryMeasurements, ModelOptions, LatentFormatT, LoadingListItem
 from .patcher_extension import CallbacksMP, WrappersMP, PatcherInjection
 
 logger = logging.getLogger(__name__)
@@ -627,7 +627,8 @@ class ModelPatcher(ModelManageable):
         else:
             set_func(out_weight, inplace_update=inplace_update, seed=string_to_seed(key))
 
-    def _load_list(self):
+
+    def _load_list(self) -> list[LoadingListItem]:
         loading = []
         for n, m in self.model.named_modules():
             params = []
@@ -639,7 +640,7 @@ class ModelPatcher(ModelManageable):
                     skip = True  # skip random weights in non leaf modules
                     break
             if not skip and (hasattr(m, "comfy_cast_weights") or len(params) > 0):
-                loading.append((model_management.module_size(m), n, m, params))
+                loading.append(LoadingListItem(model_management.module_size(m), n, m, params))
         return loading
 
     def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
@@ -650,13 +651,13 @@ class ModelPatcher(ModelManageable):
             lowvram_counter = 0
             loading = self._load_list()
 
-            load_completely = []
+            load_completely: list[LoadingListItem] = []
             loading.sort(reverse=True)
             for x in loading:
-                n = x[1]
-                m = x[2]
-                params = x[3]
-                module_mem = x[0]
+                n = x.name
+                m = x.module
+                params = x.params
+                module_mem = x.module_size
 
                 lowvram_weight = False
 
@@ -696,7 +697,7 @@ class ModelPatcher(ModelManageable):
 
                     if full_load or mem_counter + module_mem < lowvram_model_memory:
                         mem_counter += module_mem
-                        load_completely.append((module_mem, n, m, params))
+                        load_completely.append(LoadingListItem(module_mem, n, m, params))
 
                 if cast_weight:
                     m.prev_comfy_cast_weights = m.comfy_cast_weights
@@ -712,9 +713,9 @@ class ModelPatcher(ModelManageable):
 
             load_completely.sort(reverse=True)
             for x in load_completely:
-                n = x[1]
-                m = x[2]
-                params = x[3]
+                n = x.name
+                m = x.module
+                params = x.params
                 if hasattr(m, "comfy_patched_weights"):
                     if m.comfy_patched_weights == True:
                         continue
@@ -726,7 +727,7 @@ class ModelPatcher(ModelManageable):
                 m.comfy_patched_weights = True
 
             for x in load_completely:
-                x[2].to(device_to)
+                x.module.to(device_to)
 
             if lowvram_counter > 0:
                 logger.debug("loaded partially {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), patch_counter))
@@ -791,7 +792,9 @@ class ModelPatcher(ModelManageable):
             self.backup.clear()
 
             if device_to is not None:
-                self.model.to(device_to)
+                if hasattr(self.model, "to"):
+                    # todo: is this now redundant with self.model.to?
+                    self.model.to(device_to)
                 self.model_device = device_to
             self._memory_measurements.model_loaded_weight_memory = 0
 

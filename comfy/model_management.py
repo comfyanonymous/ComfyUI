@@ -406,7 +406,7 @@ class LoadedModel:
             self._set_model(model)
 
     @property
-    def model(self):
+    def model(self) -> ModelManageable:
         return self._model()
 
     def model_memory(self):
