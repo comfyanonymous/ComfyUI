@@ -3,8 +3,10 @@ import argparse
 import logging
 import os
 import re
+import sys
 import tempfile
 import zipfile
+import importlib
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
@@ -12,7 +14,16 @@ from typing import TypedDict, Optional
 
 import requests
 from typing_extensions import NotRequired
+
 from comfy.cli_args import DEFAULT_VERSION_STRING
+
+
+try:
+    import comfyui_frontend_package
+except ImportError:
+    # TODO: Remove the check after roll out of 0.3.16
+    logging.error(f"\n\n********** ERROR ***********\n\ncomfyui-frontend-package is not installed. Please install the updated requirements.txt file by running:\n{sys.executable} -m pip install -r requirements.txt\n\nThis error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.\n********** ERROR **********\n")
+    exit(-1)
 
 
 REQUEST_TIMEOUT = 10  # seconds
@@ -109,7 +120,7 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 
 class FrontendManager:
-    DEFAULT_FRONTEND_PATH = str(Path(__file__).parents[1] / "web")
+    DEFAULT_FRONTEND_PATH = str(importlib.resources.files(comfyui_frontend_package) / "static")
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
 
     @classmethod

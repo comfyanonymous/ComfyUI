@@ -299,6 +299,27 @@ def detect_unet_config(state_dict, key_prefix):
         dit_config["axes_lens"] = [300, 512, 512]
         return dit_config
 
+    if '{}head.modulation'.format(key_prefix) in state_dict_keys:  # Wan 2.1
+        dit_config = {}
+        dit_config["image_model"] = "wan2.1"
+        dim = state_dict['{}head.modulation'.format(key_prefix)].shape[-1]
+        dit_config["dim"] = dim
+        dit_config["num_heads"] = dim // 128
+        dit_config["ffn_dim"] = state_dict['{}blocks.0.ffn.0.weight'.format(key_prefix)].shape[0]
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
+        dit_config["patch_size"] = (1, 2, 2)
+        dit_config["freq_dim"] = 256
+        dit_config["window_size"] = (-1, -1)
+        dit_config["qk_norm"] = True
+        dit_config["cross_attn_norm"] = True
+        dit_config["eps"] = 1e-6
+        dit_config["in_dim"] = state_dict['{}patch_embedding.weight'.format(key_prefix)].shape[1]
+        if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "i2v"
+        else:
+            dit_config["model_type"] = "t2v"
+        return dit_config
+
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
 
