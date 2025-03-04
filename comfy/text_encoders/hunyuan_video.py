@@ -41,11 +41,14 @@ class HunyuanVideoTokenizer:
         self.llama_template = """<|start_header_id|>system<|end_header_id|>\n\nDescribe the video by detailing the following aspects: 1. The main content and theme of the video.2. The color, shape, size, texture, quantity, text, and spatial relationships of the objects.3. Actions, events, behaviors temporal relationships, physical movement changes of the objects.4. background environment, light, style and atmosphere.5. camera angles, movements, and transitions used in the video:<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"""  # 95 tokens
         self.llama = LLAMA3Tokenizer(embedding_directory=embedding_directory, min_length=1)
 
-    def tokenize_with_weights(self, text:str, return_word_ids=False):
+    def tokenize_with_weights(self, text:str, return_word_ids=False, llama_template=None, **kwargs):
         out = {}
         out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids)
 
-        llama_text = "{}{}".format(self.llama_template, text)
+        if llama_template is None:
+            llama_text = "{}{}".format(self.llama_template, text)
+        else:
+            llama_text = "{}{}".format(llama_template, text)
         out["llama"] = self.llama.tokenize_with_weights(llama_text, return_word_ids)
         return out
 
