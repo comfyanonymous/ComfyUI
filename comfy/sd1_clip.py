@@ -482,7 +482,7 @@ class SDTokenizer:
         return (embed, leftover)
 
 
-    def tokenize_with_weights(self, text:str, return_word_ids=False):
+    def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         '''
         Takes a prompt and converts it to a list of (token, weight, word id) elements.
         Tokens can both be integer tokens and pre computed CLIP tensors.
@@ -596,7 +596,7 @@ class SD1Tokenizer:
         tokenizer = tokenizer_data.get("{}_tokenizer_class".format(self.clip), tokenizer)
         setattr(self, self.clip, tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data))
 
-    def tokenize_with_weights(self, text:str, return_word_ids=False):
+    def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = {}
         out[self.clip_name] = getattr(self, self.clip).tokenize_with_weights(text, return_word_ids)
         return out

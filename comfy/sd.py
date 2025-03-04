@@ -134,8 +134,8 @@ class CLIP:
     def clip_layer(self, layer_idx):
         self.layer_idx = layer_idx
 
-    def tokenize(self, text, return_word_ids=False):
-        return self.tokenizer.tokenize_with_weights(text, return_word_ids)
+    def tokenize(self, text, return_word_ids=False, **kwargs):
+        return self.tokenizer.tokenize_with_weights(text, return_word_ids, **kwargs)
 
     def add_hooks_to_dict(self, pooled_dict: dict[str]):
         if self.apply_hooks_to_conds:
