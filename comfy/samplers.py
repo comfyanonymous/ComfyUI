@@ -384,7 +384,7 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
 
     devices = [dev_m for dev_m in model_options['multigpu_clones'].keys()]
     device_batched_hooked_to_run: dict[torch.device, list[tuple[comfy.hooks.HookGroup, tuple]]] = {}
-    
+
     total_conds = 0
     for to_run in hooked_to_run.values():
         total_conds += len(to_run)
@@ -504,7 +504,7 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
         new_thread = threading.Thread(target=_handle_batch, args=(device, batch_tuple, results))
         threads.append(new_thread)
         new_thread.start()
-    
+
     for thread in threads:
         thread.join()
 

@@ -1,5 +1,4 @@
 from __future__ import annotations
-import logging
 from inspect import cleandoc
 
 from typing import TYPE_CHECKING
@@ -11,7 +10,7 @@ import comfy.multigpu
 class MultiGPUWorkUnitsNode:
     """
     Prepares model to have sampling accelerated via splitting work units.
-    
+
     Should be placed after nodes that modify the model object itself, such as compile or attention-switch nodes.
 
     Other than those exceptions, this node can be placed in any order.
@@ -30,7 +29,7 @@ class MultiGPUWorkUnitsNode:
                 "gpu_options": ("GPU_OPTIONS",)
             }
         }
-    
+
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "init_multigpu"
     CATEGORY = "advanced/multigpu"

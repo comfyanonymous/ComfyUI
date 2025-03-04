@@ -18,7 +18,7 @@ class GPUOptions:
 
     def clone(self):
         return GPUOptions(self.device_index, self.relative_speed)
-    
+
     def create_dict(self):
         return {
             "relative_speed": self.relative_speed
@@ -86,7 +86,7 @@ def create_multigpu_deepclones(model: ModelPatcher, max_gpus: int, gpu_options: 
                         device_patcher = lm.clone()
                         logging.info(f"Reusing loaded deepclone of {device_patcher.model.__class__.__name__} for {device}")
                         break
-            if device_patcher is None:        
+            if device_patcher is None:
                 device_patcher = model.deepclone_multigpu(new_load_device=device)
                 device_patcher.is_multigpu_base_clone = True
             multigpu_models = model.get_additional_models_with_key("multigpu")
@@ -138,7 +138,7 @@ def load_balance_devices(model_options: dict[str], total_work: int, return_idle_
     # if need to compare work idle time, need to normalize to a common total work
     if work_normalized:
         idle_time *= (work_normalized/total_work)
-    
+
     return LoadBalance(dict_work_per_device, idle_time)
 
 def round_preserved(values: list[float]):

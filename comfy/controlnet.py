@@ -72,7 +72,7 @@ class ControlIsolation:
 
     def __enter__(self):
         self.control.previous_controlnet = None
-    
+
     def __exit__(self, *args):
         self.control.previous_controlnet = self.orig_previous_controlnet
 
@@ -151,7 +151,7 @@ class ControlBase:
     def deepclone_multigpu(self, load_device, autoregister=False):
         '''
         Create deep clone of Control object where model(s) is set to other devices.
-        
+
         When autoregister is set to True, the deep clone is also added to multigpu_clones dict.
         '''
         raise NotImplementedError("Classes inheriting from ControlBase should define their own deepclone_multigpu funtion.")
@@ -846,7 +846,7 @@ class T2IAdapter(ControlBase):
         c = T2IAdapter(self.t2i_model, self.channels_in, self.compression_ratio, self.upscale_algorithm)
         self.copy_to(c)
         return c
-    
+
     def deepclone_multigpu(self, load_device, autoregister=False):
         c = self.copy()
         c.t2i_model = copy.deepcopy(c.t2i_model)

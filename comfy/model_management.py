@@ -30,7 +30,6 @@ import gc
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
-    from comfy.model_base import BaseModel
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
