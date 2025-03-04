@@ -185,6 +185,11 @@ class BaseModel(torch.nn.Module):
 
             if concat_latent_image.shape[1:] != noise.shape[1:]:
                 concat_latent_image = utils.common_upscale(concat_latent_image, noise.shape[-1], noise.shape[-2], "bilinear", "center")
+                if noise.ndim == 5:
+                    if concat_latent_image.shape[-3] < noise.shape[-3]:
+                        concat_latent_image = torch.nn.functional.pad(concat_latent_image, (0, 0, 0, 0, 0, noise.shape[-3] - concat_latent_image.shape[-3]), "constant", 0)
+                    else:
+                        concat_latent_image = concat_latent_image[:, :, :noise.shape[-3]]
 
             concat_latent_image = utils.resize_to_batch_size(concat_latent_image, noise.shape[0])
 
@@ -213,6 +218,11 @@ class BaseModel(torch.nn.Module):
                         cond_concat.append(self.blank_inpaint_image_like(noise))
                     elif ck == "mask_inverted":
                         cond_concat.append(torch.zeros_like(noise)[:, :1])
+                if ck == "concat_image":
+                    if concat_latent_image is not None:
+                        cond_concat.append(concat_latent_image.to(device))
+                    else:
+                        cond_concat.append(torch.zeros_like(noise))
             data = torch.cat(cond_concat, dim=1)
             return data
         return None
@@ -872,19 +882,16 @@ class HunyuanVideo(BaseModel):
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
 
-        image = kwargs.get("concat_latent_image", None)
-        noise = kwargs.get("noise", None)
-
-        if image is not None:
-            padding_shape = (noise.shape[0], 16, noise.shape[2] - 1, noise.shape[3], noise.shape[4])
-            latent_padding = torch.zeros(padding_shape, device=noise.device, dtype=noise.dtype)
-            image_latents = torch.cat([image.to(noise), latent_padding], dim=2)
-            out['c_concat'] = comfy.conds.CONDNoiseShape(self.process_latent_in(image_latents))
-
         guidance = kwargs.get("guidance", 6.0)
         if guidance is not None:
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
+
+class HunyuanVideoSkyreelsI2V(HunyuanVideo):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device)
+        self.concat_keys = ("concat_image",)
+
 
 class CosmosVideo(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EDM, image_to_video=False, device=None):
