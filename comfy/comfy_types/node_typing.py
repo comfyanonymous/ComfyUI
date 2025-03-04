@@ -293,3 +293,14 @@ class CheckLazyMixin:
 
         need = [name for name in kwargs if kwargs[name] is None]
         return need
+
+
+class FileLocator(TypedDict):
+    """Provides type hinting for the file location"""
+
+    filename: str
+    """The filename of the file."""
+    subfolder: str
+    """The subfolder of the file."""
+    type: Literal["input", "output", "temp"]
+    """The root folder of the file."""

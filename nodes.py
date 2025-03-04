@@ -25,7 +25,7 @@ import comfy.sample
 import comfy.sd
 import comfy.utils
 import comfy.controlnet
-from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict
+from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
 
 import comfy.clip_vision
 
@@ -479,7 +479,7 @@ class SaveLatent:
 
         file = f"{filename}_{counter:05}_.latent"
 
-        results = list()
+        results: list[FileLocator] = []
         results.append({
             "filename": file,
             "subfolder": subfolder,
