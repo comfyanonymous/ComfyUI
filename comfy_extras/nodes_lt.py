@@ -413,7 +413,7 @@ def preprocess(image: torch.Tensor, crf=29):
     if crf == 0:
         return image
 
-    image_array = (image * 255.0).byte().cpu().numpy()
+    image_array = (image[:(image.shape[0] // 2) * 2, :(image.shape[1] // 2) * 2] * 255.0).byte().cpu().numpy()
     with io.BytesIO() as output_file:
         encode_single_frame(output_file, image_array, crf)
         video_bytes = output_file.getvalue()
@@ -449,10 +449,10 @@ class LTXVPreprocess:
     def preprocess(self, image, img_compression):
         output_image = image
         if img_compression > 0:
-            output_image = torch.zeros_like(image)
+            output_images = []
             for i in range(image.shape[0]):
-                output_image[i] = preprocess(image[i], img_compression)
-        return (output_image,)
+                output_images.append(preprocess(image[i], img_compression))
+        return (torch.stack(output_images),)
 
 
 NODE_CLASS_MAPPINGS = {
