@@ -194,11 +194,6 @@ class LTXVAddGuide:
         frame_idx, latent_idx = self.get_latent_index(positive, latent_length, frame_idx, scale_factors)
         assert latent_idx + t.shape[2] <= latent_length, "Conditioning frames exceed the length of the latent sequence."
 
-        if frame_idx == 0:
-            latent_image, noise_mask = self.replace_latent_frames(latent_image, noise_mask, t, latent_idx, strength)
-            return (positive, negative, {"samples": latent_image, "noise_mask": noise_mask},)
-
-
         num_prefix_frames = min(self._num_prefix_frames, t.shape[2])
 
         positive, negative, latent_image, noise_mask = self.append_keyframe(
@@ -252,6 +247,8 @@ class LTXVCropGuides:
         noise_mask = get_noise_mask(latent)
 
         _, num_keyframes = get_keyframe_idxs(positive)
+        if num_keyframes == 0:
+            return (positive, negative, {"samples": latent_image, "noise_mask": noise_mask},)
 
         latent_image = latent_image[:, :, :-num_keyframes]
         noise_mask = noise_mask[:, :, :-num_keyframes]
@@ -413,7 +410,7 @@ def preprocess(image: torch.Tensor, crf=29):
     if crf == 0:
         return image
 
-    image_array = (image * 255.0).byte().cpu().numpy()
+    image_array = (image[:(image.shape[0] // 2) * 2, :(image.shape[1] // 2) * 2] * 255.0).byte().cpu().numpy()
     with io.BytesIO() as output_file:
         encode_single_frame(output_file, image_array, crf)
         video_bytes = output_file.getvalue()
@@ -447,12 +444,11 @@ class LTXVPreprocess:
     CATEGORY = "image"
 
     def preprocess(self, image, img_compression):
-        output_image = image
         if img_compression > 0:
-            output_image = torch.zeros_like(image)
+            output_images = []
             for i in range(image.shape[0]):
-                output_image[i] = preprocess(image[i], img_compression)
-        return (output_image,)
+                output_images.append(preprocess(image[i], img_compression))
+        return (torch.stack(output_images),)
 
 
 NODE_CLASS_MAPPINGS = {
