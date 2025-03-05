@@ -28,7 +28,9 @@ def _import_nodes_in_module(exported_nodes: ExportedNodes, module: types.ModuleT
         exported_nodes.NODE_DISPLAY_NAME_MAPPINGS.update(node_display_names)
     if web_directory:
         # load the extension resources path
-        abs_web_directory = os.path.abspath(get_package_as_path(module.__name__, web_directory))
+        abs_web_directory = web_directory
+        if not os.path.isdir(abs_web_directory):
+            abs_web_directory = os.path.abspath(get_package_as_path(module.__name__, web_directory))
         if not os.path.isdir(abs_web_directory):
             abs_web_directory = os.path.abspath(os.path.join(os.path.dirname(module.__file__), web_directory))
         if not os.path.isdir(abs_web_directory):

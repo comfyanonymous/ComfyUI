@@ -21,7 +21,7 @@ from comfy.language.language_types import GENERATION_KWARGS_TYPE, GENERATION_KWA
 from comfy.language.transformers_model_management import TransformersManagedModel
 from comfy.model_downloader import get_huggingface_repo_list, get_or_download_huggingface_repo
 from comfy.model_management import get_torch_device_name, unet_dtype, unet_offload_device
-from comfy.node_helpers import export_custom_nodes
+from comfy.node_helpers import export_custom_nodes, export_package_as_web_directory
 from comfy.nodes.package_typing import CustomNode, InputTypes, ValidatedNodeResult, Seed
 
 _AUTO_CHAT_TEMPLATE = "default"
@@ -422,3 +422,4 @@ class SaveString(CustomNode):
 
 
 export_custom_nodes()
+export_package_as_web_directory("comfy_extras.language_web")

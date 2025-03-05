@@ -3,6 +3,7 @@ import hashlib
 from PIL import ImageFile, UnidentifiedImageError
 
 from .cli_args import args
+from .component_model.files import get_package_as_path
 
 
 def conditioning_set_values(conditioning, values: dict = None):
@@ -75,6 +76,18 @@ def export_custom_nodes():
 
     return custom_nodes
 
+def export_package_as_web_directory(package:str):
+    import inspect
+
+    # Get the calling module
+    frame = inspect.currentframe()
+    try:
+        module = inspect.getmodule(frame.f_back)
+        setattr(module, 'WEB_DIRECTORY', get_package_as_path(package))
+
+    finally:
+        # Clean up circular reference
+        del frame
 
 def string_to_torch_dtype(string):
     import torch
