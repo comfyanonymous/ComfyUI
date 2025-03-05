@@ -425,10 +425,7 @@ def controlnet_config(sd, model_options=None):
         weight_dtype = utils.weight_dtype(sd)
 
         supported_inference_dtypes = list(model_config.supported_inference_dtypes)
-        if weight_dtype is not None:
-            supported_inference_dtypes.append(weight_dtype)
-
-        unet_dtype = model_management.unet_dtype(model_params=-1, supported_dtypes=supported_inference_dtypes)
+        unet_dtype = model_management.unet_dtype(model_params=-1, supported_dtypes=supported_inference_dtypes, weight_dtype=weight_dtype)
 
     load_device = model_management.get_torch_device()
     manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device)
@@ -765,10 +762,7 @@ def load_controlnet_state_dict(state_dict, model=None, model_options=None, ckpt_
         if supported_inference_dtypes is None:
             supported_inference_dtypes = [model_management.unet_dtype()]
 
-        if weight_dtype is not None:
-            supported_inference_dtypes.append(weight_dtype)
-
-        unet_dtype = model_management.unet_dtype(model_params=-1, supported_dtypes=supported_inference_dtypes)
+        unet_dtype = model_management.unet_dtype(model_params=-1, supported_dtypes=supported_inference_dtypes, weight_dtype=weight_dtype)
 
     load_device = model_management.get_torch_device()
 

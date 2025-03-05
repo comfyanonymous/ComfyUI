@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import hashlib
 import io
 import json
@@ -11,6 +13,7 @@ import comfy.model_management
 from comfy import node_helpers
 from comfy.cli_args import args
 from comfy.cmd import folder_paths
+from comfy.comfy_types import FileLocator
 
 
 class TorchAudioNotFoundError(ModuleNotFoundError):
@@ -187,7 +190,7 @@ class SaveAudio:
 
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
-        results = list()
+        results: list[FileLocator] = []
 
         metadata = {}
         if not args.disable_metadata:

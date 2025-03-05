@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import collections
 import enum
-from pathlib import Path
+import os
 from typing import Optional, List, Callable, Any, Union, Mapping, NamedTuple
 
 import configargparse
@@ -30,6 +29,22 @@ class ConfigChangeHandler(FileSystemEventHandler):
 
 
 ConfigObserver = Callable[[str, Any], None]
+
+
+def is_valid_directory(path: str) -> str:
+    """Validate if the given path is a directory, and check permissions."""
+    if not os.path.exists(path):
+        raise argparse.ArgumentTypeError(f"The path '{path}' does not exist.")
+    if not os.path.isdir(path):
+        raise argparse.ArgumentTypeError(f"'{path}' is not a directory.")
+    if not os.access(path, os.R_OK):
+        raise argparse.ArgumentTypeError(f"You do not have read permissions for '{path}'.")
+    return path
+
+
+class PerformanceFeature(enum.Enum):
+    Fp16Accumulation = "fp16_accumulation"
+    Fp8MatrixMultiplication = "fp8_matrix_mult"
 
 
 class Configuration(dict):
@@ -89,7 +104,7 @@ class Configuration(dict):
         lowvram (bool): Reduce UNet's VRAM usage.
         novram (bool): Minimize VRAM usage.
         cpu (bool): Use CPU for processing.
-        fast (bool): Enable some untested and potentially quality deteriorating optimizations
+        fast (set[PerformanceFeature]): Enable some untested and potentially quality deteriorating optimizations. Pass a list specific optimizations if you only want to enable specific ones. Current valid optimizations: fp16_accumulation fp8_matrix_mult
         reserve_vram (Optional[float]): Set the amount of vram in GB you want to reserve for use by your OS/other software. By default some amount is reserved depending on your OS
         disable_smart_memory (bool): Disable smart memory management.
         deterministic (bool): Use deterministic algorithms where possible.
@@ -181,7 +196,7 @@ class Configuration(dict):
         self.lowvram: bool = False
         self.novram: bool = False
         self.cpu: bool = False
-        self.fast: bool = False
+        self.fast: set[PerformanceFeature] = set()
         self.reserve_vram: Optional[float] = None
         self.disable_smart_memory: bool = False
         self.deterministic: bool = False

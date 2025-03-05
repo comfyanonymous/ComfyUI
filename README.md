@@ -3,6 +3,7 @@ ComfyUI LTS
 
 A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyui) intended for long term support (LTS) from [AppMana](https://appmana.com) and [Hidden Switch](https://hiddenswitch.com).
 
+
 ### New Features
 
 - To run, just type `comfyui` in your command line and press enter.
@@ -17,8 +18,28 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 - [Containers](#containers) for running on Linux, Windows and Kubernetes with CUDA acceleration.
 - Automated tests for new features.
 
-### Upstream Features
+![ComfyUI Screenshot](https://github.com/user-attachments/assets/7ccaf2c1-9b72-41ae-9a89-5688c94b7abe)
 
+ComfyUI lets you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. Available on Windows, Linux, and macOS.
+
+## Get Started
+
+#### [Desktop Application](https://www.comfy.org/download)
+- The easiest way to get started. 
+- Available on Windows & macOS.
+
+#### [Windows Portable Package](#installing)
+- Get the latest commits and completely portable.
+- Available on Windows.
+
+#### [Manual Install](#manual-install-windows-linux)
+Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon, Ascend).
+
+## [Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
+See what ComfyUI can do with the [example workflows](https://comfyanonymous.github.io/ComfyUI_examples/).
+
+
+## Upstream Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
 - Image Models
    - SD1.x, SD2.x,
@@ -36,6 +57,7 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
    - [LTX-Video](https://comfyanonymous.github.io/ComfyUI_examples/ltxv/)
    - [Hunyuan Video](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_video/)
    - [Nvidia Cosmos](https://comfyanonymous.github.io/ComfyUI_examples/cosmos/)
+   - [Wan 2.1](https://comfyanonymous.github.io/ComfyUI_examples/wan/)
 - [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
@@ -333,6 +355,17 @@ For models compatible with Ascend Extension for PyTorch (`torch_npu`). To get st
 2. Proceed with the installation of Ascend Basekit, which includes the driver, firmware, and CANN, following the instructions provided for your specific platform.
 3. Next, install the necessary packages for torch-npu by adhering to the platform-specific instructions on the [Installation](https://ascend.github.io/docs/sources/pytorch/install.html#pytorch) page.
 4. Finally, adhere to the [ComfyUI manual installation](#manual-install-windows-linux) guide for Linux. Once all components are installed, you can run ComfyUI as described earlier.
+
+###### Notes for Cambricon MLU Users
+
+These instructions from upstream have not yet been validated.
+
+For models compatible with Cambricon Extension for PyTorch (`torch_mlu`). Here's a step-by-step guide tailored to your platform and installation method:
+
+1. Install the Cambricon CNToolkit by adhering to the platform-specific instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cntoolkit_3.7.2/cntoolkit_install_3.7.2/index.html)
+2. Next, install the PyTorch (`torch_mlu`) extension following the instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cambricon_pytorch_1.17.0/user_guide_1.9/index.html)
+3. Launch ComfyUI by running `python main.py`
+
 
 ## Manual Install (Windows, Linux, macOS) For Development
 

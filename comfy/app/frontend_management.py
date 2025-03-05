@@ -11,12 +11,13 @@ from functools import cached_property
 from pathlib import Path
 from typing import TypedDict, Optional
 
+import comfyui_frontend_package
 import requests
+import importlib.resources
 from typing_extensions import NotRequired
 
 from ..cli_args import DEFAULT_VERSION_STRING
-from ..cmd.folder_paths import add_model_folder_path  # pylint: disable=import-error
-from ..component_model.files import get_package_as_path
+from ..cmd.folder_paths import add_model_folder_path
 
 REQUEST_TIMEOUT = 10  # seconds
 
@@ -112,7 +113,7 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 
 class FrontendManager:
-    DEFAULT_FRONTEND_PATH = get_package_as_path('comfy', 'web/')
+    DEFAULT_FRONTEND_PATH = str(importlib.resources.files(comfyui_frontend_package) / "static")
     CUSTOM_FRONTENDS_ROOT = add_model_folder_path("web_custom_versions", extensions=set())
 
     @classmethod

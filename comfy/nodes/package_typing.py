@@ -7,6 +7,8 @@ from typing import Union, Optional, Sequence, Dict, ClassVar, Protocol, Tuple, T
 
 from typing_extensions import TypedDict, NotRequired
 
+from comfy.comfy_types import FileLocator
+
 T = TypeVar('T')
 
 
@@ -17,6 +19,7 @@ class IntSpecOptions(TypedDict, total=True):
     step: NotRequired[int]
     display: NotRequired[Literal["number", "slider"]]
     lazy: NotRequired[bool]
+    control_after_generate: NotRequired[bool]
 
 
 class FloatSpecOptions(TypedDict, total=True):
@@ -66,7 +69,7 @@ InputTypeSpec = Union[IntSpec, FloatSpec, StringSpec, BooleanSpec, ChoiceSpec, N
 
 # numpy seeds must be between 0 and 2**32 - 1
 Seed = ("INT", {"default": 0, "min": 0, "max": 2 ** 32 - 1})
-Seed64 = ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
+Seed64 = ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True})
 SeedSpec = tuple[Literal["INT"], TypedDict("SeedSpecOptions", {"default": Literal[0], "min": Literal[0], "max": Literal[4294967295]})]
 
 
@@ -91,11 +94,14 @@ class FunctionReturnsUIVariables(TypedDict):
     result: NotRequired[Sequence[Any]]
 
 
-class SaveNodeResult(TypedDict, total=True):
+class SaveNodeResultT(TypedDict, total=True):
     abs_path: NotRequired[str]
     filename: str
     subfolder: str
     type: Literal["output", "input", "temp"]
+
+
+SaveNodeResult = SaveNodeResultT | FileLocator
 
 
 class UIImagesImagesResult(TypedDict, total=True):
@@ -105,6 +111,7 @@ class UIImagesImagesResult(TypedDict, total=True):
 class UIImagesResult(TypedDict, total=True):
     ui: UIImagesImagesResult
     result: NotRequired[Sequence[Any]]
+    animated: NotRequired[tuple[bool, ...]]
 
 
 class UILatentsLatentsResult(TypedDict, total=True):

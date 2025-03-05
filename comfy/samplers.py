@@ -25,6 +25,12 @@ from .model_patcher import ModelPatcher
 from .sampler_names import SCHEDULER_NAMES, SAMPLER_NAMES
 
 
+
+def add_area_dims(area, num_dims):
+    while (len(area) // 2) < num_dims:
+        area = [2147483648] + area[:len(area) // 2] + [0] + area[len(area) // 2:]
+    return area
+
 def get_area_and_mult(conds, x_in, timestep_in):
     dims = tuple(x_in.shape[2:])
     area = None
@@ -40,6 +46,10 @@ def get_area_and_mult(conds, x_in, timestep_in):
             return None
     if 'area' in conds:
         area = list(conds['area'])
+        area = add_area_dims(area, len(dims))
+        if (len(area) // 2) > len(dims):
+            area = area[:len(dims)] + area[len(area) // 2:(len(area) // 2) + len(dims)]
+
     if 'strength' in conds:
         strength = conds['strength']
 
@@ -70,8 +80,9 @@ def get_area_and_mult(conds, x_in, timestep_in):
     mult = mask * strength
 
     if 'mask' not in conds and area is not None:
-        rr = 8
+        fuzz = 8
         for i in range(len(dims)):
+            rr = min(fuzz, mult.shape[2 + i] // 4)
             if area[len(dims) + i] != 0:
                 for t in range(rr):
                     m = mult.narrow(i + 2, t, 1)
@@ -580,25 +591,37 @@ def resolve_areas_and_cond_masks(conditions, h, w, device):
     return resolve_areas_and_cond_masks_multidim(conditions, [h, w], device)
 
 
-def create_cond_with_same_area_if_none(conds, c):  # TODO: handle dim != 2
+def create_cond_with_same_area_if_none(conds, c):
     if 'area' not in c:
         return
+
+    def area_inside(a, area_cmp):
+        a = add_area_dims(a, len(area_cmp) // 2)
+        area_cmp = add_area_dims(area_cmp, len(a) // 2)
+
+        a_l = len(a) // 2
+        area_cmp_l = len(area_cmp) // 2
+        for i in range(min(a_l, area_cmp_l)):
+            if a[a_l + i] < area_cmp[area_cmp_l + i]:
+                return False
+        for i in range(min(a_l, area_cmp_l)):
+            if (a[i] + a[a_l + i]) > (area_cmp[i] + area_cmp[area_cmp_l + i]):
+                return False
+        return True
 
     c_area = c['area']
     smallest = None
     for x in conds:
         if 'area' in x:
             a = x['area']
-            if c_area[2] >= a[2] and c_area[3] >= a[3]:
-                if a[0] + a[2] >= c_area[0] + c_area[2]:
-                    if a[1] + a[3] >= c_area[1] + c_area[3]:
-                        if smallest is None:
-                            smallest = x
-                        elif 'area' not in smallest:
-                            smallest = x
-                        else:
-                            if smallest['area'][0] * smallest['area'][1] > a[0] * a[1]:
-                                smallest = x
+            if area_inside(c_area, a):
+                if smallest is None:
+                    smallest = x
+                elif 'area' not in smallest:
+                    smallest = x
+                else:
+                    if math.prod(smallest['area'][:len(smallest['area']) // 2]) > math.prod(a[:len(a) // 2]):
+                        smallest = x
         else:
             if smallest is None:
                 smallest = x

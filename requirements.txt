@@ -1,3 +1,4 @@
+comfyui-frontend-package==1.10.17
 torch
 torchvision
 torchdiffeq>=0.2.3

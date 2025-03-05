@@ -170,6 +170,7 @@ def mitigated_import_of_vanilla_custom_nodes() -> ExportedNodes:
     from ..cmd import cuda_malloc, folder_paths, latent_preview
     from .. import graph, graph_utils, caching
     from .. import node_helpers
+    from .. import __version__
     for module in (cuda_malloc, folder_paths, latent_preview, node_helpers):
         module_short_name = module.__name__.split(".")[-1]
         sys.modules[module_short_name] = module
@@ -177,6 +178,9 @@ def mitigated_import_of_vanilla_custom_nodes() -> ExportedNodes:
     sys.modules['comfy_execution.graph'] = graph
     sys.modules['comfy_execution.graph_utils'] = graph_utils
     sys.modules['comfy_execution.caching'] = caching
+    comfyui_version = types.ModuleType('comfyui_version', '')
+    setattr(comfyui_version, "__version__", __version__)
+    sys.modules['comfyui_version'] = comfyui_version
     from ..cmd import execution, server
     for module in (execution, server):
         module_short_name = module.__name__.split(".")[-1]

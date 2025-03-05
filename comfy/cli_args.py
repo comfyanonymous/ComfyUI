@@ -13,7 +13,7 @@ from watchdog.observers import Observer
 from . import __version__
 from . import options
 from .cli_args_types import LatentPreviewMethod, Configuration, ConfigurationExtender, ConfigChangeHandler, EnumAction, \
-    EnhancedConfigArgParser
+    EnhancedConfigArgParser, PerformanceFeature, is_valid_directory
 
 # todo: move this
 DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
@@ -127,7 +127,8 @@ def _create_parser() -> EnhancedConfigArgParser:
                         help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
     parser.add_argument("--deterministic", action="store_true",
                         help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")
-    parser.add_argument("--fast", action="store_true", help="Enable some untested and potentially quality deteriorating optimizations.")
+
+    parser.add_argument("--fast", nargs="*", type=PerformanceFeature, help="Enable some untested and potentially quality deteriorating optimizations. Pass a list specific optimizations if you only want to enable specific ones. Current valid optimizations: fp16_accumulation fp8_matrix_mult")
 
     parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
     parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI. Raises an error if nodes cannot be imported,")
@@ -201,15 +202,6 @@ def _create_parser() -> EnhancedConfigArgParser:
         type=str,
         default=[]
     )
-
-    def is_valid_directory(path: Optional[str]) -> Optional[str]:
-        """Validate if the given path is a directory."""
-        if path is None:
-            return None
-
-        if not os.path.isdir(path):
-            raise argparse.ArgumentTypeError(f"{path} is not a valid directory.")
-        return path
 
     parser.add_argument(
         "--front-end-root",

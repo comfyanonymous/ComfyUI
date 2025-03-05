@@ -83,14 +83,20 @@ def _get_progress_bar_enabled():
 setattr(sys.modules[__name__], 'PROGRESS_BAR_ENABLED', property(_get_progress_bar_enabled))
 
 
-def load_torch_file(ckpt: str, safe_load=False, device=None):
+def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=False):
     if device is None:
         device = torch.device("cpu")
     if ckpt is None:
         raise FileNotFoundError("the checkpoint was not found")
+    metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            sd = safetensors.torch.load_file(Path(ckpt).resolve(strict=True), device=device.type)
+            with safetensors.safe_open(Path(ckpt).resolve(strict=True), framework="pt", device=device.type) as f:
+                sd = {}
+                for k in f.keys():
+                    sd[k] = f.get_tensor(k)
+                if return_metadata:
+                    metadata = f.metadata()
         except Exception as e:
             if len(e.args) > 0:
                 message = e.args[0]
@@ -147,7 +153,7 @@ def load_torch_file(ckpt: str, safe_load=False, device=None):
                 else:
                     logger.error(msg, exc_info=exc_info)
             raise exc_info
-    return sd
+    return (sd, metadata) if return_metadata else sd
 
 
 def save_torch_file(sd, ckpt, metadata=None):

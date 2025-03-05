@@ -11,14 +11,13 @@
 /notebooks/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata @Kosinkadink
 /script_examples/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata @Kosinkadink
 /.github/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata @Kosinkadink
+/requirements.txt @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata @Kosinkadink
+/pyproject.toml @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata @Kosinkadink
 
 # Python web server
 /api_server/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 /app/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 /utils/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
-
-# Frontend assets
-/web/ @huchenlei @webfiltered @pythongosssss @yoland68 @robinjhuang
 
 # Extra nodes
 /comfy_extras/ @yoland68 @robinjhuang @huchenlei @pythongosssss @ltdrdata @Kosinkadink

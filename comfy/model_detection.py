@@ -1,3 +1,4 @@
+import json
 import logging
 import math
 
@@ -37,7 +38,7 @@ def calculate_transformer_depth(prefix, state_dict_keys, state_dict):
     return None
 
 
-def detect_unet_config(state_dict, key_prefix):
+def detect_unet_config(state_dict, key_prefix, metadata=None):
     state_dict_keys = list(state_dict.keys())
 
     if '{}joint_blocks.0.context_block.attn.qkv.weight'.format(key_prefix) in state_dict_keys:  # mmdit model
@@ -137,10 +138,10 @@ def detect_unet_config(state_dict, key_prefix):
             unet_config["image_model"] = "hydit1"
         return unet_config
 
-    if '{}txt_in.individual_token_refiner.blocks.0.norm1.weight'.format(key_prefix) in state_dict_keys: #Hunyuan Video
+    if '{}txt_in.individual_token_refiner.blocks.0.norm1.weight'.format(key_prefix) in state_dict_keys:  # Hunyuan Video
         dit_config = {}
         dit_config["image_model"] = "hunyuan_video"
-        dit_config["in_channels"] = state_dict['{}img_in.proj.weight'.format(key_prefix)].shape[1] #SkyReels img2video has 32 input channels
+        dit_config["in_channels"] = state_dict['{}img_in.proj.weight'.format(key_prefix)].shape[1]  # SkyReels img2video has 32 input channels
         dit_config["patch_size"] = [1, 2, 2]
         dit_config["out_channels"] = 16
         dit_config["vec_in_dim"] = 768
@@ -211,12 +212,14 @@ def detect_unet_config(state_dict, key_prefix):
         # PixArt diffusers
         return None
 
-    if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys: #Lightricks ltxv
+    if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys:  # Lightricks ltxv
         dit_config = {}
         dit_config["image_model"] = "ltxv"
+        if metadata is not None and "config" in metadata:
+            dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
         return dit_config
 
-    if '{}t_block.1.weight'.format(key_prefix) in state_dict_keys: # PixArt
+    if '{}t_block.1.weight'.format(key_prefix) in state_dict_keys:  # PixArt
         patch_size = 2
         dit_config = {}
         dit_config["num_heads"] = 16
@@ -232,7 +235,7 @@ def detect_unet_config(state_dict, key_prefix):
         pe_key = "{}pos_embed".format(key_prefix)
         if pe_key in state_dict_keys:
             dit_config["input_size"] = int(math.sqrt(state_dict[pe_key].shape[1])) * patch_size
-            dit_config["pe_interpolation"] = dit_config["input_size"] // (512//8) # guess
+            dit_config["pe_interpolation"] = dit_config["input_size"] // (512 // 8)  # guess
 
         ar_key = "{}ar_embedder.mlp.0.weight".format(key_prefix)
         if ar_key in state_dict_keys:
@@ -301,6 +304,27 @@ def detect_unet_config(state_dict, key_prefix):
         dit_config["qk_norm"] = True
         dit_config["axes_dims"] = [32, 32, 32]
         dit_config["axes_lens"] = [300, 512, 512]
+        return dit_config
+
+    if '{}head.modulation'.format(key_prefix) in state_dict_keys:  # Wan 2.1
+        dit_config = {}
+        dit_config["image_model"] = "wan2.1"
+        dim = state_dict['{}head.modulation'.format(key_prefix)].shape[-1]
+        dit_config["dim"] = dim
+        dit_config["num_heads"] = dim // 128
+        dit_config["ffn_dim"] = state_dict['{}blocks.0.ffn.0.weight'.format(key_prefix)].shape[0]
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
+        dit_config["patch_size"] = (1, 2, 2)
+        dit_config["freq_dim"] = 256
+        dit_config["window_size"] = (-1, -1)
+        dit_config["qk_norm"] = True
+        dit_config["cross_attn_norm"] = True
+        dit_config["eps"] = 1e-6
+        dit_config["in_dim"] = state_dict['{}patch_embedding.weight'.format(key_prefix)].shape[1]
+        if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "i2v"
+        else:
+            dit_config["model_type"] = "t2v"
         return dit_config
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
@@ -438,8 +462,8 @@ def model_config_from_unet_config(unet_config, state_dict=None):
     return None
 
 
-def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False):
-    unet_config = detect_unet_config(state_dict, unet_key_prefix)
+def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False, metadata=None):
+    unet_config = detect_unet_config(state_dict, unet_key_prefix, metadata=metadata)
     if unet_config is None:
         return None
     model_config = model_config_from_unet_config(unet_config, state_dict)
@@ -459,7 +483,7 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
 def unet_prefix_from_state_dict(state_dict):
     candidates = ["model.diffusion_model.",  # ldm/sgm models
                   "model.model.",  # audio models
-                  "net.", #cosmos
+                  "net.",  # cosmos
                   ]
     counts = {k: 0 for k in candidates}
     for k in state_dict:
@@ -671,7 +695,7 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
         num_joint = count_blocks(state_dict, 'joint_transformer_blocks.{}.')
         num_single = count_blocks(state_dict, 'single_transformer_blocks.{}.')
         sd_map = utils.auraflow_to_diffusers({"n_double_layers": num_joint, "n_layers": num_joint + num_single}, output_prefix=output_prefix)
-    elif 'adaln_single.emb.timestep_embedder.linear_1.bias' in state_dict and 'pos_embed.proj.bias' in state_dict: # PixArt
+    elif 'adaln_single.emb.timestep_embedder.linear_1.bias' in state_dict and 'pos_embed.proj.bias' in state_dict:  # PixArt
         num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
         sd_map = utils.pixart_to_diffusers({"depth": num_blocks}, output_prefix=output_prefix)
     elif 'x_embedder.weight' in state_dict:  # Flux
