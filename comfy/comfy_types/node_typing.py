@@ -134,6 +134,8 @@ class InputTypeOptions(TypedDict):
     """
     remote: RemoteInputOptions
     """Specifies the configuration for a remote input."""
+    control_after_generate: bool
+    """Specifies whether a control widget should be added to the input, adding options to automatically change the value after each prompt is queued. Currently only used for INT and COMBO types."""
 
 
 class HiddenInputTypeDict(TypedDict):

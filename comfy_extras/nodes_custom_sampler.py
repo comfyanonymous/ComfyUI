@@ -454,7 +454,7 @@ class SamplerCustom:
         return {"required":
                     {"model": ("MODEL",),
                     "add_noise": ("BOOLEAN", {"default": True}),
-                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
                     "positive": ("CONDITIONING", ),
                     "negative": ("CONDITIONING", ),
@@ -605,10 +605,16 @@ class DisableNoise:
 class RandomNoise(DisableNoise):
     @classmethod
     def INPUT_TYPES(s):
-        return {"required":{
-                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                     }
-                }
+        return {
+            "required": {
+                "noise_seed": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 0xffffffffffffffff,
+                    "control_after_generate": True,
+                }),
+            }
+        }
 
     def get_noise(self, noise_seed):
         return (Noise_RandomNoise(noise_seed),)
