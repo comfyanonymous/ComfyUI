@@ -762,7 +762,7 @@ class LTXV(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.LTXV
 
-    memory_usage_factor = 2.7
+    memory_usage_factor = 5.5 # TODO: img2vid is about 2x vs txt2vid
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
