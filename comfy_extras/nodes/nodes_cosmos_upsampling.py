@@ -1,3 +1,4 @@
+import logging
 import re
 from pathlib import Path
 from typing import Optional
@@ -24,7 +25,22 @@ Your task is to transform a given prompt into a refined and concise video descri
 Focus only on the content, no filler words or descriptions on the style. Never mention things outside the video.
 """
 
+logger = logging.getLogger(__name__)
 
+
+def _log_install_cosmos():
+    logger.error("""
+Cosmos was not installed. Install it using 
+
+pip install loguru pynvml
+pip install --no-deps git+https://github.com/NVIDIA/Cosmos.git
+
+then restart this instance.
+
+""")
+
+
+# from cosmos repository, obviously written by Claude
 def clean_text(text: str) -> str:
     """Clean the text by removing prefixes, suffixes, formatting markers, and normalizing whitespace."""
     # Replace all variations of newlines with a space
@@ -57,7 +73,7 @@ def clean_text(text: str) -> str:
     text = " ".join(text.split())
 
     # Strip any remaining leading/trailing punctuation, whitespace, and quotes
-    text = text.strip(' -,*:"\'"“”')
+    text = text.strip(' -,*:"\'"“”')  # pylint: disable=bad-str-strip-call
 
     return text
 
@@ -79,8 +95,12 @@ class Mistral12b(LanguageModel):
 
     @staticmethod
     def from_pretrained(ckpt_name: str, subfolder: Optional[str] = None) -> "Mistral12b":
-        from cosmos1.models.autoregressive.configs.base.model_config import create_text_model_config  # pylint: disable=import-error
-        from cosmos1.models.autoregressive.model import AutoRegressiveModel  # pylint: disable=import-error
+        try:
+            from cosmos1.models.autoregressive.configs.base.model_config import create_text_model_config  # pylint: disable=import-error
+            from cosmos1.models.autoregressive.model import AutoRegressiveModel  # pylint: disable=import-error
+        except (ImportError, ModuleNotFoundError) as exc_info:
+            _log_install_cosmos()
+            raise exc_info
         checkpoint_dir = get_or_download_huggingface_repo(ckpt_name)
         assert checkpoint_dir is not None, f"did not successfully download {ckpt_name}"
         checkpoint_dir = Path(checkpoint_dir)
@@ -120,9 +140,13 @@ class Mistral12b(LanguageModel):
 
         dialogs = [[{"role": "user", "content": prompt}]]
 
-        from cosmos1.models.diffusion.prompt_upsampler.inference import chat_completion  # pylint: disable=import-error
-        from cosmos1.models.autoregressive.model import AutoRegressiveModel  # pylint: disable=import-error
-
+        try:
+            from cosmos1.models.diffusion.prompt_upsampler.inference import chat_completion  # pylint: disable=import-error
+            from cosmos1.models.autoregressive.model import AutoRegressiveModel  # pylint: disable=import-error
+        except (ImportError, ModuleNotFoundError) as exc_info:
+            _log_install_cosmos()
+            raise exc_info
+        
         load_models_gpu([self.model])
 
         # noinspection PyTypeChecker
