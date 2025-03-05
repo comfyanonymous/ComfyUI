@@ -447,7 +447,6 @@ class LTXVPreprocess:
     CATEGORY = "image"
 
     def preprocess(self, image, img_compression):
-        output_image = image
         if img_compression > 0:
             output_images = []
             for i in range(image.shape[0]):
