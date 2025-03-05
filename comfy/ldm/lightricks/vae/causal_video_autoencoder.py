@@ -695,7 +695,7 @@ class DepthToSpaceUpsample(nn.Module):
 class LayerNorm(nn.Module):
     def __init__(self, dim, eps, elementwise_affine=True) -> None:
         super().__init__()
-        self.norm = nn.LayerNorm(dim, eps=eps, elementwise_affine=elementwise_affine)
+        self.norm = ops.LayerNorm(dim, eps=eps, elementwise_affine=elementwise_affine)
 
     def forward(self, x):
         x = rearrange(x, "b c d h w -> b d h w c")
