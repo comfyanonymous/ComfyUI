@@ -194,11 +194,6 @@ class LTXVAddGuide:
         frame_idx, latent_idx = self.get_latent_index(positive, latent_length, frame_idx, scale_factors)
         assert latent_idx + t.shape[2] <= latent_length, "Conditioning frames exceed the length of the latent sequence."
 
-        if frame_idx == 0:
-            latent_image, noise_mask = self.replace_latent_frames(latent_image, noise_mask, t, latent_idx, strength)
-            return (positive, negative, {"samples": latent_image, "noise_mask": noise_mask},)
-
-
         num_prefix_frames = min(self._num_prefix_frames, t.shape[2])
 
         positive, negative, latent_image, noise_mask = self.append_keyframe(
@@ -252,6 +247,8 @@ class LTXVCropGuides:
         noise_mask = get_noise_mask(latent)
 
         _, num_keyframes = get_keyframe_idxs(positive)
+        if num_keyframes == 0:
+            return (positive, negative, {"samples": latent_image, "noise_mask": noise_mask},)
 
         latent_image = latent_image[:, :, :-num_keyframes]
         noise_mask = noise_mask[:, :, :-num_keyframes]
