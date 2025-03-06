@@ -65,6 +65,7 @@ class ClipVisionModel():
         outputs["last_hidden_state"] = out[0].to(comfy.model_management.intermediate_device())
         outputs["image_embeds"] = out[2].to(comfy.model_management.intermediate_device())
         outputs["penultimate_hidden_states"] = out[1].to(comfy.model_management.intermediate_device())
+        outputs["mm_projected"] = out[3]
         return outputs
 
 def convert_to_transformers(sd, prefix):
@@ -104,7 +105,10 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
         if sd["vision_model.encoder.layers.0.layer_norm1.weight"].shape[0] == 1152:
             json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_siglip_384.json")
         elif sd["vision_model.embeddings.position_embedding.weight"].shape[0] == 577:
-            json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl_336.json")
+            if "multi_modal_projector.linear_1.bias" in sd:
+                json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl_336_llava.json")
+            else:
+                json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl_336.json")
         else:
             json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl.json")
     else:
