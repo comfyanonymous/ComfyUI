@@ -1,4 +1,4 @@
-comfyui-frontend-package==1.10.17
+comfyui-frontend-package @ git+https://github.com/AppMana/appmana-comfyui-frontend.git#796787ffb4603e182415dbc9632160741fa29f94&subdirectory=comfyui_frontend_package
 torch
 torchvision
 torchdiffeq>=0.2.3
