@@ -936,6 +936,12 @@ class HunyuanVideo(BaseModel):
         return out
 
 
+class HunyuanVideoI2V(HunyuanVideo):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device)
+        self.concat_keys = ("concat_image", "mask_inverted")
+
+
 class HunyuanVideoSkyreelsI2V(HunyuanVideo):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device)
