@@ -161,9 +161,9 @@ def cuda_malloc_warning():
             logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
-def prompt_worker(q, server, memedeck_worker):
+def prompt_worker(q, server_instance, memedeck_worker):
     current_time: float = 0.0
-    e = execution.PromptExecutor(server, memedeck_worker, lru_size=args.cache_lru)
+    e = execution.PromptExecutor(server_instance, memedeck_worker, lru_size=args.cache_lru)
     
     # threading.Thread(target=memedeck_worker.start, daemon=True, args=(q, execution.validate_prompt)).start()
     last_gc_collect = 0
@@ -181,6 +181,8 @@ def prompt_worker(q, server, memedeck_worker):
             execution_start_time = time.perf_counter()
             prompt_id = item[1]
             server_instance.last_prompt_id = prompt_id
+            
+            print(item[2])
 
             e.execute(item[2], prompt_id, item[3], item[4])
             need_gc = True
@@ -228,7 +230,7 @@ async def run(server_instance, memedeck_worker, address='', port=8188, verbose=T
     )
 
 
-def hijack_progress(server_instance):
+def hijack_progress(server_instance, memedeck_worker):
     def hook(value, total, preview_image):
         comfy.model_management.throw_exception_if_processing_interrupted()
         progress = {"value": value, "max": total, "prompt_id": server_instance.last_prompt_id, "node": server_instance.last_node_id}
@@ -312,9 +314,9 @@ def start_comfyui(asyncio_loop=None):
     cuda_malloc_warning()
 
     prompt_server.add_routes()
-    hijack_progress(server, memedeck_worker)
+    hijack_progress(prompt_server, memedeck_worker)
 
-    threading.Thread(target=prompt_worker, daemon=True, args=(q, server, memedeck_worker)).start()
+    threading.Thread(target=prompt_worker, daemon=True, args=(q, prompt_server, memedeck_worker)).start()
     threading.Thread(target=memedeck_worker.start, daemon=True, args=(q, execution.validate_prompt)).start()
     # set logging level to info
     
@@ -357,19 +359,20 @@ def start_comfyui(asyncio_loop=None):
 
     async def start_all():
         await prompt_server.setup()
-        await run(prompt_server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start)
-        await run(server, memedeck_worker, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start)
+    #     await run(prompt_server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start)
+        await run(prompt_server, memedeck_worker, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start)
 
     # Returning these so that other code can integrate with the ComfyUI loop and server
-    return asyncio_loop, prompt_server, start_all
-
+    return asyncio_loop, prompt_server, memedeck_worker, start_all
 
 if __name__ == "__main__":
     # Running directly, just start ComfyUI.
     logging.info("ComfyUI version: {}".format(comfyui_version.__version__))
-    event_loop, _, start_all_func = start_comfyui()
+    event_loop, server, memedeck_worker, start_all_func = start_comfyui()
     try:
         event_loop.run_until_complete(start_all_func())
+        # event_loop.run_until_complete(run(server, memedeck_worker, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
+        # event_loop.run_until_complete(start_all_func())
         # event_loop.run_until_complete(run(server, memedeck_worker, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
 
     except KeyboardInterrupt:

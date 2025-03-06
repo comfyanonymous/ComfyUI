@@ -70,7 +70,7 @@ class MemedeckWorker:
         
         self.azure_storage = MemedeckAzureStorage()
         
-        if self.queue_name == 'video-gen-queue':
+        if self.queue_name == 'video-gen-queue' or self.queue_name == 'scene-gen-queue':
             print(f"[memedeck]: video gen only mode enabled")
             self.video_gen_only = True
         
