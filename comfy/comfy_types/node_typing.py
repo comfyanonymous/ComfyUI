@@ -114,7 +114,7 @@ class InputTypeOptions(TypedDict):
     # default: bool
     label_on: str
     """The label to use in the UI when the bool is True (``BOOLEAN``)"""
-    label_on: str
+    label_off: str
     """The label to use in the UI when the bool is False (``BOOLEAN``)"""
     # class InputTypeString(InputTypeOptions):
     # default: str
