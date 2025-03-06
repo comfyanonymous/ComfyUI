@@ -101,7 +101,7 @@ class SaveNodeResultT(TypedDict, total=True):
     type: Literal["output", "input", "temp"]
 
 
-SaveNodeResult = SaveNodeResultT | FileLocator
+SaveNodeResult = SaveNodeResultT
 
 
 class UIImagesImagesResult(TypedDict, total=True):

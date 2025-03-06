@@ -1,5 +1,5 @@
-import nodes
-import node_helpers
+from comfy.nodes import base_nodes as nodes
+from comfy import node_helpers
 import torch
 import comfy.model_management
 import comfy.utils

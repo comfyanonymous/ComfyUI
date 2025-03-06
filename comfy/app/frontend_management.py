@@ -17,7 +17,7 @@ import importlib.resources
 from typing_extensions import NotRequired
 
 from ..cli_args import DEFAULT_VERSION_STRING
-from ..cmd.folder_paths import add_model_folder_path
+from ..cmd.folder_paths import add_model_folder_path  # pylint: disable=import-error
 
 REQUEST_TIMEOUT = 10  # seconds
 
