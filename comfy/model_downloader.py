@@ -304,6 +304,7 @@ KNOWN_GLIGEN_MODELS: Final[KnownDownloadables] = KnownDownloadables([
 KNOWN_CLIP_VISION_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("comfyanonymous/clip_vision_g", "clip_vision_g.safetensors"),
     HuggingFile("Comfy-Org/sigclip_vision_384", "sigclip_vision_patch14_384.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanVideo_repackaged", "split_files/clip_vision/llava_llama3_vision.safetensors"),
 ], folder_name="clip_vision")
 
 KNOWN_LORAS: Final[KnownDownloadables] = KnownDownloadables([
@@ -443,6 +444,7 @@ KNOWN_VAES: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/HunyuanVideo_repackaged", "split_files/vae/hunyuan_video_vae_bf16.safetensors"),
     HuggingFile("comfyanonymous/cosmos_1.0_text_encoder_and_VAE_ComfyUI", "vae/cosmos_cv8x8x8_1.0.safetensors"),
     HuggingFile("Comfy-Org/Lumina_Image_2.0_Repackaged", "split_files/vae/ae.safetensors", save_with_filename="lumina_image_2.0-ae.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/vae/wan_2.1_vae.safetensors"),
 ], folder_name="vae")
 
 KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
@@ -474,11 +476,23 @@ KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/mochi_preview_repackaged", "split_files/diffusion_models/mochi_preview_bf16.safetensors"),
     HuggingFile("Comfy-Org/mochi_preview_repackaged", "split_files/diffusion_models/mochi_preview_fp8_scaled.safetensors"),
     HuggingFile("Comfy-Org/HunyuanVideo_repackaged", "split_files/diffusion_models/hunyuan_video_t2v_720p_bf16.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanVideo_repackaged", "split_files/diffusion_models/hunyuan_video_image_to_video_720p_bf16.safetensors"),
     HuggingFile("mcmonkey/cosmos-1.0", "Cosmos-1_0-Diffusion-14B-Text2World.safetensors"),
     HuggingFile("mcmonkey/cosmos-1.0", "Cosmos-1_0-Diffusion-14B-Video2World.safetensors"),
     HuggingFile("mcmonkey/cosmos-1.0", "Cosmos-1_0-Diffusion-7B-Text2World.safetensors"),
     HuggingFile("mcmonkey/cosmos-1.0", "Cosmos-1_0-Diffusion-7B-Video2World.safetensors"),
     HuggingFile("Comfy-Org/Lumina_Image_2.0_Repackaged", "split_files/diffusion_models/lumina_2_model_bf16.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_i2v_480p_14B_bf16.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_i2v_480p_14B_fp16.safetensors", show_in_ui=False),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_i2v_480p_14B_fp8_e4m3fn.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_i2v_720p_14B_bf16.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_i2v_720p_14B_fp16.safetensors", show_in_ui=False),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_i2v_720p_14B_fp8_e4m3fn.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_t2v_1.3B_bf16.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_t2v_1.3B_fp16.safetensors", show_in_ui=False),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_t2v_14B_bf16.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_t2v_14B_fp16.safetensors", show_in_ui=False),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_t2v_14B_fp8_e4m3fn.safetensors"),
 ], folder_names=["diffusion_models", "unet"])
 
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
@@ -496,6 +510,8 @@ KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("comfyanonymous/cosmos_1.0_text_encoder_and_VAE_ComfyUI", "text_encoders/oldt5_xxl_fp16.safetensors"),
     HuggingFile("comfyanonymous/cosmos_1.0_text_encoder_and_VAE_ComfyUI", "text_encoders/oldt5_xxl_fp8_e4m3fn_scaled.safetensors"),
     HuggingFile("Comfy-Org/Lumina_Image_2.0_Repackaged", "split_files/text_encoders/gemma_2_2b_fp16.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/text_encoders/umt5_xxl_fp16.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors"),
 ], folder_names=["clip", "text_encoders"])
 
 KNOWN_STYLE_MODELS: Final[KnownDownloadables] = KnownDownloadables([
