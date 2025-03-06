@@ -19,7 +19,7 @@ class TorchCompileModel:
                 "backend": (["inductor", "cudagraphs", "openvino"],),
             },
             "optional": {
-                "openvino_device": (available_devices,),
+                "openvino device": (available_devices,),
             },
         }
 
@@ -30,6 +30,7 @@ class TorchCompileModel:
     EXPERIMENTAL = True
 
     def patch(self, model, backend, openvino_device):
+        print(model.__class__.__name__)
         if backend == "openvino":
             options = {"device": openvino_device}
             try:
@@ -39,6 +40,12 @@ class TorchCompileModel:
                     "Could not import openvino python package. "
                     "Please install it with `pip install openvino`."
                 )
+            import openvino.frontend.pytorch.torchdynamo.execute as ov_ex
+
+            torch._dynamo.reset()
+            ov_ex.compiled_cache.clear()
+            ov_ex.req_cache.clear()
+            ov_ex.partitioned_modules.clear()
         else:
             options = None
         m = model.clone()
