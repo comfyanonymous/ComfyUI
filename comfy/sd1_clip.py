@@ -228,6 +228,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             if pad_extra > 0:
                 padd_embed = self.transformer.get_input_embeddings()(torch.tensor([[self.special_tokens["pad"]] * pad_extra], device=device, dtype=torch.long), out_dtype=torch.float32)
                 tokens_embed = torch.cat([tokens_embed, padd_embed], dim=1)
+                attention_mask = attention_mask + [0] * pad_extra
 
             embeds_out.append(tokens_embed)
             attention_masks.append(attention_mask)
