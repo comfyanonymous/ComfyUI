@@ -196,8 +196,25 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             index = 0
             pad_extra = 0
             for o in other_embeds:
+                emb = o[1]
+                if torch.is_tensor(emb):
+                    emb = {"type": "embedding", "data": emb}
+
+                emb_type = emb.get("type", None)
+                if emb_type == "embedding":
+                    emb = emb.get("data", None)
+                else:
+                    if hasattr(self.transformer, "preprocess_embed"):
+                        emb = self.transformer.preprocess_embed(emb, device=device)
+                    else:
+                        emb = None
+
+                if emb is None:
+                    index += -1
+                    continue
+
                 ind = index + o[0]
-                emb = o[1].view(1, -1, o[1].shape[-1]).to(device=device, dtype=torch.float32)
+                emb = emb.view(1, -1, emb.shape[-1]).to(device=device, dtype=torch.float32)
                 emb_shape = emb.shape[1]
                 if emb.shape[-1] == tokens_embed.shape[-1]:
                     tokens_embed = torch.cat([tokens_embed[:, :ind], emb, tokens_embed[:, ind:]], dim=1)
