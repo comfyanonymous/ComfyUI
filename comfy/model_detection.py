@@ -471,6 +471,10 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
         model_config.scaled_fp8 = scaled_fp8_weight.dtype
         if model_config.scaled_fp8 == torch.float32:
             model_config.scaled_fp8 = torch.float8_e4m3fn
+        if scaled_fp8_weight.nelement() == 2:
+            model_config.optimizations["fp8"] = False
+        else:
+            model_config.optimizations["fp8"] = True
 
     return model_config
 
