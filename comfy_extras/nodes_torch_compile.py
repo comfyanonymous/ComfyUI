@@ -19,7 +19,7 @@ class TorchCompileModel:
                 "backend": (["inductor", "cudagraphs", "openvino"],),
             },
             "optional": {
-                "openvino device": (available_devices,),
+                "openvino_device": (available_devices,),
             },
         }
 
