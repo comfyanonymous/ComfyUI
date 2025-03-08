@@ -22,7 +22,7 @@ try:
 except ImportError:
     import subprocess
     import sys
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'comfyui-frontend-package==1.10.17', '--quiet'])
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'comfyui-frontend-package==1.11.8', '--quiet'])
     print(" ")
     print("Comfyui Frontend Package missing, it is installed. (one time only) ")
 
