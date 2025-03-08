@@ -139,11 +139,10 @@ class Flux(nn.Module):
                 txt = out["txt"]
                 img = out["img"]
             else:
-                img, txt = block(img=img,
-                                 txt=txt,
-                                 vec=vec,
-                                 pe=pe,
-                                 attn_mask=attn_mask)
+               if attn_mask is not None:
+                    img, txt = block(img=img, txt=txt, vec=vec, pe=pe, attn_mask=attn_mask)
+                else:
+                    img, txt = block(img=img, txt=txt, vec=vec, pe=pe)
 
             if control is not None: # Controlnet
                 control_i = control.get("input")

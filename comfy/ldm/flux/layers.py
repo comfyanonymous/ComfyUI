@@ -143,7 +143,7 @@ class DoubleStreamBlock(nn.Module):
         )
         self.flipped_img_txt = flipped_img_txt
 
-    def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor, attn_mask=None):
+    def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor, attn_mask=None, **kwargs):
         img_mod1, img_mod2 = self.img_mod(vec)
         txt_mod1, txt_mod2 = self.txt_mod(vec)
 
