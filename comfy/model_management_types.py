@@ -114,7 +114,8 @@ class ModelManageable(Protocol):
         setattr(self, "_model_options", value)
 
     def __del__(self):
-        del self.model
+        if hasattr(self.model, "__del__"):
+            del self.model
 
     @property
     def parent(self) -> ModelManageableT | None:

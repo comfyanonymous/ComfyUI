@@ -1,14 +1,13 @@
 import logging
 import os
 from pathlib import Path
-from typing import Union
+from typing import Union, Callable
 
 import torch
 import torch._inductor.codecache
 from torch.nn import LayerNorm
 
 from comfy import model_management
-from comfy.language.language_types import LanguageModel
 from comfy.language.transformers_model_management import TransformersManagedModel
 from comfy.model_patcher import ModelPatcher
 from comfy.nodes.package_typing import CustomNode, InputTypes
@@ -70,7 +69,7 @@ class TorchCompileModel(CustomNode):
     CATEGORY = "_for_testing"
     EXPERIMENTAL = True
 
-    def patch(self, model: ModelPatcher, object_patch: str | None = DIFFUSION_MODEL, fullgraph: bool = False, dynamic: bool = False, backend: str = "inductor", mode: str = "max-autotune", torch_tensorrt_optimization_level: int = 3) -> tuple[ModelPatcher]:
+    def patch(self, model: ModelPatcher, object_patch: str | None = DIFFUSION_MODEL, fullgraph: bool = False, dynamic: bool = False, backend: str = "inductor", mode: str = "max-autotune", torch_tensorrt_optimization_level: int = 3) -> tuple[Callable]:
         if object_patch is None:
             object_patch = DIFFUSION_MODEL
         compile_kwargs = {
@@ -79,7 +78,7 @@ class TorchCompileModel(CustomNode):
             "backend": backend,
             "mode": mode,
         }
-        move_to_gpu = False
+        move_to_gpu = True
         try:
             if backend == "torch_tensorrt":
                 try:
@@ -90,7 +89,7 @@ class TorchCompileModel(CustomNode):
                 compile_kwargs["options"] = {
                     # https://pytorch.org/TensorRT/dynamo/torch_compile.html
                     # Quantization/INT8 support is slated for a future release; currently, we support FP16 and FP32 precision layers.
-                    "enabled_precisions": {torch.float, torch.half},
+                    "enabled_precisions": {torch.float, torch.half, torch.float8_e5m2},
                     "optimization_level": torch_tensorrt_optimization_level,
                     "cache_built_engines": True,
                     "reuse_cached_engines": True,
@@ -102,18 +101,21 @@ class TorchCompileModel(CustomNode):
             if isinstance(model, ModelPatcher) or isinstance(model, TransformersManagedModel):
                 m = model.clone()
                 if move_to_gpu:
+                    model_management.unload_all_models()
                     model_management.load_models_gpu([m])
                 m.add_object_patch(object_patch, torch.compile(model=m.get_model_object(object_patch), **compile_kwargs))
-                if move_to_gpu:
-                    model_management.unload_model_clones(m)
-                return (m,)
+                # todo: do we want to move something back off the GPU?
+                # if move_to_gpu:
+                #     model_management.unload_all_models()
+                return m,
             elif isinstance(model, torch.nn.Module):
                 if move_to_gpu:
+                    model_management.unload_all_models()
                     model.to(device=model_management.get_torch_device())
                 res = torch.compile(model=model, **compile_kwargs),
                 if move_to_gpu:
                     model.to(device=model_management.unet_offload_device())
-                return res
+                return res,
             else:
                 logging.warning("Encountered a model that cannot be compiled")
                 return model,

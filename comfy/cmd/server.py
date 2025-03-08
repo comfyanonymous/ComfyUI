@@ -439,6 +439,8 @@ class PromptServer(ExecutorToClientProgress):
 
                 try:
                     file = file_output_path(filename, type=type, subfolder=subfolder)
+                except FileNotFoundError:
+                    return web.Response(status=404)
                 except PermissionError:
                     return web.Response(status=403)
                 except ValueError:

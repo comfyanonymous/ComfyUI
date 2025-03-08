@@ -13,6 +13,7 @@ def file_output_path(filename: str, type: Literal["input", "output", "temp"] = "
     :param filename:
     :param type:
     :param subfolder:
+    :raises FileNotFoundError: if the path does not have a file
     :return:
     """
     filename, output_dir = folder_paths.annotated_filepath(str(filename))

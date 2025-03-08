@@ -24,6 +24,7 @@ from .model_management_types import ModelOptions
 from .model_patcher import ModelPatcher
 from .sampler_names import SCHEDULER_NAMES, SAMPLER_NAMES
 
+logger = logging.getLogger(__name__)
 
 
 def add_area_dims(area, num_dims):
@@ -1040,6 +1041,10 @@ class CFGGuider:
                 patcher_extension.get_all_wrappers(patcher_extension.WrappersMP.OUTER_SAMPLE, self.model_options, is_model_options=True)
             )
             output = executor.execute(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+        except ValueError as exc_info:
+            if "fp8e4nv" in str(exc_info):
+                logger.error(f"Load the weights for model {self.model_patcher} as fp8_e5m2 to use floating point 8-bit inference with torch.compile and triton on Ampere architecture")
+            raise exc_info
         finally:
             cast_to_load_options(self.model_options, device=self.model_patcher.offload_device)
             self.model_options = orig_model_options
@@ -1082,7 +1087,7 @@ def calculate_sigmas(model_sampling: object, scheduler_name: str, steps: int) ->
     handler = SCHEDULER_HANDLERS.get(scheduler_name)
     if handler is None:
         err = f"error invalid scheduler {scheduler_name}"
-        logging.error(err)
+        logger.error(err)
         raise ValueError(err)
     if handler.use_ms:
         return handler.handler(model_sampling, steps)

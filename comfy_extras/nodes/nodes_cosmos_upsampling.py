@@ -78,7 +78,7 @@ def clean_text(text: str) -> str:
     return text
 
 
-class CosmosPromptUpsamplerTransformersLoader(TransformersLoader):
+class PixtralTransformersLoader(TransformersLoader):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
         return {
@@ -146,7 +146,7 @@ class Mistral12b(LanguageModel):
         except (ImportError, ModuleNotFoundError) as exc_info:
             _log_install_cosmos()
             raise exc_info
-        
+
         load_models_gpu([self.model])
 
         # noinspection PyTypeChecker
@@ -180,7 +180,7 @@ class Mistral12b(LanguageModel):
         return self.ckpt_name
 
 
-class CosmosText2WorldPromptUpsamplerLoader(CustomNode):
+class CosmosPromptUpsamplerLoader(CustomNode):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
         return {
@@ -198,7 +198,7 @@ class CosmosText2WorldPromptUpsamplerLoader(CustomNode):
         return Mistral12b.from_pretrained(ckpt_name),
 
 
-class CosmosText2WorldUpsamplePromptTokenize(TransformersTokenize):
+class CosmosText2WorldTokenize(TransformersTokenize):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
         return {
@@ -212,20 +212,21 @@ class CosmosText2WorldUpsamplePromptTokenize(TransformersTokenize):
         return super().execute(model, f"{COSMOS_TEXT_TO_WORLD_UPSAMPLE_TASK}{prompt}")
 
 
-class CosmosVideo2WorldUpsamplePromptTokenize(OneShotInstructTokenize):
+class CosmosVideo2WorldTokenize(OneShotInstructTokenize):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
                 "model": ("MODEL", {}),
+                "prompt": ("STRING", {"default": "", "multiline": True}),
             },
             "optional": {
                 "images": ("IMAGE", {}),
             }
         }
 
-    def execute(self, model: LanguageModel, prompt: str = None, images: list[torch.Tensor] | torch.Tensor = None, chat_template: str = _AUTO_CHAT_TEMPLATE) -> ValidatedNodeResult:
-        return super().execute(model, COSMOS_VIDEO_TO_WORLD_UPSAMPLE_TASK, images, _AUTO_CHAT_TEMPLATE)
+    def execute(self, model: LanguageModel, prompt: str, images: list[torch.Tensor] | torch.Tensor = None, chat_template: str = _AUTO_CHAT_TEMPLATE, system_prompt: str = "") -> ValidatedNodeResult:
+        return super().execute(model, prompt, images, chat_template=None, system_prompt=COSMOS_VIDEO_TO_WORLD_UPSAMPLE_TASK)
 
 
 export_custom_nodes()

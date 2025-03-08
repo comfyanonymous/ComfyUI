@@ -305,6 +305,7 @@ KNOWN_CLIP_VISION_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("comfyanonymous/clip_vision_g", "clip_vision_g.safetensors"),
     HuggingFile("Comfy-Org/sigclip_vision_384", "sigclip_vision_patch14_384.safetensors"),
     HuggingFile("Comfy-Org/HunyuanVideo_repackaged", "split_files/clip_vision/llava_llama3_vision.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/clip_vision/clip_vision_h.safetensors"),
 ], folder_name="clip_vision")
 
 KNOWN_LORAS: Final[KnownDownloadables] = KnownDownloadables([
@@ -461,7 +462,9 @@ KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
     'google/paligemma2-28b-pt-896',
     'google/paligemma-3b-ft-refcoco-seg-896',
     'microsoft/phi-4',
-    'appmana/Cosmos-1.0-Prompt-Upsampler-12B-Text2World-hf'
+    'appmana/Cosmos-1.0-Prompt-Upsampler-12B-Text2World-hf',
+    'llava-hf/llava-onevision-qwen2-7b-si-hf',
+    'llava-hf/llama3-llava-next-8b-hf',
 }
 
 KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([

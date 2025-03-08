@@ -17,7 +17,7 @@ from comfy.cmd import folder_paths
 from comfy.component_model.folder_path_types import SaveImagePathTuple
 from comfy.language.chat_templates import KNOWN_CHAT_TEMPLATES
 from comfy.language.language_types import GENERATION_KWARGS_TYPE, GENERATION_KWARGS_TYPE_NAME, TOKENS_TYPE, \
-    TOKENS_TYPE_NAME, LanguageModel
+    TOKENS_TYPE_NAME, LanguageModel, LanguagePrompt
 from comfy.language.transformers_model_management import TransformersManagedModel
 from comfy.model_downloader import get_huggingface_repo_list, get_or_download_huggingface_repo
 from comfy.model_management import get_torch_device_name, unet_dtype, unet_offload_device
@@ -206,6 +206,19 @@ class TransformersLoader(CustomNode):
         return TransformersManagedModel.from_pretrained(ckpt_name, subfolder),
 
 
+class TransformersLoader1(TransformersLoader):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "ckpt_name": ("STRING", {}),
+            },
+            "optional": {
+                "subfolder": ("STRING", {}),
+            }
+        }
+
+
 class TransformersTokenize(CustomNode):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
@@ -319,6 +332,7 @@ class OneShotInstructTokenize(CustomNode):
             },
             "optional": {
                 "images": ("IMAGE", {}),
+                "system_prompt": ("STRING", {"multiline": True, "default": ""})
             }
         }
 
@@ -326,7 +340,7 @@ class OneShotInstructTokenize(CustomNode):
     RETURN_TYPES = (TOKENS_TYPE_NAME,)
     FUNCTION = "execute"
 
-    def execute(self, model: LanguageModel, prompt: str, images: List[torch.Tensor] | torch.Tensor = None, chat_template: str = _AUTO_CHAT_TEMPLATE) -> ValidatedNodeResult:
+    def execute(self, model: LanguageModel, prompt: str, images: List[torch.Tensor] | torch.Tensor = None, chat_template: Optional[str] = _AUTO_CHAT_TEMPLATE, system_prompt: str = "") -> ValidatedNodeResult:
         if chat_template == _AUTO_CHAT_TEMPLATE:
             # use an exact match
             model_name = os.path.basename(model.repo_id)
@@ -334,9 +348,25 @@ class OneShotInstructTokenize(CustomNode):
                 chat_template = KNOWN_CHAT_TEMPLATES[model_name]
             else:
                 chat_template = None
-        else:
+        elif chat_template is not None:
             chat_template = KNOWN_CHAT_TEMPLATES[chat_template]
-        return model.tokenize(prompt, images, chat_template),
+
+        messages: LanguagePrompt | str
+        if system_prompt != "":
+            messages: LanguagePrompt = [
+                {"role": "system",
+                 "content": system_prompt},
+                {"role": "user",
+                 "content": [
+                                {"type": "text",
+                                 "text": prompt}
+                            ] + [
+                                {"type": "image"} for _ in range(len(images) if images is not None else 0)
+                            ], }
+            ]
+        else:
+            messages: str = prompt
+        return model.tokenize(messages, images, chat_template),
 
 
 class TransformersGenerate(CustomNode):
