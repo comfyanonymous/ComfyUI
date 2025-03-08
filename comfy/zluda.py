@@ -16,10 +16,18 @@ os.environ['DISABLE_ADDMM_CUDA_LT'] = '1'
         
 import torch
 
+# Ensure pkg_resources is installed
+try:
+    import pkg_resources
+except ImportError:
+    import subprocess
+    import sys
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'setuptools', '--quiet'])
+    import pkg_resources
+
 # Check and install comfyui-frontend-package if not installed or if the version is lower than required
 required_version = "1.11.8"
 try:
-    import pkg_resources
     import comfyui_frontend_package
     installed_version = pkg_resources.get_distribution("comfyui-frontend-package").version
     if pkg_resources.parse_version(installed_version) < pkg_resources.parse_version(required_version):
