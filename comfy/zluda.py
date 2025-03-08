@@ -16,33 +16,40 @@ os.environ['DISABLE_ADDMM_CUDA_LT'] = '1'
         
 import torch
 
-# Ensure pkg_resources is installed
-try:
-    import pkg_resources
-except ImportError:
-    import subprocess
-    import sys
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'setuptools', '--quiet'])
-    import pkg_resources
+# get package version using importlib.metadata
+def get_package_version(package_name):
+    try:
+        # Try using importlib.metadata (Python 3.8+)
+        from importlib.metadata import version
+        return version(package_name)
+    except ImportError:
+        # Fallback to importlib_metadata for older Python versions
+        from importlib_metadata import version
+        return version(package_name)
 
 # Check and install comfyui-frontend-package if not installed or if the version is lower than required
 required_version = "1.11.8"
+package_name = "comfyui-frontend-package"
+
 try:
-    import comfyui_frontend_package
-    installed_version = pkg_resources.get_distribution("comfyui-frontend-package").version
-    if pkg_resources.parse_version(installed_version) < pkg_resources.parse_version(required_version):
+    installed_version = get_package_version(package_name)
+    print(f"Installed version of {package_name}: {installed_version}")
+    
+    # Compare versions
+    from packaging import version
+    if version.parse(installed_version) < version.parse(required_version):
         import subprocess
         import sys
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'comfyui-frontend-package=={required_version}', '--quiet', '--upgrade'])
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{package_name}=={required_version}', '--quiet', '--upgrade'])
         print(" ")
         print(f"Comfyui Frontend Package version {installed_version} is outdated, updating to version {required_version}. (one time only)")
-except ImportError:
+except Exception as e:
+    # If the package is not installed or version check fails, install it
     import subprocess
     import sys
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'comfyui-frontend-package=={required_version}', '--quiet'])
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{package_name}=={required_version}', '--quiet'])
     print(" ")
     print("Comfyui Frontend Package missing, it is installed. (one time only) ")
-
 #audio patch
 import torch._dynamo
 
