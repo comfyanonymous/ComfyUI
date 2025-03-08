@@ -57,14 +57,15 @@ class TextEncodeHunyuanVideo_ImageToVideo:
             "clip": ("CLIP", ),
             "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
             "prompt": ("STRING", {"multiline": True, "dynamicPrompts": True}),
+            "image_interleave": ("INT", {"default": 2, "min": 1, "max": 512, "tooltip": "How much the image influences things vs the text prompt. Higher number means more influence from the text prompt."}),
             }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
     CATEGORY = "advanced/conditioning"
 
-    def encode(self, clip, clip_vision_output, prompt):
-        tokens = clip.tokenize(prompt, llama_template=PROMPT_TEMPLATE_ENCODE_VIDEO_I2V, image_embeds=clip_vision_output.mm_projected)
+    def encode(self, clip, clip_vision_output, prompt, image_interleave):
+        tokens = clip.tokenize(prompt, llama_template=PROMPT_TEMPLATE_ENCODE_VIDEO_I2V, image_embeds=clip_vision_output.mm_projected, image_interleave=image_interleave)
         return (clip.encode_from_tokens_scheduled(tokens), )
 
 
