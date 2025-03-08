@@ -27,6 +27,12 @@ except ImportError:
     exit(-1)
 
 
+try:
+    frontend_version = tuple(map(int, comfyui_frontend_package.__version__.split(".")))
+except:
+    frontend_version = (0,)
+    pass
+
 REQUEST_TIMEOUT = 10  # seconds
 
 
