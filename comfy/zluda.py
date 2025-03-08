@@ -24,7 +24,7 @@ except ImportError:
     import sys
     subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'comfyui-frontend-package==1.11.8', '--quiet'])
     print(" ")
-    print("Comfyui Frontend Package missing, it is installed. (one time only) ")
+    print("Comfyui Frontend Package missing / older version , it is installed. (one time only) ")
 
 #audio patch
 import torch._dynamo
