@@ -18,14 +18,26 @@ from typing_extensions import NotRequired
 from comfy.cli_args import DEFAULT_VERSION_STRING
 
 
+def frontend_install_warning_message():
+    req_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'requirements.txt'))
+    extra = ""
+    if sys.flags.no_user_site:
+        extra = "-s "
+    return f"Please install the updated requirements.txt file by running:\n{sys.executable} {extra}-m pip install -r {req_path}\n\nThis error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.\n\nIf you are on the portable package you can run: update\\update_comfyui.bat to solve this problem"
+
 try:
     import comfyui_frontend_package
 except ImportError:
     # TODO: Remove the check after roll out of 0.3.16
-    req_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'requirements.txt'))
-    logging.error(f"\n\n********** ERROR ***********\n\ncomfyui-frontend-package is not installed. Please install the updated requirements.txt file by running:\n{sys.executable} -s -m pip install -r {req_path}\n\nThis error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.\n\nIf you are on the portable package you can run: update\\update_comfyui.bat to solve this problem\n********** ERROR **********\n")
+    logging.error(f"\n\n********** ERROR ***********\n\ncomfyui-frontend-package is not installed. {frontend_install_warning_message()}\n********** ERROR **********\n")
     exit(-1)
 
+
+try:
+    frontend_version = tuple(map(int, comfyui_frontend_package.__version__.split(".")))
+except:
+    frontend_version = (0,)
+    pass
 
 REQUEST_TIMEOUT = 10  # seconds
 
