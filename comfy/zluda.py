@@ -16,15 +16,24 @@ os.environ['DISABLE_ADDMM_CUDA_LT'] = '1'
         
 import torch
 
-# Check and install comfyui-frontend-package if not installed
+# Check and install comfyui-frontend-package if not installed or if the version is lower than required
+required_version = "1.11.8"
 try:
+    import pkg_resources
     import comfyui_frontend_package
+    installed_version = pkg_resources.get_distribution("comfyui-frontend-package").version
+    if pkg_resources.parse_version(installed_version) < pkg_resources.parse_version(required_version):
+        import subprocess
+        import sys
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'comfyui-frontend-package=={required_version}', '--quiet', '--upgrade'])
+        print(" ")
+        print(f"Comfyui Frontend Package version {installed_version} is outdated, updating to version {required_version}. (one time only)")
 except ImportError:
     import subprocess
     import sys
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'comfyui-frontend-package==1.11.8', '--quiet'])
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'comfyui-frontend-package=={required_version}', '--quiet'])
     print(" ")
-    print("Comfyui Frontend Package missing / older version , it is installed. (one time only) ")
+    print("Comfyui Frontend Package missing, it is installed. (one time only) ")
 
 #audio patch
 import torch._dynamo
