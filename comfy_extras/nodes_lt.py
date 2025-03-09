@@ -99,12 +99,13 @@ class LTXVAddGuide:
                              "negative": ("CONDITIONING", ),
                              "vae": ("VAE",),
                              "latent": ("LATENT",),
-                             "image": ("IMAGE", {"tooltip": "Image or video to condition the latent video on. Must be 8*n + 1 frames." \
+                             "image": ("IMAGE", {"tooltip": "Image or video to condition the latent video on. Must be 8*n + 1 frames."
                                                  "If the video is not 8*n + 1 frames, it will be cropped to the nearest 8*n + 1 frames."}),
                              "frame_idx": ("INT", {"default": 0, "min": -9999, "max": 9999,
-                                                   "tooltip": "Frame index to start the conditioning at. Must be divisible by 8. " \
-                                                   "If a frame is not divisible by 8, it will be rounded down to the nearest multiple of 8. " \
-                                                   "Negative values are counted from the end of the video."}),
+                                                   "tooltip": "Frame index to start the conditioning at. For single-frame images or "
+                                                   "videos with 1-8 frames, any frame_idx value is acceptable. For videos with 9+ "
+                                                   "frames, frame_idx must be divisible by 8, otherwise it will be rounded down to "
+                                                   "the nearest multiple of 8. Negative values are counted from the end of the video."}),
                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                              }
             }
@@ -127,12 +128,13 @@ class LTXVAddGuide:
         t = vae.encode(encode_pixels)
         return encode_pixels, t
 
-    def get_latent_index(self, cond, latent_length, frame_idx, scale_factors):
+    def get_latent_index(self, cond, latent_length, guide_length, frame_idx, scale_factors):
         time_scale_factor, _, _ = scale_factors
         _, num_keyframes = get_keyframe_idxs(cond)
         latent_count = latent_length - num_keyframes
-        frame_idx = frame_idx if frame_idx >= 0 else max((latent_count - 1) * 8 + 1 + frame_idx, 0)
-        frame_idx = frame_idx // time_scale_factor * time_scale_factor # frame index must be divisible by 8
+        frame_idx = frame_idx if frame_idx >= 0 else max((latent_count - 1) * time_scale_factor + 1 + frame_idx, 0)
+        if guide_length > 1:
+            frame_idx = frame_idx // time_scale_factor * time_scale_factor # frame index must be divisible by 8
 
         latent_idx = (frame_idx + time_scale_factor - 1) // time_scale_factor
 
@@ -191,7 +193,7 @@ class LTXVAddGuide:
         _, _, latent_length, latent_height, latent_width = latent_image.shape
         image, t = self.encode(vae, latent_width, latent_height, image, scale_factors)
 
-        frame_idx, latent_idx = self.get_latent_index(positive, latent_length, frame_idx, scale_factors)
+        frame_idx, latent_idx = self.get_latent_index(positive, latent_length, len(image), frame_idx, scale_factors)
         assert latent_idx + t.shape[2] <= latent_length, "Conditioning frames exceed the length of the latent sequence."
 
         num_prefix_frames = min(self._num_prefix_frames, t.shape[2])
