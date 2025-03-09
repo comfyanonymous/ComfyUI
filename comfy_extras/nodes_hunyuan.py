@@ -68,7 +68,6 @@ class TextEncodeHunyuanVideo_ImageToVideo:
         tokens = clip.tokenize(prompt, llama_template=PROMPT_TEMPLATE_ENCODE_VIDEO_I2V, image_embeds=clip_vision_output.mm_projected, image_interleave=image_interleave)
         return (clip.encode_from_tokens_scheduled(tokens), )
 
-
 class HunyuanImageToVideo:
     @classmethod
     def INPUT_TYPES(s):
@@ -78,6 +77,7 @@ class HunyuanImageToVideo:
                              "height": ("INT", {"default": 480, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
                              "length": ("INT", {"default": 53, "min": 1, "max": nodes.MAX_RESOLUTION, "step": 4}),
                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
+                             "guidance_type": (["v1 (concat)", "v2 (replace)"], )
                 },
                 "optional": {"start_image": ("IMAGE", ),
                 }}
@@ -88,8 +88,10 @@ class HunyuanImageToVideo:
 
     CATEGORY = "conditioning/video_models"
 
-    def encode(self, positive, vae, width, height, length, batch_size, start_image=None):
+    def encode(self, positive, vae, width, height, length, batch_size, guidance_type, start_image=None):
         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+        out_latent = {}
+
         if start_image is not None:
             start_image = comfy.utils.common_upscale(start_image[:length, :, :, :3].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
 
@@ -97,11 +99,18 @@ class HunyuanImageToVideo:
             mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
             mask[:, :, :((start_image.shape[0] - 1) // 4) + 1] = 0.0
 
-            positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
+            if guidance_type == "v1 (concat)":
+                cond = {"concat_latent_image": concat_latent_image, "concat_mask": mask}
+            else:
+                cond = {'guiding_frame_index': 0}
+                latent[:, :, :concat_latent_image.shape[2]] = concat_latent_image
+                out_latent["noise_mask"] = mask
 
-        out_latent = {}
+            positive = node_helpers.conditioning_set_values(positive, cond)
+
         out_latent["samples"] = latent
         return (positive, out_latent)
+
 
 
 NODE_CLASS_MAPPINGS = {
