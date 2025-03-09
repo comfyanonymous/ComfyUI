@@ -102,8 +102,7 @@ class LTXVAddGuide:
                              "image": ("IMAGE", {"tooltip": "Image or video to condition the latent video on. Must be 8*n + 1 frames." \
                                                  "If the video is not 8*n + 1 frames, it will be cropped to the nearest 8*n + 1 frames."}),
                              "frame_idx": ("INT", {"default": 0, "min": -9999, "max": 9999,
-                                                   "tooltip": "Frame index to start the conditioning at. Must be divisible by 8. " \
-                                                   "If a frame is not divisible by 8, it will be rounded down to the nearest multiple of 8. " \
+                                                   "tooltip": "Frame index to start the conditioning at. " \
                                                    "Negative values are counted from the end of the video."}),
                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                              }
@@ -131,10 +130,9 @@ class LTXVAddGuide:
         time_scale_factor, _, _ = scale_factors
         _, num_keyframes = get_keyframe_idxs(cond)
         latent_count = latent_length - num_keyframes
-        frame_idx = frame_idx if frame_idx >= 0 else max((latent_count - 1) * 8 + 1 + frame_idx, 0)
-        frame_idx = frame_idx // time_scale_factor * time_scale_factor # frame index must be divisible by 8
-
-        latent_idx = (frame_idx + time_scale_factor - 1) // time_scale_factor
+        frame_idx = frame_idx if frame_idx >= 0 else max((latent_count - 1) * time_scale_factor + 1 + frame_idx, 0)
+        
+        latent_idx = frame_idx // time_scale_factor
 
         return frame_idx, latent_idx
 
@@ -444,11 +442,176 @@ class LTXVPreprocess:
     CATEGORY = "image"
 
     def preprocess(self, image, img_compression):
+        output_images = []
         if img_compression > 0:
-            output_images = []
             for i in range(image.shape[0]):
                 output_images.append(preprocess(image[i], img_compression))
+        else:
+            # If no compression, just use the original images
+            for i in range(image.shape[0]):
+                output_images.append(image[i])
         return (torch.stack(output_images),)
+
+
+class LTXVVideoInterpolation:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"positive": ("CONDITIONING", ),
+                             "negative": ("CONDITIONING", ),
+                             "vae": ("VAE",),
+                             "latent": ("LATENT",),
+                             "image": ("IMAGE", {"tooltip": "Video to interpolate frames from. Must be a video (multiple frames)."}),
+                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,
+                                             "tooltip": "Strength of keyframe conditioning."}),
+                             "img_compression": ("INT", {"default": 35, "min": 0, "max": 100, 
+                                             "tooltip": "Amount of compression to apply on all keyframe images."}),
+                             "input_fps": ("FLOAT", {"default": 24.0, "min": 1.0, "max": 120.0, "step": 0.01, 
+                                             "tooltip": "Source video frames per second (needed because ComfyUI doesn't preserve video metadata)."}),
+                             "output_fps": ("FLOAT", {"default": 24.0, "min": 1.0, "max": 120.0, "step": 0.01, 
+                                             "tooltip": "Target output frames per second (LTX default is 24 fps)."}),
+                             "frame_count": ("INT", {"default": 97, "min": 1, "max": nodes.MAX_RESOLUTION, "step": 1, 
+                                             "tooltip": "Exact number of frames to generate in the output video. Overrides automatic calculation from fps if greater than 0."}),
+                             "force_end_frame": ("BOOLEAN", {"default": True, 
+                                             "tooltip": "Ensure the last input frame is placed exactly at the last output frame."})
+                             }
+            }
+
+    RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
+    RETURN_NAMES = ("positive", "negative", "latent")
+
+    CATEGORY = "conditioning/video_models"
+    FUNCTION = "generate"
+
+    def __init__(self):
+        self.add_guide = LTXVAddGuide()
+        self.preprocessor = LTXVPreprocess()
+
+    def is_video(self, image):
+        """Verify that the input is a video (multiple frames)"""
+        return image.shape[0] > 1
+
+    def calculate_frame_indices(self, image_count, total_frames, force_end_frame=True):
+        """
+        Calculate frame indices for each keyframe with equal spacing
+        
+        Args:
+            image_count: Number of frames in the input video
+            total_frames: Number of frames in the output video
+            force_end_frame: If True, ensure the last input frame is at the last output frame
+        """
+        if image_count <= 0:
+            return [0]  # Handle edge case with no images
+            
+        if image_count == 1:
+            return [0]  # Single image is placed at frame 0
+            
+        if total_frames <= 1:
+            return [0] * image_count  # All frames at position 0 if only one output frame
+        
+        indices = []
+        
+        # If we need to force the last frame placement
+        if force_end_frame:
+            last_frame_idx = total_frames - 1
+            # Calculate spacing for all but the last frame
+            for i in range(image_count - 1):
+                frame_idx = int(i * last_frame_idx / (image_count - 1))
+                indices.append(frame_idx)
+            # Add the last frame at exactly the last position
+            indices.append(last_frame_idx)
+        else:
+            # Original implementation with even spacing
+            for i in range(image_count):
+                frame_idx = int(i * (total_frames - 1) / (image_count - 1))
+                indices.append(frame_idx)
+        
+        return indices
+
+    def generate(self, positive, negative, vae, latent, image, strength, img_compression, 
+                 input_fps, output_fps, frame_count, force_end_frame):
+        """
+        Generate a video by interpolating frames from an input video.
+        
+        Parameters:
+            positive (CONDITIONING): Positive conditioning
+            negative (CONDITIONING): Negative conditioning
+            vae (VAE): VAE model
+            latent (LATENT): Input latent
+            image (IMAGE): Input video to interpolate from
+            strength (FLOAT): Strength of keyframe conditioning
+            img_compression (INT): Amount of compression to apply on all keyframe images
+            input_fps (FLOAT): Source video frames per second
+            output_fps (FLOAT): Target output frames per second
+            frame_count (INT): Exact number of frames to generate in output video, overrides fps calculation if > 0
+            force_end_frame (BOOLEAN): Ensure last input frame is at last output frame
+            
+        Returns:
+            (CONDITIONING, CONDITIONING, LATENT): (positive, negative, latent)
+        """
+        # Ensure input is a video
+        if not self.is_video(image):
+            print("ERROR: LTXVVideoInterpolation requires a video input (multiple frames)")
+            return (positive, negative, latent)
+        
+        # Preprocess all input images with compression
+        preprocessed_images, = self.preprocessor.preprocess(image, img_compression)
+        
+        # Calculate total frames for output video
+        image_count = preprocessed_images.shape[0]
+        
+        if image_count == 0:
+            print("WARNING: No frames in input video")
+            return (positive, negative, latent)
+        
+        # Use explicit frame_count if provided, otherwise calculate from fps ratio
+        if frame_count > 0:
+            total_frames = frame_count
+            print(f"LTXVVideoInterpolation: Using explicit frame count: {total_frames}")
+        else:
+            # Calculate total output frames based on fps ratio
+            # Formula: output_frames = input_frames * (output_fps / input_fps)
+            if input_fps <= 0:
+                input_fps = 1.0  # Avoid division by zero
+            
+            if output_fps <= 0:
+                output_fps = 24.0  # Default to 24 fps if invalid
+            
+            total_frames = max(1, int(image_count * (output_fps / input_fps)))
+            print(f"LTXVVideoInterpolation: Calculated frame count from FPS: {total_frames}")
+        
+        # Calculate the frame indices for each keyframe
+        frame_indices = self.calculate_frame_indices(image_count, total_frames, force_end_frame)
+        
+        # Print info for debugging and user feedback
+        print(f"LTXVVideoInterpolation: Input video has {image_count} frames at {input_fps} fps")
+        print(f"LTXVVideoInterpolation: Output video will have {total_frames} frames at {output_fps} fps")
+        print(f"LTXVVideoInterpolation: Keyframes will be placed at frames: {frame_indices}")
+        
+        if force_end_frame:
+            print(f"LTXVVideoInterpolation: Forcing last input frame #{image_count-1} to be placed at output frame #{total_frames-1}")
+        
+        # Process each keyframe sequentially
+        current_positive = positive
+        current_negative = negative
+        current_latent = latent
+        
+        for i in range(image_count):
+            frame_idx = frame_indices[i]
+            frame_image = preprocessed_images[i:i+1]
+            
+            # Call LTXVAddGuide for each keyframe
+            try:
+                print(f"LTXVVideoInterpolation: Processing input frame #{i} at output frame index {frame_idx}")
+                current_positive, current_negative, current_latent = self.add_guide.generate(
+                    current_positive, current_negative, vae, current_latent, 
+                    frame_image, frame_idx, strength
+                )
+            except Exception as e:
+                print(f"LTXVVideoInterpolation: Error processing frame {i} at frame index {frame_idx}: {str(e)}")
+                # Continue with next keyframe if one fails
+                continue
+        
+        return (current_positive, current_negative, current_latent)
 
 
 NODE_CLASS_MAPPINGS = {
@@ -460,4 +623,5 @@ NODE_CLASS_MAPPINGS = {
     "LTXVAddGuide": LTXVAddGuide,
     "LTXVPreprocess": LTXVPreprocess,
     "LTXVCropGuides": LTXVCropGuides,
+    "LTXVVideoInterpolation": LTXVVideoInterpolation,
 }
