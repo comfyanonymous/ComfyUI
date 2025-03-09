@@ -1,3 +1,4 @@
+import json
 import comfy.supported_models
 import comfy.supported_models_base
 import comfy.utils
@@ -33,7 +34,7 @@ def calculate_transformer_depth(prefix, state_dict_keys, state_dict):
         return last_transformer_depth, context_dim, use_linear_in_transformer, time_stack, time_stack_cross
     return None
 
-def detect_unet_config(state_dict, key_prefix):
+def detect_unet_config(state_dict, key_prefix, metadata=None):
     state_dict_keys = list(state_dict.keys())
 
     if '{}joint_blocks.0.context_block.attn.qkv.weight'.format(key_prefix) in state_dict_keys: #mmdit model
@@ -210,6 +211,8 @@ def detect_unet_config(state_dict, key_prefix):
     if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys: #Lightricks ltxv
         dit_config = {}
         dit_config["image_model"] = "ltxv"
+        if metadata is not None and "config" in metadata:
+            dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
         return dit_config
 
     if '{}t_block.1.weight'.format(key_prefix) in state_dict_keys: # PixArt
@@ -454,8 +457,8 @@ def model_config_from_unet_config(unet_config, state_dict=None):
     logging.error("no match {}".format(unet_config))
     return None
 
-def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False):
-    unet_config = detect_unet_config(state_dict, unet_key_prefix)
+def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False, metadata=None):
+    unet_config = detect_unet_config(state_dict, unet_key_prefix, metadata=metadata)
     if unet_config is None:
         return None
     model_config = model_config_from_unet_config(unet_config, state_dict)
@@ -468,6 +471,10 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
         model_config.scaled_fp8 = scaled_fp8_weight.dtype
         if model_config.scaled_fp8 == torch.float32:
             model_config.scaled_fp8 = torch.float8_e4m3fn
+        if scaled_fp8_weight.nelement() == 2:
+            model_config.optimizations["fp8"] = False
+        else:
+            model_config.optimizations["fp8"] = True
 
     return model_config
 

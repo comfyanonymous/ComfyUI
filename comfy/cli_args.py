@@ -1,7 +1,6 @@
 import argparse
 import enum
 import os
-from typing import Optional
 import comfy.options
 
 
@@ -166,13 +165,14 @@ parser.add_argument(
     """,
 )
 
-def is_valid_directory(path: Optional[str]) -> Optional[str]:
-    """Validate if the given path is a directory."""
-    if path is None:
-        return None
-
+def is_valid_directory(path: str) -> str:
+    """Validate if the given path is a directory, and check permissions."""
+    if not os.path.exists(path):
+        raise argparse.ArgumentTypeError(f"The path '{path}' does not exist.")
     if not os.path.isdir(path):
-        raise argparse.ArgumentTypeError(f"{path} is not a valid directory.")
+        raise argparse.ArgumentTypeError(f"'{path}' is not a directory.")
+    if not os.access(path, os.R_OK):
+        raise argparse.ArgumentTypeError(f"You do not have read permissions for '{path}'.")
     return path
 
 parser.add_argument(
