@@ -15,13 +15,14 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-
+from __future__ import annotations
 
 import torch
 from enum import Enum
 import math
 import os
 import logging
+import copy
 import comfy.utils
 import comfy.model_management
 import comfy.model_detection
@@ -36,7 +37,7 @@ import comfy.cldm.mmdit
 import comfy.ldm.hydit.controlnet
 import comfy.ldm.flux.controlnet
 import comfy.cldm.dit_embedder
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from comfy.hooks import HookGroup
 
@@ -63,6 +64,18 @@ class StrengthType(Enum):
     CONSTANT = 1
     LINEAR_UP = 2
 
+class ControlIsolation:
+    '''Temporarily set a ControlBase object's previous_controlnet to None to prevent cascading calls.'''
+    def __init__(self, control: ControlBase):
+        self.control = control
+        self.orig_previous_controlnet = control.previous_controlnet
+
+    def __enter__(self):
+        self.control.previous_controlnet = None
+
+    def __exit__(self, *args):
+        self.control.previous_controlnet = self.orig_previous_controlnet
+
 class ControlBase:
     def __init__(self):
         self.cond_hint_original = None
@@ -76,7 +89,7 @@ class ControlBase:
         self.compression_ratio = 8
         self.upscale_algorithm = 'nearest-exact'
         self.extra_args = {}
-        self.previous_controlnet = None
+        self.previous_controlnet: Union[ControlBase, None] = None
         self.extra_conds = []
         self.strength_type = StrengthType.CONSTANT
         self.concat_mask = False
@@ -84,6 +97,7 @@ class ControlBase:
         self.extra_concat = None
         self.extra_hooks: HookGroup = None
         self.preprocess_image = lambda a: a
+        self.multigpu_clones: dict[torch.device, ControlBase] = {}
 
     def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(0.0, 1.0), vae=None, extra_concat=[]):
         self.cond_hint_original = cond_hint
@@ -110,16 +124,37 @@ class ControlBase:
     def cleanup(self):
         if self.previous_controlnet is not None:
             self.previous_controlnet.cleanup()
-
+        for device_cnet in self.multigpu_clones.values():
+            with ControlIsolation(device_cnet):
+                device_cnet.cleanup()
         self.cond_hint = None
         self.extra_concat = None
         self.timestep_range = None
 
     def get_models(self):
         out = []
+        for device_cnet in self.multigpu_clones.values():
+            out += device_cnet.get_models_only_self()
         if self.previous_controlnet is not None:
             out += self.previous_controlnet.get_models()
         return out
+
+    def get_models_only_self(self):
+        'Calls get_models, but temporarily sets previous_controlnet to None.'
+        with ControlIsolation(self):
+            return self.get_models()
+
+    def get_instance_for_device(self, device):
+        'Returns instance of this Control object intended for selected device.'
+        return self.multigpu_clones.get(device, self)
+
+    def deepclone_multigpu(self, load_device, autoregister=False):
+        '''
+        Create deep clone of Control object where model(s) is set to other devices.
+
+        When autoregister is set to True, the deep clone is also added to multigpu_clones dict.
+        '''
+        raise NotImplementedError("Classes inheriting from ControlBase should define their own deepclone_multigpu funtion.")
 
     def get_extra_hooks(self):
         out = []
@@ -129,7 +164,7 @@ class ControlBase:
             out += self.previous_controlnet.get_extra_hooks()
         return out
 
-    def copy_to(self, c):
+    def copy_to(self, c: ControlBase):
         c.cond_hint_original = self.cond_hint_original
         c.strength = self.strength
         c.timestep_percent_range = self.timestep_percent_range
@@ -278,6 +313,14 @@ class ControlNet(ControlBase):
         c.control_model = self.control_model
         c.control_model_wrapped = self.control_model_wrapped
         self.copy_to(c)
+        return c
+
+    def deepclone_multigpu(self, load_device, autoregister=False):
+        c = self.copy()
+        c.control_model = copy.deepcopy(c.control_model)
+        c.control_model_wrapped = comfy.model_patcher.ModelPatcher(c.control_model, load_device=load_device, offload_device=comfy.model_management.unet_offload_device())
+        if autoregister:
+            self.multigpu_clones[load_device] = c
         return c
 
     def get_models(self):
@@ -802,6 +845,14 @@ class T2IAdapter(ControlBase):
     def copy(self):
         c = T2IAdapter(self.t2i_model, self.channels_in, self.compression_ratio, self.upscale_algorithm)
         self.copy_to(c)
+        return c
+
+    def deepclone_multigpu(self, load_device, autoregister=False):
+        c = self.copy()
+        c.t2i_model = copy.deepcopy(c.t2i_model)
+        c.device = load_device
+        if autoregister:
+            self.multigpu_clones[load_device] = c
         return c
 
 def load_t2i_adapter(t2i_data, model_options={}): #TODO: model_options
