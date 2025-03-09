@@ -131,6 +131,19 @@ async def test_post_userdata_new_file(aiohttp_client, app, tmp_path):
         assert f.read() == content
 
 
+async def test_post_userdata_new_file_v1(aiohttp_client, app, tmp_path):
+    client = await aiohttp_client(app)
+    content = b"test content"
+    resp = await client.post("/v1/userdata/file?file=test.txt", data=content)
+
+    assert resp.status == 200
+    assert await resp.text() == '"test.txt"'
+
+    # Verify file was created with correct content
+    with open(tmp_path / "test.txt", "rb") as f:
+        assert f.read() == content
+
+
 async def test_post_userdata_overwrite_existing(aiohttp_client, app, tmp_path):
     # Create initial file
     with open(tmp_path / "test.txt", "w") as f:
@@ -139,6 +152,23 @@ async def test_post_userdata_overwrite_existing(aiohttp_client, app, tmp_path):
     client = await aiohttp_client(app)
     new_content = b"updated content"
     resp = await client.post("/userdata/test.txt", data=new_content)
+
+    assert resp.status == 200
+    assert await resp.text() == '"test.txt"'
+
+    # Verify file was overwritten
+    with open(tmp_path / "test.txt", "rb") as f:
+        assert f.read() == new_content
+
+
+async def test_post_userdata_overwrite_existing_v1(aiohttp_client, app, tmp_path):
+    # Create initial file
+    with open(tmp_path / "test.txt", "w") as f:
+        f.write("initial content")
+
+    client = await aiohttp_client(app)
+    new_content = b"updated content"
+    resp = await client.post("/v1/userdata/file?file=test.txt", data=new_content)
 
     assert resp.status == 200
     assert await resp.text() == '"test.txt"'
@@ -163,10 +193,37 @@ async def test_post_userdata_no_overwrite(aiohttp_client, app, tmp_path):
         assert f.read() == "initial content"
 
 
+async def test_post_userdata_no_overwrite_v1(aiohttp_client, app, tmp_path):
+    # Create initial file
+    with open(tmp_path / "test.txt", "w") as f:
+        f.write("initial content")
+
+    client = await aiohttp_client(app)
+    resp = await client.post("/v1/userdata/file?file=test.txt&overwrite=false", data=b"new content")
+
+    assert resp.status == 409
+
+    # Verify original content unchanged
+    with open(tmp_path / "test.txt", "r") as f:
+        assert f.read() == "initial content"
+
+
 async def test_post_userdata_full_info(aiohttp_client, app, tmp_path):
     client = await aiohttp_client(app)
     content = b"test content"
     resp = await client.post("/userdata/test.txt?full_info=true", data=content)
+
+    assert resp.status == 200
+    result = await resp.json()
+    assert result["path"] == "test.txt"
+    assert result["size"] == len(content)
+    assert "modified" in result
+
+
+async def test_post_userdata_full_info_v1(aiohttp_client, app, tmp_path):
+    client = await aiohttp_client(app)
+    content = b"test content"
+    resp = await client.post("/v1/userdata/file?file=test.txt&full_info=true", data=content)
 
     assert resp.status == 200
     result = await resp.json()
@@ -182,6 +239,23 @@ async def test_move_userdata(aiohttp_client, app, tmp_path):
 
     client = await aiohttp_client(app)
     resp = await client.post("/userdata/source.txt/move/dest.txt")
+
+    assert resp.status == 200
+    assert await resp.text() == '"dest.txt"'
+
+    # Verify file was moved
+    assert not os.path.exists(tmp_path / "source.txt")
+    with open(tmp_path / "dest.txt", "r") as f:
+        assert f.read() == "test content"
+
+
+async def test_move_userdata_v1(aiohttp_client, app, tmp_path):
+    # Create initial file
+    with open(tmp_path / "source.txt", "w") as f:
+        f.write("test content")
+
+    client = await aiohttp_client(app)
+    resp = await client.post("/v1/userdata/file/move?source=source.txt&dest=dest.txt")
 
     assert resp.status == 200
     assert await resp.text() == '"dest.txt"'
@@ -211,6 +285,25 @@ async def test_move_userdata_no_overwrite(aiohttp_client, app, tmp_path):
         assert f.read() == "destination content"
 
 
+async def test_move_userdata_no_overwrite_v1(aiohttp_client, app, tmp_path):
+    # Create source and destination files
+    with open(tmp_path / "source.txt", "w") as f:
+        f.write("source content")
+    with open(tmp_path / "dest.txt", "w") as f:
+        f.write("destination content")
+
+    client = await aiohttp_client(app)
+    resp = await client.post("/v1/userdata/file/move?source=source.txt&dest=dest.txt&overwrite=false")
+
+    assert resp.status == 409
+
+    # Verify files remain unchanged
+    with open(tmp_path / "source.txt", "r") as f:
+        assert f.read() == "source content"
+    with open(tmp_path / "dest.txt", "r") as f:
+        assert f.read() == "destination content"
+
+
 async def test_move_userdata_full_info(aiohttp_client, app, tmp_path):
     # Create initial file
     with open(tmp_path / "source.txt", "w") as f:
@@ -218,6 +311,26 @@ async def test_move_userdata_full_info(aiohttp_client, app, tmp_path):
 
     client = await aiohttp_client(app)
     resp = await client.post("/userdata/source.txt/move/dest.txt?full_info=true")
+
+    assert resp.status == 200
+    result = await resp.json()
+    assert result["path"] == "dest.txt"
+    assert result["size"] == len("test content")
+    assert "modified" in result
+
+    # Verify file was moved
+    assert not os.path.exists(tmp_path / "source.txt")
+    with open(tmp_path / "dest.txt", "r") as f:
+        assert f.read() == "test content"
+
+
+async def test_move_userdata_full_info_v1(aiohttp_client, app, tmp_path):
+    # Create initial file
+    with open(tmp_path / "source.txt", "w") as f:
+        f.write("test content")
+
+    client = await aiohttp_client(app)
+    resp = await client.post("/v1/userdata/file/move?source=source.txt&dest=dest.txt&full_info=true")
 
     assert resp.status == 200
     result = await resp.json()
