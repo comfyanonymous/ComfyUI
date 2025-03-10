@@ -172,4 +172,3 @@ def test_init_frontend_fallback_on_error():
     # Assert
     assert frontend_path == "/default/path"
     mock_check.assert_called_once()
-
