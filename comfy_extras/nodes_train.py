@@ -144,7 +144,7 @@ class LoadImageSetNode:
                     [
                         f
                         for f in os.listdir(folder_paths.get_input_directory())
-                        if f.endswith((".png", ".jpg", ".jpeg", ".webp"))
+                        if f.endswith((".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".jpe", ".apng", ".tif", ".tiff"))
                     ],
                     {"image_upload": True, "allow_batch": True},
                 )
@@ -175,7 +175,7 @@ class LoadImageSetNode:
 
     def load_images(self, input_files, resize_method):
         input_dir = folder_paths.get_input_directory()
-        valid_extensions = [".png", ".jpg", ".jpeg", ".webp"]
+        valid_extensions = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".jpe", ".apng", ".tif", ".tiff"]
         image_files = [
             f
             for f in input_files
