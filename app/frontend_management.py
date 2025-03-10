@@ -39,9 +39,8 @@ def check_frontend_version():
         import comfyui_frontend_package
 
         frontend_version = parse_version(comfyui_frontend_package.__version__)
-        required_frontend = parse_version((0,))
-        with open(req_path, 'r', encoding='utf-8') as f:
-            required_frontend = parse_version(f.readline().split('=')[-1])
+        with open(req_path, "r", encoding="utf-8") as f:
+            required_frontend = parse_version(f.readline().split("=")[-1])
         if frontend_version < required_frontend:
             logging.warning("________________________________________________________________________\nWARNING WARNING WARNING WARNING WARNING\n\nInstalled frontend version {} is lower than the recommended version {}.\n\n{}\n________________________________________________________________________".format('.'.join(map(str, frontend_version)), '.'.join(map(str, required_frontend)), frontend_install_warning_message()))
         else:
