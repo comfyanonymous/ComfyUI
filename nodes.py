@@ -2134,6 +2134,8 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
         module_name = sp[0]
     elif os.path.isdir(module_path):
         module_name = module_path
+    if module_path.endswith("comfyui-manager"): #TODO: remove this eventually
+        module_name = get_module_name(module_path)
 
     try:
         logging.debug("Trying to load custom node {}".format(module_path))
