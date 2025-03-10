@@ -584,7 +584,7 @@ def validate_inputs(prompt, item, validated):
         val = inputs[x]
         info = (type_input, extra_info)
         if isinstance(val, list):
-            if len(val) != 2 and not extra_info.get("allow_batch", False):
+            if len(val) != 2:
                 error = {
                     "type": "bad_linked_input",
                     "message": "Bad linked input, must be a length-2 list of [node_id, slot_index]",
