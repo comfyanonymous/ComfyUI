@@ -797,12 +797,15 @@ class GeneralDITTransformerBlock(nn.Module):
         adaln_lora_B_3D: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         for block in self.blocks:
-            x = block(
-                x,
-                emb_B_D,
-                crossattn_emb,
-                crossattn_mask,
-                rope_emb_L_1_1_D=rope_emb_L_1_1_D,
-                adaln_lora_B_3D=adaln_lora_B_3D,
-            )
+            if self.training:
+                x = torch.utils.checkpoint.checkpoint(block, x, emb_B_D, crossattn_emb, crossattn_mask, rope_emb_L_1_1_D, adaln_lora_B_3D, use_reentrant=False)
+            else:
+                x = block(
+                    x,
+                    emb_B_D,
+                    crossattn_emb,
+                    crossattn_mask,
+                    rope_emb_L_1_1_D=rope_emb_L_1_1_D,
+                    adaln_lora_B_3D=adaln_lora_B_3D,
+                )
         return x
