@@ -139,7 +139,6 @@ from server import BinaryEventTypes
 import nodes
 import comfy.model_management
 import comfyui_version
-import app.frontend_management
 
 
 def cuda_malloc_warning():
