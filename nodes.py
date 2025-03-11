@@ -489,7 +489,7 @@ class SaveLatent:
         file = os.path.join(full_output_folder, file)
 
         output = {}
-        output["latent_tensor"] = samples["samples"]
+        output["latent_tensor"] = samples["samples"].contiguous()
         output["latent_format_version_0"] = torch.tensor([])
 
         comfy.utils.save_torch_file(output, file, metadata=metadata)
