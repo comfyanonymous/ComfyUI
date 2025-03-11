@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 from typing import TypedDict, Optional
+from importlib.metadata import version
 
 import requests
 from typing_extensions import NotRequired
@@ -36,15 +37,14 @@ def check_frontend_version():
         return tuple(map(int, version.split(".")))
 
     try:
-        import comfyui_frontend_package
-
-        frontend_version = parse_version(comfyui_frontend_package.__version__)
+        frontend_version_str = version("comfyui-frontend-package")
+        frontend_version = parse_version(frontend_version_str)
         with open(req_path, "r", encoding="utf-8") as f:
             required_frontend = parse_version(f.readline().split("=")[-1])
         if frontend_version < required_frontend:
             logging.warning("________________________________________________________________________\nWARNING WARNING WARNING WARNING WARNING\n\nInstalled frontend version {} is lower than the recommended version {}.\n\n{}\n________________________________________________________________________".format('.'.join(map(str, frontend_version)), '.'.join(map(str, required_frontend)), frontend_install_warning_message()))
         else:
-            logging.info("ComfyUI frontend version: {}".format(comfyui_frontend_package.__version__))
+            logging.info("ComfyUI frontend version: {}".format(frontend_version_str))
     except Exception as e:
         logging.error(f"Failed to check frontend version: {e}")
 
