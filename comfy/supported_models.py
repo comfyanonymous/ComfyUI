@@ -511,6 +511,7 @@ class LotusD(SD20):
         "model_channels": 320,
         "use_linear_in_transformer": True,
         "use_temporal_attention": False,
+        "adm_in_channels": 4,
         "in_channels": 4,
     }
 
@@ -519,8 +520,7 @@ class LotusD(SD20):
     }
 
     def get_model(self, state_dict, prefix="", device=None):
-        print('identified lotus-d model')
-        return model_base.LotusModel(self, device=device)
+        return model_base.Lotus(self, device=device)
 
 class SD3(supported_models_base.BASE):
     unet_config = {

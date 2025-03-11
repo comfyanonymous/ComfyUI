@@ -140,10 +140,6 @@ class BaseModel(torch.nn.Module):
         sigma = t
         xc = self.model_sampling.calculate_input(sigma, x)
         
-        #this is probably not the right way to do this
-        if isinstance(self,LotusModel): 
-            xc = x#torch.cat([x], dim=1)
-
         if c_concat is not None:
             xc = torch.cat([xc] + [c_concat], dim=1)
 
@@ -605,7 +601,7 @@ class SDXL_instructpix2pix(IP2P, SDXL):
         else:
             self.process_ip2p_image_in = lambda image: image #diffusers ip2p
 
-class LotusModel(BaseModel):
+class Lotus(BaseModel):
     def extra_conds(self, **kwargs):
         out = {}
         cross_attn = kwargs.get("cross_attn", None)
@@ -615,14 +611,6 @@ class LotusModel(BaseModel):
         task_emb = torch.cat([torch.sin(task_emb), torch.cos(task_emb)]).unsqueeze(0)
         out['y'] = comfy.conds.CONDRegular(task_emb)
         return out
-
-    def process_latent_out(self, latent):
-        #TODO FIX
-        #there is some scaling issue that happens during diffusion and this is a kludge to fix it
-        #my best guess is that the scaling is somehow fucked up by the 999 sigma which is why
-        #i'm using it here to scale things back, however this is definitely not correct and is just
-        #patching an error that comes from the actual model sampling being done incorrectly
-        return latent/-(999*0.18215)
 
     def __init__(self, model_config, model_type=ModelType.EPS, device=None):
         super().__init__(model_config, model_type, device=device)
