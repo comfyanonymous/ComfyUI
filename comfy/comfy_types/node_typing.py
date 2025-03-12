@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from typing import Literal, TypedDict
+from typing_extensions import NotRequired
 from abc import ABC, abstractmethod
 from enum import Enum
 
@@ -26,6 +27,7 @@ class IO(StrEnum):
     BOOLEAN = "BOOLEAN"
     INT = "INT"
     FLOAT = "FLOAT"
+    COMBO = "COMBO"
     CONDITIONING = "CONDITIONING"
     SAMPLER = "SAMPLER"
     SIGMAS = "SIGMAS"
@@ -66,6 +68,7 @@ class IO(StrEnum):
         b = frozenset(value.split(","))
         return not (b.issubset(a) or a.issubset(b))
 
+
 class RemoteInputOptions(TypedDict):
     route: str
     """The route to the remote source."""
@@ -79,6 +82,14 @@ class RemoteInputOptions(TypedDict):
     """The maximum number of retries before aborting the request."""
     refresh: int
     """The TTL of the remote input's value in milliseconds. Specifies the interval at which the remote input's value is refreshed."""
+
+
+class MultiSelectOptions(TypedDict):
+    placeholder: NotRequired[str]
+    """The placeholder text to display in the multi-select widget when no items are selected."""
+    chip: NotRequired[bool]
+    """Specifies whether to use chips instead of comma separated values for the multi-select widget."""
+
 
 class InputTypeOptions(TypedDict):
     """Provides type hinting for the return type of the INPUT_TYPES node function.
@@ -133,9 +144,22 @@ class InputTypeOptions(TypedDict):
     """Specifies which folder to get preview images from if the input has the ``image_upload`` flag.
     """
     remote: RemoteInputOptions
-    """Specifies the configuration for a remote input."""
+    """Specifies the configuration for a remote input.
+    Available after ComfyUI frontend v1.9.7
+    https://github.com/Comfy-Org/ComfyUI_frontend/pull/2422"""
     control_after_generate: bool
     """Specifies whether a control widget should be added to the input, adding options to automatically change the value after each prompt is queued. Currently only used for INT and COMBO types."""
+    options: NotRequired[list[str | int | float]]
+    """COMBO type only. Specifies the selectable options for the combo widget.
+    Prefer:
+    ["COMBO", {"options": ["Option 1", "Option 2", "Option 3"]}]
+    Over:
+    [["Option 1", "Option 2", "Option 3"]]
+    """
+    multi_select: NotRequired[MultiSelectOptions]
+    """COMBO type only. Specifies the configuration for a multi-select widget.
+    Available after ComfyUI frontend v1.13.4
+    https://github.com/Comfy-Org/ComfyUI_frontend/pull/2987"""
 
 
 class HiddenInputTypeDict(TypedDict):
