@@ -69,7 +69,7 @@ jobs:
             cd ..
 
           curl --location https://www.nuget.org/api/v2/package/python/3.${{ inputs.python_minor }}.${{ inputs.python_patch }} -o python_nuget.zip
-          unzip python_nuget.zip -d python_nuget
+          unzip -q python_nuget.zip -d python_nuget
           cp -r python_nuget/tools/include python_embeded/
           cp -r python_nuget/tools/libs python_embeded/
 
