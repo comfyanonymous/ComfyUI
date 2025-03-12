@@ -19,5 +19,6 @@
 /app/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 /utils/ @yoland68 @robinjhuang @huchenlei @webfiltered @pythongosssss @ltdrdata
 
-# Extra nodes
-/comfy_extras/ @yoland68 @robinjhuang @huchenlei @pythongosssss @ltdrdata @Kosinkadink
+# Node developers
+/comfy_extras/ @yoland68 @robinjhuang @huchenlei @pythongosssss @ltdrdata @Kosinkadink @webfiltered
+/comfy/comfy_types/ @yoland68 @robinjhuang @huchenlei @pythongosssss @ltdrdata @Kosinkadink @webfiltered
