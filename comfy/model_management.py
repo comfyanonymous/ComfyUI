@@ -200,7 +200,7 @@ try:
     logging.info("pytorch version: {}".format(torch_version))
     mac_ver = mac_version()
     if mac_ver is not None:
-        print("Mac Version", mac_ver)
+        logging.info("Mac Version {}".format(mac_ver))
 except:
     pass
 
