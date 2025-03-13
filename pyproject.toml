@@ -4,6 +4,76 @@ version = "0.3.26"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
+dependencies = [
+    "torchsde",
+    "numpy>=1.25.0",
+    "einops",
+    "transformers>=4.28.1",
+    "tokenizers>=0.13.3",
+    "sentencepiece",
+    "safetensors>=0.4.2",
+    "aiohttp",
+    "pyyaml",
+    "Pillow",
+    "scipy",
+    "tqdm",
+    "psutil",
+    # Optional dependencies
+    "kornia>=0.7.1",
+    "spandrel",
+    "soundfile",
+    "comfyui-manager",
+]
+
+[project.optional-dependencies]
+cpu = [
+  "torch",
+  "torchvision",
+  "torchaudio",
+]
+
+cu126 = [
+  "torch",
+  "torchvision",
+  "torchaudio",
+]
+
+cu124 = [
+  "torch",
+  "torchvision",
+  "torchaudio",
+]
+
+cu118 = [
+  "torch",
+  "torchvision",
+  "torchaudio",
+]
+
+rocm = [
+  "torch",
+  "torchvision",
+  "torchaudio",
+]
+
+xpus = [
+  "torch",
+  "torchvision",
+  "torchaudio",
+]
+
+[tool.uv]
+conflicts = [
+  [
+    { extra = "cpu" },
+    { extra = "cu126" },
+    { extra = "cu124" },
+    { extra = "cu118" },
+    { extra = "rocm" },
+    { extra = "xpus" },
+  ],
+]
+
 
 [project.urls]
 homepage = "https://www.comfy.org/"
@@ -21,3 +91,61 @@ lint.select = [
   "F",
 ]
 exclude = ["*.ipynb"]
+
+
+[tool.uv.sources]
+comfyui-manager = { path = "custom_nodes/ComfyUI-Manager" }
+torch = [
+  { index = "pytorch-cu126", extra = "cu126" },
+  { index = "pytorch-cu124", extra = "cu124" },
+  { index = "pytorch-cu118", extra = "cu118" },
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-rocm", extra = "rocm" },
+  { index = "pytorch-xpu", extra = "xpus" },
+]
+torchvision = [
+    { index = "pytorch-cu126", extra = "cu126" },
+    { index = "pytorch-cu124", extra = "cu124" },
+    { index = "pytorch-cu118", extra = "cu118" },
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-rocm", extra = "rocm" },
+    { index = "pytorch-xpu", extra = "xpus" },
+]
+torchaudio = [
+  { index = "pytorch-cu126", extra = "cu126" },
+  { index = "pytorch-cu124", extra = "cu124" },
+  { index = "pytorch-cu118", extra = "cu118" },
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-rocm", extra = "rocm" },
+  { index = "pytorch-xpu", extra = "xpus" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-rocm"
+url = "https://download.pytorch.org/whl/rocm6.2"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-xpu"
+url = "https://download.pytorch.org/whl/xpu"
+explicit = true
