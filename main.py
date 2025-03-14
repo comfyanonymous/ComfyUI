@@ -5,7 +5,7 @@ import os
 import importlib.util
 import folder_paths
 import time
-from comfy.cli_args import args
+from comfy.cli_args import args, unknown_args
 from app.logger import setup_logger
 import itertools
 import utils.extra_config
@@ -18,6 +18,8 @@ if __name__ == "__main__":
 
 
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
+if unknown_args:
+    logging.info("Found arguments not defined in the ComfyUI core: %s", unknown_args)
 
 def apply_custom_paths():
     # extra model paths
