@@ -544,7 +544,7 @@ def attention_flash(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
             causal=False,
         ).transpose(1, 2)
     except Exception as e:
-        logging.warning("Flash Attention failed, using default SDPA: {e}")
+        logging.warning(f"Flash Attention failed, using default SDPA: {e}")
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
     if not skip_output_reshape:
         out = (
