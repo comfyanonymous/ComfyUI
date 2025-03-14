@@ -489,7 +489,7 @@ class SaveLatent:
         file = os.path.join(full_output_folder, file)
 
         output = {}
-        output["latent_tensor"] = samples["samples"]
+        output["latent_tensor"] = samples["samples"].contiguous()
         output["latent_format_version_0"] = torch.tensor([])
 
         comfy.utils.save_torch_file(output, file, metadata=metadata)
@@ -1785,14 +1785,7 @@ class LoadImageOutput(LoadImage):
 
     DESCRIPTION = "Load an image from the output folder. When the refresh button is clicked, the node will update the image list and automatically select the first image, allowing for easy iteration."
     EXPERIMENTAL = True
-    FUNCTION = "load_image_output"
-
-    def load_image_output(self, image):
-        return self.load_image(f"{image} [output]")
-
-    @classmethod
-    def VALIDATE_INPUTS(s, image):
-        return True
+    FUNCTION = "load_image"
 
 
 class ImageScale:

@@ -82,3 +82,17 @@ def setup_logger(log_level: str = 'INFO', capacity: int = 300, use_stdout: bool 
         logger.addHandler(stdout_handler)
 
     logger.addHandler(stream_handler)
+
+
+STARTUP_WARNINGS = []
+
+
+def log_startup_warning(msg):
+    logging.warning(msg)
+    STARTUP_WARNINGS.append(msg)
+
+
+def print_startup_warnings():
+    for s in STARTUP_WARNINGS:
+        logging.warning(s)
+    STARTUP_WARNINGS.clear()

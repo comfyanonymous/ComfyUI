@@ -11,33 +11,44 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 from typing import TypedDict, Optional
+from importlib.metadata import version
 
 import requests
 from typing_extensions import NotRequired
 
 from comfy.cli_args import DEFAULT_VERSION_STRING
+import app.logger
 
+# The path to the requirements.txt file
+req_path = Path(__file__).parents[1] / "requirements.txt"
 
 def frontend_install_warning_message():
-    req_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'requirements.txt'))
+    """The warning message to display when the frontend version is not up to date."""
+
     extra = ""
     if sys.flags.no_user_site:
         extra = "-s "
     return f"Please install the updated requirements.txt file by running:\n{sys.executable} {extra}-m pip install -r {req_path}\n\nThis error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.\n\nIf you are on the portable package you can run: update\\update_comfyui.bat to solve this problem"
 
-try:
-    import comfyui_frontend_package
-except ImportError:
-    # TODO: Remove the check after roll out of 0.3.16
-    logging.error(f"\n\n********** ERROR ***********\n\ncomfyui-frontend-package is not installed. {frontend_install_warning_message()}\n********** ERROR **********\n")
-    exit(-1)
 
+def check_frontend_version():
+    """Check if the frontend version is up to date."""
 
-try:
-    frontend_version = tuple(map(int, comfyui_frontend_package.__version__.split(".")))
-except:
-    frontend_version = (0,)
-    pass
+    def parse_version(version: str) -> tuple[int, int, int]:
+        return tuple(map(int, version.split(".")))
+
+    try:
+        frontend_version_str = version("comfyui-frontend-package")
+        frontend_version = parse_version(frontend_version_str)
+        with open(req_path, "r", encoding="utf-8") as f:
+            required_frontend = parse_version(f.readline().split("=")[-1])
+        if frontend_version < required_frontend:
+            app.logger.log_startup_warning("________________________________________________________________________\nWARNING WARNING WARNING WARNING WARNING\n\nInstalled frontend version {} is lower than the recommended version {}.\n\n{}\n________________________________________________________________________".format('.'.join(map(str, frontend_version)), '.'.join(map(str, required_frontend)), frontend_install_warning_message()))
+        else:
+            logging.info("ComfyUI frontend version: {}".format(frontend_version_str))
+    except Exception as e:
+        logging.error(f"Failed to check frontend version: {e}")
+
 
 REQUEST_TIMEOUT = 10  # seconds
 
@@ -133,8 +144,16 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 
 class FrontendManager:
-    DEFAULT_FRONTEND_PATH = str(importlib.resources.files(comfyui_frontend_package) / "static")
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
+
+    @classmethod
+    def default_frontend_path(cls) -> str:
+        try:
+            import comfyui_frontend_package
+            return str(importlib.resources.files(comfyui_frontend_package) / "static")
+        except ImportError:
+            logging.error(f"\n\n********** ERROR ***********\n\ncomfyui-frontend-package is not installed. {frontend_install_warning_message()}\n********** ERROR **********\n")
+            sys.exit(-1)
 
     @classmethod
     def parse_version_string(cls, value: str) -> tuple[str, str, str]:
@@ -172,7 +191,8 @@ class FrontendManager:
             main error source might be request timeout or invalid URL.
         """
         if version_string == DEFAULT_VERSION_STRING:
-            return cls.DEFAULT_FRONTEND_PATH
+            check_frontend_version()
+            return cls.default_frontend_path()
 
         repo_owner, repo_name, version = cls.parse_version_string(version_string)
 
@@ -225,4 +245,5 @@ class FrontendManager:
         except Exception as e:
             logging.error("Failed to initialize frontend: %s", e)
             logging.info("Falling back to the default frontend.")
-            return cls.DEFAULT_FRONTEND_PATH
+            check_frontend_version()
+            return cls.default_frontend_path()
