@@ -28,7 +28,7 @@ def get_package_version(package_name):
         return version(package_name)
 
 # Check and install comfyui-frontend-package if not installed or if the version is lower than required
-required_version = "1.11.8"
+required_version = "1.12.11"
 package_name = "comfyui-frontend-package"
 
 try:
@@ -42,7 +42,7 @@ try:
         import sys
         subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{package_name}=={required_version}', '--quiet', '--upgrade'])
         print(" ")
-        print(f"Comfyui Frontend Package version {installed_version} is outdated, updating to version {required_version}. (one time only)")
+        print(f"Comfyui Frontend Package version {installed_version} is outdated, updating to latest recommended version {required_version}.")
 except Exception as e:
     # If the package is not installed or version check fails, install it
     import subprocess
