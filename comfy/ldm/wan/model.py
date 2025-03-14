@@ -424,12 +424,6 @@ class WanModel(torch.nn.Module):
             context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
             context = torch.concat([context_clip, context], dim=1)
 
-        # arguments
-        kwargs = dict(
-            e=e0,
-            freqs=freqs,
-            context=context)
-
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
         for i, block in enumerate(self.blocks):
