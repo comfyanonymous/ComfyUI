@@ -125,9 +125,20 @@ def is_mlu():
         return True
     return False
 
+def set_npu_device(device_id):
+    """Set the NPU device to use.
+    
+    Args:
+        device_id (int): The id of the NPU device to use.
+    """
+    if device_id is not None:
+        torch.npu.set_device(device_id)
+
 def get_torch_device():
     global directml_enabled
     global cpu_state
+    if is_ascend_npu():
+        return torch.device("npu", torch.npu.current_device())
     if directml_enabled:
         global directml_device
         return directml_device
@@ -138,8 +149,6 @@ def get_torch_device():
     else:
         if is_intel_xpu():
             return torch.device("xpu", torch.xpu.current_device())
-        elif is_ascend_npu():
-            return torch.device("npu", torch.npu.current_device())
         elif is_mlu():
             return torch.device("mlu", torch.mlu.current_device())
         else:

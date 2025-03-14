@@ -6,6 +6,7 @@ import importlib.util
 import folder_paths
 import time
 from comfy.cli_args import args
+import comfy.model_management
 from app.logger import setup_logger
 import itertools
 import utils.extra_config
@@ -114,6 +115,10 @@ if __name__ == "__main__":
         os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
         logging.info("Set cuda device to: {}".format(args.cuda_device))
 
+    if args.npu_device is not None:
+        comfy.model_management.set_npu_device(args.npu_device)
+        logging.info("Set npu device to: {}".format(args.npu_device))
+
     if args.oneapi_device_selector is not None:
         os.environ['ONEAPI_DEVICE_SELECTOR'] = args.oneapi_device_selector
         logging.info("Set oneapi device selector to: {}".format(args.oneapi_device_selector))
@@ -137,7 +142,6 @@ import execution
 import server
 from server import BinaryEventTypes
 import nodes
-import comfy.model_management
 import comfyui_version
 import app.logger
 
