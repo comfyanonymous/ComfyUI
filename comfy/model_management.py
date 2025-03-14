@@ -187,12 +187,21 @@ def get_total_memory(dev=None, torch_total_too=False):
     else:
         return mem_total
 
+def mac_version():
+    try:
+        return tuple(int(n) for n in platform.mac_ver()[0].split("."))
+    except:
+        return None
+
 total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
 total_ram = psutil.virtual_memory().total / (1024 * 1024)
 logging.info("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))
 
 try:
     logging.info("pytorch version: {}".format(torch_version))
+    mac_ver = mac_version()
+    if mac_ver is not None:
+        logging.info("Mac Version {}".format(mac_ver))
 except:
     pass
 
@@ -922,6 +931,9 @@ def cast_to_device(tensor, device, dtype, copy=False):
 def sage_attention_enabled():
     return args.use_sage_attention
 
+def flash_attention_enabled():
+    return args.use_flash_attention
+
 def xformers_enabled():
     global directml_enabled
     global cpu_state
@@ -969,12 +981,6 @@ def pytorch_attention_flash_attention():
         if is_amd():
             return True #if you have pytorch attention enabled on AMD it probably supports at least mem efficient attention
     return False
-
-def mac_version():
-    try:
-        return tuple(int(n) for n in platform.mac_ver()[0].split("."))
-    except:
-        return None
 
 def force_upcast_attention_dtype():
     upcast = args.force_upcast_attention
