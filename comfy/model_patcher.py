@@ -747,6 +747,7 @@ class ModelPatcher:
 
     def partially_unload(self, device_to, memory_to_free=0):
         with self.use_ejected():
+            hooks_unpatched = False
             memory_freed = 0
             patch_counter = 0
             unload_list = self._load_list()
@@ -769,6 +770,10 @@ class ModelPatcher:
                             if not lowvram_possible:
                                 move_weight = False
                                 break
+
+                            if not hooks_unpatched:
+                                self.unpatch_hooks()
+                                hooks_unpatched = True
 
                             if bk.inplace_update:
                                 comfy.utils.copy_to_param(self.model, key, bk.weight)
