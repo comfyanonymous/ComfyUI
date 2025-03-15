@@ -99,10 +99,10 @@ class CustomNodeManager:
             files = [
                 file
                 for folder in folder_paths.get_folder_paths("custom_nodes")
-                for file in glob.glob(
-                    os.path.join(folder, "*/example_workflows/*.json")
-                )
+                for pattern in ["*/*example*/*.json", "*/*workflow*/*.json"]
+                for file in glob.glob(os.path.join(folder, pattern))
             ]
+            files = list({os.path.normpath(f) for f in files})
             workflow_templates_dict = (
                 {}
             )  # custom_nodes folder name -> example workflow names
@@ -118,15 +118,23 @@ class CustomNodeManager:
 
         # Serve workflow templates from custom nodes.
         for module_name, module_dir in loadedModules:
-            workflows_dir = os.path.join(module_dir, "example_workflows")
-            if os.path.exists(workflows_dir):
-                webapp.add_routes(
-                    [
-                        web.static(
-                            "/api/workflow_templates/" + module_name, workflows_dir
-                        )
-                    ]
-                )
+            workflow_patterns = ["*example*", "*workflow*"]
+            workflows_dirs = [
+                os.path.join(module_dir, d)
+                for pattern in workflow_patterns
+                for d in glob.glob(os.path.join(module_dir, pattern))
+                if os.path.isdir(d)
+                and ("example" in d.lower() or "workflow" in d.lower())
+            ]
+            for workflows_dir in workflows_dirs:
+                if os.path.exists(workflows_dir):
+                    webapp.add_routes(
+                        [
+                            web.static(
+                                "/api/workflow_templates/" + module_name, workflows_dir
+                            )
+                        ]
+                    )
 
         @routes.get("/i18n")
         async def get_i18n(request):
