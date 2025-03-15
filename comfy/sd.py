@@ -907,7 +907,12 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
 
     model_config = model_detection.model_config_from_unet(sd, diffusion_model_prefix, metadata=metadata)
     if model_config is None:
-        return None
+        logging.warning("Warning, This is not a checkpoint file, trying to load it as a diffusion model only.")
+        diffusion_model = load_diffusion_model_state_dict(sd, model_options={})
+        if diffusion_model is None:
+            return None
+        return (diffusion_model, None, VAE(sd={}), None)  # The VAE object is there to throw an exception if it's actually used'
+
 
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
     if model_config.scaled_fp8 is not None:
