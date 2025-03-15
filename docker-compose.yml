@@ -3,7 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: comfyui-red-docker
+    image: comfyui-red-image
+    container_name: comfyui-red-container
     ports:
       - "8188:8188"  # Expose the backend API or server
     volumes:

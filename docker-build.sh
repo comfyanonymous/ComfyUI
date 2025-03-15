@@ -9,10 +9,10 @@ fi
 
 # Step 1: Build and start the container without mounting the venv volume
 echo "Building and starting the container to initialize the virtual environment..."
-docker-compose up --build -d
+COMPOSE_BAKE=true docker-compose up --build -d
 
 # Wait for the container logs to indicate it's ready (looking for the custom message)
-container_name="comfyui-red-docker"
+container_name="comfyui-red-container"
 while ! docker logs "$container_name" 2>&1 | grep -q "Server started and ready to accept requests"; do
     echo "Waiting for the container to be fully started..."
     sleep 20
