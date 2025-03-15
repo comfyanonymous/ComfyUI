@@ -589,42 +589,32 @@ class PromptServer():
                     except Exception:
                         logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
                         logging.error(traceback.format_exc())
-                
+
                 # Debug node_info in the current memory cache
                 #cache_stats = node_info.cache_info()
                 #print(f"node_info Cache Hits: {cache_stats.hits}, Misses: {cache_stats.misses}, Current Memory Cache Size: {cache_stats.currsize}")
 
-                response = web.json_response(out)
-                response.enable_compression()
-                return response
-
+                return web.json_response(out)
+                
         @routes.get("/object_info/{node_class}")
         async def get_object_info_node(request):
             node_class = request.match_info.get("node_class", None)
             out = {}
             if (node_class is not None) and (node_class in nodes.NODE_CLASS_MAPPINGS):
                 out[node_class] = node_info(node_class)
-            response = web.json_response(out)
-            response.enable_compression()
-            return response
+            return web.json_response(out)
 
         @routes.get("/history")
         async def get_history(request):
             max_items = request.rel_url.query.get("max_items", None)
             if max_items is not None:
                 max_items = int(max_items)
-            history_data = self.prompt_queue.get_history(max_items=max_items)
-            response = web.json_response(history_data)
-            response.enable_compression()
-            return response
+            return web.json_response(self.prompt_queue.get_history(max_items=max_items))
 
         @routes.get("/history/{prompt_id}")
         async def get_history_prompt_id(request):
             prompt_id = request.match_info.get("prompt_id", None)
-            history_prompt_id_data = self.prompt_queue.get_history(prompt_id=prompt_id)
-            response = web.json_response(history_prompt_id_data)
-            response.enable_compression()
-            return response
+            return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
 
         @routes.get("/queue")
         async def get_queue(request):
@@ -632,9 +622,7 @@ class PromptServer():
             current_queue = self.prompt_queue.get_current_queue()
             queue_info['queue_running'] = current_queue[0]
             queue_info['queue_pending'] = current_queue[1]
-            response = web.json_response(queue_info)
-            response.enable_compression()
-            return response
+            return web.json_response(queue_info)
 
         @routes.post("/prompt")
         async def post_prompt(request):
