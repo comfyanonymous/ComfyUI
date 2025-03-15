@@ -235,6 +235,24 @@ Install the dependencies by opening your terminal inside the ComfyUI folder and:
 
 After this you should have everything installed and can proceed to running ComfyUI.
 
+### DOCKER - NVIDIA
+
+This uses the base image nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 and stable torch version from https://download.pytorch.org/whl/cu126.
+
+After cloning the repo, run the following command once in bash terminal to build the docker image:
+
+```chmod +x docker-build.sh```
+
+```./docker-build.sh```
+
+After you docker image is built, you can launch ComfyUI by running the following command:
+
+```docker-compose up```
+
+To stop the container, run:
+
+```docker-compose down```
+
 ### Others:
 
 #### Apple Mac silicon
