@@ -688,10 +688,10 @@ def sample_dpmpp_sde(model, x, sigmas, extra_args=None, callback=None, disable=N
     if len(sigmas) <= 1:
         return x
 
+    extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     seed = extra_args.get("seed", None)
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=seed, cpu=True) if noise_sampler is None else noise_sampler
-    extra_args = {} if extra_args is None else extra_args
     s_in = x.new_ones([x.shape[0]])
     sigma_fn = lambda t: t.neg().exp()
     t_fn = lambda sigma: sigma.log().neg()
@@ -762,10 +762,10 @@ def sample_dpmpp_2m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
     if solver_type not in {'heun', 'midpoint'}:
         raise ValueError('solver_type must be \'heun\' or \'midpoint\'')
 
+    extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=seed, cpu=True) if noise_sampler is None else noise_sampler
-    extra_args = {} if extra_args is None else extra_args
     s_in = x.new_ones([x.shape[0]])
 
     old_denoised = None
@@ -808,10 +808,10 @@ def sample_dpmpp_3m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
     if len(sigmas) <= 1:
         return x
 
+    extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=seed, cpu=True) if noise_sampler is None else noise_sampler
-    extra_args = {} if extra_args is None else extra_args
     s_in = x.new_ones([x.shape[0]])
 
     denoised_1, denoised_2 = None, None
@@ -858,7 +858,7 @@ def sample_dpmpp_3m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
 def sample_dpmpp_3m_sde_gpu(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
     if len(sigmas) <= 1:
         return x
-
+    extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
     return sample_dpmpp_3m_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler)
@@ -867,7 +867,7 @@ def sample_dpmpp_3m_sde_gpu(model, x, sigmas, extra_args=None, callback=None, di
 def sample_dpmpp_2m_sde_gpu(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, solver_type='midpoint'):
     if len(sigmas) <= 1:
         return x
-
+    extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
     return sample_dpmpp_2m_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler, solver_type=solver_type)
@@ -876,7 +876,7 @@ def sample_dpmpp_2m_sde_gpu(model, x, sigmas, extra_args=None, callback=None, di
 def sample_dpmpp_sde_gpu(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r=1 / 2):
     if len(sigmas) <= 1:
         return x
-
+    extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
     return sample_dpmpp_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler, r=r)
@@ -1365,4 +1365,60 @@ def sample_gradient_estimation(model, x, sigmas, extra_args=None, callback=None,
             d_bar = ge_gamma * d + (1 - ge_gamma) * old_d
             x = x + d_bar * dt
         old_d = d
+    return x
+
+@torch.no_grad()
+def sample_er_sde(model, x, sigmas, extra_args=None, callback=None, disable=None, s_noise=1., noise_sampler=None, noise_scaler=None, max_stage=3):
+    """
+    Extended Reverse-Time SDE solver (VE ER-SDE-Solver-3). Arxiv: https://arxiv.org/abs/2309.06169.
+    Code reference: https://github.com/QinpengCui/ER-SDE-Solver/blob/main/er_sde_solver.py.
+    """
+    extra_args = {} if extra_args is None else extra_args
+    seed = extra_args.get("seed", None)
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
+    s_in = x.new_ones([x.shape[0]])
+
+    def default_noise_scaler(sigma):
+        return sigma * ((sigma ** 0.3).exp() + 10.0)
+    noise_scaler = default_noise_scaler if noise_scaler is None else noise_scaler
+    num_integration_points = 200.0
+    point_indice = torch.arange(0, num_integration_points, dtype=torch.float32, device=x.device)
+
+    old_denoised = None
+    old_denoised_d = None
+
+    for i in trange(len(sigmas) - 1, disable=disable):
+        denoised = model(x, sigmas[i] * s_in, **extra_args)
+        if callback is not None:
+            callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+        stage_used = min(max_stage, i + 1)
+        if sigmas[i + 1] == 0:
+            x = denoised
+        elif stage_used == 1:
+            r = noise_scaler(sigmas[i + 1]) / noise_scaler(sigmas[i])
+            x = r * x + (1 - r) * denoised
+        else:
+            r = noise_scaler(sigmas[i + 1]) / noise_scaler(sigmas[i])
+            x = r * x + (1 - r) * denoised
+
+            dt = sigmas[i + 1] - sigmas[i]
+            sigma_step_size = -dt / num_integration_points
+            sigma_pos = sigmas[i + 1] + point_indice * sigma_step_size
+            scaled_pos = noise_scaler(sigma_pos)
+
+            # Stage 2
+            s = torch.sum(1 / scaled_pos) * sigma_step_size
+            denoised_d = (denoised - old_denoised) / (sigmas[i] - sigmas[i - 1])
+            x = x + (dt + s * noise_scaler(sigmas[i + 1])) * denoised_d
+
+            if stage_used >= 3:
+                # Stage 3
+                s_u = torch.sum((sigma_pos - sigmas[i]) / scaled_pos) * sigma_step_size
+                denoised_u = (denoised_d - old_denoised_d) / ((sigmas[i] - sigmas[i - 2]) / 2)
+                x = x + ((dt ** 2) / 2 + s_u * noise_scaler(sigmas[i + 1])) * denoised_u
+            old_denoised_d = denoised_d
+
+        if s_noise != 0 and sigmas[i + 1] > 0:
+            x = x + noise_sampler(sigmas[i], sigmas[i + 1]) * s_noise * (sigmas[i + 1] ** 2 - sigmas[i] ** 2 * r ** 2).sqrt()
+        old_denoised = denoised
     return x

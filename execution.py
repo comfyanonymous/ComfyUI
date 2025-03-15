@@ -634,6 +634,13 @@ def validate_inputs(prompt, item, validated):
                 continue
         else:
             try:
+                # Unwraps values wrapped in __value__ key. This is used to pass
+                # list widget value to execution, as by default list value is
+                # reserved to represent the connection between nodes.
+                if isinstance(val, dict) and "__value__" in val:
+                    val = val["__value__"]
+                    inputs[x] = val
+
                 if type_input == "INT":
                     val = int(val)
                     inputs[x] = val

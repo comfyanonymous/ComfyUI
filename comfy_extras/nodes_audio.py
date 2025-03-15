@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torchaudio
 import torch
 import comfy.model_management
@@ -10,6 +12,7 @@ import random
 import hashlib
 import node_helpers
 from comfy.cli_args import args
+from comfy.comfy_types import FileLocator
 
 class EmptyLatentAudio:
     def __init__(self):
@@ -164,7 +167,7 @@ class SaveAudio:
     def save_audio(self, audio, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
-        results = list()
+        results: list[FileLocator] = []
 
         metadata = {}
         if not args.disable_metadata:
