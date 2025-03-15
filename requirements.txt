@@ -1,4 +1,4 @@
-comfyui-frontend-package==1.11.8
+comfyui-frontend-package==1.12.14
 torch
 torchsde
 torchvision
