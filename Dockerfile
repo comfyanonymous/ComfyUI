@@ -46,6 +46,14 @@ RUN . venv/bin/activate && pip install -r /app/comfyui/requirements.txt
 # Install PyTorch with CUDA 12.1 support
 RUN . venv/bin/activate && pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
 
+# Clone the ComfyUI-manager repository into a temporary directory, move it, and clean up
+RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git /app/temp/ComfyUI-Manager && \
+    mv /app/temp/* /app/comfyui/custom_nodes/ && \
+    rm -rf /app/temp
+
+# Install ComfyUI-manager dependencies
+RUN . venv/bin/activate && pip install -r /app/comfyui/custom_nodes/ComfyUI-Manager/requirements.txt
+
 # Expose the backend port
 EXPOSE 8188
 

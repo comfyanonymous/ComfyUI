@@ -15,8 +15,9 @@ services:
       - ./user:/app/comfyui/user  # Comment this line and uncomment the next line if you want to have a workflows directory in the root directory.
       #- ./workflows:/app/comfyui/user/default/workflows 
 
-      # Mount the venv directory for persistence
-       
+      # Mount the venv directory for persistence(automatically mounted with you run docker-build.sh)
+
+
     environment:
       - DISPLAY=${DISPLAY}  # Optional, for X11 display forwarding (if you use it)
       - NVIDIA_VISIBLE_DEVICES=all  # Ensure NVIDIA GPU is available to the container
