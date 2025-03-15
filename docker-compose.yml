@@ -11,11 +11,12 @@ services:
       - ./input:/app/comfyui/input  # Mount the input directory directly inside /app/comfyui
       - ./models:/app/comfyui/models  # Mount the models directory directly inside /app/comfyui
       - ./output:/app/comfyui/output  # Mount the output directory directly inside /app/comfyui
-      - ./custom_nodes:/app/comfyui/custom_nodes  # Mount the custom nodes directory directly inside /app/comfyui
       - ./user:/app/comfyui/user  # Comment this line and uncomment the next line if you want to have a workflows directory in the root directory.
       #- ./workflows:/app/comfyui/user/default/workflows 
 
-      # Mount the venv directory for persistence(automatically mounted with you run docker-build.sh)
+      # Mount the venv directory for persistence (automatically mounted with you run docker-build.sh)
+
+      # Mount the custom nodes directory directly inside /app/comfyui (automatically mounted with you run docker-build.sh)
 
 
     environment:

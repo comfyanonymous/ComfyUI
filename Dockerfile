@@ -58,4 +58,4 @@ RUN . venv/bin/activate && pip install -r /app/comfyui/custom_nodes/ComfyUI-Mana
 EXPOSE 8188
 
 # Set the entrypoint command to activate the virtual environment and run the script
-CMD ["/bin/bash", "-c", "source /app/venv/bin/activate && python3 /app/comfyui/main.py --listen 0.0.0.0 --port 8188 && echo 'Server started and ready to accept requests'"]
+CMD ["/bin/bash", "-c", "source /app/venv/bin/activate && python3 /app/comfyui/main.py --listen 0.0.0.0 --port 8188"]
