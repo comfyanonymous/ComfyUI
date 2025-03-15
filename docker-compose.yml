@@ -8,14 +8,15 @@ services:
     ports:
       - "8188:8188"  # Expose the backend API or server
     volumes:
-      - ./input:/app/comfyui/input  # Mount the input directory directly inside /app/comfyui
-      - ./models:/app/comfyui/models  # Mount the models directory directly inside /app/comfyui
-      - ./output:/app/comfyui/output  # Mount the output directory directly inside /app/comfyui
-      - ./custom_nodes:/app/comfyui/custom_nodes  # Mount the custom nodes directory directly inside /app/comfyui
-      - ./user:/app/comfyui/user  # Comment this line and uncomment the next line if you want to have a workflows directory in the root directory.
-      #- ./workflows:/app/comfyui/user/default/workflows 
+      - ./input:/app/comfyui/input  # Volume for input files
+      - ./models:/app/comfyui/models  # Volume for models
+      - ./output:/app/comfyui/output  # Volume for output files
+      - ./user:/app/comfyui/user  # Volume for user settings, Also this is where your workflows are stored
+      #- ./workflows:/app/comfyui/user/default/workflows  # Uncomment if you to make a workflow directory in the comfyui directory
 
-      # Mount the venv directory for persistence(automatically mounted with you run docker-build.sh)
+      # Mount the venv directory for persistence (automatically mounted with you run docker-build.sh) #Don't change this
+
+      # Mount the custom nodes directory directly inside /app/comfyui (automatically mounted with you run docker-build.sh)  #Don't change this
 
 
     environment:
