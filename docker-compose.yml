@@ -1,0 +1,26 @@
+services:
+  comfyui_backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: comfyui-red-image
+    container_name: comfyui-red-container
+    ports:
+      - "8188:8188"  # Expose the backend API or server
+    volumes:
+      - ./input:/app/comfyui/input  # Mount the input directory directly inside /app/comfyui
+      - ./models:/app/comfyui/models  # Mount the models directory directly inside /app/comfyui
+      - ./output:/app/comfyui/output  # Mount the output directory directly inside /app/comfyui
+      - ./custom_nodes:/app/comfyui/custom_nodes  # Mount the custom nodes directory directly inside /app/comfyui
+      - ./user:/app/comfyui/user  # Comment this line and uncomment the next line if you want to have a workflows directory in the root directory.
+      #- ./workflows:/app/comfyui/user/default/workflows 
+
+      # Mount the venv directory for persistence(automatically mounted with you run docker-build.sh)
+
+
+    environment:
+      - DISPLAY=${DISPLAY}  # Optional, for X11 display forwarding (if you use it)
+      - NVIDIA_VISIBLE_DEVICES=all  # Ensure NVIDIA GPU is available to the container
+      - NVIDIA_DRIVER_CAPABILITIES=all  # For CUDA support
+    runtime: nvidia  # Use the NVIDIA runtime for GPU support 
+    restart: "no" #change to "always" if you want to restart the container
