@@ -440,6 +440,10 @@ class VAE:
         self.patcher = comfy.model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
         logging.info("VAE load device: {}, offload device: {}, dtype: {}".format(self.device, offload_device, self.vae_dtype))
 
+    def throw_exception_if_invalid(self):
+        if self.first_stage_model is None:
+            raise RuntimeError("ERROR: VAE is invalid: None\n\nIf the VAE is from a checkpoint loader node your checkpoint does not contain a valid VAE.")
+
     def vae_encode_crop_pixels(self, pixels):
         downscale_ratio = self.spacial_compression_encode()
 
@@ -495,6 +499,7 @@ class VAE:
         return comfy.utils.tiled_scale_multidim(samples, encode_fn, tile=(tile_t, tile_x, tile_y), overlap=overlap, upscale_amount=self.downscale_ratio, out_channels=self.latent_channels, downscale=True, index_formulas=self.downscale_index_formula, output_device=self.output_device)
 
     def decode(self, samples_in):
+        self.throw_exception_if_invalid()
         pixel_samples = None
         try:
             memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
@@ -525,6 +530,7 @@ class VAE:
         return pixel_samples
 
     def decode_tiled(self, samples, tile_x=None, tile_y=None, overlap=None, tile_t=None, overlap_t=None):
+        self.throw_exception_if_invalid()
         memory_used = self.memory_used_decode(samples.shape, self.vae_dtype) #TODO: calculate mem required for tile
         model_management.load_models_gpu([self.patcher], memory_required=memory_used)
         dims = samples.ndim - 2
@@ -553,6 +559,7 @@ class VAE:
         return output.movedim(1, -1)
 
     def encode(self, pixel_samples):
+        self.throw_exception_if_invalid()
         pixel_samples = self.vae_encode_crop_pixels(pixel_samples)
         pixel_samples = pixel_samples.movedim(-1, 1)
         if self.latent_dim == 3 and pixel_samples.ndim < 5:
@@ -585,6 +592,7 @@ class VAE:
         return samples
 
     def encode_tiled(self, pixel_samples, tile_x=None, tile_y=None, overlap=None, tile_t=None, overlap_t=None):
+        self.throw_exception_if_invalid()
         pixel_samples = self.vae_encode_crop_pixels(pixel_samples)
         dims = self.latent_dim
         pixel_samples = pixel_samples.movedim(-1, 1)
