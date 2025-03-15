@@ -747,6 +747,7 @@ class ModelPatcher:
 
     def partially_unload(self, device_to, memory_to_free=0):
         with self.use_ejected():
+            self.unpatch_hooks()
             memory_freed = 0
             patch_counter = 0
             unload_list = self._load_list()
