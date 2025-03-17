@@ -770,6 +770,7 @@ class VAELoader:
             vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
             sd = comfy.utils.load_torch_file(vae_path)
         vae = comfy.sd.VAE(sd=sd)
+        vae.throw_exception_if_invalid()
         return (vae,)
 
 class ControlNetLoader:
