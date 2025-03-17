@@ -1,16 +1,16 @@
 # Nvidia GPU Base Images
 # For NVIDIA GPU with stable CUDA version
-FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 AS base
+# FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 AS base
 
 # For NVIDIA GPU with latest CUDA version
-FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04 AS base 
+# FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04 AS base 
 
 # AMD GPU Base Images
 # For AMD GPU with stable ROCm version
-FROM rocm/dev-ubuntu-24.04:6.2.4-complete AS base 
+# FROM rocm/dev-ubuntu-24.04:6.2.4-complete AS base 
 
 # For AMD GPU with latest ROCm version
-FROM rocm/dev-ubuntu-24.04:6.3.4-complete AS base 
+# FROM rocm/dev-ubuntu-24.04:6.3.4-complete AS base 
 
 # Environment variables
 ENV DEBIAN_FRONTEND=noninteractive
@@ -49,18 +49,21 @@ RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git /app/temp/ComfyUI-
     && rm -rf /app/temp \
     && /app/venv/bin/pip install -r /app/comfyui/custom_nodes/ComfyUI-Manager/requirements.txt
 
-# NVIDIA GPU PyTorch Installation
+    # NVIDIA GPU PyTorch Installation
+
     # Install PyTorch with CUDA 12.6 support (stable version)
-RUN /app/venv/bin/pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu126
+# RUN /app/venv/bin/pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu126
 
     # Install PyTorch with CUDA 12.8 support (latest version)
-RUN /app/venv/bin/pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+# RUN /app/venv/bin/pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
 
-# AMD GPU PyTorch Installation
+    # AMD GPU PyTorch Installation
+
     # Install PyTorch with ROCm 6.2 support (stable version)
-RUN /app/venv/bin/pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2.4
+# RUN /app/venv/bin/pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2.4
+
     # Install PyTorch with ROCm 6.3 support (latest version)
-RUN /app/venv/bin/pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.3
+# RUN /app/venv/bin/pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.3
 
 
 # Expose the backend port
