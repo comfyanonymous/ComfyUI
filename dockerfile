@@ -1,5 +1,5 @@
 # Already installed nvidia cuda drivers to leverage GPU
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+FROM --platform=linux/amd64 nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 
 # environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
