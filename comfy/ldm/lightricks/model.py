@@ -7,7 +7,7 @@ from einops import rearrange
 import math
 from typing import Dict, Optional, Tuple
 
-from .symmetric_patchifier import SymmetricPatchifier
+from .symmetric_patchifier import SymmetricPatchifier, latent_to_pixel_coords
 
 
 def get_timestep_embedding(
@@ -377,12 +377,16 @@ class LTXVModel(torch.nn.Module):
 
                  positional_embedding_theta=10000.0,
                  positional_embedding_max_pos=[20, 2048, 2048],
+                 causal_temporal_positioning=False,
+                 vae_scale_factors=(8, 32, 32),
                  dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
         self.generator = None
+        self.vae_scale_factors = vae_scale_factors
         self.dtype = dtype
         self.out_channels = in_channels
         self.inner_dim = num_attention_heads * attention_head_dim
+        self.causal_temporal_positioning = causal_temporal_positioning
 
         self.patchify_proj = operations.Linear(in_channels, self.inner_dim, bias=True, dtype=dtype, device=device)
 
@@ -416,51 +420,31 @@ class LTXVModel(torch.nn.Module):
 
         self.patchifier = SymmetricPatchifier(1)
 
-    def forward(self, x, timestep, context, attention_mask, frame_rate=25, guiding_latent=None, guiding_latent_noise_scale=0, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, attention_mask, frame_rate=25, transformer_options={}, keyframe_idxs=None, **kwargs):
         patches_replace = transformer_options.get("patches_replace", {})
-
-        indices_grid = self.patchifier.get_grid(
-            orig_num_frames=x.shape[2],
-            orig_height=x.shape[3],
-            orig_width=x.shape[4],
-            batch_size=x.shape[0],
-            scale_grid=((1 / frame_rate) * 8, 32, 32),
-            device=x.device,
-        )
-
-        if guiding_latent is not None:
-            ts = torch.ones([x.shape[0], 1, x.shape[2], x.shape[3], x.shape[4]], device=x.device, dtype=x.dtype)
-            input_ts = timestep.view([timestep.shape[0]] + [1] * (x.ndim - 1))
-            ts *= input_ts
-            ts[:, :, 0] = guiding_latent_noise_scale * (input_ts[:, :, 0] ** 2)
-            timestep = self.patchifier.patchify(ts)
-            input_x = x.clone()
-            x[:, :, 0] = guiding_latent[:, :, 0]
-            if guiding_latent_noise_scale > 0:
-                if self.generator is None:
-                    self.generator = torch.Generator(device=x.device).manual_seed(42)
-                elif self.generator.device != x.device:
-                    self.generator = torch.Generator(device=x.device).set_state(self.generator.get_state())
-
-                noise_shape = [guiding_latent.shape[0], guiding_latent.shape[1], 1, guiding_latent.shape[3], guiding_latent.shape[4]]
-                scale = guiding_latent_noise_scale * (input_ts ** 2)
-                guiding_noise = scale * torch.randn(size=noise_shape, device=x.device, generator=self.generator)
-
-                x[:, :, 0] = guiding_noise[:, :, 0] + x[:, :, 0] *  (1.0 - scale[:, :, 0])
-
 
         orig_shape = list(x.shape)
 
-        x = self.patchifier.patchify(x)
+        x, latent_coords = self.patchifier.patchify(x)
+        pixel_coords = latent_to_pixel_coords(
+            latent_coords=latent_coords,
+            scale_factors=self.vae_scale_factors,
+            causal_fix=self.causal_temporal_positioning,
+        )
+
+        if keyframe_idxs is not None:
+            pixel_coords[:, :, -keyframe_idxs.shape[2]:] = keyframe_idxs
+
+        fractional_coords = pixel_coords.to(torch.float32)
+        fractional_coords[:, 0] = fractional_coords[:, 0] * (1.0 / frame_rate)
 
         x = self.patchify_proj(x)
         timestep = timestep * 1000.0
 
-        attention_mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1]))
-        attention_mask = attention_mask.masked_fill(attention_mask.to(torch.bool), float("-inf"))  # not sure about this
-        # attention_mask = (context != 0).any(dim=2).to(dtype=x.dtype)
+        if attention_mask is not None and not torch.is_floating_point(attention_mask):
+            attention_mask = (attention_mask - 1).to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])) * torch.finfo(x.dtype).max
 
-        pe = precompute_freqs_cis(indices_grid, dim=self.inner_dim, out_dtype=x.dtype)
+        pe = precompute_freqs_cis(fractional_coords, dim=self.inner_dim, out_dtype=x.dtype)
 
         batch_size = x.shape[0]
         timestep, embedded_timestep = self.adaln_single(
@@ -520,8 +504,4 @@ class LTXVModel(torch.nn.Module):
             out_channels=orig_shape[1] // math.prod(self.patchifier.patch_size),
         )
 
-        if guiding_latent is not None:
-            x[:, :, 0] = (input_x[:, :, 0] - guiding_latent[:, :, 0]) / input_ts[:, :, 0]
-
-        # print("res", x)
         return x

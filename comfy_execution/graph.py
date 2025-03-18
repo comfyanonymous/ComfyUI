@@ -54,8 +54,8 @@ class DynamicPrompt:
     def get_original_prompt(self):
         return self.original_prompt
 
-def get_input_info(class_def, input_name):
-    valid_inputs = class_def.INPUT_TYPES()
+def get_input_info(class_def, input_name, valid_inputs=None):
+    valid_inputs = valid_inputs or class_def.INPUT_TYPES()
     input_info = None
     input_category = None
     if "required" in valid_inputs and input_name in valid_inputs["required"]:
@@ -131,7 +131,7 @@ class TopologicalSort:
                     if (include_lazy or not is_lazy) and not self.is_cached(from_node_id):
                         node_ids.append(from_node_id)
                         links.append((from_node_id, from_socket, unique_id))
-                        
+
         for link in links:
             self.add_strong_link(*link)
 

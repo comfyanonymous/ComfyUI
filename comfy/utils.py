@@ -29,17 +29,45 @@ import itertools
 from torch.nn.functional import interpolate
 from einops import rearrange
 
-def load_torch_file(ckpt, safe_load=False, device=None):
+ALWAYS_SAFE_LOAD = False
+if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in pytorch 2.4, the unsafe path should be removed once earlier versions are deprecated
+    class ModelCheckpoint:
+        pass
+    ModelCheckpoint.__module__ = "pytorch_lightning.callbacks.model_checkpoint"
+
+    from numpy.core.multiarray import scalar
+    from numpy import dtype
+    from numpy.dtypes import Float64DType
+    from _codecs import encode
+
+    torch.serialization.add_safe_globals([ModelCheckpoint, scalar, dtype, Float64DType, encode])
+    ALWAYS_SAFE_LOAD = True
+    logging.info("Checkpoint files will always be loaded safely.")
+else:
+    logging.info("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
+
+def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
         device = torch.device("cpu")
+    metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
-        sd = safetensors.torch.load_file(ckpt, device=device.type)
+        try:
+            with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
+                sd = {}
+                for k in f.keys():
+                    sd[k] = f.get_tensor(k)
+                if return_metadata:
+                    metadata = f.metadata()
+        except Exception as e:
+            if len(e.args) > 0:
+                message = e.args[0]
+                if "HeaderTooLarge" in message:
+                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt or invalid. Make sure this is actually a safetensors file and not a ckpt or pt or other filetype.".format(message, ckpt))
+                if "MetadataIncompleteBuffer" in message:
+                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt/incomplete. Check the file size and make sure you have copied/downloaded it correctly.".format(message, ckpt))
+            raise e
     else:
-        if safe_load:
-            if not 'weights_only' in torch.load.__code__.co_varnames:
-                logging.warning("Warning torch.load doesn't support weights_only on this pytorch version, loading unsafely.")
-                safe_load = False
-        if safe_load:
+        if safe_load or ALWAYS_SAFE_LOAD:
             pl_sd = torch.load(ckpt, map_location=device, weights_only=True)
         else:
             pl_sd = torch.load(ckpt, map_location=device, pickle_module=comfy.checkpoint_pickle)
@@ -55,7 +83,7 @@ def load_torch_file(ckpt, safe_load=False, device=None):
                     sd = pl_sd
             else:
                 sd = pl_sd
-    return sd
+    return (sd, metadata) if return_metadata else sd
 
 def save_torch_file(sd, ckpt, metadata=None):
     if metadata is not None:
@@ -693,7 +721,25 @@ def copy_to_param(obj, attr, value):
     prev = getattr(obj, attrs[-1])
     prev.data.copy_(value)
 
-def get_attr(obj, attr):
+def get_attr(obj, attr: str):
+    """Retrieves a nested attribute from an object using dot notation.
+
+    Args:
+        obj: The object to get the attribute from
+        attr (str): The attribute path using dot notation (e.g. "model.layer.weight")
+
+    Returns:
+        The value of the requested attribute
+
+    Example:
+        model = MyModel()
+        weight = get_attr(model, "layer1.conv.weight")
+        # Equivalent to: model.layer1.conv.weight
+
+    Important:
+        Always prefer `comfy.model_patcher.ModelPatcher.get_model_object` when
+        accessing nested model objects under `ModelPatcher.model`.
+    """
     attrs = attr.split(".")
     for name in attrs:
         obj = getattr(obj, name)
@@ -727,7 +773,7 @@ def bislerp(samples, width, height):
         res *= (b1_norms * (1.0-r) + b2_norms * r).expand(-1,c)
 
         #edge cases for same or polar opposites
-        res[dot > 1 - 1e-5] = b1[dot > 1 - 1e-5] 
+        res[dot > 1 - 1e-5] = b1[dot > 1 - 1e-5]
         res[dot < 1e-5 - 1] = (b1 * (1.0-r) + b2 * r)[dot < 1e-5 - 1]
         return res
 
@@ -893,7 +939,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
         out = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
         out_div = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
 
-        positions = [range(0, s.shape[d+2], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
+        positions = [range(0, s.shape[d+2] - overlap[d], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
 
         for it in itertools.product(*positions):
             s_in = s

@@ -3,6 +3,8 @@ import comfy.model_sampling
 import comfy.latent_formats
 import nodes
 import torch
+import node_helpers
+
 
 class LCM(comfy.model_sampling.EPS):
     def calculate_denoised(self, sigma, model_output, model_input):
@@ -189,7 +191,7 @@ class ModelSamplingContinuousEDM:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["v_prediction", "edm_playground_v2.5", "eps"],),
+                              "sampling": (["v_prediction", "edm", "edm_playground_v2.5", "eps"],),
                               "sigma_max": ("FLOAT", {"default": 120.0, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               "sigma_min": ("FLOAT", {"default": 0.002, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               }}
@@ -206,6 +208,9 @@ class ModelSamplingContinuousEDM:
         sigma_data = 1.0
         if sampling == "eps":
             sampling_type = comfy.model_sampling.EPS
+        elif sampling == "edm":
+            sampling_type = comfy.model_sampling.EDM
+            sigma_data = 0.5
         elif sampling == "v_prediction":
             sampling_type = comfy.model_sampling.V_PREDICTION
         elif sampling == "edm_playground_v2.5":
@@ -291,6 +296,24 @@ class RescaleCFG:
         m.set_model_sampler_cfg_function(rescale_cfg)
         return (m, )
 
+class ModelComputeDtype:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "dtype": (["default", "fp32", "fp16", "bf16"],),
+                              }}
+
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "advanced/debug/model"
+
+    def patch(self, model, dtype):
+        m = model.clone()
+        m.set_model_compute_dtype(node_helpers.string_to_torch_dtype(dtype))
+        return (m, )
+
+
 NODE_CLASS_MAPPINGS = {
     "ModelSamplingDiscrete": ModelSamplingDiscrete,
     "ModelSamplingContinuousEDM": ModelSamplingContinuousEDM,
@@ -300,4 +323,5 @@ NODE_CLASS_MAPPINGS = {
     "ModelSamplingAuraFlow": ModelSamplingAuraFlow,
     "ModelSamplingFlux": ModelSamplingFlux,
     "RescaleCFG": RescaleCFG,
+    "ModelComputeDtype": ModelComputeDtype,
 }

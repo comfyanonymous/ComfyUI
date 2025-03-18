@@ -37,7 +37,7 @@ class HyditTokenizer:
         self.hydit_clip = HyditBertTokenizer(embedding_directory=embedding_directory)
         self.mt5xl = MT5XLTokenizer(tokenizer_data={"spiece_model": mt5_tokenizer_data}, embedding_directory=embedding_directory)
 
-    def tokenize_with_weights(self, text:str, return_word_ids=False):
+    def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = {}
         out["hydit_clip"] = self.hydit_clip.tokenize_with_weights(text, return_word_ids)
         out["mt5xl"] = self.mt5xl.tokenize_with_weights(text, return_word_ids)

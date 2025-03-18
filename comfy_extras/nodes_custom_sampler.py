@@ -231,6 +231,24 @@ class FlipSigmas:
             sigmas[0] = 0.0001
         return (sigmas,)
 
+class SetFirstSigma:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"sigmas": ("SIGMAS", ),
+                     "sigma": ("FLOAT", {"default": 136.0, "min": 0.0, "max": 20000.0, "step": 0.001, "round": False}),
+                    }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "sampling/custom_sampling/sigmas"
+
+    FUNCTION = "set_first_sigma"
+
+    def set_first_sigma(self, sigmas, sigma):
+        sigmas = sigmas.clone()
+        sigmas[0] = sigma
+        return (sigmas, )
+
 class KSamplerSelect:
     @classmethod
     def INPUT_TYPES(s):
@@ -436,7 +454,7 @@ class SamplerCustom:
         return {"required":
                     {"model": ("MODEL",),
                     "add_noise": ("BOOLEAN", {"default": True}),
-                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
                     "positive": ("CONDITIONING", ),
                     "negative": ("CONDITIONING", ),
@@ -587,10 +605,16 @@ class DisableNoise:
 class RandomNoise(DisableNoise):
     @classmethod
     def INPUT_TYPES(s):
-        return {"required":{
-                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                     }
-                }
+        return {
+            "required": {
+                "noise_seed": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 0xffffffffffffffff,
+                    "control_after_generate": True,
+                }),
+            }
+        }
 
     def get_noise(self, noise_seed):
         return (Noise_RandomNoise(noise_seed),)
@@ -710,6 +734,7 @@ NODE_CLASS_MAPPINGS = {
     "SplitSigmas": SplitSigmas,
     "SplitSigmasDenoise": SplitSigmasDenoise,
     "FlipSigmas": FlipSigmas,
+    "SetFirstSigma": SetFirstSigma,
 
     "CFGGuider": CFGGuider,
     "DualCFGGuider": DualCFGGuider,

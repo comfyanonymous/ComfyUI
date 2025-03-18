@@ -62,7 +62,7 @@ class IsChangedCache:
 class CacheSet:
     def __init__(self, lru_size=None):
         if lru_size is None or lru_size == 0:
-            self.init_classic_cache() 
+            self.init_classic_cache()
         else:
             self.init_lru_cache(lru_size)
         self.all = [self.outputs, self.ui, self.objects]
@@ -93,7 +93,7 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
     missing_keys = {}
     for x in inputs:
         input_data = inputs[x]
-        input_type, input_category, input_info = get_input_info(class_def, x)
+        input_type, input_category, input_info = get_input_info(class_def, x, valid_inputs)
         def mark_missing():
             missing_keys[x] = True
             input_data_all[x] = (None,)
@@ -138,11 +138,11 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
         max_len_input = 0
     else:
         max_len_input = max(len(x) for x in input_data_all.values())
-     
+
     # get a slice of inputs, repeat last input when list isn't long enough
     def slice_dict(d, i):
         return {k: v[i if len(v) > i else -1] for k, v in d.items()}
-    
+
     results = []
     def process_inputs(inputs, index=None, input_is_list=False):
         if allow_interrupt:
@@ -168,7 +168,7 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
         process_inputs(input_data_all, 0, input_is_list=input_is_list)
     elif max_len_input == 0:
         process_inputs({})
-    else: 
+    else:
         for i in range(max_len_input):
             input_dict = slice_dict(input_data_all, i)
             process_inputs(input_dict, i)
@@ -196,7 +196,6 @@ def merge_result_data(results, obj):
     return output
 
 def get_output_data(obj, input_data_all, execution_block_cb=None, pre_execute_cb=None):
-    
     results = []
     uis = []
     subgraph_results = []
@@ -226,14 +225,14 @@ def get_output_data(obj, input_data_all, execution_block_cb=None, pre_execute_cb
                 r = tuple([r] * len(obj.RETURN_TYPES))
             results.append(r)
             subgraph_results.append((None, r))
-    
+
     if has_subgraph:
         output = subgraph_results
     elif len(results) > 0:
         output = merge_result_data(results, obj)
     else:
         output = []
-    ui = dict()    
+    ui = dict()
     if len(uis) > 0:
         ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
     return output, ui, has_subgraph
@@ -556,7 +555,7 @@ def validate_inputs(prompt, item, validated):
     received_types = {}
 
     for x in valid_inputs:
-        type_input, input_category, extra_info = get_input_info(obj_class, x)
+        type_input, input_category, extra_info = get_input_info(obj_class, x, class_inputs)
         assert extra_info is not None
         if x not in inputs:
             if input_category == "required":
@@ -635,6 +634,13 @@ def validate_inputs(prompt, item, validated):
                 continue
         else:
             try:
+                # Unwraps values wrapped in __value__ key. This is used to pass
+                # list widget value to execution, as by default list value is
+                # reserved to represent the connection between nodes.
+                if isinstance(val, dict) and "__value__" in val:
+                    val = val["__value__"]
+                    inputs[x] = val
+
                 if type_input == "INT":
                     val = int(val)
                     inputs[x] = val

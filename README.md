@@ -1,4 +1,4 @@
- ## Prerequisites For Docker
+## Prerequisites For Docker
  1. NVIDIA drivers installed on your host system.
  2. Docker installed on your host system.
  3. NVIDIA Container Toolkit (nvidia-docker2) OR WSL2 installed so that you can use GPU inside

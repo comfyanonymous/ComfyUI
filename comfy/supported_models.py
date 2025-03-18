@@ -14,6 +14,9 @@ import comfy.text_encoders.flux
 import comfy.text_encoders.genmo
 import comfy.text_encoders.lt
 import comfy.text_encoders.hunyuan_video
+import comfy.text_encoders.cosmos
+import comfy.text_encoders.lumina2
+import comfy.text_encoders.wan
 
 from . import supported_models_base
 from . import latent_formats
@@ -759,7 +762,7 @@ class LTXV(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.LTXV
 
-    memory_usage_factor = 2.7
+    memory_usage_factor = 5.5 # TODO: img2vid is about 2x vs txt2vid
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
@@ -787,7 +790,7 @@ class HunyuanVideo(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.HunyuanVideo
 
-    memory_usage_factor = 2.0 #TODO
+    memory_usage_factor = 1.8 #TODO
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
@@ -823,6 +826,139 @@ class HunyuanVideo(supported_models_base.BASE):
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}llama.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.hunyuan_video.HunyuanVideoTokenizer, comfy.text_encoders.hunyuan_video.hunyuan_video_clip(**hunyuan_detect))
 
-models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideo]
+class HunyuanVideoI2V(HunyuanVideo):
+    unet_config = {
+        "image_model": "hunyuan_video",
+        "in_channels": 33,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.HunyuanVideoI2V(self, device=device)
+        return out
+
+class HunyuanVideoSkyreelsI2V(HunyuanVideo):
+    unet_config = {
+        "image_model": "hunyuan_video",
+        "in_channels": 32,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.HunyuanVideoSkyreelsI2V(self, device=device)
+        return out
+
+class CosmosT2V(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "cosmos",
+        "in_channels": 16,
+    }
+
+    sampling_settings = {
+        "sigma_data": 0.5,
+        "sigma_max": 80.0,
+        "sigma_min": 0.002,
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.Cosmos1CV8x8x8
+
+    memory_usage_factor = 1.6 #TODO
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32] #TODO
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.CosmosVideo(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.cosmos.CosmosT5Tokenizer, comfy.text_encoders.cosmos.te(**t5_detect))
+
+class CosmosI2V(CosmosT2V):
+    unet_config = {
+        "image_model": "cosmos",
+        "in_channels": 17,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.CosmosVideo(self, image_to_video=True, device=device)
+        return out
+
+class Lumina2(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "lumina2",
+    }
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 6.0,
+    }
+
+    memory_usage_factor = 1.2
+
+    unet_extra_config = {}
+    latent_format = latent_formats.Flux
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.Lumina2(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}gemma2_2b.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.lumina2.LuminaTokenizer, comfy.text_encoders.lumina2.te(**hunyuan_detect))
+
+class WAN21_T2V(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "t2v",
+    }
+
+    sampling_settings = {
+        "shift": 8.0,
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.Wan21
+
+    memory_usage_factor = 1.0
+
+    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        self.memory_usage_factor = self.unet_config.get("dim", 2000) / 2000
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.WAN21(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}umt5xxl.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.wan.WanT5Tokenizer, comfy.text_encoders.wan.te(**t5_detect))
+
+class WAN21_I2V(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "i2v",
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.WAN21(self, image_to_video=True, device=device)
+        return out
+
+models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, Lumina2, WAN21_T2V, WAN21_I2V]
 
 models += [SVD_img2vid]

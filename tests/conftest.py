@@ -21,7 +21,7 @@ def args_pytest(pytestconfig):
 
 def pytest_collection_modifyitems(items):
     # Modifies items so tests run in the correct order
-    
+
     LAST_TESTS = ['test_quality']
 
     # Move the last items to the end

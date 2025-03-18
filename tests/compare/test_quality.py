@@ -22,7 +22,7 @@ def ssim_score(img0: np.ndarray, img1: np.ndarray) -> Tuple[float, np.ndarray]:
     # rescale the difference image to 0-255 range
     diff = (diff * 255).astype("uint8")
     return score, diff
-    
+
 # Metrics must return a tuple of (score, diff_image)
 METRICS = {"ssim": ssim_score}
 METRICS_PASS_THRESHOLD = {"ssim": 0.95}
@@ -32,7 +32,7 @@ class TestCompareImageMetrics:
     @fixture(scope="class")
     def test_file_names(self, args_pytest):
         test_dir = args_pytest['test_dir']
-        fnames = self.gather_file_basenames(test_dir)  
+        fnames = self.gather_file_basenames(test_dir)
         yield fnames
         del fnames
 
@@ -64,13 +64,13 @@ class TestCompareImageMetrics:
                     image_list = [[Image.open(file) for file in files] for files in image_file_list]
                     grid = self.image_grid(image_list)
                     grid.save(os.path.join(grid_dir, f"{metric_dir}_{score:.3f}_{file}"))
-    
+
     # Tests run for each baseline file name
     @fixture()
     def fname(self, baseline_fname):
         yield baseline_fname
         del baseline_fname
-    
+
     def test_directories_not_empty(self, args_pytest):
         baseline_dir = args_pytest['baseline_dir']
         test_dir = args_pytest['test_dir']
@@ -84,7 +84,7 @@ class TestCompareImageMetrics:
         file_match = self.find_file_match(baseline_file_path, file_paths)
         assert file_match is not None, f"Could not find a file in {args_pytest['test_dir']} with matching metadata to {baseline_file_path}"
 
-    # For a baseline image file, finds the corresponding file name in test_dir and 
+    # For a baseline image file, finds the corresponding file name in test_dir and
     # compares the images using the metrics in METRICS
     @pytest.mark.parametrize("metric", METRICS.keys())
     def test_pipeline_compare(
@@ -98,7 +98,7 @@ class TestCompareImageMetrics:
         test_dir = args_pytest['test_dir']
         metrics_output_file = args_pytest['metrics_file']
         img_output_dir = args_pytest['img_output_dir']
-        
+
         baseline_file_path = os.path.join(baseline_dir, fname)
 
         # Find file match
@@ -108,7 +108,7 @@ class TestCompareImageMetrics:
         # Run metrics
         sample_baseline = self.read_img(baseline_file_path)
         sample_secondary = self.read_img(test_file)
-        
+
         score, metric_img = METRICS[metric](sample_baseline, sample_secondary)
         metric_status = score > METRICS_PASS_THRESHOLD[metric]
 
@@ -140,7 +140,7 @@ class TestCompareImageMetrics:
 
         w, h = img_list[0][0].size
         grid = Image.new('RGB', size=(cols*w, rows*h))
-        
+
         for i, row in enumerate(img_list):
             for j, img in enumerate(row):
                 grid.paste(img, box=(j*w, i*h))
@@ -170,7 +170,7 @@ class TestCompareImageMetrics:
         img = Image.open(fname)
         img.load()
         return img.info['prompt']
-    
+
     def find_file_match(self, baseline_file: str, file_paths: List[str]):
         # Find a file in file_paths with matching metadata to baseline_file
         baseline_prompt = self.read_file_prompt(baseline_file)
@@ -181,7 +181,7 @@ class TestCompareImageMetrics:
 
         # Find file match
         # Reorder test_file_names so that the file with matching name is first
-        # This is an optimization because matching file names are more likely 
+        # This is an optimization because matching file names are more likely
         # to have matching metadata if they were generated with the same script
         basename = os.path.basename(baseline_file)
         file_path_basenames = [os.path.basename(f) for f in file_paths]
