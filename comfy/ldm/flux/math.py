@@ -10,10 +10,11 @@ def attention(q: Tensor, k: Tensor, v: Tensor, pe: Tensor, mask=None) -> Tensor:
     q_shape = q.shape
     k_shape = k.shape
 
-    q = q.to(dtype=pe.dtype).reshape(*q.shape[:-1], -1, 1, 2)
-    k = k.to(dtype=pe.dtype).reshape(*k.shape[:-1], -1, 1, 2)
-    q = (pe[..., 0] * q[..., 0] + pe[..., 1] * q[..., 1]).reshape(*q_shape).type_as(v)
-    k = (pe[..., 0] * k[..., 0] + pe[..., 1] * k[..., 1]).reshape(*k_shape).type_as(v)
+    if pe is not None:
+        q = q.to(dtype=pe.dtype).reshape(*q.shape[:-1], -1, 1, 2)
+        k = k.to(dtype=pe.dtype).reshape(*k.shape[:-1], -1, 1, 2)
+        q = (pe[..., 0] * q[..., 0] + pe[..., 1] * q[..., 1]).reshape(*q_shape).type_as(v)
+        k = (pe[..., 0] * k[..., 0] + pe[..., 1] * k[..., 1]).reshape(*k_shape).type_as(v)
 
     heads = q.shape[1]
     x = optimized_attention(q, k, v, heads, skip_reshape=True, mask=mask)
