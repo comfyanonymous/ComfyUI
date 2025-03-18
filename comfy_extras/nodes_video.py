@@ -28,15 +28,12 @@ class SaveWEBM:
                 }
 
     RETURN_TYPES = ()
-    FUNCTION = "save_images"
-
+    FUNCTION = "save_video"
     OUTPUT_NODE = True
-
-    CATEGORY = "image/video"
-
+    CATEGORY = "video"
     EXPERIMENTAL = True
 
-    def save_images(self, images, codec, fps, filename_prefix, crf, prompt=None, extra_pnginfo=None):
+    def save_video(self, images, codec, fps, filename_prefix, crf, prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
 
@@ -71,7 +68,7 @@ class SaveWEBM:
             "type": self.type
         }]
 
-        return {"ui": {"images": results, "animated": (True,)}}  # TODO: frontend side
+        return {"ui": {"video": results}}
 
 
 NODE_CLASS_MAPPINGS = {
