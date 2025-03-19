@@ -581,7 +581,7 @@ class ShapeVAE(nn.Module):
         enable_pbar = kwargs.get("enable_pbar", True)
 
         grid_logits = self.volume_decoder(latents, self.geo_decoder, bounds=bounds, num_chunks=num_chunks, octree_resolution=octree_resolution, enable_pbar=enable_pbar)
-        return grid_logits
+        return grid_logits.movedim(-2, -1)
 
     def encode(self, x):
         return None
