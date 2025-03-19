@@ -36,6 +36,7 @@ import comfy.ldm.hunyuan_video.model
 import comfy.ldm.cosmos.model
 import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
+import comfy.ldm.hunyuan3d.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1012,4 +1013,19 @@ class WAN21(BaseModel):
         clip_vision_output = kwargs.get("clip_vision_output", None)
         if clip_vision_output is not None:
             out['clip_fea'] = comfy.conds.CONDRegular(clip_vision_output.penultimate_hidden_states)
+        return out
+
+class Hunyuan3Dv2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hunyuan3d.model.Hunyuan3Dv2)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        guidance = kwargs.get("guidance", 5.0)
+        if guidance is not None:
+            out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
