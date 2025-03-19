@@ -959,6 +959,42 @@ class WAN21_I2V(WAN21_T2V):
         out = model_base.WAN21(self, image_to_video=True, device=device)
         return out
 
-models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, Lumina2, WAN21_T2V, WAN21_I2V]
+class Hunyuan3Dv2(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "hunyuan3d2",
+    }
+
+    unet_extra_config = {}
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 1.0,
+    }
+
+    clip_vision_prefix = "conditioner.main_image_encoder.model."
+    vae_key_prefix = ["vae."]
+
+    latent_format = latent_formats.Hunyuan3Dv2
+
+    def process_unet_state_dict_for_saving(self, state_dict):
+        replace_prefix = {"": "model."}
+        return utils.state_dict_prefix_replace(state_dict, replace_prefix)
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.Hunyuan3Dv2(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        return None
+
+class Hunyuan3Dv2mini(Hunyuan3Dv2):
+    unet_config = {
+        "image_model": "hunyuan3d2",
+        "depth": 8,
+    }
+
+    latent_format = latent_formats.Hunyuan3Dv2mini
+
+models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, Lumina2, WAN21_T2V, WAN21_I2V, Hunyuan3Dv2mini, Hunyuan3Dv2]
 
 models += [SVD_img2vid]
