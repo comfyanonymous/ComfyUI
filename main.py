@@ -10,6 +10,7 @@ from app.logger import setup_logger
 import itertools
 import utils.extra_config
 import logging
+import comfyui_manager
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI which should already have no communication with the internet, they are for custom nodes.
@@ -68,6 +69,8 @@ def execute_prestartup_script():
 
     if args.disable_all_custom_nodes:
         return
+
+    comfyui_manager.prestartup()
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     for custom_node_path in node_paths:
@@ -261,6 +264,7 @@ def start_comfyui(asyncio_loop=None):
     prompt_server = server.PromptServer(asyncio_loop)
     q = execution.PromptQueue(prompt_server)
 
+    comfyui_manager.start()
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
 
     cuda_malloc_warning()
