@@ -190,8 +190,12 @@ def voxel_to_mesh(voxels, threshold=0.5, device=None):
 
         vertex_count += 4 * num_faces
 
-    vertices = torch.cat(all_vertices, dim=0)
-    faces = torch.cat(all_indices, dim=0)
+    if len(all_vertices) > 0:
+        vertices = torch.cat(all_vertices, dim=0)
+        faces = torch.cat(all_indices, dim=0)
+    else:
+        vertices = torch.zeros((1, 3))
+        faces = torch.zeros((1, 3))
 
     v_min = 0
     v_max = max(voxels.shape)
