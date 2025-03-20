@@ -23,7 +23,7 @@ class Int(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypeDict:
         return {
-            "required": {"value": (IO.INT, {})},
+            "required": {"value": (IO.INT, {"control_after_generate": True})},
         }
 
     RETURN_TYPES = (IO.INT,)
