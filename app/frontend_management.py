@@ -22,13 +22,21 @@ import app.logger
 # The path to the requirements.txt file
 req_path = Path(__file__).parents[1] / "requirements.txt"
 
+
 def frontend_install_warning_message():
     """The warning message to display when the frontend version is not up to date."""
 
     extra = ""
     if sys.flags.no_user_site:
         extra = "-s "
-    return f"Please install the updated requirements.txt file by running:\n{sys.executable} {extra}-m pip install -r {req_path}\n\nThis error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.\n\nIf you are on the portable package you can run: update\\update_comfyui.bat to solve this problem"
+    return f"""
+Please install the updated requirements.txt file by running:
+{sys.executable} {extra}-m pip install -r {req_path}
+
+This error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.
+
+If you are on the portable package you can run: update\\update_comfyui.bat to solve this problem
+""".strip()
 
 
 def check_frontend_version():
@@ -43,7 +51,17 @@ def check_frontend_version():
         with open(req_path, "r", encoding="utf-8") as f:
             required_frontend = parse_version(f.readline().split("=")[-1])
         if frontend_version < required_frontend:
-            app.logger.log_startup_warning("________________________________________________________________________\nWARNING WARNING WARNING WARNING WARNING\n\nInstalled frontend version {} is lower than the recommended version {}.\n\n{}\n________________________________________________________________________".format('.'.join(map(str, frontend_version)), '.'.join(map(str, required_frontend)), frontend_install_warning_message()))
+            app.logger.log_startup_warning(
+                f"""
+________________________________________________________________________
+WARNING WARNING WARNING WARNING WARNING
+
+Installed frontend version {".".join(map(str, frontend_version))} is lower than the recommended version {".".join(map(str, required_frontend))}.
+
+{frontend_install_warning_message()}
+________________________________________________________________________
+""".strip()
+            )
         else:
             logging.info("ComfyUI frontend version: {}".format(frontend_version_str))
     except Exception as e:
@@ -150,9 +168,20 @@ class FrontendManager:
     def default_frontend_path(cls) -> str:
         try:
             import comfyui_frontend_package
+
             return str(importlib.resources.files(comfyui_frontend_package) / "static")
         except ImportError:
-            logging.error(f"\n\n********** ERROR ***********\n\ncomfyui-frontend-package is not installed. {frontend_install_warning_message()}\n********** ERROR **********\n")
+            logging.error(
+                f"""
+********** ERROR ***********
+
+comfyui-frontend-package is not installed.
+
+{frontend_install_warning_message()}
+
+********** ERROR ***********
+""".strip()
+            )
             sys.exit(-1)
 
     @classmethod
@@ -175,7 +204,9 @@ class FrontendManager:
         return match_result.group(1), match_result.group(2), match_result.group(3)
 
     @classmethod
-    def init_frontend_unsafe(cls, version_string: str, provider: Optional[FrontEndProvider] = None) -> str:
+    def init_frontend_unsafe(
+        cls, version_string: str, provider: Optional[FrontEndProvider] = None
+    ) -> str:
         """
         Initializes the frontend for the specified version.
 
@@ -197,12 +228,20 @@ class FrontendManager:
         repo_owner, repo_name, version = cls.parse_version_string(version_string)
 
         if version.startswith("v"):
-            expected_path = str(Path(cls.CUSTOM_FRONTENDS_ROOT) / f"{repo_owner}_{repo_name}" / version.lstrip("v"))
+            expected_path = str(
+                Path(cls.CUSTOM_FRONTENDS_ROOT)
+                / f"{repo_owner}_{repo_name}"
+                / version.lstrip("v")
+            )
             if os.path.exists(expected_path):
-                logging.info(f"Using existing copy of specific frontend version tag: {repo_owner}/{repo_name}@{version}")
+                logging.info(
+                    f"Using existing copy of specific frontend version tag: {repo_owner}/{repo_name}@{version}"
+                )
                 return expected_path
 
-        logging.info(f"Initializing frontend: {repo_owner}/{repo_name}@{version}, requesting version details from GitHub...")
+        logging.info(
+            f"Initializing frontend: {repo_owner}/{repo_name}@{version}, requesting version details from GitHub..."
+        )
 
         provider = provider or FrontEndProvider(repo_owner, repo_name)
         release = provider.get_release(version)
