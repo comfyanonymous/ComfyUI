@@ -140,7 +140,7 @@ class BaseModel(torch.nn.Module):
     def _apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         sigma = t
         xc = self.model_sampling.calculate_input(sigma, x)
-        
+
         if c_concat is not None:
             xc = torch.cat([xc] + [c_concat], dim=1)
 
