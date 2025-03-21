@@ -6,6 +6,27 @@ if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
 import comfy.multigpu
 
+from nodes import VAELoader
+
+
+class VAELoaderDevice(VAELoader):
+    NodeId = "VAELoaderDevice"
+    NodeName = "Load VAE MultiGPU"
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "vae_name": (cls.vae_list(), ),
+                "load_device": (comfy.multigpu.get_torch_device_list(), ),
+            }
+        }
+    
+    FUNCTION = "load_vae_device"
+    CATEGORY = "advanced/multigpu/loaders"
+
+    def load_vae_device(self, vae_name, load_device: str):
+        device = comfy.multigpu.get_device_from_str(load_device)
+        return self.load_vae(vae_name, device)
 
 class MultiGPUWorkUnitsNode:
     """
@@ -76,7 +97,8 @@ class MultiGPUOptionsNode:
 
 node_list = [
     MultiGPUWorkUnitsNode,
-    MultiGPUOptionsNode
+    MultiGPUOptionsNode,
+    VAELoaderDevice,
 ]
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}

@@ -56,6 +56,23 @@ class GPUOptionsGroup:
             value['relative_speed'] /= min_speed
         model.model_options['multigpu_options'] = opts_dict
 
+def get_torch_device_list():
+    devices = ["default"]
+    for device in comfy.model_management.get_all_torch_devices():
+        device: torch.device
+        devices.append(str(device.index))
+    return devices
+
+def get_device_from_str(device_str: str, throw_error_if_not_found=False):
+    if device_str == "default":
+        return comfy.model_management.get_torch_device()
+    for device in comfy.model_management.get_all_torch_devices():
+        device: torch.device
+        if str(device.index) == device_str:
+            return device
+    if throw_error_if_not_found:
+        raise Exception(f"Device with index '{device_str}' not found.")
+    logging.warning(f"Device with index '{device_str}' not found, using default device ({comfy.model_management.get_torch_device()}) instead.")
 
 def create_multigpu_deepclones(model: ModelPatcher, max_gpus: int, gpu_options: GPUOptionsGroup=None, reuse_loaded=False):
     'Prepare ModelPatcher to contain deepclones of its BaseModel and related properties.'

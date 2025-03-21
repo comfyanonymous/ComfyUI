@@ -763,13 +763,13 @@ class VAELoader:
     CATEGORY = "loaders"
 
     #TODO: scale factor?
-    def load_vae(self, vae_name):
+    def load_vae(self, vae_name, device=None):
         if vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
             sd = self.load_taesd(vae_name)
         else:
             vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
             sd = comfy.utils.load_torch_file(vae_path)
-        vae = comfy.sd.VAE(sd=sd)
+        vae = comfy.sd.VAE(sd=sd, device=device)
         vae.throw_exception_if_invalid()
         return (vae,)
 
