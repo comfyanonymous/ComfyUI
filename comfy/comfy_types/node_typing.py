@@ -220,6 +220,13 @@ class ComfyNodeABC(ABC):
     """Flags a node as experimental, informing users that it may change or not work as expected."""
     DEPRECATED: bool
     """Flags a node as deprecated, indicating to users that they should find alternatives to this node."""
+    REQUIRED_FRONTEND_VERSION: str
+    """The minimum version of the ComfyUI frontend required to load this node.
+
+    Usage::
+
+        REQUIRED_FRONTEND_VERSION = "1.9.7"
+    """
 
     @classmethod
     @abstractmethod
