@@ -24,11 +24,12 @@ import logging
 
 import mimetypes
 from comfy.cli_args import args
+from comfy.comfy_types.node_typing import ComfyNodeABC
 import comfy.utils
 import comfy.model_management
 import node_helpers
 from comfyui_version import __version__
-from app.frontend_management import FrontendManager
+from app.frontend_management import FrontendInit, FrontendManager, parse_version
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
@@ -146,6 +147,11 @@ def create_origin_only_middleware():
     return origin_only_middleware
 
 class PromptServer():
+    web_root: str
+    """The path to the initialized frontend assets."""
+    frontend_version: tuple[int, int, int] | None = None
+    """The version of the initialized frontend. None for unrecognized version."""
+
     def __init__(self, loop):
         PromptServer.instance = self
 
@@ -176,12 +182,19 @@ class PromptServer():
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
         self.sockets = dict()
-        self.web_root = (
-            FrontendManager.init_frontend(args.front_end_version)
-            if args.front_end_root is None
-            else args.front_end_root
-        )
+
+        if args.front_end_root:
+            frontend_init = FrontendInit(
+                web_root=args.front_end_root,
+                version=None,
+            )
+        else:
+            frontend_init = FrontendManager.init_frontend(args.front_end_version)
+
+        self.frontend_version = frontend_init["version"]
+        self.web_root = frontend_init["web_root"]
         logging.info(f"[Prompt Server] web root: {self.web_root}")
+
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None
@@ -587,6 +600,9 @@ class PromptServer():
             with folder_paths.cache_helper:
                 out = {}
                 for x in nodes.NODE_CLASS_MAPPINGS:
+                    if not self.node_is_supported(x):
+                        continue
+
                     try:
                         out[x] = node_info(x)
                     except Exception:
@@ -598,7 +614,11 @@ class PromptServer():
         async def get_object_info_node(request):
             node_class = request.match_info.get("node_class", None)
             out = {}
-            if (node_class is not None) and (node_class in nodes.NODE_CLASS_MAPPINGS):
+            if (
+                node_class is not None
+                and node_class in nodes.NODE_CLASS_MAPPINGS
+                and self.node_is_supported(node_class)
+            ):
                 out[node_class] = node_info(node_class)
             return web.json_response(out)
 
@@ -863,3 +883,15 @@ class PromptServer():
                 logging.warning(traceback.format_exc())
 
         return json_data
+
+    def node_is_supported(self, node_class: ComfyNodeABC) -> bool:
+        """Check if the node is supported by the frontend."""
+        # For unrecognized frontend version, we assume the node is supported.
+        if self.frontend_version is None:
+            return True
+
+        # Check if the node is supported by the frontend.
+        if node_class.REQUIRED_FRONTEND_VERSION is None:
+            return True
+
+        return parse_version(node_class.REQUIRED_FRONTEND_VERSION) <= self.frontend_version

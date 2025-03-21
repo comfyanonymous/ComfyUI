@@ -31,12 +31,12 @@ def frontend_install_warning_message():
     return f"Please install the updated requirements.txt file by running:\n{sys.executable} {extra}-m pip install -r {req_path}\n\nThis error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.\n\nIf you are on the portable package you can run: update\\update_comfyui.bat to solve this problem"
 
 
+def parse_version(version: str) -> tuple[int, int, int]:
+    return tuple(map(int, version.split(".")))
+
+
 def check_frontend_version():
     """Check if the frontend version is up to date."""
-
-    def parse_version(version: str) -> tuple[int, int, int]:
-        return tuple(map(int, version.split(".")))
-
     try:
         frontend_version_str = version("comfyui-frontend-package")
         frontend_version = parse_version(frontend_version_str)
@@ -72,6 +72,11 @@ class Release(TypedDict):
 class FrontEndProvider:
     owner: str
     repo: str
+
+    @property
+    def is_official(self) -> bool:
+        """Check if the provider is the default official one."""
+        return self.owner == "Comfy-Org" and self.repo == "ComfyUI_frontend"
 
     @property
     def folder_name(self) -> str:
@@ -143,14 +148,24 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
             zip_ref.extractall(destination_path)
 
 
+class FrontendInit(TypedDict):
+    web_root: str
+    """ The path to the initialized frontend. """
+    version: tuple[int, int, int] | None
+    """ The version of the initialized frontend. None for unrecognized version."""
+
 class FrontendManager:
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
 
     @classmethod
-    def default_frontend_path(cls) -> str:
+    def init_default_frontend(cls) -> FrontendInit:
+        check_frontend_version()
         try:
             import comfyui_frontend_package
-            return str(importlib.resources.files(comfyui_frontend_package) / "static")
+            return FrontendInit(
+                web_root=str(importlib.resources.files(comfyui_frontend_package) / "static"),
+                version=parse_version(version("comfyui-frontend-package")),
+            )
         except ImportError:
             logging.error(f"\n\n********** ERROR ***********\n\ncomfyui-frontend-package is not installed. {frontend_install_warning_message()}\n********** ERROR **********\n")
             sys.exit(-1)
@@ -175,7 +190,7 @@ class FrontendManager:
         return match_result.group(1), match_result.group(2), match_result.group(3)
 
     @classmethod
-    def init_frontend_unsafe(cls, version_string: str, provider: Optional[FrontEndProvider] = None) -> str:
+    def init_frontend_unsafe(cls, version_string: str, provider: Optional[FrontEndProvider] = None) -> FrontendInit:
         """
         Initializes the frontend for the specified version.
 
@@ -191,8 +206,7 @@ class FrontendManager:
             main error source might be request timeout or invalid URL.
         """
         if version_string == DEFAULT_VERSION_STRING:
-            check_frontend_version()
-            return cls.default_frontend_path()
+            return cls.init_default_frontend()
 
         repo_owner, repo_name, version = cls.parse_version_string(version_string)
 
@@ -227,10 +241,13 @@ class FrontendManager:
                 if not os.listdir(web_root):
                     os.rmdir(web_root)
 
-        return web_root
+        return FrontendInit(
+            web_root=web_root,
+            version=parse_version(semantic_version) if provider.is_official else None,
+        )
 
     @classmethod
-    def init_frontend(cls, version_string: str) -> str:
+    def init_frontend(cls, version_string: str) -> FrontendInit:
         """
         Initializes the frontend with the specified version string.
 
@@ -245,5 +262,4 @@ class FrontendManager:
         except Exception as e:
             logging.error("Failed to initialize frontend: %s", e)
             logging.info("Falling back to the default frontend.")
-            check_frontend_version()
-            return cls.default_frontend_path()
+            return cls.init_default_frontend()
