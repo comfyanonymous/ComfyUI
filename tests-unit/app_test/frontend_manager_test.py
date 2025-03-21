@@ -69,8 +69,10 @@ def test_get_release_invalid_version(mock_provider):
 
 def test_init_frontend_default():
     version_string = DEFAULT_VERSION_STRING
-    frontend_path = FrontendManager.init_frontend(version_string)
-    assert frontend_path == FrontendManager.default_frontend_path()
+    frontend_init = FrontendManager.init_frontend(version_string)
+    assert isinstance(frontend_init, dict)
+    assert "web_root" in frontend_init
+    assert "version" in frontend_init
 
 
 def test_init_frontend_invalid_version():
@@ -138,37 +140,47 @@ def test_parse_version_string_invalid():
 def test_init_frontend_default_with_mocks():
     # Arrange
     version_string = DEFAULT_VERSION_STRING
+    mock_path = "/mocked/path"
+    mock_version = (1, 0, 0)
 
     # Act
     with (
         patch("app.frontend_management.check_frontend_version") as mock_check,
         patch.object(
-            FrontendManager, "default_frontend_path", return_value="/mocked/path"
+            FrontendManager,
+            "init_default_frontend",
+            return_value={"web_root": mock_path, "version": mock_version},
         ),
     ):
-        frontend_path = FrontendManager.init_frontend(version_string)
+        frontend_init = FrontendManager.init_frontend(version_string)
 
     # Assert
-    assert frontend_path == "/mocked/path"
-    mock_check.assert_called_once()
+    assert frontend_init["web_root"] == mock_path
+    assert frontend_init["version"] == mock_version
+    mock_check.assert_not_called()  # check_frontend_version is now called inside init_default_frontend
 
 
 def test_init_frontend_fallback_on_error():
     # Arrange
     version_string = "test-owner/test-repo@1.0.0"
+    mock_path = "/default/path"
+    mock_version = (1, 0, 0)
 
     # Act
     with (
         patch.object(
-            FrontendManager, "init_frontend_unsafe", side_effect=Exception("Test error")
+            FrontendManager,
+            "init_frontend_unsafe",
+            side_effect=Exception("Test error")
         ),
-        patch("app.frontend_management.check_frontend_version") as mock_check,
         patch.object(
-            FrontendManager, "default_frontend_path", return_value="/default/path"
+            FrontendManager,
+            "init_default_frontend",
+            return_value={"web_root": mock_path, "version": mock_version},
         ),
     ):
-        frontend_path = FrontendManager.init_frontend(version_string)
+        frontend_init = FrontendManager.init_frontend(version_string)
 
     # Assert
-    assert frontend_path == "/default/path"
-    mock_check.assert_called_once()
+    assert frontend_init["web_root"] == mock_path
+    assert frontend_init["version"] == mock_version
