@@ -36,6 +36,7 @@ import comfy.ldm.hunyuan_video.model
 import comfy.ldm.cosmos.model
 import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
+import comfy.ldm.hunyuan3d.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -912,20 +913,31 @@ class HunyuanVideo(BaseModel):
         guidance = kwargs.get("guidance", 6.0)
         if guidance is not None:
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
+
+        guiding_frame_index = kwargs.get("guiding_frame_index", None)
+        if guiding_frame_index is not None:
+            out['guiding_frame_index'] = comfy.conds.CONDRegular(torch.FloatTensor([guiding_frame_index]))
+
         return out
 
+    def scale_latent_inpaint(self, latent_image, **kwargs):
+        return latent_image
 
 class HunyuanVideoI2V(HunyuanVideo):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device)
         self.concat_keys = ("concat_image", "mask_inverted")
 
+    def scale_latent_inpaint(self, latent_image, **kwargs):
+        return super().scale_latent_inpaint(latent_image=latent_image, **kwargs)
 
 class HunyuanVideoSkyreelsI2V(HunyuanVideo):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device)
         self.concat_keys = ("concat_image",)
 
+    def scale_latent_inpaint(self, latent_image, **kwargs):
+        return super().scale_latent_inpaint(latent_image=latent_image, **kwargs)
 
 class CosmosVideo(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EDM, image_to_video=False, device=None):
@@ -976,11 +988,11 @@ class WAN21(BaseModel):
         self.image_to_video = image_to_video
 
     def concat_cond(self, **kwargs):
-        if not self.image_to_video:
+        noise = kwargs.get("noise", None)
+        if self.diffusion_model.patch_embedding.weight.shape[1] == noise.shape[1]:
             return None
 
         image = kwargs.get("concat_latent_image", None)
-        noise = kwargs.get("noise", None)
         device = kwargs["device"]
 
         if image is None:
@@ -989,6 +1001,9 @@ class WAN21(BaseModel):
         image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
         image = self.process_latent_in(image)
         image = utils.resize_to_batch_size(image, noise.shape[0])
+
+        if not self.image_to_video:
+            return image
 
         mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
         if mask is None:
@@ -1012,4 +1027,19 @@ class WAN21(BaseModel):
         clip_vision_output = kwargs.get("clip_vision_output", None)
         if clip_vision_output is not None:
             out['clip_fea'] = comfy.conds.CONDRegular(clip_vision_output.penultimate_hidden_states)
+        return out
+
+class Hunyuan3Dv2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hunyuan3d.model.Hunyuan3Dv2)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        guidance = kwargs.get("guidance", 5.0)
+        if guidance is not None:
+            out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out

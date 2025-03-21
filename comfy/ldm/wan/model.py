@@ -384,6 +384,7 @@ class WanModel(torch.nn.Module):
         context,
         clip_fea=None,
         freqs=None,
+        transformer_options={},
     ):
         r"""
         Forward pass through the diffusion model
@@ -423,14 +424,18 @@ class WanModel(torch.nn.Module):
             context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
             context = torch.concat([context_clip, context], dim=1)
 
-        # arguments
-        kwargs = dict(
-            e=e0,
-            freqs=freqs,
-            context=context)
-
-        for block in self.blocks:
-            x = block(x, **kwargs)
+        patches_replace = transformer_options.get("patches_replace", {})
+        blocks_replace = patches_replace.get("dit", {})
+        for i, block in enumerate(self.blocks):
+            if ("double_block", i) in blocks_replace:
+                def block_wrap(args):
+                    out = {}
+                    out["img"] = block(args["img"], context=args["txt"], e=args["vec"], freqs=args["pe"])
+                    return out
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": e0, "pe": freqs}, {"original_block": block_wrap})
+                x = out["img"]
+            else:
+                x = block(x, e=e0, freqs=freqs, context=context)
 
         # head
         x = self.head(x, e)
@@ -439,7 +444,7 @@ class WanModel(torch.nn.Module):
         x = self.unpatchify(x, grid_sizes)
         return x
 
-    def forward(self, x, timestep, context, clip_fea=None, **kwargs):
+    def forward(self, x, timestep, context, clip_fea=None, transformer_options={},**kwargs):
         bs, c, t, h, w = x.shape
         x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
         patch_size = self.patch_size
@@ -453,7 +458,7 @@ class WanModel(torch.nn.Module):
         img_ids = repeat(img_ids, "t h w c -> b (t h w) c", b=bs)
 
         freqs = self.rope_embedder(img_ids).movedim(1, 2)
-        return self.forward_orig(x, timestep, context, clip_fea=clip_fea, freqs=freqs)[:, :, :t, :h, :w]
+        return self.forward_orig(x, timestep, context, clip_fea=clip_fea, freqs=freqs, transformer_options=transformer_options)[:, :, :t, :h, :w]
 
     def unpatchify(self, x, grid_sizes):
         r"""
