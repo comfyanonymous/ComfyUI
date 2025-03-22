@@ -1027,6 +1027,7 @@ class Chroma(supported_models_base.BASE):
     }
     latent_format = comfy.latent_formats.Flux
     memory_usage_factor = 2.8
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Chroma(self, model_type=model_base.ModelType.FLUX, device=device)
