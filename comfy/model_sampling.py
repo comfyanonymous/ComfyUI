@@ -69,6 +69,15 @@ class CONST:
         sigma = sigma.view(sigma.shape[:1] + (1,) * (latent.ndim - 1))
         return latent / (1.0 - sigma)
 
+class X0(EPS):
+    def calculate_denoised(self, sigma, model_output, model_input):
+        return model_output
+
+class IMG_TO_IMG(X0):
+    def calculate_input(self, sigma, noise):
+        return noise
+
+
 class ModelSamplingDiscrete(torch.nn.Module):
     def __init__(self, model_config=None, zsnr=None):
         super().__init__()
