@@ -1,6 +1,8 @@
+from functools import partial
 import comfy.samplers
 import comfy.sample
 from comfy.k_diffusion import sampling as k_diffusion_sampling
+from comfy.k_diffusion import sa_solver
 import latent_preview
 import torch
 import comfy.utils
@@ -430,6 +432,35 @@ class SamplerDPMAdaptative:
                                                               "s_noise":s_noise })
         return (sampler, )
 
+class SamplerSASolver:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"model": ("MODEL",),
+                    "pc_mode": (['PEC', "PECE"],),
+                    "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                    "eta_start_percent": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 1.0, "step": 0.001}),
+                    "eta_end_percent": ("FLOAT", {"default": 0.8, "min": 0.0, "max": 1.0, "step": 0.001}),
+                    }
+                }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, model, pc_mode, eta, eta_start_percent, eta_end_percent):
+        model_sampling = model.get_model_object('model_sampling')
+        start_sigma = model_sampling.percent_to_sigma(eta_start_percent)
+        end_sigma = model_sampling.percent_to_sigma(eta_end_percent)
+        tau_func = partial(sa_solver.default_tau_func, eta=eta, eta_start_sigma=start_sigma, eta_end_sigma=end_sigma)
+
+        if pc_mode == 'PEC':
+            sampler_name = "sa_solver"
+        else:
+            sampler_name = "sa_solver_pece"
+        sampler = comfy.samplers.ksampler(sampler_name, {"tau_func": tau_func})
+        return (sampler, )
+
 class Noise_EmptyNoise:
     def __init__(self):
         self.seed = 0
@@ -731,6 +762,7 @@ NODE_CLASS_MAPPINGS = {
     "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
     "SamplerDPMPP_2S_Ancestral": SamplerDPMPP_2S_Ancestral,
     "SamplerDPMAdaptative": SamplerDPMAdaptative,
+    "SamplerSASolver": SamplerSASolver,
     "SplitSigmas": SplitSigmas,
     "SplitSigmasDenoise": SplitSigmasDenoise,
     "FlipSigmas": FlipSigmas,
