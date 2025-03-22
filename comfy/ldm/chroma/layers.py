@@ -126,7 +126,7 @@ class Approximator(nn.Module):
     def device(self):
         # Get the device of the module (assumes all parameters are on the same device)
         return next(self.parameters()).device
-    
+
     def forward(self, x: Tensor) -> Tensor:
         x = self.in_proj(x)
 
