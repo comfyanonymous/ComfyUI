@@ -275,7 +275,7 @@ class Chroma(nn.Module):
                 #     img_mod = mod_vectors_dict[f"lite_double_blocks.4.img_mod.lin"]
                 #     txt_mod = mod_vectors_dict[f"lite_double_blocks.4.txt_mod.lin"]
                 # elif self.lite and i > 4:
-                #     guidance_index = i + 11 
+                #     guidance_index = i + 11
                 #     img_mod = mod_vectors_dict[f"double_blocks.{guidance_index}.img_mod.lin"]
                 #     txt_mod = mod_vectors_dict[f"double_blocks.{guidance_index}.txt_mod.lin"]
                 # else:
