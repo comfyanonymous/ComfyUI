@@ -11,7 +11,6 @@ class T5XXLModel(sd1_clip.SDClipModel):
         if t5xxl_scaled_fp8 is not None:
             model_options = model_options.copy()
             model_options["scaled_fp8"] = t5xxl_scaled_fp8
-        attention_mask = True
 
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=comfy.text_encoders.t5.T5, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
@@ -24,7 +23,7 @@ class ChromaT5XXL(sd1_clip.SD1ClipModel):
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "t5_tokenizer")
-        super().__init__(tokenizer_path, embedding_directory=embedding_directory, pad_with_end=False, embedding_size=4096, embedding_key='t5xxl', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=256)
+        super().__init__(tokenizer_path, embedding_directory=embedding_directory, pad_with_end=False, embedding_size=4096, embedding_key='t5xxl', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=0)
 
 
 class ChromaT5Tokenizer(sd1_clip.SD1Tokenizer):
