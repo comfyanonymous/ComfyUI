@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import json
 import os
 import re
@@ -6,12 +7,15 @@ import uuid
 import glob
 import shutil
 import logging
+from typing import TypedDict
+
+import send2trash
 from aiohttp import web
 from urllib import parse
+
 from comfy.cli_args import args
 import folder_paths
 from .app_settings import AppSettings
-from typing import TypedDict
 
 default_user = "default"
 
@@ -274,7 +278,11 @@ class UserManager():
             if not isinstance(path, str):
                 return path
 
-            os.remove(path)
+            try:
+                send2trash.send2trash(path)
+            except Exception as e:
+                logging.error(f"Error moving file to trash: {e}")
+                return web.Response(status=500, text="Failed to move file to trash")
 
             return web.Response(status=204)
 

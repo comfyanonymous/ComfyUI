@@ -16,6 +16,7 @@ Pillow
 scipy
 tqdm
 psutil
+send2trash>=1.8.3
 
 #non essential dependencies:
 kornia>=0.7.1
