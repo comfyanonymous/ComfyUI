@@ -21,7 +21,6 @@ from io import BytesIO
 import aiohttp
 from aiohttp import web
 import logging
-from functools import lru_cache
 
 import mimetypes
 from comfy.cli_args import args
@@ -552,8 +551,7 @@ class PromptServer():
         @routes.get("/prompt")
         async def get_prompt(request):
             return web.json_response(self.get_queue_info())
-        # use getattr speedup 2x times in load node info
-        @lru_cache(maxsize=None)
+
         def node_info(node_class):
             obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
             input_types = obj_class.INPUT_TYPES()
@@ -589,10 +587,6 @@ class PromptServer():
                     except Exception:
                         logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
                         logging.error(traceback.format_exc())
-
-                # Debug node_info in the current memory cache
-                #cache_stats = node_info.cache_info()
-                #print(f"node_info Cache Hits: {cache_stats.hits}, Misses: {cache_stats.misses}, Current Memory Cache Size: {cache_stats.currsize}")
 
                 return web.json_response(out)
                 
