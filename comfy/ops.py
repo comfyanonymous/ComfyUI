@@ -16,6 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+from __future__ import annotations
 import torch
 import logging
 import comfy.model_management
@@ -56,6 +57,79 @@ class CastWeightBiasOp:
     comfy_cast_weights = False
     weight_function = []
     bias_function = []
+    zipper_init: dict = None
+    zipper_tooth: ZipperTooth = None
+    _zipper_tooth: ZipperTooth = None
+
+    def init_tooth(self, load_device, offload_device, key: str=None):
+        if self.zipper_tooth:
+            self.clean_tooth()
+        self.zipper_tooth = ZipperTooth(self, load_device, offload_device, key)
+
+    def clean_tooth(self):
+        if self.zipper_tooth:
+            del self.zipper_tooth
+            self.zipper_tooth = None
+
+    def connect_teeth(self):
+        if self.zipper_init is not None:
+
+            self.zipper_init[self.zipper_key] = (hasattr(self, "prev_comfy_cast_weights"), self.zipper_dict.get("prev_zipper_key", None))
+            self.zipper_dict["prev_zipper_key"] = self.zipper_key
+
+    # def zipper_connect(self):
+    #     if self.zipper_dict is not None:
+    #         self.zipper_dict[self.zipper_key] = (hasattr(self, "prev_comfy_cast_weights"), self.zipper_dict.get("prev_zipper_key", None))
+    #         self.zipper_dict["prev_zipper_key"] = self.zipper_key
+
+class ZipperTooth:
+    def __init__(self, op: CastWeightBiasOp, load_device, offload_device, key: str=None):
+        self.op = op
+        self.key: str = key
+        self.weight_preloaded: torch.Tensor = None
+        self.bias_preloaded: torch.Tensor = None
+        self.load_device = load_device
+        self.offload_device = offload_device
+        self.start = False
+
+        self.prev_tooth: ZipperTooth = None
+        self.next_tooth: ZipperTooth = None
+
+    def get_bias_weight(self, input: torch.Tensor=None, dtype=None, device=None, bias_dtype=None):
+        try:
+            if self.start:
+                return cast_bias_weight(self.op, input, dtype, device, bias_dtype)
+            return self.weight_preloaded, self.bias_preloaded
+        finally:
+            # if self.prev_tooth:
+            #     self.prev_tooth.offload_previous(0)
+            self.next_tooth.preload_next(0, input, dtype, device, bias_dtype)
+
+    def preload_next(self, teeth_count=1, input: torch.Tensor=None, dtype=None, device=None, bias_dtype=None):
+        # TODO: queue load of tensors
+        if input is not None:
+            if dtype is None:
+                dtype = input.dtype
+            if bias_dtype is None:
+                bias_dtype = dtype
+            if device is None:
+                device = input.device
+
+        non_blocking = comfy.model_management.device_supports_non_blocking(self.load_device)
+        
+        if self.op.bias is not None:
+            self.bias_preloaded = comfy.model_management.cast_to(self.op.bias, bias_dtype, device, non_blocking=non_blocking)
+
+        self.weight_preloaded = comfy.model_management.cast_to(self.op.weight, dtype, device, non_blocking=non_blocking)
+        if self.next_tooth and teeth_count:
+            self.next_tooth.preload_next(teeth_count-1)
+
+    def offload_previous(self, teeth_count=1):
+        # TODO: queue offload of tensors
+        self.weight_preloaded = None
+        self.bias_preloaded = None
+        if self.prev_tooth and teeth_count:
+            self.prev_tooth.offload_previous(teeth_count-1)
 
 class disable_weight_init:
     class Linear(torch.nn.Linear, CastWeightBiasOp):
@@ -63,7 +137,11 @@ class disable_weight_init:
             return None
 
         def forward_comfy_cast_weights(self, input):
-            weight, bias = cast_bias_weight(self, input)
+            #if self.zipper_init:
+            if self.zipper_tooth:
+                weight, bias = self.zipper_tooth.get_bias_weight(input)
+            else:
+                weight, bias = cast_bias_weight(self, input)
             return torch.nn.functional.linear(input, weight, bias)
 
         def forward(self, *args, **kwargs):
@@ -77,7 +155,10 @@ class disable_weight_init:
             return None
 
         def forward_comfy_cast_weights(self, input):
-            weight, bias = cast_bias_weight(self, input)
+            if self.zipper_tooth:
+                weight, bias = self.zipper_tooth.get_bias_weight(input)
+            else:
+                weight, bias = cast_bias_weight(self, input)
             return self._conv_forward(input, weight, bias)
 
         def forward(self, *args, **kwargs):
@@ -91,7 +172,10 @@ class disable_weight_init:
             return None
 
         def forward_comfy_cast_weights(self, input):
-            weight, bias = cast_bias_weight(self, input)
+            if self.zipper_tooth:
+                weight, bias = self.zipper_tooth.get_bias_weight(input)
+            else:
+                weight, bias = cast_bias_weight(self, input)
             return self._conv_forward(input, weight, bias)
 
         def forward(self, *args, **kwargs):
@@ -105,7 +189,10 @@ class disable_weight_init:
             return None
 
         def forward_comfy_cast_weights(self, input):
-            weight, bias = cast_bias_weight(self, input)
+            if self.zipper_tooth:
+                weight, bias = self.zipper_tooth.get_bias_weight(input)
+            else:
+                weight, bias = cast_bias_weight(self, input)
             return self._conv_forward(input, weight, bias)
 
         def forward(self, *args, **kwargs):
@@ -119,7 +206,10 @@ class disable_weight_init:
             return None
 
         def forward_comfy_cast_weights(self, input):
-            weight, bias = cast_bias_weight(self, input)
+            if self.zipper_tooth:
+                weight, bias = self.zipper_tooth.get_bias_weight(input)
+            else:
+                weight, bias = cast_bias_weight(self, input)
             return torch.nn.functional.group_norm(input, self.num_groups, weight, bias, self.eps)
 
         def forward(self, *args, **kwargs):
@@ -134,7 +224,10 @@ class disable_weight_init:
 
         def forward_comfy_cast_weights(self, input):
             if self.weight is not None:
-                weight, bias = cast_bias_weight(self, input)
+                if self.zipper_tooth:
+                    weight, bias = self.zipper_tooth.get_bias_weight(input)
+                else:
+                    weight, bias = cast_bias_weight(self, input)
             else:
                 weight = None
                 bias = None
@@ -156,7 +249,10 @@ class disable_weight_init:
                 input, output_size, self.stride, self.padding, self.kernel_size,
                 num_spatial_dims, self.dilation)
 
-            weight, bias = cast_bias_weight(self, input)
+            if self.zipper_tooth:
+                weight, bias = self.zipper_tooth.get_bias_weight(input)
+            else:
+                weight, bias = cast_bias_weight(self, input)
             return torch.nn.functional.conv_transpose2d(
                 input, weight, bias, self.stride, self.padding,
                 output_padding, self.groups, self.dilation)
@@ -177,7 +273,10 @@ class disable_weight_init:
                 input, output_size, self.stride, self.padding, self.kernel_size,
                 num_spatial_dims, self.dilation)
 
-            weight, bias = cast_bias_weight(self, input)
+            if self.zipper_tooth:
+                weight, bias = self.zipper_tooth.get_bias_weight(input)
+            else:
+                weight, bias = cast_bias_weight(self, input)
             return torch.nn.functional.conv_transpose1d(
                 input, weight, bias, self.stride, self.padding,
                 output_padding, self.groups, self.dilation)
@@ -197,7 +296,10 @@ class disable_weight_init:
             output_dtype = out_dtype
             if self.weight.dtype == torch.float16 or self.weight.dtype == torch.bfloat16:
                 out_dtype = None
-            weight, bias = cast_bias_weight(self, device=input.device, dtype=out_dtype)
+            if self.zipper_tooth:
+                weight, bias = self.zipper_tooth.get_bias_weight(device=input.device, dtype=out_dtype)
+            else:
+                weight, bias = cast_bias_weight(self, device=input.device, dtype=out_dtype)
             return torch.nn.functional.embedding(input, weight, self.padding_idx, self.max_norm, self.norm_type, self.scale_grad_by_freq, self.sparse).to(dtype=output_dtype)
 
         def forward(self, *args, **kwargs):
