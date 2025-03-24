@@ -102,9 +102,18 @@ class SamplerLCMScalewise:
 
     FUNCTION = "get_sampler"
 
+    def _validate_upscales(self, upscales):
+        if not upscales:
+            return
+        
+        for i in range(1, len(upscales)):
+            if upscales[i] < upscales[i-1]:
+                raise ValueError("`upscales` is expected to be non-decreasing sequence of numbers")
+
     def get_sampler(self, upscales, upscale_method):
         # Turn comma-separated list into string
         upscales = [float(value) for value in upscales.split(',')]
+        self._validate_upscales(upscales)
         if len(upscales) == 0:
             upscales = None
         sampler = comfy.samplers.KSAMPLER(sample_lcm_scalewise, extra_options={"upscales": upscales, "upscale_method": upscale_method})
