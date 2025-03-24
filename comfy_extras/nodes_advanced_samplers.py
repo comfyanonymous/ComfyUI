@@ -58,18 +58,14 @@ class SamplerLCMUpscale:
     
 
 @torch.no_grad()
-def sample_lcm_scalewise(model, x, sigmas, extra_args=None, callback=None, disable=None, total_upscale=2.0, upscale_method="bislerp", upscale_steps=None):
+def sample_lcm_scalewise(model, x, sigmas, extra_args=None, callback=None, disable=None, upscales=None, upscale_method="bicubic"):
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
 
-    if upscale_steps is None:
-        upscale_steps = max(len(sigmas) // 2 + 1, 2)
-    else:
-        upscale_steps += 1
-        upscale_steps = min(upscale_steps, len(sigmas) + 1)
-
-    upscales = np.linspace(1.0, total_upscale, upscale_steps)[1:]
-
+    if upscales is not None:
+        # Resolution is increased on each step except the last one
+        assert len(upscales) == len(sigmas) - 2
+   
     orig_shape = x.size()
     s_in = x.new_ones([x.shape[0]])
     for i in trange(len(sigmas) - 1, disable=disable):
@@ -97,8 +93,7 @@ class SamplerLCMScalewise:
         return {
             "required":
             {
-                "scale_ratio": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 4.0, "step": 0.25}),
-                "scale_steps": ("INT", {"default": -1, "min": -1, "max": 1000, "step": 1}),
+                "upscales": ("STRING", {"default": ""}),
                 "upscale_method": (s.upscale_methods,),
             }
         }
@@ -107,10 +102,12 @@ class SamplerLCMScalewise:
 
     FUNCTION = "get_sampler"
 
-    def get_sampler(self, scale_ratio, scale_steps, upscale_method):
-        if scale_steps < 0:
-            scale_steps = None
-        sampler = comfy.samplers.KSAMPLER(sample_lcm_scalewise, extra_options={"total_upscale": scale_ratio, "upscale_steps": scale_steps, "upscale_method": upscale_method})
+    def get_sampler(self, upscales, upscale_method):
+        # Turn comma-separated list into string
+        upscales = [float(value) for value in upscales.split(',')]
+        if len(upscales) == 0:
+            upscales = None
+        sampler = comfy.samplers.KSAMPLER(sample_lcm_scalewise, extra_options={"upscales": upscales, "upscale_method": upscale_method})
         return (sampler, )
 
 
