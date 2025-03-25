@@ -209,7 +209,7 @@ class Flux(nn.Module):
 
     def forward(self, x, timestep, context, y, guidance=None, control=None, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
-            self.forward_lame,
+            self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, y, guidance=guidance, control=control, transformer_options=transformer_options, **kwargs)
