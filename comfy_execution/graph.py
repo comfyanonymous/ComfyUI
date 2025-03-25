@@ -63,7 +63,6 @@ def get_input_info(
     valid_inputs: InputTypeDict | None = None
 ) -> tuple[str, Literal["required", "optional", "hidden"], InputTypeOptions] | tuple[None, None, None]:
     """Get the input type, category, and extra info for a given input name.
-    If valid_inputs is provided, it will be used instead of the class_def.INPUT_TYPES().
 
     Arguments:
         class_def: The class definition of the node.
