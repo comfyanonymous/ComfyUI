@@ -131,7 +131,7 @@ class Flux(nn.Module):
                                                    txt=args["txt"],
                                                    vec=args["vec"],
                                                    pe=args["pe"],
-                                                   attn_mask=args.get("attn_mask"))
+                                                   attn_mask=args.get("attn_mask"),transformer_options=transformer_options)
                     return out
 
                 out = blocks_replace[("double_block", i)]({"img": img,
@@ -147,7 +147,7 @@ class Flux(nn.Module):
                                  txt=txt,
                                  vec=vec,
                                  pe=pe,
-                                 attn_mask=attn_mask)
+                                 attn_mask=attn_mask, transformer_options=transformer_options)
 
             if control is not None: # Controlnet
                 control_i = control.get("input")
@@ -165,7 +165,7 @@ class Flux(nn.Module):
                     out["img"] = block(args["img"],
                                        vec=args["vec"],
                                        pe=args["pe"],
-                                       attn_mask=args.get("attn_mask"))
+                                       attn_mask=args.get("attn_mask"),transformer_options=transformer_options)
                     return out
 
                 out = blocks_replace[("single_block", i)]({"img": img,
@@ -175,7 +175,7 @@ class Flux(nn.Module):
                                                           {"original_block": block_wrap})
                 img = out["img"]
             else:
-                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask)
+                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask, transformer_options=transformer_options)
 
             if control is not None: # Controlnet
                 control_o = control.get("output")
