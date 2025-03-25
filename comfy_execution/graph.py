@@ -65,6 +65,11 @@ def get_input_info(
     """Get the input type, category, and extra info for a given input name.
     If valid_inputs is provided, it will be used instead of the class_def.INPUT_TYPES().
 
+    Arguments:
+        class_def: The class definition of the node.
+        input_name: The name of the input to get info for.
+        valid_inputs: The valid inputs for the node, or None to use the class_def.INPUT_TYPES().
+
     Returns:
         tuple[str, str, dict] | tuple[None, None, None]: The input type, category, and extra info for the input name.
     """
