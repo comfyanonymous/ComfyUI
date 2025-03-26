@@ -2267,6 +2267,7 @@ def init_builtin_extra_nodes():
         "nodes_lotus.py",
         "nodes_hunyuan3d.py",
         "nodes_primitive.py",
+        "nodes_cfg.py",
     ]
 
     import_failed = []
