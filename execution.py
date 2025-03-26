@@ -500,8 +500,15 @@ class PromptExecutor:
                 if error is not None:
                     self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
                     break
-
-                result, error, ex = execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results)
+                try:
+                    result, error, ex = execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results)
+                except Exception as e:
+                    typ, _, tb = sys.exc_info()
+                    exception_type = full_type_name(typ)
+                    logging.error(f"Unexpected error occurred, during nested error handling: {e}, please open an issue on github.")
+                    logging.error(traceback.format_exc())
+                    self.add_message("execution_error", {"prompt_id": prompt_id}, broadcast=True)
+                    break
                 self.success = result != ExecutionResult.FAILURE
                 if result == ExecutionResult.FAILURE:
                     self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
