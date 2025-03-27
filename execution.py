@@ -10,6 +10,7 @@ import inspect
 from typing import List, Literal, NamedTuple, Optional
 
 import torch
+import folder_paths
 import nodes
 
 import comfy.model_management
@@ -88,7 +89,8 @@ class CacheSet:
         return result
 
 def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, extra_data={}):
-    valid_inputs = class_def.INPUT_TYPES()
+    with folder_paths.cache_helper:  # Only `rawLink` has been used so far
+        valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
     missing_keys = {}
     for x in inputs:
