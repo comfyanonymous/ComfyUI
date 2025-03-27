@@ -1017,11 +1017,14 @@ class WAN21(BaseModel):
         if mask is None:
             mask = torch.zeros_like(noise)[:, :4]
         else:
-            mask = 1.0 - torch.mean(mask, dim=1, keepdim=True)
+            if mask.shape[1] != 4:
+                mask = torch.mean(mask, dim=1, keepdim=True)
+            mask = 1.0 - mask
             mask = utils.common_upscale(mask.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
             if mask.shape[-3] < noise.shape[-3]:
                 mask = torch.nn.functional.pad(mask, (0, 0, 0, 0, 0, noise.shape[-3] - mask.shape[-3]), mode='constant', value=0)
-            mask = mask.repeat(1, 4, 1, 1, 1)
+            if mask.shape[1] == 1:
+                mask = mask.repeat(1, 4, 1, 1, 1)
             mask = utils.resize_to_batch_size(mask, noise.shape[0])
 
         return torch.cat((mask, image), dim=1)
