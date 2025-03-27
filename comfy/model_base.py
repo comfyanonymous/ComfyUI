@@ -36,6 +36,7 @@ import comfy.ldm.hunyuan_video.model
 import comfy.ldm.cosmos.model
 import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
+import comfy.ldm.hunyuan3d.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -58,6 +59,7 @@ class ModelType(Enum):
     FLOW = 6
     V_PREDICTION_CONTINUOUS = 7
     FLUX = 8
+    IMG_TO_IMG = 9
 
 
 from comfy.model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling, ModelSamplingContinuousV
@@ -88,6 +90,8 @@ def model_sampling(model_config, model_type):
     elif model_type == ModelType.FLUX:
         c = comfy.model_sampling.CONST
         s = comfy.model_sampling.ModelSamplingFlux
+    elif model_type == ModelType.IMG_TO_IMG:
+        c = comfy.model_sampling.IMG_TO_IMG
 
     class ModelSampling(s, c):
         pass
@@ -139,6 +143,7 @@ class BaseModel(torch.nn.Module):
     def _apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         sigma = t
         xc = self.model_sampling.calculate_input(sigma, x)
+
         if c_concat is not None:
             xc = torch.cat([xc] + [c_concat], dim=1)
 
@@ -600,6 +605,19 @@ class SDXL_instructpix2pix(IP2P, SDXL):
         else:
             self.process_ip2p_image_in = lambda image: image #diffusers ip2p
 
+class Lotus(BaseModel):
+    def extra_conds(self, **kwargs):
+        out = {}
+        cross_attn = kwargs.get("cross_attn", None)
+        out['c_crossattn'] = comfy.conds.CONDCrossAttn(cross_attn)
+        device = kwargs["device"]
+        task_emb = torch.tensor([1, 0]).float().to(device)
+        task_emb = torch.cat([torch.sin(task_emb), torch.cos(task_emb)]).unsqueeze(0)
+        out['y'] = comfy.conds.CONDRegular(task_emb)
+        return out
+
+    def __init__(self, model_config, model_type=ModelType.IMG_TO_IMG, device=None):
+        super().__init__(model_config, model_type, device=device)
 
 class StableCascade_C(BaseModel):
     def __init__(self, model_config, model_type=ModelType.STABLE_CASCADE, device=None):
@@ -974,7 +992,8 @@ class WAN21(BaseModel):
 
     def concat_cond(self, **kwargs):
         noise = kwargs.get("noise", None)
-        if self.diffusion_model.patch_embedding.weight.shape[1] == noise.shape[1]:
+        extra_channels = self.diffusion_model.patch_embedding.weight.shape[1] - noise.shape[1]
+        if extra_channels == 0:
             return None
 
         image = kwargs.get("concat_latent_image", None)
@@ -982,12 +1001,16 @@ class WAN21(BaseModel):
 
         if image is None:
             image = torch.zeros_like(noise)
+            shape_image = list(noise.shape)
+            shape_image[1] = extra_channels
+            image = torch.zeros(shape_image, dtype=noise.dtype, layout=noise.layout, device=noise.device)
+        else:
+            image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+            for i in range(0, image.shape[1], 16):
+                image[:, i: i + 16] = self.process_latent_in(image[:, i: i + 16])
+            image = utils.resize_to_batch_size(image, noise.shape[0])
 
-        image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
-        image = self.process_latent_in(image)
-        image = utils.resize_to_batch_size(image, noise.shape[0])
-
-        if not self.image_to_video:
+        if not self.image_to_video or extra_channels == image.shape[1]:
             return image
 
         mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
@@ -1012,4 +1035,19 @@ class WAN21(BaseModel):
         clip_vision_output = kwargs.get("clip_vision_output", None)
         if clip_vision_output is not None:
             out['clip_fea'] = comfy.conds.CONDRegular(clip_vision_output.penultimate_hidden_states)
+        return out
+
+class Hunyuan3Dv2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hunyuan3d.model.Hunyuan3Dv2)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        guidance = kwargs.get("guidance", 5.0)
+        if guidance is not None:
+            out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
