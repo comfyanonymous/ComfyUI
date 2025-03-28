@@ -111,6 +111,8 @@ def init_db():
 
         session.commit()
 
+def can_create_session():
+    return Session is not None
 
 def create_session():
     return Session()

@@ -138,7 +138,7 @@ import server
 from server import BinaryEventTypes
 import nodes
 import comfy.model_management
-from app.database.db import init_db
+from app.database.db import can_create_session, init_db
 from app.model_processor import model_processor
 
 def cuda_malloc_warning():
@@ -264,7 +264,11 @@ def start_comfyui(asyncio_loop=None):
 
     cuda_malloc_warning()
 
-    init_db()
+    try:
+        init_db()   
+    except Exception as e:
+        logging.error(f"Failed to initialize database. Please report this error as in future the database will be required: {e}")
+        
     prompt_server.add_routes()
     hijack_progress(prompt_server)
 
@@ -274,7 +278,8 @@ def start_comfyui(asyncio_loop=None):
         exit(0)
     
     # Scan for changed model files and update db
-    model_processor.run()
+    if can_create_session():
+        model_processor.run()
 
     os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
     call_on_start = None
