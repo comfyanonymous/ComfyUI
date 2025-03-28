@@ -28,7 +28,7 @@ def get_package_version(package_name):
         return version(package_name)
 
 # Check and install comfyui-frontend-package if not installed or if the version is lower than required
-required_version = "1.14.5"
+required_version = "1.14.6"
 package_name = "comfyui-frontend-package"
 
 try:
