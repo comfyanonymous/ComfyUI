@@ -9,7 +9,7 @@ class Morphology:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"image": ("IMAGE",),
-                                "operation": (["erode",  "dilate", "open", "close", "gradient", "bottom_hat", "top_hat"],),
+                                "operation": (["erode", "dilate", "open", "close", "gradient", "bottom_hat", "top_hat"],),
                                 "kernel_size": ("INT", {"default": 3, "min": 3, "max": 999, "step": 1}),
                                 }}
 
