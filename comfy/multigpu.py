@@ -68,8 +68,9 @@ def create_multigpu_deepclones(model: ModelPatcher, max_gpus: int, gpu_options: 
             skip_devices.add(mm.load_device)
     skip_devices = list(skip_devices)
 
-    extra_devices = comfy.model_management.get_all_torch_devices(exclude_current=True)
-    extra_devices = extra_devices[:max_gpus-1]
+    full_extra_devices = comfy.model_management.get_all_torch_devices(exclude_current=True)
+    limit_extra_devices = full_extra_devices[:max_gpus-1]
+    extra_devices = limit_extra_devices.copy()
     # exclude skipped devices
     for skip in skip_devices:
         if skip in extra_devices:
@@ -98,6 +99,13 @@ def create_multigpu_deepclones(model: ModelPatcher, max_gpus: int, gpu_options: 
         gpu_options.register(model)
     else:
         logging.info("No extra torch devices need initialization, skipping initializing MultiGPU Work Units.")
+    # only keep model clones that don't go 'past' the intended max_gpu count
+    multigpu_models = model.get_additional_models_with_key("multigpu")
+    new_multigpu_models = []
+    for m in multigpu_models:
+        if m.load_device in limit_extra_devices:
+            new_multigpu_models.append(m)
+    model.set_additional_models("multigpu", new_multigpu_models)
     # persist skip_devices for use in sampling code
     # if len(skip_devices) > 0 or "multigpu_skip_devices" in model.model_options:
     #     model.model_options["multigpu_skip_devices"] = skip_devices
