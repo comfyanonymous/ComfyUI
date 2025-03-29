@@ -261,7 +261,14 @@ def start_comfyui(asyncio_loop=None):
     prompt_server = server.PromptServer(asyncio_loop)
     q = execution.PromptQueue(prompt_server)
 
-    nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
+    # Parse requested custom nodes from args
+    requested_nodes = None
+    if args.custom_nodes:
+        requested_nodes = [node.strip() for nodes in args.custom_nodes for node in nodes.split(',')]
+        logging.info(f"Loading only requested custom nodes: {requested_nodes}")
+
+    nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes, 
+                          requested_nodes=requested_nodes)
 
     cuda_malloc_warning()
 
