@@ -446,10 +446,9 @@ class LTXVPreprocess:
     CATEGORY = "image"
 
     def preprocess(self, image, img_compression):
-        if img_compression > 0:
-            output_images = []
-            for i in range(image.shape[0]):
-                output_images.append(preprocess(image[i], img_compression))
+        output_images = []
+        for i in range(image.shape[0]):
+            output_images.append(preprocess(image[i], img_compression))
         return (torch.stack(output_images),)
 
 
