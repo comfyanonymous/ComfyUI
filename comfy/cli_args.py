@@ -104,6 +104,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     attn_group.add_argument("--use-pytorch-cross-attention", action="store_true",
                             help="Use the new pytorch 2.0 cross attention function.")
     attn_group.add_argument("--use-sage-attention", action="store_true", help="Use sage attention.")
+    attn_group.add_argument("--use-flash-attention", action="store_true", help="Use FlashAttention.")
 
     parser.add_argument("--disable-xformers", action="store_true", help="Disable xformers.")
 

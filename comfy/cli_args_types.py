@@ -97,6 +97,7 @@ class Configuration(dict):
         use_quad_cross_attention (bool): Use sub-quadratic cross-attention optimization.
         use_pytorch_cross_attention (bool): Use PyTorch's cross-attention function.
         use_sage_attention (bool): Use Sage Attention
+        use_flas_attention (bool): Use FlashAttention
         disable_xformers (bool): Disable xformers.
         gpu_only (bool): Run everything on the GPU.
         highvram (bool): Keep models in GPU memory.
@@ -189,6 +190,7 @@ class Configuration(dict):
         self.use_quad_cross_attention: bool = False
         self.use_pytorch_cross_attention: bool = False
         self.use_sage_attention: bool = False
+        self.use_flash_attention: bool = False
         self.disable_xformers: bool = False
         self.gpu_only: bool = False
         self.highvram: bool = False

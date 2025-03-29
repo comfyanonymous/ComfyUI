@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.resources
 import logging
 import os
 import re
@@ -11,9 +12,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import TypedDict, Optional
 
-import comfyui_frontend_package
 import requests
-import importlib.resources
 from typing_extensions import NotRequired
 
 from ..cli_args import DEFAULT_VERSION_STRING
@@ -113,8 +112,17 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 
 class FrontendManager:
-    DEFAULT_FRONTEND_PATH = str(importlib.resources.files(comfyui_frontend_package) / "static")
     CUSTOM_FRONTENDS_ROOT = add_model_folder_path("web_custom_versions", extensions=set())
+
+    @classmethod
+    def default_frontend_path(cls) -> str:
+        try:
+            import comfyui_frontend_package
+
+            return str(importlib.resources.files(comfyui_frontend_package) / "static")
+        except ImportError:
+            logging.error(f"""comfyui-frontend-package is not installed.""".strip())
+            return ""
 
     @classmethod
     def parse_version_string(cls, value: str) -> tuple[str, str, str]:
@@ -136,7 +144,9 @@ class FrontendManager:
         return match_result.group(1), match_result.group(2), match_result.group(3)
 
     @classmethod
-    def init_frontend_unsafe(cls, version_string: str, provider: Optional[FrontEndProvider] = None) -> str:
+    def init_frontend_unsafe(
+            cls, version_string: str, provider: Optional[FrontEndProvider] = None
+    ) -> str:
         """
         Initializes the frontend for the specified version.
 
@@ -152,17 +162,26 @@ class FrontendManager:
             main error source might be request timeout or invalid URL.
         """
         if version_string == DEFAULT_VERSION_STRING:
-            return cls.DEFAULT_FRONTEND_PATH
+            # check_frontend_version()
+            return cls.default_frontend_path()
 
         repo_owner, repo_name, version = cls.parse_version_string(version_string)
 
         if version.startswith("v"):
-            expected_path = str(Path(cls.CUSTOM_FRONTENDS_ROOT) / f"{repo_owner}_{repo_name}" / version.lstrip("v"))
+            expected_path = str(
+                Path(cls.CUSTOM_FRONTENDS_ROOT)
+                / f"{repo_owner}_{repo_name}"
+                / version.lstrip("v")
+            )
             if os.path.exists(expected_path):
-                logging.info(f"Using existing copy of specific frontend version tag: {repo_owner}/{repo_name}@{version}")
+                logging.info(
+                    f"Using existing copy of specific frontend version tag: {repo_owner}/{repo_name}@{version}"
+                )
                 return expected_path
 
-        logging.info(f"Initializing frontend: {repo_owner}/{repo_name}@{version}, requesting version details from GitHub...")
+        logging.info(
+            f"Initializing frontend: {repo_owner}/{repo_name}@{version}, requesting version details from GitHub..."
+        )
 
         provider = provider or FrontEndProvider(repo_owner, repo_name)
         release = provider.get_release(version)
@@ -205,4 +224,5 @@ class FrontendManager:
         except Exception as e:
             logging.error("Failed to initialize frontend: %s", e)
             logging.info("Falling back to the default frontend.")
-            return cls.DEFAULT_FRONTEND_PATH
+            # check_frontend_version()
+            return cls.default_frontend_path()

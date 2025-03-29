@@ -491,7 +491,7 @@ class SaveLatent:
         file = os.path.join(full_output_folder, file)
 
         output = {}
-        output["latent_tensor"] = samples["samples"]
+        output["latent_tensor"] = samples["samples"].contiguous()
         output["latent_format_version_0"] = torch.tensor([])
 
         utils.save_torch_file(output, file, metadata=metadata)
@@ -774,6 +774,7 @@ class VAELoader:
             vae_path = get_or_download("vae", vae_name, KNOWN_VAES)
             sd_ = utils.load_torch_file(vae_path)
         vae = sd.VAE(sd=sd_)
+        vae.throw_exception_if_invalid()
         return (vae,)
 
 class ControlNetLoader:
@@ -1818,14 +1819,7 @@ class LoadImageOutput(LoadImage):
 
     DESCRIPTION = "Load an image from the output folder. When the refresh button is clicked, the node will update the image list and automatically select the first image, allowing for easy iteration."
     EXPERIMENTAL = True
-    FUNCTION = "load_image_output"
-
-    def load_image_output(self, image):
-        return self.load_image(f"{image} [output]")
-
-    @classmethod
-    def VALIDATE_INPUTS(s, image):
-        return True
+    FUNCTION = "load_image"
 
 
 class ImageScale:

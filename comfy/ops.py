@@ -15,6 +15,7 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+import logging
 from typing import Optional, Type, Union
 
 import torch
@@ -27,6 +28,7 @@ from .float import stochastic_rounding
 
 cast_to = model_management.cast_to  # TODO: remove once no more references
 
+logger = logging.getLogger(__name__)
 
 def cast_to_input(weight, input, non_blocking=False, copy=True):
     return model_management.cast_to(weight, input.dtype, input.device, non_blocking=non_blocking, copy=copy)
@@ -368,6 +370,7 @@ class scaled_fp8_op_base(manual_cast):
 
 
 def scaled_fp8_ops(fp8_matrix_mult=False, scale_input=False, override_dtype=None):
+    logger.info("Using scaled fp8: fp8 matrix mult: {}, scale input: {}".format(fp8_matrix_mult, scale_input))
     class scaled_fp8_op(scaled_fp8_op_base):
         class Linear(manual_cast.Linear):
             def __init__(self, *args, **kwargs):
@@ -425,7 +428,7 @@ def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_
         inference_mode = current_execution_context().inference_mode
     fp8_compute = model_management.supports_fp8_compute(load_device)
     if scaled_fp8 is not None:
-        return scaled_fp8_ops(fp8_matrix_mult=fp8_compute, scale_input=True, override_dtype=scaled_fp8)
+        return scaled_fp8_ops(fp8_matrix_mult=fp8_compute and fp8_optimizations, scale_input=fp8_optimizations, override_dtype=scaled_fp8)
 
     if (
         fp8_compute and
