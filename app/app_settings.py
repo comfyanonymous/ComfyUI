@@ -15,8 +15,8 @@ class AppSettings():
                 "comfy.settings.json"
             )
         except KeyError as e:
-            log.error(f"User settings not found.")
-            raise aiohttp.web.HTTPUnauthorized('User not found') from e
+            logging.error("User settings not found.")
+            raise web.HTTPUnauthorized() from e
         if os.path.isfile(file):
             try:
                 with open(file) as f:
@@ -36,9 +36,7 @@ class AppSettings():
     def add_routes(self, routes):
         @routes.get("/settings")
         async def get_settings(request):
-
-                return web.json_response(self.get_settings(request))
-
+            return web.json_response(self.get_settings(request))
 
         @routes.get("/settings/{id}")
         async def get_setting(request):
