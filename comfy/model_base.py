@@ -1000,7 +1000,6 @@ class WAN21(BaseModel):
         device = kwargs["device"]
 
         if image is None:
-            image = torch.zeros_like(noise)
             shape_image = list(noise.shape)
             shape_image[1] = extra_channels
             image = torch.zeros(shape_image, dtype=noise.dtype, layout=noise.layout, device=noise.device)
