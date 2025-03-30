@@ -9,8 +9,14 @@ class AppSettings():
         self.user_manager = user_manager
 
     def get_settings(self, request):
-        file = self.user_manager.get_request_user_filepath(
-            request, "comfy.settings.json")
+        try:
+            file = self.user_manager.get_request_user_filepath(
+                request,
+                "comfy.settings.json"
+            )
+        except KeyError as e:
+            log.error(f"User settings not found.")
+            raise aiohttp.web.HTTPUnauthorized('User not found') from e
         if os.path.isfile(file):
             try:
                 with open(file) as f:
@@ -30,7 +36,9 @@ class AppSettings():
     def add_routes(self, routes):
         @routes.get("/settings")
         async def get_settings(request):
-            return web.json_response(self.get_settings(request))
+
+                return web.json_response(self.get_settings(request))
+
 
         @routes.get("/settings/{id}")
         async def get_setting(request):
