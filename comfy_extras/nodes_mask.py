@@ -87,6 +87,8 @@ class ImageCompositeMasked:
     CATEGORY = "image"
 
     def composite(self, destination, source, x, y, resize_source, mask = None):
+        if destination.shape[-1] < source.shape[-1]:
+            source = source[...,:destination.shape[-1]]
         destination = destination.clone().movedim(-1, 1)
         output = composite(destination, source.movedim(-1, 1), x, y, mask, 1, resize_source).movedim(1, -1)
         return (output,)
