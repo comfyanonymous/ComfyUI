@@ -2166,6 +2166,12 @@ def modify_function_params(cls):
     return cls
 
 
+for node_name, node_cls in NODE_CLASS_MAPPINGS.items():
+    node_cls = extend_input_types(node_cls)
+    node_cls = modify_function_params(node_cls)
+    NODE_CLASS_MAPPINGS[node_name] = node_cls
+
+
 def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes") -> bool:
     module_name = os.path.basename(module_path)
     if os.path.isfile(module_path):
