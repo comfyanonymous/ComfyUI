@@ -244,7 +244,7 @@ def save_glb(vertices, faces, filepath, metadata=None):
 
     Parameters:
     vertices: torch.Tensor of shape (N, 3) - The vertex coordinates
-    faces: torch.Tensor of shape (M, 4) or (M, 3) - The face indices (quad or triangle faces)
+    faces: torch.Tensor of shape (M, 3) - The face indices (triangle faces)
     filepath: str - Output filepath (should end with .glb)
     """
 
