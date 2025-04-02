@@ -154,19 +154,25 @@ def cuda_malloc_warning():
             logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
-def prompt_worker(q, server_instance):
+async def async_prompt_worker(q, server_instance):
+    """
+    Asynchronous worker that repeatedly offloads the blocking q.get() call
+    to a background executor, processes a prompt, and then performs necessary cleanup.
+    """
     current_time: float = 0.0
     e = execution.PromptExecutor(server_instance, lru_size=args.cache_lru)
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
 
+    loop = asyncio.get_event_loop()
+
     while True:
         timeout = 1000.0
         if need_gc:
             timeout = max(gc_collect_interval - (current_time - last_gc_collect), 0.0)
 
-        queue_item = q.get(timeout=timeout)
+        queue_item = await loop.run_in_executor(None, q.get, timeout)
         if queue_item is not None:
             item, item_id = queue_item
             execution_start_time = time.perf_counter()
@@ -209,6 +215,18 @@ def prompt_worker(q, server_instance):
                 last_gc_collect = current_time
                 need_gc = False
 
+def start_worker_pool(prompt_queue, server_instance, num_workers):
+    """
+    Starts a pool of asynchronous worker tasks inside a dedicated event loop
+    running in a separate thread.
+    """
+    def thread_main():
+        asyncio_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(asyncio_loop)
+        tasks = [asyncio_loop.create_task(async_prompt_worker(prompt_queue, server_instance))
+                 for _ in range(num_workers)]
+        asyncio_loop.run_until_complete(asyncio.gather(*tasks))
+    threading.Thread(target=thread_main, daemon=True).start()
 
 async def run(server_instance, address='', port=8188, verbose=True, call_on_start=None):
     addresses = []
@@ -235,7 +253,6 @@ def cleanup_temp():
     temp_dir = folder_paths.get_temp_directory()
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir, ignore_errors=True)
-
 
 def start_comfyui(asyncio_loop=None):
     """
@@ -268,7 +285,7 @@ def start_comfyui(asyncio_loop=None):
     prompt_server.add_routes()
     hijack_progress(prompt_server)
 
-    threading.Thread(target=prompt_worker, daemon=True, args=(q, prompt_server,)).start()
+    start_worker_pool(q, prompt_server, num_workers=args.workers)
 
     if args.quick_test_for_ci:
         exit(0)
