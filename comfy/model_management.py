@@ -1237,6 +1237,8 @@ def soft_empty_cache(force=False):
         torch.xpu.empty_cache()
     elif is_ascend_npu():
         torch.npu.empty_cache()
+    elif is_mlu():
+        torch.mlu.empty_cache()
     elif torch.cuda.is_available():
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
