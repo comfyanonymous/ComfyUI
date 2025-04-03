@@ -10,7 +10,7 @@ import math
 import time
 import random
 import logging
-from inspect import signature
+import inspect
 
 from PIL import Image, ImageOps, ImageSequence
 from PIL.PngImagePlugin import PngInfo
@@ -2151,17 +2151,43 @@ def modify_function_params(cls):
     if not hasattr(cls, 'FUNCTION'):
         return cls
 
-    function = getattr(cls, cls.FUNCTION)
-    sig = signature(function)
+    method_name = getattr(cls, 'FUNCTION')
+    is_static = isinstance(
+        inspect.getattr_static(cls, method_name),
+        staticmethod)
 
-    if 'onTrigger' not in sig.parameters.keys():
-        def _function(self, *args, **kwargs):
-            if 'onTrigger' in kwargs.keys():
-                del kwargs['onTrigger']
-            bound_args = sig.bind(self, *args, **kwargs)
-            bound_args.apply_defaults()
-            return function(*bound_args.args, **bound_args.kwargs)
-        setattr(cls, cls.FUNCTION, _function)
+    if is_static:
+        original_method = inspect.getattr_static(cls, method_name)
+    else:
+        original_method = getattr(cls, method_name)
+
+    sig = inspect.signature(original_method)
+
+    if 'onTrigger' in sig.parameters.keys():
+        return cls
+
+    # Define a wrapper function that uses the new signature
+    def _function(*args, **kwargs):
+        if 'onTrigger' in kwargs.keys():
+            del kwargs['onTrigger']
+        bound_args = sig.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+
+        if is_static:
+            return original_method(*bound_args.args, **bound_args.kwargs)
+        else:
+            # For instance methods, ensure 'self' is correctly passed
+            self_instance = args[0]
+            method_args = bound_args.args[1:]
+            method_kwargs = bound_args.kwargs
+            return original_method(
+                self_instance, *method_args, **method_kwargs)
+
+    # Assign the new function directly to the class attribute
+    if is_static:
+        setattr(cls, method_name, staticmethod(_function))
+    else:
+        setattr(cls, method_name, _function)
 
     return cls
 
