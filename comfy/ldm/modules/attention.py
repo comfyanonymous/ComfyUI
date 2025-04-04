@@ -22,11 +22,9 @@ else:
     sageattn = torch.nn.functional.scaled_dot_product_attention
 
 if model_management.flash_attention_enabled():
-    try:
-        from flash_attn import flash_attn_func
-    except ModuleNotFoundError:
-        logging.error(f"\n\nTo use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install flash-attn")
-        exit(-1)
+    from flash_attn import flash_attn_func  # pylint: disable=import-error
+else:
+    flash_attn_func = torch.nn.functional.scaled_dot_product_attention
 
 from ...cli_args import args
 from ... import ops
@@ -546,7 +544,7 @@ try:
     @torch.library.custom_op("flash_attention::flash_attn", mutates_args=())
     def flash_attn_wrapper(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor,
                     dropout_p: float = 0.0, causal: bool = False) -> torch.Tensor:
-        return flash_attn_func(q, k, v, dropout_p=dropout_p, causal=causal)
+        return flash_attn_func(q, k, v, dropout_p=dropout_p, causal=causal)  # pylint: disable=possibly-used-before-assignment,used-before-assignment
 
 
     @flash_attn_wrapper.register_fake

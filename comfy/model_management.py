@@ -1103,7 +1103,7 @@ def flash_attn_enabled():
         return False
     if directml_device:
         return False
-    return FLASH_ATTENTION_ENABLED
+    return flash_attention_enabled()
 
 
 def xformers_enabled_vae():

@@ -85,7 +85,7 @@ class Hunyuan3Dv2(nn.Module):
         blocks_replace = patches_replace.get("dit", {})
         for i, block in enumerate(self.double_blocks):
             if ("double_block", i) in blocks_replace:
-                def block_wrap(args):
+                def block_wrap1(args):
                     out = {}
                     out["img"], out["txt"] = block(img=args["img"],
                                                    txt=args["txt"],
@@ -99,7 +99,7 @@ class Hunyuan3Dv2(nn.Module):
                                                            "vec": vec,
                                                            "pe": pe,
                                                            "attn_mask": attn_mask},
-                                                          {"original_block": block_wrap})
+                                                          {"original_block": block_wrap1})
                 txt = out["txt"]
                 img = out["img"]
             else:

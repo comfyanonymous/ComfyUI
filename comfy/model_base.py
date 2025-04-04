@@ -40,7 +40,7 @@ from .ldm.hunyuan_video.model import HunyuanVideo as HunyuanVideoModel
 from .ldm.hydit.models import HunYuanDiT
 from .ldm.lightricks.model import LTXVModel
 from .ldm.lumina.model import NextDiT
-from .ldm.hunyuan3d.model import Hunyuan3Dv2
+from .ldm.hunyuan3d.model import Hunyuan3Dv2 as Hunyuan3Dv2Model
 from .ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
 from .ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
@@ -64,7 +64,7 @@ class ModelType(Enum):
     IMG_TO_IMG = 9
 
 
-from .model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling, CONST, ModelSamplingDiscreteFlow, ModelSamplingContinuousV, ModelSamplingFlux
+from .model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling, CONST, ModelSamplingDiscreteFlow, ModelSamplingContinuousV, ModelSamplingFlux, IMG_TO_IMG
 
 
 def model_sampling(model_config, model_type):
@@ -94,7 +94,7 @@ def model_sampling(model_config, model_type):
         c = CONST
         s = ModelSamplingFlux
     elif model_type == ModelType.IMG_TO_IMG:
-        c = model_sampling.IMG_TO_IMG
+        c = IMG_TO_IMG
 
     class ModelSampling(s, c):
         pass
@@ -1081,7 +1081,7 @@ class WAN21(BaseModel):
 
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=Hunyuan3Dv2)
+        super().__init__(model_config, model_type, device=device, unet_model=Hunyuan3Dv2Model)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)

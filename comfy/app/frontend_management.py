@@ -20,6 +20,8 @@ from ..cmd.folder_paths import add_model_folder_path  # pylint: disable=import-e
 
 REQUEST_TIMEOUT = 10  # seconds
 
+def check_frontend_version():
+    return None
 
 class Asset(TypedDict):
     url: str
@@ -162,7 +164,7 @@ class FrontendManager:
             main error source might be request timeout or invalid URL.
         """
         if version_string == DEFAULT_VERSION_STRING:
-            # check_frontend_version()
+            check_frontend_version()
             return cls.default_frontend_path()
 
         repo_owner, repo_name, version = cls.parse_version_string(version_string)
@@ -224,5 +226,5 @@ class FrontendManager:
         except Exception as e:
             logging.error("Failed to initialize frontend: %s", e)
             logging.info("Falling back to the default frontend.")
-            # check_frontend_version()
+            check_frontend_version()
             return cls.default_frontend_path()
