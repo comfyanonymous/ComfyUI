@@ -498,12 +498,20 @@ class ModelPatcher:
                     key = k[0]
                     if len(k) > 2:
                         function = k[2]
-
+                org_key=key.replace("diffusion_model", "diffusion_model._orig_mod")
                 if key in model_sd:
                     p.add(k)
                     current_patches = self.patches.get(key, [])
                     current_patches.append((strength_patch, patches[k], strength_model, offset, function))
                     self.patches[key] = current_patches
+                    self.patches[org_key] = current_patches
+                elif org_key in model_sd:
+                    if key in self.patches:
+                        self.patches.pop(key)
+                    p.add(k)
+                    current_patches = self.patches.get(org_key, [])
+                    current_patches.append((strength_patch, patches[k], strength_model, offset, function))
+                    self.patches[org_key] = current_patches
 
             self.patches_uuid = uuid.uuid4()
             return list(p)
