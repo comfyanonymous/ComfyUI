@@ -847,6 +847,7 @@ class SpatialTransformer(nn.Module):
         if not isinstance(context, list):
             context = [context] * len(self.transformer_blocks)
         b, c, h, w = x.shape
+        transformer_options["activations_shape"] = list(x.shape)
         x_in = x
         x = self.norm(x)
         if not self.use_linear:
@@ -962,6 +963,7 @@ class SpatialVideoTransformer(SpatialTransformer):
         transformer_options={}
     ) -> torch.Tensor:
         _, _, h, w = x.shape
+        transformer_options["activations_shape"] = list(x.shape)
         x_in = x
         spatial_context = None
         if exists(context):
