@@ -20,10 +20,6 @@ class LCM(comfy.model_sampling.EPS):
 
         return c_out * x0 + c_skip * model_input
 
-class X0(comfy.model_sampling.EPS):
-    def calculate_denoised(self, sigma, model_output, model_input):
-        return model_output
-
 class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete):
     original_timesteps = 50
 
@@ -56,7 +52,7 @@ class ModelSamplingDiscrete:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["eps", "v_prediction", "lcm", "x0"],),
+                              "sampling": (["eps", "v_prediction", "lcm", "x0", "img_to_img"],),
                               "zsnr": ("BOOLEAN", {"default": False}),
                               }}
 
@@ -77,7 +73,9 @@ class ModelSamplingDiscrete:
             sampling_type = LCM
             sampling_base = ModelSamplingDiscreteDistilled
         elif sampling == "x0":
-            sampling_type = X0
+            sampling_type = comfy.model_sampling.X0
+        elif sampling == "img_to_img":
+            sampling_type = comfy.model_sampling.IMG_TO_IMG
 
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass

@@ -21,8 +21,8 @@ class Load3D():
             "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
         }}
 
-    RETURN_TYPES = ("IMAGE", "MASK", "STRING")
-    RETURN_NAMES = ("image", "mask", "mesh_path")
+    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "IMAGE", "IMAGE")
+    RETURN_NAMES = ("image", "mask", "mesh_path", "normal", "lineart")
 
     FUNCTION = "process"
     EXPERIMENTAL = True
@@ -32,12 +32,16 @@ class Load3D():
     def process(self, model_file, image, **kwargs):
         image_path = folder_paths.get_annotated_filepath(image['image'])
         mask_path = folder_paths.get_annotated_filepath(image['mask'])
+        normal_path = folder_paths.get_annotated_filepath(image['normal'])
+        lineart_path = folder_paths.get_annotated_filepath(image['lineart'])
 
         load_image_node = nodes.LoadImage()
         output_image, ignore_mask = load_image_node.load_image(image=image_path)
         ignore_image, output_mask = load_image_node.load_image(image=mask_path)
+        normal_image, ignore_mask2 = load_image_node.load_image(image=normal_path)
+        lineart_image, ignore_mask3 = load_image_node.load_image(image=lineart_path)
 
-        return output_image, output_mask, model_file,
+        return output_image, output_mask, model_file, normal_image, lineart_image
 
 class Load3DAnimation():
     @classmethod
@@ -55,8 +59,8 @@ class Load3DAnimation():
             "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
         }}
 
-    RETURN_TYPES = ("IMAGE", "MASK", "STRING")
-    RETURN_NAMES = ("image", "mask", "mesh_path")
+    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "IMAGE")
+    RETURN_NAMES = ("image", "mask", "mesh_path", "normal")
 
     FUNCTION = "process"
     EXPERIMENTAL = True
@@ -66,12 +70,14 @@ class Load3DAnimation():
     def process(self, model_file, image, **kwargs):
         image_path = folder_paths.get_annotated_filepath(image['image'])
         mask_path = folder_paths.get_annotated_filepath(image['mask'])
+        normal_path = folder_paths.get_annotated_filepath(image['normal'])
 
         load_image_node = nodes.LoadImage()
         output_image, ignore_mask = load_image_node.load_image(image=image_path)
         ignore_image, output_mask = load_image_node.load_image(image=mask_path)
+        normal_image, ignore_mask2 = load_image_node.load_image(image=normal_path)
 
-        return output_image, output_mask, model_file,
+        return output_image, output_mask, model_file, normal_image
 
 class Preview3D():
     @classmethod
