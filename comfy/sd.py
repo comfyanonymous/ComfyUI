@@ -984,6 +984,10 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
         if inital_load_device != torch.device("cpu"):
             logging.info("loaded diffusion model directly to GPU")
             model_management.load_models_gpu([model_patcher], force_full_load=True)
+            #damcclos: move the model_sampling back to the CPU. The work needed for this is not worth the gpu.
+            model_sampling_device = model_management.model_sampling_device()
+            if model_sampling_device == torch.device("cpu"):
+                model_patcher.model.model_sampling.to(model_sampling_device)
 
     return (model_patcher, clip, vae, clipvision)
 
