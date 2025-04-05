@@ -1,9 +1,10 @@
 import itertools
-from typing import Sequence, Mapping, Dict
-from comfy_execution.graph import DynamicPrompt
+from typing import Dict, Mapping, Sequence
 
+import folder_paths
 import nodes
 
+from comfy_execution.graph import DynamicPrompt
 from comfy_execution.graph_utils import is_link
 
 NODE_CLASS_CONTAINS_UNIQUE_ID: Dict[str, bool] = {}
@@ -13,7 +14,8 @@ def include_unique_id_in_input(class_type: str) -> bool:
     if class_type in NODE_CLASS_CONTAINS_UNIQUE_ID:
         return NODE_CLASS_CONTAINS_UNIQUE_ID[class_type]
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-    NODE_CLASS_CONTAINS_UNIQUE_ID[class_type] = "UNIQUE_ID" in class_def.INPUT_TYPES().get("hidden", {}).values()
+    with folder_paths.cache_helper:  # Because we don't care about other except UNIQUE_ID
+        NODE_CLASS_CONTAINS_UNIQUE_ID[class_type] = "UNIQUE_ID" in class_def.INPUT_TYPES().get("hidden", {}).values()
     return NODE_CLASS_CONTAINS_UNIQUE_ID[class_type]
 
 class CacheKeySet:

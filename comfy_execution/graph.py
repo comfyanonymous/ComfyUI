@@ -1,3 +1,4 @@
+import folder_paths
 import nodes
 
 from comfy_execution.graph_utils import is_link
@@ -126,7 +127,8 @@ class TopologicalSort:
                     from_node_id, from_socket = value
                     if subgraph_nodes is not None and from_node_id not in subgraph_nodes:
                         continue
-                    input_type, input_category, input_info = self.get_input_info(unique_id, input_name)
+                    with folder_paths.cache_helper:  # Because we don't care about other except lazy
+                        input_type, input_category, input_info = self.get_input_info(unique_id, input_name)
                     is_lazy = input_info is not None and "lazy" in input_info and input_info["lazy"]
                     if (include_lazy or not is_lazy) and not self.is_cached(from_node_id):
                         node_ids.append(from_node_id)
