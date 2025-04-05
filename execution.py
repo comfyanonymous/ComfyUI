@@ -291,6 +291,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             obj = caches.objects.get(unique_id)
             if obj is None:
                 obj = class_def()
+                obj.id = unique_id
                 caches.objects.set(unique_id, obj)
 
             if hasattr(obj, "check_lazy_status"):
