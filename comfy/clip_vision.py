@@ -110,9 +110,13 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
     elif "vision_model.encoder.layers.30.layer_norm1.weight" in sd:
         json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_h.json")
     elif "vision_model.encoder.layers.22.layer_norm1.weight" in sd:
+        embed_shape = sd["vision_model.embeddings.position_embedding.weight"].shape[0]
         if sd["vision_model.encoder.layers.0.layer_norm1.weight"].shape[0] == 1152:
-            json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_siglip_384.json")
-        elif sd["vision_model.embeddings.position_embedding.weight"].shape[0] == 577:
+            if embed_shape == 729:
+                json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_siglip_384.json")
+            elif embed_shape == 1024:
+                json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_siglip_512.json")
+        elif embed_shape == 577:
             if "multi_modal_projector.linear_1.bias" in sd:
                 json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl_336_llava.json")
             else:
