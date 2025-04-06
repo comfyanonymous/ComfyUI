@@ -381,7 +381,6 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             pending_subgraph_results[unique_id] = cached_outputs
             return (ExecutionResult.PENDING, None, None)
         caches.outputs.set(unique_id, output_data)
-        # caches.outputs.notify_node_executed(unique_id)  # Notify cache of execution
     except comfy.model_management.InterruptProcessingException as iex:
         logging.info("Processing interrupted")
 
