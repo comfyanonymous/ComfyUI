@@ -267,7 +267,7 @@ class HierarchicalCache(BasicCache):
 class LRUCache(BasicCache):
     def __init__(self, key_class, max_size=100):
         super().__init__(key_class)
-        self.max_size = 5 # max_size
+        self.max_size = max_size
         self.min_generation = 0
         self.generation = 0
         self.used_generation = {}
