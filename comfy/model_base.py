@@ -1059,7 +1059,7 @@ class Hunyuan3Dv2(BaseModel):
         return out
 
 class Chroma(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.chroma.model.Chroma)
 
     def concat_cond(self, **kwargs):

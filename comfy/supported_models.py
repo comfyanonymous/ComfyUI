@@ -1045,7 +1045,7 @@ class Chroma(supported_models_base.BASE):
     supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 
     def get_model(self, state_dict, prefix="", device=None):
-        out = model_base.Chroma(self, model_type=model_base.ModelType.FLUX, device=device)
+        out = model_base.Chroma(self, model_type=model_base.ModelType.FLOW, device=device)
         return out
 
     def clip_target(self, state_dict={}):
