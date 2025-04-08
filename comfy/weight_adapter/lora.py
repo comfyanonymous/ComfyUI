@@ -90,7 +90,7 @@ class LoRAAdapter(WeightAdapterBase):
         intermediate_dtype=torch.float32,
         original_weight=None,
     ):
-        v = self.weights[1]
+        v = self.weights
         mat1 = comfy.model_management.cast_to_device(
             v[0], weight.device, intermediate_dtype
         )
