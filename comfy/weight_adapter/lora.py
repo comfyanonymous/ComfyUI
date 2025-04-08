@@ -1,5 +1,4 @@
 import logging
-from optparse import Option
 from typing import Optional
 
 import torch
