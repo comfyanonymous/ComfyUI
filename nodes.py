@@ -1006,6 +1006,8 @@ class CLIPVisionLoader:
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path_or_raise("clip_vision", clip_name)
         clip_vision = comfy.clip_vision.load(clip_path)
+        if clip_vision is None:
+            raise RuntimeError("ERROR: clip vision file is invalid and does not contain a valid vision model.")
         return (clip_vision,)
 
 class CLIPVisionEncode:
@@ -2264,6 +2266,10 @@ def init_builtin_extra_nodes():
         "nodes_video.py",
         "nodes_lumina2.py",
         "nodes_wan.py",
+        "nodes_lotus.py",
+        "nodes_hunyuan3d.py",
+        "nodes_primitive.py",
+        "nodes_cfg.py",
     ]
 
     import_failed = []
