@@ -17,6 +17,7 @@ import comfy.text_encoders.hunyuan_video
 import comfy.text_encoders.cosmos
 import comfy.text_encoders.lumina2
 import comfy.text_encoders.wan
+import comfy.text_encoders.chroma
 
 from . import supported_models_base
 from . import latent_formats
@@ -1034,6 +1035,7 @@ class Chroma(supported_models_base.BASE):
     }
 
     sampling_settings = {
+        "multiplier": 1.0,
     }
 
     latent_format = comfy.latent_formats.Flux
@@ -1041,6 +1043,7 @@ class Chroma(supported_models_base.BASE):
     memory_usage_factor = 3.2
 
     supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Chroma(self, device=device)
