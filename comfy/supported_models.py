@@ -1034,18 +1034,16 @@ class Chroma(supported_models_base.BASE):
     }
 
     sampling_settings = {
-        "multiplier": 1.0,
-        "shift": 1.0,
     }
 
     latent_format = comfy.latent_formats.Flux
 
-    memory_usage_factor = 1.8
+    memory_usage_factor = 3.2
 
     supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 
     def get_model(self, state_dict, prefix="", device=None):
-        out = model_base.Chroma(self, model_type=model_base.ModelType.FLOW, device=device)
+        out = model_base.Chroma(self, device=device)
         return out
 
     def clip_target(self, state_dict={}):
