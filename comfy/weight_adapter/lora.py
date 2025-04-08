@@ -1,11 +1,10 @@
 import logging
-import torch
-import comfy.utils
-import comfy.model_management
-import comfy.model_base
-from comfy.lora import weight_decompose, pad_tensor_to_shape
+from optparse import Option
+from typing import Optional
 
-from .base import WeightAdapterBase
+import torch
+import comfy.model_management
+from .base import WeightAdapterBase, weight_decompose, pad_tensor_to_shape
 
 
 class LoRAAdapter(WeightAdapterBase):
@@ -23,7 +22,7 @@ class LoRAAdapter(WeightAdapterBase):
         alpha: float,
         dora_scale: torch.Tensor,
         loaded_keys: set[str] = None,
-    ) -> "LoRAAdapter" | None:
+    ) -> Optional["LoRAAdapter"]:
         if loaded_keys is None:
             loaded_keys = set()
 
