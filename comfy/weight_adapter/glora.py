@@ -1,5 +1,6 @@
-import torch
+from typing import Optional
 
+import torch
 from .base import WeightAdapterBase
 
 
@@ -18,7 +19,7 @@ class GLoRAAdapter(WeightAdapterBase):
         alpha: float,
         dora_scale: torch.Tensor,
         loaded_keys: set[str] = None,
-    ) -> "GLoRAAdapter" | None:
+    ) -> Optional["GLoRAAdapter"]:
         if loaded_keys is None:
             loaded_keys = set()
         a1_name = "{}.a1.weight".format(x)

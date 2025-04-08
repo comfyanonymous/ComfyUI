@@ -1,5 +1,6 @@
-import torch
+from typing import Optional
 
+import torch
 from .base import WeightAdapterBase
 
 
@@ -18,7 +19,7 @@ class LoHaAdapter(WeightAdapterBase):
         alpha: float,
         dora_scale: torch.Tensor,
         loaded_keys: set[str] = None,
-    ) -> "LoHaAdapter" | None:
+    ) -> Optional["LoHaAdapter"]:
         if loaded_keys is None:
             loaded_keys = set()
 
