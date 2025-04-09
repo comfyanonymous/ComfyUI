@@ -106,6 +106,13 @@ def cleanup_additional_models(models):
 
 
 def prepare_sampling(model: ModelPatcher, noise_shape, conds, model_options=None):
+    executor = comfy.patcher_extension.WrapperExecutor.new_executor(
+        _prepare_sampling,
+        comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.PREPARE_SAMPLING, model_options, is_model_options=True)
+    )
+    return executor.execute(model, noise_shape, conds, model_options=model_options)
+
+def _prepare_sampling(model: ModelPatcher, noise_shape, conds, model_options=None):
     real_model: BaseModel = None
     models, inference_memory = get_additional_models(conds, model.model_dtype())
     models += get_additional_models_from_model_options(model_options)
