@@ -109,7 +109,7 @@ class InputTypeOptions(TypedDict):
     Ref: https://github.com/Comfy-Org/ComfyUI_frontend/pull/3364
     """
     forceInput: bool
-    """Defaults to an input slot rather than a widget"""
+    """Forces the input to be an input slot rather than a widget even a widget is available for the input type."""
     lazy: bool
     """Declares that this input uses lazy evaluation"""
     rawLink: bool
