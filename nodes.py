@@ -786,6 +786,8 @@ class ControlNetLoader:
     def load_controlnet(self, control_net_name):
         controlnet_path = folder_paths.get_full_path_or_raise("controlnet", control_net_name)
         controlnet = comfy.controlnet.load_controlnet(controlnet_path)
+        if controlnet is None:
+            raise RuntimeError("ERROR: controlnet file is invalid and does not contain a valid controlnet model.")
         return (controlnet,)
 
 class DiffControlNetLoader:
@@ -1006,6 +1008,8 @@ class CLIPVisionLoader:
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path_or_raise("clip_vision", clip_name)
         clip_vision = comfy.clip_vision.load(clip_path)
+        if clip_vision is None:
+            raise RuntimeError("ERROR: clip vision file is invalid and does not contain a valid vision model.")
         return (clip_vision,)
 
 class CLIPVisionEncode:

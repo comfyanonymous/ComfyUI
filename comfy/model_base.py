@@ -1000,7 +1000,6 @@ class WAN21(BaseModel):
         device = kwargs["device"]
 
         if image is None:
-            image = torch.zeros_like(noise)
             shape_image = list(noise.shape)
             shape_image[1] = extra_channels
             image = torch.zeros(shape_image, dtype=noise.dtype, layout=noise.layout, device=noise.device)
@@ -1012,6 +1011,9 @@ class WAN21(BaseModel):
 
         if not self.image_to_video or extra_channels == image.shape[1]:
             return image
+
+        if image.shape[1] > (extra_channels - 4):
+            image = image[:, :(extra_channels - 4)]
 
         mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
         if mask is None:
