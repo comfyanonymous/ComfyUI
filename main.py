@@ -264,7 +264,9 @@ def start_comfyui(asyncio_loop=None):
     prompt_server = server.PromptServer(asyncio_loop)
     q = execution.PromptQueue(prompt_server)
 
-    comfyui_manager.start()
+    if not args.disable_manager:
+        comfyui_manager.start()
+
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
 
     cuda_malloc_warning()
