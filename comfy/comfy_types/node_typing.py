@@ -102,10 +102,9 @@ class InputTypeOptions(TypedDict):
     default: bool | str | float | int | list | tuple
     """The default value of the widget"""
     defaultInput: bool
-    """@deprecated in v1.16 frontend. v1.16 frontend allows input socket and widget
-    to co-exist.
-    defaultInput on required inputs should be dropped.
-    defaultInput on optional inputs should be replaced with forceInput.
+    """@deprecated in v1.16 frontend. v1.16 frontend allows input socket and widget to co-exist.
+    - defaultInput on required inputs should be dropped.
+    - defaultInput on optional inputs should be replaced with forceInput.
     Ref: https://github.com/Comfy-Org/ComfyUI_frontend/pull/3364
     """
     forceInput: bool
