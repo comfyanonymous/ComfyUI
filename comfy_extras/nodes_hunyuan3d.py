@@ -431,7 +431,7 @@ class VoxelToMesh:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"voxel": ("VOXEL", ),
-                             "algorithm": (["basic", "surface net"], ),
+                             "algorithm": (["surface net", "basic"], ),
                              "threshold": ("FLOAT", {"default": 0.6, "min": -1.0, "max": 1.0, "step": 0.01}),
                              }}
     RETURN_TYPES = ("MESH",)
