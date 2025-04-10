@@ -2136,7 +2136,7 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
         module_name = sp[0]
         sys_module_name = module_name
     elif os.path.isdir(module_path):
-        sys_module_name = module_path
+        sys_module_name = module_path.replace(".", "_x_")
 
     try:
         logging.debug("Trying to load custom node {}".format(module_path))
