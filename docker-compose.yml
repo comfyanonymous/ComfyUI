@@ -1,0 +1,36 @@
+services:
+  comfyui_backend:
+    image: comfyui-red-image:nvidia-latest
+    container_name: comfyui-red-container
+    ports:
+      - "8188:8188"
+    volumes:
+      # Host Mounts for data access
+      - ./input:/app/comfyui/input
+      - ./output:/app/comfyui/output
+      - ./models:/app/comfyui/models
+      # Named Volumes for persistent state
+      - comfyui_venv_data:/app/venv
+      - comfyui_custom_nodes:/app/comfyui/custom_nodes
+      - comfyui_user_config:/app/comfyui/user
+    environment:
+      - PATH=/app/venv/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    # Fallback GPU config (uncomment if 'deploy' fails)
+    # runtime: nvidia
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
+    #   - NVIDIA_DRIVER_CAPABILITIES=all
+
+# Named Volume Definitions
+volumes:
+  comfyui_venv_data: {}
+  comfyui_custom_nodes: {}
+  comfyui_user_config: {}
