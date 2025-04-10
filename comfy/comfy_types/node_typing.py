@@ -102,9 +102,13 @@ class InputTypeOptions(TypedDict):
     default: bool | str | float | int | list | tuple
     """The default value of the widget"""
     defaultInput: bool
-    """Defaults to an input slot rather than a widget"""
+    """@deprecated in v1.16 frontend. v1.16 frontend allows input socket and widget to co-exist.
+    - defaultInput on required inputs should be dropped.
+    - defaultInput on optional inputs should be replaced with forceInput.
+    Ref: https://github.com/Comfy-Org/ComfyUI_frontend/pull/3364
+    """
     forceInput: bool
-    """`defaultInput` and also don't allow converting to a widget"""
+    """Forces the input to be an input slot rather than a widget even a widget is available for the input type."""
     lazy: bool
     """Declares that this input uses lazy evaluation"""
     rawLink: bool
