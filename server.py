@@ -34,6 +34,7 @@ from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
 from typing import Optional
 from api_server.routes.internal.internal_routes import InternalRoutes
+import latent_preview
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -707,6 +708,26 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
+
+        @routes.post("/preview_method")
+        async def preview_method(request):
+            json_data =  await request.json()
+
+            if "value" in json_data:
+                method = json_data['value']
+
+                if method == 'auto':
+                    args.preview_method = latent_preview.LatentPreviewMethod.Auto
+                elif method == 'latent2rgb':
+                    args.preview_method = latent_preview.LatentPreviewMethod.Latent2RGB
+                elif method == 'taesd':
+                    args.preview_method = latent_preview.LatentPreviewMethod.TAESD
+                else:
+                    args.preview_method = latent_preview.LatentPreviewMethod.NoPreviews
+
+                return web.Response(status=200)
+
+            return web.Response(status=400)
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
