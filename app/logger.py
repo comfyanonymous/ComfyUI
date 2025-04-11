@@ -4,10 +4,35 @@ import io
 import logging
 import sys
 import threading
+from rich.traceback import install
+from rich.console import Console
+from rich.theme import Theme
+from rich.logging import RichHandler
 
 logs = None
 stdout_interceptor = None
 stderr_interceptor = None
+
+from rich.traceback import install
+# Enable rich tracebacks globally
+install()
+
+# Configure rich console
+console = Console(force_terminal=True)
+
+# Set up handler
+rich_handler = RichHandler(console=console, rich_tracebacks=True, markup=True)
+
+# file_handler = logging.FileHandler("project.log")  # Log to a file
+# file_handler.setLevel(log_level)
+
+
+
+
+from rich.traceback import install
+# Enable rich tracebacks globally
+install()
+
 
 
 class LogInterceptor(io.TextIOWrapper):
@@ -56,6 +81,12 @@ def setup_logger(log_level: str = 'INFO', capacity: int = 300, use_stdout: bool 
     if logs:
         return
 
+    logging.basicConfig(
+        level=log_level,
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[rich_handler] #file_handler
+    )
     # Override output streams and log to buffer
     logs = deque(maxlen=capacity)
 
