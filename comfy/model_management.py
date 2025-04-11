@@ -845,6 +845,11 @@ def vae_device():
         return torch.device("cpu")
     return get_torch_device()
 
+def model_sampling_device():
+    if args.cpu_model_sampling:
+        return torch.device("cpu")
+    return get_torch_device()
+
 def vae_offload_device():
     if args.gpu_only:
         return get_torch_device()
