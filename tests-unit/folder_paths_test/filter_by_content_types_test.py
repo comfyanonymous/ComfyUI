@@ -1,7 +1,8 @@
 import pytest
 import os
 import tempfile
-from folder_paths import filter_files_content_types
+from folder_paths import filter_files_content_types, extension_mimetypes_cache
+import mimetypes
 
 @pytest.fixture(scope="module")
 def file_extensions():
@@ -12,6 +13,20 @@ def file_extensions():
         'model': ['gltf', 'glb', 'obj', 'mtl', 'fbx', 'stl']
     }
 
+@pytest.fixture(scope="function")
+def mock_model_mimetypes(file_extensions):
+    # Store original cache
+    original_cache = extension_mimetypes_cache.copy()
+
+    # Add model extensions to cache
+    for extension in file_extensions['model']:
+        extension_mimetypes_cache[extension] = 'model'
+
+    yield
+
+    # Restore original cache
+    extension_mimetypes_cache.clear()
+    extension_mimetypes_cache.update(original_cache)
 
 @pytest.fixture(scope="module")
 def mock_dir(file_extensions):
@@ -23,7 +38,7 @@ def mock_dir(file_extensions):
         yield directory
 
 
-def test_categorizes_all_correctly(mock_dir, file_extensions):
+def test_categorizes_all_correctly(mock_dir, file_extensions, mock_model_mimetypes):
     files = os.listdir(mock_dir)
     for content_type, extensions in file_extensions.items():
         filtered_files = filter_files_content_types(files, [content_type])
