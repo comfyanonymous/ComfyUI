@@ -41,6 +41,7 @@ import comfy.text_encoders.hunyuan_video
 import comfy.text_encoders.cosmos
 import comfy.text_encoders.lumina2
 import comfy.text_encoders.wan
+import comfy.text_encoders.chroma
 
 import comfy.model_patcher
 import comfy.lora
@@ -702,6 +703,7 @@ class CLIPType(Enum):
     COSMOS = 11
     LUMINA2 = 12
     WAN = 13
+    CHROMA = 14
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -810,6 +812,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.clip = comfy.text_encoders.wan.te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.wan.WanT5Tokenizer
                 tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
+            elif clip_type == CLIPType.CHROMA:
+                clip_target.clip = comfy.text_encoders.chroma.chroma_te(**t5xxl_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.chroma.ChromaT5Tokenizer
             else: #CLIPType.MOCHI
                 clip_target.clip = comfy.text_encoders.genmo.mochi_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.genmo.MochiT5Tokenizer

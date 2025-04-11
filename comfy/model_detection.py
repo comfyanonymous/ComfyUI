@@ -154,6 +154,32 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["guidance_embed"] = len(guidance_keys) > 0
         return dit_config
 
+    if '{}distilled_guidance_layer.0.norms.0.scale'.format(key_prefix) in state_dict_keys or '{}distilled_guidance_layer.norms.0.scale'.format(key_prefix) in state_dict_keys: #Chroma
+        dit_config = {}
+        dit_config["image_model"] = "chroma"
+        dit_config["depth"] = 48
+        dit_config["in_channels"] = 64
+        patch_size = 2
+        dit_config["patch_size"] = patch_size
+        in_key = "{}img_in.weight".format(key_prefix)
+        if in_key in state_dict_keys:
+            dit_config["in_channels"] = state_dict[in_key].shape[1]
+        dit_config["out_channels"] = 64
+        dit_config["context_in_dim"] = 4096
+        dit_config["hidden_size"] = 3072
+        dit_config["mlp_ratio"] = 4.0
+        dit_config["num_heads"] = 24
+        dit_config["depth"] = count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.')
+        dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
+        dit_config["axes_dim"] = [16, 56, 56]
+        dit_config["theta"] = 10000
+        dit_config["qkv_bias"] = True
+        dit_config["in_dim"] = 64
+        dit_config["out_dim"] = 3072
+        dit_config["hidden_dim"] = 5120
+        dit_config["n_layers"] = 5
+        return dit_config
+
     if '{}double_blocks.0.img_attn.norm.key_norm.scale'.format(key_prefix) in state_dict_keys and '{}img_in.weight'.format(key_prefix) in state_dict_keys: #Flux
         dit_config = {}
         dit_config["image_model"] = "flux"
