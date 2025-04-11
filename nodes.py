@@ -1707,6 +1707,8 @@ class LoadImage:
             output_image = output_images[0]
             output_mask = output_masks[0]
 
+        del img
+
         return (output_image, output_mask)
 
     @classmethod
