@@ -388,7 +388,12 @@ def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_
     ):
         return fp8_ops
 
-    if CUBLAS_IS_AVAILABLE and weight_dtype == torch.float16 and (compute_dtype == torch.float16 or compute_dtype is None):
+    if (
+        PerformanceFeature.CublasOps in args.fast and
+        CUBLAS_IS_AVAILABLE and
+        weight_dtype == torch.float16 and
+        (compute_dtype == torch.float16 or compute_dtype is None)
+    ):
         logging.info("Using cublas ops")
         return cublas_ops
 
