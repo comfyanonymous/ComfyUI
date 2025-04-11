@@ -1,10 +1,7 @@
-import math
-from dataclasses import dataclass
-
 import torch
 from torch import Tensor, nn
 
-from .math import attention, rope
+from .math import attention
 from comfy.ldm.flux.layers import (
     MLPEmbedder,
     RMSNorm,
@@ -12,7 +9,6 @@ from comfy.ldm.flux.layers import (
     SelfAttention,
     ModulationOut,
 )
-import comfy.ldm.common_dit
 
 
 
