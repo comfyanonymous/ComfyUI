@@ -2,7 +2,8 @@ import pytest
 import os
 import tempfile
 from folder_paths import filter_files_content_types, extension_mimetypes_cache
-import mimetypes
+from unittest.mock import patch
+
 
 @pytest.fixture(scope="module")
 def file_extensions():
@@ -13,20 +14,6 @@ def file_extensions():
         'model': ['gltf', 'glb', 'obj', 'mtl', 'fbx', 'stl']
     }
 
-@pytest.fixture(scope="function")
-def mock_model_mimetypes(file_extensions):
-    # Store original cache
-    original_cache = extension_mimetypes_cache.copy()
-
-    # Add model extensions to cache
-    for extension in file_extensions['model']:
-        extension_mimetypes_cache[extension] = 'model'
-
-    yield
-
-    # Restore original cache
-    extension_mimetypes_cache.clear()
-    extension_mimetypes_cache.update(original_cache)
 
 @pytest.fixture(scope="module")
 def mock_dir(file_extensions):
@@ -38,7 +25,18 @@ def mock_dir(file_extensions):
         yield directory
 
 
-def test_categorizes_all_correctly(mock_dir, file_extensions, mock_model_mimetypes):
+@pytest.fixture
+def patched_mimetype_cache(file_extensions):
+    # Mock model file extensions since they may not be in the test-runner system's mimetype cache
+    new_cache = extension_mimetypes_cache.copy()
+    for extension in file_extensions["model"]:
+        new_cache[extension] = "model"
+
+    with patch("folder_paths.extension_mimetypes_cache", new_cache):
+        yield
+
+
+def test_categorizes_all_correctly(mock_dir, file_extensions, patched_mimetype_cache):
     files = os.listdir(mock_dir)
     for content_type, extensions in file_extensions.items():
         filtered_files = filter_files_content_types(files, [content_type])
@@ -46,7 +44,7 @@ def test_categorizes_all_correctly(mock_dir, file_extensions, mock_model_mimetyp
             assert f"sample_{content_type}.{extension}" in filtered_files
 
 
-def test_categorizes_all_uniquely(mock_dir, file_extensions):
+def test_categorizes_all_uniquely(mock_dir, file_extensions, patched_mimetype_cache):
     files = os.listdir(mock_dir)
     for content_type, extensions in file_extensions.items():
         filtered_files = filter_files_content_types(files, [content_type])
