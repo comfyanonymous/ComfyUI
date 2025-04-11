@@ -146,7 +146,7 @@ def filter_files_content_types(files: list[str], content_types: Literal["image",
     Example:
         files = os.listdir(folder_paths.get_input_directory())
         videos = filter_files_content_types(files, ["video"])
-        
+
     Note:
         - 'model' in MIME context refers to 3D models, not files containing trained weights and parameters
     """
