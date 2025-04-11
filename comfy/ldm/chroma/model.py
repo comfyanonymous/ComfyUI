@@ -7,15 +7,17 @@ from torch import Tensor, nn
 from einops import rearrange, repeat
 import comfy.ldm.common_dit
 
+from comfy.ldm.flux.layers import (
+    EmbedND,
+    timestep_embedding,
+)
+
 from .layers import (
     DoubleStreamBlock,
-    EmbedND,
     LastLayer,
-    MLPEmbedder,
     SingleStreamBlock,
-    timestep_embedding,
     Approximator,
-    ModulationOut
+    ChromaModulationOut,
 )
 
 
@@ -39,14 +41,6 @@ class ChromaParams:
     n_layers: int
 
 
-class ChromaModulationOut(ModulationOut):
-    @classmethod
-    def from_offset(cls, tensor: torch.Tensor, offset: int = 0) -> ModulationOut:
-        return cls(
-            shift=tensor[:, offset : offset + 1, :],
-            scale=tensor[:, offset + 1 : offset + 2, :],
-            gate=tensor[:, offset + 2 : offset + 3, :],
-        )
 
 
 class Chroma(nn.Module):
@@ -77,7 +71,6 @@ class Chroma(nn.Module):
         self.n_layers = params.n_layers
         self.pe_embedder = EmbedND(dim=pe_dim, theta=params.theta, axes_dim=params.axes_dim)
         self.img_in = operations.Linear(self.in_channels, self.hidden_size, bias=True, dtype=dtype, device=device)
-        self.time_in = MLPEmbedder(in_dim=64, hidden_dim=self.hidden_size, dtype=dtype, device=device, operations=operations)
         self.txt_in = operations.Linear(params.context_in_dim, self.hidden_size, dtype=dtype, device=device)
         # set as nn identity for now, will overwrite it later.
         self.distilled_guidance_layer = Approximator(
@@ -88,9 +81,6 @@ class Chroma(nn.Module):
                     dtype=dtype, device=device, operations=operations
                 )
 
-        self.guidance_in = (
-            MLPEmbedder(in_dim=64, hidden_dim=self.hidden_size, dtype=dtype, device=device, operations=operations) if self.distilled_guidance_layer else nn.Identity()
-        )
 
         self.double_blocks = nn.ModuleList(
             [
