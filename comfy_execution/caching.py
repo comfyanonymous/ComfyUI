@@ -399,7 +399,7 @@ class DependencyAwareCache(BasicCache):
 
         Args:
             node_id: The ID of the node to retrieve.
-        
+
         Returns:
             The cached value for the node.
         """
