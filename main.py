@@ -69,6 +69,13 @@ def execute_prestartup_script():
     if args.disable_all_custom_nodes:
         return
 
+    # Get the environment variable and convert it to a list (if not empty)
+    included_custom_nodes = os.environ.get("INCLUDED_CUSTOM_NODES", "").strip()
+    included_custom_nodes = (
+        [name.strip() for name in included_custom_nodes.split(",")]
+        if included_custom_nodes else None
+    )
+
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     for custom_node_path in node_paths:
         possible_modules = os.listdir(custom_node_path)
@@ -77,6 +84,10 @@ def execute_prestartup_script():
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
             if os.path.isfile(module_path) or module_path.endswith(".disabled") or module_path == "__pycache__":
+                continue
+
+            # Skip modules that are not in INCLUDED_CUSTOM_NODES
+            if included_custom_nodes and possible_module not in included_custom_nodes:
                 continue
 
             script_path = os.path.join(module_path, "prestartup_script.py")
