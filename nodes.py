@@ -499,9 +499,10 @@ class SaveLatent:
 class LoadLatent:
     @classmethod
     def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f)) and f.endswith(".latent")]
-        return {"required": {"latent": [sorted(files), ]}, }
+        return {"required": 
+                    {"latent": (folder_paths.get_filename_list("latent"), )
+                     },
+                }
 
     CATEGORY = "_for_testing"
 
@@ -1652,10 +1653,9 @@ class PreviewImage(SaveImage):
 class LoadImage:
     @classmethod
     def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
-        return {"required":
-                    {"image": (sorted(files), {"image_upload": True})},
+        return {"required": 
+                    {"image": (folder_paths.get_filename_list("input"), {"image_upload": True})
+                     },
                 }
 
     CATEGORY = "image"
@@ -1728,11 +1728,10 @@ class LoadImageMask:
     _color_channels = ["alpha", "red", "green", "blue"]
     @classmethod
     def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
-        return {"required":
-                    {"image": (sorted(files), {"image_upload": True}),
-                     "channel": (s._color_channels, ), }
+        return {"required": 
+                    {"image": (folder_paths.get_filename_list("input"), {"image_upload": True}),
+                     "channel": (s._color_channels, ),
+                     },
                 }
 
     CATEGORY = "mask"
