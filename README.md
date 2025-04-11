@@ -332,6 +332,25 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 
 See also: [https://www.comfy.org/](https://www.comfy.org/)
 
+## ComfyUI Backend Development
+
+### Setup Environment
+
+Install pre-commit to run tests and linters
+
+```
+pip install pre-commit
+```
+
+```
+pre-commit install
+```
+
+
+### Reporting Issues and Requesting Features
+
+For any bugs, issues, or feature requests related to the backend, please use the [ComfyUI repository](https://github.com/comfyanonymous/ComfyUI). This will help us manage and address backend-specific concerns more efficiently.
+
 ## Frontend Development
 
 As of August 15, 2024, we have transitioned to a new frontend, which is now hosted in a separate repository: [ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend). This repository now hosts the compiled JS (from TS/Vue) under the `web/` directory.
