@@ -584,7 +584,7 @@ class PromptServer():
 
         @routes.get("/object_info")
         async def get_object_info(request):
-            with folder_paths.cache_helper:
+            with folder_paths.cache_helper(refresh=True):
                 out = {}
                 for x in nodes.NODE_CLASS_MAPPINGS:
                     try:
