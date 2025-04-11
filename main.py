@@ -156,7 +156,7 @@ def cuda_malloc_warning():
 
 def prompt_worker(q, server_instance):
     current_time: float = 0.0
-    e = execution.PromptExecutor(server_instance, lru_size=args.cache_lru)
+    e = execution.PromptExecutor(server_instance, lru_size=args.cache_lru, cache_none=args.cache_none)
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
