@@ -433,7 +433,7 @@ class PromptServer():
                             buffer.seek(0)
 
                             return web.Response(body=buffer.read(), content_type=f'image/{image_format}',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": f"filename=\"{filename.replace('png', image_format)}\""})
 
                     if 'channel' not in request.rel_url.query:
                         channel = 'rgba'
