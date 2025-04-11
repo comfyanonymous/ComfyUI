@@ -449,8 +449,8 @@ PIXART_MAP_BLOCK = {
     ("mlp.fc1.bias", "ff.net.0.proj.bias"),
     ("mlp.fc2.weight", "ff.net.2.weight"),
     ("mlp.fc2.bias", "ff.net.2.bias"),
-    ("cross_attn.proj.weight" ,"attn2.to_out.0.weight"),
-    ("cross_attn.proj.bias"   ,"attn2.to_out.0.bias"),
+    ("cross_attn.proj.weight", "attn2.to_out.0.weight"),
+    ("cross_attn.proj.bias", "attn2.to_out.0.bias"),
 }
 
 def pixart_to_diffusers(mmdit_config, output_prefix=""):

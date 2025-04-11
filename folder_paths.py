@@ -84,7 +84,7 @@ class CacheHelper:
 cache_helper = CacheHelper()
 
 extension_mimetypes_cache = {
-    "webp" : "image",
+    "webp": "image",
 }
 
 def map_legacy(folder_name: str) -> str:

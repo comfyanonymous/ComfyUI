@@ -618,10 +618,10 @@ class PixArtAlpha(supported_models_base.BASE):
     }
 
     sampling_settings = {
-        "beta_schedule" : "sqrt_linear",
-        "linear_start"  : 0.0001,
-        "linear_end"    : 0.02,
-        "timesteps"     : 1000,
+        "beta_schedule": "sqrt_linear",
+        "linear_start": 0.0001,
+        "linear_end": 0.02,
+        "timesteps": 1000,
     }
 
     unet_extra_config = {}
@@ -681,8 +681,8 @@ class HunyuanDiT1(HunyuanDiT):
     unet_extra_config = {}
 
     sampling_settings = {
-        "linear_start" : 0.00085,
-        "linear_end" : 0.03,
+        "linear_start": 0.00085,
+        "linear_end": 0.03,
     }
 
 class Flux(supported_models_base.BASE):

@@ -36,7 +36,7 @@ ComfyUI lets you design and execute advanced stable diffusion pipelines using a 
 ## Get Started
 
 #### [Desktop Application](https://www.comfy.org/download)
-- The easiest way to get started. 
+- The easiest way to get started.
 - Available on Windows & macOS.
 
 #### [Windows Portable Package](#installing)
@@ -190,7 +190,7 @@ This is the command to install the nightly with ROCm 6.3 which might have some p
 ### Intel GPUs (Windows and Linux)
 
 (Option 1) Intel Arc GPU users can install native PyTorch with torch.xpu support using pip (currently available in PyTorch nightly builds). More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
-  
+
 1. To install PyTorch nightly, use the following command:
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/xpu```
@@ -321,7 +321,7 @@ Generate a self-signed certificate (not appropriate for shared/production use) a
 
 Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app will now be accessible with `https://...` instead of `http://...`.
 
-> Note: Windows users can use [alexisrolland/docker-openssl](https://github.com/alexisrolland/docker-openssl) or one of the [3rd party binary distributions](https://wiki.openssl.org/index.php/Binaries) to run the command example above. 
+> Note: Windows users can use [alexisrolland/docker-openssl](https://github.com/alexisrolland/docker-openssl) or one of the [3rd party binary distributions](https://wiki.openssl.org/index.php/Binaries) to run the command example above.
 <br/><br/>If you use a container, note that the volume mount `-v` can be a relative path so `... -v ".\:/openssl-certs" ...` would create the key & cert files in the current directory of your command prompt or powershell terminal.
 
 ## Support and dev channel
