@@ -31,6 +31,7 @@ from comfyui_version import __version__
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
+from app.output_manager import OutputManager
 from app.custom_node_manager import CustomNodeManager
 from typing import Optional
 from api_server.routes.internal.internal_routes import InternalRoutes
@@ -155,6 +156,7 @@ class PromptServer():
 
         self.user_manager = UserManager()
         self.model_file_manager = ModelFileManager()
+        self.output_manager = OutputManager()
         self.custom_node_manager = CustomNodeManager()
         self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
@@ -715,6 +717,7 @@ class PromptServer():
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
         self.model_file_manager.add_routes(self.routes)
+        self.output_manager.add_routes(self.routes)
         self.custom_node_manager.add_routes(self.routes, self.app, nodes.LOADED_MODULE_DIRS.items())
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
