@@ -48,7 +48,7 @@ async def send_socket_catch_exception(function, message):
 @web.middleware
 async def cache_control(request: web.Request, handler):
     response: web.Response = await handler(request)
-    if request.path.endswith('.js') or request.path.endswith('.css'):
+    if request.path.endswith('.js') or request.path.endswith('.css') or request.path.endswith('index.json'):
         response.headers.setdefault('Cache-Control', 'no-cache')
     return response
 
