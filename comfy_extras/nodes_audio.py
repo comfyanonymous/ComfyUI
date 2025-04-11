@@ -146,6 +146,7 @@ def insert_or_replace_vorbis_comment(flac_io, comment_dict):
 
 class SaveAudio:
     def __init__(self):
+        self.id: str
         self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
         self.prefix_append = ""
@@ -176,6 +177,7 @@ class SaveAudio:
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
                     metadata[x] = json.dumps(extra_pnginfo[x])
+            metadata["output_node_id"] = self.id
 
         for (batch_number, waveform) in enumerate(audio["waveform"].cpu()):
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
