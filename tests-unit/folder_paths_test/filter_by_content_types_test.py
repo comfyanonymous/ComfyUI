@@ -11,7 +11,7 @@ def file_extensions():
         'image': ['gif', 'heif', 'ico', 'jpeg', 'jpg', 'png', 'pnm', 'ppm', 'svg', 'tiff', 'webp', 'xbm', 'xpm'],
         'audio': ['aif', 'aifc', 'aiff', 'au', 'flac', 'm4a', 'mp2', 'mp3', 'ogg', 'snd', 'wav'],
         'video': ['avi', 'm2v', 'm4v', 'mkv', 'mov', 'mp4', 'mpeg', 'mpg', 'ogv', 'qt', 'webm', 'wmv'],
-        'model': ['gltf', 'glb', 'obj', 'mtl', 'fbx', 'stl']
+        'model': ['gltf', 'glb', 'obj', 'fbx', 'stl']
     }
 
 
