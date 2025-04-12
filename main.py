@@ -70,8 +70,6 @@ def execute_prestartup_script():
     if args.disable_all_custom_nodes:
         return
 
-    comfyui_manager.prestartup()
-
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     for custom_node_path in node_paths:
         possible_modules = os.listdir(custom_node_path)
@@ -79,6 +77,10 @@ def execute_prestartup_script():
 
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
+
+            if comfyui_manager.should_be_disabled(module_path):
+                continue
+
             if os.path.isfile(module_path) or module_path.endswith(".disabled") or module_path == "__pycache__":
                 continue
 
@@ -98,6 +100,7 @@ def execute_prestartup_script():
         logging.info("")
 
 apply_custom_paths()
+comfyui_manager.prestartup()
 execute_prestartup_script()
 
 
