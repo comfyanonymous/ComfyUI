@@ -1426,7 +1426,7 @@ def sample_er_sde(model, x, sigmas, extra_args=None, callback=None, disable=None
 @torch.no_grad()
 def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r=0.5):
     '''
-    Seeds-2 - Stochastic Explicit Exponential Derivative-free Solvers (VE Data Prediction) stage 2
+    SEEDS-2 - Stochastic Explicit Exponential Derivative-free Solvers (VE Data Prediction) stage 2
     Arxiv: https://arxiv.org/abs/2305.14267
     '''
     extra_args = {} if extra_args is None else extra_args
@@ -1472,7 +1472,7 @@ def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=Non
 @torch.no_grad()
 def sample_seeds_3(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r_1=1./3, r_2=2./3):
     '''
-    Seeds-3 - Stochastic Explicit Exponential Derivative-free Solvers (VE Data Prediction) stage 3
+    SEEDS-3 - Stochastic Explicit Exponential Derivative-free Solvers (VE Data Prediction) stage 3
     Arxiv: https://arxiv.org/abs/2305.14267
     '''
     extra_args = {} if extra_args is None else extra_args
