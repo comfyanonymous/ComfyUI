@@ -316,3 +316,156 @@ class LRUCache(BasicCache):
             self.children[cache_key].append(self.cache_key_set.get_data_key(child_id))
         return self
 
+
+class DependencyAwareCache(BasicCache):
+    """
+    A cache implementation that tracks dependencies between nodes and manages
+    their execution and caching accordingly. It extends the BasicCache class.
+    Nodes are removed from this cache once all of their descendants have been
+    executed.
+    """
+
+    def __init__(self, key_class):
+        """
+        Initialize the DependencyAwareCache.
+
+        Args:
+            key_class: The class used for generating cache keys.
+        """
+        super().__init__(key_class)
+        self.descendants = {}  # Maps node_id -> set of descendant node_ids
+        self.ancestors = {}    # Maps node_id -> set of ancestor node_ids
+        self.executed_nodes = set()  # Tracks nodes that have been executed
+
+    def set_prompt(self, dynprompt, node_ids, is_changed_cache):
+        """
+        Clear the entire cache and rebuild the dependency graph.
+
+        Args:
+            dynprompt: The dynamic prompt object containing node information.
+            node_ids: List of node IDs to initialize the cache for.
+            is_changed_cache: Flag indicating if the cache has changed.
+        """
+        # Clear all existing cache data
+        self.cache.clear()
+        self.subcaches.clear()
+        self.descendants.clear()
+        self.ancestors.clear()
+        self.executed_nodes.clear()
+
+        # Call the parent method to initialize the cache with the new prompt
+        super().set_prompt(dynprompt, node_ids, is_changed_cache)
+
+        # Rebuild the dependency graph
+        self._build_dependency_graph(dynprompt, node_ids)
+
+    def _build_dependency_graph(self, dynprompt, node_ids):
+        """
+        Build the dependency graph for all nodes.
+
+        Args:
+            dynprompt: The dynamic prompt object containing node information.
+            node_ids: List of node IDs to build the graph for.
+        """
+        self.descendants.clear()
+        self.ancestors.clear()
+        for node_id in node_ids:
+            self.descendants[node_id] = set()
+            self.ancestors[node_id] = set()
+
+        for node_id in node_ids:
+            inputs = dynprompt.get_node(node_id)["inputs"]
+            for input_data in inputs.values():
+                if is_link(input_data):  # Check if the input is a link to another node
+                    ancestor_id = input_data[0]
+                    self.descendants[ancestor_id].add(node_id)
+                    self.ancestors[node_id].add(ancestor_id)
+
+    def set(self, node_id, value):
+        """
+        Mark a node as executed and store its value in the cache.
+
+        Args:
+            node_id: The ID of the node to store.
+            value: The value to store for the node.
+        """
+        self._set_immediate(node_id, value)
+        self.executed_nodes.add(node_id)
+        self._cleanup_ancestors(node_id)
+
+    def get(self, node_id):
+        """
+        Retrieve the cached value for a node.
+
+        Args:
+            node_id: The ID of the node to retrieve.
+
+        Returns:
+            The cached value for the node.
+        """
+        return self._get_immediate(node_id)
+
+    def ensure_subcache_for(self, node_id, children_ids):
+        """
+        Ensure a subcache exists for a node and update dependencies.
+
+        Args:
+            node_id: The ID of the parent node.
+            children_ids: List of child node IDs to associate with the parent node.
+
+        Returns:
+            The subcache object for the node.
+        """
+        subcache = super()._ensure_subcache(node_id, children_ids)
+        for child_id in children_ids:
+            self.descendants[node_id].add(child_id)
+            self.ancestors[child_id].add(node_id)
+        return subcache
+
+    def _cleanup_ancestors(self, node_id):
+        """
+        Check if ancestors of a node can be removed from the cache.
+
+        Args:
+            node_id: The ID of the node whose ancestors are to be checked.
+        """
+        for ancestor_id in self.ancestors.get(node_id, []):
+            if ancestor_id in self.executed_nodes:
+                # Remove ancestor if all its descendants have been executed
+                if all(descendant in self.executed_nodes for descendant in self.descendants[ancestor_id]):
+                    self._remove_node(ancestor_id)
+
+    def _remove_node(self, node_id):
+        """
+        Remove a node from the cache.
+
+        Args:
+            node_id: The ID of the node to remove.
+        """
+        cache_key = self.cache_key_set.get_data_key(node_id)
+        if cache_key in self.cache:
+            del self.cache[cache_key]
+        subcache_key = self.cache_key_set.get_subcache_key(node_id)
+        if subcache_key in self.subcaches:
+            del self.subcaches[subcache_key]
+
+    def clean_unused(self):
+        """
+        Clean up unused nodes. This is a no-op for this cache implementation.
+        """
+        pass
+
+    def recursive_debug_dump(self):
+        """
+        Dump the cache and dependency graph for debugging.
+
+        Returns:
+            A list containing the cache state and dependency graph.
+        """
+        result = super().recursive_debug_dump()
+        result.append({
+            "descendants": self.descendants,
+            "ancestors": self.ancestors,
+            "executed_nodes": list(self.executed_nodes),
+        })
+        return result
