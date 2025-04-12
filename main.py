@@ -10,6 +10,7 @@ from app.logger import setup_logger
 import itertools
 import utils.extra_config
 import logging
+import sys
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI which should already have no communication with the internet, they are for custom nodes.
@@ -301,6 +302,7 @@ def start_comfyui(asyncio_loop=None):
 
 if __name__ == "__main__":
     # Running directly, just start ComfyUI.
+    logging.info("Python version: {}".format(sys.version))
     logging.info("ComfyUI version: {}".format(comfyui_version.__version__))
 
     event_loop, _, start_all_func = start_comfyui()
