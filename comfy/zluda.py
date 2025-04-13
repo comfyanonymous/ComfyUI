@@ -24,7 +24,7 @@ def get_package_version(package_name):
         from importlib_metadata import version
         return version(package_name)
 
-required_version = "1.14.6"
+required_version = "1.15.13"
 package_name = "comfyui-frontend-package"
 
 try:
