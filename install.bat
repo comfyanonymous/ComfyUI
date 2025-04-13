@@ -1,6 +1,8 @@
 @echo off
+
 title ComfyUI-Zluda Installer
 
+set ZLUDA_COMGR_LOG_LEVEL=1
 setlocal EnableDelayedExpansion
 set "startTime=%time: =0%"
 
@@ -44,14 +46,56 @@ echo  ::  %time:~0,8%  ::  - Installing ComfyUI-deepcache
 git clone https://github.com/styler00dollar/ComfyUI-deepcache.git --quiet
 cd ..
 echo. 
-echo  ::  %time:~0,8%  ::  - Patching ZLUDA (Zluda 3.8.4 for HIP SDK 5.7.1)
-curl -sL --ssl-no-revoke https://github.com/lshqqytiger/ZLUDA/releases/download/rel.c0804ca624963aab420cb418412b1c7fbae3454b/ZLUDA-windows-rocm5-amd64.zip > zluda.zip
+echo  ::  %time:~0,8%  ::  - Patching ZLUDA
+
+:: Try default install locations for HIP
+if exist "C:\Program Files\AMD\ROCm\5.7\" (
+    set "HIP_PATH=C:\Program Files\AMD\ROCm\5.7"
+    set "HIP_VERSION=5.7"
+) else if exist "%ProgramFiles%\AMD\ROCm\6.2\" (
+    set "HIP_PATH=%ProgramFiles%\AMD\ROCm\6.2"
+    set "HIP_VERSION=6.2"
+) else (
+    echo HIP SDK not found. Please install ROCm/HIP first.
+    pause
+    exit /b 1
+)
+
+echo  ::  %time:~0,8%  ::  - Detected HIP version: !HIP_VERSION!
+
+:: Map HIP version to ZLUDA release
+if "!HIP_VERSION!"=="5.7" (
+    set "ZLUDA_HASH=c0804ca624963aab420cb418412b1c7fbae3454b"
+    set "ZLUDA_LABEL=rocm5"
+) else if "!HIP_VERSION!"=="6.2" (
+    set "ZLUDA_HASH=dba64c0966df2c71e82255e942c96e2e1cea3a2d"
+    set "ZLUDA_LABEL=rocm6"
+) else (
+    echo Unsupported HIP version: !HIP_VERSION!
+    echo Supported versions are 5.7 and 6.2
+    pause
+    exit /b 1
+)
+
+:: Download matching ZLUDA version
+rmdir /S /Q zluda 2>nul
+curl -sL --ssl-no-revoke https://github.com/lshqqytiger/ZLUDA/releases/download/rel.!ZLUDA_HASH!/ZLUDA-windows-!ZLUDA_LABEL!-amd64.zip > zluda.zip
+
+if not exist zluda.zip (
+    echo Failed to download ZLUDA zip for HIP version !HIP_VERSION!
+    pause
+    exit /b 1
+)
+
 tar -xf zluda.zip
 del zluda.zip
+
+:: Patch DLLs
 copy zluda\cublas.dll venv\Lib\site-packages\torch\lib\cublas64_11.dll /y >NUL
 copy zluda\cusparse.dll venv\Lib\site-packages\torch\lib\cusparse64_11.dll /y >NUL
 copy zluda\nvrtc.dll venv\Lib\site-packages\torch\lib\nvrtc64_112_0.dll /y >NUL
-@echo  ::  %time:~0,8%  ::  - ZLUDA is patched. (Zluda 3.8.4 for HIP 5.7.1)
+
+echo  ::  %time:~0,8%  ::  - ZLUDA patched for HIP SDK !HIP_VERSION!.
 echo. 
 set "endTime=%time: =0%"
 set "end=!endTime:%time:~8,1%=%%100)*100+1!"  &  set "start=!startTime:%time:~8,1%=%%100)*100+1!"
