@@ -1653,9 +1653,10 @@ class PreviewImage(SaveImage):
 class LoadImage:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": 
-                    {"image": (folder_paths.get_filename_list("input"), {"image_upload": True})
-                     },
+        files = folder_paths.get_filename_list("input")
+        files = folder_paths.filter_files_content_types(files, ["image"])
+        return {"required":
+                    {"image": (files, {"image_upload": True})},
                 }
 
     CATEGORY = "image"
@@ -2278,6 +2279,7 @@ def init_builtin_extra_nodes():
         "nodes_hunyuan3d.py",
         "nodes_primitive.py",
         "nodes_cfg.py",
+        "nodes_optimalsteps.py"
     ]
 
     import_failed = []
