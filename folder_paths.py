@@ -10,7 +10,7 @@ from collections.abc import Collection
 from comfy.cli_args import args
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.pt2', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
-supported_input_extensions: set[str] = {""} # {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp", ".webm", ".mp4", ".mkv"}
+supported_input_extensions: set[str] = {""}
 
 folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
 
