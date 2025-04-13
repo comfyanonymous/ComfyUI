@@ -2280,6 +2280,7 @@ def init_builtin_extra_nodes():
         "nodes_hunyuan3d.py",
         "nodes_primitive.py",
         "nodes_cfg.py",
+        "nodes_optimalsteps.py"
     ]
 
     import_failed = []
