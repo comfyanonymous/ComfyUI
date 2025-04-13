@@ -958,7 +958,6 @@ class DualCLIPLoader:
     DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5"
 
     def load_clip(self, clip_name1, clip_name2, type, device="default"):
-        breakpoint()
         clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
 
         clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", clip_name1)
