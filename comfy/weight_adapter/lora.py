@@ -3,7 +3,52 @@ from typing import Optional
 
 import torch
 import comfy.model_management
-from .base import WeightAdapterBase, weight_decompose, pad_tensor_to_shape
+from .base import (
+    WeightAdapterBase, 
+    WeightAdapterTrainBase, 
+    weight_decompose, 
+    pad_tensor_to_shape, 
+    tucker_weight_from_conv,
+)
+
+
+class LoraDiff(WeightAdapterTrainBase):
+    def __init__(self, weights):
+        super().__init__()
+        mat1, mat2, alpha, mid, dora_scale, reshape = weights
+        out_dim, rank = mat1.shape[0], mat1.shape[1]
+        rank, in_dim = mat2.shape[0], mat2.shape[1]
+        if mid is not None:
+            convdim = mid.ndim - 2
+            layer = (
+                torch.nn.Conv1d,
+                torch.nn.Conv2d,
+                torch.nn.Conv3d
+            )[convdim]
+        else:
+            layer = torch.nn.Linear
+        self.lora_up = layer(rank, out_dim, bias=False)
+        self.lora_down = layer(in_dim, rank, bias=False)
+        if mid is not None:
+            self.lora_mid = layer(mid, rank, bias=False)
+        else:
+            self.lora_mid = None
+        self.rank = rank
+        self.alpha = torch.nn.Parameter(torch.tensor(alpha), requires_grad=False)
+
+    def __call__(self, w):
+        if self.lora_mid is None:
+            diff = self.lora_up.weight @ self.lora_down.weight
+        else:
+            diff = tucker_weight_from_conv(
+                self.lora_up.weight, self.lora_down.weight, self.lora_mid.weight
+            )
+        scale = self.alpha / self.rank
+        weight = w + scale * diff
+        return weight
+
+    def passive_memory_usage(self):
+        return sum(param.numel() * param.element_size() for param in self.parameters())
 
 
 class LoRAAdapter(WeightAdapterBase):
