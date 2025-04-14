@@ -1627,10 +1627,7 @@ class SaveImage:
                         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
                 if hasattr(images, "png_chunks"):
                     for name, data in images.png_chunks.items():
-                        if name in self.extra_chunks:
-                            metadata.add(name.lower(), data)
-                        else:
-                            metadata.add(name, data)
+                        metadata.add(name, data)
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.png"
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
