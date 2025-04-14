@@ -1589,7 +1589,6 @@ class SaveImage:
         self.type = "output"
         self.prefix_append = ""
         self.compress_level = 4
-        self.extra_chunks = [b"cICP"]
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1646,7 +1645,6 @@ class SaveImage:
 
 class PreviewImage(SaveImage):
     def __init__(self):
-        super().__init__()
         self.output_dir = folder_paths.get_temp_directory()
         self.type = "temp"
         self.prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
