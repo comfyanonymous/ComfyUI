@@ -1601,13 +1601,6 @@ class SaveImage:
     CATEGORY = "image"
     DESCRIPTION = "Saves the input images to your ComfyUI output directory."
 
-    def putchunk_patched(self, fp, cid, *data):
-        for chunk in self.extra_chunks:
-            if cid == chunk.lower():
-                cid = chunk
-                break
-        return PngImagePlugin.putchunk(fp, cid, *data)
-
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
@@ -1632,10 +1625,7 @@ class SaveImage:
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.png"
 
-            #TODO: revert to using img.save once Pillow supports cICP chunk
-            img.encoderinfo = {"pnginfo": metadata, "compress_level": self.compress_level}
-            with open(os.path.join(full_output_folder, file), 'wb') as fp:
-                PngImagePlugin._save(img, fp, None, chunk=self.putchunk_patched)
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
 
             results.append({
                 "filename": file,
