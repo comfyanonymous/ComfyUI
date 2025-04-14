@@ -15,7 +15,7 @@ import nodes
 import comfy.model_management
 from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
 from comfy_execution.graph_utils import is_link, GraphBuilder
-from comfy_execution.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID
+from comfy_execution.caching import HierarchicalCache, LRUCache, DependencyAwareCache, CacheKeySetInputSignature, CacheKeySetID
 from comfy_execution.validation import validate_node_input
 
 class ExecutionResult(Enum):
@@ -59,26 +59,44 @@ class IsChangedCache:
             self.is_changed[node_id] = node["is_changed"]
         return self.is_changed[node_id]
 
-class CacheSet:
-    def __init__(self, lru_size=None):
-        if lru_size is None or lru_size == 0:
-            self.init_classic_cache()
-        else:
-            self.init_lru_cache(lru_size)
-        self.all = [self.outputs, self.ui, self.objects]
 
-    # Useful for those with ample RAM/VRAM -- allows experimenting without
-    # blowing away the cache every time
-    def init_lru_cache(self, cache_size):
-        self.outputs = LRUCache(CacheKeySetInputSignature, max_size=cache_size)
-        self.ui = LRUCache(CacheKeySetInputSignature, max_size=cache_size)
-        self.objects = HierarchicalCache(CacheKeySetID)
+class CacheType(Enum):
+    CLASSIC = 0
+    LRU = 1
+    DEPENDENCY_AWARE = 2
+
+
+class CacheSet:
+    def __init__(self, cache_type=None, cache_size=None):
+        if cache_type == CacheType.DEPENDENCY_AWARE:
+            self.init_dependency_aware_cache()
+            logging.info("Disabling intermediate node cache.")
+        elif cache_type == CacheType.LRU:
+            if cache_size is None:
+                cache_size = 0
+            self.init_lru_cache(cache_size)
+            logging.info("Using LRU cache")
+        else:
+            self.init_classic_cache()
+
+        self.all = [self.outputs, self.ui, self.objects]
 
     # Performs like the old cache -- dump data ASAP
     def init_classic_cache(self):
         self.outputs = HierarchicalCache(CacheKeySetInputSignature)
         self.ui = HierarchicalCache(CacheKeySetInputSignature)
         self.objects = HierarchicalCache(CacheKeySetID)
+
+    def init_lru_cache(self, cache_size):
+        self.outputs = LRUCache(CacheKeySetInputSignature, max_size=cache_size)
+        self.ui = LRUCache(CacheKeySetInputSignature, max_size=cache_size)
+        self.objects = HierarchicalCache(CacheKeySetID)
+
+    # only hold cached items while the decendents have not executed
+    def init_dependency_aware_cache(self):
+        self.outputs = DependencyAwareCache(CacheKeySetInputSignature)
+        self.ui = DependencyAwareCache(CacheKeySetInputSignature)
+        self.objects = DependencyAwareCache(CacheKeySetID)
 
     def recursive_debug_dump(self):
         result = {
@@ -414,13 +432,14 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
     return (ExecutionResult.SUCCESS, None, None)
 
 class PromptExecutor:
-    def __init__(self, server, lru_size=None):
-        self.lru_size = lru_size
+    def __init__(self, server, cache_type=False, cache_size=None):
+        self.cache_size = cache_size
+        self.cache_type = cache_type
         self.server = server
         self.reset()
 
     def reset(self):
-        self.caches = CacheSet(self.lru_size)
+        self.caches = CacheSet(cache_type=self.cache_type, cache_size=self.cache_size)
         self.status_messages = []
         self.success = True
 
@@ -634,6 +653,13 @@ def validate_inputs(prompt, item, validated):
                 continue
         else:
             try:
+                # Unwraps values wrapped in __value__ key. This is used to pass
+                # list widget value to execution, as by default list value is
+                # reserved to represent the connection between nodes.
+                if isinstance(val, dict) and "__value__" in val:
+                    val = val["__value__"]
+                    inputs[x] = val
+
                 if type_input == "INT":
                     val = int(val)
                     inputs[x] = val
@@ -768,7 +794,7 @@ def validate_prompt(prompt):
                 "details": f"Node ID '#{x}'",
                 "extra_info": {}
             }
-            return (False, error, [], [])
+            return (False, error, [], {})
 
         class_type = prompt[x]['class_type']
         class_ = nodes.NODE_CLASS_MAPPINGS.get(class_type, None)
@@ -779,7 +805,7 @@ def validate_prompt(prompt):
                 "details": f"Node ID '#{x}'",
                 "extra_info": {}
             }
-            return (False, error, [], [])
+            return (False, error, [], {})
 
         if hasattr(class_, 'OUTPUT_NODE') and class_.OUTPUT_NODE is True:
             outputs.add(x)
@@ -791,7 +817,7 @@ def validate_prompt(prompt):
             "details": "",
             "extra_info": {}
         }
-        return (False, error, [], [])
+        return (False, error, [], {})
 
     good_outputs = set()
     errors = []

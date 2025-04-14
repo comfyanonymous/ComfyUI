@@ -1,3 +1,4 @@
+comfyui-frontend-package==1.15.13
 torch
 torchsde
 torchvision
@@ -8,7 +9,8 @@ transformers>=4.28.1
 tokenizers>=0.13.3
 sentencepiece
 safetensors>=0.4.2
-aiohttp
+aiohttp>=3.11.8
+yarl>=1.18.0
 pyyaml
 Pillow
 scipy
@@ -19,3 +21,4 @@ psutil
 kornia>=0.7.1
 spandrel
 soundfile
+av

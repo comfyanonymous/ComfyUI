@@ -22,7 +22,7 @@ on:
         description: 'Python patch version'
         required: true
         type: string
-        default: "8"
+        default: "9"
 
 
 jobs:

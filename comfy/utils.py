@@ -46,19 +46,25 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
 else:
     logging.info("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
 
-def load_torch_file(ckpt, safe_load=False, device=None):
+def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
         device = torch.device("cpu")
+    metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            sd = safetensors.torch.load_file(ckpt, device=device.type)
+            with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
+                sd = {}
+                for k in f.keys():
+                    sd[k] = f.get_tensor(k)
+                if return_metadata:
+                    metadata = f.metadata()
         except Exception as e:
             if len(e.args) > 0:
                 message = e.args[0]
                 if "HeaderTooLarge" in message:
                     raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt or invalid. Make sure this is actually a safetensors file and not a ckpt or pt or other filetype.".format(message, ckpt))
                 if "MetadataIncompleteBuffer" in message:
-                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is incomplete. Check the file size and make sure you have copied/downloaded it correctly.".format(message, ckpt))
+                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt/incomplete. Check the file size and make sure you have copied/downloaded it correctly.".format(message, ckpt))
             raise e
     else:
         if safe_load or ALWAYS_SAFE_LOAD:
@@ -77,7 +83,7 @@ def load_torch_file(ckpt, safe_load=False, device=None):
                     sd = pl_sd
             else:
                 sd = pl_sd
-    return sd
+    return (sd, metadata) if return_metadata else sd
 
 def save_torch_file(sd, ckpt, metadata=None):
     if metadata is not None:

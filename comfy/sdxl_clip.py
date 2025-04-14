@@ -26,7 +26,7 @@ class SDXLTokenizer:
         self.clip_l = clip_l_tokenizer_class(embedding_directory=embedding_directory)
         self.clip_g = SDXLClipGTokenizer(embedding_directory=embedding_directory)
 
-    def tokenize_with_weights(self, text:str, return_word_ids=False):
+    def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = {}
         out["g"] = self.clip_g.tokenize_with_weights(text, return_word_ids)
         out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids)

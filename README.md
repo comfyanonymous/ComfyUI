@@ -1,7 +1,7 @@
 <div align="center">
 
 # ComfyUI
-**The most powerful and modular diffusion model GUI and backend.**
+**The most powerful and modular visual AI engine and application.**
 
 
 [![Website][website-shield]][website-url]
@@ -31,10 +31,24 @@
 ![ComfyUI Screenshot](https://github.com/user-attachments/assets/7ccaf2c1-9b72-41ae-9a89-5688c94b7abe)
 </div>
 
-This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
-### [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
+ComfyUI lets you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. Available on Windows, Linux, and macOS.
 
-### [Installing ComfyUI](#installing)
+## Get Started
+
+#### [Desktop Application](https://www.comfy.org/download)
+- The easiest way to get started. 
+- Available on Windows & macOS.
+
+#### [Windows Portable Package](#installing)
+- Get the latest commits and completely portable.
+- Available on Windows.
+
+#### [Manual Install](#manual-install-windows-linux)
+Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon, Ascend).
+
+## [Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
+See what ComfyUI can do with the [example workflows](https://comfyanonymous.github.io/ComfyUI_examples/).
+
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
@@ -47,12 +61,16 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
    - [AuraFlow](https://comfyanonymous.github.io/ComfyUI_examples/aura_flow/)
    - [HunyuanDiT](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_dit/)
    - [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
+   - [Lumina Image 2.0](https://comfyanonymous.github.io/ComfyUI_examples/lumina2/)
 - Video Models
    - [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
    - [Mochi](https://comfyanonymous.github.io/ComfyUI_examples/mochi/)
    - [LTX-Video](https://comfyanonymous.github.io/ComfyUI_examples/ltxv/)
    - [Hunyuan Video](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_video/)
    - [Nvidia Cosmos](https://comfyanonymous.github.io/ComfyUI_examples/cosmos/)
+   - [Wan 2.1](https://comfyanonymous.github.io/ComfyUI_examples/wan/)
+- 3D Models
+   - [Hunyuan3D 2.0](https://docs.comfy.org/tutorials/3d/hunyuan3D-2)
 - [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
@@ -120,7 +138,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 
 # Installing
 
-## Windows
+## Windows Portable
 
 There is a portable standalone build for Windows that should work for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
 
@@ -130,6 +148,8 @@ Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you 
 
 If you have trouble extracting it, right click the file -> properties -> unblock
 
+If you have a 50 series Blackwell card like a 5090 or 5080 see [this discussion thread](https://github.com/comfyanonymous/ComfyUI/discussions/6643)
+
 #### How do I share models between another UI and ComfyUI?
 
 See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
@@ -138,9 +158,18 @@ See the [Config file](extra_model_paths.yaml.example) to set the search paths fo
 
 To run it on services like paperspace, kaggle or colab you can use my [Jupyter Notebook](notebooks/comfyui_colab.ipynb)
 
+
+## [comfy-cli](https://docs.comfy.org/comfy-cli/getting-started)
+
+You can install and start ComfyUI using comfy-cli:
+```bash
+pip install comfy-cli
+comfy install
+```
+
 ## Manual Install (Windows, Linux)
 
-Note that some dependencies do not yet support python 3.13 so using 3.12 is recommended.
+python 3.13 is supported but using 3.12 is recommended because some custom nodes and their dependencies might not support it yet.
 
 Git clone this repo.
 
@@ -152,7 +181,7 @@ Put your VAE in: models/vae
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2.4```
 
 This is the command to install the nightly with ROCm 6.3 which might have some performance improvements:
 
@@ -186,11 +215,11 @@ Additional discussion and help can be found [here](https://github.com/comfyanony
 
 Nvidia users should install stable pytorch using this command:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu124```
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu126```
 
-This is the command to install pytorch nightly instead which might have performance improvements:
+This is the command to install pytorch nightly instead which supports the new blackwell 50xx series GPUs and might have performance improvements.
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128```
 
 #### Troubleshooting
 
@@ -234,6 +263,13 @@ For models compatible with Ascend Extension for PyTorch (torch_npu). To get star
 3. Next, install the necessary packages for torch-npu by adhering to the platform-specific instructions on the [Installation](https://ascend.github.io/docs/sources/pytorch/install.html#pytorch) page.
 4. Finally, adhere to the [ComfyUI manual installation](#manual-install-windows-linux) guide for Linux. Once all components are installed, you can run ComfyUI as described earlier.
 
+#### Cambricon MLUs
+
+For models compatible with Cambricon Extension for PyTorch (torch_mlu). Here's a step-by-step guide tailored to your platform and installation method:
+
+1. Install the Cambricon CNToolkit by adhering to the platform-specific instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cntoolkit_3.7.2/cntoolkit_install_3.7.2/index.html)
+2. Next, install the PyTorch(torch_mlu) following the instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cambricon_pytorch_1.17.0/user_guide_1.9/index.html)
+3. Launch ComfyUI by running `python main.py`
 
 # Running
 
@@ -290,6 +326,8 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 
 ## Support and dev channel
 
+[Discord](https://comfy.org/discord): Try the #help or #feedback channels.
+
 [Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
 
 See also: [https://www.comfy.org/](https://www.comfy.org/)
@@ -306,7 +344,7 @@ For any bugs, issues, or feature requests related to the frontend, please use th
 
 The new frontend is now the default for ComfyUI. However, please note:
 
-1. The frontend in the main ComfyUI repository is updated weekly.
+1. The frontend in the main ComfyUI repository is updated fortnightly.
 2. Daily releases are available in the separate frontend repository.
 
 To use the most up-to-date frontend version:
@@ -323,7 +361,7 @@ To use the most up-to-date frontend version:
    --front-end-version Comfy-Org/ComfyUI_frontend@1.2.2
    ```
 
-This approach allows you to easily switch between the stable weekly release and the cutting-edge daily updates, or even specific versions for testing purposes.
+This approach allows you to easily switch between the stable fortnightly release and the cutting-edge daily updates, or even specific versions for testing purposes.
 
 ### Accessing the Legacy Frontend
 
