@@ -4,10 +4,10 @@ from typing import Optional
 import torch
 import comfy.model_management
 from .base import (
-    WeightAdapterBase, 
-    WeightAdapterTrainBase, 
-    weight_decompose, 
-    pad_tensor_to_shape, 
+    WeightAdapterBase,
+    WeightAdapterTrainBase,
+    weight_decompose,
+    pad_tensor_to_shape,
     tucker_weight_from_conv,
 )
 
