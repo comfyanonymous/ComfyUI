@@ -41,6 +41,7 @@ import comfy.text_encoders.hunyuan_video
 import comfy.text_encoders.cosmos
 import comfy.text_encoders.lumina2
 import comfy.text_encoders.wan
+import comfy.text_encoders.hidream
 
 import comfy.model_patcher
 import comfy.lora
@@ -853,6 +854,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
     elif len(clip_data) == 3:
         clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(**t5xxl_detect(clip_data))
         clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
+    elif len(clip_data) == 4:
+        clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**t5xxl_detect(clip_data), **llama_detect(clip_data))
+        clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
 
     parameters = 0
     for c in clip_data:
