@@ -10,6 +10,7 @@ from app.logger import setup_logger
 import itertools
 import utils.extra_config
 import logging
+import sys
 import comfyui_manager
 
 if __name__ == "__main__":
@@ -310,6 +311,7 @@ def start_comfyui(asyncio_loop=None):
 
 if __name__ == "__main__":
     # Running directly, just start ComfyUI.
+    logging.info("Python version: {}".format(sys.version))
     logging.info("ComfyUI version: {}".format(comfyui_version.__version__))
 
     event_loop, _, start_all_func = start_comfyui()

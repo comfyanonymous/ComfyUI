@@ -1655,6 +1655,7 @@ class LoadImage:
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        files = folder_paths.filter_files_content_types(files, ["image"])
         return {"required":
                     {"image": (sorted(files), {"image_upload": True})},
                 }
@@ -2284,6 +2285,7 @@ def init_builtin_extra_nodes():
         "nodes_hunyuan3d.py",
         "nodes_primitive.py",
         "nodes_cfg.py",
+        "nodes_optimalsteps.py"
     ]
 
     import_failed = []
