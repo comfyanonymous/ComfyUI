@@ -268,11 +268,17 @@ class Llama2_(nn.Module):
         optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
 
         intermediate = None
+        all_intermediate = None
         if intermediate_output is not None:
-            if intermediate_output < 0:
+            if intermediate_output == "all":
+                all_intermediate = []
+                intermediate_output = None
+            elif intermediate_output < 0:
                 intermediate_output = len(self.layers) + intermediate_output
 
         for i, layer in enumerate(self.layers):
+            if all_intermediate is not None:
+                all_intermediate.append(x.unsqueeze(1).clone())
             x = layer(
                 x=x,
                 attention_mask=mask,
@@ -283,6 +289,12 @@ class Llama2_(nn.Module):
                 intermediate = x.clone()
 
         x = self.norm(x)
+        if all_intermediate is not None:
+            all_intermediate.append(x.unsqueeze(1).clone())
+
+        if all_intermediate is not None:
+            intermediate = torch.cat(all_intermediate, dim=1)
+
         if intermediate is not None and final_layer_norm_intermediate:
             intermediate = self.norm(intermediate)
 
