@@ -82,7 +82,8 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     LAYERS = [
         "last",
         "pooled",
-        "hidden"
+        "hidden",
+        "all"
     ]
     def __init__(self, device="cpu", max_length=77,
                  freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, dtype=None, model_class=comfy.clip_model.CLIPTextModel,
@@ -93,12 +94,18 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
 
         if textmodel_json_config is None:
             textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_clip_config.json")
+            if "model_name" not in model_options:
+                model_options = {**model_options, "model_name": "clip_l"}
 
         if isinstance(textmodel_json_config, dict):
             config = textmodel_json_config
         else:
             with open(textmodel_json_config) as f:
                 config = json.load(f)
+
+        te_model_options = model_options.get("{}_model_config".format(model_options.get("model_name", "")), {})
+        for k, v in te_model_options.items():
+            config[k] = v
 
         operations = model_options.get("custom_operations", None)
         scaled_fp8 = None
@@ -147,7 +154,9 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     def set_clip_options(self, options):
         layer_idx = options.get("layer", self.layer_idx)
         self.return_projected_pooled = options.get("projected_pooled", self.return_projected_pooled)
-        if layer_idx is None or abs(layer_idx) > self.num_layers:
+        if self.layer == "all":
+            pass
+        elif layer_idx is None or abs(layer_idx) > self.num_layers:
             self.layer = "last"
         else:
             self.layer = "hidden"
@@ -244,7 +253,12 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         if self.enable_attention_masks:
             attention_mask_model = attention_mask
 
-        outputs = self.transformer(None, attention_mask_model, embeds=embeds, num_tokens=num_tokens, intermediate_output=self.layer_idx, final_layer_norm_intermediate=self.layer_norm_hidden_state, dtype=torch.float32)
+        if self.layer == "all":
+            intermediate_output = "all"
+        else:
+            intermediate_output = self.layer_idx
+
+        outputs = self.transformer(None, attention_mask_model, embeds=embeds, num_tokens=num_tokens, intermediate_output=intermediate_output, final_layer_norm_intermediate=self.layer_norm_hidden_state, dtype=torch.float32)
 
         if self.layer == "last":
             z = outputs[0].float()
@@ -447,7 +461,7 @@ class SDTokenizer:
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path, **tokenizer_args)
-        self.max_length = max_length
+        self.max_length = tokenizer_data.get("{}_max_length".format(embedding_key), max_length)
         self.min_length = min_length
         self.end_token = None
 
@@ -645,6 +659,7 @@ class SD1ClipModel(torch.nn.Module):
             self.clip = "clip_{}".format(self.clip_name)
 
         clip_model = model_options.get("{}_class".format(self.clip), clip_model)
+        model_options = {**model_options, "model_name": self.clip}
         setattr(self, self.clip, clip_model(device=device, dtype=dtype, model_options=model_options, **kwargs))
 
         self.dtypes = set()
