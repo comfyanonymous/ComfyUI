@@ -1,5 +1,3 @@
-from comfy import sd1_clip
-import os
 
 
 def model_options_long_clip(sd, tokenizer_data, model_options):
