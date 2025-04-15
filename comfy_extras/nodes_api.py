@@ -1,5 +1,10 @@
+# Add API base URL at the top of the file
+API_BASE = "https://stagingapi.comfy.org"
+
 from inspect import cleandoc
-class IdeogramTextToImage:
+from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, IO
+
+class IdeogramTextToImage(ComfyNodeABC):
     """
     Generates images synchronously based on a given prompt and optional parameters.
 
@@ -9,7 +14,7 @@ class IdeogramTextToImage:
         pass
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls) -> InputTypeDict:
         """
             Return a dictionary which contains config for all input fields.
             Some types (string): "MODEL", "VAE", "CLIP", "CONDITIONING", "LATENT", "IMAGE", "INT", "STRING", "FLOAT".
@@ -26,58 +31,61 @@ class IdeogramTextToImage:
         """
         return {
             "required": {
-                "prompt": ("STRING", {"multiline": True,
-                    "default": "", "tooltip": "Prompt for the image generation"}),
-                "model": (["V_2", "V_2_TURBO", "V_1", "V_1_TURBO"], {"default": "V_2"}),
+                "prompt": (IO.STRING, {
+                    "multiline": True,
+                    "default": "",
+                    "tooltip": "Prompt for the image generation",
+                }),
+                "model": (IO.COMBO, { "options": ["V_2", "V_2_TURBO", "V_1", "V_1_TURBO"], "default": "V_2", "tooltip": "Model to use for image generation"}),
             },
             "optional": {
-                "aspect_ratio": (["ASPECT_1_1", "ASPECT_4_3", "ASPECT_3_4", "ASPECT_16_9", "ASPECT_9_16", 
-                                "ASPECT_2_1", "ASPECT_1_2", "ASPECT_3_2", "ASPECT_2_3", "ASPECT_4_5", "ASPECT_5_4"], {
-                    "default": "ASPECT_1_1",
-                    "tooltip": "The aspect ratio for image generation. Cannot be used with resolution"
+                "aspect_ratio": (IO.COMBO, { "options": ["ASPECT_1_1", "ASPECT_4_3", "ASPECT_3_4", "ASPECT_16_9", "ASPECT_9_16", "ASPECT_2_1", "ASPECT_1_2", "ASPECT_3_2", "ASPECT_2_3", "ASPECT_4_5", "ASPECT_5_4"], "default": "ASPECT_1_1", "tooltip": "The aspect ratio for image generation. Cannot be used with resolution"
                 }),
-                "resolution": (["1024x1024", "1024x1792", "1792x1024"], {
+                "resolution": (IO.COMBO, { "options": ["1024x1024", "1024x1792", "1792x1024"],
                     "default": "1024x1024",
                     "tooltip": "The resolution for image generation (V2 only). Cannot be used with aspect_ratio"
                 }),
-                "magic_prompt_option": (["AUTO", "ON", "OFF"], {
+                "magic_prompt_option": (IO.COMBO, { "options": ["AUTO", "ON", "OFF"],
                     "default": "AUTO",
                     "tooltip": "Determine if MagicPrompt should be used in generation"
                 }),
-                "seed": ("INT", {
+                "seed": (IO.INT, {
                     "default": 0,
                     "min": 0,
                     "max": 2147483647,
                     "step": 1,
                     "display": "number"
                 }),
-                "style_type": (["NONE", "ANIME", "CINEMATIC", "CREATIVE", "DIGITAL_ART", "PHOTOGRAPHIC"], {
+                "style_type": (IO.COMBO, { "options": ["NONE", "ANIME", "CINEMATIC", "CREATIVE", "DIGITAL_ART", "PHOTOGRAPHIC"],
                     "default": "NONE",
                     "tooltip": "Style type for generation (V2+ only)"
                 }),
-                "negative_prompt": ("STRING", {
+                "negative_prompt": (IO.STRING, {
                     "multiline": True,
                     "default": "",
                     "tooltip": "Description of what to exclude from the image (V1/V2 only)"
                 }),
-                "num_images": ("INT", {
+                "num_images": (IO.INT, {
                     "default": 1,
                     "min": 1,
                     "max": 8,
                     "step": 1,
                     "display": "number"
                 }),
-                "color_palette": ("STRING", {
+                "color_palette": (IO.STRING, {
                     "multiline": False,
                     "default": "",
                     "tooltip": "Color palette preset name or hex colors with weights (V2/V2_TURBO only)"
                 }),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG"
             }
         }
 
-    RETURN_TYPES = ("IMAGE",)
+    RETURN_TYPES = (IO.IMAGE,)
     #RETURN_NAMES = ("image_output_name",)
-    DESCRIPTION = cleandoc(__doc__)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
 
     #OUTPUT_NODE = False
@@ -85,15 +93,14 @@ class IdeogramTextToImage:
 
     CATEGORY = "Example"
 
-    def api_call(self, prompt, model, aspect_ratio=None, resolution=None, 
-                 magic_prompt_option="AUTO", seed=0, style_type="NONE", 
-                 negative_prompt="", num_images=1, color_palette=""):
+    def api_call(self, prompt, model, aspect_ratio=None, resolution=None,
+                 magic_prompt_option="AUTO", seed=0, style_type="NONE",
+                 negative_prompt="", num_images=1, color_palette="", auth_token=None):
         import requests
         import torch
         from PIL import Image
         import io
         import numpy as np
-        import time
 
         # Build payload with all available parameters
         payload = {
@@ -107,12 +114,12 @@ class IdeogramTextToImage:
 
         # Make API request
         headers = {
-            "Authorization": "Bearer TBD", # TODO(robin): add authorization key
+            "Authorization": f"Bearer {auth_token}",
             "Content-Type": "application/json"
         }
-        
+
         response = requests.post(
-            "http://localhost:8080/proxy/ideogram/generate",
+            f"{API_BASE}/proxy/ideogram/generate",
             headers=headers,
             json=payload
         )
@@ -122,30 +129,22 @@ class IdeogramTextToImage:
 
         # Parse response
         response_data = response.json()
-        
+
         # Get the image URL from the response
         image_url = response_data["data"][0]["url"]
-        
-        # Time the image download
-        download_start = time.time()
+
         img_response = requests.get(image_url)
         if img_response.status_code != 200:
             raise Exception("Failed to download the image")
-        download_time = (time.time() - download_start) * 1000  # Convert to milliseconds
-        print(f"Image download time: {download_time:.2f}ms")
 
-        # Time the conversion process
-        conversion_start = time.time()
         img = Image.open(io.BytesIO(img_response.content))
         img = img.convert("RGB")  # Ensure RGB format
-        
+
         # Convert to numpy array, normalize to float32 between 0 and 1
         img_array = np.array(img).astype(np.float32) / 255.0
-        
+
         # Convert to torch tensor and add batch dimension
         img_tensor = torch.from_numpy(img_array)[None,]
-        conversion_time = (time.time() - conversion_start) * 1000  # Convert to milliseconds
-        print(f"Image conversion time: {conversion_time:.2f}ms")
 
         return (img_tensor,)
 
@@ -208,7 +207,10 @@ class RunwayVideoNode:
                     "default": False,
                     "tooltip": "Whether to include watermark in the output"
                 }),
-            }
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG"
+            },
         }
 
     RETURN_TYPES = ("VIDEO",)
@@ -216,15 +218,9 @@ class RunwayVideoNode:
     FUNCTION = "generate_video"
     CATEGORY = "video"
 
-    def generate_video(self, prompt_image, prompt_text, seed=0, model="gen3a_turbo", 
-                      duration=5.0, ratio="1280:768", watermark=False):
+    def generate_video(self, prompt_image, prompt_text, seed=0, model="gen3a_turbo",
+                      duration=5.0, ratio="1280:768", watermark=False, auth_token=None):
         import requests
-        import torch
-        import time
-        import os
-
-        # Hardcoded API key (temporary solution)
-        api_key = "key_e861661aa0b307e07e8cc269c1f42cf56fcce876ed6511a507e185ee51f695291da21f4777be1326b4467c34be5a6498b72dc27c9780e483250c692aa410d4c6"  # Replace with actual API key
 
         # Convert torch tensor image to URL (you'll need to implement this part)
         # This is a placeholder - you'll need to either save the image temporarily
@@ -244,27 +240,22 @@ class RunwayVideoNode:
 
         # Make API request
         headers = {
-            "Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {auth_token}",
             "Content-Type": "application/json",
-            "X-Runway-Version": "2024-11-06"
         }
 
-        # Time the API request
-        api_start = time.time()
         response = requests.post(
-            "https://api.dev.runwayml.com/v1/image_to_video",
+            f"{API_BASE}/proxy/runway/image_to_video",
             headers=headers,
             json=payload
         )
-        api_time = (time.time() - api_start) * 1000  # Convert to milliseconds
-        print(f"API request time: {api_time:.2f}ms")
 
         if response.status_code != 200:
             raise Exception(f"API request failed: {response.text}")
 
         # Parse response
-        response_data = response.json()
-        
+        # response_data = response.json()
+
         # Note: You'll need to implement the actual video handling here
         # This is a placeholder return
         return (None,)
