@@ -580,6 +580,9 @@ class PromptServer():
                 info['deprecated'] = True
             if getattr(obj_class, "EXPERIMENTAL", False):
                 info['experimental'] = True
+
+            if hasattr(obj_class, 'COMFY_API_NODE_NAME'):
+                info['comfy_api_node_name'] = obj_class.COMFY_API_NODE_NAME
             return info
 
         @routes.get("/object_info")
