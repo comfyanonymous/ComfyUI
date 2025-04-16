@@ -4,6 +4,12 @@ API_BASE = "https://stagingapi.comfy.org"
 from inspect import cleandoc
 from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, IO
 
+def check_auth_token(auth_token):
+    """Verify that an auth token is present."""
+    if auth_token is None:
+        raise Exception("Please login first to use this node.")
+    return auth_token
+
 class IdeogramTextToImage(ComfyNodeABC):
     """
     Generates images synchronously based on a given prompt and optional parameters.
@@ -84,13 +90,9 @@ class IdeogramTextToImage(ComfyNodeABC):
         }
 
     RETURN_TYPES = (IO.IMAGE,)
-    #RETURN_NAMES = ("image_output_name",)
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
-
-    #OUTPUT_NODE = False
-    #OUTPUT_TOOLTIPS = ("",) # Tooltips for the output node
-
+    API_NODE = True
     CATEGORY = "Example"
 
     def api_call(self, prompt, model, aspect_ratio=None, resolution=None,
@@ -101,6 +103,8 @@ class IdeogramTextToImage(ComfyNodeABC):
         from PIL import Image
         import io
         import numpy as np
+
+        check_auth_token(auth_token)
 
         # Build payload with all available parameters
         payload = {
@@ -217,11 +221,12 @@ class RunwayVideoNode:
     DESCRIPTION = "Generates videos from images using Runway's API"
     FUNCTION = "generate_video"
     CATEGORY = "video"
+    API_NODE = True
 
     def generate_video(self, prompt_image, prompt_text, seed=0, model="gen3a_turbo",
                       duration=5.0, ratio="1280:768", watermark=False, auth_token=None):
         import requests
-
+        check_auth_token(auth_token)
         # Convert torch tensor image to URL (you'll need to implement this part)
         # This is a placeholder - you'll need to either save the image temporarily
         # or upload it to a service that can host it
