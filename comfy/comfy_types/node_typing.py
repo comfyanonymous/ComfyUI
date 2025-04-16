@@ -229,8 +229,8 @@ class ComfyNodeABC(ABC):
     """Flags a node as experimental, informing users that it may change or not work as expected."""
     DEPRECATED: bool
     """Flags a node as deprecated, indicating to users that they should find alternatives to this node."""
-    COMFY_API_NODE_NAME: Optional[str]
-    """If the node is an API node, this is the name used to identify it."""
+    API_NODE: bool
+    """Flags a node as an API node."""
 
     @classmethod
     @abstractmethod
