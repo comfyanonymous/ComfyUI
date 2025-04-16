@@ -11,14 +11,15 @@ class HiDreamTokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.clip_g = sdxl_clip.SDXLClipGTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
-        self.t5xxl = sd3_clip.T5XXLTokenizer(embedding_directory=embedding_directory, min_length=128, tokenizer_data=tokenizer_data)
+        self.t5xxl = sd3_clip.T5XXLTokenizer(embedding_directory=embedding_directory, min_length=128, max_length=128, tokenizer_data=tokenizer_data)
         self.llama = hunyuan_video.LLAMA3Tokenizer(embedding_directory=embedding_directory, min_length=128, pad_token=128009, tokenizer_data=tokenizer_data)
 
     def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = {}
         out["g"] = self.clip_g.tokenize_with_weights(text, return_word_ids)
         out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids)
-        out["t5xxl"] = self.t5xxl.tokenize_with_weights(text, return_word_ids)
+        t5xxl = self.t5xxl.tokenize_with_weights(text, return_word_ids)
+        out["t5xxl"] = [t5xxl[0]]  # Use only first 128 tokens
         out["llama"] = self.llama.tokenize_with_weights(text, return_word_ids)
         return out
 
