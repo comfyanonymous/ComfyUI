@@ -16,6 +16,7 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 - [Credits](#credits)
 
 ## What's New?
+* Florance2 is now fixed , (probably some other nodes too) you need to disable "do_sample" meaning change it from True to False, now it would work without needing to edit it's node.
 * Added onnxruntime fix so that it now uses cpu-only regardless of node. So now  nodes like pulid, reactor, infiniteyou etc works without problems and can now use codeformer too.
 * Added installing the new required package to be installed `comfyui-frontend-package` inside zluda patch, comfyui removed its web frontend from the main and it is now to be installed like the other packages, new installs will do this but previous users have to install it somehow. So here it is. It will install only one time and that would be brief. So don't be afraid if you see "Comfyui Frontend Package installed." in the commandline.
 * Changed how ZLUDA is patched into the Comfyui itself. Now code is in external file , much cleaner and easier for me the change if it becomes necessary.
