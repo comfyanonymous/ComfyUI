@@ -99,59 +99,59 @@ class InputTypeOptions(TypedDict):
     Comfy Docs: https://docs.comfy.org/custom-nodes/backend/datatypes
     """
 
-    default: bool | str | float | int | list | tuple
+    default: NotRequired[bool | str | float | int | list | tuple]
     """The default value of the widget"""
-    defaultInput: bool
+    defaultInput: NotRequired[bool]
     """@deprecated in v1.16 frontend. v1.16 frontend allows input socket and widget to co-exist.
     - defaultInput on required inputs should be dropped.
     - defaultInput on optional inputs should be replaced with forceInput.
     Ref: https://github.com/Comfy-Org/ComfyUI_frontend/pull/3364
     """
-    forceInput: bool
+    forceInput: NotRequired[bool]
     """Forces the input to be an input slot rather than a widget even a widget is available for the input type."""
-    lazy: bool
+    lazy: NotRequired[bool]
     """Declares that this input uses lazy evaluation"""
-    rawLink: bool
+    rawLink: NotRequired[bool]
     """When a link exists, rather than receiving the evaluated value, you will receive the link (i.e. `["nodeId", <outputIndex>]`). Designed for node expansion."""
-    tooltip: str
+    tooltip: NotRequired[str]
     """Tooltip for the input (or widget), shown on pointer hover"""
     # class InputTypeNumber(InputTypeOptions):
     # default: float | int
-    min: float
+    min: NotRequired[float]
     """The minimum value of a number (``FLOAT`` | ``INT``)"""
-    max: float
+    max: NotRequired[float]
     """The maximum value of a number (``FLOAT`` | ``INT``)"""
-    step: float
+    step: NotRequired[float]
     """The amount to increment or decrement a widget by when stepping up/down (``FLOAT`` | ``INT``)"""
-    round: float
+    round: NotRequired[float]
     """Floats are rounded by this value (``FLOAT``)"""
     # class InputTypeBoolean(InputTypeOptions):
     # default: bool
-    label_on: str
+    label_on: NotRequired[str]
     """The label to use in the UI when the bool is True (``BOOLEAN``)"""
-    label_off: str
+    label_off: NotRequired[str]
     """The label to use in the UI when the bool is False (``BOOLEAN``)"""
     # class InputTypeString(InputTypeOptions):
     # default: str
-    multiline: bool
+    multiline: NotRequired[bool]
     """Use a multiline text box (``STRING``)"""
-    placeholder: str
+    placeholder: NotRequired[str]
     """Placeholder text to display in the UI when empty (``STRING``)"""
     # Deprecated:
     # defaultVal: str
-    dynamicPrompts: bool
+    dynamicPrompts: NotRequired[bool]
     """Causes the front-end to evaluate dynamic prompts (``STRING``)"""
     # class InputTypeCombo(InputTypeOptions):
-    image_upload: bool
+    image_upload: NotRequired[bool]
     """Specifies whether the input should have an image upload button and image preview attached to it. Requires that the input's name is `image`."""
-    image_folder: Literal["input", "output", "temp"]
+    image_folder: NotRequired[Literal["input", "output", "temp"]]
     """Specifies which folder to get preview images from if the input has the ``image_upload`` flag.
     """
-    remote: RemoteInputOptions
+    remote: NotRequired[RemoteInputOptions]
     """Specifies the configuration for a remote input.
     Available after ComfyUI frontend v1.9.7
     https://github.com/Comfy-Org/ComfyUI_frontend/pull/2422"""
-    control_after_generate: bool
+    control_after_generate: NotRequired[bool]
     """Specifies whether a control widget should be added to the input, adding options to automatically change the value after each prompt is queued. Currently only used for INT and COMBO types."""
     options: NotRequired[list[str | int | float]]
     """COMBO type only. Specifies the selectable options for the combo widget.
@@ -169,15 +169,15 @@ class InputTypeOptions(TypedDict):
 class HiddenInputTypeDict(TypedDict):
     """Provides type hinting for the hidden entry of node INPUT_TYPES."""
 
-    node_id: Literal["UNIQUE_ID"]
+    node_id: NotRequired[Literal["UNIQUE_ID"]]
     """UNIQUE_ID is the unique identifier of the node, and matches the id property of the node on the client side. It is commonly used in client-server communications (see messages)."""
-    unique_id: Literal["UNIQUE_ID"]
+    unique_id: NotRequired[Literal["UNIQUE_ID"]]
     """UNIQUE_ID is the unique identifier of the node, and matches the id property of the node on the client side. It is commonly used in client-server communications (see messages)."""
-    prompt: Literal["PROMPT"]
+    prompt: NotRequired[Literal["PROMPT"]]
     """PROMPT is the complete prompt sent by the client to the server. See the prompt object for a full description."""
-    extra_pnginfo: Literal["EXTRA_PNGINFO"]
+    extra_pnginfo: NotRequired[Literal["EXTRA_PNGINFO"]]
     """EXTRA_PNGINFO is a dictionary that will be copied into the metadata of any .png files saved. Custom nodes can store additional information in this dictionary for saving (or as a way to communicate with a downstream node)."""
-    dynprompt: Literal["DYNPROMPT"]
+    dynprompt: NotRequired[Literal["DYNPROMPT"]]
     """DYNPROMPT is an instance of comfy_execution.graph.DynamicPrompt. It differs from PROMPT in that it may mutate during the course of execution in response to Node Expansion."""
 
 
@@ -187,11 +187,11 @@ class InputTypeDict(TypedDict):
     Comfy Docs: https://docs.comfy.org/custom-nodes/backend/more_on_inputs
     """
 
-    required: dict[str, tuple[IO, InputTypeOptions]]
+    required: NotRequired[dict[str, tuple[IO, InputTypeOptions]]]
     """Describes all inputs that must be connected for the node to execute."""
-    optional: dict[str, tuple[IO, InputTypeOptions]]
+    optional: NotRequired[dict[str, tuple[IO, InputTypeOptions]]]
     """Describes inputs which do not need to be connected."""
-    hidden: HiddenInputTypeDict
+    hidden: NotRequired[HiddenInputTypeDict]
     """Offers advanced functionality and server-client communication.
 
     Comfy Docs: https://docs.comfy.org/custom-nodes/backend/more_on_inputs#hidden-inputs
