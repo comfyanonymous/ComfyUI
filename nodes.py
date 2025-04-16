@@ -1654,6 +1654,7 @@ class LoadImage:
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        files = folder_paths.filter_files_content_types(files, ["image"])
         return {"required":
                     {"image": (sorted(files), {"image_upload": True})},
                 }
@@ -2136,7 +2137,7 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
         module_name = sp[0]
         sys_module_name = module_name
     elif os.path.isdir(module_path):
-        sys_module_name = module_path
+        sys_module_name = module_path.replace(".", "_x_")
 
     try:
         logging.debug("Trying to load custom node {}".format(module_path))
@@ -2280,6 +2281,8 @@ def init_builtin_extra_nodes():
         "nodes_hunyuan3d.py",
         "nodes_primitive.py",
         "nodes_cfg.py",
+        "nodes_optimalsteps.py",
+        "nodes_hidream.py"
     ]
 
     import_failed = []
