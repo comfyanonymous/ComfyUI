@@ -185,6 +185,27 @@ comfyui-frontend-package is not installed.
             sys.exit(-1)
 
     @classmethod
+    def templates_path(cls) -> str:
+        try:
+            import comfyui_workflow_templates
+
+            return str(
+                importlib.resources.files(comfyui_workflow_templates) / "templates"
+            )
+        except ImportError:
+            logging.error(
+                f"""
+********** ERROR ***********
+
+comfyui-workflow-templates is not installed.
+
+{frontend_install_warning_message()}
+
+********** ERROR ***********
+""".strip()
+            )
+
+    @classmethod
     def parse_version_string(cls, value: str) -> tuple[str, str, str]:
         """
         Args:
