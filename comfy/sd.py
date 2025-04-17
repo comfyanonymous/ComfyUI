@@ -703,6 +703,7 @@ class CLIPType(Enum):
     COSMOS = 11
     LUMINA2 = 12
     WAN = 13
+    HIDREAM = 14
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -827,6 +828,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.lumina2.LuminaTokenizer
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
+        elif te_model == TEModel.LLAMA3_8:
+            print("Single LLAMA3_8 for HiDreams")
+            clip_target.clip = comfy.text_encoders.hidream.hidream_clip(False, **llama_detect(clip_data), clip_g=False, t5=False)
+            clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
         else:
             if clip_type == CLIPType.SD3:
                 clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=True, clip_g=False, t5=False)
