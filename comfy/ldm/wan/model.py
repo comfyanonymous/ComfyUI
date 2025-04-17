@@ -193,7 +193,7 @@ class WanAttentionBlock(nn.Module):
         e,
         freqs,
         context,
-        context_img_len=None,
+        context_img_len=257,
     ):
         r"""
         Args:
@@ -251,7 +251,7 @@ class Head(nn.Module):
 
 class MLPProj(torch.nn.Module):
 
-    def __init__(self, in_dim, out_dim, operation_settings={}):
+    def __init__(self, in_dim, out_dim, flf_pos_embed_token_number=None, operation_settings={}):
         super().__init__()
 
         self.proj = torch.nn.Sequential(
@@ -259,7 +259,15 @@ class MLPProj(torch.nn.Module):
             torch.nn.GELU(), operation_settings.get("operations").Linear(in_dim, out_dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")),
             operation_settings.get("operations").LayerNorm(out_dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")))
 
+        if flf_pos_embed_token_number is not None:
+            self.emb_pos = nn.Parameter(torch.empty((1, flf_pos_embed_token_number, in_dim), device=operation_settings.get("device"), dtype=operation_settings.get("dtype")))
+        else:
+            self.emb_pos = None
+
     def forward(self, image_embeds):
+        if self.emb_pos is not None:
+            image_embeds = image_embeds[:, :self.emb_pos.shape[1]] + comfy.model_management.cast_to(self.emb_pos[:, :image_embeds.shape[1]], dtype=image_embeds.dtype, device=image_embeds.device)
+
         clip_extra_context_tokens = self.proj(image_embeds)
         return clip_extra_context_tokens
 
@@ -285,6 +293,7 @@ class WanModel(torch.nn.Module):
                  qk_norm=True,
                  cross_attn_norm=True,
                  eps=1e-6,
+                 flf_pos_embed_token_number=None,
                  image_model=None,
                  device=None,
                  dtype=None,
@@ -374,7 +383,7 @@ class WanModel(torch.nn.Module):
         self.rope_embedder = EmbedND(dim=d, theta=10000.0, axes_dim=[d - 4 * (d // 6), 2 * (d // 6), 2 * (d // 6)])
 
         if model_type == 'i2v':
-            self.img_emb = MLPProj(1280, dim, operation_settings=operation_settings)
+            self.img_emb = MLPProj(1280, dim, flf_pos_embed_token_number=flf_pos_embed_token_number, operation_settings=operation_settings)
         else:
             self.img_emb = None
 
