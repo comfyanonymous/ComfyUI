@@ -1,13 +1,13 @@
-# This is the GitHub Workflow that drives full-GPU-enabled tests of pull requests to ComfyUI, when the 'Run-CI-Test' label is added
+# This is the GitHub Workflow that drives full-GPU-enabled tests of pull requests to ComfyUI, when the 'important' label is added
 # Results are reported as checkmarks on the commits, as well as onto https://ci.comfy.org/
 name: Pull Request CI Workflow Runs
 on:
-    pull_request_target:
-        types: [labeled]
+  pull_request_target:
+    types: [labeled]
 
 jobs:
   pr-test-stable:
-    if: ${{ github.event.label.name == 'Run-CI-Test' }}
+    if: ${{ github.event.label.name == 'important' }}
     strategy:
       fail-fast: false
       matrix:
@@ -36,8 +36,9 @@ jobs:
           google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
           comfyui_flags: ${{ matrix.flags }}
           use_prior_commit: 'true'
+
   comment:
-    if: ${{ github.event.label.name == 'Run-CI-Test' }}
+    if: ${{ github.event.label.name == 'important' }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
