@@ -193,7 +193,7 @@ class WanAttentionBlock(nn.Module):
         e,
         freqs,
         context,
-        context_img_len=None,
+        context_img_len=257,
     ):
         r"""
         Args:
