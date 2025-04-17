@@ -24,24 +24,45 @@ def get_package_version(package_name):
         from importlib_metadata import version
         return version(package_name)
 
-required_version = "1.15.13"
-package_name = "comfyui-frontend-package"
+# Check and install/update comfyui-frontend-package
+required_frontend_version = "1.15.13"
+frontend_package_name = "comfyui-frontend-package"
 
 try:
-    installed_version = get_package_version(package_name)
-    print(f"Installed version of {package_name}: {installed_version}")
+    installed_version = get_package_version(frontend_package_name)
+    print(f"Installed version of {frontend_package_name}: {installed_version}")
     
     from packaging import version
-    if version.parse(installed_version) < version.parse(required_version):
+    if version.parse(installed_version) < version.parse(required_frontend_version):
         import subprocess
         import sys
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{package_name}=={required_version}', '--quiet', '--upgrade'])
-        print(f"\nComfyUI Frontend Package outdated. Upgraded to {required_version}.")
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{frontend_package_name}=={required_frontend_version}', '--quiet', '--upgrade'])
+        print(f"\nComfyUI Frontend Package outdated. Upgraded to {required_frontend_version}.")
 except Exception:
     import subprocess
     import sys
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{package_name}=={required_version}', '--quiet'])
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{frontend_package_name}=={required_frontend_version}', '--quiet'])
     print("\nComfyUI Frontend Package was missing. Installed it.")
+
+# Check and install/update comfyui-workflow-templates
+required_templates_version = "0.1.1"
+templates_package_name = "comfyui-workflow-templates"
+
+try:
+    installed_version = get_package_version(templates_package_name)
+    print(f"Installed version of {templates_package_name}: {installed_version}")
+    
+    from packaging import version
+    if version.parse(installed_version) < version.parse(required_templates_version):
+        import subprocess
+        import sys
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{templates_package_name}=={required_templates_version}', '--quiet', '--upgrade'])
+        print(f"\nComfyUI Workflow Templates outdated. Upgraded to {required_templates_version}.")
+except Exception:
+    import subprocess
+    import sys
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{templates_package_name}=={required_templates_version}', '--quiet'])
+    print("\nComfyUI Workflow Templates was missing. Installed it.")
 # ------------------- End Frontend Version Check -------------------
 
 # ------------------- ZLUDA Detection -------------------
