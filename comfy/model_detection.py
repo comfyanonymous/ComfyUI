@@ -321,6 +321,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["model_type"] = "i2v"
         else:
             dit_config["model_type"] = "t2v"
+        flf_weight = state_dict.get('{}img_emb.emb_pos'.format(key_prefix))
+        if flf_weight is not None:
+            dit_config["flf_pos_embed_token_number"] = flf_weight.shape[1]
         return dit_config
 
     if '{}latent_in.weight'.format(key_prefix) in state_dict_keys:  # Hunyuan 3D
