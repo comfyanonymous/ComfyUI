@@ -8,25 +8,12 @@ from einops import repeat
 from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
 import torch.nn.functional as F
 
-from comfy.ldm.flux.math import apply_rope
+from comfy.ldm.flux.math import apply_rope, rope
+from comfy.ldm.flux.layers import LastLayer
+
 from comfy.ldm.modules.attention import optimized_attention
 import comfy.model_management
-
-# Copied from https://github.com/black-forest-labs/flux/blob/main/src/flux/math.py
-def rope(pos: torch.Tensor, dim: int, theta: int) -> torch.Tensor:
-    assert dim % 2 == 0, "The dimension must be even."
-
-    scale = torch.arange(0, dim, 2, dtype=torch.float64, device=pos.device) / dim
-    omega = 1.0 / (theta**scale)
-
-    batch_size, seq_length = pos.shape
-    out = torch.einsum("...n,d->...nd", pos, omega)
-    cos_out = torch.cos(out)
-    sin_out = torch.sin(out)
-
-    stacked_out = torch.stack([cos_out, -sin_out, sin_out, cos_out], dim=-1)
-    out = stacked_out.view(batch_size, -1, dim // 2, 2, 2)
-    return out.float()
+import comfy.ldm.common_dit
 
 
 # Copied from https://github.com/black-forest-labs/flux/blob/main/src/flux/modules/layers.py
@@ -82,23 +69,6 @@ class TimestepEmbed(nn.Module):
         t_emb = self.time_proj(timesteps).to(dtype=wdtype)
         t_emb = self.timestep_embedder(t_emb)
         return t_emb
-
-
-class OutEmbed(nn.Module):
-    def __init__(self, hidden_size, patch_size, out_channels, dtype=None, device=None, operations=None):
-        super().__init__()
-        self.norm_final = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
-        self.linear = operations.Linear(hidden_size, patch_size * patch_size * out_channels, bias=True, dtype=dtype, device=device)
-        self.adaLN_modulation = nn.Sequential(
-            nn.SiLU(),
-            operations.Linear(hidden_size, 2 * hidden_size, bias=True, dtype=dtype, device=device)
-        )
-
-    def forward(self, x, adaln_input):
-        shift, scale = self.adaLN_modulation(adaln_input).chunk(2, dim=1)
-        x = self.norm_final(x) * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
-        x = self.linear(x)
-        return x
 
 
 def attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor):
@@ -663,7 +633,7 @@ class HiDreamImageTransformer2DModel(nn.Module):
             ]
         )
 
-        self.final_layer = OutEmbed(self.inner_dim, patch_size, self.out_channels, dtype=dtype, device=device, operations=operations)
+        self.final_layer = LastLayer(self.inner_dim, patch_size, self.out_channels, dtype=dtype, device=device, operations=operations)
 
         caption_channels = [caption_channels[1], ] * (num_layers + num_single_layers) + [caption_channels[0], ]
         caption_projection = []
@@ -732,7 +702,8 @@ class HiDreamImageTransformer2DModel(nn.Module):
         control = None,
         transformer_options = {},
     ) -> torch.Tensor:
-        hidden_states = x
+        bs, c, h, w = x.shape
+        hidden_states = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
         timesteps = t
         pooled_embeds = y
         T5_encoder_hidden_states = context
@@ -825,4 +796,4 @@ class HiDreamImageTransformer2DModel(nn.Module):
         hidden_states = hidden_states[:, :image_tokens_seq_len, ...]
         output = self.final_layer(hidden_states, adaln_input)
         output = self.unpatchify(output, img_sizes)
-        return -output
+        return -output[:, :, :h, :w]
