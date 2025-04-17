@@ -2281,7 +2281,8 @@ def init_builtin_extra_nodes():
         "nodes_primitive.py",
         "nodes_cfg.py",
         "nodes_optimalsteps.py",
-        "nodes_hidream.py"
+        "nodes_hidream.py",
+        "nodes_fresca.py",
     ]
 
     import_failed = []
