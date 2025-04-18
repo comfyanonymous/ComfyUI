@@ -61,7 +61,7 @@ class FreSca:
                                         "tooltip": "Scaling factor for low-frequency components"}),
                 "scale_high": ("FLOAT", {"default": 1.25, "min": 0, "max": 10, "step": 0.01,
                                         "tooltip": "Scaling factor for high-frequency components"}),
-                "freq_cutoff": ("INT", {"default": 20, "min": 1, "max": 100, "step": 1,
+                "freq_cutoff": ("INT", {"default": 20, "min": 1, "max": 10000, "step": 1,
                                         "tooltip": "Number of frequency indices around center to consider as low-frequency"}),
             }
         }
