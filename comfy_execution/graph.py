@@ -1,6 +1,9 @@
-import nodes
+from __future__ import annotations
+from typing import Type, Literal
 
+import nodes
 from comfy_execution.graph_utils import is_link
+from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputTypeOptions
 
 class DependencyCycleError(Exception):
     pass
@@ -54,7 +57,22 @@ class DynamicPrompt:
     def get_original_prompt(self):
         return self.original_prompt
 
-def get_input_info(class_def, input_name, valid_inputs=None):
+def get_input_info(
+    class_def: Type[ComfyNodeABC],
+    input_name: str,
+    valid_inputs: InputTypeDict | None = None
+) -> tuple[str, Literal["required", "optional", "hidden"], InputTypeOptions] | tuple[None, None, None]:
+    """Get the input type, category, and extra info for a given input name.
+
+    Arguments:
+        class_def: The class definition of the node.
+        input_name: The name of the input to get info for.
+        valid_inputs: The valid inputs for the node, or None to use the class_def.INPUT_TYPES().
+
+    Returns:
+        tuple[str, str, dict] | tuple[None, None, None]: The input type, category, and extra info for the input name.
+    """
+
     valid_inputs = valid_inputs or class_def.INPUT_TYPES()
     input_info = None
     input_category = None
@@ -126,7 +144,7 @@ class TopologicalSort:
                     from_node_id, from_socket = value
                     if subgraph_nodes is not None and from_node_id not in subgraph_nodes:
                         continue
-                    input_type, input_category, input_info = self.get_input_info(unique_id, input_name)
+                    _, _, input_info = self.get_input_info(unique_id, input_name)
                     is_lazy = input_info is not None and "lazy" in input_info and input_info["lazy"]
                     if (include_lazy or not is_lazy) and not self.is_cached(from_node_id):
                         node_ids.append(from_node_id)
