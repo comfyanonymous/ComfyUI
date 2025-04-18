@@ -930,26 +930,7 @@ class CLIPLoader:
     DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 xxl/ clip-g / clip-l\nstable_audio: t5 base\nmochi: t5 xxl\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl"
 
     def load_clip(self, clip_name, type="stable_diffusion", device="default"):
-        if type == "stable_cascade":
-            clip_type = comfy.sd.CLIPType.STABLE_CASCADE
-        elif type == "sd3":
-            clip_type = comfy.sd.CLIPType.SD3
-        elif type == "stable_audio":
-            clip_type = comfy.sd.CLIPType.STABLE_AUDIO
-        elif type == "mochi":
-            clip_type = comfy.sd.CLIPType.MOCHI
-        elif type == "ltxv":
-            clip_type = comfy.sd.CLIPType.LTXV
-        elif type == "pixart":
-            clip_type = comfy.sd.CLIPType.PIXART
-        elif type == "cosmos":
-            clip_type = comfy.sd.CLIPType.COSMOS
-        elif type == "lumina2":
-            clip_type = comfy.sd.CLIPType.LUMINA2
-        elif type == "wan":
-            clip_type = comfy.sd.CLIPType.WAN
-        else:
-            clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
+        clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
 
         model_options = {}
         if device == "cpu":
@@ -977,16 +958,10 @@ class DualCLIPLoader:
     DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5"
 
     def load_clip(self, clip_name1, clip_name2, type, device="default"):
+        clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
+
         clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", clip_name1)
         clip_path2 = folder_paths.get_full_path_or_raise("text_encoders", clip_name2)
-        if type == "sdxl":
-            clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
-        elif type == "sd3":
-            clip_type = comfy.sd.CLIPType.SD3
-        elif type == "flux":
-            clip_type = comfy.sd.CLIPType.FLUX
-        elif type == "hunyuan_video":
-            clip_type = comfy.sd.CLIPType.HUNYUAN_VIDEO
 
         model_options = {}
         if device == "cpu":
