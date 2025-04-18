@@ -704,6 +704,23 @@ class CLIPType(Enum):
     LUMINA2 = 12
     WAN = 13
 
+class SingleCLIP(Enum):
+    STABLE_DIFFUSION = "stable_diffusion"
+    STABLE_CASCADE = "stable_cascade"
+    SD3 = "sd3"
+    STABLE_AUDIO = "stable_audio"
+    MOCHI = "mochi"
+    LTXV = "ltxv"
+    PIXART = "pixart"
+    COSMOS = "cosmos"
+    LUMINA2 = "lumina2"
+    WAN = "wan"
+
+class DualCLIP(Enum):
+    SDXL = "sdxl"
+    SD3 = "sd3"
+    FLUX = "flux"
+    HUNYUAN_VIDEO = "hunyuan_video"
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
     clip_data = []

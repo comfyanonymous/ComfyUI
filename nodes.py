@@ -31,6 +31,7 @@ import comfy.clip_vision
 
 import comfy.model_management
 from comfy.cli_args import args
+from comfy.sd import SingleCLIP, DualCLIP
 
 import importlib
 
@@ -916,8 +917,9 @@ class UNETLoader:
 class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
+        single_clip_types = [member.value for member in SingleCLIP]
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan"], ),
+                              "type": (single_clip_types, ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -943,9 +945,10 @@ class CLIPLoader:
 class DualCLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
+        dual_clip_types = [member.value for member in DualCLIP]
         return {"required": { "clip_name1": (folder_paths.get_filename_list("text_encoders"), ),
                               "clip_name2": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["sdxl", "sd3", "flux", "hunyuan_video"], ),
+                              "type": (dual_clip_types, ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
