@@ -120,7 +120,7 @@ class HiDreamTEModel(torch.nn.Module):
             ll_out = None
 
         if t5_out is None:
-            t5_out = torch.zeros((1, 1, 4096), device=comfy.model_management.intermediate_device())
+            t5_out = torch.zeros((1, 128, 4096), device=comfy.model_management.intermediate_device())
 
         if ll_out is None:
             ll_out = torch.zeros((1, 32, 1, 4096), device=comfy.model_management.intermediate_device())
