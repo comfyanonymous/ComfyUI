@@ -1272,7 +1272,8 @@ def soft_empty_cache(force=False):
         torch.cuda.ipc_collect()
 
 def unload_all_models():
-    free_memory(1e30, get_torch_device())
+    for device in get_all_torch_devices():
+        free_memory(1e30, device)
 
 def unload_model_and_clones(model: ModelPatcher, unload_additional_models=True, all_devices=False):
     'Unload only model and its clones - primarily for multigpu cloning purposes.'
