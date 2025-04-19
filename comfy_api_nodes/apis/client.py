@@ -1,0 +1,457 @@
+import logging
+
+"""
+API Client Framework for ComfyUI
+
+This module provides a flexible framework for making API requests from ComfyUI nodes.
+It supports both synchronous and asynchronous API operations with proper type validation.
+
+Key Components:
+--------------
+1. ApiClient - Handles HTTP requests with authentication and error handling
+2. ApiEndpoint - Defines a single HTTP endpoint with its request/response models
+3. ApiOperation - Executes a single synchronous API operation
+4. PollingOperation - Executes an asynchronous operation with polling for completion
+
+Usage Examples:
+--------------
+
+# Example 1: Synchronous API Operation
+# ------------------------------------
+# For a simple API call that returns the result immediately:
+
+# 1. Create the API client
+api_client = ApiClient(
+    base_url="https://api.example.com",
+    api_key="your_api_key_here",
+    timeout=30.0,
+    verify_ssl=True
+)
+
+# 2. Define the endpoint
+user_info_endpoint = ApiEndpoint(
+    path="/v1/users/me",
+    method=HttpMethod.GET,
+    request_model=EmptyRequest,  # No request body needed
+    response_model=UserProfile,   # Pydantic model for the response
+    query_params=None
+)
+
+# 3. Create the request object
+request = EmptyRequest()
+
+# 4. Create and execute the operation
+operation = ApiOperation(
+    endpoint=user_info_endpoint,
+    request=request
+)
+user_profile = operation.execute(client=api_client)  # Returns immediately with the result
+
+
+# Example 2: Asynchronous API Operation with Polling
+# -------------------------------------------------
+# For an API that starts a task and requires polling for completion:
+
+# 1. Define the endpoints (initial request and polling)
+generate_image_endpoint = ApiEndpoint(
+    path="/v1/images/generate",
+    method=HttpMethod.POST,
+    request_model=ImageGenerationRequest,
+    response_model=TaskCreatedResponse,
+    query_params=None
+)
+
+check_task_endpoint = ApiEndpoint(
+    path="/v1/tasks/{task_id}",
+    method=HttpMethod.GET,
+    request_model=EmptyRequest,
+    response_model=ImageGenerationResult,
+    query_params=None
+)
+
+# 2. Create the request object
+request = ImageGenerationRequest(
+    prompt="a beautiful sunset over mountains",
+    width=1024,
+    height=1024,
+    num_images=1
+)
+
+# 3. Create and execute the polling operation
+operation = PollingOperation(
+    initial_endpoint=generate_image_endpoint,
+    initial_request=request,
+    poll_endpoint=check_task_endpoint,
+    task_id_field="task_id",
+    status_field="status",
+    completed_statuses=["completed"],
+    failed_statuses=["failed", "error"]
+)
+
+# This will make the initial request and then poll until completion
+result = operation.execute(client=api_client)  # Returns the final ImageGenerationResult when done
+"""
+
+from typing import (
+    Dict,
+    Type,
+    Optional,
+    Any,
+    TypeVar,
+    Generic,
+    Callable,
+)
+from pydantic import BaseModel
+from enum import Enum
+import time
+import json
+import requests
+from urllib.parse import urljoin
+
+# Import models from your generated stubs
+
+T = TypeVar("T", bound=BaseModel)
+R = TypeVar("R", bound=BaseModel)
+P = TypeVar("P", bound=BaseModel)  # For poll response
+
+
+class EmptyRequest(BaseModel):
+    """Base class for empty request bodies.
+    For GET requests, fields will be sent as query parameters."""
+
+    pass
+
+
+class HttpMethod(str, Enum):
+    GET = "GET"
+    POST = "POST"
+    PUT = "PUT"
+    DELETE = "DELETE"
+    PATCH = "PATCH"
+
+
+class ApiClient:
+    """
+    Client for making HTTP requests to an API with authentication and error handling.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        api_key: Optional[str] = None,
+        timeout: float = 30.0,
+        verify_ssl: bool = True,
+    ):
+        self.base_url = base_url
+        self.api_key = api_key
+        self.timeout = timeout
+        self.verify_ssl = verify_ssl
+
+    def get_headers(self) -> Dict[str, str]:
+        """Get headers for API requests, including authentication if available"""
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        return headers
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        params: Optional[Dict[str, Any]] = None,
+        json: Optional[Dict[str, Any]] = None,
+        files: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Make an HTTP request to the API
+
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            path: API endpoint path (will be joined with base_url)
+            params: Query parameters
+            json: JSON body data
+            files: Files to upload
+            headers: Additional headers
+
+        Returns:
+            Parsed JSON response
+
+        Raises:
+            requests.RequestException: If the request fails
+        """
+        url = urljoin(self.base_url, path)
+        self.check_auth_token(self.api_key)
+        # Combine default headers with any provided headers
+        request_headers = self.get_headers()
+        if headers:
+            request_headers.update(headers)
+        try:
+            response = requests.request(
+                method=method,
+                url=url,
+                params=params,
+                json=json,
+                files=files,
+                headers=request_headers,
+                timeout=self.timeout,
+                verify=self.verify_ssl,
+            )
+
+            # Raise exception for error status codes
+            response.raise_for_status()
+        except requests.ConnectionError:
+            raise Exception(
+                f"Unable to connect to the API server at {self.base_url}. Please check your internet connection or verify the service is available."
+            )
+
+        except requests.Timeout:
+            raise Exception(
+                f"Request timed out after {self.timeout} seconds. The server might be experiencing high load or the operation is taking longer than expected."
+            )
+
+        except requests.HTTPError as e:
+            status_code = e.response.status_code if hasattr(e, "response") else None
+            error_message = f"HTTP Error: {str(e)}"
+            logging.debug(f"[DEBUG] API Error: {error_message} (Status: {status_code})")
+            if status_code == 401:
+                error_message = "Unauthorized: Please login first to use this node."
+            if status_code == 402:
+                error_message = "Payment Required: Please add credits to your account to use this node."
+            raise Exception(error_message)
+
+        # Parse and return JSON response
+        if response.content:
+            return response.json()
+        return {}
+
+    def check_auth_token(self, auth_token):
+        """Verify that an auth token is present."""
+        if auth_token is None:
+            raise Exception("Please login first to use this node.")
+        return auth_token
+
+
+class ApiEndpoint(Generic[T, R]):
+    """Defines an API endpoint with its request and response types"""
+
+    def __init__(
+        self,
+        path: str,
+        method: HttpMethod,
+        request_model: Type[T],
+        response_model: Type[R],
+        query_params: Optional[Dict[str, Any]] = None,
+    ):
+        """Initialize an API endpoint definition.
+
+        Args:
+            path: The URL path for this endpoint, can include placeholders like {id}
+            method: The HTTP method to use (GET, POST, etc.)
+            request_model: Pydantic model class that defines the structure and validation rules for API requests to this endpoint
+            response_model: Pydantic model class that defines the structure and validation rules for API responses from this endpoint
+            query_params: Optional dictionary of query parameters to include in the request
+        """
+        self.path = path
+        self.method = method
+        self.request_model = request_model
+        self.response_model = response_model
+        self.query_params = query_params or {}
+
+
+class SynchronousOperation(Generic[T, R]):
+    """
+    Represents a single synchronous API operation.
+    """
+
+    def __init__(
+        self,
+        endpoint: ApiEndpoint[T, R],
+        request: T,
+        api_base: str = "https://stagingapi.comfy.org",
+        auth_token: Optional[str] = None,
+        timeout: float = 30.0,
+        verify_ssl: bool = True,
+    ):
+        self.endpoint = endpoint
+        self.request = request
+        self.response = None
+        self.error = None
+        self.api_base = api_base
+        self.auth_token = auth_token
+        self.timeout = timeout
+        self.verify_ssl = verify_ssl
+
+    def execute(self, client: Optional[ApiClient] = None) -> R:
+        """Execute the API operation using the provided client or create one"""
+        try:
+            # Create client if not provided
+            if client is None:
+                if self.api_base is None:
+                    raise ValueError("Either client or api_base must be provided")
+                client = ApiClient(
+                    base_url=self.api_base,
+                    api_key=self.auth_token,
+                    timeout=self.timeout,
+                    verify_ssl=self.verify_ssl,
+                )
+
+            # Convert request model to dict
+            request_dict = self.request.model_dump(exclude_none=True)
+
+            # Debug log for request
+            logging.debug(f"[DEBUG] API Request: {self.endpoint.method.value} {self.endpoint.path}")
+            logging.debug(f"[DEBUG] Request Data: {json.dumps(request_dict, indent=2)}")
+            logging.debug(f"[DEBUG] Query Params: {self.endpoint.query_params}")
+
+            # Make the request
+            resp = client.request(
+                method=self.endpoint.method.value,
+                path=self.endpoint.path,
+                json=request_dict,
+                params=self.endpoint.query_params,
+            )
+
+            # Debug log for response
+            logging.debug(f"[DEBUG] API Response: {json.dumps(resp, indent=2)}")
+
+            # Parse and return the response
+            return self._parse_response(resp)
+
+        except Exception as e:
+            logging.debug(f"[DEBUG] API Exception: {str(e)}")
+            raise Exception(str(e))
+
+    def _parse_response(self, resp):
+        """Parse response data - can be overridden by subclasses"""
+        # The response is already the complete object, don't extract just the "data" field
+        # as that would lose the outer structure (created timestamp, etc.)
+
+        # Parse response using the provided model
+        self.response = self.endpoint.response_model.model_validate(resp)
+        logging.debug(f"[DEBUG] Parsed Response: {self.response}")
+        return self.response
+
+
+class TaskStatus(str, Enum):
+    """Enum for task status values"""
+
+    COMPLETED = "completed"
+    FAILED = "failed"
+    PENDING = "pending"
+
+
+class PollingOperation(Generic[T, R]):
+    """
+    Represents an asynchronous API operation that requires polling for completion.
+    """
+
+    def __init__(
+        self,
+        poll_endpoint: ApiEndpoint[EmptyRequest, R],
+        completed_statuses: list,
+        failed_statuses: list,
+        status_extractor: Callable[[R], str],
+        request: Optional[T] = None,
+        api_base: str = "https://stagingapi.comfy.org",
+        auth_token: Optional[str] = None,
+        poll_interval: float = 1.0,
+    ):
+        self.poll_endpoint = poll_endpoint
+        self.request = request
+        self.api_base = api_base
+        self.auth_token = auth_token
+        self.poll_interval = poll_interval
+
+        # Polling configuration
+        self.status_extractor = status_extractor or (
+            lambda x: getattr(x, "status", None)
+        )
+        self.completed_statuses = completed_statuses
+        self.failed_statuses = failed_statuses
+
+        # For storing response data
+        self.final_response = None
+        self.error = None
+
+    def execute(self, client: Optional[ApiClient] = None) -> R:
+        """Execute the polling operation using the provided client. If failed, raise an exception."""
+        try:
+            if client is None:
+                client = ApiClient(
+                    base_url=self.api_base,
+                    api_key=self.auth_token,
+                )
+            return self._poll_until_complete(client)
+        except Exception as e:
+            raise Exception(f"Error during polling: {str(e)}")
+
+    def _check_task_status(self, response: R) -> TaskStatus:
+        """Check task status using the status extractor function"""
+        try:
+            status = self.status_extractor(response)
+            if status in self.completed_statuses:
+                return TaskStatus.COMPLETED
+            elif status in self.failed_statuses:
+                return TaskStatus.FAILED
+            return TaskStatus.PENDING
+        except Exception as e:
+            logging.debug(f"Error extracting status: {e}")
+            return TaskStatus.PENDING
+
+    def _poll_until_complete(self, client: ApiClient) -> R:
+        """Poll until the task is complete"""
+        poll_count = 0
+        while True:
+            try:
+                poll_count += 1
+                logging.debug(f"[DEBUG] Polling attempt #{poll_count}")
+
+                request_dict = (
+                    self.request.model_dump(exclude_none=True)
+                    if self.request is not None
+                    else None
+                )
+
+                if poll_count == 1:
+                    logging.debug(
+                        f"[DEBUG] Poll Request: {self.poll_endpoint.method.value} {self.poll_endpoint.path}"
+                    )
+                    logging.debug(
+                      f"[DEBUG] Poll Request Data: {json.dumps(request_dict, indent=2) if request_dict else 'None'}"
+                    )
+
+                # Query task status
+                resp = client.request(
+                    method=self.poll_endpoint.method.value,
+                    path=self.poll_endpoint.path,
+                    params=self.poll_endpoint.query_params,
+                    json=request_dict,
+                )
+
+                # Parse response
+                response_obj = self.poll_endpoint.response_model.model_validate(resp)
+
+                # Check if task is complete
+                status = self._check_task_status(response_obj)
+                logging.debug(f"[DEBUG] Task Status: {status}")
+
+                if status == TaskStatus.COMPLETED:
+                    logging.debug("[DEBUG] Task completed successfully")
+                    self.final_response = response_obj
+                    return self.final_response
+                elif status == TaskStatus.FAILED:
+                    logging.debug(f"[DEBUG] Task failed: {json.dumps(resp)}")
+                    raise Exception(f"Task failed: {json.dumps(resp)}")
+                else:
+                    logging.debug("[DEBUG] Task still pending, continuing to poll...")
+
+                # Wait before polling again
+                logging.debug(f"[DEBUG] Waiting {self.poll_interval} seconds before next poll")
+                time.sleep(self.poll_interval)
+
+            except Exception as e:
+                logging.debug(f"[DEBUG] Polling error: {str(e)}")
+                raise Exception(f"Error while polling: {str(e)}")

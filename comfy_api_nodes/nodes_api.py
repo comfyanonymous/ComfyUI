@@ -1,8 +1,8 @@
-# Add API base URL at the top of the file
-API_BASE = "https://stagingapi.comfy.org"
-
 from inspect import cleandoc
 from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, IO
+from comfy_api_nodes.apis.client import ApiEndpoint, SynchronousOperation, HttpMethod, PollingOperation, EmptyRequest
+from comfy_api_nodes.apis.stubs import IdeogramGenerateRequest, IdeogramGenerateResponse, ImageRequest, MinimaxVideoGenerationRequest, MinimaxVideoGenerationResponse, MinimaxFileRetrieveResponse, MinimaxTaskResultResponse, Model
+import logging
 
 def check_auth_token(auth_token):
     """Verify that an auth token is present."""
@@ -98,45 +98,44 @@ class IdeogramTextToImage(ComfyNodeABC):
     def api_call(self, prompt, model, aspect_ratio=None, resolution=None,
                  magic_prompt_option="AUTO", seed=0, style_type="NONE",
                  negative_prompt="", num_images=1, color_palette="", auth_token=None):
-        import requests
         import torch
         from PIL import Image
         import io
         import numpy as np
+        import requests
 
-        check_auth_token(auth_token)
-
-        # Build payload with all available parameters
-        payload = {
-            "image_request": {
-                "prompt": prompt,
-                "model": model,
-                "num_images": num_images,
-                "seed": seed,
-            }
-        }
-
-        # Make API request
-        headers = {
-            "Authorization": f"Bearer {auth_token}",
-            "Content-Type": "application/json"
-        }
-
-        response = requests.post(
-            f"{API_BASE}/proxy/ideogram/generate",
-            headers=headers,
-            json=payload
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/ideogram/generate",
+                method=HttpMethod.POST,
+                request_model=IdeogramGenerateRequest,
+                response_model=IdeogramGenerateResponse
+            ),
+            request=IdeogramGenerateRequest(
+                image_request=ImageRequest(
+                  prompt=prompt,
+                  model=model,
+                  num_images=num_images,
+                  seed=seed,
+                  aspect_ratio=aspect_ratio if aspect_ratio != "ASPECT_1_1" else None,
+                  resolution=resolution if resolution != "1024x1024" else None,
+                  magic_prompt_option=magic_prompt_option if magic_prompt_option != "AUTO" else None,
+                  style_type=style_type if style_type != "NONE" else None,
+                  negative_prompt=negative_prompt if negative_prompt else None,
+                  color_palette=None
+                )
+            ),
+            auth_token=auth_token
         )
 
-        if response.status_code != 200:
-            raise Exception(f"API request failed: {response.text}")
+        response = operation.execute()
 
-        # Parse response
-        response_data = response.json()
+        if not response.data or len(response.data) == 0:
+            raise Exception("No images were generated in the response")
+        image_url = response.data[0].url
 
-        # Get the image URL from the response
-        image_url = response_data["data"][0]["url"]
-
+        if not image_url:
+            raise Exception("No image URL was generated in the response")
         img_response = requests.get(image_url)
         if img_response.status_code != 200:
             raise Exception("Failed to download the image")
@@ -165,9 +164,9 @@ class IdeogramTextToImage(ComfyNodeABC):
     #    return ""
 
 
-class RunwayVideoNode:
+class MinimaxVideoNode:
     """
-    Generates videos synchronously based on a given image, prompt, and optional parameters using Runway's API.
+    Generates videos synchronously based on a prompt, and optional parameters using Minimax's API.
     """
     def __init__(self):
         pass
@@ -176,40 +175,14 @@ class RunwayVideoNode:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "prompt_image": ("IMAGE",),  # Will need to handle image URL conversion
                 "prompt_text": ("STRING", {
                     "multiline": True,
                     "default": "",
                     "tooltip": "Text prompt to guide the video generation"
                 }),
-            },
-            "optional": {
-                "seed": ("INT", {
-                    "default": 0,
-                    "min": 0,
-                    "max": 4294967295,
-                    "step": 1,
-                    "display": "number"
-                }),
-                "model": (["gen3a_turbo"], {
-                    "default": "gen3a_turbo",
+                "model": (["T2V-01", "I2V-01-Director", "S2V-01", "I2V-01", "I2V-01-live", "T2V-01"], {
+                    "default": "T2V-01",
                     "tooltip": "Model to use for video generation"
-                }),
-                "duration": ("FLOAT", {
-                    "default": 5.0,
-                    "min": 1.0,
-                    "max": 10.0,
-                    "step": 0.1,
-                    "display": "number",
-                    "tooltip": "Duration of the generated video in seconds"
-                }),
-                "ratio": (["1280:768", "768:1280"], {
-                    "default": "1280:768",
-                    "tooltip": "Aspect ratio of the output video"
-                }),
-                "watermark": ("BOOLEAN", {
-                    "default": False,
-                    "tooltip": "Whether to include watermark in the output"
                 }),
             },
             "hidden": {
@@ -218,62 +191,83 @@ class RunwayVideoNode:
         }
 
     RETURN_TYPES = ("VIDEO",)
-    DESCRIPTION = "Generates videos from images using Runway's API"
+    DESCRIPTION = "Generates videos from prompts using Minimax's API"
     FUNCTION = "generate_video"
     CATEGORY = "video"
     API_NODE = True
+    OUTPUT_NODE = True
 
-    def generate_video(self, prompt_image, prompt_text, seed=0, model="gen3a_turbo",
-                      duration=5.0, ratio="1280:768", watermark=False, auth_token=None):
-        import requests
-        check_auth_token(auth_token)
-        # Convert torch tensor image to URL (you'll need to implement this part)
-        # This is a placeholder - you'll need to either save the image temporarily
-        # or upload it to a service that can host it
-        image_url = "http://example.com"  # Placeholder
-
-        # Build payload
-        payload = {
-            "promptImage": image_url,
-            "promptText": prompt_text,
-            "seed": seed,
-            "model": model,
-            "watermark": watermark,
-            "duration": duration,
-            "ratio": ratio
-        }
-
-        # Make API request
-        headers = {
-            "Authorization": f"Bearer {auth_token}",
-            "Content-Type": "application/json",
-        }
-
-        response = requests.post(
-            f"{API_BASE}/proxy/runway/image_to_video",
-            headers=headers,
-            json=payload
+    def generate_video(self, prompt_text, seed=0, model="T2V-01", auth_token=None):
+        video_generate_operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/minimax/video_generation",
+                method=HttpMethod.POST,
+                request_model=MinimaxVideoGenerationRequest,
+                response_model=MinimaxVideoGenerationResponse,
+            ),
+            request=MinimaxVideoGenerationRequest(
+                model=Model(model),
+                prompt=prompt_text,
+                callback_url=None,
+                first_frame_image=None,
+                subject_reference=None,
+                prompt_optimizer=None
+            ),
+            auth_token=auth_token
         )
+        response = video_generate_operation.execute()
 
-        if response.status_code != 200:
-            raise Exception(f"API request failed: {response.text}")
+        task_id = response.task_id
 
-        # Parse response
-        # response_data = response.json()
+        video_generate_operation = PollingOperation(
+            poll_endpoint=ApiEndpoint(
+                path="/proxy/minimax/query/video_generation",
+                method=HttpMethod.GET,
+                request_model=EmptyRequest,
+                response_model=MinimaxTaskResultResponse,
+                query_params={
+                    "task_id": task_id
+                }
+            ),
+            completed_statuses=["Success"],
+            failed_statuses=["Fail"],
+            status_extractor=lambda x: x.status.value,
+            auth_token=auth_token
+        )
+        task_result = video_generate_operation.execute()
 
-        # Note: You'll need to implement the actual video handling here
-        # This is a placeholder return
+        file_id = task_result.file_id
+
+        file_retrieve_operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/minimax/files/retrieve",
+                method=HttpMethod.GET,
+                request_model=EmptyRequest,
+                response_model=MinimaxFileRetrieveResponse,
+                query_params={
+                    "file_id": file_id
+                }
+            ),
+            request=EmptyRequest(),
+            auth_token=auth_token
+        )
+        file_result = file_retrieve_operation.execute()
+
+        file_url = file_result.file.download_url
+
+        logging.info(f"Generated video URL: {file_url}")
+
         return (None,)
 
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
     "IdeogramTextToImage": IdeogramTextToImage,
-    "RunwayVideoNode": RunwayVideoNode
+    "MinimaxVideoNode": MinimaxVideoNode
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     "IdeogramTextToImage": "Ideogram Text to Image",
-    "RunwayVideoNode": "Runway Video Generator"
+    "MinimaxVideoNode": "Minimax Video Generator"
 }
