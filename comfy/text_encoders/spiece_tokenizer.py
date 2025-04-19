@@ -1,4 +1,5 @@
 import torch
+import os
 
 class SPieceTokenizer:
     @staticmethod
@@ -15,6 +16,8 @@ class SPieceTokenizer:
         if isinstance(tokenizer_path, bytes):
             self.tokenizer = sentencepiece.SentencePieceProcessor(model_proto=tokenizer_path, add_bos=self.add_bos, add_eos=self.add_eos)
         else:
+            if not os.path.isfile(tokenizer_path):
+                raise ValueError("invalid tokenizer")
             self.tokenizer = sentencepiece.SentencePieceProcessor(model_file=tokenizer_path, add_bos=self.add_bos, add_eos=self.add_eos)
 
     def get_vocab(self):
