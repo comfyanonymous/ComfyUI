@@ -278,8 +278,10 @@ class OpenAIGPTImage1(ComfyNodeABC):
     Uses the proxy at /proxy/openai/images/generations. Returned URLs are short‑lived,
     so download or cache results if you need to keep them.
     """
+
     def __init__(self):
-        pass
+        self.output_dir = folder_paths.get_output_directory()
+        self.type = "output"
 
     @classmethod
     def INPUT_TYPES(cls) -> InputTypeDict:
