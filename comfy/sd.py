@@ -824,7 +824,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             elif clip_type == CLIPType.CHROMA:
                 clip_target.clip = comfy.text_encoders.chroma.chroma_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.chroma.ChromaT5Tokenizer
-              else: #CLIPType.MOCHI
+            else: #CLIPType.MOCHI
                 clip_target.clip = comfy.text_encoders.genmo.mochi_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.genmo.MochiT5Tokenizer
         elif te_model == TEModel.T5_XXL_OLD:
