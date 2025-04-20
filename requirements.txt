@@ -1,4 +1,5 @@
-comfyui-frontend-package==1.15.13
+comfyui-frontend-package==1.16.9
+comfyui-workflow-templates==0.1.3
 torch
 torchsde
 torchvision
