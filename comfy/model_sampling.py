@@ -2,24 +2,43 @@ import torch
 from comfy.ldm.modules.diffusionmodules.util import make_beta_schedule
 import math
 
-def rescale_zero_terminal_snr_sigmas(sigmas):
-    alphas_cumprod = 1 / ((sigmas * sigmas) + 1)
+def rescale_zero_terminal_snr_sigmas(sigmas: torch.Tensor) -> torch.Tensor:
+    """
+    Rescales a sigma schedule so that:
+      - the final sigma corresponds to zero SNR (i.e., alphas_bar_sqrt[-1] == 0)
+      - the first sigma recovers its original value after shifting and scaling.
+
+    Uses a cache keyed by "number of timesteps" to avoid recomputing for the same length.
+    """
+    # Key by number of timesteps (assumes identical schedules share length)
+    length = sigmas.size(0)
+    if length in _rescale_snr_cache:
+        return _rescale_snr_cache[length]
+
+    # Original computation
+    alphas_cumprod = 1.0 / (sigmas.pow(2) + 1.0)
     alphas_bar_sqrt = alphas_cumprod.sqrt()
 
-    # Store old values.
+    # Store endpoints
     alphas_bar_sqrt_0 = alphas_bar_sqrt[0].clone()
     alphas_bar_sqrt_T = alphas_bar_sqrt[-1].clone()
 
-    # Shift so the last timestep is zero.
-    alphas_bar_sqrt -= (alphas_bar_sqrt_T)
+    # Shift last to zero
+    alphas_bar_sqrt = alphas_bar_sqrt - alphas_bar_sqrt_T
 
-    # Scale so the first timestep is back to the old value.
-    alphas_bar_sqrt *= alphas_bar_sqrt_0 / (alphas_bar_sqrt_0 - alphas_bar_sqrt_T)
+    # Scale first back to original
+    scale = alphas_bar_sqrt_0 / (alphas_bar_sqrt_0 - alphas_bar_sqrt_T)
+    alphas_bar_sqrt = alphas_bar_sqrt * scale
 
-    # Convert alphas_bar_sqrt to betas
-    alphas_bar = alphas_bar_sqrt**2  # Revert sqrt
+    # Convert back to alphas_bar and betas
+    alphas_bar = alphas_bar_sqrt.pow(2)
     alphas_bar[-1] = 4.8973451890853435e-08
-    return ((1 - alphas_bar) / alphas_bar) ** 0.5
+
+    out = ((1.0 - alphas_bar) / alphas_bar).sqrt()
+
+    # Cache result
+    _rescale_snr_cache[length] = out
+    return out
 
 class EPS:
     def calculate_input(self, sigma, noise):
