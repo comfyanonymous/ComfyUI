@@ -721,13 +721,13 @@ class Decoder(nn.Module):
                     if len(self.up[i_level].attn) > 0:
                         h_new = self.up[i_level].attn[i_block](h_new, **kwargs)
                     del h
-                    torch.cuda.empty_cache()
+                    model_management.soft_empty_cache() 
                     h = h_new
 
                 if i_level != 0:
                     h_new = self.up[i_level].upsample(h)
                     del h
-                    torch.cuda.empty_cache()
+                    model_management.soft_empty_cache() 
                     h = h_new
 
         # end
