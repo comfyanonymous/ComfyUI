@@ -9,6 +9,7 @@ import logging
 
 class HiDreamTokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}):
+        # TODO: Load tokenizers dynamically only when needed, based on the active model.
         self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.clip_g = sdxl_clip.SDXLClipGTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.t5xxl = sd3_clip.T5XXLTokenizer(embedding_directory=embedding_directory, min_length=128, max_length=128, tokenizer_data=tokenizer_data)

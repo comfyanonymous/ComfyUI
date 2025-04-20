@@ -793,6 +793,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=True, t5=False)
                 clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
             elif clip_type == CLIPType.HIDREAM:
+                tokenizer_data['clip_g_max_length'] = 77
                 clip_target.clip = comfy.text_encoders.hidream.hidream_clip(clip_l=False, clip_g=True, t5=False, llama=False, dtype_t5=None, dtype_llama=None, t5xxl_scaled_fp8=None, llama_scaled_fp8=None)
                 clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
             else:
@@ -816,6 +817,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.tokenizer = comfy.text_encoders.wan.WanT5Tokenizer
                 tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
             elif clip_type == CLIPType.HIDREAM:
+                tokenizer_data['t5xxl_max_length'] = 128
                 clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**t5xxl_detect(clip_data),
                                                                         clip_l=False, clip_g=False, t5=True, llama=False, dtype_llama=None, llama_scaled_fp8=None)
                 clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
@@ -836,6 +838,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.tokenizer = comfy.text_encoders.lumina2.LuminaTokenizer
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
         elif te_model == TEModel.LLAMA3_8:
+            tokenizer_data['llama_max_length'] = 4096
             clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**llama_detect(clip_data),
                                                                         clip_l=False, clip_g=False, t5=False, llama=True, dtype_t5=None, t5xxl_scaled_fp8=None)
             clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
@@ -845,6 +848,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=True, clip_g=False, t5=False)
                 clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
             elif clip_type == CLIPType.HIDREAM:
+                tokenizer_data['clip_l_max_length'] = 77
                 clip_target.clip = comfy.text_encoders.hidream.hidream_clip(clip_l=True, clip_g=False, t5=False, llama=False, dtype_t5=None, dtype_llama=None, t5xxl_scaled_fp8=None, llama_scaled_fp8=None)
                 clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
             else:
@@ -880,6 +884,18 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             t5_kwargs = t5xxl_detect(clip_data) if t5 else {}
             llama_kwargs = llama_detect(clip_data) if llama else {}
 
+            # Unlock max_length
+            tokenizer_updates = {
+                'clip_l': ('clip_l_max_length', 77),
+                'clip_g': ('clip_g_max_length', 77),
+                't5': ('t5xxl_max_length', 128),
+                'llama': ('llama_max_length', 4096),
+            }
+
+            for model_type, (key, max_length) in tokenizer_updates.items():
+                if locals().get(model_type):  # Checks if the variable exists and is truthy
+                    tokenizer_data[key] = max_length
+
             clip_target.clip = comfy.text_encoders.hidream.hidream_clip(clip_l=clip_l, clip_g=clip_g, t5=t5, llama=llama, **t5_kwargs, **llama_kwargs)
             clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
         else:
@@ -889,6 +905,12 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(**t5xxl_detect(clip_data))
         clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
     elif len(clip_data) == 4:
+        tokenizer_data.update({
+            'clip_l_max_length': 77,
+            'clip_g_max_length': 77,
+            't5xxl_max_length': 128,
+            'llama_max_length': 4096,
+        })
         clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**t5xxl_detect(clip_data), **llama_detect(clip_data))
         clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
 
