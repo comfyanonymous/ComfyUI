@@ -111,7 +111,7 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
     missing_keys = {}
     for x in inputs:
         input_data = inputs[x]
-        input_type, input_category, input_info = get_input_info(class_def, x, valid_inputs)
+        _, input_category, input_info = get_input_info(class_def, x, valid_inputs)
         def mark_missing():
             missing_keys[x] = True
             input_data_all[x] = (None,)
@@ -574,7 +574,7 @@ def validate_inputs(prompt, item, validated):
     received_types = {}
 
     for x in valid_inputs:
-        type_input, input_category, extra_info = get_input_info(obj_class, x, class_inputs)
+        input_type, input_category, extra_info = get_input_info(obj_class, x, class_inputs)
         assert extra_info is not None
         if x not in inputs:
             if input_category == "required":
@@ -590,7 +590,7 @@ def validate_inputs(prompt, item, validated):
             continue
 
         val = inputs[x]
-        info = (type_input, extra_info)
+        info = (input_type, extra_info)
         if isinstance(val, list):
             if len(val) != 2:
                 error = {
@@ -611,8 +611,8 @@ def validate_inputs(prompt, item, validated):
             r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
             received_type = r[val[1]]
             received_types[x] = received_type
-            if 'input_types' not in validate_function_inputs and not validate_node_input(received_type, type_input):
-                details = f"{x}, received_type({received_type}) mismatch input_type({type_input})"
+            if 'input_types' not in validate_function_inputs and not validate_node_input(received_type, input_type):
+                details = f"{x}, received_type({received_type}) mismatch input_type({input_type})"
                 error = {
                     "type": "return_type_mismatch",
                     "message": "Return type mismatch between linked nodes",
@@ -660,22 +660,22 @@ def validate_inputs(prompt, item, validated):
                     val = val["__value__"]
                     inputs[x] = val
 
-                if type_input == "INT":
+                if input_type == "INT":
                     val = int(val)
                     inputs[x] = val
-                if type_input == "FLOAT":
+                if input_type == "FLOAT":
                     val = float(val)
                     inputs[x] = val
-                if type_input == "STRING":
+                if input_type == "STRING":
                     val = str(val)
                     inputs[x] = val
-                if type_input == "BOOLEAN":
+                if input_type == "BOOLEAN":
                     val = bool(val)
                     inputs[x] = val
             except Exception as ex:
                 error = {
                     "type": "invalid_input_type",
-                    "message": f"Failed to convert an input value to a {type_input} value",
+                    "message": f"Failed to convert an input value to a {input_type} value",
                     "details": f"{x}, {val}, {ex}",
                     "extra_info": {
                         "input_name": x,
@@ -715,18 +715,19 @@ def validate_inputs(prompt, item, validated):
                     errors.append(error)
                     continue
 
-                if isinstance(type_input, list):
-                    if val not in type_input:
+                if isinstance(input_type, list):
+                    combo_options = input_type
+                    if val not in combo_options:
                         input_config = info
                         list_info = ""
 
                         # Don't send back gigantic lists like if they're lots of
                         # scanned model filepaths
-                        if len(type_input) > 20:
-                            list_info = f"(list of length {len(type_input)})"
+                        if len(combo_options) > 20:
+                            list_info = f"(list of length {len(combo_options)})"
                             input_config = None
                         else:
-                            list_info = str(type_input)
+                            list_info = str(combo_options)
 
                         error = {
                             "type": "value_not_in_list",

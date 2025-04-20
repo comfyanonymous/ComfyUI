@@ -83,7 +83,7 @@ class WanSelfAttention(nn.Module):
 
 class WanT2VCrossAttention(WanSelfAttention):
 
-    def forward(self, x, context):
+    def forward(self, x, context, **kwargs):
         r"""
         Args:
             x(Tensor): Shape [B, L1, C]
@@ -116,14 +116,14 @@ class WanI2VCrossAttention(WanSelfAttention):
         # self.alpha = nn.Parameter(torch.zeros((1, )))
         self.norm_k_img = RMSNorm(dim, eps=eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")) if qk_norm else nn.Identity()
 
-    def forward(self, x, context):
+    def forward(self, x, context, context_img_len):
         r"""
         Args:
             x(Tensor): Shape [B, L1, C]
             context(Tensor): Shape [B, L2, C]
         """
-        context_img = context[:, :257]
-        context = context[:, 257:]
+        context_img = context[:, :context_img_len]
+        context = context[:, context_img_len:]
 
         # compute query, key, value
         q = self.norm_q(self.q(x))
@@ -193,6 +193,7 @@ class WanAttentionBlock(nn.Module):
         e,
         freqs,
         context,
+        context_img_len=257,
     ):
         r"""
         Args:
@@ -213,7 +214,7 @@ class WanAttentionBlock(nn.Module):
         x = x + y * e[2]
 
         # cross-attention & ffn
-        x = x + self.cross_attn(self.norm3(x), context)
+        x = x + self.cross_attn(self.norm3(x), context, context_img_len=context_img_len)
         y = self.ffn(self.norm2(x) * (1 + e[4]) + e[3])
         x = x + y * e[5]
         return x
@@ -250,7 +251,7 @@ class Head(nn.Module):
 
 class MLPProj(torch.nn.Module):
 
-    def __init__(self, in_dim, out_dim, operation_settings={}):
+    def __init__(self, in_dim, out_dim, flf_pos_embed_token_number=None, operation_settings={}):
         super().__init__()
 
         self.proj = torch.nn.Sequential(
@@ -258,7 +259,15 @@ class MLPProj(torch.nn.Module):
             torch.nn.GELU(), operation_settings.get("operations").Linear(in_dim, out_dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")),
             operation_settings.get("operations").LayerNorm(out_dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")))
 
+        if flf_pos_embed_token_number is not None:
+            self.emb_pos = nn.Parameter(torch.empty((1, flf_pos_embed_token_number, in_dim), device=operation_settings.get("device"), dtype=operation_settings.get("dtype")))
+        else:
+            self.emb_pos = None
+
     def forward(self, image_embeds):
+        if self.emb_pos is not None:
+            image_embeds = image_embeds[:, :self.emb_pos.shape[1]] + comfy.model_management.cast_to(self.emb_pos[:, :image_embeds.shape[1]], dtype=image_embeds.dtype, device=image_embeds.device)
+
         clip_extra_context_tokens = self.proj(image_embeds)
         return clip_extra_context_tokens
 
@@ -284,6 +293,7 @@ class WanModel(torch.nn.Module):
                  qk_norm=True,
                  cross_attn_norm=True,
                  eps=1e-6,
+                 flf_pos_embed_token_number=None,
                  image_model=None,
                  device=None,
                  dtype=None,
@@ -373,7 +383,7 @@ class WanModel(torch.nn.Module):
         self.rope_embedder = EmbedND(dim=d, theta=10000.0, axes_dim=[d - 4 * (d // 6), 2 * (d // 6), 2 * (d // 6)])
 
         if model_type == 'i2v':
-            self.img_emb = MLPProj(1280, dim, operation_settings=operation_settings)
+            self.img_emb = MLPProj(1280, dim, flf_pos_embed_token_number=flf_pos_embed_token_number, operation_settings=operation_settings)
         else:
             self.img_emb = None
 
@@ -420,9 +430,12 @@ class WanModel(torch.nn.Module):
         # context
         context = self.text_embedding(context)
 
-        if clip_fea is not None and self.img_emb is not None:
-            context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
-            context = torch.concat([context_clip, context], dim=1)
+        context_img_len = None
+        if clip_fea is not None:
+            if self.img_emb is not None:
+                context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
+                context = torch.concat([context_clip, context], dim=1)
+            context_img_len = clip_fea.shape[-2]
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
@@ -430,12 +443,12 @@ class WanModel(torch.nn.Module):
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["img"] = block(args["img"], context=args["txt"], e=args["vec"], freqs=args["pe"])
+                    out["img"] = block(args["img"], context=args["txt"], e=args["vec"], freqs=args["pe"], context_img_len=context_img_len)
                     return out
                 out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": e0, "pe": freqs}, {"original_block": block_wrap})
                 x = out["img"]
             else:
-                x = block(x, e=e0, freqs=freqs, context=context)
+                x = block(x, e=e0, freqs=freqs, context=context, context_img_len=context_img_len)
 
         # head
         x = self.head(x, e)
