@@ -736,11 +736,12 @@ def load_controlnet_state_dict(state_dict, model=None, model_options={}):
     return control
 
 def load_controlnet(ckpt_path, model=None, model_options={}):
-    if "global_average_pooling" not in model_options:
-        filename = os.path.splitext(ckpt_path)[0]
-        if filename.endswith("_shuffle") or filename.endswith("_shuffle_fp16"): #TODO: smarter way of enabling global_average_pooling
-            model_options["global_average_pooling"] = True
 
+    filename = os.path.splitext(ckpt_path)[0]
+    if filename.endswith("_shuffle") or filename.endswith("_shuffle_fp16"): #TODO: smarter way of enabling global_average_pooling
+        model_options["global_average_pooling"] = True
+    else:
+        model_options["global_average_pooling"] = False
     cnet = load_controlnet_state_dict(comfy.utils.load_torch_file(ckpt_path, safe_load=True), model=model, model_options=model_options)
     if cnet is None:
         logging.error("error checkpoint does not contain controlnet or t2i adapter data {}".format(ckpt_path))
