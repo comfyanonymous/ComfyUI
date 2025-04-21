@@ -582,6 +582,7 @@ class VaceWanModel(WanModel):
         t,
         context,
         vace_context,
+        vace_strength=1.0,
         clip_fea=None,
         freqs=None,
         transformer_options={},
@@ -629,7 +630,7 @@ class VaceWanModel(WanModel):
             ii = self.vace_layers_mapping.get(i, None)
             if ii is not None:
                 c_skip, c = self.vace_blocks[ii](c, x=x_orig, e=e0, freqs=freqs, context=context, context_img_len=context_img_len)
-            x += c_skip
+            x += c_skip * vace_strength
         # head
         x = self.head(x, e)
 
