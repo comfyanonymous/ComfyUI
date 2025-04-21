@@ -994,7 +994,6 @@ class WAN21_Vace(WAN21_T2V):
     }
 
     def get_model(self, state_dict, prefix="", device=None):
-        print(self.unet_config)
         out = model_base.WAN21_Vace(self, image_to_video=False, device=device)
         return out
 
