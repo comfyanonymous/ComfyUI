@@ -115,6 +115,11 @@ class InputTypeOptions(TypedDict):
     """When a link exists, rather than receiving the evaluated value, you will receive the link (i.e. `["nodeId", <outputIndex>]`). Designed for node expansion."""
     tooltip: NotRequired[str]
     """Tooltip for the input (or widget), shown on pointer hover"""
+    socketless: NotRequired[bool]
+    """All inputs (including widgets) have an input socket to connect links. When ``true``, if there is a widget for this input, no socket will be created.
+    Available from frontend v1.17.5
+    Ref: https://github.com/Comfy-Org/ComfyUI_frontend/pull/3548
+    """
     # class InputTypeNumber(InputTypeOptions):
     # default: float | int
     min: NotRequired[float]
