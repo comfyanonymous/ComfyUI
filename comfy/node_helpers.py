@@ -102,6 +102,7 @@ def string_to_torch_dtype(string):
 
 
 def image_alpha_fix(destination, source):
+    import torch
     if destination.shape[-1] < source.shape[-1]:
         source = source[..., :destination.shape[-1]]
     elif destination.shape[-1] > source.shape[-1]:

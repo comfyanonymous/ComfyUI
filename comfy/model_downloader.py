@@ -36,6 +36,10 @@ _session = Session()
 _hf_fs = HfFileSystem()
 
 
+def get_filename_list(folder_name: str) -> list[str]:
+    return get_filename_list_with_downloadable(folder_name)
+
+
 def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> List[str]:
     if known_files is None:
         known_files = _get_known_models_for_folder_name(folder_name)
@@ -43,6 +47,13 @@ def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[
     existing = frozenset(folder_paths.get_filename_list(folder_name))
     downloadable = frozenset() if args.disable_known_models else frozenset(str(f) for f in known_files)
     return list(map(canonicalize_path, sorted(list(existing | downloadable))))
+
+
+def get_full_path_or_raise(folder_name: str, filename: str) -> str:
+    res = get_or_download(folder_name, filename)
+    if res is None:
+        raise FileNotFoundError(f"{folder_name} does not contain {filename}")
+    return res
 
 
 def get_or_download(folder_name: str, filename: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> Optional[str]:

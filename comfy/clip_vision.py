@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Optional
 
 import torch
 
@@ -116,7 +117,8 @@ def convert_to_transformers(sd, prefix):
     return sd
 
 
-def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
+def load_clipvision_from_sd(sd, prefix="", convert_keys=False) -> Optional[ClipVisionModel]:
+    json_config: dict = {}
     if convert_keys:
         sd = convert_to_transformers(sd, prefix)
     if "vision_model.encoder.layers.47.layer_norm1.weight" in sd:

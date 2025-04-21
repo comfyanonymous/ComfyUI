@@ -21,6 +21,7 @@ class HyditBertModel(sd1_clip.SDClipModel):
 class HyditBertTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, **kwargs):
         tokenizer_path = get_package_as_path(f"{__package__}.hydit_clip_tokenizer")
+        tokenizer_data = kwargs.pop("tokenizer_data", {})
         super().__init__(tokenizer_path, pad_with_end=False, embedding_size=1024, embedding_key='chinese_roberta', tokenizer_class=BertTokenizer, pad_to_max_length=False, max_length=512, min_length=77, tokenizer_data=tokenizer_data)
 
 

@@ -20,8 +20,14 @@ from ..cmd.folder_paths import add_model_folder_path  # pylint: disable=import-e
 
 REQUEST_TIMEOUT = 10  # seconds
 
+
 def check_frontend_version():
     return None
+
+
+def frontend_install_warning_message() -> str:
+    return ""
+
 
 class Asset(TypedDict):
     url: str
@@ -140,8 +146,6 @@ class FrontendManager:
 ********** ERROR ***********
 
 comfyui-workflow-templates is not installed.
-
-{frontend_install_warning_message()}
 
 ********** ERROR ***********
 """.strip()

@@ -1714,8 +1714,9 @@ class LoadImage:
                     mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
                     mask = 1. - torch.from_numpy(mask)
                 elif i.mode == 'P' and 'transparency' in i.info:
-                mask = np.array(i.convert('RGBA').getchannel('A')).astype(np.float32) / 255.0
-                mask = 1. - torch.from_numpy(mask)else:
+                    mask = np.array(i.convert('RGBA').getchannel('A')).astype(np.float32) / 255.0
+                    mask = 1. - torch.from_numpy(mask)
+                else:
                     mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
                 output_images.append(image)
                 output_masks.append(mask.unsqueeze(0))

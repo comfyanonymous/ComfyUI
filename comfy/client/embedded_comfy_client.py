@@ -71,7 +71,8 @@ async def __execute_prompt(
             args.update(configuration)
 
         with tracer.start_as_current_span("Initialize Prompt Executor", context=span_context):
-            prompt_executor = PromptExecutor(progress_handler, lru_size=configuration.cache_lru if configuration is not None else 0)
+            # todo: deal with new caching features
+            prompt_executor = PromptExecutor(progress_handler)
             prompt_executor.raise_exceptions = True
             _prompt_executor.executor = prompt_executor
 

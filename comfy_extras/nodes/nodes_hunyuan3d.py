@@ -447,6 +447,8 @@ class VoxelToMesh:
             mesh_function = voxel_to_mesh
         elif algorithm == "surface net":
             mesh_function = voxel_to_mesh_surfnet
+        else:
+            mesh_function = None
 
         for x in voxel.data:
             v, f = mesh_function(x, threshold=threshold, device=None)

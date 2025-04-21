@@ -745,7 +745,7 @@ def validate_inputs(prompt, item, validated: typing.Dict[str, ValidateInputsTupl
             r = get_nodes().NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
             received_type = r[val[1]]
             received_types[x] = received_type
-            any_enum = received_type == [] and (isinstance(type_input, list) or isinstance(type_input, tuple))
+            any_enum = received_type == [] and (isinstance(input_type, list) or isinstance(input_type, tuple))
 
             if 'input_types' not in validate_function_inputs and not validate_node_input(received_type, input_type) and not any_enum:
                 details = f"{x}, {received_type} != {input_type}"
@@ -857,8 +857,8 @@ def validate_inputs(prompt, item, validated: typing.Dict[str, ValidateInputsTupl
                     if "\\" in val:
                         # try to normalize paths for comparison purposes
                         val = canonicalize_path(val)
-                    if all(isinstance(item, (str, PathLike)) for item in type_input):
-                        type_input = [canonicalize_path(item) for item in type_input]
+                    if all(isinstance(item, (str, PathLike)) for item in combo_options):
+                        combo_options = [canonicalize_path(item) for item in combo_options]
                     if val not in combo_options:
                         input_config = info
                         list_info = ""
