@@ -1,4 +1,5 @@
 comfyui-frontend-package
+comfyui-workflow-templates
 torch
 torchvision
 torchdiffeq>=0.2.3

@@ -28,9 +28,15 @@ logger = logging.getLogger(__name__)
 
 
 def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
-    from ..cmd.execution import PromptExecutor
+    from ..cmd.execution import PromptExecutor, CacheType
+    cache_type = CacheType.CLASSIC
+    if args.cache_lru > 0:
+        cache_type = CacheType.LRU
+    elif args.cache_none:
+        cache_type = CacheType.DEPENDENCY_AWARE
 
-    e = PromptExecutor(_server)
+
+    e = PromptExecutor(_server, cache_type=cache_type, cache_size=args.cache_lru)
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0

@@ -423,7 +423,7 @@ def invalidate_cache(folder_name):
     pass
 
 
-def filter_files_content_types(files: list[str], content_types: list[Literal["image", "video", "audio"]]) -> list[str]:
+def filter_files_content_types(files: list[str], content_types: list[Literal["image", "video", "audio", "model"]]) -> list[str]:
     """
     Example:
         files = os.listdir(folder_paths.get_input_directory())

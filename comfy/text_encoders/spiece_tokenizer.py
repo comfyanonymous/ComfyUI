@@ -24,7 +24,10 @@ class SPieceTokenizer:
         if isinstance(tokenizer_path, bytes):
             construction_args["model_proto"] = tokenizer_path
         else:
+            if not Path(tokenizer_path).is_file():
+                raise ValueError(f"invalid tokenizer {tokenizer_path}")
             construction_args["model_file"] = tokenizer_path
+
         self.tokenizer = sentencepiece.SentencePieceProcessor(**construction_args)  # pylint: disable=unexpected-keyword-arg
 
         self.end = self.tokenizer.eos_id()

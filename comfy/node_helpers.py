@@ -76,7 +76,8 @@ def export_custom_nodes():
 
     return custom_nodes
 
-def export_package_as_web_directory(package:str):
+
+def export_package_as_web_directory(package: str):
     import inspect
 
     # Get the calling module
@@ -89,6 +90,7 @@ def export_package_as_web_directory(package:str):
         # Clean up circular reference
         del frame
 
+
 def string_to_torch_dtype(string):
     import torch
     if string == "fp32":
@@ -97,3 +99,12 @@ def string_to_torch_dtype(string):
         return torch.float16
     if string == "bf16":
         return torch.bfloat16
+
+
+def image_alpha_fix(destination, source):
+    if destination.shape[-1] < source.shape[-1]:
+        source = source[..., :destination.shape[-1]]
+    elif destination.shape[-1] > source.shape[-1]:
+        destination = torch.nn.functional.pad(destination, (0, 1))
+        destination[..., -1] = 1.0
+    return destination, source

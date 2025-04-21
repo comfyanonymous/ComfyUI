@@ -790,6 +790,8 @@ class ControlNetLoader:
     def load_controlnet(self, control_net_name):
         controlnet_path = get_or_download("controlnet", control_net_name, KNOWN_CONTROLNETS)
         controlnet_ = controlnet.load_controlnet(controlnet_path)
+        if controlnet is None:
+            raise RuntimeError("ERROR: controlnet file is invalid and does not contain a valid controlnet model.")
         return (controlnet_,)
 
 
@@ -947,7 +949,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (get_filename_list_with_downloadable("text_encoders", KNOWN_CLIP_MODELS),),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -957,30 +959,10 @@ class CLIPLoader:
 
     CATEGORY = "advanced/loaders"
 
-    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 xxl/ clip-g / clip-l\nstable_audio: t5 base\nmochi: t5 xxl\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl"
+    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 xxl/ clip-g / clip-l\nstable_audio: t5 base\nmochi: t5 xxl\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\n hidream: llama-3.1 (Recommend) or t5"
 
     def load_clip(self, clip_name, type="stable_diffusion", device="default"):
-        clip_type = sd.CLIPType.STABLE_DIFFUSION
-        if type == "stable_cascade":
-            clip_type = sd.CLIPType.STABLE_CASCADE
-        elif type == "sd3":
-            clip_type = sd.CLIPType.SD3
-        elif type == "stable_audio":
-            clip_type = sd.CLIPType.STABLE_AUDIO
-        elif type == "mochi":
-            clip_type = sd.CLIPType.MOCHI
-        elif type == "ltxv":
-            clip_type = sd.CLIPType.LTXV
-        elif type == "pixart":
-            clip_type = sd.CLIPType.PIXART
-        elif type == "cosmos":
-            clip_type = sd.CLIPType.COSMOS
-        elif type == "lumina2":
-            clip_type = sd.CLIPType.LUMINA2
-        elif type == "wan":
-            clip_type = sd.CLIPType.WAN
-        else:
-            logging.warning(f"Unknown clip type argument passed: {type} for model {clip_name}")
+        clip_type = getattr(sd.CLIPType, type.upper(), sd.CLIPType.STABLE_DIFFUSION)
 
         model_options = {}
         if device == "cpu":
@@ -995,7 +977,7 @@ class DualCLIPLoader:
     def INPUT_TYPES(s):
         return {"required": { "clip_name1": (get_filename_list_with_downloadable("text_encoders"),), "clip_name2": (
             get_filename_list_with_downloadable("text_encoders"),),
-                              "type": (["sdxl", "sd3", "flux", "hunyuan_video"], ),
+                              "type": (["sdxl", "sd3", "flux", "hunyuan_video", "hidream"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -1005,21 +987,12 @@ class DualCLIPLoader:
 
     CATEGORY = "advanced/loaders"
 
-    DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5"
+    DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5\nhidream: at least one of t5 or llama, recommended t5 and llama"
 
     def load_clip(self, clip_name1, clip_name2, type, device="default"):
+        clip_type = getattr(sd.CLIPType, type.upper(), sd.CLIPType.STABLE_DIFFUSION)
         clip_path1 = get_or_download("text_encoders", clip_name1)
         clip_path2 = get_or_download("text_encoders", clip_name2)
-        if type == "sdxl":
-            clip_type = sd.CLIPType.STABLE_DIFFUSION
-        elif type == "sd3":
-            clip_type = sd.CLIPType.SD3
-        elif type == "flux":
-            clip_type = sd.CLIPType.FLUX
-        elif type == "hunyuan_video":
-            clip_type = sd.CLIPType.HUNYUAN_VIDEO
-        else:
-            raise ValueError(f"Unknown clip type argument passed: {type} for model {clip_name1} and {clip_name2}")
 
         model_options = {}
         if device == "cpu":
@@ -1041,6 +1014,8 @@ class CLIPVisionLoader:
     def load_clip(self, clip_name):
         clip_path = get_or_download("clip_vision", clip_name, KNOWN_CLIP_VISION_MODELS)
         clip_vision = clip_vision_module.load(clip_path)
+        if clip_vision is None:
+            raise RuntimeError("ERROR: clip vision file is invalid and does not contain a valid vision model.")
         return (clip_vision,)
 
 class CLIPVisionEncode:
@@ -1692,6 +1667,7 @@ class LoadImage:
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        files = folder_paths.filter_files_content_types(files, ["image"])
         return {
             "required": {
                 "image": (natsorted(files), {"image_upload": True}),
@@ -1737,7 +1713,9 @@ class LoadImage:
                 if 'A' in i.getbands():
                     mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
                     mask = 1. - torch.from_numpy(mask)
-                else:
+                elif i.mode == 'P' and 'transparency' in i.info:
+                mask = np.array(i.convert('RGBA').getchannel('A')).astype(np.float32) / 255.0
+                mask = 1. - torch.from_numpy(mask)else:
                     mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
                 output_images.append(image)
                 output_masks.append(mask.unsqueeze(0))

@@ -45,6 +45,7 @@ def is_valid_directory(path: str) -> str:
 class PerformanceFeature(enum.Enum):
     Fp16Accumulation = "fp16_accumulation"
     Fp8MatrixMultiplication = "fp8_matrix_mult"
+    CublasOps = "cublas_ops"
 
 
 class Configuration(dict):
@@ -105,7 +106,7 @@ class Configuration(dict):
         lowvram (bool): Reduce UNet's VRAM usage.
         novram (bool): Minimize VRAM usage.
         cpu (bool): Use CPU for processing.
-        fast (set[PerformanceFeature]): Enable some untested and potentially quality deteriorating optimizations. Pass a list specific optimizations if you only want to enable specific ones. Current valid optimizations: fp16_accumulation fp8_matrix_mult
+        fast (set[PerformanceFeature]): Enable some untested and potentially quality deteriorating optimizations. Pass a list specific optimizations if you only want to enable specific ones. Current valid optimizations: fp16_accumulation fp8_matrix_mult cublas_ops
         reserve_vram (Optional[float]): Set the amount of vram in GB you want to reserve for use by your OS/other software. By default some amount is reserved depending on your OS
         disable_smart_memory (bool): Disable smart memory management.
         deterministic (bool): Use deterministic algorithms where possible.

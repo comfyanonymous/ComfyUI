@@ -817,6 +817,8 @@ def load_controlnet_state_dict(state_dict, model=None, model_options=None, ckpt_
 def load_controlnet(ckpt_path, model=None, model_options=None):
     if model_options is None:
         model_options = {}
+    model_options = model_options.copy()
+
     if "global_average_pooling" not in model_options:
         filename = os.path.splitext(ckpt_path)[0]
         if filename.endswith("_shuffle") or filename.endswith("_shuffle_fp16"):  # TODO: smarter way of enabling global_average_pooling

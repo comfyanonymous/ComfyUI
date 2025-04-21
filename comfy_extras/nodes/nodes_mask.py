@@ -1,13 +1,14 @@
 import numpy as np
 import scipy.ndimage
 import torch
+
+from comfy import node_helpers
 from comfy import utils
 from comfy.component_model.tensor_types import MaskBatch, RGBImageBatch
-
 from comfy.nodes.common import MAX_RESOLUTION
 
 
-def composite(destination, source, x, y, mask = None, multiplier = 8, resize_source = False):
+def composite(destination, source, x, y, mask=None, multiplier=8, resize_source=False):
     source = source.to(destination.device)
     if resize_source:
         source = torch.nn.functional.interpolate(source, size=(destination.shape[2], destination.shape[3]), mode="bilinear")
@@ -36,10 +37,11 @@ def composite(destination, source, x, y, mask = None, multiplier = 8, resize_sou
     inverse_mask = torch.ones_like(mask) - mask
 
     source_portion = mask * source[:, :, :visible_height, :visible_width]
-    destination_portion = inverse_mask  * destination[:, :, top:bottom, left:right]
+    destination_portion = inverse_mask * destination[:, :, top:bottom, left:right]
 
     destination[:, :, top:bottom, left:right] = source_portion + destination_portion
     return destination
+
 
 class LatentCompositeMasked:
     @classmethod
@@ -56,17 +58,19 @@ class LatentCompositeMasked:
                 "mask": ("MASK",),
             }
         }
+
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "composite"
 
     CATEGORY = "latent"
 
-    def composite(self, destination, source, x, y, resize_source, mask = None):
+    def composite(self, destination, source, x, y, resize_source, mask=None):
         output = destination.copy()
         destination = destination["samples"].clone()
         source = source["samples"]
         output["samples"] = composite(destination, source, x, y, mask, 8, resize_source)
         return (output,)
+
 
 class ImageCompositeMasked:
     @classmethod
@@ -83,23 +87,26 @@ class ImageCompositeMasked:
                 "mask": ("MASK",),
             }
         }
+
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "composite"
 
     CATEGORY = "image"
 
-    def composite(self, destination, source, x, y, resize_source, mask = None):
+    def composite(self, destination, source, x, y, resize_source, mask=None):
+        destination, source = node_helpers.image_alpha_fix(destination, source)
         destination = destination.clone().movedim(-1, 1)
         output = composite(destination, source.movedim(-1, 1), x, y, mask, 1, resize_source).movedim(1, -1)
         return (output,)
+
 
 class MaskToImage:
     @classmethod
     def INPUT_TYPES(s):
         return {
-                "required": {
-                    "mask": ("MASK",),
-                }
+            "required": {
+                "mask": ("MASK",),
+            }
         }
 
     CATEGORY = "mask"
@@ -111,14 +118,15 @@ class MaskToImage:
         result = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])).movedim(1, -1).expand(-1, -1, -1, 3)
         return (result,)
 
+
 class ImageToMask:
     @classmethod
     def INPUT_TYPES(s):
         return {
-                "required": {
-                    "image": ("IMAGE",),
-                    "channel": (["red", "green", "blue", "alpha"],),
-                }
+            "required": {
+                "image": ("IMAGE",),
+                "channel": (["red", "green", "blue", "alpha"],),
+            }
         }
 
     CATEGORY = "mask"
@@ -131,14 +139,15 @@ class ImageToMask:
         mask = image[:, :, :, channels.index(channel)]
         return (mask,)
 
+
 class ImageColorToMask:
     @classmethod
     def INPUT_TYPES(s):
         return {
-                "required": {
-                    "image": ("IMAGE",),
-                    "color": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFF, "step": 1, "display": "color"}),
-                }
+            "required": {
+                "image": ("IMAGE",),
+                "color": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFF, "step": 1, "display": "color"}),
+            }
         }
 
     CATEGORY = "mask"
@@ -148,9 +157,10 @@ class ImageColorToMask:
 
     def image_to_mask(self, image, color):
         temp = (torch.clamp(image, 0, 1.0) * 255.0).round().to(torch.int)
-        temp = torch.bitwise_left_shift(temp[:,:,:,0], 16) + torch.bitwise_left_shift(temp[:,:,:,1], 8) + temp[:,:,:,2]
+        temp = torch.bitwise_left_shift(temp[:, :, :, 0], 16) + torch.bitwise_left_shift(temp[:, :, :, 1], 8) + temp[:, :, :, 2]
         mask = torch.where(temp == color, 255, 0).float()
         return (mask,)
+
 
 class SolidMask:
     @classmethod
@@ -173,6 +183,7 @@ class SolidMask:
         out = torch.full((1, height, width), value, dtype=torch.float32, device="cpu")
         return (out,)
 
+
 class InvertMask:
     @classmethod
     def INPUT_TYPES(cls):
@@ -191,6 +202,7 @@ class InvertMask:
     def invert(self, mask):
         out = 1.0 - mask
         return (out,)
+
 
 class CropMask:
     @classmethod
@@ -215,6 +227,7 @@ class CropMask:
         mask = mask.reshape((-1, mask.shape[-2], mask.shape[-1]))
         out = mask[:, y:y + height, x:x + width]
         return (out,)
+
 
 class MaskComposite:
     @classmethod
@@ -263,6 +276,7 @@ class MaskComposite:
 
         return (output,)
 
+
 class FeatherMask:
     @classmethod
     def INPUT_TYPES(cls):
@@ -308,6 +322,7 @@ class FeatherMask:
 
         return (output,)
 
+
 class GrowMask:
     @classmethod
     def INPUT_TYPES(cls):
@@ -343,14 +358,15 @@ class GrowMask:
             out.append(output)
         return (torch.stack(out, dim=0),)
 
+
 class ThresholdMask:
     @classmethod
     def INPUT_TYPES(s):
         return {
-                "required": {
-                    "mask": ("MASK",),
-                    "value": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
-                }
+            "required": {
+                "mask": ("MASK",),
+                "value": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
+            }
         }
 
     CATEGORY = "mask"

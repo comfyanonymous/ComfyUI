@@ -38,6 +38,7 @@ from .model_management import load_models_gpu
 from .t2i_adapter import adapter
 from .taesd import taesd
 from .text_encoders import aura_t5
+from .text_encoders import hidream
 from .text_encoders import cosmos
 from .text_encoders import flux
 from .text_encoders import genmo
@@ -277,6 +278,7 @@ class VAE:
         self.process_input = lambda image: image * 2.0 - 1.0
         self.process_output = lambda image: torch.clamp((image + 1.0) / 2.0, min=0.0, max=1.0)
         self.working_dtypes = [torch.bfloat16, torch.float32]
+        self.disable_offload = False
 
         self.downscale_index_formula = None
         self.upscale_index_formula = None
@@ -349,6 +351,7 @@ class VAE:
                 self.process_output = lambda audio: audio
                 self.process_input = lambda audio: audio
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+                self.disable_offload = True
             elif "blocks.2.blocks.3.stack.5.weight" in sd or "decoder.blocks.2.blocks.3.stack.5.weight" in sd or "layers.4.layers.1.attn_block.attn.qkv.weight" in sd or "encoder.layers.4.layers.1.attn_block.attn.qkv.weight" in sd:  # genmo mochi vae
                 if "blocks.2.blocks.3.stack.5.weight" in sd:
                     sd = utils.state_dict_prefix_replace(sd, {"": "decoder."})
@@ -527,7 +530,7 @@ class VAE:
         pixel_samples = None
         try:
             memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
-            model_management.load_models_gpu([self.patcher], memory_required=memory_used)
+            model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
             free_memory = model_management.get_free_memory(self.device)
             batch_number = int(free_memory / memory_used)
             batch_number = max(1, batch_number)
@@ -556,7 +559,7 @@ class VAE:
     def decode_tiled(self, samples, tile_x=None, tile_y=None, overlap=None, tile_t=None, overlap_t=None):
         self.throw_exception_if_invalid()
         memory_used = self.memory_used_decode(samples.shape, self.vae_dtype)  # TODO: calculate mem required for tile
-        load_models_gpu([self.patcher], memory_required=memory_used)
+        load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
         dims = samples.ndim - 2
         args = {}
         if tile_x is not None:
@@ -592,7 +595,7 @@ class VAE:
             pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
         try:
             memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)
-            model_management.load_models_gpu([self.patcher], memory_required=memory_used)
+            model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
             free_memory = model_management.get_free_memory(self.device)
             batch_number = int(free_memory / max(1, memory_used))
             batch_number = max(1, batch_number)
@@ -626,7 +629,7 @@ class VAE:
             pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
 
         memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)  # TODO: calculate mem required for tile
-        load_models_gpu([self.patcher], memory_required=memory_used)
+        load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
 
         args = {}
         if tile_x is not None:
@@ -719,6 +722,7 @@ class CLIPType(Enum):
     COSMOS = 11
     LUMINA2 = 12
     WAN = 13
+    HIDREAM = 14
 
 
 @dataclasses.dataclass
@@ -820,6 +824,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             elif clip_type == CLIPType.SD3:
                 clip_target.clip = sd3_clip.sd3_clip(clip_l=False, clip_g=True, t5=False)
                 clip_target.tokenizer = sd3_clip.SD3Tokenizer
+            elif clip_type == CLIPType.HIDREAM:
+                clip_target.clip = hidream.hidream_clip(clip_l=False, clip_g=True, t5=False, llama=False, dtype_t5=None, dtype_llama=None, t5xxl_scaled_fp8=None, llama_scaled_fp8=None)
+                clip_target.tokenizer = hidream.HiDreamTokenizer
             else:
                 clip_target.clip = sdxl_clip.SDXLRefinerClipModel
                 clip_target.tokenizer = sdxl_clip.SDXLTokenizer
@@ -840,6 +847,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.clip = wan.te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = wan.WanT5Tokenizer
                 tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
+            elif clip_type == CLIPType.HIDREAM:
+                clip_target.clip = hidream.hidream_clip(**t5xxl_detect(clip_data),
+                                                                        clip_l=False, clip_g=False, t5=True, llama=False, dtype_llama=None, llama_scaled_fp8=None)
+                clip_target.tokenizer = hidream.HiDreamTokenizer
             else:  # CLIPType.MOCHI
                 clip_target.clip = genmo.mochi_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = genmo.MochiT5Tokenizer
@@ -856,10 +867,18 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = lumina2.te(**llama_detect(clip_data))
             clip_target.tokenizer = lumina2.LuminaTokenizer
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
+        elif te_model == TEModel.LLAMA3_8:
+            clip_target.clip = hidream.hidream_clip(**llama_detect(clip_data),
+                                                                        clip_l=False, clip_g=False, t5=False, llama=True, dtype_t5=None, t5xxl_scaled_fp8=None)
+            clip_target.tokenizer = hidream.HiDreamTokenizer
         else:
+            # clip_l
             if clip_type == CLIPType.SD3:
                 clip_target.clip = sd3_clip.sd3_clip(clip_l=True, clip_g=False, t5=False)
                 clip_target.tokenizer = sd3_clip.SD3Tokenizer
+            elif clip_type == CLIPType.HIDREAM:
+                clip_target.clip = hidream.hidream_clip(clip_l=True, clip_g=False, t5=False, llama=False, dtype_t5=None, dtype_llama=None, t5xxl_scaled_fp8=None, llama_scaled_fp8=None)
+                clip_target.tokenizer = hidream.HiDreamTokenizer
             else:
                 clip_target.clip = sd1_clip.SD1ClipModel
                 clip_target.tokenizer = sd1_clip.SD1Tokenizer
@@ -877,12 +896,33 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif clip_type == CLIPType.HUNYUAN_VIDEO:
             clip_target.clip = hunyuan_video.hunyuan_video_clip(**llama_detect(clip_data))
             clip_target.tokenizer = hunyuan_video.HunyuanVideoTokenizer
+        elif clip_type == CLIPType.HIDREAM:
+            # Detect
+            hidream_dualclip_classes = []
+            for hidream_te in clip_data:
+                te_model = detect_te_model(hidream_te)
+                hidream_dualclip_classes.append(te_model)
+
+            clip_l = TEModel.CLIP_L in hidream_dualclip_classes
+            clip_g = TEModel.CLIP_G in hidream_dualclip_classes
+            t5 = TEModel.T5_XXL in hidream_dualclip_classes
+            llama = TEModel.LLAMA3_8 in hidream_dualclip_classes
+
+            # Initialize t5xxl_detect and llama_detect kwargs if needed
+            t5_kwargs = t5xxl_detect(clip_data) if t5 else {}
+            llama_kwargs = llama_detect(clip_data) if llama else {}
+
+            clip_target.clip = hidream.hidream_clip(clip_l=clip_l, clip_g=clip_g, t5=t5, llama=llama, **t5_kwargs, **llama_kwargs)
+            clip_target.tokenizer = hidream.HiDreamTokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer
     elif len(clip_data) == 3:
         clip_target.clip = sd3_clip.sd3_clip(**t5xxl_detect(clip_data))
         clip_target.tokenizer = sd3_clip.SD3Tokenizer
+    elif len(clip_data) == 4:
+        clip_target.clip = hidream.hidream_clip(**t5xxl_detect(clip_data), **llama_detect(clip_data))
+        clip_target.tokenizer = hidream.HiDreamTokenizer
 
     parameters = 0
     for c in clip_data:

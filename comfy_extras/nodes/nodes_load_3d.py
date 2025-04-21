@@ -24,8 +24,8 @@ class Load3D():
             "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
         }}
 
-    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "IMAGE", "IMAGE")
-    RETURN_NAMES = ("image", "mask", "mesh_path", "normal", "lineart")
+    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "IMAGE", "IMAGE", "LOAD3D_CAMERA")
+    RETURN_NAMES = ("image", "mask", "mesh_path", "normal", "lineart", "camera_info")
 
     FUNCTION = "process"
     EXPERIMENTAL = True
@@ -44,7 +44,7 @@ class Load3D():
         normal_image, ignore_mask2 = load_image_node.load_image(image=normal_path)
         lineart_image, ignore_mask3 = load_image_node.load_image(image=lineart_path)
 
-        return output_image, output_mask, model_file, normal_image, lineart_image
+        return output_image, output_mask, model_file, normal_image, lineart_image, image['camera_info']
 
 
 class Load3DAnimation():
@@ -63,8 +63,8 @@ class Load3DAnimation():
             "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
         }}
 
-    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "IMAGE")
-    RETURN_NAMES = ("image", "mask", "mesh_path", "normal")
+    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "IMAGE", "LOAD3D_CAMERA")
+    RETURN_NAMES = ("image", "mask", "mesh_path", "normal", "camera_info")
 
     FUNCTION = "process"
     EXPERIMENTAL = True
@@ -81,7 +81,7 @@ class Load3DAnimation():
         ignore_image, output_mask = load_image_node.load_image(image=mask_path)
         normal_image, ignore_mask2 = load_image_node.load_image(image=normal_path)
 
-        return output_image, output_mask, model_file, normal_image
+        return output_image, output_mask, model_file, normal_image, image['camera_info']
 
 
 class Preview3D():
@@ -89,6 +89,9 @@ class Preview3D():
     def INPUT_TYPES(s):
         return {"required": {
             "model_file": ("STRING", {"default": "", "multiline": False}),
+        },
+        "optional": {
+            "camera_info": ("LOAD3D_CAMERA", {})
         }}
 
     OUTPUT_NODE = True
@@ -100,13 +103,22 @@ class Preview3D():
     EXPERIMENTAL = True
 
     def process(self, model_file, **kwargs):
-        return {"ui": {"model_file": [model_file]}, "result": ()}
+        camera_info = kwargs.get("camera_info", None)
+
+        return {
+            "ui": {
+                "result": [model_file, camera_info]
+            }
+        }
 
 class Preview3DAnimation():
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
             "model_file": ("STRING", {"default": "", "multiline": False}),
+        },
+        "optional": {
+            "camera_info": ("LOAD3D_CAMERA", {})
         }}
 
     OUTPUT_NODE = True
@@ -118,7 +130,13 @@ class Preview3DAnimation():
     EXPERIMENTAL = True
 
     def process(self, model_file, **kwargs):
-        return {"ui": {"model_file": [model_file]}, "result": ()}
+        camera_info = kwargs.get("camera_info", None)
+
+        return {
+            "ui": {
+                "result": [model_file, camera_info]
+            }
+        }
 
 
 NODE_CLASS_MAPPINGS = {

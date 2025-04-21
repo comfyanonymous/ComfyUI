@@ -81,6 +81,7 @@ def _create_parser() -> EnhancedConfigArgParser:
                             help="Store text encoder weights in fp8 (e5m2 variant).")
     fpte_group.add_argument("--fp16-text-enc", action="store_true", help="Store text encoder weights in fp16.")
     fpte_group.add_argument("--fp32-text-enc", action="store_true", help="Store text encoder weights in fp32.")
+    fpte_group.add_argument("--bf16-text-enc", action="store_true", help="Store text encoder weights in bf16.")
 
     parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE", const=-1,
                         help="Use torch-directml.")
@@ -96,6 +97,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     cache_group = parser.add_mutually_exclusive_group()
     cache_group.add_argument("--cache-classic", action="store_true", help="WARNING: Unused. Use the old style (aggressive) caching.")
     cache_group.add_argument("--cache-lru", type=int, default=0, help="Use LRU caching with a maximum of N node results cached. May use more RAM/VRAM.")
+    cache_group.add_argument("--cache-none", action="store_true", help="Reduced RAM/VRAM usage at the expense of executing every node for each run.")
     attn_group = parser.add_mutually_exclusive_group()
     attn_group.add_argument("--use-split-cross-attention", action="store_true",
                             help="Use the split cross attention optimization. Ignored when xformers is used.")
@@ -129,7 +131,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--deterministic", action="store_true",
                         help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")
 
-    parser.add_argument("--fast", nargs="*", type=PerformanceFeature, help="Enable some untested and potentially quality deteriorating optimizations. Pass a list specific optimizations if you only want to enable specific ones. Current valid optimizations: fp16_accumulation fp8_matrix_mult")
+    parser.add_argument("--fast", nargs="*", type=PerformanceFeature, help="Enable some untested and potentially quality deteriorating optimizations. Pass a list specific optimizations if you only want to enable specific ones. Current valid optimizations: fp16_accumulation fp8_matrix_mult cublas_ops")
 
     parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
     parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI. Raises an error if nodes cannot be imported,")

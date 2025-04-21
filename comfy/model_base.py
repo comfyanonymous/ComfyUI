@@ -36,17 +36,18 @@ from .ldm.cascade.stage_c import StageC
 from .ldm.cosmos.model import GeneralDIT
 from .ldm.flux import model as flux_model
 from .ldm.genmo.joint_model.asymm_models_joint import AsymmDiTJoint
+from .ldm.hidream.model import HiDreamImageTransformer2DModel
+from .ldm.hunyuan3d.model import Hunyuan3Dv2 as Hunyuan3Dv2Model
 from .ldm.hunyuan_video.model import HunyuanVideo as HunyuanVideoModel
 from .ldm.hydit.models import HunYuanDiT
 from .ldm.lightricks.model import LTXVModel
 from .ldm.lumina.model import NextDiT
-from .ldm.hunyuan3d.model import Hunyuan3Dv2 as Hunyuan3Dv2Model
 from .ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
 from .ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
 from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
 from .ldm.pixart.pixartms import PixArtMS
-from .ldm.wan.model import WanModel
+from .ldm.wan.model import WanModel, VaceWanModel
 from .model_management_types import ModelManageable
 from .ops import Operations
 from .patcher_extension import WrapperExecutor, WrappersMP, get_all_wrappers
@@ -635,6 +636,7 @@ class SDXL_instructpix2pix(IP2P, SDXL):
         else:
             self.process_ip2p_image_in = lambda image: image  # diffusers ip2p
 
+
 class Lotus(BaseModel):
     def extra_conds(self, **kwargs):
         out = {}
@@ -648,6 +650,7 @@ class Lotus(BaseModel):
 
     def __init__(self, model_config, model_type=ModelType.IMG_TO_IMG, device=None):
         super().__init__(model_config, model_type, device=device)
+
 
 class StableCascade_C(BaseModel):
     def __init__(self, model_config, model_type=ModelType.STABLE_CASCADE, device=None):
@@ -960,6 +963,7 @@ class HunyuanVideo(BaseModel):
     def scale_latent_inpaint(self, latent_image, **kwargs):
         return latent_image
 
+
 class HunyuanVideoI2V(HunyuanVideo):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device)
@@ -968,6 +972,7 @@ class HunyuanVideoI2V(HunyuanVideo):
     def scale_latent_inpaint(self, latent_image, **kwargs):
         return super().scale_latent_inpaint(latent_image=latent_image, **kwargs)
 
+
 class HunyuanVideoSkyreelsI2V(HunyuanVideo):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device)
@@ -975,6 +980,7 @@ class HunyuanVideoSkyreelsI2V(HunyuanVideo):
 
     def scale_latent_inpaint(self, latent_image, **kwargs):
         return super().scale_latent_inpaint(latent_image=latent_image, **kwargs)
+
 
 class CosmosVideo(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EDM, image_to_video=False, device=None):
@@ -1036,7 +1042,6 @@ class WAN21(BaseModel):
         device = kwargs["device"]
 
         if image is None:
-            image = torch.zeros_like(noise)
             shape_image = list(noise.shape)
             shape_image[1] = extra_channels
             image = torch.zeros(shape_image, dtype=noise.dtype, layout=noise.layout, device=noise.device)
@@ -1079,6 +1084,34 @@ class WAN21(BaseModel):
             out['clip_fea'] = conds.CONDRegular(clip_vision_output.penultimate_hidden_states)
         return out
 
+
+class WAN21_Vace(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=VaceWanModel)
+        self.image_to_video = image_to_video
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        noise = kwargs.get("noise", None)
+        noise_shape = list(noise.shape)
+        vace_frames = kwargs.get("vace_frames", None)
+        if vace_frames is None:
+            noise_shape[1] = 32
+            vace_frames = torch.zeros(noise_shape, device=noise.device, dtype=noise.dtype)
+
+        for i in range(0, vace_frames.shape[1], 16):
+            vace_frames = vace_frames.clone()
+            vace_frames[:, i:i + 16] = self.process_latent_in(vace_frames[:, i:i + 16])
+
+        mask = kwargs.get("vace_mask", None)
+        if mask is None:
+            noise_shape[1] = 64
+            mask = torch.ones(noise_shape, device=noise.device, dtype=noise.dtype)
+
+        out['vace_context'] = conds.CONDRegular(torch.cat([vace_frames.to(noise), mask.to(noise)], dim=1))
+        return out
+
+
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=Hunyuan3Dv2Model)
@@ -1092,4 +1125,22 @@ class Hunyuan3Dv2(BaseModel):
         guidance = kwargs.get("guidance", 5.0)
         if guidance is not None:
             out['guidance'] = conds.CONDRegular(torch.FloatTensor([guidance]))
+        return out
+
+
+class HiDream(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=HiDreamImageTransformer2DModel)
+
+    def encode_adm(self, **kwargs):
+        return kwargs["pooled_output"]
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = conds.CONDRegular(cross_attn)
+        conditioning_llama3 = kwargs.get("conditioning_llama3", None)
+        if conditioning_llama3 is not None:
+            out['encoder_hidden_states_llama3'] = conds.CONDRegular(conditioning_llama3)
         return out
