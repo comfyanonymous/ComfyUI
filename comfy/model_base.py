@@ -1068,6 +1068,9 @@ class WAN21_Vace(WAN21):
             mask = torch.ones(noise_shape, device=noise.device, dtype=noise.dtype)
 
         out['vace_context'] = comfy.conds.CONDRegular(torch.cat([vace_frames.to(noise), mask.to(noise)], dim=1))
+
+        vace_strength = kwargs.get("vace_strength", 1.0)
+        out['vace_strength'] = comfy.conds.CONDConstant(vace_strength)
         return out
 
 
