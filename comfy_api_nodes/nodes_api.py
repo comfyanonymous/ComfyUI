@@ -293,7 +293,6 @@ class MinimaxVideoNode:
         if file_url is None:
             raise Exception(f"No video was found in the response. Full response: {file_result.model_dump()}")
         logging.info(f"Generated video URL: {file_url}")
-        _, filename = folder_paths.download_url_to_file("comfyapinodes", file_url, folder_paths.get_output_directory())
 
         # Construct the save path
         full_output_folder, filename, counter, subfolder, filename_prefix = (
