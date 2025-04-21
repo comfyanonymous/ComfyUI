@@ -298,8 +298,8 @@ class SynchronousOperation(Generic[T, R]):
                     verify_ssl=self.verify_ssl,
                 )
 
-            # Convert request model to dict
-            request_dict = self.request.model_dump(exclude_none=True)
+            # Convert request model to dict, but use None for EmptyRequest
+            request_dict = None if isinstance(self.request, EmptyRequest) else self.request.model_dump(exclude_none=True)
 
             # Debug log for request
             logging.debug(f"[DEBUG] API Request: {self.endpoint.method.value} {self.endpoint.path}")
@@ -315,7 +315,11 @@ class SynchronousOperation(Generic[T, R]):
             )
 
             # Debug log for response
-            logging.debug(f"[DEBUG] API Response: {json.dumps(resp, indent=2)}")
+            logging.debug("=" * 50)
+            logging.debug("[DEBUG] RESPONSE DETAILS:")
+            logging.debug("[DEBUG] Status Code: 200 (Success)")
+            logging.debug(f"[DEBUG] Response Body: {json.dumps(resp, indent=2)}")
+            logging.debug("=" * 50)
 
             # Parse and return the response
             return self._parse_response(resp)

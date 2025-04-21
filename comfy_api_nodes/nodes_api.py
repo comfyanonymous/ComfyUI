@@ -10,13 +10,6 @@ from comfy.comfy_types.node_typing import FileLocator
 import json
 import av
 
-
-def check_auth_token(auth_token):
-    """Verify that an auth token is present."""
-    if auth_token is None:
-        raise Exception("Please login first to use this node.")
-    return auth_token
-
 class IdeogramTextToImage(ComfyNodeABC):
     """
     Generates images synchronously based on a given prompt and optional parameters.
@@ -281,14 +274,15 @@ class MinimaxVideoNode:
         task_result = video_generate_operation.execute()
 
         file_id = task_result.file_id
-
+        if file_id is None:
+            raise Exception("Request was not successful. Missing file ID.")
         file_retrieve_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/minimax/files/retrieve",
                 method=HttpMethod.GET,
                 request_model=EmptyRequest,
                 response_model=MinimaxFileRetrieveResponse,
-                query_params={"file_id": file_id},
+                query_params={"file_id": int(file_id)},
             ),
             request=EmptyRequest(),
             auth_token=auth_token,
@@ -296,8 +290,10 @@ class MinimaxVideoNode:
         file_result = file_retrieve_operation.execute()
 
         file_url = file_result.file.download_url
-
+        if file_url is None:
+            raise Exception(f"No video was found in the response. Full response: {file_result.model_dump()}")
         logging.info(f"Generated video URL: {file_url}")
+        _, filename = folder_paths.download_url_to_file("comfyapinodes", file_url, folder_paths.get_output_directory())
 
         # Construct the save path
         full_output_folder, filename, counter, subfolder, filename_prefix = (
