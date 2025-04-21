@@ -317,10 +317,15 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["cross_attn_norm"] = True
         dit_config["eps"] = 1e-6
         dit_config["in_dim"] = state_dict['{}patch_embedding.weight'.format(key_prefix)].shape[1]
-        if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
-            dit_config["model_type"] = "i2v"
+        if '{}vace_patch_embedding.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "vace"
+            dit_config["vace_in_dim"] = state_dict['{}vace_patch_embedding.weight'.format(key_prefix)].shape[1]
+            dit_config["vace_layers"] = count_blocks(state_dict_keys, '{}vace_blocks.'.format(key_prefix) + '{}.')
         else:
-            dit_config["model_type"] = "t2v"
+            if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
+                dit_config["model_type"] = "i2v"
+            else:
+                dit_config["model_type"] = "t2v"
         flf_weight = state_dict.get('{}img_emb.emb_pos'.format(key_prefix))
         if flf_weight is not None:
             dit_config["flf_pos_embed_token_number"] = flf_weight.shape[1]
