@@ -823,6 +823,8 @@ def text_encoder_dtype(device=None):
         return torch.float8_e5m2
     elif args.fp16_text_enc:
         return torch.float16
+    elif args.bf16_text_enc:
+        return torch.bfloat16
     elif args.fp32_text_enc:
         return torch.float32
 
@@ -1235,6 +1237,8 @@ def soft_empty_cache(force=False):
         torch.xpu.empty_cache()
     elif is_ascend_npu():
         torch.npu.empty_cache()
+    elif is_mlu():
+        torch.mlu.empty_cache()
     elif torch.cuda.is_available():
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()

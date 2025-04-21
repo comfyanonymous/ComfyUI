@@ -321,6 +321,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["model_type"] = "i2v"
         else:
             dit_config["model_type"] = "t2v"
+        flf_weight = state_dict.get('{}img_emb.emb_pos'.format(key_prefix))
+        if flf_weight is not None:
+            dit_config["flf_pos_embed_token_number"] = flf_weight.shape[1]
         return dit_config
 
     if '{}latent_in.weight'.format(key_prefix) in state_dict_keys:  # Hunyuan 3D
@@ -336,6 +339,25 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
         dit_config["qkv_bias"] = True
         dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
+        return dit_config
+
+    if '{}caption_projection.0.linear.weight'.format(key_prefix) in state_dict_keys:  # HiDream
+        dit_config = {}
+        dit_config["image_model"] = "hidream"
+        dit_config["attention_head_dim"] = 128
+        dit_config["axes_dims_rope"] = [64, 32, 32]
+        dit_config["caption_channels"] = [4096, 4096]
+        dit_config["max_resolution"] = [128, 128]
+        dit_config["in_channels"] = 16
+        dit_config["llama_layers"] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31]
+        dit_config["num_attention_heads"] = 20
+        dit_config["num_routed_experts"] = 4
+        dit_config["num_activated_experts"] = 2
+        dit_config["num_layers"] = 16
+        dit_config["num_single_layers"] = 32
+        dit_config["out_channels"] = 16
+        dit_config["patch_size"] = 2
+        dit_config["text_emb_dim"] = 2048
         return dit_config
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
