@@ -1,6 +1,8 @@
 # Primitive nodes that are evaluated at backend.
 from __future__ import annotations
 
+import sys
+
 from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, IO
 
 
@@ -23,7 +25,7 @@ class Int(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypeDict:
         return {
-            "required": {"value": (IO.INT, {"control_after_generate": True})},
+            "required": {"value": (IO.INT, {"min": -sys.maxsize, "max": sys.maxsize, "control_after_generate": True})},
         }
 
     RETURN_TYPES = (IO.INT,)
@@ -38,7 +40,7 @@ class Float(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypeDict:
         return {
-            "required": {"value": (IO.FLOAT, {})},
+            "required": {"value": (IO.FLOAT, {"min": -sys.maxsize, "max": sys.maxsize})},
         }
 
     RETURN_TYPES = (IO.FLOAT,)
