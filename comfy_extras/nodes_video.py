@@ -5,9 +5,10 @@ import av
 import torch
 import folder_paths
 import json
+from typing import Optional, Literal
 from fractions import Fraction
-from comfy.comfy_types import FileLocator
-
+from comfy.comfy_types import IO, FileLocator, ComfyNodeABC, VideoInput, AudioInput, ImageInput, VideoFromComponents, VideoContainer, VideoCodec, VideoComponents
+from comfy.cli_args import args
 
 class SaveWEBM:
     def __init__(self):
@@ -75,7 +76,130 @@ class SaveWEBM:
 
         return {"ui": {"images": results, "animated": (True,)}}  # TODO: frontend side
 
+class SaveVideo(ComfyNodeABC):
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+        self.type: Literal["output"] = "output"
+        self.prefix_append = ""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video": (IO.VIDEO, {"tooltip": "The video to save."}),
+                "filename_prefix": ("STRING", {"default": "video/ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."}),
+                "format": (VideoContainer.as_input(), {"default": "auto", "tooltip": "The format to save the video as."}),
+                "codec": (VideoCodec.as_input(), {"default": "auto", "tooltip": "The codec to use for the video."}),
+            },
+            "hidden": {
+                "prompt": "PROMPT",
+                "extra_pnginfo": "EXTRA_PNGINFO"
+            },
+        }
+
+    RETURN_TYPES = ()
+    FUNCTION = "save_video"
+
+    OUTPUT_NODE = True
+
+    CATEGORY = "image/video"
+    DESCRIPTION = "Saves the input images to your ComfyUI output directory."
+
+    def save_video(self, video: VideoInput, filename_prefix, format, codec, prompt=None, extra_pnginfo=None):
+        filename_prefix += self.prefix_append
+        components = video.get_components()
+        width = components.images.shape[2]
+        height = components.images.shape[1]
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix,
+            self.output_dir,
+            width,
+            height
+        )
+        results: list[FileLocator] = list()
+        saved_metadata = None
+        if not args.disable_metadata:
+            metadata = {}
+            if extra_pnginfo is not None:
+                metadata.update(extra_pnginfo)
+            if prompt is not None:
+                metadata["prompt"] = prompt
+            if len(metadata) > 0:
+                saved_metadata = metadata
+        file = f"{filename}_{counter:05}_.{VideoContainer.get_extension(format)}"
+        video.save_to(
+            os.path.join(full_output_folder, file),
+            format=format,
+            codec=codec,
+            metadata=saved_metadata
+        )
+
+        results.append({
+            "filename": file,
+            "subfolder": subfolder,
+            "type": self.type
+        })
+        counter += 1
+
+        return { "ui": { "images": results, "animated": (True,) } }
+
+class CreateVideo(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "images": (IO.IMAGE, {"tooltip": "The images to create a video from."}),
+                "fps": ("FLOAT", {"default": 30.0, "min": 1.0, "max": 120.0, "step": 1.0}),
+            },
+            "optional": {
+                "audio": (IO.AUDIO, {"tooltip": "The audio to add to the video."}),
+            }
+        }
+
+    RETURN_TYPES = (IO.VIDEO,)
+    FUNCTION = "create_video"
+
+    CATEGORY = "image/video"
+    DESCRIPTION = "Create a video from images."
+
+    def create_video(self, images: ImageInput, fps: float, audio: Optional[AudioInput] = None):
+        return (VideoFromComponents(
+            VideoComponents(
+            images=images,
+            audio=audio,
+            frame_rate=Fraction(fps),
+            )
+        ),)
+
+class GetVideoComponents(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video": (IO.VIDEO, {"tooltip": "The video to extract components from."}),
+            }
+        }
+    RETURN_TYPES = (IO.IMAGE, IO.AUDIO, IO.FLOAT)
+    RETURN_NAMES = ("images", "audio", "fps")
+    FUNCTION = "get_components"
+
+    CATEGORY = "image/video"
+    DESCRIPTION = "Extracts all components from a video: frames, audio, and framerate."
+
+    def get_components(self, video: VideoInput):
+        components = video.get_components()
+
+        return (components.images, components.audio, float(components.frame_rate))
 
 NODE_CLASS_MAPPINGS = {
     "SaveWEBM": SaveWEBM,
+    "SaveVideo": SaveVideo,
+    "CreateVideo": CreateVideo,
+    "GetVideoComponents": GetVideoComponents,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "SaveVideo": "Save Video",
+    "CreateVideo": "Create Video",
+    "GetVideoComponents": "Get Video Components",
 }

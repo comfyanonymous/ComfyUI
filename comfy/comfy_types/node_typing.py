@@ -48,6 +48,7 @@ class IO(StrEnum):
     FACE_ANALYSIS = "FACE_ANALYSIS"
     BBOX = "BBOX"
     SEGS = "SEGS"
+    VIDEO = "VIDEO"
 
     ANY = "*"
     """Always matches any type, but at a price.
@@ -292,7 +293,7 @@ class ComfyNodeABC(ABC):
     Comfy Docs: https://docs.comfy.org/custom-nodes/backend/lists#list-processing
     """
 
-    RETURN_TYPES: tuple[IO]
+    RETURN_TYPES: tuple[IO] | tuple[()]
     """A tuple representing the outputs of this node.
 
     Usage::
@@ -301,12 +302,12 @@ class ComfyNodeABC(ABC):
 
     Comfy Docs: https://docs.comfy.org/custom-nodes/backend/server_overview#return-types
     """
-    RETURN_NAMES: tuple[str]
+    RETURN_NAMES: tuple[str] | tuple[()]
     """The output slot names for each item in `RETURN_TYPES`, e.g. ``RETURN_NAMES = ("count", "filter_string")``
 
     Comfy Docs: https://docs.comfy.org/custom-nodes/backend/server_overview#return-names
     """
-    OUTPUT_TOOLTIPS: tuple[str]
+    OUTPUT_TOOLTIPS: tuple[str] | tuple[()]
     """A tuple of strings to use as tooltips for node outputs, one for each item in `RETURN_TYPES`."""
     FUNCTION: str
     """The name of the function to execute as a literal string, e.g. `FUNCTION = "execute"`
