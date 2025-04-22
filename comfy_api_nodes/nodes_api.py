@@ -100,7 +100,6 @@ class IdeogramTextToImage(ComfyNodeABC):
     def api_call(self, prompt, model, aspect_ratio=None, resolution=None,
                  magic_prompt_option="AUTO", seed=0, style_type="NONE",
                  negative_prompt="", num_images=1, color_palette="", auth_token=None):
-        import io
 
         import numpy as np
         import requests
@@ -237,13 +236,12 @@ class OpenAITextToImage(ComfyNodeABC):
         elif model == "dall-e-3":
             if size == "auto":
                 size = "1024x1024"
-            valid_sizes = ["1024x1024", "1792x1024", "1024x1792"] 
+            valid_sizes = ["1024x1024", "1792x1024", "1024x1792"]
             if size not in valid_sizes:
                 raise ValueError(f"Size {size} not valid for dall-e-3. Must be one of: {', '.join(valid_sizes)}")
         # TODO: add NEW MODEL
 
 
-        import io
 
         import numpy as np
         import torch
@@ -271,7 +269,7 @@ class OpenAITextToImage(ComfyNodeABC):
         response = operation.execute()
 
         # validate raw JSON response
-        
+
         data = response.data
         if not data or len(data) == 0:
             raise Exception("No images returned from OpenAI endpoint")
