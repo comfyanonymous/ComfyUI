@@ -21,6 +21,7 @@ import logging
 import comfy.model_management
 from comfy.cli_args import args, PerformanceFeature
 import comfy.float
+import comfy.rmsnorm
 
 cast_to = comfy.model_management.cast_to #TODO: remove once no more references
 
@@ -146,6 +147,25 @@ class disable_weight_init:
             else:
                 return super().forward(*args, **kwargs)
 
+    class RMSNorm(comfy.rmsnorm.RMSNorm, CastWeightBiasOp):
+        def reset_parameters(self):
+            self.bias = None
+            return None
+
+        def forward_comfy_cast_weights(self, input):
+            if self.weight is not None:
+                weight, bias = cast_bias_weight(self, input)
+            else:
+                weight = None
+            return comfy.rmsnorm.rms_norm(input, weight, self.eps)  # TODO: switch to commented out line when old torch is deprecated
+            # return torch.nn.functional.rms_norm(input, self.normalized_shape, weight, self.eps)
+
+        def forward(self, *args, **kwargs):
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
+                return self.forward_comfy_cast_weights(*args, **kwargs)
+            else:
+                return super().forward(*args, **kwargs)
+
     class ConvTranspose2d(torch.nn.ConvTranspose2d, CastWeightBiasOp):
         def reset_parameters(self):
             return None
@@ -241,6 +261,9 @@ class manual_cast(disable_weight_init):
         comfy_cast_weights = True
 
     class ConvTranspose1d(disable_weight_init.ConvTranspose1d):
+        comfy_cast_weights = True
+
+    class RMSNorm(disable_weight_init.RMSNorm):
         comfy_cast_weights = True
 
     class Embedding(disable_weight_init.Embedding):
@@ -357,6 +380,25 @@ def scaled_fp8_ops(fp8_matrix_mult=False, scale_input=False, override_dtype=None
 
     return scaled_fp8_op
 
+CUBLAS_IS_AVAILABLE = False
+try:
+    from cublas_ops import CublasLinear
+    CUBLAS_IS_AVAILABLE = True
+except ImportError:
+    pass
+
+if CUBLAS_IS_AVAILABLE:
+    class cublas_ops(disable_weight_init):
+        class Linear(CublasLinear, disable_weight_init.Linear):
+            def reset_parameters(self):
+                return None
+
+            def forward_comfy_cast_weights(self, input):
+                return super().forward(input)
+
+            def forward(self, *args, **kwargs):
+                return super().forward(*args, **kwargs)
+
 def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, scaled_fp8=None):
     fp8_compute = comfy.model_management.supports_fp8_compute(load_device)
     if scaled_fp8 is not None:
@@ -368,6 +410,15 @@ def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_
         not disable_fast_fp8
     ):
         return fp8_ops
+
+    if (
+        PerformanceFeature.CublasOps in args.fast and
+        CUBLAS_IS_AVAILABLE and
+        weight_dtype == torch.float16 and
+        (compute_dtype == torch.float16 or compute_dtype is None)
+    ):
+        logging.info("Using cublas ops")
+        return cublas_ops
 
     if compute_dtype is None or weight_dtype == compute_dtype:
         return disable_weight_init

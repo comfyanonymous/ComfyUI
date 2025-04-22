@@ -10,6 +10,7 @@ from app.logger import setup_logger
 import itertools
 import utils.extra_config
 import logging
+import sys
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI which should already have no communication with the internet, they are for custom nodes.
@@ -156,7 +157,13 @@ def cuda_malloc_warning():
 
 def prompt_worker(q, server_instance):
     current_time: float = 0.0
-    e = execution.PromptExecutor(server_instance, lru_size=args.cache_lru)
+    cache_type = execution.CacheType.CLASSIC
+    if args.cache_lru > 0:
+        cache_type = execution.CacheType.LRU
+    elif args.cache_none:
+        cache_type = execution.CacheType.DEPENDENCY_AWARE
+
+    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_size=args.cache_lru)
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -295,6 +302,7 @@ def start_comfyui(asyncio_loop=None):
 
 if __name__ == "__main__":
     # Running directly, just start ComfyUI.
+    logging.info("Python version: {}".format(sys.version))
     logging.info("ComfyUI version: {}".format(comfyui_version.__version__))
 
     event_loop, _, start_all_func = start_comfyui()
