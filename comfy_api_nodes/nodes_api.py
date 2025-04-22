@@ -435,6 +435,176 @@ class OpenAIGPTImage1(ComfyNodeABC):
         return (img_tensor,)
 
 
+class MinimaxVideoNode:
+    """
+    Generates videos synchronously based on a prompt, and optional parameters using Minimax's API.
+    """
+
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+        self.type = "output"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "prompt_text": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Text prompt to guide the video generation",
+                    },
+                ),
+                "filename_prefix": ("STRING", {"default": "ComfyUI"}),
+                "model": (
+                    [
+                        "T2V-01",
+                        "I2V-01-Director",
+                        "S2V-01",
+                        "I2V-01",
+                        "I2V-01-live",
+                        "T2V-01",
+                    ],
+                    {
+                        "default": "T2V-01",
+                        "tooltip": "Model to use for video generation",
+                    },
+                ),
+            },
+            "optional": {
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+            },
+            "hidden": {
+                "prompt": "PROMPT",
+                "extra_pnginfo": "EXTRA_PNGINFO",
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    RETURN_TYPES = ("VIDEO",)
+    DESCRIPTION = "Generates videos from prompts using Minimax's API"
+    FUNCTION = "generate_video"
+    CATEGORY = "video"
+    API_NODE = True
+    OUTPUT_NODE = True
+
+    def generate_video(
+        self,
+        prompt_text,
+        filename_prefix,
+        seed=0,
+        model="T2V-01",
+        prompt=None,
+        extra_pnginfo=None,
+        auth_token=None,
+    ):
+        video_generate_operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/minimax/video_generation",
+                method=HttpMethod.POST,
+                request_model=MinimaxVideoGenerationRequest,
+                response_model=MinimaxVideoGenerationResponse,
+            ),
+            request=MinimaxVideoGenerationRequest(
+                model=Model(model),
+                prompt=prompt_text,
+                callback_url=None,
+                first_frame_image=None,
+                subject_reference=None,
+                prompt_optimizer=None,
+            ),
+            auth_token=auth_token,
+        )
+        response = video_generate_operation.execute()
+
+        task_id = response.task_id
+
+        video_generate_operation = PollingOperation(
+            poll_endpoint=ApiEndpoint(
+                path="/proxy/minimax/query/video_generation",
+                method=HttpMethod.GET,
+                request_model=EmptyRequest,
+                response_model=MinimaxTaskResultResponse,
+                query_params={"task_id": task_id},
+            ),
+            completed_statuses=["Success"],
+            failed_statuses=["Fail"],
+            status_extractor=lambda x: x.status.value,
+            auth_token=auth_token,
+        )
+        task_result = video_generate_operation.execute()
+
+        file_id = task_result.file_id
+        if file_id is None:
+            raise Exception("Request was not successful. Missing file ID.")
+        file_retrieve_operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/minimax/files/retrieve",
+                method=HttpMethod.GET,
+                request_model=EmptyRequest,
+                response_model=MinimaxFileRetrieveResponse,
+                query_params={"file_id": int(file_id)},
+            ),
+            request=EmptyRequest(),
+            auth_token=auth_token,
+        )
+        file_result = file_retrieve_operation.execute()
+
+        file_url = file_result.file.download_url
+        if file_url is None:
+            raise Exception(f"No video was found in the response. Full response: {file_result.model_dump()}")
+        logging.info(f"Generated video URL: {file_url}")
+
+        # Construct the save path
+        full_output_folder, filename, counter, subfolder, filename_prefix = (
+            folder_paths.get_save_image_path(filename_prefix, self.output_dir)
+        )
+        file_basename = f"{filename}_{counter:05}_.mp4"
+        save_path = os.path.join(full_output_folder, file_basename)
+
+        # Download the video data
+        video_response = requests.get(file_url)
+        video_data = video_response.content
+
+        # Save the video data to a file
+        with open(save_path, "wb") as video_file:
+            video_file.write(video_data)
+
+        # Add workflow metadata to the video container
+        if prompt is not None or extra_pnginfo is not None:
+            try:
+                container = av.open(save_path, mode="r+")
+                if prompt is not None:
+                    container.metadata["prompt"] = json.dumps(prompt)
+                if extra_pnginfo is not None:
+                    for x in extra_pnginfo:
+                        container.metadata[x] = json.dumps(extra_pnginfo[x])
+                container.close()
+            except Exception as e:
+                logging.warning(f"Failed to add metadata to video: {e}")
+
+        # Create a FileLocator for the frontend to use for the preview
+        results: list[FileLocator] = [
+            {
+                "filename": file_basename,
+                "subfolder": subfolder,
+                "type": self.type,
+            }
+        ]
+
+        return {"ui": {"images": results, "animated": (True,)}}
+
+
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
