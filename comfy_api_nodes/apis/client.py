@@ -1,7 +1,7 @@
 import logging
 
 """
-API Client Framework for ComfyUI
+API Client Framework for api.comfy.org.
 
 This module provides a flexible framework for making API requests from ComfyUI nodes.
 It supports both synchronous and asynchronous API operations with proper type validation.
@@ -11,7 +11,6 @@ Key Components:
 1. ApiClient - Handles HTTP requests with authentication and error handling
 2. ApiEndpoint - Defines a single HTTP endpoint with its request/response models
 3. ApiOperation - Executes a single synchronous API operation
-4. PollingOperation - Executes an asynchronous operation with polling for completion
 
 Usage Examples:
 --------------
@@ -47,49 +46,6 @@ operation = ApiOperation(
 )
 user_profile = operation.execute(client=api_client)  # Returns immediately with the result
 
-
-# Example 2: Asynchronous API Operation with Polling
-# -------------------------------------------------
-# For an API that starts a task and requires polling for completion:
-
-# 1. Define the endpoints (initial request and polling)
-generate_image_endpoint = ApiEndpoint(
-    path="/v1/images/generate",
-    method=HttpMethod.POST,
-    request_model=ImageGenerationRequest,
-    response_model=TaskCreatedResponse,
-    query_params=None
-)
-
-check_task_endpoint = ApiEndpoint(
-    path="/v1/tasks/{task_id}",
-    method=HttpMethod.GET,
-    request_model=EmptyRequest,
-    response_model=ImageGenerationResult,
-    query_params=None
-)
-
-# 2. Create the request object
-request = ImageGenerationRequest(
-    prompt="a beautiful sunset over mountains",
-    width=1024,
-    height=1024,
-    num_images=1
-)
-
-# 3. Create and execute the polling operation
-operation = PollingOperation(
-    initial_endpoint=generate_image_endpoint,
-    initial_request=request,
-    poll_endpoint=check_task_endpoint,
-    task_id_field="task_id",
-    status_field="status",
-    completed_statuses=["completed"],
-    failed_statuses=["failed", "error"]
-)
-
-# This will make the initial request and then poll until completion
-result = operation.execute(client=api_client)  # Returns the final ImageGenerationResult when done
 """
 
 from typing import (
@@ -264,7 +220,7 @@ class SynchronousOperation(Generic[T, R]):
         self,
         endpoint: ApiEndpoint[T, R],
         request: T,
-        api_base: str = "https://stagingapi.comfy.org",
+        api_base: str = "https://api.comfy.org",
         auth_token: Optional[str] = None,
         timeout: float = 30.0,
         verify_ssl: bool = True,
