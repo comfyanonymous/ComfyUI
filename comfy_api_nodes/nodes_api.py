@@ -248,6 +248,7 @@ class OpenAITextToImage(ComfyNodeABC):
         import numpy as np
         import torch
         from PIL import Image
+        import requests
 
         # build the operation
         operation = SynchronousOperation(
@@ -276,20 +277,23 @@ class OpenAITextToImage(ComfyNodeABC):
             raise Exception("No images returned from OpenAI endpoint")
 
         # Get base64 image data
-        b64_data = data[0].b64_json
-        if not b64_data:
-            raise Exception("No image data in OpenAI response")
+        image_url = data[0].url
+        if not image_url:
+            raise Exception("No image URL was generated in the response")
+        img_response = requests.get(image_url)
+        if img_response.status_code != 200:
+            raise Exception("Failed to download the image")
 
-        # decode base64 to image
-        import base64
-        img_data = base64.b64decode(b64_data)
-        img = Image.open(io.BytesIO(img_data)).convert("RGB")
-        
-        # Convert to tensor
-        arr = np.array(img).astype(np.float32) / 255.0
-        tensor = torch.from_numpy(arr)[None, ...]  # add batch dimension
+        img = Image.open(io.BytesIO(img_response.content))
+        img = img.convert("RGB")  # Ensure RGB format
 
-        return (tensor,)
+        # Convert to numpy array, normalize to float32 between 0 and 1
+        img_array = np.array(img).astype(np.float32) / 255.0
+
+        # Convert to torch tensor and add batch dimension
+        img_tensor = torch.from_numpy(img_array)[None,]
+
+        return (img_tensor,)
 
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
