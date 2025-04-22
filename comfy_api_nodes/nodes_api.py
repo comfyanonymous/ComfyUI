@@ -7,6 +7,7 @@ from comfy_api_nodes.apis import (
     IdeogramGenerateResponse,
     ImageRequest,
     OpenAIImageGenerationRequest,
+    OpenAIImageGenerationResponse
 )
 from comfy_api_nodes.apis.client import ApiEndpoint, HttpMethod, SynchronousOperation
 
@@ -214,6 +215,9 @@ class OpenAITextToImage(ComfyNodeABC):
                     "tooltip": "Optional random seed",
                 }),
             },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG"
+            }
         }
 
     RETURN_TYPES = (IO.IMAGE,)
@@ -222,7 +226,7 @@ class OpenAITextToImage(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
-    def api_call(self, prompt, model, n=1, size="1024x1024", seed=0):
+    def api_call(self, prompt, model, n=1, size="1024x1024", seed=0, auth_token=None):
         # Validate size based on model
         if model == "dall-e-2":
             if size == "auto":
@@ -251,7 +255,7 @@ class OpenAITextToImage(ComfyNodeABC):
                 path="/proxy/openai/images/generations",
                 method=HttpMethod.POST,
                 request_model=OpenAIImageGenerationRequest,
-                response_model=None
+                response_model=OpenAIImageGenerationResponse
             ),
             request=OpenAIImageGenerationRequest(
                 model=model,
@@ -260,20 +264,19 @@ class OpenAITextToImage(ComfyNodeABC):
                 size=size,
                 seed=seed if seed != 0 else None
             ),
+            auth_token=auth_token
         )
 
         response = operation.execute()
 
         # validate raw JSON response
-        if not isinstance(response, dict) or 'data' not in response:
-            raise Exception("Invalid response format from OpenAI endpoint")
         
-        data = response['data']
+        data = response.data
         if not data or len(data) == 0:
             raise Exception("No images returned from OpenAI endpoint")
 
         # Get base64 image data
-        b64_data = data[0].get('b64_json')
+        b64_data = data[0].b64_json
         if not b64_data:
             raise Exception("No image data in OpenAI response")
 
@@ -292,7 +295,7 @@ class OpenAITextToImage(ComfyNodeABC):
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
     "IdeogramTextToImage": IdeogramTextToImage,
-    "OpenAIDalleTextToImage": OpenAIDalleTextToImage,
+    "OpenAIDalleTextToImage": OpenAITextToImage,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes

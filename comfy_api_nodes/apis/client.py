@@ -138,6 +138,7 @@ class ApiClient:
         request_headers = self.get_headers()
         if headers:
             request_headers.update(headers)
+        logging.debug(f"[DEBUG] Request Headers: {request_headers}")
         try:
             response = requests.request(
                 method=method,
@@ -220,7 +221,7 @@ class SynchronousOperation(Generic[T, R]):
         self,
         endpoint: ApiEndpoint[T, R],
         request: T,
-        api_base: str = "https://api.comfy.org",
+        api_base: str = "https://stagingapi.comfy.org",
         auth_token: Optional[str] = None,
         timeout: float = 30.0,
         verify_ssl: bool = True,
