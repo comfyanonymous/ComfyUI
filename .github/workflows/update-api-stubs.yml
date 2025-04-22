@@ -25,12 +25,12 @@ jobs:
       
       - name: Generate API models
         run: |
-          datamodel-codegen  --use-subclass-enum --url https://api.comfy.org/openapi --output comfy_api_nodes/apis/stubs.py
+          datamodel-codegen  --use-subclass-enum --url https://stagingapi.comfy.org/openapi --output comfy_api_nodes/apis
       
       - name: Check for changes
         id: git-check
         run: |
-          git diff --exit-code comfy_api_nodes/apis/stubs.py || echo "changes=true" >> $GITHUB_OUTPUT
+          git diff --exit-code comfy_api_nodes/apis || echo "changes=true" >> $GITHUB_OUTPUT
       
       - name: Create Pull Request
         if: steps.git-check.outputs.changes == 'true'

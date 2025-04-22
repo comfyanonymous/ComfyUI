@@ -1,7 +1,7 @@
 from inspect import cleandoc
 from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, IO
 from comfy_api_nodes.apis.client import ApiEndpoint, SynchronousOperation, HttpMethod
-from comfy_api_nodes.apis.stubs import IdeogramGenerateRequest, IdeogramGenerateResponse, ImageRequest
+from comfy_api_nodes.apis import IdeogramGenerateRequest, IdeogramGenerateResponse, ImageRequest
 
 class IdeogramTextToImage(ComfyNodeABC):
     """
