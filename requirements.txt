@@ -23,4 +23,4 @@ kornia>=0.7.1
 spandrel
 soundfile
 av
-pydantic
+pydantic~=2.0
