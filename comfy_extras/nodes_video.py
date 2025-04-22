@@ -50,13 +50,15 @@ class SaveWEBM:
             for x in extra_pnginfo:
                 container.metadata[x] = json.dumps(extra_pnginfo[x])
 
-        codec_map = {"vp9": "libvpx-vp9", "av1": "libaom-av1"}
+        codec_map = {"vp9": "libvpx-vp9", "av1": "libsvtav1"}
         stream = container.add_stream(codec_map[codec], rate=Fraction(round(fps * 1000), 1000))
         stream.width = images.shape[-2]
         stream.height = images.shape[-3]
-        stream.pix_fmt = "yuv420p"
+        stream.pix_fmt = "yuv420p10le" if codec == "av1" else "yuv420p"
         stream.bit_rate = 0
         stream.options = {'crf': str(crf)}
+        if codec == "av1":
+            stream.options["preset"] = "6"
 
         for frame in images:
             frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :3] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgb24")
