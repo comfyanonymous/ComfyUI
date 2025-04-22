@@ -138,18 +138,42 @@ class ApiClient:
         request_headers = self.get_headers()
         if headers:
             request_headers.update(headers)
+
+        # Let requests handle the content type when files are present.
+        if files:
+            del request_headers["Content-Type"]
+
         logging.debug(f"[DEBUG] Request Headers: {request_headers}")
+        logging.debug(f"[DEBUG] Files: {files}")
+        logging.debug(f"[DEBUG] Params: {params}")
+        logging.debug(f"[DEBUG] Json: {json}")
+        
         try:
-            response = requests.request(
-                method=method,
-                url=url,
-                params=params,
-                json=json,
-                files=files,
-                headers=request_headers,
-                timeout=self.timeout,
-                verify=self.verify_ssl,
-            )
+            # If files are present, use data parameter instead of json
+            if files:
+                form_data = {}
+                if json:
+                    form_data.update(json)
+                response = requests.request(
+                    method=method,
+                    url=url,
+                    params=params,
+                    data=form_data,  # Use data instead of json
+                    files=files,
+                    headers=request_headers,
+                    timeout=self.timeout,
+                    verify=self.verify_ssl,
+                )
+            else:
+                response = requests.request(
+                    method=method,
+                    url=url,
+                    params=params,
+                    json=json,
+                    headers=request_headers,
+                    timeout=self.timeout,
+                    verify=self.verify_ssl,
+                )
 
             # Raise exception for error status codes
             response.raise_for_status()
@@ -166,7 +190,24 @@ class ApiClient:
         except requests.HTTPError as e:
             status_code = e.response.status_code if hasattr(e, "response") else None
             error_message = f"HTTP Error: {str(e)}"
+
+            # Try to extract detailed error message from JSON response
+            try:
+                if hasattr(e, "response") and e.response.content:
+                    error_json = e.response.json()
+                    if "error" in error_json and "message" in error_json["error"]:
+                        error_message = f"API Error: {error_json['error']['message']}"
+                        if "type" in error_json["error"]:
+                            error_message += f" (Type: {error_json['error']['type']})"
+                    else:
+                        error_message = f"API Error: {error_json}"
+            except Exception as json_error:
+                # If we can't parse the JSON, fall back to the original error message
+                logging.debug(f"[DEBUG] Failed to parse error response: {str(json_error)}")
+
             logging.debug(f"[DEBUG] API Error: {error_message} (Status: {status_code})")
+            if hasattr(e, "response") and e.response.content:
+                logging.debug(f"[DEBUG] Response content: {e.response.content}")
             if status_code == 401:
                 error_message = "Unauthorized: Please login first to use this node."
             if status_code == 402:
@@ -221,9 +262,10 @@ class SynchronousOperation(Generic[T, R]):
         self,
         endpoint: ApiEndpoint[T, R],
         request: T,
+        files: Optional[Dict[str, Any]] = None,
         api_base: str = "https://stagingapi.comfy.org",
         auth_token: Optional[str] = None,
-        timeout: float = 30.0,
+        timeout: float = 60.0,
         verify_ssl: bool = True,
     ):
         self.endpoint = endpoint
@@ -234,7 +276,7 @@ class SynchronousOperation(Generic[T, R]):
         self.auth_token = auth_token
         self.timeout = timeout
         self.verify_ssl = verify_ssl
-
+        self.files = files
     def execute(self, client: Optional[ApiClient] = None) -> R:
         """Execute the API operation using the provided client or create one"""
         try:
@@ -263,6 +305,7 @@ class SynchronousOperation(Generic[T, R]):
                 path=self.endpoint.path,
                 json=request_dict,
                 params=self.endpoint.query_params,
+                files=self.files,
             )
 
             # Debug log for response
