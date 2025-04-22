@@ -17,6 +17,7 @@ import folder_paths
 import node_helpers
 from comfy.cli_args import args
 from comfy.comfy_types.node_typing import IO
+from comfy.weight_adapter import WeightAdapterBase, WeightAdapterTrainBase, adapters
 
 
 class TrainSampler(comfy.samplers.Sampler):
@@ -64,23 +65,6 @@ class BiasDiff(torch.nn.Module):
 
     def passive_memory_usage(self):
         return self.bias.nelement() * self.bias.element_size()
-
-    def move_to(self, device):
-        self.to(device=device)
-        return self.passive_memory_usage()
-
-
-class LoraDiff(torch.nn.Module):
-    def __init__(self, lora_down, lora_up):
-        super().__init__()
-        self.lora_down = lora_down
-        self.lora_up = lora_up
-
-    def __call__(self, w):
-        return w + (self.lora_up @ self.lora_down).reshape(w.shape)
-
-    def passive_memory_usage(self):
-        return self.lora_down.nelement() * self.lora_down.element_size() + self.lora_up.nelement() * self.lora_up.element_size()
 
     def move_to(self, device):
         self.to(device=device)
@@ -384,52 +368,25 @@ class TrainLoraNode:
                         key = "{}.weight".format(n)
                         shape = m.weight.shape
                         if len(shape) >= 2:
-                            in_dim = math.prod(shape[1:])
-                            out_dim = shape[0]
-
-                            # Check if we have existing weights for this layer
-                            lora_up_key = "{}.lora_up.weight".format(n)
-                            lora_down_key = "{}.lora_down.weight".format(n)
-
-                            if existing_lora != "[None]" and (
-                                    lora_up_key in existing_weights
-                                    and lora_down_key in existing_weights
-                            ):
-                                # Initialize with existing weights
-                                lora_up = torch.nn.Parameter(
-                                        existing_weights[lora_up_key].to(dtype=dtype),
-                                        requires_grad=True,
-                                    )
-                                lora_down = torch.nn.Parameter(
-                                        existing_weights[lora_down_key].to(dtype=dtype),
-                                        requires_grad=True,
-                                    )
+                            existing_adapter = None
+                            for adapter_cls in adapters:
+                                existing_adapter = adapter_cls.load(
+                                    n, existing_weights
+                                )
+                                if existing_adapter is not None:
+                                    break
+                            
+                            if existing_adapter is not None:
+                                train_adapter = existing_adapter.to_train()
+                                for name, parameter in train_adapter.named_parameters():
+                                    lora_sd[f"{n}.{name}"] = parameter
                             else:
-                                if existing_lora != "[None]":
-                                    logging.info(f"Warning: No existing weights found for {lora_up_key} or {lora_down_key}")
-                                # Initialize new weights
-                                lora_down = torch.nn.Parameter(
-                                    torch.zeros(
-                                        (
-                                            rank,
-                                            in_dim,
-                                        ),
-                                        dtype=dtype,
-                                    ),
-                                    requires_grad=True,
-                                )
-                                lora_up = torch.nn.Parameter(
-                                    torch.zeros((out_dim, rank), dtype=dtype),
-                                    requires_grad=True,
-                                )
-                                torch.nn.init.zeros_(lora_up)
-                                torch.nn.init.kaiming_uniform_(
-                                    lora_down, a=math.sqrt(5), generator=generator
+                                # Use LoRA with alpha=1.0 by default
+                                train_adapter = adapter_cls[0].create_train(
+                                    m.weight, rank=rank, alpha=1.0
                                 )
 
-                            lora_sd[lora_up_key] = lora_up
-                            lora_sd[lora_down_key] = lora_down
-                            mp.add_weight_wrapper(key, LoraDiff(lora_down, lora_up))
+                            mp.add_weight_wrapper(key, train_adapter)
                         else:
                             diff = torch.nn.Parameter(
                                 torch.zeros(

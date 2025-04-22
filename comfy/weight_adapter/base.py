@@ -18,6 +18,13 @@ class WeightAdapterBase:
     def to_train(self) -> "WeightAdapterTrainBase":
         raise NotImplementedError
 
+    def create_train(self, weight, *args) -> "WeightAdapterTrainBase":
+        """
+        weight: The original weight tensor to be modified.
+        *args: Additional arguments for configuration, such as rank, alpha etc.
+        """
+        raise NotImplementedError
+
     def calculate_weight(
         self,
         weight,

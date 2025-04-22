@@ -1,4 +1,4 @@
-from .base import WeightAdapterBase
+from .base import WeightAdapterBase, WeightAdapterTrainBase
 from .lora import LoRAAdapter
 from .loha import LoHaAdapter
 from .lokr import LoKrAdapter
