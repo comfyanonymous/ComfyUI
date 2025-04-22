@@ -99,21 +99,15 @@ from typing import (
     Any,
     TypeVar,
     Generic,
-    Callable,
 )
 from pydantic import BaseModel
 from enum import Enum
-import time
 import json
 import requests
 from urllib.parse import urljoin
 
-# Import models from your generated stubs
-
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R", bound=BaseModel)
-P = TypeVar("P", bound=BaseModel)  # For poll response
-
 
 class EmptyRequest(BaseModel):
     """Base class for empty request bodies.
@@ -337,125 +331,3 @@ class SynchronousOperation(Generic[T, R]):
         self.response = self.endpoint.response_model.model_validate(resp)
         logging.debug(f"[DEBUG] Parsed Response: {self.response}")
         return self.response
-
-
-class TaskStatus(str, Enum):
-    """Enum for task status values"""
-
-    COMPLETED = "completed"
-    FAILED = "failed"
-    PENDING = "pending"
-
-
-class PollingOperation(Generic[T, R]):
-    """
-    Represents an asynchronous API operation that requires polling for completion.
-    """
-
-    def __init__(
-        self,
-        poll_endpoint: ApiEndpoint[EmptyRequest, R],
-        completed_statuses: list,
-        failed_statuses: list,
-        status_extractor: Callable[[R], str],
-        request: Optional[T] = None,
-        api_base: str = "https://stagingapi.comfy.org",
-        auth_token: Optional[str] = None,
-        poll_interval: float = 1.0,
-    ):
-        self.poll_endpoint = poll_endpoint
-        self.request = request
-        self.api_base = api_base
-        self.auth_token = auth_token
-        self.poll_interval = poll_interval
-
-        # Polling configuration
-        self.status_extractor = status_extractor or (
-            lambda x: getattr(x, "status", None)
-        )
-        self.completed_statuses = completed_statuses
-        self.failed_statuses = failed_statuses
-
-        # For storing response data
-        self.final_response = None
-        self.error = None
-
-    def execute(self, client: Optional[ApiClient] = None) -> R:
-        """Execute the polling operation using the provided client. If failed, raise an exception."""
-        try:
-            if client is None:
-                client = ApiClient(
-                    base_url=self.api_base,
-                    api_key=self.auth_token,
-                )
-            return self._poll_until_complete(client)
-        except Exception as e:
-            raise Exception(f"Error during polling: {str(e)}")
-
-    def _check_task_status(self, response: R) -> TaskStatus:
-        """Check task status using the status extractor function"""
-        try:
-            status = self.status_extractor(response)
-            if status in self.completed_statuses:
-                return TaskStatus.COMPLETED
-            elif status in self.failed_statuses:
-                return TaskStatus.FAILED
-            return TaskStatus.PENDING
-        except Exception as e:
-            logging.debug(f"Error extracting status: {e}")
-            return TaskStatus.PENDING
-
-    def _poll_until_complete(self, client: ApiClient) -> R:
-        """Poll until the task is complete"""
-        poll_count = 0
-        while True:
-            try:
-                poll_count += 1
-                logging.debug(f"[DEBUG] Polling attempt #{poll_count}")
-
-                request_dict = (
-                    self.request.model_dump(exclude_none=True)
-                    if self.request is not None
-                    else None
-                )
-
-                if poll_count == 1:
-                    logging.debug(
-                        f"[DEBUG] Poll Request: {self.poll_endpoint.method.value} {self.poll_endpoint.path}"
-                    )
-                    logging.debug(
-                      f"[DEBUG] Poll Request Data: {json.dumps(request_dict, indent=2) if request_dict else 'None'}"
-                    )
-
-                # Query task status
-                resp = client.request(
-                    method=self.poll_endpoint.method.value,
-                    path=self.poll_endpoint.path,
-                    params=self.poll_endpoint.query_params,
-                    json=request_dict,
-                )
-
-                # Parse response
-                response_obj = self.poll_endpoint.response_model.model_validate(resp)
-
-                # Check if task is complete
-                status = self._check_task_status(response_obj)
-                logging.debug(f"[DEBUG] Task Status: {status}")
-
-                if status == TaskStatus.COMPLETED:
-                    logging.debug("[DEBUG] Task completed successfully")
-                    self.final_response = response_obj
-                    return self.final_response
-                elif status == TaskStatus.FAILED:
-                    logging.debug(f"[DEBUG] Task failed: {json.dumps(resp)}")
-                    raise Exception(f"Task failed: {json.dumps(resp)}")
-                else:
-                    logging.debug("[DEBUG] Task still pending, continuing to poll...")
-
-                # Wait before polling again
-                logging.debug(f"[DEBUG] Waiting {self.poll_interval} seconds before next poll")
-                time.sleep(self.poll_interval)
-
-            except Exception as e:
-                logging.debug(f"[DEBUG] Polling error: {str(e)}")
-                raise Exception(f"Error while polling: {str(e)}")
