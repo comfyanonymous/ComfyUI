@@ -1,7 +1,0 @@
-version = 1
-requires-python = ">=3.9"
-
-[[package]]
-name = "comfyui"
-version = "0.3.26"
-source = { virtual = "." }
