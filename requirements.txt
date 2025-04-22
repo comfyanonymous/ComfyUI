@@ -22,4 +22,4 @@ psutil
 kornia>=0.7.1
 spandrel
 soundfile
-av
+av>=14.1.0
