@@ -20,9 +20,10 @@ class SaveWEBM:
         return {"required":
                     {"images": ("IMAGE", ),
                      "filename_prefix": ("STRING", {"default": "ComfyUI"}),
-                     "codec": (["vp9", "av1"],),
+                     "codec": (["vp9", "av1", "svt-av1"],),
                      "fps": ("FLOAT", {"default": 24.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
                      "crf": ("FLOAT", {"default": 32.0, "min": 0, "max": 63.0, "step": 1, "tooltip": "Higher crf means lower quality with a smaller file size, lower crf means higher quality higher filesize."}),
+                     "pixel_format": (["yuv420p", "yuv420p10le"],),
                      },
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
@@ -36,7 +37,7 @@ class SaveWEBM:
 
     EXPERIMENTAL = True
 
-    def save_images(self, images, codec, fps, filename_prefix, crf, prompt=None, extra_pnginfo=None):
+    def save_images(self, images, codec, fps, filename_prefix, crf, pixel_format="yuv420p", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
 
@@ -50,13 +51,15 @@ class SaveWEBM:
             for x in extra_pnginfo:
                 container.metadata[x] = json.dumps(extra_pnginfo[x])
 
-        codec_map = {"vp9": "libvpx-vp9", "av1": "libaom-av1"}
+        codec_map = {"vp9": "libvpx-vp9", "av1": "libaom-av1", "svt-av1": "libsvtav1"}
         stream = container.add_stream(codec_map[codec], rate=Fraction(round(fps * 1000), 1000))
         stream.width = images.shape[-2]
         stream.height = images.shape[-3]
-        stream.pix_fmt = "yuv420p"
+        stream.pix_fmt = pixel_format
         stream.bit_rate = 0
         stream.options = {'crf': str(crf)}
+        if codec == "svt-av1":
+            stream.options["preset"] = "6"
 
         for frame in images:
             frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :3] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgb24")
