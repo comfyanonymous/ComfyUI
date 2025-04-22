@@ -108,8 +108,6 @@ from comfy.cli_args import args
 from comfy import utils
 from . import request_logger
 
-# Import models from your generated stubs
-
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R", bound=BaseModel)
 P = TypeVar("P", bound=BaseModel)  # For poll response
