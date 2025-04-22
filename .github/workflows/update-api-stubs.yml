@@ -1,11 +1,9 @@
-name: Generate API Models
+name: Generate Pydantic Stubs from api.comfy.org
 
 on:
   schedule:
-    # Run weekly on Monday at 00:00 UTC
     - cron: '0 0 * * 1'
   workflow_dispatch:
-    # Allow manual triggering
 
 jobs:
   generate-models:
@@ -27,23 +25,23 @@ jobs:
       
       - name: Generate API models
         run: |
-          datamodel-codegen  --use-subclass-enum --url https://stagingapi.comfy.org/openapi --output comfy_api_nodes/apis/stubs.py
+          datamodel-codegen  --use-subclass-enum --url https://api.comfy.org/openapi --output comfy_api_nodes/apis/stubs.py
       
       - name: Check for changes
         id: git-check
         run: |
-          git diff --exit-code comfy_extras/apis/stubs.py || echo "changes=true" >> $GITHUB_OUTPUT
+          git diff --exit-code comfy_api_nodes/apis/stubs.py || echo "changes=true" >> $GITHUB_OUTPUT
       
       - name: Create Pull Request
         if: steps.git-check.outputs.changes == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
           commit-message: 'chore: update API models from OpenAPI spec'
-          title: 'Update API models from OpenAPI spec'
+          title: 'Update API models from api.comfy.org'
           body: |
-            This PR updates the API models based on the latest OpenAPI specification.
+            This PR updates the API models based on the latest api.comfy.org OpenAPI specification.
             
-            Generated automatically by the Generate API Models workflow.
-          branch: update-api-models
+            Generated automatically by the a Github workflow.
+          branch: update-api-stubs
           delete-branch: true
           base: main
