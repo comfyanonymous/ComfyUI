@@ -1,7 +1,15 @@
+import io
 from inspect import cleandoc
-from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, IO
-from comfy_api_nodes.apis.client import ApiEndpoint, SynchronousOperation, HttpMethod
-from comfy_api_nodes.apis import IdeogramGenerateRequest, IdeogramGenerateResponse, ImageRequest
+
+from comfy.comfy_types.node_typing import IO, ComfyNodeABC, InputTypeDict
+from comfy_api_nodes.apis import (
+    IdeogramGenerateRequest,
+    IdeogramGenerateResponse,
+    ImageRequest,
+    OpenAIImageGenerationRequest,
+)
+from comfy_api_nodes.apis.client import ApiEndpoint, HttpMethod, SynchronousOperation
+
 
 class IdeogramTextToImage(ComfyNodeABC):
     """
@@ -91,11 +99,12 @@ class IdeogramTextToImage(ComfyNodeABC):
     def api_call(self, prompt, model, aspect_ratio=None, resolution=None,
                  magic_prompt_option="AUTO", seed=0, style_type="NONE",
                  negative_prompt="", num_images=1, color_palette="", auth_token=None):
-        import torch
-        from PIL import Image
         import io
+
         import numpy as np
         import requests
+        import torch
+        from PIL import Image
 
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
@@ -156,14 +165,138 @@ class IdeogramTextToImage(ComfyNodeABC):
     #def IS_CHANGED(s, image, string_field, int_field, float_field, print_to_screen):
     #    return ""
 
+class OpenAITextToImage(ComfyNodeABC):
+    """
+    Generates images synchronously via OpenAI's DALL·E 3 endpoint.
+
+    Uses the proxy at /proxy/dalle-3/generate. Returned URLs are short‑lived,
+    so download or cache results if you need to keep them.
+    """
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypeDict:
+        return {
+            "required": {
+                "prompt": (IO.STRING, {
+                    "multiline": True,
+                    "default": "",
+                    "tooltip": "Text prompt for DALL·E",
+                }),
+                # TODO: add NEW MODEL
+                "model": (IO.COMBO, {
+                    "options": ["dall-e-3", "dall-e-2"],
+                    "default": "dall-e-3",
+                    "tooltip": "OpenAI model name",
+                }),
+            },
+            "optional": {
+                "n": (IO.INT, {
+                    "default": 1,
+                    "min": 1,
+                    "max": 8,
+                    "step": 1,
+                    "display": "number",
+                    "tooltip": "How many images to generate",
+                }),
+                "size": (IO.COMBO, {
+                    "options": ["256x256", "512x512", "1024x1792", "1792x1024", "1024x1024", "1536x1024", "1024x1536", "auto"],
+                    "default": "auto",
+                    "tooltip": "Image size",
+                }),
+                "seed": (IO.INT, {
+                    "default": 0,
+                    "min": 0,
+                    "max": 2**31-1,
+                    "step": 1,
+                    "display": "number",
+                    "tooltip": "Optional random seed",
+                }),
+            },
+        }
+
+    RETURN_TYPES = (IO.IMAGE,)
+    FUNCTION = "api_call"
+    CATEGORY = "Example"
+    DESCRIPTION = cleandoc(__doc__ or "")
+    API_NODE = True
+
+    def api_call(self, prompt, model, n=1, size="1024x1024", seed=0):
+        # Validate size based on model
+        if model == "dall-e-2":
+            if size == "auto":
+                size = "1024x1024"
+            valid_sizes = ["256x256", "512x512", "1024x1024"]
+            if size not in valid_sizes:
+                raise ValueError(f"Size {size} not valid for dall-e-2. Must be one of: {', '.join(valid_sizes)}")
+        elif model == "dall-e-3":
+            if size == "auto":
+                size = "1024x1024"
+            valid_sizes = ["1024x1024", "1792x1024", "1024x1792"] 
+            if size not in valid_sizes:
+                raise ValueError(f"Size {size} not valid for dall-e-3. Must be one of: {', '.join(valid_sizes)}")
+        # TODO: add NEW MODEL
+
+
+        import io
+
+        import numpy as np
+        import torch
+        from PIL import Image
+
+        # build the operation
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/openai/images/generations",
+                method=HttpMethod.POST,
+                request_model=OpenAIImageGenerationRequest,
+                response_model=None
+            ),
+            request=OpenAIImageGenerationRequest(
+                model=model,
+                prompt=prompt,
+                n=n,
+                size=size,
+                seed=seed if seed != 0 else None
+            ),
+        )
+
+        response = operation.execute()
+
+        # validate raw JSON response
+        if not isinstance(response, dict) or 'data' not in response:
+            raise Exception("Invalid response format from OpenAI endpoint")
+        
+        data = response['data']
+        if not data or len(data) == 0:
+            raise Exception("No images returned from OpenAI endpoint")
+
+        # Get base64 image data
+        b64_data = data[0].get('b64_json')
+        if not b64_data:
+            raise Exception("No image data in OpenAI response")
+
+        # decode base64 to image
+        import base64
+        img_data = base64.b64decode(b64_data)
+        img = Image.open(io.BytesIO(img_data)).convert("RGB")
+        
+        # Convert to tensor
+        arr = np.array(img).astype(np.float32) / 255.0
+        tensor = torch.from_numpy(arr)[None, ...]  # add batch dimension
+
+        return (tensor,)
 
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
     "IdeogramTextToImage": IdeogramTextToImage,
+    "OpenAIDalleTextToImage": OpenAIDalleTextToImage,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     "IdeogramTextToImage": "Ideogram Text to Image",
+    "OpenAIDalleTextToImage": "OpenAI DALL·E 3 Text to Image",
 }
