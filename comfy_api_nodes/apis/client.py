@@ -97,6 +97,7 @@ import io
 import socket
 from typing import Dict, Type, Optional, Any, TypeVar, Generic, Callable, Tuple
 from enum import Enum
+import time
 import json
 import requests
 from urllib.parse import urljoin, urlparse
@@ -107,6 +108,8 @@ from server import PromptServer
 from comfy.cli_args import args
 from comfy import utils
 from . import request_logger
+
+# Import models from your generated stubs
 
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R", bound=BaseModel)
