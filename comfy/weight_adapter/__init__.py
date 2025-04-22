@@ -11,3 +11,9 @@ adapters: list[type[WeightAdapterBase]] = [
     LoKrAdapter,
     GLoRAAdapter,
 ]
+
+__all__ = [
+    "WeightAdapterBase",
+    "WeightAdapterTrainBase",
+    "adapters"
+] + [a.__name__ for a in adapters]
