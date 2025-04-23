@@ -67,7 +67,7 @@ jobs:
             cd ..
 
             git clone --depth 1 https://github.com/comfyanonymous/taesd
-            cp taesd/*.pth ./ComfyUI_copy/models/vae_approx/
+            cp taesd/*.safetensors ./ComfyUI_copy/models/vae_approx/
 
             mkdir ComfyUI_windows_portable
             mv python_embeded ComfyUI_windows_portable
