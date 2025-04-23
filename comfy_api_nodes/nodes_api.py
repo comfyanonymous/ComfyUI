@@ -342,26 +342,26 @@ class OpenAIGPTImage1(ComfyNodeABC):
         img_binaries = []
         mask_binary = None
         files = []
-        
+
         if image is not None:
             path = "/proxy/openai/images/edits"
             request_class = OpenAIImageEditRequest
-            
+
             batch_size = image.shape[0]
-            
-            
+
+
             for i in range(batch_size):
                 single_image = image[i:i+1]
                 scaled_image = downscale_input(single_image).squeeze()
-                
+
                 image_np = (scaled_image.numpy() * 255).astype(np.uint8)
                 img = Image.fromarray(image_np)
                 img_byte_arr = io.BytesIO()
                 img.save(img_byte_arr, format='PNG')
                 img_byte_arr.seek(0)
                 img_binary = img_byte_arr
-                img_binary.name = f"image_{i}.png"  
-                
+                img_binary.name = f"image_{i}.png"
+
                 img_binaries.append(img_binary)
                 if batch_size == 1:
                     files.append(("image", img_binary))
