@@ -2260,9 +2260,18 @@ def init_builtin_extra_nodes():
         "nodes_fresca.py",
     ]
 
+    api_nodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_api_nodes")
+    api_nodes_files = [
+        "nodes_api.py",
+    ]
+
     import_failed = []
     for node_file in extras_files:
         if not load_custom_node(os.path.join(extras_dir, node_file), module_parent="comfy_extras"):
+            import_failed.append(node_file)
+
+    for node_file in api_nodes_files:
+        if not load_custom_node(os.path.join(api_nodes_dir, node_file), module_parent="comfy_api_nodes"):
             import_failed.append(node_file)
 
     return import_failed
