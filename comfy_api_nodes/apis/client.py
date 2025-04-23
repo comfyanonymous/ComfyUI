@@ -147,7 +147,7 @@ class ApiClient:
         logging.debug(f"[DEBUG] Files: {files}")
         logging.debug(f"[DEBUG] Params: {params}")
         logging.debug(f"[DEBUG] Json: {json}")
-        
+
         try:
             # If files are present, use data parameter instead of json
             if files:
@@ -212,6 +212,8 @@ class ApiClient:
                 error_message = "Unauthorized: Please login first to use this node."
             if status_code == 402:
                 error_message = "Payment Required: Please add credits to your account to use this node."
+            if status_code == 429:
+                error_message = "Rate Limit Exceeded: Please try again later."
             raise Exception(error_message)
 
         # Parse and return JSON response
@@ -263,7 +265,7 @@ class SynchronousOperation(Generic[T, R]):
         endpoint: ApiEndpoint[T, R],
         request: T,
         files: Optional[Dict[str, Any]] = None,
-        api_base: str = "https://stagingapi.comfy.org",
+        api_base: str = "https://api.comfy.org",
         auth_token: Optional[str] = None,
         timeout: float = 60.0,
         verify_ssl: bool = True,
