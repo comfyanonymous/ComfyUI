@@ -205,6 +205,37 @@ async def test_listuserdata_full_info_include_empty_dirs(aiohttp_client, app, tm
         assert "size" in info
         assert "modified" in info
 
+async def test_listuserdata_recurse_split_include_empty_dirs(aiohttp_client, app, tmp_path):
+    # Arrange
+    test_dir = tmp_path / "test_dir"
+    file1 = test_dir / "file1.txt"
+    empty = test_dir / "empty_subdir"
+    occupying_dir = test_dir / "occupied_directory"
+    another_occupying_dir = occupying_dir / "another_occupied_directory"
+    file2 = another_occupying_dir / "file2.txt"
+    os.makedirs(test_dir)
+    os.makedirs(occupying_dir)
+    os.makedirs(another_occupying_dir)
+    os.makedirs(empty)
+    with open(file1, "w") as f:
+        f.write("content")
+    with open(file2, "w") as f:
+        f.write("nested content")
+
+    client = await aiohttp_client(app)
+
+    # Act
+    resp = await client.get("/userdata?dir=test_dir&split=true&emptyDirs=true&recurse=true")
+
+    # Assert
+    assert resp.status == 200
+    result = await resp.json()
+    assert set(tuple(r) for r in result) == {
+        ("file1.txt", "", "file1.txt"),
+        ("empty_subdir", "empty_subdir", ""),
+        ("occupied_directory/another_occupied_directory/file2.txt", "occupied_directory/another_occupied_directory", "file2.txt"),
+    }
+
 async def test_post_userdata_new_file(aiohttp_client, app, tmp_path):
     client = await aiohttp_client(app)
     content = b"test content"

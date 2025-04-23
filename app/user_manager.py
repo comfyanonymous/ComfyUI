@@ -187,7 +187,12 @@ class UserManager():
 
                 rel_path = os.path.relpath(full_path, path).replace(os.sep, '/')
                 if split_path:
-                    return [rel_path] + rel_path.split('/')
+                    if os.path.isdir(full_path):
+                        dirname, basename = rel_path, ""
+                    else:
+                        head, tail = rel_path.rsplit('/', 1) if '/' in rel_path else ("", rel_path)
+                        dirname, basename = head, tail
+                    return [rel_path, dirname, basename]
 
                 return rel_path
 
