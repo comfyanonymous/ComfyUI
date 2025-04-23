@@ -53,7 +53,7 @@ def validate_and_cast_response (response):
             raise Exception("Failed to download the image")
         img = Image.open(io.BytesIO(img_response.content))
 
-    img = img.convert("RGB")  # Ensure RGB format
+    img = img.convert("RGBA")
 
     # Convert to numpy array, normalize to float32 between 0 and 1
     img_array = np.array(img).astype(np.float32) / 255.0
