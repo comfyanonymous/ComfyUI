@@ -1,7 +1,7 @@
 """Comfy-specific type hinting"""
 
 from __future__ import annotations
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, Optional
 from typing_extensions import NotRequired
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -229,6 +229,8 @@ class ComfyNodeABC(ABC):
     """Flags a node as experimental, informing users that it may change or not work as expected."""
     DEPRECATED: bool
     """Flags a node as deprecated, indicating to users that they should find alternatives to this node."""
+    API_NODE: Optional[bool]
+    """Flags a node as an API node."""
 
     @classmethod
     @abstractmethod
