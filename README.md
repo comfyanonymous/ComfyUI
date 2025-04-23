@@ -216,9 +216,9 @@ Additional discussion and help can be found [here](https://github.com/comfyanony
 
 Nvidia users should install stable pytorch using this command:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu126```
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128```
 
-This is the command to install pytorch nightly instead which supports the new blackwell 50xx series GPUs and might have performance improvements.
+This is the command to install pytorch nightly instead which might have performance improvements.
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128```
 
