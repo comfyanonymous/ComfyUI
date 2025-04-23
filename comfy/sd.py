@@ -640,8 +640,9 @@ class VAE:
                 if samples is None:
                     samples = torch.empty((pixel_samples.shape[0],) + tuple(out.shape[1:]), device=self.output_device)
                 samples[x:x + batch_number] = out
-
-        except model_management.OOM_EXCEPTION:
+        except Exception as ex:
+            if not model_management.is_oom_exception(ex):
+                raise
             logging.warning("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
             if self.latent_dim == 3:
                 tile = 256
