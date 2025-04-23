@@ -22,10 +22,10 @@ import math
 def downscale_input(image):
     samples = image.movedim(-1,1)
     #downscaling input images to roughly the same size as the outputs
-    total = int(1024 * 1024)
+    total = int(1536 * 1024)
     scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
     if scale_by >= 1:
-        return (image,)
+        return image
     width = round(samples.shape[3] * scale_by)
     height = round(samples.shape[2] * scale_by)
 
