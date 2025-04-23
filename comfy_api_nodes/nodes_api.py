@@ -4,9 +4,6 @@ from inspect import cleandoc
 from comfy.utils import common_upscale
 from comfy.comfy_types.node_typing import IO, ComfyNodeABC, InputTypeDict
 from comfy_api_nodes.apis import (
-    IdeogramGenerateRequest,
-    IdeogramGenerateResponse,
-    ImageRequest,
     OpenAIImageGenerationRequest,
     OpenAIImageEditRequest,
     OpenAIImageGenerationResponse
