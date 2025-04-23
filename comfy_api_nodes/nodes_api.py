@@ -15,6 +15,7 @@ from PIL import Image
 import requests
 import torch
 import math
+import base64
 
 def downscale_input(image):
     samples = image.movedim(-1,1)
@@ -38,13 +39,20 @@ def validate_and_cast_response (response):
 
     # Get base64 image data
     image_url = data[0].url
-    if not image_url:
-        raise Exception("No image URL was generated in the response")
-    img_response = requests.get(image_url)
-    if img_response.status_code != 200:
-        raise Exception("Failed to download the image")
+    b64_data = data[0].b64_json
+    if not image_url and not b64_data:
+        raise Exception("No image was generated in the response")
 
-    img = Image.open(io.BytesIO(img_response.content))
+    if b64_data:
+        img_data = base64.b64decode(b64_data)
+        img = Image.open(io.BytesIO(img_data))
+        
+    elif image_url:
+        img_response = requests.get(image_url)
+        if img_response.status_code != 200:
+            raise Exception("Failed to download the image")
+        img = Image.open(io.BytesIO(img_response.content))
+
     img = img.convert("RGB")  # Ensure RGB format
 
     # Convert to numpy array, normalize to float32 between 0 and 1
