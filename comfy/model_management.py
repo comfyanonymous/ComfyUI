@@ -725,6 +725,8 @@ def unet_dtype(device=None, model_params=0, supported_dtypes=[torch.float16, tor
         return torch.float8_e4m3fn
     if args.fp8_e5m2_unet:
         return torch.float8_e5m2
+    if args.fp8_e8m0fnu_unet:
+        return torch.float8_e8m0fnu
 
     fp8_dtype = None
     if weight_dtype in FLOAT8_TYPES:
