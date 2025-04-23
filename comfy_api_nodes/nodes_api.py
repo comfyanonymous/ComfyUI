@@ -339,25 +339,38 @@ class OpenAIGPTImage1(ComfyNodeABC):
         model = "gpt-image-1"
         path = "/proxy/openai/images/generations"
         request_class = OpenAIImageGenerationRequest
-        img_binary = None
+        img_binaries = []
         mask_binary = None
-
-
+        files = []
+        
         if image is not None:
             path = "/proxy/openai/images/edits"
             request_class = OpenAIImageEditRequest
-
-            scaled_image = downscale_input(image).squeeze()
-
-            image_np = (scaled_image.numpy() * 255).astype(np.uint8)
-            img = Image.fromarray(image_np)
-            img_byte_arr = io.BytesIO()
-            img.save(img_byte_arr, format='PNG')
-            img_byte_arr.seek(0)
-            img_binary = img_byte_arr#.getvalue()
-            img_binary.name = "image.png"
+            
+            batch_size = image.shape[0]
+            
+            
+            for i in range(batch_size):
+                single_image = image[i:i+1]
+                scaled_image = downscale_input(single_image).squeeze()
+                
+                image_np = (scaled_image.numpy() * 255).astype(np.uint8)
+                img = Image.fromarray(image_np)
+                img_byte_arr = io.BytesIO()
+                img.save(img_byte_arr, format='PNG')
+                img_byte_arr.seek(0)
+                img_binary = img_byte_arr
+                img_binary.name = f"image_{i}.png"  
+                
+                img_binaries.append(img_binary)
+                if batch_size == 1:
+                    files.append(("image", img_binary))
+                else:
+                    files.append(("image[]", img_binary))
 
         if mask is not None:
+            if image.shape[0] != 1:
+                raise Exception("Cannot use a mask with multiple image")
             if image is None:
                 raise Exception("Cannot use a mask without an input image")
             if mask.shape[1:] != image.shape[1:-1]:
@@ -373,14 +386,10 @@ class OpenAIGPTImage1(ComfyNodeABC):
             mask_img_byte_arr = io.BytesIO()
             mask_img.save(mask_img_byte_arr, format='PNG')
             mask_img_byte_arr.seek(0)
-            mask_binary = mask_img_byte_arr#.getvalue()
+            mask_binary = mask_img_byte_arr
             mask_binary.name = "mask.png"
+            files.append(("mask", mask_binary))
 
-        files = {}
-        if img_binary:
-            files["image"] = img_binary
-        if mask_binary:
-            files["mask"] = mask_binary
 
         # Build the operation
         operation = SynchronousOperation(
