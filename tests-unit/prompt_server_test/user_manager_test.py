@@ -117,6 +117,93 @@ async def test_listuserdata_normalized_separator(aiohttp_client, app, tmp_path):
             assert "\\" not in result[0]["path"]  # Ensure backslash is not present
             assert result[0]["path"] == "subdir/file1.txt"
 
+async def test_listuserdata_include_empty_dirs(aiohttp_client, app, tmp_path):
+    # Arrange
+    test_dir = tmp_path / "test_dir"
+    empty_subdir = test_dir / "empty_subdir"
+    file1 = test_dir / "file1.txt"
+
+    os.makedirs(test_dir)
+    os.makedirs(empty_subdir)
+    with open(file1, "w") as f:
+        f.write("test")
+
+    client = await aiohttp_client(app)
+
+    # Act
+    resp = await client.get("/userdata?dir=test_dir&emptyDirs=true")
+
+    # Assert
+    assert resp.status == 200
+    result = await resp.json()
+    assert set(result) == {"file1.txt", "empty_subdir"}
+
+async def test_listuserdata_exclude_empty_dirs_default(aiohttp_client, app, tmp_path):
+    # Arrange
+    test_dir = tmp_path / "test_dir"
+    empty_subdir = test_dir / "empty_subdir"
+    file1 = test_dir / "file1.txt"
+
+    os.makedirs(test_dir)
+    os.makedirs(empty_subdir)
+    with open(file1, "w") as f:
+        f.write("test")
+
+    client = await aiohttp_client(app)
+
+    # Act
+    resp = await client.get("/userdata?dir=test_dir") # emptyDirs defaults to false
+
+    # Assert
+    assert resp.status == 200
+    result = await resp.json()
+    assert result == ["file1.txt"]
+
+async def test_listuserdata_recursive_include_empty_dirs(aiohttp_client, app, tmp_path):
+    # Arrange
+    base_dir = tmp_path / "test_dir"
+    occupied = base_dir / "occupied_directory"
+    empty = base_dir / "empty_directory"
+    file1 = occupied / "file1.txt"
+
+    os.makedirs(occupied)
+    os.makedirs(empty)
+    with open(file1, "w") as f:
+        f.write("content")
+
+    client = await aiohttp_client(app)
+
+    # Act
+    resp = await client.get("/userdata?dir=test_dir&recurse=true&emptyDirs=true")
+
+    # Assert
+    assert resp.status == 200
+    result = await resp.json()
+    assert set(result) == {"occupied_directory/file1.txt", "empty_directory"}
+
+async def test_listuserdata_full_info_include_empty_dirs(aiohttp_client, app, tmp_path):
+    # Arrange
+    test_dir = tmp_path / "test_dir"
+    file1 = test_dir / "file1.txt"
+    empty = test_dir / "empty_subdir"
+    os.makedirs(test_dir)
+    os.makedirs(empty)
+    with open(file1, "w") as f:
+        f.write("content")
+
+    client = await aiohttp_client(app)
+
+    # Act
+    resp = await client.get("/userdata?dir=test_dir&full_info=true&emptyDirs=true")
+
+    # Assert
+    assert resp.status == 200
+    result = await resp.json()
+    paths = {info["path"] for info in result}
+    assert paths == {"file1.txt", "empty_subdir"}
+    for info in result:
+        assert "size" in info
+        assert "modified" in info
 
 async def test_post_userdata_new_file(aiohttp_client, app, tmp_path):
     client = await aiohttp_client(app)
