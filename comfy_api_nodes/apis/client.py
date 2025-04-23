@@ -226,7 +226,7 @@ class ApiClient:
     def check_auth_token(self, auth_token):
         """Verify that an auth token is present."""
         if auth_token is None:
-            raise Exception("Please login first to use this node.")
+            raise Exception("Unauthorized: Please login first to use this node.")
         return auth_token
 
 
