@@ -146,6 +146,7 @@ class UserManager():
             - recurse (optional): If "true", recursively list files in subdirectories.
             - full_info (optional): If "true", return detailed file information (path, size, modified time).
             - split (optional): If "true", split file paths into components (only applies when full_info is false).
+            - emptyDirs (optional): If "true", include empty directories in the listing.
 
             Returns:
             - 400: If 'dir' parameter is missing.
@@ -172,6 +173,7 @@ class UserManager():
             recurse = request.rel_url.query.get('recurse', '').lower() == "true"
             full_info = request.rel_url.query.get('full_info', '').lower() == "true"
             split_path = request.rel_url.query.get('split', '').lower() == "true"
+            include_empty_dirs = request.rel_url.query.get('emptyDirs', '').lower() == "true"
 
             # Use different patterns based on whether we're recursing or not
             if recurse:
@@ -189,11 +191,20 @@ class UserManager():
 
                 return rel_path
 
-            results = [
-                process_full_path(full_path)
-                for full_path in glob.glob(pattern, recursive=recurse)
-                if os.path.isfile(full_path)
-            ]
+            enum_entries = glob.glob(pattern, recursive=recurse)
+            results = []
+            for full_path in enum_entries:
+                is_dir = os.path.isdir(full_path)
+
+                if is_dir:
+                    # skip every dir unless we're explicitly including empty ones
+                    if not include_empty_dirs:
+                        continue
+                    # when including dirs, only keep the empty ones
+                    if os.listdir(full_path):
+                        continue
+
+                results.append(process_full_path(full_path))
 
             return web.json_response(results)
 
