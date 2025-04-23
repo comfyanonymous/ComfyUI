@@ -46,7 +46,7 @@ def validate_and_cast_response (response):
     if b64_data:
         img_data = base64.b64decode(b64_data)
         img = Image.open(io.BytesIO(img_data))
-        
+
     elif image_url:
         img_response = requests.get(image_url)
         if img_response.status_code != 200:
