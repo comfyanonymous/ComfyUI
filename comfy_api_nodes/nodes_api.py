@@ -255,9 +255,9 @@ class OpenAIDalle3(ComfyNodeABC):
         img_tensor = validate_and_cast_response(response)
         return (img_tensor,)
 
-class OpenAIXXX(ComfyNodeABC):
+class OpenAIGPTImage1(ComfyNodeABC):
     """
-    Generates images synchronously via OpenAI's DALL·E 2 endpoint.
+    Generates images synchronously via OpenAI's GPT Image 1 endpoint.
 
     Uses the proxy at /proxy/openai/images/generations. Returned URLs are short‑lived,
     so download or cache results if you need to keep them.
@@ -272,7 +272,7 @@ class OpenAIXXX(ComfyNodeABC):
                 "prompt": (IO.STRING, {
                     "multiline": True,
                     "default": "",
-                    "tooltip": "Text prompt for XXX",
+                    "tooltip": "Text prompt for GPT Image 1",
                 }),
             },
             "optional": {
@@ -328,7 +328,7 @@ class OpenAIXXX(ComfyNodeABC):
     API_NODE = True
 
     def api_call(self, prompt, seed=0, quality="low", background="opaque", image=None, mask=None, n=1, size="1024x1024", auth_token=None):
-        model = "xxx"
+        model = "gpt-image-1"
         path = "/proxy/openai/images/generations"
         request_class = OpenAIImageGenerationRequest
         img_binary = None
@@ -403,12 +403,12 @@ class OpenAIXXX(ComfyNodeABC):
 NODE_CLASS_MAPPINGS = {
     "OpenAIDalle2": OpenAIDalle2,
     "OpenAIDalle3": OpenAIDalle3,
-    "OpenAIXXX": OpenAIXXX,
+    "OpenAIGPTImage1": OpenAIGPTImage1,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     "OpenAIDalle2": "OpenAI DALL·E 2",
     "OpenAIDalle3": "OpenAI DALL·E 3",
-    "OpenAIXXX": "XXX",
+    "OpenAIGPTImage1": "OpenAI GPT Image 1",
 }
