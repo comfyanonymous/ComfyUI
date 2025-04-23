@@ -404,7 +404,6 @@ class OpenAIXXX(ComfyNodeABC):
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
-    "IdeogramTextToImage": IdeogramTextToImage,
     "OpenAIDalle2": OpenAIDalle2,
     "OpenAIDalle3": OpenAIDalle3,
     "OpenAIXXX": OpenAIXXX,
@@ -412,7 +411,6 @@ NODE_CLASS_MAPPINGS = {
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "IdeogramTextToImage": "Ideogram Text to Image",
     "OpenAIDalle2": "OpenAI DALL·E 2",
     "OpenAIDalle3": "OpenAI DALL·E 3",
     "OpenAIXXX": "XXX",
