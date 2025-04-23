@@ -269,7 +269,7 @@ class SynchronousOperation(Generic[T, R]):
         files: Optional[Dict[str, Any]] = None,
         api_base: str = "https://api.comfy.org",
         auth_token: Optional[str] = None,
-        timeout: float = 60.0,
+        timeout: float = 604800.0,
         verify_ssl: bool = True,
     ):
         self.endpoint = endpoint
