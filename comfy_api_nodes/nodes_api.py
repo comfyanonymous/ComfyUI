@@ -365,7 +365,10 @@ class OpenAIGPTImage1(ComfyNodeABC):
             batch, height, width = mask.shape
             rgba_mask = torch.zeros(height, width, 4, device="cpu")
             rgba_mask[:,:,3] = (1-mask.squeeze().cpu())
-            mask_np = (rgba_mask.numpy() * 255).astype(np.uint8)
+
+            scaled_mask = downscale_input(rgba_mask.unsqueeze(0)).squeeze()
+
+            mask_np = (scaled_mask.numpy() * 255).astype(np.uint8)
             mask_img = Image.fromarray(mask_np)
             mask_img_byte_arr = io.BytesIO()
             mask_img.save(mask_img_byte_arr, format='PNG')
