@@ -212,6 +212,8 @@ class ApiClient:
                 error_message = "Unauthorized: Please login first to use this node."
             if status_code == 402:
                 error_message = "Payment Required: Please add credits to your account to use this node."
+            if status_code == 409:
+                error_message = "There is a problem with your account. Please contact support@comfy.org. "
             if status_code == 429:
                 error_message = "Rate Limit Exceeded: Please try again later."
             raise Exception(error_message)
