@@ -81,12 +81,14 @@ If coming from the very start, you need :
     2. Also check the variables on the lower part (System Variables), there should be a variable called: "Path".
        Double-click it and click "New" add this: `C:\Program Files\AMD\ROCm\5.7\bin`
 7. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
-   from [Brknsoul Repository](https://github.com/brknsoul/ROCmLibs)
+   from [Brknsoul Repository](https://github.com/brknsoul/ROCmLibs) (for hip 5.7.1)
+   from [likelovewant Repository]([https://github.com/likelovewant/ROCmLibs-for-gfx1103-AMD780M-APU/releases/tag/v0.6.2.4]) (for hip 6.2.4)
     1. Go to folder "C:\Program Files\AMD\ROCm\5.7\bin\rocblas", there would be a "library" folder, backup the files
        inside to somewhere else.
     2. Open your downloaded optimized library archive and put them inside the library folder (overwriting if
        necessary): "C:\\Program Files\\AMD\\ROCm\\5.7\\bin\\rocblas\\library"
-8. Reboot your system.
+       * There could be a rocblas.dll file in the archive as well, if it is present then copy it inside "C:\Program Files\AMD\ROCm\5.7\bin\rocblas"
+9. Reboot your system.
 
 ## Setup (Windows-Only)
 
