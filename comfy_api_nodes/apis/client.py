@@ -97,7 +97,6 @@ import io
 import socket
 from typing import Dict, Type, Optional, Any, TypeVar, Generic, Callable, Tuple
 from enum import Enum
-import time
 import json
 import requests
 from urllib.parse import urljoin, urlparse

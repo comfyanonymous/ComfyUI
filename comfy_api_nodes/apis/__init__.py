@@ -308,6 +308,12 @@ class IdeogramGenerateRequest(BaseModel):
     )
 
 
+class IdeogramGenerateRequest(BaseModel):
+    image_request: ImageRequest = Field(
+        ..., description='The image generation request parameters.'
+    )
+
+
 class Datum(BaseModel):
     prompt: Optional[str] = Field(
         None, description='The prompt used to generate this image.'
@@ -845,16 +851,75 @@ class KlingVirtualTryOnResponse(BaseModel):
     data: Optional[Data6] = None
 
 
-class ResourcePackType(str, Enum):
-    decreasing_total = 'decreasing_total'
-    constant_period = 'constant_period'
+class KlingRequestError(KlingErrorResponse):
+    code: Optional[Code2] = Field(
+        None,
+        description='- 1200: Invalid request parameters\n- 1201: Invalid parameters\n- 1202: Invalid request method\n- 1203: Requested resource does not exist\n',
+    )
+
+
+class Code3(Enum):
+    int_5000 = 5000
+    int_5001 = 5001
+    int_5002 = 5002
+
+
+class KlingServerError(KlingErrorResponse):
+    code: Optional[Code3] = Field(
+        None,
+        description='- 5000: Internal server error\n- 5001: Service temporarily unavailable\n- 5002: Server internal timeout\n',
+    )
+
+
+class Code4(Enum):
+    int_1300 = 1300
+    int_1301 = 1301
+    int_1302 = 1302
+    int_1303 = 1303
+    int_1304 = 1304
+
+
+class KlingStrategyError(KlingErrorResponse):
+    code: Optional[Code4] = Field(
+        None,
+        description='- 1300: Trigger platform strategy\n- 1301: Trigger content security policy\n- 1302: API request too frequent\n- 1303: Concurrency/QPS exceeds limit\n- 1304: Trigger IP whitelist policy\n',
+    )
+
+
+class MinimaxBaseResponse(BaseModel):
+    status_code: int = Field(
+        ...,
+        description='Status code. 0 indicates success, other values indicate errors.',
+    )
+    status_msg: str = Field(
+        ..., description='Specific error details or success message.'
+    )
+
+
+class File(BaseModel):
+    bytes: Optional[int] = Field(None, description='File size in bytes')
+    created_at: Optional[int] = Field(
+        None, description='Unix timestamp when the file was created, in seconds'
+    )
+    download_url: Optional[str] = Field(
+        None, description='The URL to download the video'
+    )
+    file_id: Optional[int] = Field(None, description='Unique identifier for the file')
+    filename: Optional[str] = Field(None, description='The name of the file')
+    purpose: Optional[str] = Field(None, description='The purpose of using the file')
+
+
+class MinimaxFileRetrieveResponse(BaseModel):
+    base_resp: MinimaxBaseResponse
+    file: File
 
 
 class Status(str, Enum):
-    toBeOnline = 'toBeOnline'
-    online = 'online'
-    expired = 'expired'
-    runOut = 'runOut'
+    Queueing = 'Queueing'
+    Preparing = 'Preparing'
+    Processing = 'Processing'
+    Success = 'Success'
+    Fail = 'Fail'
 
 
 class ResourcePackSubscribeInfo(BaseModel):
