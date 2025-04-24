@@ -79,7 +79,7 @@ if "!HIP_VERSION!"=="5.7" (
 
 :: Download matching ZLUDA version
 rmdir /S /Q zluda 2>nul
-curl -sL --ssl-no-revoke https://github.com/lshqqytiger/ZLUDA/releases/download/rel.!ZLUDA_HASH!/ZLUDA-windows-!ZLUDA_LABEL!-amd64.zip > zluda.zip
+%SystemRoot%\system32\curl.exe -sL --ssl-no-revoke https://github.com/lshqqytiger/ZLUDA/releases/download/rel.!ZLUDA_HASH!/ZLUDA-windows-!ZLUDA_LABEL!-amd64.zip > zluda.zip
 
 if not exist zluda.zip (
     echo Failed to download ZLUDA zip for HIP version !HIP_VERSION!
@@ -87,7 +87,7 @@ if not exist zluda.zip (
     exit /b 1
 )
 
-tar -xf zluda.zip
+%SystemRoot%\system32\tar.exe -xf zluda.zip
 del zluda.zip
 
 :: Patch DLLs
