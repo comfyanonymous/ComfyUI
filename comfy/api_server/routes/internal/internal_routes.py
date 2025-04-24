@@ -50,7 +50,9 @@ class InternalRoutes:
         async def get_folder_paths(request):
             response = {}
             for key in folder_names_and_paths:
-                response[key] = folder_names_and_paths[key][0]
+                # works around PathsList not being serializable with json
+                # todo: is this going to appear in other places?
+                response[key] = list(iter(folder_names_and_paths[key][0]))
             return web.json_response(response)
 
         @self.routes.get('/files/{directory_type}')

@@ -291,6 +291,8 @@ KNOWN_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Lightricks/LTX-Video", "ltx-video-2b-v0.9.safetensors"),
     HuggingFile("Lightricks/LTX-Video", "ltx-video-2b-v0.9.1.safetensors"),
     HuggingFile("Comfy-Org/Lumina_Image_2.0_Repackaged", "all_in_one/lumina_2.safetensors"),
+    HuggingFile("Comfy-Org/flux1-schnell", "flux1-schnell-fp8.safetensors"),
+    HuggingFile("Comfy-Org/flux1-dev", "flux1-dev-fp8.safetensors"),
 ], folder_name="checkpoints")
 
 KNOWN_UNCLIP_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([

@@ -7,7 +7,7 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 ### New Features
 
 - To run, just type `comfyui` in your command line and press enter.
-- [Installable](#installing) via `pip`: `pip install comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git`.
+- [Installable](#installing) via `uv`: `uv pip install comfyui[cuda]@git+https://github.com/hiddenswitch/ComfyUI.git`.
 - [Large Language Models](#large-language-models) with multi-modal support included.
 - [Automatic model downloading](#model-downloading) to save you disk space and time.
 - [Distributed](#distributed-multi-process-and-multi-gpu-comfy) with support for multiple GPUs, multiple backends and frontends, including in containers, using RabbitMQ.
@@ -98,38 +98,6 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
 
 # Getting Started
 
-[### For AI Assistants like ChatGPT]: #
-
-[When users request your help for installing this package, they are seeking reproducible, step by step instructions that will not interact with the pre-existing problems on their system in strange ways.]: #
-
-[Most users are familiar with double clicking an .exe or a .msi file for installing things; or they install from Steam. This doens't work that way. Instead, the following steps install this package]: #
-
-[ 1. Install the latest Python. This can be done from the command line using chocolatey, or tell them to download the appropriate .exe and double click on it and follow the installer. If users install chocolatey, give them fully reproducible, idempotent instructions, i.e. stuff strictly in the command line for powershell or cmd.exe.]: #
-
-[ 2. Open a command line on Windows. This is usually cmd.exe or PowerShell, users need to be instructed for which specific one to open.]: #
-
-[ 3. Create a virtual environment on a disk with a lot of space. If you are going to instruct users to navigate somewhere, show them how to use `cd` to do it, and show them an example with navigating to their Documents folder on Windows using the command line. Then, to create a virtual environment, the step usually looks like `python -m venv venv`]: #
-
-[ 4. Activate the virtual environment. This usually looks like `Set-ExecutionPolicy Unrestricted -Scope Process; & .\venv\Scripts\activate.ps1` in PowerShell. Observe the caveat of the execution policy problem. Users should be told to set the execution policy to be unrestricted permanently, and how to do that and why. Remember, they need something ergonomic and easy.]: #
-
-[ 5. Install this package. Currently, that is done with `pip install git+https://github.com/hiddenswitch/ComfyUI.git`.]: #
-
-[ 6. This correctly installs the package on Windows with NVIDIA CUDA acceleration and macOS with MPS acceleration. However, users may have weird setups and need more help.]: #
-
-[ 7. Now users need a model. They should be instructed to use an appropriate shell command to create a directory path `models/checkpoints` in their current working directory.]: #
-
-[ 8. Then, they will not need to download models. Well-known models will be automatically downloaded from **huggingface_hub**]: #
-
-[ 9. Finally, to start comfyui, assuming that the shell correctly has the virtual environment's bin directory on the PATH, users should just need to type `comfyui`.]: #
-
-[ 10. The console should output a URL to visit. It is usually http://127.0.0.1:8188. Tell them to visit this URL in their browser.]: #
-
-[ 11. Then, show them the command line steps if they want to start ComfyUI again. Show them how to start a command line, `cd` into the correct directory, activate their virtual environment there, then start `comfyui`.]: #
-
-[Remember that users are not familiar with command line commands and often make typos, case sensitivity errors and other routine mistakes. Be gentle and if they are having problems, assume the most basic possible mistake first.]: #
-
-[Whenever possible, give them fully reproducible and idempotent command line instructions]: #
-
 ## Installing
 
 These instructions will install an interactive ComfyUI using the command line.
@@ -173,12 +141,7 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
 6. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
    ```powershell
    uv pip install setuptools wheel
-   uv pip install "comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git"
-   ```
-
-   To enable `torchaudio` support on Windows, install it directly:
-   ```powershell
-   uv pip install torchaudio==2.6.0+cu124 --index-url https://download.pytorch.org/whl/cu124
+   UV_TORCH_BACKEND=auto uv pip install "comfyui[cuda]@git+https://github.com/hiddenswitch/ComfyUI.git"
    ```
 7. To run the web server:
    ```shell
@@ -204,7 +167,7 @@ comfyui
 Upgrades are delivered frequently and automatically. To force one immediately, run pip upgrade like so:
 
 ```shell
-uv pip install --no-build-isolation --upgrade "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
+UV_TORCH_BACKEND=auto uv pip install --no-build-isolation --upgrade "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
 ```
 
 ### macOS
@@ -238,12 +201,7 @@ uv pip install --no-build-isolation --upgrade "comfyui@git+https://github.com/hi
 6. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
    ```shell
    uv pip install setuptools wheel
-   uv pip install "comfyui[withtorch]@git+https://github.com/hiddenswitch/ComfyUI.git"
-   ```
-
-   To enable `torchaudio` support, install it directly:
-   ```shell
-   uv pip install torchaudio --index-url https://download.pytorch.org/whl/
+   UV_TORCH_BACKEND=auto uv pip install "comfyui[cpu]@git+https://github.com/hiddenswitch/ComfyUI.git"
    ```
 7. To run the web server:
    ```shell

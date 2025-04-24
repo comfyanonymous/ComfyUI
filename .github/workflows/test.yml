@@ -52,10 +52,8 @@ jobs:
         runner:
           - labels: [self-hosted, Linux, X64, cpu]
             container: "ubuntu:22.04"
-          - labels: [self-hosted, Linux, X64, cuda-3060-12gb]
+          - labels: [self-hosted, Linux, X64, cuda-3090-24gb]
             container: "nvcr.io/nvidia/pytorch:24.03-py3"
-          # - labels: [self-hosted, Linux, X64, rocm-7600-8gb]
-          #   container: "rocm/pytorch:rocm6.2.3_ubuntu22.04_py3.10_pytorch_release_2.3.0"
     steps:
       - run: |
           apt update
@@ -64,13 +62,15 @@ jobs:
               rm -rf /usr/local/lib/python3.10/dist-packages/cv2/ || rm -rf /usr/local/lib/python3.11/dist-packages/cv2/ || rm -rf /usr/local/lib/python3.12/dist-packages/cv2/
           ln -s `which python3` /usr/bin/python || true
           ln -s `which pip3` /usr/bin/pip || true
+          curl -LsSf https://astral.sh/uv/install.sh | sh
         name: Prepare Python
       - uses: actions/checkout@v4
         name: Checkout git repo
       - name: Install ComfyUI
         run: |
-          python -m pip install setuptools pip --upgrade --break-system-packages || python -m pip install pip --upgrade || true
-          pip install --break-system-packages --no-build-isolation .[dev] || pip install --no-build-isolation .[dev]
+          export UV_BREAK_SYSTEM_PACKAGES=true
+          export UV_SYSTEM_PYTHON=true
+          uv pip install "comfyui[dev] @ git+https://github.com/hiddenswitch/comfyui"
       - name: Run tests
         run: |
           export HSA_OVERRIDE_GFX_VERSION=11.0.0

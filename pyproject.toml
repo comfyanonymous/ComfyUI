@@ -1,17 +1,214 @@
+[project]
+name = "comfyui"
+version = "0.3.29"
+description = "An installable version of ComfyUI"
+readme = "README.md" # Optional: if you have a README
+authors = [
+    { name = "Contributors_of_ComfyUI" },
+]
+requires-python = ">=3.10,<3.14"
+license = { text = "Specify License Here" } # Optional: Add your license
+classifiers = [# Optional: Standard PyPI classifiers
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    # Add other relevant classifiers
+]
+
+# Core dependencies from requirements.txt (excluding torch/torchvision)
+dependencies = [
+    "comfyui-frontend-package",
+    "comfyui-workflow-templates",
+    "torchdiffeq>=0.2.3",
+    "torchsde>=0.2.6",
+    "numpy>=1.25.0",
+    "einops>=0.6.0",
+    "open-clip-torch>=2.24.0",
+    "transformers>=4.29.1",
+    "tokenizers>=0.13.3",
+    "sentencepiece",
+    "peft>=0.10.0",
+    "torchinfo",
+    "safetensors>=0.4.2",
+    "bitsandbytes",
+    "aiohttp>=3.11.8",
+    "yarl>=1.18.0",
+    "accelerate>=0.25.0",
+    "pyyaml>=6.0",
+    "scikit-image>=0.20.0",
+    "jsonmerge>=1.9.0",
+    "clean-fid>=0.1.35",
+    "resize-right>=0.0.2",
+    "opencv-python-headless>=4.9.0.80",
+    "albumentations>=1.3.0",
+    "aiofiles>=23.1.0",
+    "frozendict>=2.3.6",
+    "python-dateutil>=2.8.2",
+    "importlib_resources",
+    "Pillow",
+    "scipy",
+    "tqdm",
+    "protobuf>=3.20.0,<5.0.0",
+    "psutil",
+    "ConfigArgParse",
+    "aio-pika",
+    "pyjwt[crypto]",
+    "kornia>=0.7.0",
+    "mpmath>=1.0,!=1.4.0a0",
+    "huggingface_hub[hf_transfer]",
+    "lazy-object-proxy",
+    "lazy_loader>=0.3",
+    "can_ada",
+    "fsspec",
+    "natsort",
+    "OpenEXR",
+    "opentelemetry-distro",
+    "opentelemetry-exporter-otlp<=1.27.0",
+    "opentelemetry-propagator-jaeger",
+    "opentelemetry-instrumentation",
+    "opentelemetry-util-http",
+    "opentelemetry-instrumentation-aio-pika",
+    "opentelemetry-instrumentation-requests",
+    "opentelemetry-semantic-conventions",
+    "wrapt>=1.16.0",
+    "certifi",
+    "spandrel>=0.3.4",
+    # numpy>=1.24.4 - Already covered by >=1.25.0
+    "soundfile",
+    "watchdog",
+    "PySoundFile",
+    "networkx>=2.6.3",
+    "joblib",
+    "jaxtyping",
+    "spandrel_extra_arches",
+    "ml_dtypes",
+    "diffusers>=0.30.1",
+    "vtracer",
+    "skia-python",
+    "pebble>=5.0.7",
+    "openai",
+    "anthropic",
+    "humanize",
+    "lightning",
+    "flax",
+    "jax",
+    "colour",
+    "av",
+]
+
 [build-system]
-requires = ["setuptools", "wheel", "pip"]
+requires = ["setuptools>=61.0", "wheel", "pip"]
 build-backend = "setuptools.build_meta"
 
-# [project] section omitted deliberately to prevent UV from installing using pyproject.toml
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["comfy*"]
+namespaces = false
+
+[project.optional-dependencies]
+cpu = [
+    "torch>=2.3.0",
+    "torchvision>=0.15.0",
+    "torchaudio>=2.3.0",
+]
+
+cuda = [
+    "torch>=2.3.0",
+    "torchvision>=0.15.0",
+    "torchaudio>=2.3.0",
+]
+
+rocm = [
+    "torch>=2.3.0",
+    "torchvision>=0.18.0",
+    "torchaudio>=2.3.0",
+]
+
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-mock",
+    "pytest-aiohttp",
+    "pytest-xdist",
+    "websocket-client>=1.6.1",
+    "PyInstaller",
+    "testcontainers",
+    "testcontainers-rabbitmq",
+    "mypy>=1.6.0",
+    "freezegun",
+    "coverage",
+    "pylint",
+]
+
+triton = [
+    "triton ; sys_platform == 'Linux'",
+    # Using direct URL references with markers for Windows + Python versions
+    'triton @ https://github.com/woct0rdho/triton-windows/releases/download/v3.2.0-windows.post9/triton-3.2.0-cp312-cp312-win_amd64.whl ; sys_platform == "Windows" and python_version == "3.12"',
+    'triton @ https://github.com/woct0rdho/triton-windows/releases/download/v3.2.0-windows.post9/triton-3.2.0-cp311-cp311-win_amd64.whl ; sys_platform == "Windows" and python_version == "3.11"',
+    'triton @ https://github.com/woct0rdho/triton-windows/releases/download/v3.2.0-windows.post9/triton-3.2.0-cp310-cp310-win_amd64.whl ; sys_platform == "Windows" and python_version == "3.10"',
+    # Note: No Python 3.13 wheel provided in requirements-triton.txt for v3.2.0 post9 link
+]
+
+withtorch = ["comfyui[cuda]"] # Depends on the 'cuda' extra
+withtriton = ["comfyui[cuda, triton]"] # Depends on 'cuda' and 'triton' extras
+
+
+[project.scripts]
+comfyui = "comfy.cmd.main:entrypoint"
+comfyui-worker = "comfy.cmd.worker:entrypoint"
+
+[project.urls]
+Homepage = "https://github.com/comfyanonymous/ComfyUI" # Example
+Repository = "https://github.com/comfyanonymous/ComfyUI" # Example
+
+[tool.uv]
+conflicts = [
+    [ { extra = "cpu" }, { extra = "cuda" }, { extra = "rocm" } ],
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-rocm" # Added ROCm index
+url = "https://download.pytorch.org/whl/rocm6.2" # Using ROCm 6.2 index from examples
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu124", extra = "cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'linux'" }, # ROCm only on Linux
+]
+torchvision = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu124", extra = "cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'linux'" }, # ROCm only on Linux
+]
+torchaudio = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu124", extra = "cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'linux'" }, # ROCm only on Linux
+]
+comfyui-frontend-package = { git = "https://github.com/appmana/appmana-comfyui-frontend", subdirectory = "comfyui_frontend_package" }
+
 
 [tool.ruff]
 lint.select = [
-  "S307", # suspicious-eval-usage
-  "S102", # exec
-  "T",    # print-usage
-  "W",
-  # The "F" series in Ruff stands for "Pyflakes" rules, which catch various Python syntax errors and undefined names.
-  # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
-  "F",
+    "S307", # suspicious-eval-usage
+    "S102", # exec
+    "T", # print-usage
+    "W", # pycodestyle Warnings
+    "F", # Pyflakes
 ]
 exclude = ["*.ipynb"]
