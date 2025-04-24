@@ -56,7 +56,7 @@ if "%target_dir%"=="zluda" (
 
 :: Download and extract the ZIP file
 echo Downloading ZLUDA from: %zl%
-curl -sL --ssl-no-revoke "%zl%" -o zluda.zip
+%SystemRoot%\system32\curl.exe -sL --ssl-no-revoke "%zl%" -o zluda.zip
 if %errorlevel% neq 0 (
     echo Error: Failed to download the file. Please check the URL and try again.
     pause
@@ -64,7 +64,7 @@ if %errorlevel% neq 0 (
 )
 
 echo Extracting ZLUDA...
-tar -xf zluda.zip >nul 2>&1
+%SystemRoot%\system32\tar.exe -xf zluda.zip >nul 2>&1
 if %errorlevel% neq 0 (
     echo Error: Failed to extract the ZIP file.
     pause
