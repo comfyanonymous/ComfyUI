@@ -53,24 +53,26 @@ jobs:
           - labels: [self-hosted, Linux, X64, cpu]
             container: "ubuntu:22.04"
           - labels: [self-hosted, Linux, X64, cuda-3090-24gb]
-            container: "nvcr.io/nvidia/pytorch:24.03-py3"
+            container: "nvcr.io/nvidia/pytorch:24.06-py3-igpu"
     steps:
       - run: |
-          apt update
-          apt install -y nodejs python3 python3-pip git build-essential ffmpeg libsm6 libxext6
-          pip uninstall -y $(pip list --format=freeze | grep opencv) &&
-              rm -rf /usr/local/lib/python3.10/dist-packages/cv2/ || rm -rf /usr/local/lib/python3.11/dist-packages/cv2/ || rm -rf /usr/local/lib/python3.12/dist-packages/cv2/
+          apt update || true
+          apt install -y nodejs python3 python3-pip git build-essential ffmpeg libsm6 libxext6 || true
+          pip uninstall -y $(pip list --format=freeze | grep opencv) || true
+          rm -rf /usr/local/lib/python3.10/dist-packages/cv2/ || rm -rf /usr/local/lib/python3.11/dist-packages/cv2/ || rm -rf /usr/local/lib/python3.12/dist-packages/cv2/ || true
           ln -s `which python3` /usr/bin/python || true
           ln -s `which pip3` /usr/bin/pip || true
-          curl -LsSf https://astral.sh/uv/install.sh | sh
         name: Prepare Python
+      - run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+        name: Install uv
       - uses: actions/checkout@v4
         name: Checkout git repo
       - name: Install ComfyUI
         run: |
           export UV_BREAK_SYSTEM_PACKAGES=true
           export UV_SYSTEM_PYTHON=true
-          uv pip install "comfyui[dev] @ git+https://github.com/hiddenswitch/comfyui"
+          UV_TORCH_BACKEND=auto uv pip install "comfyui[dev] @ git+https://github.com/hiddenswitch/comfyui"
       - name: Run tests
         run: |
           export HSA_OVERRIDE_GFX_VERSION=11.0.0
