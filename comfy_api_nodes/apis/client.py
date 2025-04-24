@@ -99,11 +99,10 @@ from typing import (
     Any,
     TypeVar,
     Generic,
-    Callable,
+
 )
 from pydantic import BaseModel
 from enum import Enum
-import time
 import json
 import requests
 from urllib.parse import urljoin
