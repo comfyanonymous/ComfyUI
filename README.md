@@ -59,4 +59,4 @@ The primary objective of this project is to enable interactive image generation 
 
 ## Jupyter Notebook
 
-To run it on colab you can use my [Jupyter Notebook](notebooks/Irian_colab.ipynb)
+To run it on colab you can use my [Jupyter Notebook](Irian_Notebook.ipynb)
