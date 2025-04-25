@@ -226,7 +226,7 @@ class ApiClient:
     def check_auth_token(self, auth_token):
         """Verify that an auth token is present."""
         if auth_token is None:
-            raise Exception("Please login first to use this node.")
+            raise Exception("Unauthorized: Please login first to use this node.")
         return auth_token
 
 
@@ -269,7 +269,7 @@ class SynchronousOperation(Generic[T, R]):
         files: Optional[Dict[str, Any]] = None,
         api_base: str = "https://api.comfy.org",
         auth_token: Optional[str] = None,
-        timeout: float = 60.0,
+        timeout: float = 604800.0,
         verify_ssl: bool = True,
     ):
         self.endpoint = endpoint
