@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import AnyUrl, BaseModel, Field, confloat, conint
+from pydantic import AnyUrl, BaseModel, Field, confloat, conint, ConfigDict
 
 class Customer(BaseModel):
     createdAt: Optional[datetime] = Field(
@@ -301,7 +301,8 @@ class Quality(str, Enum):
 
 
 class OpenAIImageEditRequest(BaseModel):
-    background: Optional[str] = Field(
+    model_config = ConfigDict(use_enum_values=True)
+    background: Optional[Background] = Field(
         None, description='Background transparency', examples=['opaque']
     )
     model: str = Field(
@@ -324,7 +325,7 @@ class OpenAIImageEditRequest(BaseModel):
         description='A text description of the desired edit',
         examples=['Give the rocketship rainbow coloring'],
     )
-    quality: Optional[str] = Field(
+    quality: Optional[Quality] = Field(
         None, description='The quality of the edited image', examples=['low']
     )
     size: Optional[str] = Field(
@@ -335,6 +336,7 @@ class OpenAIImageEditRequest(BaseModel):
         description='A unique identifier for end-user monitoring',
         examples=['user-1234'],
     )
+  
 
 
 class Quality1(str, Enum):

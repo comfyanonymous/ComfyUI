@@ -176,6 +176,7 @@ class OpenAIDalle2(ComfyNodeABC):
                 n=n,
                 size=size,
                 seed=seed,
+                moderation='low',
             ),
             files={
                 "image": img_binary,
@@ -262,6 +263,7 @@ class OpenAIDalle3(ComfyNodeABC):
                 size=size,
                 style=style,
                 seed=seed,
+                moderation='low',
             ),
             auth_token=auth_token
         )
@@ -305,6 +307,11 @@ class OpenAIGPTImage1(ComfyNodeABC):
                     "default": "low",
                     "tooltip": "Image quality, affects cost and generation time.",
                 }),
+                 "moderation": (IO.COMBO, {
+                    "options": ["low","auto"],
+                    "default": "low",
+                    "tooltip": "Content moderation settings",
+                }),
                 "background": (IO.COMBO, {
                     "options": ["opaque","transparent"],
                     "default": "opaque",
@@ -343,7 +350,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
-    def api_call(self, prompt, seed=0, quality="low", background="opaque", image=None, mask=None, n=1, size="1024x1024", auth_token=None):
+    def api_call(self, prompt, seed=0, quality="low", moderation="low", background="opaque", image=None, mask=None, n=1, size="1024x1024", auth_token=None):
         model = "gpt-image-1"
         path = "/proxy/openai/images/generations"
         request_class = OpenAIImageGenerationRequest
@@ -411,6 +418,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
                 model=model,
                 prompt=prompt,
                 quality=quality,
+                moderation=moderation,
                 background=background,
                 n=n,
                 seed=seed,
