@@ -120,6 +120,7 @@ class CLIP:
         self.layer_idx = None
         self.use_clip_schedule = False
         logging.info("CLIP/text encoder model load device: {}, offload device: {}, current: {}, dtype: {}".format(load_device, offload_device, params['device'], dtype))
+        self.tokenizer_options = {}
 
     def clone(self):
         n = CLIP(no_init=True)
@@ -127,6 +128,7 @@ class CLIP:
         n.cond_stage_model = self.cond_stage_model
         n.tokenizer = self.tokenizer
         n.layer_idx = self.layer_idx
+        n.tokenizer_options = self.tokenizer_options.copy()
         n.use_clip_schedule = self.use_clip_schedule
         n.apply_hooks_to_conds = self.apply_hooks_to_conds
         return n
@@ -134,10 +136,18 @@ class CLIP:
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
         return self.patcher.add_patches(patches, strength_patch, strength_model)
 
+    def set_tokenizer_option(self, option_name, value):
+        self.tokenizer_options[option_name] = value
+
     def clip_layer(self, layer_idx):
         self.layer_idx = layer_idx
 
     def tokenize(self, text, return_word_ids=False, **kwargs):
+        tokenizer_options = kwargs.get("tokenizer_options", {})
+        if len(self.tokenizer_options) > 0:
+            tokenizer_options = {**self.tokenizer_options, **tokenizer_options}
+        if len(tokenizer_options) > 0:
+            kwargs["tokenizer_options"] = tokenizer_options
         return self.tokenizer.tokenize_with_weights(text, return_word_ids, **kwargs)
 
     def add_hooks_to_dict(self, pooled_dict: dict[str]):
