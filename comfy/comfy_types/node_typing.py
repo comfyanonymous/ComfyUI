@@ -120,6 +120,10 @@ class InputTypeOptions(TypedDict):
     Available from frontend v1.17.5
     Ref: https://github.com/Comfy-Org/ComfyUI_frontend/pull/3548
     """
+    widgetType: NotRequired[str]
+    """Specifies a type to be used for widget initialization if different from the input type.
+    Available from frontend v1.18.0
+    https://github.com/Comfy-Org/ComfyUI_frontend/pull/3550"""
     # class InputTypeNumber(InputTypeOptions):
     # default: float | int
     min: NotRequired[float]
