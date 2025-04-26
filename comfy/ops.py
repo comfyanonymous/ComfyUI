@@ -37,20 +37,23 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
         if device is None:
             device = input.device
 
+    offload_stream = comfy.model_management.get_offload_stream(device)
     bias = None
     non_blocking = comfy.model_management.device_supports_non_blocking(device)
     if s.bias is not None:
         has_function = len(s.bias_function) > 0
-        bias = comfy.model_management.cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking, copy=has_function)
+        bias = comfy.model_management.cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking, copy=has_function, stream=offload_stream)
         if has_function:
             for f in s.bias_function:
                 bias = f(bias)
 
     has_function = len(s.weight_function) > 0
-    weight = comfy.model_management.cast_to(s.weight, dtype, device, non_blocking=non_blocking, copy=has_function)
+    weight = comfy.model_management.cast_to(s.weight, dtype, device, non_blocking=non_blocking, copy=has_function, stream=offload_stream)
     if has_function:
         for f in s.weight_function:
             weight = f(weight)
+
+    comfy.model_management.sync_stream(device, offload_stream)
     return weight, bias
 
 class CastWeightBiasOp:
