@@ -234,7 +234,13 @@ class UserManager():
 
             # Check user validity and get the absolute path for the requested directory
             try:
-                 target_abs_path = self.get_request_user_filepath(request, requested_rel_path, create_dir=False)
+                 base_user_path = self.get_request_user_filepath(request, None, create_dir=False)
+
+                 if requested_rel_path:
+                     target_abs_path = self.get_request_user_filepath(request, requested_rel_path, create_dir=False)
+                 else:
+                     target_abs_path = base_user_path
+
             except KeyError as e:
                  # Invalid user detected by get_request_user_id inside get_request_user_filepath
                  logging.warning(f"Access denied for user: {e}")
@@ -248,7 +254,6 @@ class UserManager():
             # Handle cases where the user directory or target path doesn't exist
             if not os.path.exists(target_abs_path):
                 # Check if it's the base user directory that's missing (new user case)
-                base_user_path = self.get_request_user_filepath(request, None, create_dir=False)
                 if target_abs_path == base_user_path:
                     # It's okay if the base user directory doesn't exist yet, return empty list
                      return web.json_response([])
@@ -261,12 +266,11 @@ class UserManager():
 
             results = []
             try:
-                base_user_path_for_relpath = self.get_request_user_filepath(request, None, create_dir=False)
                 for root, dirs, files in os.walk(target_abs_path, topdown=True):
                     # Process directories
                     for dir_name in dirs:
                         dir_path = os.path.join(root, dir_name)
-                        rel_path = os.path.relpath(dir_path, base_user_path_for_relpath).replace(os.sep, '/')
+                        rel_path = os.path.relpath(dir_path, base_user_path).replace(os.sep, '/')
                         results.append({
                             "name": dir_name,
                             "path": rel_path,
@@ -276,7 +280,7 @@ class UserManager():
                     # Process files
                     for file_name in files:
                         file_path = os.path.join(root, file_name)
-                        rel_path = os.path.relpath(file_path, base_user_path_for_relpath).replace(os.sep, '/')
+                        rel_path = os.path.relpath(file_path, base_user_path).replace(os.sep, '/')
                         entry_info = {
                             "name": file_name,
                             "path": rel_path,
