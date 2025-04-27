@@ -295,8 +295,8 @@ class UserManager():
                             pass # Include file with available info
                         results.append(entry_info)
             except OSError as e:
-                 logging.error(f"Error listing directory {target_abs_path}: {e}")
-                 return web.Response(status=500, text="Error reading directory contents")
+                logging.error(f"Error listing directory {target_abs_path}: {e}")
+                return web.Response(status=500, text="Error reading directory contents")
 
             # Sort results alphabetically, directories first then files
             results.sort(key=lambda x: (x['type'] != 'directory', x['name'].lower()))
