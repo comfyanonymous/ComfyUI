@@ -223,7 +223,7 @@ class UserManager():
                    - modified (for files): The last modified timestamp (Unix epoch).
             """
             requested_rel_path = request.rel_url.query.get('path', '')
-            
+
             # URL-decode the path parameter
             try:
                 requested_rel_path = parse.unquote(requested_rel_path)
