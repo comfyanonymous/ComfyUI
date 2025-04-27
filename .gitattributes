@@ -1,7 +1,2 @@
 /web/assets/** linguist-generated
 /web/** linguist-vendored
-
-# Standardize line endings
-* text=auto eol=lf
-*.{cmd,[cC][mM][dD]} text eol=crlf
-*.{bat,[bB][aA][tT]} text eol=crlf
