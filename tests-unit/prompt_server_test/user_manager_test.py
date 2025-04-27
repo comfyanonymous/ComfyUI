@@ -259,8 +259,8 @@ async def test_listuserdata_v2_default(aiohttp_client, app, tmp_path):
 
 async def test_listuserdata_v2_normalized_separators(aiohttp_client, app, tmp_path, monkeypatch):
     # Force backslash as os separator
-    monkeypatch.setattr(os, 'sep', '\\\\')
-    monkeypatch.setattr(os.path, 'sep', '\\\\')
+    monkeypatch.setattr(os, 'sep', '\\')
+    monkeypatch.setattr(os.path, 'sep', '\\')
     os.makedirs(tmp_path / "test_dir" / "subdir")
     (tmp_path / "test_dir" / "subdir" / "file1.txt").write_text("x")
 
