@@ -223,13 +223,13 @@ class UserManager():
                    - modified (for files): The last modified timestamp (Unix epoch).
             """
             requested_rel_path = request.rel_url.query.get('path', '')
-            # Decode URL encoding if present
-            if "%" in requested_rel_path:
-                try:
-                    requested_rel_path = parse.unquote(requested_rel_path)
-                except Exception as e:
-                     logging.warning(f"Failed to decode path parameter: {requested_rel_path}, Error: {e}")
-                     return web.Response(status=400, text="Invalid characters in path parameter")
+            
+            # URL-decode the path parameter
+            try:
+                requested_rel_path = parse.unquote(requested_rel_path)
+            except Exception as e:
+                logging.warning(f"Failed to decode path parameter: {requested_rel_path}, Error: {e}")
+                return web.Response(status=400, text="Invalid characters in path parameter")
 
 
             # Check user validity and get the absolute path for the requested directory
