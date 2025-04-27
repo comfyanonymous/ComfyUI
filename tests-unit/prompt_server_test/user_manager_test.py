@@ -270,7 +270,7 @@ async def test_listuserdata_v2_normalized_separators(aiohttp_client, app, tmp_pa
     data = await resp.json()
     for item in data:
         assert "/" in item["path"]
-        assert "\\" not in item["path"]
+        assert "\\" not in item["path"]\
 
 async def test_listuserdata_v2_url_encoded_path(aiohttp_client, app, tmp_path):
     # Create a directory with a space in its name and a file inside
