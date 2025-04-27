@@ -244,7 +244,7 @@ class UserManager():
             except KeyError as e:
                  # Invalid user detected by get_request_user_id inside get_request_user_filepath
                  logging.warning(f"Access denied for user: {e}")
-                 return web.Response(status=403, text=f"Invalid user specified in request")
+                 return web.Response(status=403, text="Invalid user specified in request")
 
 
             if not target_abs_path:
