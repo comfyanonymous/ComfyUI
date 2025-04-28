@@ -49,6 +49,39 @@ Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon,
 ## [Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
 See what ComfyUI can do with the [example workflows](https://comfyanonymous.github.io/ComfyUI_examples/).
 
+## Release Process
+
+ComfyUI follows a weekly release cycle every Friday, with three interconnected repositories:
+
+1. **[ComfyUI Core](https://github.com/comfyanonymous/ComfyUI)**
+   - Releases a new stable version (e.g., v0.7.0)
+   - Serves as the foundation for the desktop release
+
+2. **[ComfyUI Desktop](https://github.com/Comfy-Org/desktop)**
+   - Builds a new release using the latest stable core version
+
+3. **[ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend)**
+   - Weekly frontend updates are merged into the core repository
+   - Features are frozen for the upcoming core release
+   - Development continues for the next release cycle
+
+### Example Timeline
+
+Here's how the release process works over a two-week period:
+
+**Week 1 (Friday)**
+
+- Core v0.7.0 is released
+- Desktop v0.4.0 is built using Core v0.7.0
+- Frontend changes from Week 1 (v1.17) are merged into Core's master branch
+- Frontend development for v1.18 begins
+
+**Week 2 (Friday)**
+
+- Core v0.7.1 is released
+- Desktop v0.4.1 is built using Core v0.7.1
+- Frontend changes from Week 2 (v1.18) are merged into Core's master branch
+- Frontend development for v1.19 begins
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
