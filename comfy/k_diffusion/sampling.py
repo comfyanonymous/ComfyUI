@@ -1345,27 +1345,51 @@ def sample_res_multistep_ancestral_cfg_pp(model, x, sigmas, extra_args=None, cal
     return res_multistep(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, s_noise=s_noise, noise_sampler=noise_sampler, eta=eta, cfg_pp=True)
 
 @torch.no_grad()
-def sample_gradient_estimation(model, x, sigmas, extra_args=None, callback=None, disable=None, ge_gamma=2.):
+def sample_gradient_estimation(model, x, sigmas, extra_args=None, callback=None, disable=None, ge_gamma=2., cfg_pp=False):
     """Gradient-estimation sampler. Paper: https://openreview.net/pdf?id=o2ND9v0CeK"""
     extra_args = {} if extra_args is None else extra_args
     s_in = x.new_ones([x.shape[0]])
     old_d = None
 
+    uncond_denoised = None
+    def post_cfg_function(args):
+        nonlocal uncond_denoised
+        uncond_denoised = args["uncond_denoised"]
+        return args["denoised"]
+
+    if cfg_pp:
+        model_options = extra_args.get("model_options", {}).copy()
+        extra_args["model_options"] = comfy.model_patcher.set_model_options_post_cfg_function(model_options, post_cfg_function, disable_cfg1_optimization=True)
+
     for i in trange(len(sigmas) - 1, disable=disable):
         denoised = model(x, sigmas[i] * s_in, **extra_args)
-        d = to_d(x, sigmas[i], denoised)
+        if cfg_pp:
+            d = to_d(x, sigmas[i], uncond_denoised)
+        else:
+            d = to_d(x, sigmas[i], denoised)
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
         dt = sigmas[i + 1] - sigmas[i]
         if i == 0:
             # Euler method
-            x = x + d * dt
+            if cfg_pp:
+                x = denoised + d * sigmas[i + 1]
+            else:
+                x = x + d * dt
         else:
             # Gradient estimation
-            d_bar = ge_gamma * d + (1 - ge_gamma) * old_d
-            x = x + d_bar * dt
+            if cfg_pp:
+                d_bar = (ge_gamma - 1) * (d - old_d)
+                x = denoised + d * sigmas[i + 1] + d_bar * dt
+            else:
+                d_bar = ge_gamma * d + (1 - ge_gamma) * old_d
+                x = x + d_bar * dt
         old_d = d
     return x
+
+@torch.no_grad()
+def sample_gradient_estimation_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None, ge_gamma=2.):
+    return sample_gradient_estimation(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, ge_gamma=ge_gamma, cfg_pp=True)
 
 @torch.no_grad()
 def sample_er_sde(model, x, sigmas, extra_args=None, callback=None, disable=None, s_noise=1., noise_sampler=None, noise_scaler=None, max_stage=3):
