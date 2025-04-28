@@ -16,10 +16,10 @@ from comfy_api_nodes.apis import (
     IdeogramGenerateResponse,
     BFLFluxProGenerateRequest,
     BFLFluxProGenerateResponse,
-    BFLStatus,
     ImageRequest,
     Model
 )
+from comfy_api_nodes.apis.BFLPolling import BFLStatus
 from comfy_api_nodes.apis.client import ApiEndpoint, HttpMethod, SynchronousOperation, PollingOperation, EmptyRequest
 
 import numpy as np
