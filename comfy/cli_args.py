@@ -195,8 +195,7 @@ parser.add_argument(
     "--comfy-api-base",
     type=str,
     default="https://api.comfy.org",
-    choices=["https://api.comfy.org", "https://stagingapi.comfy.org"],
-    help="Set the base URL for the ComfyUI API.",
+    help="Set the base URL for the ComfyUI API.  (default: https://api.comfy.org)",
 )
 
 if comfy.options.args_parsing:
