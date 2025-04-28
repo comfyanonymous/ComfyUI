@@ -11,7 +11,9 @@ import itertools
 import utils.extra_config
 import logging
 import sys
-import comfyui_manager
+
+if not args.disable_manager:
+    import comfyui_manager
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI which should already have no communication with the internet, they are for custom nodes.
@@ -79,8 +81,9 @@ def execute_prestartup_script():
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
 
-            if comfyui_manager.should_be_disabled(module_path):
-                continue
+            if not args.disable_manager:
+                if comfyui_manager.should_be_disabled(module_path):
+                    continue
 
             if os.path.isfile(module_path) or module_path.endswith(".disabled") or module_path == "__pycache__":
                 continue
@@ -101,7 +104,10 @@ def execute_prestartup_script():
         logging.info("")
 
 apply_custom_paths()
-comfyui_manager.prestartup()
+
+if not args.disable_manager:
+    comfyui_manager.prestartup()
+
 execute_prestartup_script()
 
 
@@ -274,7 +280,7 @@ def start_comfyui(asyncio_loop=None):
     prompt_server = server.PromptServer(asyncio_loop)
     q = execution.PromptQueue(prompt_server)
 
-    if not args.disable_manager:
+    if not args.disable_manager and not args.disable_manager_ui:
         comfyui_manager.start()
 
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
