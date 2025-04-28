@@ -101,6 +101,18 @@ class VideoInput(ABC):
         """
         pass
 
+    # Provide a default implementation, but subclasses can provide optimized versions
+    # if possible.
+    def get_dimensions(self) -> tuple[int, int]:
+        """
+        Returns the dimensions of the video input.
+
+        Returns:
+            Tuple of (width, height)
+        """
+        components = self.get_components()
+        return components.images.shape[2], components.images.shape[1]
+
 class VideoFromFile(VideoInput):
     """
     Class representing video input from a file.
@@ -112,6 +124,20 @@ class VideoFromFile(VideoInput):
         containing the file contents.
         """
         self.file = file
+
+    def get_dimensions(self) -> tuple[int, int]:
+        """
+        Returns the dimensions of the video input.
+
+        Returns:
+            Tuple of (width, height)
+        """
+        with av.open(self.file, mode='r') as container:
+            for stream in container.streams:
+                if stream.type == 'video':
+                    assert isinstance(stream, av.VideoStream)
+                    return stream.width, stream.height
+        raise ValueError(f"No video stream found in file '{self.file}'")
 
     def get_components_internal(self, container: InputContainer) -> VideoComponents:
         # Get video frames

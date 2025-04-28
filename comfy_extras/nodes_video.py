@@ -107,9 +107,7 @@ class SaveVideo(ComfyNodeABC):
 
     def save_video(self, video: VideoInput, filename_prefix, format, codec, prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
-        components = video.get_components()
-        width = components.images.shape[2]
-        height = components.images.shape[1]
+        width, height = video.get_dimensions()
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
             filename_prefix,
             self.output_dir,
