@@ -26,7 +26,30 @@ class QuadrupleCLIPLoader:
         clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2, clip_path3, clip_path4], embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return (clip,)
 
+class CLIPTextEncodeHiDream:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "clip": ("CLIP", ),
+            "clip_l": ("STRING", {"multiline": True, "dynamicPrompts": True}),
+            "clip_g": ("STRING", {"multiline": True, "dynamicPrompts": True}),
+            "t5xxl": ("STRING", {"multiline": True, "dynamicPrompts": True}),
+            "llama": ("STRING", {"multiline": True, "dynamicPrompts": True})
+            }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "encode"
+
+    CATEGORY = "advanced/conditioning"
+
+    def encode(self, clip, clip_l, clip_g, t5xxl, llama):
+
+        tokens = clip.tokenize(clip_g)
+        tokens["l"] = clip.tokenize(clip_l)["l"]
+        tokens["t5xxl"] = clip.tokenize(t5xxl)["t5xxl"]
+        tokens["llama"] = clip.tokenize(llama)["llama"]
+        return (clip.encode_from_tokens_scheduled(tokens), )
 
 NODE_CLASS_MAPPINGS = {
     "QuadrupleCLIPLoader": QuadrupleCLIPLoader,
+    "CLIPTextEncodeHiDream": CLIPTextEncodeHiDream,
 }

@@ -220,6 +220,34 @@ class WanAttentionBlock(nn.Module):
         return x
 
 
+class VaceWanAttentionBlock(WanAttentionBlock):
+    def __init__(
+            self,
+            cross_attn_type,
+            dim,
+            ffn_dim,
+            num_heads,
+            window_size=(-1, -1),
+            qk_norm=True,
+            cross_attn_norm=False,
+            eps=1e-6,
+            block_id=0,
+            operation_settings={}
+    ):
+        super().__init__(cross_attn_type, dim, ffn_dim, num_heads, window_size, qk_norm, cross_attn_norm, eps, operation_settings=operation_settings)
+        self.block_id = block_id
+        if block_id == 0:
+            self.before_proj = operation_settings.get("operations").Linear(self.dim, self.dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
+        self.after_proj = operation_settings.get("operations").Linear(self.dim, self.dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
+
+    def forward(self, c, x, **kwargs):
+        if self.block_id == 0:
+            c = self.before_proj(c) + x
+        c = super().forward(c, **kwargs)
+        c_skip = self.after_proj(c)
+        return c_skip, c
+
+
 class Head(nn.Module):
 
     def __init__(self, dim, out_dim, patch_size, eps=1e-6, operation_settings={}):
@@ -395,6 +423,7 @@ class WanModel(torch.nn.Module):
         clip_fea=None,
         freqs=None,
         transformer_options={},
+        **kwargs,
     ):
         r"""
         Forward pass through the diffusion model
@@ -457,7 +486,7 @@ class WanModel(torch.nn.Module):
         x = self.unpatchify(x, grid_sizes)
         return x
 
-    def forward(self, x, timestep, context, clip_fea=None, transformer_options={},**kwargs):
+    def forward(self, x, timestep, context, clip_fea=None, transformer_options={}, **kwargs):
         bs, c, t, h, w = x.shape
         x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
         patch_size = self.patch_size
@@ -471,7 +500,7 @@ class WanModel(torch.nn.Module):
         img_ids = repeat(img_ids, "t h w c -> b (t h w) c", b=bs)
 
         freqs = self.rope_embedder(img_ids).movedim(1, 2)
-        return self.forward_orig(x, timestep, context, clip_fea=clip_fea, freqs=freqs, transformer_options=transformer_options)[:, :, :t, :h, :w]
+        return self.forward_orig(x, timestep, context, clip_fea=clip_fea, freqs=freqs, transformer_options=transformer_options, **kwargs)[:, :, :t, :h, :w]
 
     def unpatchify(self, x, grid_sizes):
         r"""
@@ -496,3 +525,115 @@ class WanModel(torch.nn.Module):
         u = torch.einsum('bfhwpqrc->bcfphqwr', u)
         u = u.reshape(b, c, *[i * j for i, j in zip(grid_sizes, self.patch_size)])
         return u
+
+
+class VaceWanModel(WanModel):
+    r"""
+    Wan diffusion backbone supporting both text-to-video and image-to-video.
+    """
+
+    def __init__(self,
+                 model_type='vace',
+                 patch_size=(1, 2, 2),
+                 text_len=512,
+                 in_dim=16,
+                 dim=2048,
+                 ffn_dim=8192,
+                 freq_dim=256,
+                 text_dim=4096,
+                 out_dim=16,
+                 num_heads=16,
+                 num_layers=32,
+                 window_size=(-1, -1),
+                 qk_norm=True,
+                 cross_attn_norm=True,
+                 eps=1e-6,
+                 flf_pos_embed_token_number=None,
+                 image_model=None,
+                 vace_layers=None,
+                 vace_in_dim=None,
+                 device=None,
+                 dtype=None,
+                 operations=None,
+                 ):
+
+        super().__init__(model_type='t2v', patch_size=patch_size, text_len=text_len, in_dim=in_dim, dim=dim, ffn_dim=ffn_dim, freq_dim=freq_dim, text_dim=text_dim, out_dim=out_dim, num_heads=num_heads, num_layers=num_layers, window_size=window_size, qk_norm=qk_norm, cross_attn_norm=cross_attn_norm, eps=eps, flf_pos_embed_token_number=flf_pos_embed_token_number, image_model=image_model, device=device, dtype=dtype, operations=operations)
+        operation_settings = {"operations": operations, "device": device, "dtype": dtype}
+
+        # Vace
+        if vace_layers is not None:
+            self.vace_layers = vace_layers
+            self.vace_in_dim = vace_in_dim
+            # vace blocks
+            self.vace_blocks = nn.ModuleList([
+                VaceWanAttentionBlock('t2v_cross_attn', self.dim, self.ffn_dim, self.num_heads, self.window_size, self.qk_norm, self.cross_attn_norm, self.eps, block_id=i, operation_settings=operation_settings)
+                for i in range(self.vace_layers)
+            ])
+
+            self.vace_layers_mapping = {i: n for n, i in enumerate(range(0, self.num_layers, self.num_layers // self.vace_layers))}
+            # vace patch embeddings
+            self.vace_patch_embedding = operations.Conv3d(
+                self.vace_in_dim, self.dim, kernel_size=self.patch_size, stride=self.patch_size, device=device, dtype=torch.float32
+            )
+
+    def forward_orig(
+        self,
+        x,
+        t,
+        context,
+        vace_context,
+        vace_strength=1.0,
+        clip_fea=None,
+        freqs=None,
+        transformer_options={},
+        **kwargs,
+    ):
+        # embeddings
+        x = self.patch_embedding(x.float()).to(x.dtype)
+        grid_sizes = x.shape[2:]
+        x = x.flatten(2).transpose(1, 2)
+
+        # time embeddings
+        e = self.time_embedding(
+            sinusoidal_embedding_1d(self.freq_dim, t).to(dtype=x[0].dtype))
+        e0 = self.time_projection(e).unflatten(1, (6, self.dim))
+
+        # context
+        context = self.text_embedding(context)
+
+        context_img_len = None
+        if clip_fea is not None:
+            if self.img_emb is not None:
+                context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
+                context = torch.concat([context_clip, context], dim=1)
+            context_img_len = clip_fea.shape[-2]
+
+        c = self.vace_patch_embedding(vace_context.float()).to(vace_context.dtype)
+        c = c.flatten(2).transpose(1, 2)
+
+        # arguments
+        x_orig = x
+
+        patches_replace = transformer_options.get("patches_replace", {})
+        blocks_replace = patches_replace.get("dit", {})
+        for i, block in enumerate(self.blocks):
+            if ("double_block", i) in blocks_replace:
+                def block_wrap(args):
+                    out = {}
+                    out["img"] = block(args["img"], context=args["txt"], e=args["vec"], freqs=args["pe"], context_img_len=context_img_len)
+                    return out
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": e0, "pe": freqs}, {"original_block": block_wrap})
+                x = out["img"]
+            else:
+                x = block(x, e=e0, freqs=freqs, context=context, context_img_len=context_img_len)
+
+            ii = self.vace_layers_mapping.get(i, None)
+            if ii is not None:
+                c_skip, c = self.vace_blocks[ii](c, x=x_orig, e=e0, freqs=freqs, context=context, context_img_len=context_img_len)
+                x += c_skip * vace_strength
+        # head
+        x = self.head(x, e)
+
+        # unpatchify
+        x = self.unpatchify(x, grid_sizes)
+        return x

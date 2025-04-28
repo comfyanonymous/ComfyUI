@@ -1,7 +1,7 @@
 """Comfy-specific type hinting"""
 
 from __future__ import annotations
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, Optional
 from typing_extensions import NotRequired
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -115,6 +115,15 @@ class InputTypeOptions(TypedDict):
     """When a link exists, rather than receiving the evaluated value, you will receive the link (i.e. `["nodeId", <outputIndex>]`). Designed for node expansion."""
     tooltip: NotRequired[str]
     """Tooltip for the input (or widget), shown on pointer hover"""
+    socketless: NotRequired[bool]
+    """All inputs (including widgets) have an input socket to connect links. When ``true``, if there is a widget for this input, no socket will be created.
+    Available from frontend v1.17.5
+    Ref: https://github.com/Comfy-Org/ComfyUI_frontend/pull/3548
+    """
+    widgetType: NotRequired[str]
+    """Specifies a type to be used for widget initialization if different from the input type.
+    Available from frontend v1.18.0
+    https://github.com/Comfy-Org/ComfyUI_frontend/pull/3550"""
     # class InputTypeNumber(InputTypeOptions):
     # default: float | int
     min: NotRequired[float]
@@ -224,6 +233,8 @@ class ComfyNodeABC(ABC):
     """Flags a node as experimental, informing users that it may change or not work as expected."""
     DEPRECATED: bool
     """Flags a node as deprecated, indicating to users that they should find alternatives to this node."""
+    API_NODE: Optional[bool]
+    """Flags a node as an API node."""
 
     @classmethod
     @abstractmethod
