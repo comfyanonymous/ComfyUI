@@ -132,6 +132,8 @@ class VideoFromFile(VideoInput):
         Returns:
             Tuple of (width, height)
         """
+        if isinstance(self.file, io.BytesIO):
+            self.file.seek(0)  # Reset the BytesIO object to the beginning
         with av.open(self.file, mode='r') as container:
             for stream in container.streams:
                 if stream.type == 'video':
@@ -180,6 +182,8 @@ class VideoFromFile(VideoInput):
         return VideoComponents(images=images, audio=audio, frame_rate=frame_rate, metadata=metadata)
 
     def get_components(self) -> VideoComponents:
+        if isinstance(self.file, io.BytesIO):
+            self.file.seek(0)  # Reset the BytesIO object to the beginning
         with av.open(self.file, mode='r') as container:
             return self.get_components_internal(container)
         raise ValueError(f"No video stream found in file '{self.file}'")
@@ -191,6 +195,8 @@ class VideoFromFile(VideoInput):
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None
     ):
+        if isinstance(self.file, io.BytesIO):
+            self.file.seek(0)  # Reset the BytesIO object to the beginning
         with av.open(self.file, mode='r') as container:
             container_format = container.format.name
             video_encoding = container.streams.video[0].codec.name if len(container.streams.video) > 0 else None
