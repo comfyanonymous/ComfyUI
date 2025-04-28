@@ -38,6 +38,7 @@ class LTXVImgToVideo:
                              "height": ("INT", {"default": 512, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
                              "length": ("INT", {"default": 97, "min": 9, "max": nodes.MAX_RESOLUTION, "step": 8}),
                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
+                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0}),
                              }}
 
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
@@ -46,7 +47,7 @@ class LTXVImgToVideo:
     CATEGORY = "conditioning/video_models"
     FUNCTION = "generate"
 
-    def generate(self, positive, negative, image, vae, width, height, length, batch_size):
+    def generate(self, positive, negative, image, vae, width, height, length, batch_size, strength):
         pixels = comfy.utils.common_upscale(image.movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
         encode_pixels = pixels[:, :, :, :3]
         t = vae.encode(encode_pixels)
@@ -59,7 +60,7 @@ class LTXVImgToVideo:
             dtype=torch.float32,
             device=latent.device,
         )
-        conditioning_latent_frames_mask[:, :, :t.shape[2]] = 0
+        conditioning_latent_frames_mask[:, :, :t.shape[2]] = 1.0 - strength
 
         return (positive, negative, {"samples": latent, "noise_mask": conditioning_latent_frames_mask}, )
 
