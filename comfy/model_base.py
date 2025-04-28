@@ -1104,4 +1104,7 @@ class HiDream(BaseModel):
         conditioning_llama3 = kwargs.get("conditioning_llama3", None)
         if conditioning_llama3 is not None:
             out['encoder_hidden_states_llama3'] = comfy.conds.CONDRegular(conditioning_llama3)
+        image_cond = kwargs.get("concat_latent_image", None)
+        if image_cond is not None:
+            out['image_cond'] = comfy.conds.CONDNoiseShape(self.process_latent_in(image_cond))
         return out
