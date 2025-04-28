@@ -152,6 +152,15 @@ class LTXVAddGuide:
         return node_helpers.conditioning_set_values(cond, {"keyframe_idxs": keyframe_idxs})
 
     def append_keyframe(self, positive, negative, frame_idx, latent_image, noise_mask, guiding_latent, strength, scale_factors):
+        _, latent_idx = self.get_latent_index(
+            cond=positive,
+            latent_length=latent_image.shape[2],
+            guide_length=guiding_latent.shape[2],
+            frame_idx=frame_idx,
+            scale_factors=scale_factors,
+        )
+        noise_mask[:, :, latent_idx:latent_idx + guiding_latent.shape[2]] = 1.0
+
         positive = self.add_keyframe_index(positive, frame_idx, guiding_latent, scale_factors)
         negative = self.add_keyframe_index(negative, frame_idx, guiding_latent, scale_factors)
 
