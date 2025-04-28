@@ -1,6 +1,9 @@
 import logging
 import time
 from typing import Callable
+
+from comfy.cli_args import args
+
 """
 API Client Framework for api.comfy.org.
 
@@ -316,7 +319,7 @@ class SynchronousOperation(Generic[T, R]):
         endpoint: ApiEndpoint[T, R],
         request: T,
         files: Optional[Dict[str, Any]] = None,
-        api_base: str = "https://api.comfy.org",
+        api_base: str | None = None,
         auth_token: Optional[str] = None,
         timeout: float = 604800.0,
         verify_ssl: bool = True,
@@ -325,18 +328,17 @@ class SynchronousOperation(Generic[T, R]):
         self.request = request
         self.response = None
         self.error = None
-        self.api_base = api_base
+        self.api_base: str = api_base or args.comfy_api_base
         self.auth_token = auth_token
         self.timeout = timeout
         self.verify_ssl = verify_ssl
         self.files = files
+
     def execute(self, client: Optional[ApiClient] = None) -> R:
         """Execute the API operation using the provided client or create one"""
         try:
             # Create client if not provided
             if client is None:
-                if self.api_base is None:
-                    raise ValueError("Either client or api_base must be provided")
                 client = ApiClient(
                     base_url=self.api_base,
                     api_key=self.auth_token,
@@ -406,13 +408,13 @@ class PollingOperation(Generic[T, R]):
         failed_statuses: list,
         status_extractor: Callable[[R], str],
         request: Optional[T] = None,
-        api_base: str = "https://stagingapi.comfy.org",
+        api_base: str | None = None,
         auth_token: Optional[str] = None,
         poll_interval: float = 1.0,
     ):
         self.poll_endpoint = poll_endpoint
         self.request = request
-        self.api_base = api_base
+        self.api_base: str = api_base or args.comfy_api_base
         self.auth_token = auth_token
         self.poll_interval = poll_interval
 
