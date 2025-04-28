@@ -42,15 +42,6 @@ class BFLFluxProGenerateResponse(BaseModel):
     polling_url: str = Field(..., description='URL to poll for the generation result.')
 
 
-class BFLStatus(str, Enum):
-    task_not_found = "Task not found"
-    pending = "Pending"
-    request_moderated = "Request Moderated"
-    content_moderated = "Content Moderated"
-    ready = "Ready"
-    error = "Error"
-
-
 class ErrorResponse(BaseModel):
     error: str
     message: str
