@@ -2,7 +2,6 @@ import base64
 import io
 import math
 from inspect import cleandoc
-from comfy.comfy_types.node_typing import FileLocator
 from typing import Literal, Optional
 from comfy.utils import common_upscale
 from comfy.comfy_types.node_typing import IO, ComfyNodeABC, InputTypeDict
@@ -64,9 +63,6 @@ import torch
 import math
 import base64
 import logging
-import json
-import av
-import os
 import time
 import uuid
 import folder_paths
@@ -285,16 +281,16 @@ def upload_images_to_comfyapi(image: torch.Tensor, max_images=8, auth_token=None
                 path="/customers/storage",
                 method=HttpMethod.POST,
                 request_model=UploadRequest,
-                response_model=UploadResponse
+                response_model=UploadResponse,
             ),
-            request=UploadRequest(
-                filename=img_binary.name
-            ),
-            auth_token=auth_token
+            request=UploadRequest(filename=img_binary.name),
+            auth_token=auth_token,
         )
         response = operation.execute()
 
-        upload_response = ApiClient.upload_file(response.upload_url, img_binary)
+        upload_response = ApiClient.upload_file(
+            response.upload_url, img_binary
+        )
         # verify success
         try:
             upload_response.raise_for_status()
@@ -312,6 +308,7 @@ def upload_images_to_comfyapi(image: torch.Tensor, max_images=8, auth_token=None
                 break
     return download_urls
 
+
 class OpenAIDalle2(ComfyNodeABC):
     """
     Generates images synchronously via OpenAI's DALL·E 2 endpoint.
@@ -319,6 +316,7 @@ class OpenAIDalle2(ComfyNodeABC):
     Uses the proxy at /proxy/openai/images/generations. Returned URLs are short‑lived,
     so download or cache results if you need to keep them.
     """
+
     def __init__(self):
         pass
 
@@ -326,46 +324,62 @@ class OpenAIDalle2(ComfyNodeABC):
     def INPUT_TYPES(cls) -> InputTypeDict:
         return {
             "required": {
-                "prompt": (IO.STRING, {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "Text prompt for DALL·E",
-                }),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Text prompt for DALL·E",
+                    },
+                ),
             },
             "optional": {
-                "seed": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 2**31-1,
-                    "step": 1,
-                    "display": "number",
-                    "tooltip": "not implemented yet in backend",
-                }),
-                "size": (IO.COMBO, {
-                    "options": ["256x256", "512x512", "1024x1024"],
-                    "default": "1024x1024",
-                    "tooltip": "Image size",
-                }),
-                "n": (IO.INT, {
-                    "default": 1,
-                    "min": 1,
-                    "max": 8,
-                    "step": 1,
-                    "display": "number",
-                    "tooltip": "How many images to generate",
-                }),
-                "image": (IO.IMAGE, {
-                    "default": None,
-                    "tooltip": "Optional reference image for image editing.",
-                }),
-                "mask": (IO.MASK, {
-                    "default": None,
-                    "tooltip": "Optional mask for inpainting (white areas will be replaced)",
-                }),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 2**31 - 1,
+                        "step": 1,
+                        "display": "number",
+                        "tooltip": "not implemented yet in backend",
+                    },
+                ),
+                "size": (
+                    IO.COMBO,
+                    {
+                        "options": ["256x256", "512x512", "1024x1024"],
+                        "default": "1024x1024",
+                        "tooltip": "Image size",
+                    },
+                ),
+                "n": (
+                    IO.INT,
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 8,
+                        "step": 1,
+                        "display": "number",
+                        "tooltip": "How many images to generate",
+                    },
+                ),
+                "image": (
+                    IO.IMAGE,
+                    {
+                        "default": None,
+                        "tooltip": "Optional reference image for image editing.",
+                    },
+                ),
+                "mask": (
+                    IO.MASK,
+                    {
+                        "default": None,
+                        "tooltip": "Optional mask for inpainting (white areas will be replaced)",
+                    },
+                ),
             },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG"
-            }
+            "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
         }
 
     RETURN_TYPES = (IO.IMAGE,)
@@ -374,7 +388,16 @@ class OpenAIDalle2(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
-    def api_call(self, prompt, seed=0, image=None, mask=None, n=1, size="1024x1024", auth_token=None):
+    def api_call(
+        self,
+        prompt,
+        seed=0,
+        image=None,
+        mask=None,
+        n=1,
+        size="1024x1024",
+        auth_token=None,
+    ):
         model = "dall-e-2"
         path = "/proxy/openai/images/generations"
         request_class = OpenAIImageGenerationRequest
@@ -391,16 +414,16 @@ class OpenAIDalle2(ComfyNodeABC):
 
             if mask.shape[1:] != image.shape[1:-1]:
                 raise Exception("Mask and Image must be the same size")
-            rgba_tensor[:,:,3] = (1-mask.squeeze().cpu())
+            rgba_tensor[:, :, 3] = 1 - mask.squeeze().cpu()
 
             rgba_tensor = downscale_input(rgba_tensor.unsqueeze(0)).squeeze()
 
             image_np = (rgba_tensor.numpy() * 255).astype(np.uint8)
             img = Image.fromarray(image_np)
             img_byte_arr = io.BytesIO()
-            img.save(img_byte_arr, format='PNG')
+            img.save(img_byte_arr, format="PNG")
             img_byte_arr.seek(0)
-            img_binary = img_byte_arr#.getvalue()
+            img_binary = img_byte_arr  # .getvalue()
             img_binary.name = "image.png"
         elif image is not None or mask is not None:
             raise Exception("Dall-E 2 image editing requires an image AND a mask")
@@ -411,7 +434,7 @@ class OpenAIDalle2(ComfyNodeABC):
                 path=path,
                 method=HttpMethod.POST,
                 request_model=request_class,
-                response_model=OpenAIImageGenerationResponse
+                response_model=OpenAIImageGenerationResponse,
             ),
             request=request_class(
                 model=model,
@@ -420,16 +443,21 @@ class OpenAIDalle2(ComfyNodeABC):
                 size=size,
                 seed=seed,
             ),
-            files={
-                "image": img_binary,
-            } if img_binary else None,
-            auth_token=auth_token
+            files=(
+                {
+                    "image": img_binary,
+                }
+                if img_binary
+                else None
+            ),
+            auth_token=auth_token,
         )
 
         response = operation.execute()
 
         img_tensor = validate_and_cast_response(response)
         return (img_tensor,)
+
 
 class OpenAIDalle3(ComfyNodeABC):
     """
@@ -438,6 +466,7 @@ class OpenAIDalle3(ComfyNodeABC):
     Uses the proxy at /proxy/openai/images/generations. Returned URLs are short‑lived,
     so download or cache results if you need to keep them.
     """
+
     def __init__(self):
         pass
 
@@ -445,40 +474,53 @@ class OpenAIDalle3(ComfyNodeABC):
     def INPUT_TYPES(cls) -> InputTypeDict:
         return {
             "required": {
-                "prompt": (IO.STRING, {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "Text prompt for DALL·E",
-                }),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Text prompt for DALL·E",
+                    },
+                ),
             },
             "optional": {
-                "seed": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 2**31-1,
-                    "step": 1,
-                    "display": "number",
-                    "tooltip": "not implemented yet in backend",
-                }),
-                "quality" : (IO.COMBO, {
-                    "options": ["standard","hd"],
-                    "default": "standard",
-                    "tooltip": "Image quality",
-                }),
-                "style": (IO.COMBO, {
-                    "options": ["natural","vivid"],
-                    "default": "natural",
-                    "tooltip": "Vivid causes the model to lean towards generating hyper-real and dramatic images. Natural causes the model to produce more natural, less hyper-real looking images.",
-                }),
-                "size": (IO.COMBO, {
-                    "options": ["1024x1024", "1024x1792", "1792x1024"],
-                    "default": "1024x1024",
-                    "tooltip": "Image size",
-                }),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 2**31 - 1,
+                        "step": 1,
+                        "display": "number",
+                        "tooltip": "not implemented yet in backend",
+                    },
+                ),
+                "quality": (
+                    IO.COMBO,
+                    {
+                        "options": ["standard", "hd"],
+                        "default": "standard",
+                        "tooltip": "Image quality",
+                    },
+                ),
+                "style": (
+                    IO.COMBO,
+                    {
+                        "options": ["natural", "vivid"],
+                        "default": "natural",
+                        "tooltip": "Vivid causes the model to lean towards generating hyper-real and dramatic images. Natural causes the model to produce more natural, less hyper-real looking images.",
+                    },
+                ),
+                "size": (
+                    IO.COMBO,
+                    {
+                        "options": ["1024x1024", "1024x1792", "1792x1024"],
+                        "default": "1024x1024",
+                        "tooltip": "Image size",
+                    },
+                ),
             },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG"
-            }
+            "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
         }
 
     RETURN_TYPES = (IO.IMAGE,)
@@ -487,7 +529,15 @@ class OpenAIDalle3(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
-    def api_call(self, prompt, seed=0, style="natural", quality="standard", size="1024x1024", auth_token=None):
+    def api_call(
+        self,
+        prompt,
+        seed=0,
+        style="natural",
+        quality="standard",
+        size="1024x1024",
+        auth_token=None,
+    ):
         model = "dall-e-3"
 
         # build the operation
@@ -496,7 +546,7 @@ class OpenAIDalle3(ComfyNodeABC):
                 path="/proxy/openai/images/generations",
                 method=HttpMethod.POST,
                 request_model=OpenAIImageGenerationRequest,
-                response_model=OpenAIImageGenerationResponse
+                response_model=OpenAIImageGenerationResponse,
             ),
             request=OpenAIImageGenerationRequest(
                 model=model,
@@ -506,13 +556,14 @@ class OpenAIDalle3(ComfyNodeABC):
                 style=style,
                 seed=seed,
             ),
-            auth_token=auth_token
+            auth_token=auth_token,
         )
 
         response = operation.execute()
 
         img_tensor = validate_and_cast_response(response)
         return (img_tensor,)
+
 
 class OpenAIGPTImage1(ComfyNodeABC):
     """
@@ -530,61 +581,78 @@ class OpenAIGPTImage1(ComfyNodeABC):
     def INPUT_TYPES(cls) -> InputTypeDict:
         return {
             "required": {
-                "prompt": (IO.STRING, {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "Text prompt for GPT Image 1",
-                }),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Text prompt for GPT Image 1",
+                    },
+                ),
             },
             "optional": {
-                "seed": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 2**31-1,
-                    "step": 1,
-                    "display": "number",
-                    "tooltip": "not implemented yet in backend",
-                }),
-                "quality": (IO.COMBO, {
-                    "options": ["low","medium","high"],
-                    "default": "low",
-                    "tooltip": "Image quality, affects cost and generation time.",
-                }),
-                "background": (IO.COMBO, {
-                    "options": ["opaque","transparent"],
-                    "default": "opaque",
-                    "tooltip": "Return image with or without background",
-                }),
-                "size": (IO.COMBO, {
-                    "options": ["auto", "1024x1024", "1024x1536", "1536x1024"],
-                    "default": "auto",
-                    "tooltip": "Image size",
-                }),
-                "n": (IO.INT, {
-                    "default": 1,
-                    "min": 1,
-                    "max": 8,
-                    "step": 1,
-                    "display": "number",
-                    "tooltip": "How many images to generate",
-                }),
-                "image": (IO.IMAGE, {
-                    "default": None,
-                    "tooltip": "Optional reference image for image editing.",
-                }),
-                "mask": (IO.MASK, {
-                    "default": None,
-                    "tooltip": "Optional mask for inpainting (white areas will be replaced)",
-                }),
-                "moderation": (IO.COMBO, {
-                    "options": ["low","auto"],
-                    "default": "low",
-                    "tooltip": "Moderation level",
-                }),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 2**31 - 1,
+                        "step": 1,
+                        "display": "number",
+                        "tooltip": "not implemented yet in backend",
+                    },
+                ),
+                "quality": (
+                    IO.COMBO,
+                    {
+                        "options": ["low", "medium", "high"],
+                        "default": "low",
+                        "tooltip": "Image quality, affects cost and generation time.",
+                    },
+                ),
+                "background": (
+                    IO.COMBO,
+                    {
+                        "options": ["opaque", "transparent"],
+                        "default": "opaque",
+                        "tooltip": "Return image with or without background",
+                    },
+                ),
+                "size": (
+                    IO.COMBO,
+                    {
+                        "options": ["auto", "1024x1024", "1024x1536", "1536x1024"],
+                        "default": "auto",
+                        "tooltip": "Image size",
+                    },
+                ),
+                "n": (
+                    IO.INT,
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 8,
+                        "step": 1,
+                        "display": "number",
+                        "tooltip": "How many images to generate",
+                    },
+                ),
+                "image": (
+                    IO.IMAGE,
+                    {
+                        "default": None,
+                        "tooltip": "Optional reference image for image editing.",
+                    },
+                ),
+                "mask": (
+                    IO.MASK,
+                    {
+                        "default": None,
+                        "tooltip": "Optional mask for inpainting (white areas will be replaced)",
+                    },
+                ),
             },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG"
-            }
+            "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
         }
 
     RETURN_TYPES = (IO.IMAGE,)
@@ -593,7 +661,18 @@ class OpenAIGPTImage1(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
-    def api_call(self, prompt, seed=0, quality="low", background="opaque", image=None, mask=None, n=1, size="1024x1024", auth_token=None, moderation="low"):
+    def api_call(
+        self,
+        prompt,
+        seed=0,
+        quality="low",
+        background="opaque",
+        image=None,
+        mask=None,
+        n=1,
+        size="1024x1024",
+        auth_token=None,
+    ):
         model = "gpt-image-1"
         path = "/proxy/openai/images/generations"
         request_class = OpenAIImageGenerationRequest
@@ -607,15 +686,14 @@ class OpenAIGPTImage1(ComfyNodeABC):
 
             batch_size = image.shape[0]
 
-
             for i in range(batch_size):
-                single_image = image[i:i+1]
+                single_image = image[i : i + 1]
                 scaled_image = downscale_input(single_image).squeeze()
 
                 image_np = (scaled_image.numpy() * 255).astype(np.uint8)
                 img = Image.fromarray(image_np)
                 img_byte_arr = io.BytesIO()
-                img.save(img_byte_arr, format='PNG')
+                img.save(img_byte_arr, format="PNG")
                 img_byte_arr.seek(0)
                 img_binary = img_byte_arr
                 img_binary.name = f"image_{i}.png"
@@ -635,19 +713,18 @@ class OpenAIGPTImage1(ComfyNodeABC):
                 raise Exception("Mask and Image must be the same size")
             batch, height, width = mask.shape
             rgba_mask = torch.zeros(height, width, 4, device="cpu")
-            rgba_mask[:,:,3] = (1-mask.squeeze().cpu())
+            rgba_mask[:, :, 3] = 1 - mask.squeeze().cpu()
 
             scaled_mask = downscale_input(rgba_mask.unsqueeze(0)).squeeze()
 
             mask_np = (scaled_mask.numpy() * 255).astype(np.uint8)
             mask_img = Image.fromarray(mask_np)
             mask_img_byte_arr = io.BytesIO()
-            mask_img.save(mask_img_byte_arr, format='PNG')
+            mask_img.save(mask_img_byte_arr, format="PNG")
             mask_img_byte_arr.seek(0)
             mask_binary = mask_img_byte_arr
             mask_binary.name = "mask.png"
             files.append(("mask", mask_binary))
-
 
         # Build the operation
         operation = SynchronousOperation(
@@ -655,7 +732,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
                 path=path,
                 method=HttpMethod.POST,
                 request_model=request_class,
-                response_model=OpenAIImageGenerationResponse
+                response_model=OpenAIImageGenerationResponse,
             ),
             request=request_class(
                 model=model,
@@ -668,7 +745,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
                 moderation=moderation,
             ),
             files=files if files else None,
-            auth_token=auth_token
+            auth_token=auth_token,
         )
 
         response = operation.execute()
@@ -683,77 +760,129 @@ class IdeogramTextToImage(ComfyNodeABC):
 
     Images links are available for a limited period of time; if you would like to keep the image, you must download it.
     """
+
     def __init__(self):
         pass
 
     @classmethod
     def INPUT_TYPES(cls) -> InputTypeDict:
         """
-            Return a dictionary which contains config for all input fields.
-            Some types (string): "MODEL", "VAE", "CLIP", "CONDITIONING", "LATENT", "IMAGE", "INT", "STRING", "FLOAT".
-            Input types "INT", "STRING" or "FLOAT" are special values for fields on the node.
-            The type can be a list for selection.
+        Return a dictionary which contains config for all input fields.
+        Some types (string): "MODEL", "VAE", "CLIP", "CONDITIONING", "LATENT", "IMAGE", "INT", "STRING", "FLOAT".
+        Input types "INT", "STRING" or "FLOAT" are special values for fields on the node.
+        The type can be a list for selection.
 
-            Returns: `dict`:
-                - Key input_fields_group (`string`): Can be either required, hidden or optional. A node class must have property `required`
-                - Value input_fields (`dict`): Contains input fields config:
-                    * Key field_name (`string`): Name of a entry-point method's argument
-                    * Value field_config (`tuple`):
-                        + First value is a string indicate the type of field or a list for selection.
-                        + Secound value is a config for type "INT", "STRING" or "FLOAT".
+        Returns: `dict`:
+            - Key input_fields_group (`string`): Can be either required, hidden or optional. A node class must have property `required`
+            - Value input_fields (`dict`): Contains input fields config:
+                * Key field_name (`string`): Name of a entry-point method's argument
+                * Value field_config (`tuple`):
+                    + First value is a string indicate the type of field or a list for selection.
+                    + Secound value is a config for type "INT", "STRING" or "FLOAT".
         """
         return {
             "required": {
-                "prompt": (IO.STRING, {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "Prompt for the image generation",
-                }),
-                "model": (IO.COMBO, { "options": ["V_2", "V_2_TURBO", "V_1", "V_1_TURBO"], "default": "V_2", "tooltip": "Model to use for image generation"}),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation",
+                    },
+                ),
+                "model": (
+                    IO.COMBO,
+                    {
+                        "options": ["V_2", "V_2_TURBO", "V_1", "V_1_TURBO"],
+                        "default": "V_2",
+                        "tooltip": "Model to use for image generation",
+                    },
+                ),
             },
             "optional": {
-                "aspect_ratio": (IO.COMBO, { "options": ["ASPECT_1_1", "ASPECT_4_3", "ASPECT_3_4", "ASPECT_16_9", "ASPECT_9_16", "ASPECT_2_1", "ASPECT_1_2", "ASPECT_3_2", "ASPECT_2_3", "ASPECT_4_5", "ASPECT_5_4"], "default": "ASPECT_1_1", "tooltip": "The aspect ratio for image generation. Cannot be used with resolution"
-                }),
-                "resolution": (IO.COMBO, { "options": ["1024x1024", "1024x1792", "1792x1024"],
-                    "default": "1024x1024",
-                    "tooltip": "The resolution for image generation (V2 only). Cannot be used with aspect_ratio"
-                }),
-                "magic_prompt_option": (IO.COMBO, { "options": ["AUTO", "ON", "OFF"],
-                    "default": "AUTO",
-                    "tooltip": "Determine if MagicPrompt should be used in generation"
-                }),
-                "seed": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 2147483647,
-                    "step": 1,
-                    "display": "number"
-                }),
-                "style_type": (IO.COMBO, { "options": ["NONE", "ANIME", "CINEMATIC", "CREATIVE", "DIGITAL_ART", "PHOTOGRAPHIC"],
-                    "default": "NONE",
-                    "tooltip": "Style type for generation (V2+ only)"
-                }),
-                "negative_prompt": (IO.STRING, {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "Description of what to exclude from the image (V1/V2 only)"
-                }),
-                "num_images": (IO.INT, {
-                    "default": 1,
-                    "min": 1,
-                    "max": 8,
-                    "step": 1,
-                    "display": "number"
-                }),
-                "color_palette": (IO.STRING, {
-                    "multiline": False,
-                    "default": "",
-                    "tooltip": "Color palette preset name or hex colors with weights (V2/V2_TURBO only)"
-                }),
+                "aspect_ratio": (
+                    IO.COMBO,
+                    {
+                        "options": [
+                            "ASPECT_1_1",
+                            "ASPECT_4_3",
+                            "ASPECT_3_4",
+                            "ASPECT_16_9",
+                            "ASPECT_9_16",
+                            "ASPECT_2_1",
+                            "ASPECT_1_2",
+                            "ASPECT_3_2",
+                            "ASPECT_2_3",
+                            "ASPECT_4_5",
+                            "ASPECT_5_4",
+                        ],
+                        "default": "ASPECT_1_1",
+                        "tooltip": "The aspect ratio for image generation. Cannot be used with resolution",
+                    },
+                ),
+                "resolution": (
+                    IO.COMBO,
+                    {
+                        "options": ["1024x1024", "1024x1792", "1792x1024"],
+                        "default": "1024x1024",
+                        "tooltip": "The resolution for image generation (V2 only). Cannot be used with aspect_ratio",
+                    },
+                ),
+                "magic_prompt_option": (
+                    IO.COMBO,
+                    {
+                        "options": ["AUTO", "ON", "OFF"],
+                        "default": "AUTO",
+                        "tooltip": "Determine if MagicPrompt should be used in generation",
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 2147483647,
+                        "step": 1,
+                        "display": "number",
+                    },
+                ),
+                "style_type": (
+                    IO.COMBO,
+                    {
+                        "options": [
+                            "NONE",
+                            "ANIME",
+                            "CINEMATIC",
+                            "CREATIVE",
+                            "DIGITAL_ART",
+                            "PHOTOGRAPHIC",
+                        ],
+                        "default": "NONE",
+                        "tooltip": "Style type for generation (V2+ only)",
+                    },
+                ),
+                "negative_prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Description of what to exclude from the image (V1/V2 only)",
+                    },
+                ),
+                "num_images": (
+                    IO.INT,
+                    {"default": 1, "min": 1, "max": 8, "step": 1, "display": "number"},
+                ),
+                "color_palette": (
+                    IO.STRING,
+                    {
+                        "multiline": False,
+                        "default": "",
+                        "tooltip": "Color palette preset name or hex colors with weights (V2/V2_TURBO only)",
+                    },
+                ),
             },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG"
-            }
+            "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
         }
 
     RETURN_TYPES = (IO.IMAGE,)
@@ -762,9 +891,20 @@ class IdeogramTextToImage(ComfyNodeABC):
     API_NODE = True
     CATEGORY = "Example"
 
-    def api_call(self, prompt, model, aspect_ratio=None, resolution=None,
-                 magic_prompt_option="AUTO", seed=0, style_type="NONE",
-                 negative_prompt="", num_images=1, color_palette="", auth_token=None):
+    def api_call(
+        self,
+        prompt,
+        model,
+        aspect_ratio=None,
+        resolution=None,
+        magic_prompt_option="AUTO",
+        seed=0,
+        style_type="NONE",
+        negative_prompt="",
+        num_images=1,
+        color_palette="",
+        auth_token=None,
+    ):
         import torch
         from PIL import Image
         import io
@@ -776,23 +916,25 @@ class IdeogramTextToImage(ComfyNodeABC):
                 path="/proxy/ideogram/generate",
                 method=HttpMethod.POST,
                 request_model=IdeogramGenerateRequest,
-                response_model=IdeogramGenerateResponse
+                response_model=IdeogramGenerateResponse,
             ),
             request=IdeogramGenerateRequest(
                 image_request=ImageRequest(
-                  prompt=prompt,
-                  model=model,
-                  num_images=num_images,
-                  seed=seed,
-                  aspect_ratio=aspect_ratio if aspect_ratio != "ASPECT_1_1" else None,
-                  resolution=resolution if resolution != "1024x1024" else None,
-                  magic_prompt_option=magic_prompt_option if magic_prompt_option != "AUTO" else None,
-                  style_type=style_type if style_type != "NONE" else None,
-                  negative_prompt=negative_prompt if negative_prompt else None,
-                  color_palette=None
+                    prompt=prompt,
+                    model=model,
+                    num_images=num_images,
+                    seed=seed,
+                    aspect_ratio=aspect_ratio if aspect_ratio != "ASPECT_1_1" else None,
+                    resolution=resolution if resolution != "1024x1024" else None,
+                    magic_prompt_option=(
+                        magic_prompt_option if magic_prompt_option != "AUTO" else None
+                    ),
+                    style_type=style_type if style_type != "NONE" else None,
+                    negative_prompt=negative_prompt if negative_prompt else None,
+                    color_palette=None,
                 )
             ),
-            auth_token=auth_token
+            auth_token=auth_token,
         )
 
         response = operation.execute()
@@ -826,16 +968,18 @@ class IdeogramTextToImage(ComfyNodeABC):
         This method is used in the core repo for the LoadImage node where they return the image hash as a string, if the image hash
         changes between executions the LoadImage node is executed again.
     """
-    #@classmethod
-    #def IS_CHANGED(s, image, string_field, int_field, float_field, print_to_screen):
+    # @classmethod
+    # def IS_CHANGED(s, image, string_field, int_field, float_field, print_to_screen):
     #    return ""
+
 
 class FluxProUltraImageNode(ComfyNodeABC):
     """
     Generates images synchronously based on prompt and resolution.
     """
-    MINIMUM_RATIO = 1/4
-    MAXIMUM_RATIO = 4/1
+
+    MINIMUM_RATIO = 1 / 4
+    MAXIMUM_RATIO = 4 / 1
     MINIMUM_RATIO_STR = "1:4"
     MAXIMUM_RATIO_STR = "4:1"
 
@@ -843,51 +987,74 @@ class FluxProUltraImageNode(ComfyNodeABC):
     def INPUT_TYPES(s):
         return {
             "required": {
-                "prompt": (IO.STRING, {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "Prompt for the image generation",
-                }),
-                "prompt_upsampling": (IO.BOOLEAN, {
-                    "default": False,
-                    "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result)."
-                }),
-                "seed": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 0xFFFFFFFFFFFFFFFF,
-                    "control_after_generate": True,
-                    "tooltip": "The random seed used for creating the noise.",
-                }),
-                "aspect_ratio": (IO.STRING, {
-                    "default": "16:9",
-                    "tooltip": "Aspect ratio of image; must be between 1:4 and 4:1.",
-                }),
-                "raw": (IO.BOOLEAN, {
-                    "default": False,
-                    "tooltip": "When True, generate less processed, more natural-looking images."
-                }),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation",
+                    },
+                ),
+                "prompt_upsampling": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+                "aspect_ratio": (
+                    IO.STRING,
+                    {
+                        "default": "16:9",
+                        "tooltip": "Aspect ratio of image; must be between 1:4 and 4:1.",
+                    },
+                ),
+                "raw": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                        "tooltip": "When True, generate less processed, more natural-looking images.",
+                    },
+                ),
             },
             "optional": {
-                "image_prompt": (IO.IMAGE, ),
-                "image_prompt_strength": (IO.FLOAT, {
-                    "default": 0.1,
-                    "min": 0.0,
-                    "max": 1.0,
-                    "step": 0.01,
-                    "tooltip": "Blend between the prompt and the image prompt.",
-                }),
+                "image_prompt": (IO.IMAGE,),
+                "image_prompt_strength": (
+                    IO.FLOAT,
+                    {
+                        "default": 0.1,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "Blend between the prompt and the image prompt.",
+                    },
+                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
-            }
+            },
         }
 
     @classmethod
     def VALIDATE_INPUTS(cls, aspect_ratio: str):
         try:
-            validate_aspect_ratio(aspect_ratio, minimum_ratio=cls.MINIMUM_RATIO, maximum_ratio=cls.MAXIMUM_RATIO,
-                                  minimum_ratio_str=cls.MINIMUM_RATIO_STR, maximum_ratio_str=cls.MAXIMUM_RATIO_STR)
+            validate_aspect_ratio(
+                aspect_ratio,
+                minimum_ratio=cls.MINIMUM_RATIO,
+                maximum_ratio=cls.MAXIMUM_RATIO,
+                minimum_ratio_str=cls.MINIMUM_RATIO_STR,
+                maximum_ratio_str=cls.MAXIMUM_RATIO_STR,
+            )
         except Exception as e:
             return str(e)
         return True
@@ -898,32 +1065,58 @@ class FluxProUltraImageNode(ComfyNodeABC):
     API_NODE = True
     CATEGORY = "api node"
 
-    def api_call(self, prompt: str, aspect_ratio: str, prompt_upsampling=False, raw=False, seed=0, image_prompt=None, image_prompt_strength=0.1, auth_token=None, **kwargs):
+    def api_call(
+        self,
+        prompt: str,
+        aspect_ratio: str,
+        prompt_upsampling=False,
+        raw=False,
+        seed=0,
+        image_prompt=None,
+        image_prompt_strength=0.1,
+        auth_token=None,
+        **kwargs,
+    ):
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/bfl/flux-pro-1.1-ultra/generate",
                 method=HttpMethod.POST,
                 request_model=BFLFluxProGenerateRequest,
-                response_model=BFLFluxProGenerateResponse
+                response_model=BFLFluxProGenerateResponse,
             ),
             request=BFLFluxProGenerateRequest(
                 prompt=prompt,
                 prompt_upsampling=prompt_upsampling,
                 seed=seed,
-                aspect_ratio=validate_aspect_ratio(aspect_ratio, minimum_ratio=self.MINIMUM_RATIO, maximum_ratio=self.MAXIMUM_RATIO,
-                                                   minimum_ratio_str=self.MINIMUM_RATIO_STR, maximum_ratio_str=self.MAXIMUM_RATIO_STR),
+                aspect_ratio=validate_aspect_ratio(
+                    aspect_ratio,
+                    minimum_ratio=self.MINIMUM_RATIO,
+                    maximum_ratio=self.MAXIMUM_RATIO,
+                    minimum_ratio_str=self.MINIMUM_RATIO_STR,
+                    maximum_ratio_str=self.MAXIMUM_RATIO_STR,
+                ),
                 raw=raw,
-                image_prompt=image_prompt if image_prompt is None else self._convert_image_to_base64(image_prompt),
-                image_prompt_strength=None if image_prompt is None else round(image_prompt_strength, 2),
+                image_prompt=(
+                    image_prompt
+                    if image_prompt is None
+                    else self._convert_image_to_base64(image_prompt)
+                ),
+                image_prompt_strength=(
+                    None if image_prompt is None else round(image_prompt_strength, 2)
+                ),
             ),
-            auth_token=auth_token
+            auth_token=auth_token,
         )
         output_image = self._handle_bfl_synchronous_operation(operation)
         return (output_image,)
 
-    def _handle_bfl_synchronous_operation(self, operation: SynchronousOperation, timeout_bfl_calls=360):
+    def _handle_bfl_synchronous_operation(
+        self, operation: SynchronousOperation, timeout_bfl_calls=360
+    ):
         response_api: BFLFluxProGenerateResponse = operation.execute()
-        return self._poll_until_generated(response_api.polling_url, timeout=timeout_bfl_calls)
+        return self._poll_until_generated(
+            response_api.polling_url, timeout=timeout_bfl_calls
+        )
 
     def _poll_until_generated(self, polling_url: str, timeout=360):
         # used bfl-comfy-nodes to verify code implementation:
@@ -944,9 +1137,14 @@ class FluxProUltraImageNode(ComfyNodeABC):
                     img_url = result["result"]["sample"]
                     img_response = requests.get(img_url)
                     return process_image_response(img_response)
-                elif result["status"] in [BFLStatus.request_moderated, BFLStatus.content_moderated]:
+                elif result["status"] in [
+                    BFLStatus.request_moderated,
+                    BFLStatus.content_moderated,
+                ]:
                     status = result["status"]
-                    raise Exception(f"BFL API did not return an image due to: {status}.")
+                    raise Exception(
+                        f"BFL API did not return an image due to: {status}."
+                    )
                 elif result["status"] == BFLStatus.error:
                     raise Exception(f"BFL API encountered an error: {result}.")
                 elif result["status"] == BFLStatus.pending:
@@ -957,29 +1155,34 @@ class FluxProUltraImageNode(ComfyNodeABC):
                     retries_404 += 1
                     time.sleep(retry_404_seconds)
                     continue
-                raise Exception(f"BFL API could not find task after {max_retries_404} tries.")
+                raise Exception(
+                    f"BFL API could not find task after {max_retries_404} tries."
+                )
             elif response.status_code == 202:
                 time.sleep(retry_202_seconds)
             elif time.time() - start_time > timeout:
-                raise Exception(f"BFL API experienced a timeout; could not return request under {timeout} seconds.")
+                raise Exception(
+                    f"BFL API experienced a timeout; could not return request under {timeout} seconds."
+                )
             else:
                 raise Exception(f"BFL API encountered an error: {response.json()}")
 
     def _convert_image_to_base64(self, image: torch.Tensor):
-        scaled_image = downscale_input(image, total_pixels=2048*2048)
+        scaled_image = downscale_input(image, total_pixels=2048 * 2048)
         # remove batch dimension if present
         if len(scaled_image.shape) > 3:
             scaled_image = scaled_image[0]
         image_np = (scaled_image.numpy() * 255).astype(np.uint8)
         img = Image.fromarray(image_np)
         img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, format='PNG')
+        img.save(img_byte_arr, format="PNG")
         return base64.b64encode(img_byte_arr.getvalue()).decode()
 
 class LumaReferenceNode(ComfyNodeABC):
     """
     Holds an image and weight for use with Luma Generate Image node.
     """
+
     RETURN_TYPES = (LumaIO.LUMA_REF,)
     RETURN_NAMES = ("luma_ref",)
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
@@ -990,29 +1193,36 @@ class LumaReferenceNode(ComfyNodeABC):
     def INPUT_TYPES(s):
         return {
             "required": {
-                "image": (IO.IMAGE, {
-                    "tooltip": "Image to use as reference.",
-                }),
-                "weight": (IO.FLOAT, {
-                    "default": 1.0,
-                    "min": 0.0,
-                    "max": 1.0,
-                    "step": 0.01,
-                    "tooltip": "Weight of image reference.",
-                }),
+                "image": (
+                    IO.IMAGE,
+                    {
+                        "tooltip": "Image to use as reference.",
+                    },
+                ),
+                "weight": (
+                    IO.FLOAT,
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "Weight of image reference.",
+                    },
+                ),
             },
-            "optional": {
-                "luma_ref": (LumaIO.LUMA_REF,)
-            }
+            "optional": {"luma_ref": (LumaIO.LUMA_REF,)},
         }
 
-    def create_luma_reference(self, image: torch.Tensor, weight: float, luma_ref: LumaReferenceChain=None):
+    def create_luma_reference(
+        self, image: torch.Tensor, weight: float, luma_ref: LumaReferenceChain = None
+    ):
         if luma_ref is not None:
             luma_ref = luma_ref.clone()
         else:
             luma_ref = LumaReferenceChain()
         luma_ref.add(LumaReference(image=image, weight=round(weight, 2)))
-        return (luma_ref, )
+        return (luma_ref,)
+
 
 class LumaConceptsNode(ComfyNodeABC):
     """
@@ -1050,6 +1260,7 @@ class LumaImageGenerationNode(ComfyNodeABC):
     """
     Generates images synchronously based on prompt and aspect ratio.
     """
+
     RETURN_TYPES = (IO.IMAGE,)
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
@@ -1060,69 +1271,106 @@ class LumaImageGenerationNode(ComfyNodeABC):
     def INPUT_TYPES(s):
         return {
             "required": {
-                "prompt": (IO.STRING, {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "Prompt for the image generation",
-                }),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation",
+                    },
+                ),
                 "model": ([model.value for model in LumaImageModel],),
-                "aspect_ratio": ([ratio.value for ratio in LumaAspectRatio], {
-                    "default": LumaAspectRatio.ratio_16_9,
-                }),
-                "seed": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 0xFFFFFFFFFFFFFFFF,
-                    "control_after_generate": True,
-                    "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
-                }),
-                "style_image_weight": (IO.FLOAT, {
-                    "default": 1.0,
-                    "min": 0.0,
-                    "max": 1.0,
-                    "step": 0.01,
-                    "tooltip": "Weight of style image. Ignored if no style_image provided.",
-                }),
+                "aspect_ratio": (
+                    [ratio.value for ratio in LumaAspectRatio],
+                    {
+                        "default": LumaAspectRatio.ratio_16_9,
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
+                    },
+                ),
+                "style_image_weight": (
+                    IO.FLOAT,
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "Weight of style image. Ignored if no style_image provided.",
+                    },
+                ),
             },
             "optional": {
-                "image_luma_ref": (LumaIO.LUMA_REF, {
-                    "tooltip": "Luma Reference node connection to influence generation with input images; up to 4 images can be considered."
-                }),
-                "style_image": (IO.IMAGE, {
-                    "tooltip": "Style reference image; only 1 image will be used."
-                }),
-                "character_image": (IO.IMAGE, {
-                    "tooltip": "Character reference images; can be a batch of multiple, up to 4 images can be considered."
-                })
+                "image_luma_ref": (
+                    LumaIO.LUMA_REF,
+                    {
+                        "tooltip": "Luma Reference node connection to influence generation with input images; up to 4 images can be considered."
+                    },
+                ),
+                "style_image": (
+                    IO.IMAGE,
+                    {"tooltip": "Style reference image; only 1 image will be used."},
+                ),
+                "character_image": (
+                    IO.IMAGE,
+                    {
+                        "tooltip": "Character reference images; can be a batch of multiple, up to 4 images can be considered."
+                    },
+                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
-            }
+            },
         }
 
-    def api_call(self, prompt: str, model: str, aspect_ratio: str, seed, style_image_weight: float,
-                 image_luma_ref: LumaReferenceChain=None, style_image: torch.Tensor=None, character_image: torch.Tensor=None,
-                 auth_token=None, **kwargs):
+    def api_call(
+        self,
+        prompt: str,
+        model: str,
+        aspect_ratio: str,
+        seed,
+        style_image_weight: float,
+        image_luma_ref: LumaReferenceChain = None,
+        style_image: torch.Tensor = None,
+        character_image: torch.Tensor = None,
+        auth_token=None,
+        **kwargs,
+    ):
         # handle image_luma_ref
         api_image_ref = None
         if image_luma_ref is not None:
-            api_image_ref = self._convert_luma_refs(image_luma_ref, max_refs=4, auth_token=auth_token)
+            api_image_ref = self._convert_luma_refs(
+                image_luma_ref, max_refs=4, auth_token=auth_token
+            )
         # handle style_luma_ref
         api_style_ref = None
         if style_image is not None:
-            api_style_ref = self._convert_style_image(style_image, weight=style_image_weight, auth_token=auth_token)
+            api_style_ref = self._convert_style_image(
+                style_image, weight=style_image_weight, auth_token=auth_token
+            )
         # handle character_ref images
         character_ref = None
         if character_image is not None:
-            download_urls = upload_images_to_comfyapi(character_image, max_images=4, auth_token=auth_token)
-            character_ref = LumaCharacterRef(identity0=LumaImageIdentity(images=download_urls))
+            download_urls = upload_images_to_comfyapi(
+                character_image, max_images=4, auth_token=auth_token
+            )
+            character_ref = LumaCharacterRef(
+                identity0=LumaImageIdentity(images=download_urls)
+            )
 
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/luma/generations/image",
                 method=HttpMethod.POST,
                 request_model=LumaImageGenerationRequest,
-                response_model=LumaGeneration
+                response_model=LumaGeneration,
             ),
             request=LumaImageGenerationRequest(
                 prompt=prompt,
@@ -1132,7 +1380,7 @@ class LumaImageGenerationNode(ComfyNodeABC):
                 style_ref=api_style_ref,
                 character_ref=character_ref,
             ),
-            auth_token=auth_token
+            auth_token=auth_token,
         )
         response_api: LumaGeneration = operation.execute()
 
@@ -1154,25 +1402,34 @@ class LumaImageGenerationNode(ComfyNodeABC):
         img = process_image_response(img_response)
         return (img,)
 
-    def _convert_luma_refs(self, luma_ref: LumaReferenceChain, max_refs: int, auth_token=None):
+    def _convert_luma_refs(
+        self, luma_ref: LumaReferenceChain, max_refs: int, auth_token=None
+    ):
         luma_urls = []
         ref_count = 0
         for ref in luma_ref.refs:
-            download_urls = upload_images_to_comfyapi(ref.image, max_images=1, auth_token=auth_token)
+            download_urls = upload_images_to_comfyapi(
+                ref.image, max_images=1, auth_token=auth_token
+            )
             luma_urls.append(download_urls[0])
             ref_count += 1
             if ref_count >= max_refs:
                 break
         return luma_ref.create_api_model(download_urls=luma_urls, max_refs=max_refs)
 
-    def _convert_style_image(self, style_image: torch.Tensor, weight: float, auth_token=None):
-        chain = LumaReferenceChain(first_ref=LumaReference(image=style_image, weight=weight))
+    def _convert_style_image(
+        self, style_image: torch.Tensor, weight: float, auth_token=None
+    ):
+        chain = LumaReferenceChain(
+            first_ref=LumaReference(image=style_image, weight=weight)
+        )
         return self._convert_luma_refs(chain, max_refs=1, auth_token=auth_token)
 
 class LumaImageModifyNode(ComfyNodeABC):
     """
     Modifies images synchronously based on prompt and aspect ratio.
     """
+
     RETURN_TYPES = (IO.IMAGE,)
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
@@ -1184,37 +1441,56 @@ class LumaImageModifyNode(ComfyNodeABC):
         return {
             "required": {
                 "image": (IO.IMAGE,),
-                "prompt": (IO.STRING, {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "Prompt for the image generation",
-                }),
-                "image_weight": (IO.FLOAT, {
-                    "default": 1.0,
-                    "min": 0.0,
-                    "max": 1.0,
-                    "step": 0.01,
-                    "tooltip": "Weight of the image; the closer to 0.0, the less the image will be modified."
-                }),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation",
+                    },
+                ),
+                "image_weight": (
+                    IO.FLOAT,
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "Weight of the image; the closer to 0.0, the less the image will be modified.",
+                    },
+                ),
                 "model": ([model.value for model in LumaImageModel],),
-                "seed": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 0xFFFFFFFFFFFFFFFF,
-                    "control_after_generate": True,
-                    "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
-                }),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
+                    },
+                ),
             },
-            "optional": {
-            },
+            "optional": {},
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
-            }
+            },
         }
 
-    def api_call(self, prompt: str, model: str, image: torch.Tensor, image_weight: float, seed, auth_token=None, **kwargs):
+    def api_call(
+        self,
+        prompt: str,
+        model: str,
+        image: torch.Tensor,
+        image_weight: float,
+        seed,
+        auth_token=None,
+        **kwargs,
+    ):
         # first, upload image
-        download_urls = upload_images_to_comfyapi(image, max_images=1, auth_token=auth_token)
+        download_urls = upload_images_to_comfyapi(
+            image, max_images=1, auth_token=auth_token
+        )
         image_url = download_urls[0]
         # next, make Luma call with download url provided
         operation = SynchronousOperation(
@@ -1222,17 +1498,16 @@ class LumaImageModifyNode(ComfyNodeABC):
                 path="/proxy/luma/generations/image",
                 method=HttpMethod.POST,
                 request_model=LumaImageGenerationRequest,
-                response_model=LumaGeneration
+                response_model=LumaGeneration,
             ),
             request=LumaImageGenerationRequest(
                 prompt=prompt,
                 model=model,
                 modify_image_ref=LumaModifyImageRef(
-                    url=image_url,
-                    weight=round(image_weight, 2)
+                    url=image_url, weight=round(image_weight, 2)
                 ),
             ),
-            auth_token=auth_token
+            auth_token=auth_token,
         )
         response_api: LumaGeneration = operation.execute()
 
@@ -1258,6 +1533,7 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
     """
     Generates videos synchronously based on prompt and output_size.
     """
+
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
         self.type: Literal["output"] = "output"
@@ -1272,18 +1548,27 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
     def INPUT_TYPES(s):
         return {
             "required": {
-                "prompt": (IO.STRING, {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "Prompt for the video generation",
-                }),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the video generation",
+                    },
+                ),
                 "model": ([model.value for model in LumaVideoModel],),
-                "aspect_ratio": ([ratio.value for ratio in LumaAspectRatio], {
-                    "default": LumaAspectRatio.ratio_16_9,
-                }),
-                "resolution": ([resolution.value for resolution in LumaVideoOutputResolution], {
-                    "default": LumaVideoOutputResolution.res_540p,
-                }),
+                "aspect_ratio": (
+                    [ratio.value for ratio in LumaAspectRatio],
+                    {
+                        "default": LumaAspectRatio.ratio_16_9,
+                    },
+                ),
+                "resolution": (
+                    [resolution.value for resolution in LumaVideoOutputResolution],
+                    {
+                        "default": LumaVideoOutputResolution.res_540p,
+                    },
+                ),
                 "duration": ([dur.value for dur in LumaVideoModelOutputDuration],),
                 "loop": (IO.BOOLEAN, {
                     "default": False,
@@ -1303,7 +1588,7 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
-            }
+            },
         }
 
     def api_call(self, prompt: str, model: str, aspect_ratio: str, resolution: str, duration: str, loop: bool, seed,
@@ -1313,7 +1598,7 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
                 path="/proxy/luma/generations",
                 method=HttpMethod.POST,
                 request_model=LumaGenerationRequest,
-                response_model=LumaGeneration
+                response_model=LumaGeneration,
             ),
             request=LumaGenerationRequest(
                 prompt=prompt,
@@ -1324,7 +1609,7 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
                 loop=loop,
                 concepts=luma_concepts.create_api_model() if luma_concepts else None
             ),
-            auth_token=auth_token
+            auth_token=auth_token,
         )
         response_api: LumaGeneration = operation.execute()
 
@@ -1343,12 +1628,14 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
         response_poll = operation.execute()
 
         vid_response = requests.get(response_poll.assets.video)
-        return (VideoFromFile(BytesIO(vid_response.content)), )
+        return (VideoFromFile(BytesIO(vid_response.content)),)
+
 
 class LumaImageToVideoGenerationNode(ComfyNodeABC):
     """
     Generates videos synchronously based on prompt, input images, and output_size.
     """
+
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
         self.type: Literal["output"] = "output"
@@ -1363,29 +1650,41 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
     def INPUT_TYPES(s):
         return {
             "required": {
-                "prompt": (IO.STRING, {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "Prompt for the video generation",
-                }),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the video generation",
+                    },
+                ),
                 "model": ([model.value for model in LumaVideoModel],),
                 # "aspect_ratio": ([ratio.value for ratio in LumaAspectRatio], {
                 #     "default": LumaAspectRatio.ratio_16_9,
                 # }),
-                "resolution": ([resolution.value for resolution in LumaVideoOutputResolution], {
-                    "default": LumaVideoOutputResolution.res_540p,
-                }),
+                "resolution": (
+                    [resolution.value for resolution in LumaVideoOutputResolution],
+                    {
+                        "default": LumaVideoOutputResolution.res_540p,
+                    },
+                ),
                 "duration": ([dur.value for dur in LumaVideoModelOutputDuration],),
-                "loop": (IO.BOOLEAN, {
-                    "default": False,
-                }),
-                "seed": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 0xFFFFFFFFFFFFFFFF,
-                    "control_after_generate": True,
-                    "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
-                }),
+                "loop": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
+                    },
+                ),
             },
             "optional": {
                 "first_image": (IO.IMAGE, {
@@ -1400,14 +1699,16 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
-            }
+            },
         }
 
     def api_call(self, prompt: str, model: str, resolution: str, duration: str, loop: bool, seed,
                  first_image: torch.Tensor=None, last_image: torch.Tensor=None, luma_concepts: LumaConceptChain=None,
                  auth_token=None, **kwargs):
         if first_image is None and last_image is None:
-            raise Exception("At least one of first_image and last_image requires an input.")
+            raise Exception(
+                "At least one of first_image and last_image requires an input."
+            )
         keyframes = self._convert_to_keyframes(first_image, last_image, auth_token)
 
         operation = SynchronousOperation(
@@ -1415,7 +1716,7 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
                 path="/proxy/luma/generations",
                 method=HttpMethod.POST,
                 request_model=LumaGenerationRequest,
-                response_model=LumaGeneration
+                response_model=LumaGeneration,
             ),
             request=LumaGenerationRequest(
                 prompt=prompt,
@@ -1427,7 +1728,7 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
                 keyframes=keyframes,
                 concepts=luma_concepts.create_api_model() if luma_concepts else None
             ),
-            auth_token=auth_token
+            auth_token=auth_token,
         )
         response_api: LumaGeneration = operation.execute()
 
@@ -1446,19 +1747,28 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
         response_poll = operation.execute()
 
         vid_response = requests.get(response_poll.assets.video)
-        return (VideoFromFile(BytesIO(vid_response.content)), )
+        return (VideoFromFile(BytesIO(vid_response.content)),)
 
-    def _convert_to_keyframes(self, first_image: torch.Tensor=None, last_image: torch.Tensor=None, auth_token=None):
+    def _convert_to_keyframes(
+        self,
+        first_image: torch.Tensor = None,
+        last_image: torch.Tensor = None,
+        auth_token=None,
+    ):
         if first_image is None and last_image is None:
             return None
         frame0 = None
         frame1 = None
         if first_image is not None:
-            download_urls = upload_images_to_comfyapi(first_image, max_images=1, auth_token=auth_token)
-            frame0 = LumaImageReference(type='image', url=download_urls[0])
+            download_urls = upload_images_to_comfyapi(
+                first_image, max_images=1, auth_token=auth_token
+            )
+            frame0 = LumaImageReference(type="image", url=download_urls[0])
         if last_image is not None:
-            download_urls = upload_images_to_comfyapi(last_image, max_images=1, auth_token=auth_token)
-            frame1 = LumaImageReference(type='image', url=download_urls[0])
+            download_urls = upload_images_to_comfyapi(
+                last_image, max_images=1, auth_token=auth_token
+            )
+            frame1 = LumaImageReference(type="image", url=download_urls[0])
         return LumaKeyframes(frame0=frame0, frame1=frame1)
 
 
@@ -1487,23 +1797,30 @@ class RecraftStyleV3RealisticImageNode:
             substyle = None
         return (RecraftStyle(self.RECRAFT_STYLE, substyle),)
 
+
 class RecraftStyleV3DigitalIllustrationNode(RecraftStyleV3RealisticImageNode):
     """
     Select digital_illustration style and optional substyle.
     """
+
     RECRAFT_STYLE = RecraftStyleV3.digital_illustration
+
 
 class RecraftStyleV3VectorIllustrationNode(RecraftStyleV3RealisticImageNode):
     """
     Select vector_illustration style and optional substyle.
     """
+
     RECRAFT_STYLE = RecraftStyleV3.vector_illustration
+
 
 class RecraftStyleV3LogoRasterNode(RecraftStyleV3RealisticImageNode):
     """
     Select vector_illustration style and optional substyle.
     """
+
     RECRAFT_STYLE = RecraftStyleV3.logo_raster
+
 
 class RecraftTextToImageNode:
     """
@@ -1520,43 +1837,68 @@ class RecraftTextToImageNode:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "prompt": (IO.STRING, {
-                    "multiline": True,
-                    "default": "",
-                    "tooltip": "Prompt for the image generation.",
-                }),
-                "size": ([res.value for res in RecraftImageSize], {
-                    "default": RecraftImageSize.res_1024x1024,
-                    "tooltip": "The size of the generated image."
-                }),
-                "n": (IO.INT, {
-                    "default": 1,
-                    "min": 1,
-                    "max": 6,
-                    "tooltip": "The number of images to generate."
-                }),
-                "seed": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 0xFFFFFFFFFFFFFFFF,
-                    "control_after_generate": True,
-                    "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
-                }),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation.",
+                    },
+                ),
+                "size": (
+                    [res.value for res in RecraftImageSize],
+                    {
+                        "default": RecraftImageSize.res_1024x1024,
+                        "tooltip": "The size of the generated image.",
+                    },
+                ),
+                "n": (
+                    IO.INT,
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 6,
+                        "tooltip": "The number of images to generate.",
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
+                    },
+                ),
             },
             "optional": {
                 "recraft_style": (RecraftIO.STYLEV3,),
-                "negative_prompt": (IO.STRING, {
-                    "default": "",
-                    "forceInput": True,
-                    "tooltip": "An optional text description of undesired elements on an image."
-                }),
+                "negative_prompt": (
+                    IO.STRING,
+                    {
+                        "default": "",
+                        "forceInput": True,
+                        "tooltip": "An optional text description of undesired elements on an image.",
+                    },
+                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
-            }
+            },
         }
 
-    def api_call(self, prompt: str, size: str, n: int, seed, recraft_style: RecraftStyle=None, negative_prompt: str=None, auth_token=None, **kwargs):
+    def api_call(
+        self,
+        prompt: str,
+        size: str,
+        n: int,
+        seed,
+        recraft_style: RecraftStyle = None,
+        negative_prompt: str = None,
+        auth_token=None,
+        **kwargs,
+    ):
         default_style = RecraftStyle(RecraftStyleV3.digital_illustration)
         if recraft_style is None:
             recraft_style = default_style
@@ -1569,7 +1911,7 @@ class RecraftTextToImageNode:
                 path="/proxy/recraft/image_generation",
                 method=HttpMethod.POST,
                 request_model=RecraftImageGenerationRequest,
-                response_model=RecraftImageGenerationResponse
+                response_model=RecraftImageGenerationResponse,
             ),
             request=RecraftImageGenerationRequest(
                 prompt=prompt,
@@ -1578,20 +1920,23 @@ class RecraftTextToImageNode:
                 size=size,
                 n=n,
                 style=recraft_style.style,
-                substyle=recraft_style.substyle
+                substyle=recraft_style.substyle,
             ),
-            auth_token=auth_token
+            auth_token=auth_token,
         )
         response: RecraftImageGenerationResponse = operation.execute()
         images = []
         for data in response.data:
-            image = bytesio_to_image_tensor(download_url_to_bytesio(data.url, timeout=1024))
+            image = bytesio_to_image_tensor(
+                download_url_to_bytesio(data.url, timeout=1024)
+            )
             if len(image.shape) < 4:
                 image = image.unsqueeze(0)
             images.append(image)
         output_image = torch.cat(images, dim=0)
 
-        return (output_image, )
+        return (output_image,)
+
 
 class MinimaxTextToVideoNode:
     """
@@ -1719,47 +2064,18 @@ class MinimaxTextToVideoNode:
 
         file_url = file_result.file.download_url
         if file_url is None:
-            raise Exception(f"No video was found in the response. Full response: {file_result.model_dump()}")
+            raise Exception(
+                f"No video was found in the response. Full response: {file_result.model_dump()}"
+            )
         logging.info(f"Generated video URL: {file_url}")
 
-        # Construct the save path
-        full_output_folder, filename, counter, subfolder, filename_prefix = (
-            folder_paths.get_save_image_path(filename_prefix, self.output_dir)
-        )
-        file_basename = f"{filename}_{counter:05}_.mp4"
-        save_path = os.path.join(full_output_folder, file_basename)
+        video_io = download_url_to_bytesio(file_url)
+        if video_io is None:
+            error_msg = f"Failed to download video from {file_url}"
+            logging.error(error_msg)
+            raise Exception(error_msg)
+        return (VideoFromFile(video_io),)
 
-        # Download the video data
-        video_response = requests.get(file_url)
-        video_data = video_response.content
-
-        # Save the video data to a file
-        with open(save_path, "wb") as video_file:
-            video_file.write(video_data)
-
-        # Add workflow metadata to the video container
-        if prompt is not None or extra_pnginfo is not None:
-            try:
-                container = av.open(save_path, mode="r+")
-                if prompt is not None:
-                    container.metadata["prompt"] = json.dumps(prompt)
-                if extra_pnginfo is not None:
-                    for x in extra_pnginfo:
-                        container.metadata[x] = json.dumps(extra_pnginfo[x])
-                container.close()
-            except Exception as e:
-                logging.warning(f"Failed to add metadata to video: {e}")
-
-        # Create a FileLocator for the frontend to use for the preview
-        results: list[FileLocator] = [
-            {
-                "filename": file_basename,
-                "subfolder": subfolder,
-                "type": self.type,
-            }
-        ]
-
-        return {"ui": {"images": results, "animated": (True,)}}
 
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
@@ -1776,10 +2092,10 @@ NODE_CLASS_MAPPINGS = {
     "LumaReferenceNode": LumaReferenceNode,
     "LumaConceptsNode": LumaConceptsNode,
     "RecraftTextToImageNode": RecraftTextToImageNode,
-    #"RecraftStyleV3RealisticImage": RecraftStyleV3RealisticImageNode,
+    # "RecraftStyleV3RealisticImage": RecraftStyleV3RealisticImageNode,
     "RecraftStyleV3DigitalIllustration": RecraftStyleV3DigitalIllustrationNode,
-    #"RecraftStyleV3VectorIllustration": RecraftStyleV3VectorIllustrationNode,
-    #"RecraftStyleV3LogoRaster": RecraftStyleV3LogoRasterNode,
+    # "RecraftStyleV3VectorIllustration": RecraftStyleV3VectorIllustrationNode,
+    # "RecraftStyleV3LogoRaster": RecraftStyleV3LogoRasterNode,
     "MinimaxTextToVideoNode": MinimaxTextToVideoNode,
 }
 
