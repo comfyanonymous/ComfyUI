@@ -1,4 +1,5 @@
 import json
+from comfy.comfy_types.node_typing import IO
 
 # Preview Any - original implement from
 # https://github.com/rgthree/rgthree-comfy/blob/main/py/display_any.py
@@ -7,7 +8,7 @@ class PreviewAny():
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            "required": {"source": ("*", {})},
+            "required": {"source": (IO.ANY, {})},
         }
 
     RETURN_TYPES = ()
@@ -15,10 +16,6 @@ class PreviewAny():
     OUTPUT_NODE = True
 
     CATEGORY = "utils"
-
-    @classmethod
-    def VALIDATE_INPUTS(s, input_types):
-        return True
 
     def main(self, source=None):
         value = 'None'
