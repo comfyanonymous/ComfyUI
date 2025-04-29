@@ -1,6 +1,7 @@
 import logging
 import time
 from typing import Callable
+import io
 
 from comfy.cli_args import args
 
@@ -102,7 +103,6 @@ from typing import (
     Any,
     TypeVar,
     Generic,
-
 )
 from pydantic import BaseModel
 from enum import Enum
@@ -255,7 +255,9 @@ class ApiClient:
                         error_message = f"API Error: {error_json}"
             except Exception as json_error:
                 # If we can't parse the JSON, fall back to the original error message
-                logging.debug(f"[DEBUG] Failed to parse error response: {str(json_error)}")
+                logging.debug(
+                    f"[DEBUG] Failed to parse error response: {str(json_error)}"
+                )
 
             logging.debug(f"[DEBUG] API Error: {error_message} (Status: {status_code})")
             if hasattr(e, "response") and e.response.content:
@@ -281,6 +283,26 @@ class ApiClient:
             raise Exception("Unauthorized: Please login first to use this node.")
         return auth_token
 
+    @staticmethod
+    def upload_file(
+        upload_url: str,
+        file: io.BytesIO | str,
+    ):
+        """Upload a file to the API. Make sure the file has a filename equal to what the url expects.
+
+        Args:
+            upload_url: The URL to upload to
+            file: Either a file path string, BytesIO object, or tuple of (file_path, filename)
+            mime_type: The mime type of the file
+        """
+        if isinstance(file, io.BytesIO):
+            file.seek(0)  # Ensure we're at the start of the file
+            data = file.read()
+            return requests.put(upload_url, data=data)
+        elif isinstance(file, str):
+            with open(file, "rb") as f:
+                data = f.read()
+                return requests.put(upload_url, data=data)
 
 class ApiEndpoint(Generic[T, R]):
     """Defines an API endpoint with its request and response types"""
@@ -347,14 +369,16 @@ class SynchronousOperation(Generic[T, R]):
                 )
 
             # Convert request model to dict, but use None for EmptyRequest
-            request_dict = None if isinstance(self.request, EmptyRequest) else self.request.model_dump(exclude_none=True)
-            if request_dict:
-                for key, value in request_dict.items():
-                    if isinstance(value, Enum):
-                        request_dict[key] = value.value
+            request_dict = (
+                None
+                if isinstance(self.request, EmptyRequest)
+                else self.request.model_dump(exclude_none=True)
+            )
 
             # Debug log for request
-            logging.debug(f"[DEBUG] API Request: {self.endpoint.method.value} {self.endpoint.path}")
+            logging.debug(
+                f"[DEBUG] API Request: {self.endpoint.method.value} {self.endpoint.path}"
+            )
             logging.debug(f"[DEBUG] Request Data: {json.dumps(request_dict, indent=2)}")
             logging.debug(f"[DEBUG] Query Params: {self.endpoint.query_params}")
 
@@ -477,7 +501,7 @@ class PollingOperation(Generic[T, R]):
                         f"[DEBUG] Poll Request: {self.poll_endpoint.method.value} {self.poll_endpoint.path}"
                     )
                     logging.debug(
-                      f"[DEBUG] Poll Request Data: {json.dumps(request_dict, indent=2) if request_dict else 'None'}"
+                        f"[DEBUG] Poll Request Data: {json.dumps(request_dict, indent=2) if request_dict else 'None'}"
                     )
 
                 # Query task status
@@ -506,7 +530,9 @@ class PollingOperation(Generic[T, R]):
                     logging.debug("[DEBUG] Task still pending, continuing to poll...")
 
                 # Wait before polling again
-                logging.debug(f"[DEBUG] Waiting {self.poll_interval} seconds before next poll")
+                logging.debug(
+                    f"[DEBUG] Waiting {self.poll_interval} seconds before next poll"
+                )
                 time.sleep(self.poll_interval)
 
             except Exception as e:
