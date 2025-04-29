@@ -7,7 +7,10 @@ import folder_paths
 import json
 from typing import Optional, Literal
 from fractions import Fraction
-from comfy.comfy_types import IO, FileLocator, ComfyNodeABC, VideoInput, AudioInput, ImageInput, VideoFromComponents, VideoContainer, VideoCodec, VideoComponents, VideoFromFile
+from comfy.comfy_types import IO, FileLocator, ComfyNodeABC
+from comfy_api.input import ImageInput, AudioInput, VideoInput
+from comfy_api.util import VideoContainer, VideoCodec, VideoComponents
+from comfy_api.input_impl import VideoFromFile, VideoFromComponents
 from comfy.cli_args import args
 
 class SaveWEBM:
