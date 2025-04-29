@@ -38,7 +38,9 @@ from comfy_api_nodes.apis.luma_api import (
     LumaReferenceChain,
     LumaImageReference,
     LumaKeyframes,
+    LumaConceptChain,
     LumaIO,
+    get_luma_concepts,
 )
 from comfy_api_nodes.apis.recraft_api import (
     RecraftImageGenerationRequest,
@@ -965,7 +967,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
         img.save(img_byte_arr, format='PNG')
         return base64.b64encode(img_byte_arr.getvalue()).decode()
 
-class LumaReferenceNode:
+class LumaReferenceNode(ComfyNodeABC):
     """
     Holds an image and weight for use with Luma Generate Image node.
     """
@@ -1003,7 +1005,39 @@ class LumaReferenceNode:
         luma_ref.add(LumaReference(image=image, weight=round(weight, 2)))
         return (luma_ref, )
 
-class LumaImageGenerationNode:
+class LumaConceptsNode(ComfyNodeABC):
+    """
+    Holds one or more Camera Concepts for use with Luma Text to Video and Luma Image to Video nodes.
+    """
+    RETURN_TYPES = (LumaIO.LUMA_CONCEPTS,)
+    RETURN_NAMES = ("luma_concepts",)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "create_concepts"
+    CATEGORY = "api node/Luma"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "concept1": (get_luma_concepts(include_none=True), ),
+                "concept2": (get_luma_concepts(include_none=True), ),
+                "concept3": (get_luma_concepts(include_none=True), ),
+                "concept4": (get_luma_concepts(include_none=True), ),
+            },
+            "optional": {
+                "luma_concepts": (LumaIO.LUMA_CONCEPTS, {
+                    "tooltip": "Optional Camera Concepts to add to the ones chosen here."
+                }),
+            }
+        }
+
+    def create_concepts(self, concept1: str, concept2: str, concept3: str, concept4: str, luma_concepts: LumaConceptChain=None):
+        chain = LumaConceptChain(str_list=[concept1, concept2, concept3, concept4])
+        if luma_concepts is not None:
+            chain = luma_concepts.clone_and_merge(chain)
+        return (chain,)
+
+class LumaImageGenerationNode(ComfyNodeABC):
     """
     Generates images synchronously based on prompt and aspect ratio.
     """
@@ -1126,7 +1160,7 @@ class LumaImageGenerationNode:
         chain = LumaReferenceChain(first_ref=LumaReference(image=style_image, weight=weight))
         return self._convert_luma_refs(chain, max_refs=1, auth_token=auth_token)
 
-class LumaImageModifyNode:
+class LumaImageModifyNode(ComfyNodeABC):
     """
     Modifies images synchronously based on prompt and aspect ratio.
     """
@@ -1211,7 +1245,7 @@ class LumaImageModifyNode:
         img = process_image_response(img_response)
         return (img,)
 
-class LumaTextToVideoGenerationNode:
+class LumaTextToVideoGenerationNode(ComfyNodeABC):
     """
     Generates videos synchronously based on prompt and output_size.
     """
@@ -1254,6 +1288,9 @@ class LumaTextToVideoGenerationNode:
                 }),
             },
             "optional": {
+                "luma_concepts": (LumaIO.LUMA_CONCEPTS, {
+                    "tooltip": "Optional Camera Concepts to dictate camera motion via the Luma Concepts node."
+                }),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
@@ -1261,7 +1298,7 @@ class LumaTextToVideoGenerationNode:
         }
 
     def api_call(self, prompt: str, model: str, aspect_ratio: str, resolution: str, duration: str, loop: bool, seed,
-                 auth_token=None, **kwargs):
+                 luma_concepts: LumaConceptChain=None, auth_token=None, **kwargs):
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/luma/generations",
@@ -1276,6 +1313,7 @@ class LumaTextToVideoGenerationNode:
                 aspect_ratio=aspect_ratio,
                 duration=duration,
                 loop=loop,
+                concepts=luma_concepts.create_api_model() if luma_concepts else None
             ),
             auth_token=auth_token
         )
@@ -1298,7 +1336,7 @@ class LumaTextToVideoGenerationNode:
         vid_response = requests.get(response_poll.assets.video)
         return (VideoFromFile(BytesIO(vid_response.content)), )
 
-class LumaImageToVideoGenerationNode:
+class LumaImageToVideoGenerationNode(ComfyNodeABC):
     """
     Generates videos synchronously based on prompt, input images, and output_size.
     """
@@ -1347,6 +1385,9 @@ class LumaImageToVideoGenerationNode:
                 "last_image": (IO.IMAGE, {
                     "tooltip": "Last frame of generated video."
                 }),
+                "luma_concepts": (LumaIO.LUMA_CONCEPTS, {
+                    "tooltip": "Optional Camera Concepts to dictate camera motion via the Luma Concepts node."
+                }),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
@@ -1354,7 +1395,7 @@ class LumaImageToVideoGenerationNode:
         }
 
     def api_call(self, prompt: str, model: str, resolution: str, duration: str, loop: bool, seed,
-                 first_image: torch.Tensor=None, last_image: torch.Tensor=None,
+                 first_image: torch.Tensor=None, last_image: torch.Tensor=None, luma_concepts: LumaConceptChain=None,
                  auth_token=None, **kwargs):
         if first_image is None and last_image is None:
             raise Exception("At least one of first_image and last_image requires an input.")
@@ -1370,11 +1411,12 @@ class LumaImageToVideoGenerationNode:
             request=LumaGenerationRequest(
                 prompt=prompt,
                 model=model,
-                aspect_ratio=LumaAspectRatio.ratio_16_9,
+                aspect_ratio=LumaAspectRatio.ratio_16_9, # ignored, but still needed by the API for some reason
                 resolution=resolution,
                 duration=duration,
                 loop=loop,
-                keyframes=keyframes
+                keyframes=keyframes,
+                concepts=luma_concepts.create_api_model() if luma_concepts else None
             ),
             auth_token=auth_token
         )
@@ -1720,9 +1762,10 @@ NODE_CLASS_MAPPINGS = {
     "FluxProUltraImageNode": FluxProUltraImageNode,
     "LumaImageNode": LumaImageGenerationNode,
     "LumaImageModifyNode": LumaImageModifyNode,
-    "LumaReferenceNode": LumaReferenceNode,
     "LumaVideoNode": LumaTextToVideoGenerationNode,
     "LumaImageToVideoNode": LumaImageToVideoGenerationNode,
+    "LumaReferenceNode": LumaReferenceNode,
+    "LumaConceptsNode": LumaConceptsNode,
     "RecraftTextToImageNode": RecraftTextToImageNode,
     #"RecraftStyleV3RealisticImage": RecraftStyleV3RealisticImageNode,
     "RecraftStyleV3DigitalIllustration": RecraftStyleV3DigitalIllustrationNode,
@@ -1740,9 +1783,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FluxProUltraImageNode": "Flux 1.1 [pro] Ultra Image",
     "LumaImageNode": "Luma Text to Image",
     "LumaImageModifyNode": "Luma Image to Image",
-    "LumaReferenceNode": "Luma Reference",
     "LumaVideoNode": "Luma Text to Video",
     "LumaImageToVideoNode": "Luma Image to Video",
+    "LumaReferenceNode": "Luma Reference",
+    "LumaConceptsNode": "Luma Concepts",
     "RecraftTextToImageNode": "Recraft Text to Image",
     "RecraftStyleV3RealisticImage": "Recraft Style - Realistic Image",
     "RecraftStyleV3DigitalIllustration": "Recraft Style - Digital Illustration",
