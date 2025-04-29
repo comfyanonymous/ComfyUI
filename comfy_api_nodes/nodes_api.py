@@ -54,7 +54,16 @@ from comfy_api_nodes.apis.recraft_api import (
     RecraftIO,
     get_v3_substyles,
 )
-from comfy_api_nodes.apis.client import ApiClient, ApiEndpoint, HttpMethod, SynchronousOperation, PollingOperation, EmptyRequest, UploadRequest, UploadResponse
+from comfy_api_nodes.apis.client import (
+    ApiClient,
+    ApiEndpoint,
+    HttpMethod,
+    SynchronousOperation,
+    PollingOperation,
+    EmptyRequest,
+    UploadRequest,
+    UploadResponse,
+)
 
 import numpy as np
 from PIL import Image
@@ -68,9 +77,10 @@ import uuid
 import folder_paths
 from io import BytesIO
 
-def downscale_input(image, total_pixels=1536*1024):
-    samples = image.movedim(-1,1)
-    #downscaling input images to roughly the same size as the outputs
+
+def downscale_input(image, total_pixels=1536 * 1024):
+    samples = image.movedim(-1, 1)
+    # downscaling input images to roughly the same size as the outputs
     total = int(total_pixels)
     scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
     if scale_by >= 1:
@@ -79,8 +89,9 @@ def downscale_input(image, total_pixels=1536*1024):
     height = round(samples.shape[2] * scale_by)
 
     s = common_upscale(samples, width, height, "lanczos", "disabled")
-    s = s.movedim(1,-1)
+    s = s.movedim(1, -1)
     return s
+
 
 def validate_and_cast_response(response):
     # validate raw JSON response
@@ -120,29 +131,46 @@ def validate_and_cast_response(response):
 
     return torch.stack(image_tensors, dim=0)
 
-def validate_aspect_ratio(aspect_ratio: str, minimum_ratio: float, maximum_ratio: float, minimum_ratio_str: str, maximum_ratio_str: str):
+
+def validate_aspect_ratio(
+    aspect_ratio: str,
+    minimum_ratio: float,
+    maximum_ratio: float,
+    minimum_ratio_str: str,
+    maximum_ratio_str: str,
+):
     # get ratio values
-    numbers = aspect_ratio.split(':')
+    numbers = aspect_ratio.split(":")
     if len(numbers) != 2:
-        raise Exception(f"Aspect ratio must be in the format X:Y, such as 16:9, but was {aspect_ratio}.")
+        raise Exception(
+            f"Aspect ratio must be in the format X:Y, such as 16:9, but was {aspect_ratio}."
+        )
     try:
         numerator = int(numbers[0])
         denominator = int(numbers[1])
     except ValueError:
-        raise Exception(f"Aspect ratio must contain numbers separated by ':', such as 16:9, but was {aspect_ratio}.")
-    calculated_ratio = numerator/denominator
+        raise Exception(
+            f"Aspect ratio must contain numbers separated by ':', such as 16:9, but was {aspect_ratio}."
+        )
+    calculated_ratio = numerator / denominator
     # if not close to minimum and maximum, check bounds
-    if not math.isclose(calculated_ratio, minimum_ratio) or not math.isclose(calculated_ratio, maximum_ratio):
+    if not math.isclose(calculated_ratio, minimum_ratio) or not math.isclose(
+        calculated_ratio, maximum_ratio
+    ):
         if calculated_ratio < minimum_ratio:
-            raise Exception(f"Aspect ratio cannot reduce to any less than {minimum_ratio_str} ({minimum_ratio}), but was {aspect_ratio} ({calculated_ratio}).")
+            raise Exception(
+                f"Aspect ratio cannot reduce to any less than {minimum_ratio_str} ({minimum_ratio}), but was {aspect_ratio} ({calculated_ratio})."
+            )
         elif calculated_ratio > maximum_ratio:
-            raise Exception(f"Aspect ratio cannot reduce to any greater than {maximum_ratio_str} ({maximum_ratio}), but was {aspect_ratio} ({calculated_ratio}).")
+            raise Exception(
+                f"Aspect ratio cannot reduce to any greater than {maximum_ratio_str} ({maximum_ratio}), but was {aspect_ratio} ({calculated_ratio})."
+            )
     return aspect_ratio
 
 
 def mimetype_to_extension(mime_type: str) -> str:
     """Converts a MIME type to a file extension."""
-    return mime_type.split('/')[-1].lower()
+    return mime_type.split("/")[-1].lower()
 
 
 def download_url_to_bytesio(url: str, timeout: int = None) -> BytesIO:
@@ -156,7 +184,7 @@ def download_url_to_bytesio(url: str, timeout: int = None) -> BytesIO:
         BytesIO object containing the downloaded content.
     """
     response = requests.get(url, stream=True, timeout=timeout)
-    response.raise_for_status() # Raises HTTPError for bad responses (4XX or 5XX)
+    response.raise_for_status()  # Raises HTTPError for bad responses (4XX or 5XX)
     return BytesIO(response.content)
 
 
@@ -181,35 +209,42 @@ def bytesio_to_image_tensor(image_bytesio: BytesIO, mode: str = "RGBA") -> torch
 
 
 def process_image_response(response: requests.Response):
-    '''Uses content from a Response object and converts it to a torch.Tensor'''
+    """Uses content from a Response object and converts it to a torch.Tensor"""
     return bytesio_to_image_tensor(BytesIO(response.content))
 
 
-def _tensor_to_pil(image: torch.Tensor, total_pixels: int = 2048*2048) -> Image.Image:
+def _tensor_to_pil(image: torch.Tensor, total_pixels: int = 2048 * 2048) -> Image.Image:
     """Converts a single torch.Tensor image [H, W, C] to a PIL Image, optionally downscaling."""
     if len(image.shape) > 3:
         image = image[0]
     # TODO: remove alpha if not allowed and present
     input_tensor = image.cpu()
-    input_tensor = downscale_input(input_tensor.unsqueeze(0), total_pixels=total_pixels).squeeze()
+    input_tensor = downscale_input(
+        input_tensor.unsqueeze(0), total_pixels=total_pixels
+    ).squeeze()
     image_np = (input_tensor.numpy() * 255).astype(np.uint8)
     img = Image.fromarray(image_np)
     return img
 
 
-def _pil_to_bytesio(img: Image.Image, mime_type: str = 'image/png') -> BytesIO:
+def _pil_to_bytesio(img: Image.Image, mime_type: str = "image/png") -> BytesIO:
     """Converts a PIL Image to a BytesIO object."""
     img_byte_arr = io.BytesIO()
     # Derive PIL format from MIME type (e.g., 'image/png' -> 'PNG')
-    pil_format = mime_type.split('/')[-1].upper()
-    if pil_format == 'JPG':
-        pil_format = 'JPEG'
+    pil_format = mime_type.split("/")[-1].upper()
+    if pil_format == "JPG":
+        pil_format = "JPEG"
     img.save(img_byte_arr, format=pil_format)
     img_byte_arr.seek(0)
     return img_byte_arr
 
 
-def tensor_to_bytesio(image: torch.Tensor, name: Optional[str] = None, total_pixels: int = 2048*2048, mime_type: str = 'image/png') -> BytesIO:
+def tensor_to_bytesio(
+    image: torch.Tensor,
+    name: Optional[str] = None,
+    total_pixels: int = 2048 * 2048,
+    mime_type: str = "image/png",
+) -> BytesIO:
     """Converts a torch.Tensor image to a named BytesIO object.
 
     Args:
@@ -223,11 +258,17 @@ def tensor_to_bytesio(image: torch.Tensor, name: Optional[str] = None, total_pix
     """
     pil_image = _tensor_to_pil(image, total_pixels=total_pixels)
     img_binary = _pil_to_bytesio(pil_image, mime_type=mime_type)
-    img_binary.name = f"{name if name else uuid.uuid4()}.{mimetype_to_extension(mime_type)}"
+    img_binary.name = (
+        f"{name if name else uuid.uuid4()}.{mimetype_to_extension(mime_type)}"
+    )
     return img_binary
 
 
-def tensor_to_base64_string(image_tensor: torch.Tensor, total_pixels: int = 2048*2048, mime_type: str = 'image/png') -> str:
+def tensor_to_base64_string(
+    image_tensor: torch.Tensor,
+    total_pixels: int = 2048 * 2048,
+    mime_type: str = "image/png",
+) -> str:
     """Convert [B, H, W, C] or [H, W, C] tensor to a base64 string.
 
     Args:
@@ -246,7 +287,11 @@ def tensor_to_base64_string(image_tensor: torch.Tensor, total_pixels: int = 2048
     return base64_encoded_string
 
 
-def tensor_to_data_uri(image_tensor: torch.Tensor, total_pixels: int = 2048 * 2048, mime_type: str = 'image/png') -> str:
+def tensor_to_data_uri(
+    image_tensor: torch.Tensor,
+    total_pixels: int = 2048 * 2048,
+    mime_type: str = "image/png",
+) -> str:
     """Converts a tensor image to a Data URI string.
 
     Args:
@@ -261,7 +306,9 @@ def tensor_to_data_uri(image_tensor: torch.Tensor, total_pixels: int = 2048 * 20
     return f"data:{mime_type};base64,{base64_string}"
 
 
-def upload_images_to_comfyapi(image: torch.Tensor, max_images=8, auth_token=None) -> list[str]:
+def upload_images_to_comfyapi(
+    image: torch.Tensor, max_images=8, auth_token=None, mime_type: str = "image/png"
+) -> list[str]:
     # if batch, try to upload each file if max_images is greater than 0
     idx_image = 0
     download_urls: list[str] = []
@@ -274,7 +321,7 @@ def upload_images_to_comfyapi(image: torch.Tensor, max_images=8, auth_token=None
         if len(image.shape) > 3:
             curr_image = image[idx_image]
         # get BytesIO version of image
-        img_binary = tensor_to_bytesio(curr_image)
+        img_binary = tensor_to_bytesio(curr_image, mime_type=mime_type)
         # first, request upload/download urls from comfy API
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
@@ -283,13 +330,13 @@ def upload_images_to_comfyapi(image: torch.Tensor, max_images=8, auth_token=None
                 request_model=UploadRequest,
                 response_model=UploadResponse,
             ),
-            request=UploadRequest(filename=img_binary.name),
+            request=UploadRequest(filename=img_binary.name, mime_type=mime_type),
             auth_token=auth_token,
         )
         response = operation.execute()
 
         upload_response = ApiClient.upload_file(
-            response.upload_url, img_binary
+            response.upload_url, img_binary, mime_type=mime_type
         )
         # verify success
         try:
@@ -1178,6 +1225,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
         img.save(img_byte_arr, format="PNG")
         return base64.b64encode(img_byte_arr.getvalue()).decode()
 
+
 class LumaReferenceNode(ComfyNodeABC):
     """
     Holds an image and weight for use with Luma Generate Image node.
@@ -1228,6 +1276,7 @@ class LumaConceptsNode(ComfyNodeABC):
     """
     Holds one or more Camera Concepts for use with Luma Text to Video and Luma Image to Video nodes.
     """
+
     RETURN_TYPES = (LumaIO.LUMA_CONCEPTS,)
     RETURN_NAMES = ("luma_concepts",)
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
@@ -1238,23 +1287,34 @@ class LumaConceptsNode(ComfyNodeABC):
     def INPUT_TYPES(s):
         return {
             "required": {
-                "concept1": (get_luma_concepts(include_none=True), ),
-                "concept2": (get_luma_concepts(include_none=True), ),
-                "concept3": (get_luma_concepts(include_none=True), ),
-                "concept4": (get_luma_concepts(include_none=True), ),
+                "concept1": (get_luma_concepts(include_none=True),),
+                "concept2": (get_luma_concepts(include_none=True),),
+                "concept3": (get_luma_concepts(include_none=True),),
+                "concept4": (get_luma_concepts(include_none=True),),
             },
             "optional": {
-                "luma_concepts": (LumaIO.LUMA_CONCEPTS, {
-                    "tooltip": "Optional Camera Concepts to add to the ones chosen here."
-                }),
-            }
+                "luma_concepts": (
+                    LumaIO.LUMA_CONCEPTS,
+                    {
+                        "tooltip": "Optional Camera Concepts to add to the ones chosen here."
+                    },
+                ),
+            },
         }
 
-    def create_concepts(self, concept1: str, concept2: str, concept3: str, concept4: str, luma_concepts: LumaConceptChain=None):
+    def create_concepts(
+        self,
+        concept1: str,
+        concept2: str,
+        concept3: str,
+        concept4: str,
+        luma_concepts: LumaConceptChain = None,
+    ):
         chain = LumaConceptChain(str_list=[concept1, concept2, concept3, concept4])
         if luma_concepts is not None:
             chain = luma_concepts.clone_and_merge(chain)
         return (chain,)
+
 
 class LumaImageGenerationNode(ComfyNodeABC):
     """
@@ -1425,6 +1485,7 @@ class LumaImageGenerationNode(ComfyNodeABC):
         )
         return self._convert_luma_refs(chain, max_refs=1, auth_token=auth_token)
 
+
 class LumaImageModifyNode(ComfyNodeABC):
     """
     Modifies images synchronously based on prompt and aspect ratio.
@@ -1529,6 +1590,7 @@ class LumaImageModifyNode(ComfyNodeABC):
         img = process_image_response(img_response)
         return (img,)
 
+
 class LumaTextToVideoGenerationNode(ComfyNodeABC):
     """
     Generates videos synchronously based on prompt and output_size.
@@ -1570,29 +1632,49 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
                     },
                 ),
                 "duration": ([dur.value for dur in LumaVideoModelOutputDuration],),
-                "loop": (IO.BOOLEAN, {
-                    "default": False,
-                }),
-                "seed": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 0xFFFFFFFFFFFFFFFF,
-                    "control_after_generate": True,
-                    "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
-                }),
+                "loop": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
+                    },
+                ),
             },
             "optional": {
-                "luma_concepts": (LumaIO.LUMA_CONCEPTS, {
-                    "tooltip": "Optional Camera Concepts to dictate camera motion via the Luma Concepts node."
-                }),
+                "luma_concepts": (
+                    LumaIO.LUMA_CONCEPTS,
+                    {
+                        "tooltip": "Optional Camera Concepts to dictate camera motion via the Luma Concepts node."
+                    },
+                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
             },
         }
 
-    def api_call(self, prompt: str, model: str, aspect_ratio: str, resolution: str, duration: str, loop: bool, seed,
-                 luma_concepts: LumaConceptChain=None, auth_token=None, **kwargs):
+    def api_call(
+        self,
+        prompt: str,
+        model: str,
+        aspect_ratio: str,
+        resolution: str,
+        duration: str,
+        loop: bool,
+        seed,
+        luma_concepts: LumaConceptChain = None,
+        auth_token=None,
+        **kwargs,
+    ):
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/luma/generations",
@@ -1607,7 +1689,7 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
                 aspect_ratio=aspect_ratio,
                 duration=duration,
                 loop=loop,
-                concepts=luma_concepts.create_api_model() if luma_concepts else None
+                concepts=luma_concepts.create_api_model() if luma_concepts else None,
             ),
             auth_token=auth_token,
         )
@@ -1687,24 +1769,37 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
                 ),
             },
             "optional": {
-                "first_image": (IO.IMAGE, {
-                    "tooltip": "First frame of generated video."
-                }),
-                "last_image": (IO.IMAGE, {
-                    "tooltip": "Last frame of generated video."
-                }),
-                "luma_concepts": (LumaIO.LUMA_CONCEPTS, {
-                    "tooltip": "Optional Camera Concepts to dictate camera motion via the Luma Concepts node."
-                }),
+                "first_image": (
+                    IO.IMAGE,
+                    {"tooltip": "First frame of generated video."},
+                ),
+                "last_image": (IO.IMAGE, {"tooltip": "Last frame of generated video."}),
+                "luma_concepts": (
+                    LumaIO.LUMA_CONCEPTS,
+                    {
+                        "tooltip": "Optional Camera Concepts to dictate camera motion via the Luma Concepts node."
+                    },
+                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
             },
         }
 
-    def api_call(self, prompt: str, model: str, resolution: str, duration: str, loop: bool, seed,
-                 first_image: torch.Tensor=None, last_image: torch.Tensor=None, luma_concepts: LumaConceptChain=None,
-                 auth_token=None, **kwargs):
+    def api_call(
+        self,
+        prompt: str,
+        model: str,
+        resolution: str,
+        duration: str,
+        loop: bool,
+        seed,
+        first_image: torch.Tensor = None,
+        last_image: torch.Tensor = None,
+        luma_concepts: LumaConceptChain = None,
+        auth_token=None,
+        **kwargs,
+    ):
         if first_image is None and last_image is None:
             raise Exception(
                 "At least one of first_image and last_image requires an input."
@@ -1721,12 +1816,12 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
             request=LumaGenerationRequest(
                 prompt=prompt,
                 model=model,
-                aspect_ratio=LumaAspectRatio.ratio_16_9, # ignored, but still needed by the API for some reason
+                aspect_ratio=LumaAspectRatio.ratio_16_9,  # ignored, but still needed by the API for some reason
                 resolution=resolution,
                 duration=duration,
                 loop=loop,
                 keyframes=keyframes,
-                concepts=luma_concepts.create_api_model() if luma_concepts else None
+                concepts=luma_concepts.create_api_model() if luma_concepts else None,
             ),
             auth_token=auth_token,
         )
