@@ -149,8 +149,6 @@ Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you 
 
 If you have trouble extracting it, right click the file -> properties -> unblock
 
-If you have a 50 series Blackwell card like a 5090 or 5080 see [this discussion thread](https://github.com/comfyanonymous/ComfyUI/discussions/6643)
-
 #### How do I share models between another UI and ComfyUI?
 
 See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
