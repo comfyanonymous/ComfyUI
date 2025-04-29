@@ -40,6 +40,16 @@ from comfy_api_nodes.apis.luma_api import (
     LumaKeyframes,
     LumaIO,
 )
+from comfy_api_nodes.apis.recraft_api import (
+    RecraftImageGenerationRequest,
+    RecraftImageGenerationResponse,
+    RecraftImageSize,
+    RecraftModel,
+    RecraftStyle,
+    RecraftStyleV3,
+    RecraftIO,
+    get_v3_substyles,
+)
 from comfy_api_nodes.apis.client import ApiClient, ApiEndpoint, HttpMethod, SynchronousOperation, PollingOperation, EmptyRequest, UploadRequest, UploadResponse
 
 import numpy as np
@@ -1400,6 +1410,138 @@ class LumaImageToVideoGenerationNode:
             frame1 = LumaImageReference(type='image', url=download_urls[0])
         return LumaKeyframes(frame0=frame0, frame1=frame1)
 
+
+class RecraftStyleV3RealisticImageNode:
+    """
+    Select realistic_image style and optional substyle.
+    """
+
+    RETURN_TYPES = (RecraftIO.STYLEV3,)
+    RETURN_NAMES = ("recraft_style",)
+    FUNCTION = "create_style"
+    CATEGORY = "api node/Recraft"
+
+    RECRAFT_STYLE = RecraftStyleV3.realistic_image
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "substyle": (get_v3_substyles(s.RECRAFT_STYLE),),
+            }
+        }
+
+    def create_style(self, substyle: str):
+        if substyle == "None":
+            substyle = None
+        return (RecraftStyle(self.RECRAFT_STYLE, substyle),)
+
+class RecraftStyleV3DigitalIllustrationNode(RecraftStyleV3RealisticImageNode):
+    """
+    Select digital_illustration style and optional substyle.
+    """
+    RECRAFT_STYLE = RecraftStyleV3.digital_illustration
+
+class RecraftStyleV3VectorIllustrationNode(RecraftStyleV3RealisticImageNode):
+    """
+    Select vector_illustration style and optional substyle.
+    """
+    RECRAFT_STYLE = RecraftStyleV3.vector_illustration
+
+class RecraftStyleV3LogoRasterNode(RecraftStyleV3RealisticImageNode):
+    """
+    Select vector_illustration style and optional substyle.
+    """
+    RECRAFT_STYLE = RecraftStyleV3.logo_raster
+
+class RecraftTextToImageNode:
+    """
+    Generates images synchronously based on prompt and resolution.
+    """
+
+    RETURN_TYPES = (IO.IMAGE,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "prompt": (IO.STRING, {
+                    "multiline": True,
+                    "default": "",
+                    "tooltip": "Prompt for the image generation.",
+                }),
+                "size": ([res.value for res in RecraftImageSize], {
+                    "default": RecraftImageSize.res_1024x1024,
+                    "tooltip": "The size of the generated image."
+                }),
+                "n": (IO.INT, {
+                    "default": 1,
+                    "min": 1,
+                    "max": 6,
+                    "tooltip": "The number of images to generate."
+                }),
+                "seed": (IO.INT, {
+                    "default": 0,
+                    "min": 0,
+                    "max": 0xFFFFFFFFFFFFFFFF,
+                    "control_after_generate": True,
+                    "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
+                }),
+            },
+            "optional": {
+                "recraft_style": (RecraftIO.STYLEV3,),
+                "negative_prompt": (IO.STRING, {
+                    "default": "",
+                    "forceInput": True,
+                    "tooltip": "An optional text description of undesired elements on an image."
+                }),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            }
+        }
+
+    def api_call(self, prompt: str, size: str, n: int, seed, recraft_style: RecraftStyle=None, negative_prompt: str=None, auth_token=None, **kwargs):
+        default_style = RecraftStyle(RecraftStyleV3.digital_illustration)
+        if recraft_style is None:
+            recraft_style = default_style
+
+        if not negative_prompt:
+            negative_prompt = None
+
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/recraft/image_generation",
+                method=HttpMethod.POST,
+                request_model=RecraftImageGenerationRequest,
+                response_model=RecraftImageGenerationResponse
+            ),
+            request=RecraftImageGenerationRequest(
+                prompt=prompt,
+                negative_prompts=negative_prompt,
+                model=RecraftModel.recraftv3,
+                size=size,
+                n=n,
+                style=recraft_style.style,
+                substyle=recraft_style.substyle
+            ),
+            auth_token=auth_token
+        )
+        response: RecraftImageGenerationResponse = operation.execute()
+        images = []
+        for data in response.data:
+            image = bytesio_to_image_tensor(download_url_to_bytesio(data.url, timeout=1024))
+            if len(image.shape) < 4:
+                image = image.unsqueeze(0)
+            images.append(image)
+        output_image = torch.cat(images, dim=0)
+
+        return (output_image, )
+
 class MinimaxTextToVideoNode:
     """
     Generates videos synchronously based on a prompt, and optional parameters using Minimax's API.
@@ -1581,6 +1723,11 @@ NODE_CLASS_MAPPINGS = {
     "LumaReferenceNode": LumaReferenceNode,
     "LumaVideoNode": LumaTextToVideoGenerationNode,
     "LumaImageToVideoNode": LumaImageToVideoGenerationNode,
+    "RecraftTextToImageNode": RecraftTextToImageNode,
+    #"RecraftStyleV3RealisticImage": RecraftStyleV3RealisticImageNode,
+    "RecraftStyleV3DigitalIllustration": RecraftStyleV3DigitalIllustrationNode,
+    #"RecraftStyleV3VectorIllustration": RecraftStyleV3VectorIllustrationNode,
+    #"RecraftStyleV3LogoRaster": RecraftStyleV3LogoRasterNode,
     "MinimaxTextToVideoNode": MinimaxTextToVideoNode,
 }
 
@@ -1596,5 +1743,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LumaReferenceNode": "Luma Reference",
     "LumaVideoNode": "Luma Text to Video",
     "LumaImageToVideoNode": "Luma Image to Video",
+    "RecraftTextToImageNode": "Recraft Text to Image",
+    "RecraftStyleV3RealisticImage": "Recraft Style - Realistic Image",
+    "RecraftStyleV3DigitalIllustration": "Recraft Style - Digital Illustration",
+    "RecraftStyleV3VectorIllustration": "Recraft Style - Vector Illustration",
+    "RecraftStyleV3LogoRaster": "Recraft Style - Logo Raster",
     "MinimaxTextToVideoNode": "Minimax Text to Video",
 }
