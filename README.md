@@ -133,13 +133,11 @@ patchzluda.bat
 - Wipe your pip cache "C:\Users\USERNAME\AppData\Local\pip\cache" You can also do this when venv is active with :
   `pip cache purge`
 - `xformers` isn't usable with zluda so any nodes / packages that require it doesn't work. `Flash attention`
-  doesn't work. And lastly using `codeformer` for face restoration gives "Failed inference: CUDA driver error:
-  unknown error" You should use gfpgan / gpen / restoreformer or other face restoration models.
+  doesn't work.
 - Have the latest drivers installed for your amd gpu. **Also, Remove Any Nvidia Drivers** you might have from previous
-  nvidia
-  gpu's.
+  nvidia gpu's.
 - If you see zluda errors make sure these three files are inside "ComfyUI-Zluda\venv\Lib\site-packages\torch\lib\"
-  `cublas64_11.dll (231kb)` `cusparse64_11.dll (199kb)` `nvrtc64_112_0.dll (129kb)` If they are there but much bigger in size please run : `patchzluda.bat`
+  `cublas64_11.dll (231kb)` `cusparse64_11.dll (199kb)` `nvrtc64_112_0.dll (129kb)` If they are there but much bigger in size please run : `patchzluda.bat` (this is for zluda 3.8.4, other versions might be different sizes)
 - If for some reason you can't solve with these and want to start from zero, delete "venv" folder and re-run
   `install.bat`
 - If you can't git pull to the latest version, run these commands, `git fetch --all` and then
@@ -148,7 +146,8 @@ patchzluda.bat
   python from windows store, use the link provided or 3.11 from the official website. After uninstalling python from
   windows store and installing the one from the website, be sure the delete venv folder, and run install.bat once again.
 - `rocBLAS`-error: If you have an integrated GPU by AMD (e.g. AMD Radeon(TM) Graphics) you need to add `HIP_VISIBLE_DEVICES=1` to your
-  environment variables. Otherwise it will default to using your iGPU, which will most likely not work. This behavior is caused by a bug in the ROCm-driver.
+  environment variables. Other possible variables to use : `ROCR_VISIBLE_DEVICES=1` `HCC_AMDGPU_TARGET=1` . This basically tells it to use 1st gpu -this number could be different if you have multiple gpu's-
+  Otherwise it will default to using your iGPU, which will most likely not work. This behavior is caused by a bug in the ROCm-driver.
 - Lots of other problems were encountered and solved by users so check the issues if you can't find your problem here.  
 
 ## Credits
