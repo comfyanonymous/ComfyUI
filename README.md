@@ -115,22 +115,6 @@ ComfyUI follows a weekly release cycle every Friday, with three interconnected r
    - Features are frozen for the upcoming core release
    - Development continues for the next release cycle
 
-### Example Timeline
-
-Here's how the release process works over a two-week period:
-
-**Week 1 (Friday)**
-- Core v0.7.0 is released
-- Desktop v0.4.0 is built using Core v0.7.0
-- Frontend changes from Week 1 (v1.17) are merged into Core's master branch
-- Frontend development for v1.18 begins
-
-**Week 2 (Friday)**
-- Core v0.7.1 is released
-- Desktop v0.4.1 is built using Core v0.7.1
-- Frontend changes from Week 2 (v1.18) are merged into Core's master branch
-- Frontend development for v1.19 begins
-
 ## Shortcuts
 
 | Keybind                            | Explanation                                                                                                        |
