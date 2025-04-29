@@ -1062,7 +1062,7 @@ class LumaImageGenerationNode:
         # handle image_luma_ref
         api_image_ref = None
         if image_luma_ref is not None:
-            api_image_ref = self._convert_luma_refs(image_luma_ref, auth_token=auth_token)
+            api_image_ref = self._convert_luma_refs(image_luma_ref, max_refs=4, auth_token=auth_token)
         # handle style_luma_ref
         api_style_ref = None
         if style_image is not None:
