@@ -4,6 +4,7 @@ from typing import Callable
 import io
 
 from comfy.cli_args import args
+from comfy import utils
 
 """
 API Client Framework for api.comfy.org.
@@ -444,6 +445,7 @@ class PollingOperation(Generic[T, R]):
         completed_statuses: list,
         failed_statuses: list,
         status_extractor: Callable[[R], str],
+        progress_extractor: Callable[[R], float] = None,
         request: Optional[T] = None,
         api_base: str | None = None,
         auth_token: Optional[str] = None,
@@ -459,6 +461,7 @@ class PollingOperation(Generic[T, R]):
         self.status_extractor = status_extractor or (
             lambda x: getattr(x, "status", None)
         )
+        self.progress_extractor = progress_extractor
         self.completed_statuses = completed_statuses
         self.failed_statuses = failed_statuses
 
@@ -494,6 +497,10 @@ class PollingOperation(Generic[T, R]):
     def _poll_until_complete(self, client: ApiClient) -> R:
         """Poll until the task is complete"""
         poll_count = 0
+        progress = 0
+        if self.progress_extractor:
+            progress = utils.ProgressBar(100)
+
         while True:
             try:
                 poll_count += 1
@@ -526,6 +533,10 @@ class PollingOperation(Generic[T, R]):
                 # Check if task is complete
                 status = self._check_task_status(response_obj)
                 logging.debug(f"[DEBUG] Task Status: {status}")
+
+                # If progress extractor is provided, extract progress
+                if self.progress_extractor:
+                    progress.update(self.progress_extractor(response_obj))
 
                 if status == TaskStatus.COMPLETED:
                     logging.debug("[DEBUG] Task completed successfully")

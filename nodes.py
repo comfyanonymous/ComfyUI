@@ -2264,7 +2264,8 @@ def init_builtin_extra_nodes():
     api_nodes_files = [
         "nodes_api.py",
         "nodes_veo2.py",
-        "nodes_kling.py"
+        "nodes_kling.py",
+        "nodes_runway.py",
     ]
 
     import_failed = []
