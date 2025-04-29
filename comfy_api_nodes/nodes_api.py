@@ -1429,7 +1429,6 @@ class MinimaxTextToVideoNode:
                         "S2V-01",
                         "I2V-01",
                         "I2V-01-live",
-                        "T2V-01",
                     ],
                     {
                         "default": "T2V-01",
