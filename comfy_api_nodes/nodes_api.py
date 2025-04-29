@@ -381,7 +381,7 @@ class OpenAIDalle2(ComfyNodeABC):
 
     RETURN_TYPES = (IO.IMAGE,)
     FUNCTION = "api_call"
-    CATEGORY = "api node"
+    CATEGORY = "api node/image/openai"
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
@@ -522,7 +522,7 @@ class OpenAIDalle3(ComfyNodeABC):
 
     RETURN_TYPES = (IO.IMAGE,)
     FUNCTION = "api_call"
-    CATEGORY = "api node"
+    CATEGORY = "api node/image/openai"
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
@@ -654,7 +654,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
 
     RETURN_TYPES = (IO.IMAGE,)
     FUNCTION = "api_call"
-    CATEGORY = "api node"
+    CATEGORY = "api node/image/openai"
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
@@ -885,7 +885,7 @@ class IdeogramTextToImage(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "Example"
+    CATEGORY = "api node/image/ideogram"
 
     def api_call(
         self,
@@ -1059,7 +1059,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node"
+    CATEGORY = "api node/image/bfl"
 
     def api_call(
         self,
@@ -1183,7 +1183,7 @@ class LumaReferenceNode(ComfyNodeABC):
     RETURN_NAMES = ("luma_ref",)
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "create_luma_reference"
-    CATEGORY = "api node/Luma"
+    CATEGORY = "api node/image/Luma"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1228,7 +1228,7 @@ class LumaConceptsNode(ComfyNodeABC):
     RETURN_NAMES = ("luma_concepts",)
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "create_concepts"
-    CATEGORY = "api node/Luma"
+    CATEGORY = "api node/image/Luma"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1261,7 +1261,7 @@ class LumaImageGenerationNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node"
+    CATEGORY = "api node/image/Luma"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1430,7 +1430,7 @@ class LumaImageModifyNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node"
+    CATEGORY = "api node/image/Luma"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1538,7 +1538,7 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node"
+    CATEGORY = "api node/image/Luma"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1640,7 +1640,7 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node"
+    CATEGORY = "api node/image/Luma"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1776,7 +1776,7 @@ class RecraftStyleV3RealisticImageNode:
     RETURN_TYPES = (RecraftIO.STYLEV3,)
     RETURN_NAMES = ("recraft_style",)
     FUNCTION = "create_style"
-    CATEGORY = "api node/Recraft"
+    CATEGORY = "api node/image/Recraft"
 
     RECRAFT_STYLE = RecraftStyleV3.realistic_image
 
@@ -1827,7 +1827,7 @@ class RecraftTextToImageNode:
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node"
+    CATEGORY = "api node/image/Recraft"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1992,7 +1992,7 @@ class MinimaxTextToVideoNode:
     RETURN_TYPES = ("VIDEO",)
     DESCRIPTION = "Generates videos from prompts using Minimax's API"
     FUNCTION = "generate_video"
-    CATEGORY = "video"
+    CATEGORY = "api node/video/Minimax"
     API_NODE = True
     OUTPUT_NODE = True
 
