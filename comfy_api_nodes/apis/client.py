@@ -1068,7 +1068,6 @@ class PollingOperation(Generic[T, R]):
 
                 # Parse response
                 response_obj = self.poll_endpoint.response_model.model_validate(resp)
-
                 # Check if task is complete
                 status = self._check_task_status(response_obj)
                 logging.debug(f"[DEBUG] Task Status: {status}")

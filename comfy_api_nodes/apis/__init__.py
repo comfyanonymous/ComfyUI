@@ -6,8 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Union
-from uuid import UUID
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import AnyUrl, BaseModel, Field, RootModel, StrictBytes
 
@@ -966,12 +965,93 @@ class Type(str, Enum):
     left_turn_forward = 'left_turn_forward'
 
 
+class Config(BaseModel):
+    horizontal: Optional[float] = Field(None, ge=-10.0, le=10.0)
+    vertical: Optional[float] = Field(None, ge=-10.0, le=10.0)
+    pan: Optional[float] = Field(None, ge=-10.0, le=10.0)
+    tilt: Optional[float] = Field(None, ge=-10.0, le=10.0)
+    roll: Optional[float] = Field(None, ge=-10.0, le=10.0)
+    zoom: Optional[float] = Field(None, ge=-10.0, le=10.0)
+
+
 class CameraControl(BaseModel):
+    type: Optional[Type] = Field(None, description='Predefined camera movements type')
     config: Optional[Config] = None
-    type: Optional[Type] = Field(
-        None,
-        description='Predefined camera movements type. simple: Customizable camera movement. down_back: Camera descends and moves backward. forward_up: Camera moves forward and tilts up. right_turn_forward: Rotate right and move forward. left_turn_forward: Rotate left and move forward.',
+
+
+class AspectRatio(str, Enum):
+    field_16_9 = '16:9'
+    field_9_16 = '9:16'
+    field_1_1 = '1:1'
+
+
+class Duration(str, Enum):
+    field_5 = '5'
+    field_10 = '10'
+
+
+class KlingText2VideoRequest(BaseModel):
+    model_name: Optional[ModelName] = Field('kling-v1', description='Model Name')
+    prompt: Optional[str] = Field(
+        None, description='Positive text prompt', max_length=2500
     )
+    negative_prompt: Optional[str] = Field(
+        None, description='Negative text prompt', max_length=2500
+    )
+    cfg_scale: Optional[float] = Field(
+        0.5, description='Flexibility in video generation', ge=0.0, le=1.0
+    )
+    mode: Optional[Mode] = Field('std', description='Video generation mode')
+    camera_control: Optional[CameraControl] = None
+    aspect_ratio: Optional[AspectRatio] = '16:9'
+    duration: Optional[Duration] = '5'
+    callback_url: Optional[AnyUrl] = Field(
+        None, description='The callback notification address'
+    )
+    external_task_id: Optional[str] = Field(None, description='Customized Task ID')
+
+
+class TaskStatus(str, Enum):
+    submitted = 'submitted'
+    processing = 'processing'
+    succeed = 'succeed'
+    failed = 'failed'
+
+
+class TaskInfo(BaseModel):
+    external_task_id: Optional[str] = None
+
+
+class Video(BaseModel):
+    id: Optional[str] = Field(None, description='Generated video ID')
+    url: Optional[AnyUrl] = Field(None, description='URL for generated video')
+    duration: Optional[str] = Field(None, description='Total video duration')
+
+
+class TaskResult(BaseModel):
+    videos: Optional[List[Video]] = None
+
+
+class Data(BaseModel):
+    task_id: Optional[str] = Field(None, description='Task ID')
+    task_status: Optional[TaskStatus] = None
+    task_info: Optional[TaskInfo] = None
+    created_at: Optional[int] = Field(None, description='Task creation time')
+    updated_at: Optional[int] = Field(None, description='Task update time')
+    task_result: Optional[TaskResult] = None
+
+
+class KlingText2VideoResponse(BaseModel):
+    code: Optional[int] = Field(None, description='Error code')
+    message: Optional[str] = Field(None, description='Error message')
+    request_id: Optional[str] = Field(None, description='Request ID')
+    data: Optional[Data] = None
+
+
+class ModelName1(str, Enum):
+    kling_v1 = 'kling-v1'
+    kling_v1_5 = 'kling-v1-5'
+    kling_v1_6 = 'kling-v1-6'
 
 
 class Trajectory(BaseModel):
@@ -993,488 +1073,115 @@ class DynamicMask(BaseModel):
     trajectories: Optional[List[Trajectory]] = None
 
 
+class Config1(BaseModel):
+    horizontal: Optional[float] = Field(
+        None,
+        description="Controls camera's movement along horizontal axis (x-axis). Negative indicates left, positive indicates right.",
+        ge=-10.0,
+        le=10.0,
+    )
+    vertical: Optional[float] = Field(
+        None,
+        description="Controls camera's movement along vertical axis (y-axis). Negative indicates downward, positive indicates upward.",
+        ge=-10.0,
+        le=10.0,
+    )
+    pan: Optional[float] = Field(
+        None,
+        description="Controls camera's rotation in vertical plane (x-axis). Negative indicates downward rotation, positive indicates upward rotation.",
+        ge=-10.0,
+        le=10.0,
+    )
+    tilt: Optional[float] = Field(
+        None,
+        description="Controls camera's rotation in horizontal plane (y-axis). Negative indicates left rotation, positive indicates right rotation.",
+        ge=-10.0,
+        le=10.0,
+    )
+    roll: Optional[float] = Field(
+        None,
+        description="Controls camera's rolling amount (z-axis). Negative indicates counterclockwise, positive indicates clockwise.",
+        ge=-10.0,
+        le=10.0,
+    )
+    zoom: Optional[float] = Field(
+        None,
+        description="Controls change in camera's focal length. Negative indicates narrower field of view, positive indicates wider field of view.",
+        ge=-10.0,
+        le=10.0,
+    )
+
+
+class CameraControl1(BaseModel):
+    type: Optional[Type] = Field(
+        None,
+        description='Predefined camera movements type. simple: Customizable camera movement. down_back: Camera descends and moves backward. forward_up: Camera moves forward and tilts up. right_turn_forward: Rotate right and move forward. left_turn_forward: Rotate left and move forward.',
+    )
+    config: Optional[Config1] = None
+
+
 class KlingImage2VideoRequest(BaseModel):
-    aspect_ratio: Optional[AspectRatio] = '16:9'
-    callback_url: Optional[AnyUrl] = Field(
-        None,
-        description='The callback notification address. Server will notify when the task status changes.',
-    )
-    camera_control: Optional[CameraControl] = None
-    cfg_scale: Optional[confloat(ge=0.0, le=1.0)] = Field(
-        0.5,
-        description="Flexibility in video generation. The higher the value, the lower the model's degree of flexibility, and the stronger the relevance to the user's prompt.",
-    )
-    duration: Optional[Duration] = Field(5, description='Video length in seconds')
-    dynamic_masks: Optional[List[DynamicMask]] = Field(
-        None,
-        description='Dynamic Brush Configuration List (up to 6 groups). For 5-second videos, trajectory length must not exceed 77 coordinates.',
-    )
-    external_task_id: Optional[str] = Field(
-        None,
-        description='Customized Task ID. Must be unique within a single user account.',
-    )
-    image: Optional[AnyUrl] = Field(
+    model_name: Optional[ModelName1] = Field('kling-v1', description='Model Name')
+    image: Optional[str] = Field(
         None,
         description='Reference Image - URL or Base64 encoded string, cannot exceed 10MB, resolution not less than 300*300px, aspect ratio between 1:2.5 ~ 2.5:1. Base64 should not include data:image prefix.',
     )
-    image_tail: Optional[AnyUrl] = Field(
+    image_tail: Optional[str] = Field(
         None,
         description='Reference Image - End frame control. URL or Base64 encoded string, cannot exceed 10MB, resolution not less than 300*300px. Base64 should not include data:image prefix.',
+    )
+    prompt: Optional[str] = Field(
+        None, description='Positive text prompt', max_length=2500
+    )
+    negative_prompt: Optional[str] = Field(
+        None, description='Negative text prompt', max_length=2500
+    )
+    cfg_scale: Optional[float] = Field(
+        0.5,
+        description="Flexibility in video generation. The higher the value, the lower the model's degree of flexibility, and the stronger the relevance to the user's prompt.",
+        ge=0.0,
+        le=1.0,
     )
     mode: Optional[Mode] = Field(
         'std',
         description='Video generation mode. std: Standard Mode, which is cost-effective. pro: Professional Mode, generates videos with longer duration but higher quality output.',
     )
-    model_name: Optional[ModelName] = Field('kling-v1', description='Model Name')
-    negative_prompt: Optional[constr(max_length=2500)] = Field(
-        None, description='Negative text prompt'
-    )
-    prompt: Optional[constr(max_length=2500)] = Field(
-        None, description='Positive text prompt'
-    )
     static_mask: Optional[AnyUrl] = Field(
         None,
         description='Static Brush Application Area (Mask image created by users using the motion brush). The aspect ratio must match the input image.',
     )
-
-
-class TaskInfo(BaseModel):
-    external_task_id: Optional[str] = None
-
-
-class Video(BaseModel):
-    duration: Optional[str] = Field(None, description='Total video duration')
-    id: Optional[str] = Field(None, description='Generated video ID')
-    url: Optional[AnyUrl] = Field(None, description='URL for generated video')
-
-
-class TaskResult(BaseModel):
-    videos: Optional[List[Video]] = None
-
-
-class TaskStatus(str, Enum):
-    submitted = 'submitted'
-    processing = 'processing'
-    succeed = 'succeed'
-    failed = 'failed'
-
-
-class Data(BaseModel):
-    created_at: Optional[int] = Field(None, description='Task creation time')
-    task_id: Optional[str] = Field(None, description='Task ID')
-    task_info: Optional[TaskInfo] = None
-    task_result: Optional[TaskResult] = None
-    task_status: Optional[TaskStatus] = None
-    updated_at: Optional[int] = Field(None, description='Task update time')
-
-
-class KlingImage2VideoResponse(BaseModel):
-    code: Optional[int] = Field(None, description='Error code')
-    data: Optional[Data] = None
-    message: Optional[str] = Field(None, description='Error message')
-    request_id: Optional[str] = Field(None, description='Request ID')
-
-
-class AspectRatio1(str, Enum):
-    field_16_9 = '16:9'
-    field_9_16 = '9:16'
-    field_1_1 = '1:1'
-    field_4_3 = '4:3'
-    field_3_4 = '3:4'
-    field_3_2 = '3:2'
-    field_2_3 = '2:3'
-    field_21_9 = '21:9'
-
-
-class ImageReference(str, Enum):
-    subject = 'subject'
-    face = 'face'
-
-
-class ModelName2(str, Enum):
-    kling_v1 = 'kling-v1'
-    kling_v1_5 = 'kling-v1-5'
-
-
-class KlingImageGenerationsRequest(BaseModel):
-    aspect_ratio: Optional[AspectRatio1] = Field(
-        '16:9', description='Aspect ratio of the generated images'
-    )
-    callback_url: Optional[AnyUrl] = Field(
-        None, description='The callback notification address'
-    )
-    human_fidelity: Optional[confloat(ge=0.0, le=1.0)] = Field(
-        0.45, description='Subject reference similarity'
-    )
-    image: Optional[str] = Field(
-        None, description='Reference Image - Base64 encoded string or image URL'
-    )
-    image_fidelity: Optional[confloat(ge=0.0, le=1.0)] = Field(
-        0.5, description='Reference intensity for user-uploaded images'
-    )
-    image_reference: Optional[ImageReference] = Field(
-        None, description='Image reference type'
-    )
-    model_name: Optional[ModelName2] = Field('kling-v1', description='Model Name')
-    n: Optional[conint(ge=1, le=9)] = Field(1, description='Number of generated images')
-    negative_prompt: Optional[constr(max_length=200)] = Field(
-        None, description='Negative text prompt'
-    )
-    prompt: constr(max_length=500) = Field(..., description='Positive text prompt')
-
-
-class Image(BaseModel):
-    index: Optional[int] = Field(None, description='Image Number (0-9)')
-    url: Optional[AnyUrl] = Field(None, description='URL for generated image')
-
-
-class TaskResult1(BaseModel):
-    images: Optional[List[Image]] = None
-
-
-class Data1(BaseModel):
-    created_at: Optional[int] = Field(None, description='Task creation time')
-    task_id: Optional[str] = Field(None, description='Task ID')
-    task_result: Optional[TaskResult1] = None
-    task_status: Optional[TaskStatus] = None
-    task_status_msg: Optional[str] = Field(None, description='Task status information')
-    updated_at: Optional[int] = Field(None, description='Task update time')
-
-
-class KlingImageGenerationsResponse(BaseModel):
-    code: Optional[int] = Field(None, description='Error code')
-    data: Optional[Data1] = None
-    message: Optional[str] = Field(None, description='Error message')
-    request_id: Optional[str] = Field(None, description='Request ID')
-
-
-class AudioType(str, Enum):
-    file = 'file'
-    url = 'url'
-
-
-class Mode2(str, Enum):
-    text2video = 'text2video'
-    audio2video = 'audio2video'
-
-
-class VoiceLanguage(str, Enum):
-    zh = 'zh'
-    en = 'en'
-
-
-class Input(BaseModel):
-    audio_file: Optional[str] = Field(
+    dynamic_masks: Optional[List[DynamicMask]] = Field(
         None,
-        description='Local Path of Audio File. Supported formats: .mp3/.wav/.m4a/.aac, maximum file size of 5MB. Base64 code.',
+        description='Dynamic Brush Configuration List (up to 6 groups). For 5-second videos, trajectory length must not exceed 77 coordinates.',
     )
-    audio_type: Optional[AudioType] = Field(
-        None,
-        description='Method of Transmitting Audio Files for Lip-Sync. Required when mode is audio2video.',
-    )
-    audio_url: Optional[AnyUrl] = Field(
-        None,
-        description='Audio File Download URL. Supported formats: .mp3/.wav/.m4a/.aac, maximum file size of 5MB.',
-    )
-    mode: Mode2 = Field(
-        ...,
-        description='Video Generation Mode. text2video: Text-to-video generation mode; audio2video: Audio-to-video generation mode',
-    )
-    text: Optional[str] = Field(
-        None,
-        description='Text Content for Lip-Sync Video Generation. Required when mode is text2video. Maximum length is 120 characters.',
-    )
-    video_id: Optional[str] = Field(
-        None,
-        description='The ID of the video generated by Kling AI. Only supports 5-second and 10-second videos generated within the last 30 days.',
-    )
-    video_url: Optional[AnyUrl] = Field(
-        None,
-        description='Get link for uploaded video. Video files support .mp4/.mov, file size does not exceed 100MB, video length between 2-10s.',
-    )
-    voice_id: Optional[str] = Field(
-        None,
-        description='Voice ID. Required when mode is text2video. The system offers a variety of voice options to choose from.',
-    )
-    voice_language: Optional[VoiceLanguage] = Field(
-        'zh', description='The voice language corresponds to the Voice ID.'
-    )
-    voice_speed: Optional[confloat(ge=0.8, le=2.0)] = Field(
-        1,
-        description='Speech Rate. Valid range: 0.8~2.0, accurate to one decimal place.',
-    )
-
-
-class KlingLipSyncRequest(BaseModel):
+    camera_control: Optional[CameraControl1] = None
+    aspect_ratio: Optional[AspectRatio] = '16:9'
+    duration: Optional[Duration] = Field('5', description='Video length in seconds')
     callback_url: Optional[AnyUrl] = Field(
         None,
         description='The callback notification address. Server will notify when the task status changes.',
-    )
-    input: Input
-
-
-class TaskResult2(BaseModel):
-    videos: Optional[List[Video]] = None
-
-
-class Data2(BaseModel):
-    created_at: Optional[int] = Field(None, description='Task creation time')
-    task_id: Optional[str] = Field(None, description='Task ID')
-    task_info: Optional[TaskInfo] = None
-    task_result: Optional[TaskResult2] = None
-    task_status: Optional[TaskStatus] = None
-    updated_at: Optional[int] = Field(None, description='Task update time')
-
-
-class KlingLipSyncResponse(BaseModel):
-    code: Optional[int] = Field(None, description='Error code')
-    data: Optional[Data2] = None
-    message: Optional[str] = Field(None, description='Error message')
-    request_id: Optional[str] = Field(None, description='Request ID')
-
-
-class ResourcePackType(str, Enum):
-    decreasing_total = 'decreasing_total'
-    constant_period = 'constant_period'
-
-
-class Status(str, Enum):
-    toBeOnline = 'toBeOnline'
-    online = 'online'
-    expired = 'expired'
-    runOut = 'runOut'
-
-
-class ResourcePackSubscribeInfo(BaseModel):
-    effective_time: Optional[int] = Field(
-        None, description='Effective time, Unix timestamp in ms'
-    )
-    invalid_time: Optional[int] = Field(
-        None, description='Expiration time, Unix timestamp in ms'
-    )
-    purchase_time: Optional[int] = Field(
-        None, description='Purchase time, Unix timestamp in ms'
-    )
-    remaining_quantity: Optional[float] = Field(
-        None, description='Remaining quantity (updated with a 12-hour delay)'
-    )
-    resource_pack_id: Optional[str] = Field(None, description='Resource package ID')
-    resource_pack_name: Optional[str] = Field(None, description='Resource package name')
-    resource_pack_type: Optional[ResourcePackType] = Field(
-        None,
-        description='Resource package type (decreasing_total=decreasing total, constant_period=constant periodicity)',
-    )
-    status: Optional[Status] = Field(None, description='Resource Package Status')
-    total_quantity: Optional[float] = Field(None, description='Total quantity')
-
-
-class Data3(BaseModel):
-    code: Optional[int] = Field(None, description='Error code; 0 indicates success')
-    msg: Optional[str] = Field(None, description='Error information')
-    resource_pack_subscribe_infos: Optional[List[ResourcePackSubscribeInfo]] = Field(
-        None, description='Resource package list'
-    )
-
-
-class KlingResourcePackageResponse(BaseModel):
-    code: Optional[int] = Field(None, description='Error code; 0 indicates success')
-    data: Optional[Data3] = None
-    message: Optional[str] = Field(None, description='Error information')
-    request_id: Optional[str] = Field(
-        None,
-        description='Request ID, generated by the system, used to track requests and troubleshoot problems',
-    )
-
-
-class Duration2(str, Enum):
-    field_5 = '5'
-
-
-class ModelName3(str, Enum):
-    kling_v1_6 = 'kling-v1-6'
-
-
-class KlingSingleImageEffectInput(BaseModel):
-    duration: Duration2 = Field(
-        ..., description='Video Length in seconds. Only 5-second videos are supported.'
-    )
-    image: str = Field(
-        ...,
-        description='Reference Image. URL or Base64 encoded string (without data:image prefix). File size cannot exceed 10MB, resolution not less than 300*300px, aspect ratio between 1:2.5 ~ 2.5:1.',
-    )
-    model_name: ModelName3 = Field(
-        ...,
-        description='Model Name. Only kling-v1-6 is supported for single image effects.',
-    )
-
-
-class AspectRatio2(str, Enum):
-    field_16_9 = '16:9'
-    field_9_16 = '9:16'
-    field_1_1 = '1:1'
-
-
-class Config1(BaseModel):
-    horizontal: Optional[confloat(ge=-10.0, le=10.0)] = None
-    pan: Optional[confloat(ge=-10.0, le=10.0)] = None
-    roll: Optional[confloat(ge=-10.0, le=10.0)] = None
-    tilt: Optional[confloat(ge=-10.0, le=10.0)] = None
-    vertical: Optional[confloat(ge=-10.0, le=10.0)] = None
-    zoom: Optional[confloat(ge=-10.0, le=10.0)] = None
-
-
-class CameraControl1(BaseModel):
-    config: Optional[Config1] = None
-    type: Optional[Type] = Field(None, description='Predefined camera movements type')
-
-
-class Duration3(str, Enum):
-    field_5 = 5
-    field_10 = 10
-
-
-class Mode3(str, Enum):
-    std = 'std'
-    pro = 'pro'
-
-
-class ModelName4(str, Enum):
-    kling_v1 = 'kling-v1'
-    kling_v1_6 = 'kling-v1-6'
-
-
-class KlingText2VideoRequest(BaseModel):
-    aspect_ratio: Optional[AspectRatio2] = '16:9'
-    callback_url: Optional[AnyUrl] = Field(
-        None, description='The callback notification address'
-    )
-    camera_control: Optional[CameraControl1] = None
-    cfg_scale: Optional[confloat(ge=0.0, le=1.0)] = Field(
-        0.5, description='Flexibility in video generation'
-    )
-    duration: Optional[Duration3] = 5
-    external_task_id: Optional[str] = Field(None, description='Customized Task ID')
-    mode: Optional[Mode3] = Field('std', description='Video generation mode')
-    model_name: Optional[ModelName4] = Field('kling-v1', description='Model Name')
-    negative_prompt: Optional[constr(max_length=2500)] = Field(
-        None, description='Negative text prompt'
-    )
-    prompt: Optional[constr(max_length=2500)] = Field(
-        None, description='Positive text prompt'
-    )
-
-
-class TaskResult3(BaseModel):
-    videos: Optional[List[Video]] = None
-
-
-class Data4(BaseModel):
-    created_at: Optional[int] = Field(None, description='Task creation time')
-    task_id: Optional[str] = Field(None, description='Task ID')
-    task_info: Optional[TaskInfo] = None
-    task_result: Optional[TaskResult3] = None
-    task_status: Optional[TaskStatus] = None
-    updated_at: Optional[int] = Field(None, description='Task update time')
-
-
-class KlingText2VideoResponse(BaseModel):
-    code: Optional[int] = Field(None, description='Error code')
-    data: Optional[Data4] = None
-    message: Optional[str] = Field(None, description='Error message')
-    request_id: Optional[str] = Field(None, description='Request ID')
-
-
-class KlingVideoEffectsInput(
-    RootModel[Union[KlingSingleImageEffectInput, KlingDualCharacterEffectInput]]
-):
-    root: Union[KlingSingleImageEffectInput, KlingDualCharacterEffectInput]
-
-
-class EffectScene(str, Enum):
-    bloombloom = 'bloombloom'
-    dizzydizzy = 'dizzydizzy'
-    fuzzyfuzzy = 'fuzzyfuzzy'
-    squish = 'squish'
-    expansion = 'expansion'
-    hug = 'hug'
-    kiss = 'kiss'
-    heart_gesture = 'heart_gesture'
-
-
-class KlingVideoEffectsRequest(BaseModel):
-    callback_url: Optional[AnyUrl] = Field(
-        None,
-        description='The callback notification address for the result of this task.',
-    )
-    effect_scene: EffectScene = Field(
-        ...,
-        description='Scene Name. Single Image Effects (bloombloom, dizzydizzy, fuzzyfuzzy, squish, expansion) or Dual-character Effects (hug, kiss, heart_gesture).',
     )
     external_task_id: Optional[str] = Field(
         None,
         description='Customized Task ID. Must be unique within a single user account.',
     )
-    input: Optional[KlingVideoEffectsInput] = None
 
 
-class TaskResult4(BaseModel):
+class TaskResult1(BaseModel):
     videos: Optional[List[Video]] = None
 
 
-class Data5(BaseModel):
-    created_at: Optional[int] = Field(None, description='Task creation time')
+class Data1(BaseModel):
     task_id: Optional[str] = Field(None, description='Task ID')
-    task_info: Optional[TaskInfo] = None
-    task_result: Optional[TaskResult4] = None
     task_status: Optional[TaskStatus] = None
-    updated_at: Optional[int] = Field(None, description='Task update time')
-
-
-class KlingVideoEffectsResponse(BaseModel):
-    code: Optional[int] = Field(None, description='Error code')
-    data: Optional[Data5] = None
-    message: Optional[str] = Field(None, description='Error message')
-    request_id: Optional[str] = Field(None, description='Request ID')
-
-
-class KlingVideoExtendRequest(BaseModel):
-    callback_url: Optional[AnyUrl] = Field(
-        None,
-        description='The callback notification address. Server will notify when the task status changes.',
-    )
-    cfg_scale: Optional[confloat(ge=0.0, le=1.0)] = Field(
-        0.5,
-        description="Flexibility in video generation. The higher the value, the lower the model's flexibility and the stronger the relevance to the user's prompt.",
-    )
-    negative_prompt: Optional[constr(max_length=2500)] = Field(
-        None,
-        description='Negative text prompt for elements to avoid in the extended video',
-    )
-    prompt: Optional[constr(max_length=2500)] = Field(
-        None, description='Positive text prompt for guiding the video extension'
-    )
-    video_id: Optional[str] = Field(
-        None,
-        description='The ID of the video to be extended. Supports videos generated by text-to-video, image-to-video, and previous video extension operations. Cannot exceed 3 minutes total duration after extension.',
-    )
-
-
-class TaskResult5(BaseModel):
-    videos: Optional[List[Video]] = None
-
-
-class Data6(BaseModel):
+    task_info: Optional[TaskInfo] = None
     created_at: Optional[int] = Field(None, description='Task creation time')
-    task_id: Optional[str] = Field(None, description='Task ID')
-    task_info: Optional[TaskInfo] = None
-    task_result: Optional[TaskResult5] = None
-    task_status: Optional[TaskStatus] = None
     updated_at: Optional[int] = Field(None, description='Task update time')
+    task_result: Optional[TaskResult1] = None
 
 
-class KlingVideoExtendResponse(BaseModel):
+class KlingImage2VideoResponse(BaseModel):
     code: Optional[int] = Field(None, description='Error code')
-    data: Optional[Data6] = None
     message: Optional[str] = Field(None, description='Error message')
     request_id: Optional[str] = Field(None, description='Request ID')
 
@@ -3945,7 +3652,39 @@ class NodeVersion(BaseModel):
     id: Optional[str] = None
     version: Optional[str] = Field(
         None,
-        description='The version identifier, following semantic versioning. Must be unique for the node.',
+        description='The number of images to generate (1-10). Only 1 supported for dall-e-3.',
+        examples=[1],
+    )
+    quality: Optional[Quality] = Field(
+        None, description='The quality of the generated image', examples=['high']
+    )
+    size: Optional[str] = Field(
+        None,
+        description='Size of the image (e.g., 1024x1024, 1536x1024, auto)',
+        examples=['1024x1536'],
+    )
+    output_format: Optional[OutputFormat] = Field(
+        None, description='Format of the output image', examples=['png']
+    )
+    output_compression: Optional[int] = Field(
+        None, description='Compression level for JPEG or WebP (0-100)', examples=[100]
+    )
+    moderation: Optional[Moderation] = Field(
+        None, description='Content moderation setting', examples=['auto']
+    )
+    background: Optional[Background] = Field(
+        None, description='Background transparency', examples=['opaque']
+    )
+    response_format: Optional[ResponseFormat] = Field(
+        None, description='Response format of image data', examples=['b64_json']
+    )
+    style: Optional[Style] = Field(
+        None, description='Style of the image (only for dall-e-3)', examples=['vivid']
+    )
+    user: Optional[str] = Field(
+        None,
+        description='A unique identifier for end-user monitoring',
+        examples=['user-1234'],
     )
     createdAt: Optional[datetime] = Field(
         None, description='The date and time the version was created.'
