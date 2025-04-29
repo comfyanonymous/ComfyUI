@@ -104,7 +104,7 @@ from typing import (
     TypeVar,
     Generic,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from enum import Enum
 import json
 import requests
@@ -122,6 +122,15 @@ class EmptyRequest(BaseModel):
     For GET requests, fields will be sent as query parameters."""
 
     pass
+
+
+class UploadRequest(BaseModel):
+    filename: str = Field(..., description="Filename to upload")
+
+
+class UploadResponse(BaseModel):
+    download_url: str = Field(..., description='URL to GET uploaded file')
+    upload_url: str = Field(..., description='URL to PUT file to upload')
 
 
 class HttpMethod(str, Enum):
