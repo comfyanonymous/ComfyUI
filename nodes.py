@@ -2263,7 +2263,8 @@ def init_builtin_extra_nodes():
     api_nodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_api_nodes")
     api_nodes_files = [
         "nodes_api.py",
-        "nodes_veo2.py"
+        "nodes_veo2.py",
+        "nodes_kling.py"
     ]
 
     import_failed = []
