@@ -123,7 +123,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
 
     RETURN_TYPES = (IO.VIDEO,)
     FUNCTION = "generate_video"
-    CATEGORY = "api node/video"
+    CATEGORY = "api node/video/Veo"
     DESCRIPTION = "Generates videos from text prompts using Google's Veo API"
     API_NODE = True
 

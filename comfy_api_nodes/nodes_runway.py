@@ -141,7 +141,7 @@ class RunwayImageToVideoNode(ComfyNodeABC):
 
     RETURN_TYPES = ("VIDEO",)
     FUNCTION = "api_call"
-    CATEGORY = "api node/video/runway"
+    CATEGORY = "api node/video/Runway"
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
