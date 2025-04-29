@@ -1,9 +1,50 @@
 from __future__ import annotations
 
+
+import torch
+
 from enum import Enum
 from typing import Optional, Union
 
 from pydantic import BaseModel, Field, confloat
+
+
+
+class LumaIO:
+    LUMA_REF = "LUMA_REF"
+
+
+class LumaReference:
+    def __init__(self, image: torch.Tensor, weight: float):
+        self.image = image
+        self.weight = weight
+
+    def create_api_model(self, download_url: str):
+        return LumaImageRef(url=download_url, weight=self.weight)
+
+class LumaReferenceChain:
+    def __init__(self, first_ref: LumaReference=None):
+        self.refs: list[LumaReference] = []
+        if first_ref:
+            self.refs.append(first_ref)
+
+    def add(self, luma_ref: LumaReference=None):
+        self.refs.append(luma_ref)
+
+    def create_api_model(self, download_urls: list[str], max_refs=4):
+        if len(self.refs) == 0:
+            return None
+        api_refs: list[LumaImageRef] = []
+        for ref, url in zip(self.refs, download_urls):
+            api_ref = LumaImageRef(url=url, weight=ref.weight)
+            api_refs.append(api_ref)
+        return api_refs
+
+    def clone(self):
+        c = LumaReferenceChain()
+        for ref in self.refs:
+            c.add(ref)
+        return c
 
 
 class LumaImageModel(str, Enum):
@@ -65,7 +106,7 @@ class LumaImageRef(BaseModel):
 
 class LumaImageReference(BaseModel):
     '''Used for video gen'''
-    type: str = Field('image', description='Input type, defaults to image')
+    type: Optional[str] = Field('image', description='Input type, defaults to image')
     url: str = Field(..., description='The URL of the image')
 
 
@@ -87,14 +128,9 @@ class LumaGenerationReference(BaseModel):
     id: str = Field(..., description='The ID of the generation')
 
 
-class LumaKeyframe(BaseModel):
-    generation: Optional[LumaGenerationReference] = Field(None, description='Reference to generation')
-    image: Optional[LumaImageReference] = Field(None, description='Reference to image')
-
-
 class LumaKeyframes(BaseModel):
-    frame0: Optional[LumaKeyframe] = Field(None, description='')
-    frame1: Optional[LumaKeyframe] = Field(None, description='')
+    frame0: Optional[Union[LumaImageReference, LumaGenerationReference]] = Field(None, description='')
+    frame1: Optional[Union[LumaImageReference, LumaGenerationReference]] = Field(None, description='')
 
 
 class LumaImageGenerationRequest(BaseModel):
