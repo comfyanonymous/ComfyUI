@@ -193,7 +193,7 @@ class RunwayImageToVideoNode(ComfyNodeABC):
         prompt_images_tensor = torch.cat(prompt_images_tensors, dim=0)
 
         download_urls = upload_images_to_comfyapi(
-            prompt_images_tensor, max_images=2, auth_token=auth_token
+            prompt_images_tensor, max_images=2, auth_token=auth_token, mime_type="image/png"
         )
 
         # Create a list of detailed image objects
