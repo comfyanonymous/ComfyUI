@@ -174,7 +174,7 @@ class KlingNodeABC(ComfyNodeABC):
 
     DESCRIPTION = cleandoc(__doc__ or "")
     FUNCTION = "api_call"
-    CATEGORY = "api node/video/kling"
+    CATEGORY = "api node/video/Kling"
     API_NODE = True
 
 
