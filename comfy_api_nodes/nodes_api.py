@@ -4,6 +4,7 @@ from comfy.comfy_types.node_typing import FileLocator
 from typing import Literal, Optional
 from comfy.utils import common_upscale
 from comfy.comfy_types.node_typing import IO, ComfyNodeABC, InputTypeDict
+from comfy_api.input_impl.video_types import VideoFromFile
 from comfy_api_nodes.apis import (
     OpenAIImageGenerationRequest,
     OpenAIImageEditRequest,
@@ -33,6 +34,11 @@ from comfy_api_nodes.apis.luma_api import (
     LumaCharacterRef,
     LumaModifyImageRef,
     LumaImageIdentity,
+    LumaReference,
+    LumaReferenceChain,
+    LumaImageReference,
+    LumaKeyframes,
+    LumaIO,
 )
 from comfy_api_nodes.apis.client import ApiClient, ApiEndpoint, HttpMethod, SynchronousOperation, PollingOperation, EmptyRequest, UploadRequest, UploadResponse
 
@@ -949,6 +955,44 @@ class FluxProUltraImageNode(ComfyNodeABC):
         img.save(img_byte_arr, format='PNG')
         return base64.b64encode(img_byte_arr.getvalue()).decode()
 
+class LumaReferenceNode:
+    """
+    Holds an image and weight for use with Luma Generate Image node.
+    """
+    RETURN_TYPES = (LumaIO.LUMA_REF,)
+    RETURN_NAMES = ("luma_ref",)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "create_luma_reference"
+    CATEGORY = "api node/Luma"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": (IO.IMAGE, {
+                    "tooltip": "Image to use as reference.",
+                }),
+                "weight": (IO.FLOAT, {
+                    "default": 1.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.01,
+                    "tooltip": "Weight of image reference.",
+                }),
+            },
+            "optional": {
+                "luma_ref": (LumaIO.LUMA_REF,)
+            }
+        }
+
+    def create_luma_reference(self, image: torch.Tensor, weight: float, luma_ref: LumaReferenceChain=None):
+        if luma_ref is not None:
+            luma_ref = luma_ref.clone()
+        else:
+            luma_ref = LumaReferenceChain()
+        luma_ref.add(LumaReference(image=image, weight=round(weight, 2)))
+        return (luma_ref, )
+
 class LumaImageGenerationNode:
     """
     Generates images synchronously based on prompt and aspect ratio.
@@ -979,10 +1023,23 @@ class LumaImageGenerationNode:
                     "control_after_generate": True,
                     "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
                 }),
+                "style_image_weight": (IO.FLOAT, {
+                    "default": 1.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.01,
+                    "tooltip": "Weight of style image. Ignored if no style_image provided.",
+                }),
             },
             "optional": {
-                "character_ref_image": (IO.IMAGE, {
-                    "tooltip": "Character reference images; can be a batch of multiple, only the first 4 images will be considered."
+                "image_luma_ref": (LumaIO.LUMA_REF, {
+                    "tooltip": "Luma Reference node connection to influence generation with input images; up to 4 images can be considered."
+                }),
+                "style_image": (IO.IMAGE, {
+                    "tooltip": "Style reference image; only 1 image will be used."
+                }),
+                "character_image": (IO.IMAGE, {
+                    "tooltip": "Character reference images; can be a batch of multiple, up to 4 images can be considered."
                 })
             },
             "hidden": {
@@ -990,11 +1047,21 @@ class LumaImageGenerationNode:
             }
         }
 
-    def api_call(self, prompt: str, model: str, aspect_ratio: str, seed, character_ref_image: torch.Tensor=None, auth_token=None, **kwargs):
+    def api_call(self, prompt: str, model: str, aspect_ratio: str, seed, style_image_weight: float,
+                 image_luma_ref: LumaReferenceChain=None, style_image: torch.Tensor=None, character_image: torch.Tensor=None,
+                 auth_token=None, **kwargs):
+        # handle image_luma_ref
+        api_image_ref = None
+        if image_luma_ref is not None:
+            api_image_ref = self._convert_luma_refs(image_luma_ref, auth_token=auth_token)
+        # handle style_luma_ref
+        api_style_ref = None
+        if style_image is not None:
+            api_style_ref = self._convert_style_image(style_image, weight=style_image_weight, auth_token=auth_token)
         # handle character_ref images
         character_ref = None
-        if character_ref_image is not None:
-            download_urls = upload_images_to_comfyapi(character_ref_image, max_images=4, auth_token=auth_token)
+        if character_image is not None:
+            download_urls = upload_images_to_comfyapi(character_image, max_images=4, auth_token=auth_token)
             character_ref = LumaCharacterRef(identity0=LumaImageIdentity(images=download_urls))
 
         operation = SynchronousOperation(
@@ -1008,7 +1075,9 @@ class LumaImageGenerationNode:
                 prompt=prompt,
                 model=model,
                 aspect_ratio=aspect_ratio,
-                character_ref=character_ref
+                image_ref=api_image_ref,
+                style_ref=api_style_ref,
+                character_ref=character_ref,
             ),
             auth_token=auth_token
         )
@@ -1031,6 +1100,21 @@ class LumaImageGenerationNode:
         img_response = requests.get(response_poll.assets.image)
         img = process_image_response(img_response)
         return (img,)
+
+    def _convert_luma_refs(self, luma_ref: LumaReferenceChain, max_refs: int, auth_token=None):
+        luma_urls = []
+        ref_count = 0
+        for ref in luma_ref.refs:
+            download_urls = upload_images_to_comfyapi(ref.image, max_images=1, auth_token=auth_token)
+            luma_urls.append(download_urls[0])
+            ref_count += 1
+            if ref_count >= max_refs:
+                break
+        return luma_ref.create_api_model(download_urls=luma_urls, max_refs=max_refs)
+
+    def _convert_style_image(self, style_image: torch.Tensor, weight: float, auth_token=None):
+        chain = LumaReferenceChain(first_ref=LumaReference(image=style_image, weight=weight))
+        return self._convert_luma_refs(chain, max_refs=1, auth_token=auth_token)
 
 class LumaImageModifyNode:
     """
@@ -1117,7 +1201,7 @@ class LumaImageModifyNode:
         img = process_image_response(img_response)
         return (img,)
 
-class LumaVideoGenerationNode:
+class LumaTextToVideoGenerationNode:
     """
     Generates videos synchronously based on prompt and output_size.
     """
@@ -1125,7 +1209,7 @@ class LumaVideoGenerationNode:
         self.output_dir = folder_paths.get_output_directory()
         self.type: Literal["output"] = "output"
 
-    RETURN_TYPES = ("IMAGE",)
+    RETURN_TYPES = (IO.VIDEO,)
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
@@ -1148,6 +1232,9 @@ class LumaVideoGenerationNode:
                     "default": LumaVideoOutputResolution.res_540p,
                 }),
                 "duration": ([dur.value for dur in LumaVideoModelOutputDuration],),
+                "loop": (IO.BOOLEAN, {
+                    "default": False,
+                }),
                 "seed": (IO.INT, {
                     "default": 0,
                     "min": 0,
@@ -1155,7 +1242,6 @@ class LumaVideoGenerationNode:
                     "control_after_generate": True,
                     "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
                 }),
-                "filename_prefix": ("STRING", {"default": "ComfyUI"}),
             },
             "optional": {
             },
@@ -1164,9 +1250,8 @@ class LumaVideoGenerationNode:
             }
         }
 
-    def api_call(self, prompt: str, model: str, aspect_ratio: str, resolution: str, duration: str, seed, filename_prefix: str,
+    def api_call(self, prompt: str, model: str, aspect_ratio: str, resolution: str, duration: str, loop: bool, seed,
                  auth_token=None, **kwargs):
-        extra_pnginfo = None
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/luma/generations",
@@ -1180,6 +1265,7 @@ class LumaVideoGenerationNode:
                 resolution=resolution,
                 aspect_ratio=aspect_ratio,
                 duration=duration,
+                loop=loop,
             ),
             auth_token=auth_token
         )
@@ -1200,55 +1286,119 @@ class LumaVideoGenerationNode:
         response_poll = operation.execute()
 
         vid_response = requests.get(response_poll.assets.video)
-        self._save_video_locally(vid_response, filename_prefix, extra_pnginfo)
+        return (VideoFromFile(BytesIO(vid_response.content)), )
 
-        return (None,)
-        #return {"ui": {"images": results, "animated": (True,)}}
+class LumaImageToVideoGenerationNode:
+    """
+    Generates videos synchronously based on prompt, input images, and output_size.
+    """
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+        self.type: Literal["output"] = "output"
 
-    def _save_video_locally(self, response: requests.Response, filename_prefix: str, extra_pnginfo):
-        # Construct the save path
-        full_output_folder, filename, counter, subfolder, filename_prefix = (
-            folder_paths.get_save_image_path(filename_prefix, self.output_dir)
-        )
-        file_basename = f"{filename}_{counter:05}_.mp4"
-        save_path = os.path.join(full_output_folder, file_basename)
+    RETURN_TYPES = (IO.VIDEO,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node"
 
-        video_data = response.content
-
-        # Save the video data to a file
-        with open(save_path, "wb") as video_file:
-            video_file.write(video_data)
-
-        # Add workflow metadata to the video container
-        #if prompt is not None or extra_pnginfo is not None:
-        if extra_pnginfo is not None:
-            try:
-                container = av.open(save_path, mode="r+")
-                # if prompt is not None:
-                #     container.metadata["prompt"] = json.dumps(prompt)
-                if extra_pnginfo is not None:
-                    for x in extra_pnginfo:
-                        container.metadata[x] = json.dumps(extra_pnginfo[x])
-                container.close()
-            except Exception as e:
-                logging.warning(f"Failed to add metadata to video: {e}")
-
-        # Create a FileLocator for the frontend to use for the preview
-        results: list[FileLocator] = [
-            {
-                "filename": file_basename,
-                "subfolder": subfolder,
-                "type": self.type,
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "prompt": (IO.STRING, {
+                    "multiline": True,
+                    "default": "",
+                    "tooltip": "Prompt for the video generation",
+                }),
+                "model": ([model.value for model in LumaVideoModel],),
+                # "aspect_ratio": ([ratio.value for ratio in LumaAspectRatio], {
+                #     "default": LumaAspectRatio.ratio_16_9,
+                # }),
+                "resolution": ([resolution.value for resolution in LumaVideoOutputResolution], {
+                    "default": LumaVideoOutputResolution.res_540p,
+                }),
+                "duration": ([dur.value for dur in LumaVideoModelOutputDuration],),
+                "loop": (IO.BOOLEAN, {
+                    "default": False,
+                }),
+                "seed": (IO.INT, {
+                    "default": 0,
+                    "min": 0,
+                    "max": 0xFFFFFFFFFFFFFFFF,
+                    "control_after_generate": True,
+                    "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
+                }),
+            },
+            "optional": {
+                "first_image": (IO.IMAGE, {
+                    "tooltip": "First frame of generated video."
+                }),
+                "last_image": (IO.IMAGE, {
+                    "tooltip": "Last frame of generated video."
+                }),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
             }
-        ]
+        }
 
-        return results
+    def api_call(self, prompt: str, model: str, resolution: str, duration: str, loop: bool, seed,
+                 first_image: torch.Tensor=None, last_image: torch.Tensor=None,
+                 auth_token=None, **kwargs):
+        if first_image is None and last_image is None:
+            raise Exception("At least one of first_image and last_image requires an input.")
+        keyframes = self._convert_to_keyframes(first_image, last_image, auth_token)
 
-    def _get_output_type(self, output_size: str):
-        if output_size in [resolution.value for resolution in LumaVideoOutputResolution]:
-            return LumaVideoOutputResolution
-        else:
-            return LumaAspectRatio
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/luma/generations",
+                method=HttpMethod.POST,
+                request_model=LumaGenerationRequest,
+                response_model=LumaGeneration
+            ),
+            request=LumaGenerationRequest(
+                prompt=prompt,
+                model=model,
+                aspect_ratio=LumaAspectRatio.ratio_16_9,
+                resolution=resolution,
+                duration=duration,
+                loop=loop,
+                keyframes=keyframes
+            ),
+            auth_token=auth_token
+        )
+        response_api: LumaGeneration = operation.execute()
+
+        operation = PollingOperation(
+            poll_endpoint=ApiEndpoint(
+                path=f"/proxy/luma/generations/{response_api.id}",
+                method=HttpMethod.GET,
+                request_model=EmptyRequest,
+                response_model=LumaGeneration,
+            ),
+            completed_statuses=[LumaState.completed],
+            failed_statuses=[LumaState.failed],
+            status_extractor=lambda x: x.state,
+            auth_token=auth_token,
+        )
+        response_poll = operation.execute()
+
+        vid_response = requests.get(response_poll.assets.video)
+        return (VideoFromFile(BytesIO(vid_response.content)), )
+
+    def _convert_to_keyframes(self, first_image: torch.Tensor=None, last_image: torch.Tensor=None, auth_token=None):
+        if first_image is None and last_image is None:
+            return None
+        frame0 = None
+        frame1 = None
+        if first_image is not None:
+            download_urls = upload_images_to_comfyapi(first_image, max_images=1, auth_token=auth_token)
+            frame0 = LumaImageReference(type='image', url=download_urls[0])
+        if last_image is not None:
+            download_urls = upload_images_to_comfyapi(last_image, max_images=1, auth_token=auth_token)
+            frame1 = LumaImageReference(type='image', url=download_urls[0])
+        return LumaKeyframes(frame0=frame0, frame1=frame1)
 
 class MinimaxTextToVideoNode:
     """
@@ -1429,7 +1579,9 @@ NODE_CLASS_MAPPINGS = {
     "FluxProUltraImageNode": FluxProUltraImageNode,
     "LumaImageNode": LumaImageGenerationNode,
     "LumaImageModifyNode": LumaImageModifyNode,
-    "LumaVideoNode": LumaVideoGenerationNode,
+    "LumaReferenceNode": LumaReferenceNode,
+    "LumaVideoNode": LumaTextToVideoGenerationNode,
+    "LumaImageToVideoNode": LumaImageToVideoGenerationNode,
     "MinimaxTextToVideoNode": MinimaxTextToVideoNode,
 }
 
@@ -1440,8 +1592,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "OpenAIGPTImage1": "OpenAI GPT Image 1",
     "IdeogramTextToImage": "Ideogram Text to Image",
     "FluxProUltraImageNode": "Flux 1.1 [pro] Ultra Image",
-    "LumaImageNode": "Luma Generate Image",
-    "LumaImageModifyNode": "Luma Modify Image",
-    "LumaVideoNode": "Luma Generate Video",
+    "LumaImageNode": "Luma Text to Image",
+    "LumaImageModifyNode": "Luma Image to Image",
+    "LumaReferenceNode": "Luma Reference",
+    "LumaVideoNode": "Luma Text to Video",
+    "LumaImageToVideoNode": "Luma Image to Video",
     "MinimaxTextToVideoNode": "Minimax Text to Video",
 }
