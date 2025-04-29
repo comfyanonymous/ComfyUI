@@ -276,8 +276,9 @@ class VideoFromComponents(VideoInput):
                 for key, value in metadata.items():
                     output.metadata[key] = json.dumps(value)
 
+            frame_rate = Fraction(round(self.components.frame_rate * 1000), 1000)
             # Create a video stream
-            video_stream = output.add_stream('h264', rate=self.components.frame_rate)
+            video_stream = output.add_stream('h264', rate=frame_rate)
             video_stream.width = self.components.images.shape[2]
             video_stream.height = self.components.images.shape[1]
             video_stream.pix_fmt = 'yuv420p'
@@ -305,7 +306,7 @@ class VideoFromComponents(VideoInput):
 
             if audio_stream and self.components.audio:
                 # Encode audio
-                samples_per_frame = int(audio_sample_rate / self.components.frame_rate)
+                samples_per_frame = int(audio_sample_rate / frame_rate)
                 num_frames = self.components.audio['waveform'].shape[2] // samples_per_frame
                 for i in range(num_frames):
                     start = i * samples_per_frame
