@@ -734,6 +734,26 @@ class ApiClient:
         )
         raise Exception(final_error_message) from last_exception
 
+    @staticmethod
+    def upload_file(
+        upload_url: str,
+        file: io.BytesIO | str,
+    ):
+        """Upload a file to the API. Make sure the file has a filename equal to what the url expects.
+
+        Args:
+            upload_url: The URL to upload to
+            file: Either a file path string, BytesIO object, or tuple of (file_path, filename)
+            mime_type: The mime type of the file
+        """
+        if isinstance(file, io.BytesIO):
+            file.seek(0)  # Ensure we're at the start of the file
+            data = file.read()
+            return requests.put(upload_url, data=data)
+        elif isinstance(file, str):
+            with open(file, "rb") as f:
+                data = f.read()
+                return requests.put(upload_url, data=data)
 
 class ApiEndpoint(Generic[T, R]):
     """Defines an API endpoint with its request and response types"""
