@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, confloat
 
 class LumaIO:
     LUMA_REF = "LUMA_REF"
+    LUMA_CONCEPTS = "LUMA_CONCEPTS"
 
 
 class LumaReference:
@@ -45,6 +46,89 @@ class LumaReferenceChain:
         for ref in self.refs:
             c.add(ref)
         return c
+
+
+class LumaConcept:
+    def __init__(self, key: str):
+        self.key = key
+
+
+class LumaConceptChain:
+    def __init__(self, str_list: list[str] = None):
+        self.concepts: list[LumaConcept] = []
+        if str_list is not None:
+            for c in str_list:
+                if c != "None":
+                    self.add(LumaConcept(key=c))
+
+    def add(self, concept: LumaConcept):
+        self.concepts.append(concept)
+
+    def create_api_model(self):
+        if len(self.concepts) == 0:
+            return None
+        api_concepts: list[LumaConceptObject] = []
+        for concept in self.concepts:
+            if concept.key == "None":
+                continue
+            api_concepts.append(LumaConceptObject(key=concept.key))
+        if len(api_concepts) == 0:
+            return None
+        return api_concepts
+
+    def clone(self):
+        c = LumaConceptChain()
+        for concept in self.concepts:
+            c.add(concept)
+        return c
+
+    def clone_and_merge(self, other: LumaConceptChain):
+        c = self.clone()
+        for concept in other.concepts:
+            c.add(concept)
+        return c
+
+
+def get_luma_concepts(include_none=False):
+    concepts = []
+    if include_none:
+        concepts.append("None")
+    return concepts + [
+        "truck_left",
+        "pan_right",
+        "pedestal_down",
+        "low_angle",
+        "pedestal_up",
+        "selfie",
+        "pan_left",
+        "roll_right",
+        "zoom_in",
+        "over_the_shoulder",
+        "orbit_right",
+        "orbit_left",
+        "static",
+        "tiny_planet",
+        "high_angle",
+        "bolt_cam",
+        "dolly_zoom",
+        "overhead",
+        "zoom_out",
+        "handheld",
+        "roll_left",
+        "pov",
+        "aerial_drone",
+        "push_in",
+        "crane_down",
+        "truck_right",
+        "tilt_down",
+        "elevator_doors",
+        "tilt_up",
+        "ground_level",
+        "pull_out",
+        "aerial",
+        "crane_up",
+        "eye_level"
+    ]
 
 
 class LumaImageModel(str, Enum):
@@ -133,6 +217,10 @@ class LumaKeyframes(BaseModel):
     frame1: Optional[Union[LumaImageReference, LumaGenerationReference]] = Field(None, description='')
 
 
+class LumaConceptObject(BaseModel):
+    key: str = Field(..., description='Camera Concept name')
+
+
 class LumaImageGenerationRequest(BaseModel):
     prompt: str = Field(..., description='The prompt of the generation')
     model: LumaImageModel = Field(LumaImageModel.photon_1, description='The image model used for the generation')
@@ -151,6 +239,7 @@ class LumaGenerationRequest(BaseModel):
     resolution: Optional[LumaVideoOutputResolution] = Field(None, description='The resolution of the generation')
     loop: Optional[bool] = Field(None, description='Whether to loop the video')
     keyframes: Optional[LumaKeyframes] = Field(None, description='The keyframes of the generation')
+    concepts: Optional[list[LumaConceptObject]] = Field(None, description='Camera Concepts to apply to generation')
 
 
 class LumaGeneration(BaseModel):
