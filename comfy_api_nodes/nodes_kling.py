@@ -27,7 +27,7 @@ from comfy_api_nodes.apis.client import (
 )
 from comfy_api_nodes.apinode_utils import (
     tensor_to_base64_string,
-    download_url_to_bytesio,
+    download_url_to_video_output,
 )
 from comfy.comfy_types.node_typing import IO, InputTypeOptions, ComfyNodeABC
 from comfy_api.input_impl import VideoFromFile
@@ -126,16 +126,6 @@ def _get_camera_control_inputs() -> dict[str, tuple[IO, InputTypeOptions]]:
             "Controls change in camera's focal length. Negative indicates narrower field of view, positive indicates wider field of view.",
         ),
     }
-
-
-def download_url_to_video_output(video_url: str) -> tuple[VideoFromFile]:
-    """Downloads a video from a URL and returns a VIDEO output."""
-    video_io = download_url_to_bytesio(video_url)
-    if video_io is None:
-        error_msg = f"Failed to download video from {video_url}"
-        logging.error(error_msg)
-        raise KlingApiError(error_msg)
-    return (VideoFromFile(video_io),)
 
 
 class KlingNodeABC(ComfyNodeABC):
