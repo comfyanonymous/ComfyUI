@@ -1,0 +1,312 @@
+import io
+from typing import Optional
+from comfy.utils import common_upscale
+from comfy_api_nodes.apis.client import (
+    ApiClient,
+    ApiEndpoint,
+    HttpMethod,
+    SynchronousOperation,
+    UploadRequest,
+    UploadResponse,
+)
+
+
+import numpy as np
+from PIL import Image
+import requests
+import torch
+import math
+import base64
+import uuid
+from io import BytesIO
+
+def downscale_image_tensor(image, total_pixels=1536 * 1024):
+    """Downscale input image tensor to roughly the specified total pixels."""
+    samples = image.movedim(-1, 1)
+    total = int(total_pixels)
+    scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
+    if scale_by >= 1:
+        return image
+    width = round(samples.shape[3] * scale_by)
+    height = round(samples.shape[2] * scale_by)
+
+    s = common_upscale(samples, width, height, "lanczos", "disabled")
+    s = s.movedim(1, -1)
+    return s
+
+def validate_and_cast_response(response):
+    # validate raw JSON response
+    data = response.data
+    if not data or len(data) == 0:
+        raise Exception("No images returned from API endpoint")
+
+    # Initialize list to store image tensors
+    image_tensors = []
+
+    # Process each image in the data array
+    for image_data in data:
+        image_url = image_data.url
+        b64_data = image_data.b64_json
+
+        if not image_url and not b64_data:
+            raise Exception("No image was generated in the response")
+
+        if b64_data:
+            img_data = base64.b64decode(b64_data)
+            img = Image.open(io.BytesIO(img_data))
+
+        elif image_url:
+            img_response = requests.get(image_url)
+            if img_response.status_code != 200:
+                raise Exception("Failed to download the image")
+            img = Image.open(io.BytesIO(img_response.content))
+
+        img = img.convert("RGBA")
+
+        # Convert to numpy array, normalize to float32 between 0 and 1
+        img_array = np.array(img).astype(np.float32) / 255.0
+        img_tensor = torch.from_numpy(img_array)
+
+        # Add to list of tensors
+        image_tensors.append(img_tensor)
+
+    return torch.stack(image_tensors, dim=0)
+
+
+def validate_aspect_ratio(
+    aspect_ratio: str,
+    minimum_ratio: float,
+    maximum_ratio: float,
+    minimum_ratio_str: str,
+    maximum_ratio_str: str,
+):
+    # get ratio values
+    numbers = aspect_ratio.split(":")
+    if len(numbers) != 2:
+        raise Exception(
+            f"Aspect ratio must be in the format X:Y, such as 16:9, but was {aspect_ratio}."
+        )
+    try:
+        numerator = int(numbers[0])
+        denominator = int(numbers[1])
+    except ValueError:
+        raise Exception(
+            f"Aspect ratio must contain numbers separated by ':', such as 16:9, but was {aspect_ratio}."
+        )
+    calculated_ratio = numerator / denominator
+    # if not close to minimum and maximum, check bounds
+    if not math.isclose(calculated_ratio, minimum_ratio) or not math.isclose(
+        calculated_ratio, maximum_ratio
+    ):
+        if calculated_ratio < minimum_ratio:
+            raise Exception(
+                f"Aspect ratio cannot reduce to any less than {minimum_ratio_str} ({minimum_ratio}), but was {aspect_ratio} ({calculated_ratio})."
+            )
+        elif calculated_ratio > maximum_ratio:
+            raise Exception(
+                f"Aspect ratio cannot reduce to any greater than {maximum_ratio_str} ({maximum_ratio}), but was {aspect_ratio} ({calculated_ratio})."
+            )
+    return aspect_ratio
+
+
+def mimetype_to_extension(mime_type: str) -> str:
+    """Converts a MIME type to a file extension."""
+    return mime_type.split("/")[-1].lower()
+
+
+def download_url_to_bytesio(url: str, timeout: int = None) -> BytesIO:
+    """Downloads content from a URL using requests and returns it as BytesIO.
+
+    Args:
+        url: The URL to download.
+        timeout: Request timeout in seconds. Defaults to None (no timeout).
+
+    Returns:
+        BytesIO object containing the downloaded content.
+    """
+    response = requests.get(url, stream=True, timeout=timeout)
+    response.raise_for_status()  # Raises HTTPError for bad responses (4XX or 5XX)
+    return BytesIO(response.content)
+
+
+def bytesio_to_image_tensor(image_bytesio: BytesIO, mode: str = "RGBA") -> torch.Tensor:
+    """Converts image data from BytesIO to a torch.Tensor.
+
+    Args:
+        image_bytesio: BytesIO object containing the image data.
+        mode: The PIL mode to convert the image to (e.g., "RGB", "RGBA").
+
+    Returns:
+        A torch.Tensor representing the image (1, H, W, C).
+
+    Raises:
+        PIL.UnidentifiedImageError: If the image data cannot be identified.
+        ValueError: If the specified mode is invalid.
+    """
+    image = Image.open(image_bytesio)
+    image = image.convert(mode)
+    image_array = np.array(image).astype(np.float32) / 255.0
+    return torch.from_numpy(image_array).unsqueeze(0)
+
+
+def process_image_response(response: requests.Response):
+    """Uses content from a Response object and converts it to a torch.Tensor"""
+    return bytesio_to_image_tensor(BytesIO(response.content))
+
+
+def _tensor_to_pil(image: torch.Tensor, total_pixels: int = 2048 * 2048) -> Image.Image:
+    """Converts a single torch.Tensor image [H, W, C] to a PIL Image, optionally downscaling."""
+    if len(image.shape) > 3:
+        image = image[0]
+    # TODO: remove alpha if not allowed and present
+    input_tensor = image.cpu()
+    input_tensor = downscale_image_tensor(
+        input_tensor.unsqueeze(0), total_pixels=total_pixels
+    ).squeeze()
+    image_np = (input_tensor.numpy() * 255).astype(np.uint8)
+    img = Image.fromarray(image_np)
+    return img
+
+
+def _pil_to_bytesio(img: Image.Image, mime_type: str = "image/png") -> BytesIO:
+    """Converts a PIL Image to a BytesIO object."""
+    if not mime_type:
+        mime_type = "image/png"
+
+    img_byte_arr = io.BytesIO()
+    # Derive PIL format from MIME type (e.g., 'image/png' -> 'PNG')
+    pil_format = mime_type.split("/")[-1].upper()
+    if pil_format == "JPG":
+        pil_format = "JPEG"
+    img.save(img_byte_arr, format=pil_format)
+    img_byte_arr.seek(0)
+    return img_byte_arr
+
+
+def tensor_to_bytesio(
+    image: torch.Tensor,
+    name: Optional[str] = None,
+    total_pixels: int = 2048 * 2048,
+    mime_type: str = "image/png",
+) -> BytesIO:
+    """Converts a torch.Tensor image to a named BytesIO object.
+
+    Args:
+        image: Input torch.Tensor image.
+        name: Optional filename for the BytesIO object.
+        total_pixels: Maximum total pixels for potential downscaling.
+        mime_type: Target image MIME type (e.g., 'image/png', 'image/jpeg', 'image/webp', 'video/mp4').
+
+    Returns:
+        Named BytesIO object containing the image data.
+    """
+    if not mime_type:
+        mime_type = "image/png"
+
+    pil_image = _tensor_to_pil(image, total_pixels=total_pixels)
+    img_binary = _pil_to_bytesio(pil_image, mime_type=mime_type)
+    img_binary.name = (
+        f"{name if name else uuid.uuid4()}.{mimetype_to_extension(mime_type)}"
+    )
+    return img_binary
+
+
+def tensor_to_base64_string(
+    image_tensor: torch.Tensor,
+    total_pixels: int = 2048 * 2048,
+    mime_type: str = "image/png",
+) -> str:
+    """Convert [B, H, W, C] or [H, W, C] tensor to a base64 string.
+
+    Args:
+        image_tensor: Input torch.Tensor image.
+        total_pixels: Maximum total pixels for potential downscaling.
+        mime_type: Target image MIME type (e.g., 'image/png', 'image/jpeg', 'image/webp', 'video/mp4').
+
+    Returns:
+        Base64 encoded string of the image.
+    """
+    pil_image = _tensor_to_pil(image_tensor, total_pixels=total_pixels)
+    img_byte_arr = _pil_to_bytesio(pil_image, mime_type=mime_type)
+    img_bytes = img_byte_arr.getvalue()
+    # Encode bytes to base64 string
+    base64_encoded_string = base64.b64encode(img_bytes).decode("utf-8")
+    return base64_encoded_string
+
+
+def tensor_to_data_uri(
+    image_tensor: torch.Tensor,
+    total_pixels: int = 2048 * 2048,
+    mime_type: str = "image/png",
+) -> str:
+    """Converts a tensor image to a Data URI string.
+
+    Args:
+        image_tensor: Input torch.Tensor image.
+        total_pixels: Maximum total pixels for potential downscaling.
+        mime_type: Target image MIME type (e.g., 'image/png', 'image/jpeg', 'image/webp').
+
+    Returns:
+        Data URI string (e.g., 'data:image/png;base64,...').
+    """
+    base64_string = tensor_to_base64_string(image_tensor, total_pixels, mime_type)
+    return f"data:{mime_type};base64,{base64_string}"
+
+
+def upload_images_to_comfyapi(
+    image: torch.Tensor, max_images=8, auth_token=None, mime_type: Optional[str] = None
+) -> list[str]:
+    # if batch, try to upload each file if max_images is greater than 0
+    idx_image = 0
+    download_urls: list[str] = []
+    is_batch = len(image.shape) > 3
+    batch_length = 1
+    if is_batch:
+        batch_length = image.shape[0]
+    while True:
+        curr_image = image
+        if len(image.shape) > 3:
+            curr_image = image[idx_image]
+        # get BytesIO version of image
+        img_binary = tensor_to_bytesio(curr_image, mime_type=mime_type)
+        # first, request upload/download urls from comfy API
+        if not mime_type:
+            request_object = UploadRequest(filename=img_binary.name)
+        else:
+            request_object = UploadRequest(
+                filename=img_binary.name, content_type=mime_type
+            )
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/customers/storage",
+                method=HttpMethod.POST,
+                request_model=UploadRequest,
+                response_model=UploadResponse,
+            ),
+            request=request_object,
+            auth_token=auth_token,
+        )
+        response = operation.execute()
+
+        upload_response = ApiClient.upload_file(
+            response.upload_url, img_binary, content_type=mime_type
+        )
+        # verify success
+        try:
+            upload_response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise Exception(f"Could not upload one or more images: {e}")
+        # add download_url to list
+        download_urls.append(response.download_url)
+
+        idx_image += 1
+        # stop uploading additional files if done
+        if is_batch and max_images > 0:
+            if idx_image >= max_images:
+                break
+            if idx_image >= batch_length:
+                break
+    return download_urls
+
+
+

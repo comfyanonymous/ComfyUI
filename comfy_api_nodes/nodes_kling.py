@@ -25,7 +25,7 @@ from comfy_api_nodes.apis.client import (
     PollingOperation,
     EmptyRequest,
 )
-from comfy_api_nodes.nodes_api import (
+from comfy_api_nodes.apinode_utils import (
     tensor_to_base64_string,
     download_url_to_bytesio,
 )
