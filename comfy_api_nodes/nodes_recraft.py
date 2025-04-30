@@ -7,6 +7,9 @@ from comfy_api_nodes.apis.recraft_api import (
     RecraftModel,
     RecraftStyle,
     RecraftStyleV3,
+    RecraftColor,
+    RecraftColorChain,
+    RecraftControls,
     RecraftIO,
     get_v3_substyles,
 )
@@ -89,6 +92,75 @@ class SaveSVGNode:
             })
             counter += 1
         return (None,)
+
+
+class RecraftColorRGBNode:
+    """
+    Create Recraft Color by choosing specific RGB values.
+    """
+
+    RETURN_TYPES = (RecraftIO.COLOR,)
+    RETURN_NAMES = ("recraft_color",)
+    FUNCTION = "create_color"
+    CATEGORY = "api node/image/Recraft"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "r": (IO.INT, {
+                    "default": 0,
+                    "min": 0,
+                    "max": 255,
+                    "tooltip": "Red value of color."
+                }),
+                "g": (IO.INT, {
+                    "default": 0,
+                    "min": 0,
+                    "max": 255,
+                    "tooltip": "Green value of color."
+                }),
+                "b": (IO.INT, {
+                    "default": 0,
+                    "min": 0,
+                    "max": 255,
+                    "tooltip": "Blue value of color."
+                }),
+            },
+            "optional": {
+                "recraft_color": (RecraftIO.COLOR,),
+            }
+        }
+
+    def create_color(self, r: int, g: int, b: int, recraft_color: RecraftColorChain=None):
+        recraft_color = recraft_color.clone() if recraft_color else RecraftColorChain()
+        recraft_color.add(RecraftColor(r, g, b))
+        return (recraft_color, )
+
+
+class RecraftControlsNode:
+    """
+    Create Recraft Controls for customizing Recraft generation.
+    """
+
+    RETURN_TYPES = (RecraftIO.CONTROLS,)
+    RETURN_NAMES = ("recraft_controls",)
+    FUNCTION = "create_controls"
+    CATEGORY = "api node/image/Recraft"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+            },
+            "optional": {
+                "colors": (RecraftIO.COLOR,),
+                "background_color": (RecraftIO.COLOR,),
+            }
+        }
+
+    def create_controls(self, colors: RecraftColorChain=None, background_color: RecraftColorChain=None):
+        return (RecraftControls(colors=colors, background_color=background_color), )
 
 
 class RecraftStyleV3RealisticImageNode:
@@ -209,6 +281,12 @@ class RecraftTextToImageNode:
                         "tooltip": "An optional text description of undesired elements on an image.",
                     },
                 ),
+                "recraft_controls": (
+                    RecraftIO.CONTROLS,
+                    {
+                        "tooltip": "Optional additional controls over the generation via the Recraft Controls node."
+                    },
+                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
@@ -223,12 +301,17 @@ class RecraftTextToImageNode:
         seed,
         recraft_style: RecraftStyle = None,
         negative_prompt: str = None,
+        recraft_controls: RecraftControls = None,
         auth_token=None,
         **kwargs,
     ):
         default_style = RecraftStyle(RecraftStyleV3.digital_illustration)
         if recraft_style is None:
             recraft_style = default_style
+
+        controls_api = None
+        if recraft_controls:
+            controls_api = recraft_controls.create_api_model()
 
         if not negative_prompt:
             negative_prompt = None
@@ -248,6 +331,7 @@ class RecraftTextToImageNode:
                 n=n,
                 style=recraft_style.style,
                 substyle=recraft_style.substyle,
+                controls=controls_api,
             ),
             auth_token=auth_token,
         )
@@ -325,6 +409,12 @@ class RecraftTextToVectorNode:
                         "tooltip": "An optional text description of undesired elements on an image.",
                     },
                 ),
+                "recraft_controls": (
+                    RecraftIO.CONTROLS,
+                    {
+                        "tooltip": "Optional additional controls over the generation via the Recraft Controls node."
+                    },
+                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
@@ -339,11 +429,16 @@ class RecraftTextToVectorNode:
         n: int,
         seed,
         negative_prompt: str = None,
+        recraft_controls: RecraftControls = None,
         auth_token=None,
         **kwargs,
     ):
         # create RecraftStyle so strings will be formatted properly (i.e. "None" will become None)
         recraft_style = RecraftStyle(RecraftStyleV3.vector_illustration, substyle=substyle)
+
+        controls_api = None
+        if recraft_controls:
+            controls_api = recraft_controls.create_api_model()
 
         if not negative_prompt:
             negative_prompt = None
@@ -363,6 +458,7 @@ class RecraftTextToVectorNode:
                 n=n,
                 style=recraft_style.style,
                 substyle=recraft_style.substyle,
+                controls=controls_api,
             ),
             auth_token=auth_token,
         )
@@ -382,6 +478,8 @@ NODE_CLASS_MAPPINGS = {
     "RecraftStyleV3RealisticImage": RecraftStyleV3RealisticImageNode,
     "RecraftStyleV3DigitalIllustration": RecraftStyleV3DigitalIllustrationNode,
     "RecraftStyleV3LogoRaster": RecraftStyleV3LogoRasterNode,
+    "RecraftColorRGB": RecraftColorRGBNode,
+    "RecraftControls": RecraftControlsNode,
     "SaveSVG": SaveSVGNode,
 }
 
@@ -392,5 +490,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RecraftStyleV3RealisticImage": "Recraft Style - Realistic Image",
     "RecraftStyleV3DigitalIllustration": "Recraft Style - Digital Illustration",
     "RecraftStyleV3LogoRaster": "Recraft Style - Logo Raster",
+    "RecraftColorRGB": "Recraft Color RGB",
+    "RecraftControls": "Recraft Controls",
     "SaveSVG": "Save SVG",
 }
