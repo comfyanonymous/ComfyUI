@@ -251,7 +251,7 @@ class ApiClient:
         files: Dict[str, Any],
         headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
-        if headers:
+        if headers and "Content-Type" in headers:
             del headers["Content-Type"]
 
         return {
