@@ -1,4 +1,3 @@
-from inspect import cleandoc
 from typing import Union, Optional
 import math
 import logging
@@ -128,7 +127,7 @@ def _get_camera_control_inputs() -> dict[str, tuple[IO, InputTypeOptions]]:
     }
 
 
-class KlingNodeABC(ComfyNodeABC):
+class KlingNodeBase(ComfyNodeABC):
     """Base class for Kling nodes."""
 
     @classmethod
@@ -162,13 +161,12 @@ class KlingNodeABC(ComfyNodeABC):
             return "Invalid camera control configs"
         return True
 
-    DESCRIPTION = cleandoc(__doc__ or "")
     FUNCTION = "api_call"
     CATEGORY = "api node/video/Kling"
     API_NODE = True
 
 
-class KlingTextToVideoNode(KlingNodeABC):
+class KlingTextToVideoNode(KlingNodeBase):
     """
     Kling Text to Video Node.
     """
@@ -227,6 +225,7 @@ class KlingTextToVideoNode(KlingNodeABC):
         }
 
     RETURN_TYPES = ("VIDEO",)
+    DESCRIPTION = "Kling Text to Video Node"
 
     def api_call(
         self,
@@ -301,7 +300,7 @@ class KlingTextToVideoNode(KlingNodeABC):
         return download_url_to_video_output(video_url)
 
 
-class KlingImage2VideoNode(KlingNodeABC):
+class KlingImage2VideoNode(KlingNodeBase):
     """
     Kling Image to Video Node.
     """
@@ -372,6 +371,7 @@ class KlingImage2VideoNode(KlingNodeABC):
         }
 
     RETURN_TYPES = ("VIDEO",)
+    DESCRIPTION = "Kling Image to Video Node"
 
     def api_call(
         self,
