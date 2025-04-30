@@ -484,6 +484,9 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
         auth_token=None,
         **kwargs,
     ):
+        duration = duration if model != LumaVideoModel.ray_1_6 else None
+        resolution = resolution if model != LumaVideoModel.ray_1_6 else None
+
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/luma/generations",
@@ -610,6 +613,8 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
                 "At least one of first_image and last_image requires an input."
             )
         keyframes = self._convert_to_keyframes(first_image, last_image, auth_token)
+        duration = duration if model != LumaVideoModel.ray_1_6 else None
+        resolution = resolution if model != LumaVideoModel.ray_1_6 else None
 
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(

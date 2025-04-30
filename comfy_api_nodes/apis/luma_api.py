@@ -234,7 +234,7 @@ class LumaImageGenerationRequest(BaseModel):
 class LumaGenerationRequest(BaseModel):
     prompt: str = Field(..., description='The prompt of the generation')
     model: LumaVideoModel = Field(LumaVideoModel.ray_2, description='The video model used for the generation')
-    duration: LumaVideoModelOutputDuration = Field(LumaVideoModelOutputDuration.dur_5s, description='The duration of the generation')
+    duration: Optional[LumaVideoModelOutputDuration] = Field(None, description='The duration of the generation')
     aspect_ratio: Optional[LumaAspectRatio] = Field(None, description='The aspect ratio of the generation')
     resolution: Optional[LumaVideoOutputResolution] = Field(None, description='The resolution of the generation')
     loop: Optional[bool] = Field(None, description='Whether to loop the video')
