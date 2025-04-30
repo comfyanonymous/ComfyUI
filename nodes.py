@@ -2266,6 +2266,7 @@ def init_builtin_extra_nodes():
         "nodes_veo2.py",
         "nodes_kling.py",
         "nodes_runway.py",
+        "nodes_luma.py",
     ]
 
     import_failed = []
