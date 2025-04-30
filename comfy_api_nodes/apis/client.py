@@ -235,6 +235,45 @@ class ApiClient:
             "headers": headers,
         }
 
+    def _create_json_payload_args(
+        self,
+        data: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        return {
+            "json": data,
+            "headers": headers,
+        }
+
+    def _create_form_data_args(
+        self,
+        data: Dict[str, Any],
+        files: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        if headers:
+            del headers["Content-Type"]
+
+        return {
+            "data": data,
+            "files": files,
+            "headers": headers,
+        }
+
+    def _create_urlencoded_form_data_args(
+        self,
+        data: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        headers = headers or {}
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+        return {
+            "data": data,
+            "headers": headers,
+        }
+
+
     def get_headers(self) -> Dict[str, str]:
         """Get headers for API requests, including authentication if available"""
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
