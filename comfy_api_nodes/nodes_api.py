@@ -1914,6 +1914,14 @@ class RecraftStyleV3LogoRasterNode(RecraftStyleV3RealisticImageNode):
     Select vector_illustration style and optional substyle.
     """
 
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "substyle": (get_v3_substyles(s.RECRAFT_STYLE, include_none=False),),
+            }
+        }
+
     RECRAFT_STYLE = RecraftStyleV3.logo_raster
 
 
@@ -2187,10 +2195,10 @@ NODE_CLASS_MAPPINGS = {
     "LumaReferenceNode": LumaReferenceNode,
     "LumaConceptsNode": LumaConceptsNode,
     "RecraftTextToImageNode": RecraftTextToImageNode,
-    # "RecraftStyleV3RealisticImage": RecraftStyleV3RealisticImageNode,
+    "RecraftStyleV3RealisticImage": RecraftStyleV3RealisticImageNode,
     "RecraftStyleV3DigitalIllustration": RecraftStyleV3DigitalIllustrationNode,
+    "RecraftStyleV3LogoRaster": RecraftStyleV3LogoRasterNode,
     # "RecraftStyleV3VectorIllustration": RecraftStyleV3VectorIllustrationNode,
-    # "RecraftStyleV3LogoRaster": RecraftStyleV3LogoRasterNode,
     "MinimaxTextToVideoNode": MinimaxTextToVideoNode,
 }
 
