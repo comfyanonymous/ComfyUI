@@ -2685,7 +2685,7 @@ class RunwayPromptImageDetailedObject(BaseModel):
         ...,
         description="The position of the image in the output video. 'last' is currently supported for gen3a_turbo only.",
     )
-    uri: AnyUrl = Field(
+    uri: str = Field(
         ..., description='A HTTPS URL or data URI containing an encoded image.'
     )
 

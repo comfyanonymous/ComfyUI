@@ -30,12 +30,19 @@ from comfy_api.input_impl import VideoFromFile
 from comfy_api_nodes.mapper_utils import model_field_to_node_input
 
 PATH_IMAGE_TO_VIDEO = "/proxy/runway/image-to-video"
+PATH_GET_TASK_STATUS = "/proxy/runway/tasks"
 
 
 class RunwayApiError(Exception):
     """Base exception for Runway API errors."""
 
     pass
+
+
+def extract_progress_from_task_status(response: TaskStatusResponse) -> float:
+    if hasattr(response, "progress") and response.progress is not None:
+        return response.progress * 100
+    return None
 
 
 class RunwayImageToVideoNode(ComfyNodeABC):
@@ -86,7 +93,7 @@ class RunwayImageToVideoNode(ComfyNodeABC):
         """
         polling_operation = PollingOperation(
             poll_endpoint=ApiEndpoint(
-                path=f"{PATH_IMAGE_TO_VIDEO}/{task_id}",
+                path=f"{PATH_GET_TASK_STATUS}/{task_id}",
                 method=HttpMethod.GET,
                 request_model=EmptyRequest,
                 response_model=TaskStatusResponse,
@@ -98,7 +105,7 @@ class RunwayImageToVideoNode(ComfyNodeABC):
                 TaskStatus.FAILED.value,
                 TaskStatus.CANCELLED.value,
             ],
-            progress_extractor=lambda response: (response.progress * 100),
+            progress_extractor=extract_progress_from_task_status,
             status_extractor=lambda response: (response.status.value),
             auth_token=auth_token,
         )
@@ -193,7 +200,10 @@ class RunwayImageToVideoNode(ComfyNodeABC):
         prompt_images_tensor = torch.cat(prompt_images_tensors, dim=0)
 
         download_urls = upload_images_to_comfyapi(
-            prompt_images_tensor, max_images=2, auth_token=auth_token, mime_type="image/png"
+            prompt_images_tensor,
+            max_images=2,
+            auth_token=auth_token,
+            mime_type="image/png",
         )
 
         # Create a list of detailed image objects
@@ -202,15 +212,15 @@ class RunwayImageToVideoNode(ComfyNodeABC):
         ]
         if len(download_urls) > 1:
             prompt_image_details.append(
-                RunwayPromptImageDetailedObject(uri=str(download_urls[1]), position="last")
+                RunwayPromptImageDetailedObject(
+                    uri=str(download_urls[1]), position="last"
+                )
             )
 
         # Wrap the list in the main object if details exist
         prompt_image_object: Optional[RunwayPromptImageObject] = None
         if prompt_image_details:
-            prompt_image_object = RunwayPromptImageObject(
-                root=prompt_image_details
-            )
+            prompt_image_object = RunwayPromptImageObject(root=prompt_image_details)
 
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(

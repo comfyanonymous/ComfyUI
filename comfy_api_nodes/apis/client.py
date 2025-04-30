@@ -738,7 +738,7 @@ class ApiClient:
     def upload_file(
         upload_url: str,
         file: io.BytesIO | str,
-        mime_type: str | None = None,
+        content_type: str | None = None,
     ):
         """Upload a file to the API. Make sure the file has a filename equal to what the url expects.
 
@@ -748,8 +748,8 @@ class ApiClient:
             mime_type: Optional mime type to set for the upload
         """
         headers = {}
-        if mime_type:
-            headers["Content-Type"] = mime_type
+        if content_type:
+            headers["Content-Type"] = content_type
 
         if isinstance(file, io.BytesIO):
             file.seek(0)  # Ensure we're at the start of the file
