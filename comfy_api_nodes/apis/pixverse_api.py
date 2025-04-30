@@ -22,6 +22,7 @@ class PixverseIO:
 class PixverseStatus(int, Enum):
     successful = 1
     generating = 5
+    deleted = 6
     contents_moderation = 7
     failed = 8
 
@@ -60,7 +61,7 @@ class PixverseStyle(str, Enum):
 
 
 # NOTE: forgoing descriptions for now in return for dev speed
-class PixverseDto_V2OpenAPIT2VReq(BaseModel):
+class PixverseTextVideoRequest(BaseModel):
     aspect_ratio: PixverseAspectRatio = Field(...)
     quality: PixverseQuality = Field(...)
     duration: PixverseDuration = Field(...)
@@ -74,23 +75,76 @@ class PixverseDto_V2OpenAPIT2VReq(BaseModel):
     water_mark: Optional[bool] = Field(None)
 
 
-class PixverseController_ResponseData(BaseModel):
+class PixverseImageVideoRequest(BaseModel):
+    quality: PixverseQuality = Field(...)
+    duration: PixverseDuration = Field(...)
+    img_id: int = Field(...)
+    model: Optional[str] = Field("v3.5")
+    motion_mode: Optional[PixverseMotionMode] = Field(PixverseMotionMode.normal)
+    prompt: str = Field(...)
+    negative_prompt: Optional[str] = Field(None)
+    seed: Optional[int] = Field(None)
+    style: Optional[str] = Field(None)
+    template_id: Optional[int] = Field(None)
+    water_mark: Optional[bool] = Field(None)
+
+
+# class PixverseImageVideoRequest(BaseModel):
+#     quality: Optional[PixverseQuality] = Field(None)
+#     duration: Optional[PixverseDuration] = Field(None)
+#     img_id: int = Field(...)
+#     model: Optional[str] = Field("v3.5")
+#     motion_mode: Optional[PixverseMotionMode] = Field(PixverseMotionMode.normal)
+#     prompt: Optional[str ]= Field(None)
+#     negative_prompt: Optional[str] = Field(None)
+#     seed: Optional[int] = Field(None)
+#     style: Optional[str] = Field(None)
+#     template_id: Optional[int] = Field(None)
+#     water_mark: Optional[bool] = Field(None)
+
+
+class PixverseTransitionVideoRequest(BaseModel):
+    quality: PixverseQuality = Field(...)
+    duration: PixverseDuration = Field(...)
+    first_frame_img: int = Field(...)
+    last_frame_img: int = Field(...)
+    model: Optional[str] = Field("v3.5")
+    motion_mode: Optional[PixverseMotionMode] = Field(PixverseMotionMode.normal)
+    prompt: str = Field(...)
+    # negative_prompt: Optional[str] = Field(None)
+    seed: Optional[int] = Field(None)
+    # style: Optional[str] = Field(None)
+    # template_id: Optional[int] = Field(None)
+    # water_mark: Optional[bool] = Field(None)
+
+
+class PixverseImageUploadResponse(BaseModel):
+    ErrCode: Optional[int] = None
+    ErrMsg: Optional[str] = None
+    Resp: Optional[PixverseImgIdResponseObject] = Field(None, alias='Resp')
+
+
+class PixverseImgIdResponseObject(BaseModel):
+    img_id: Optional[int] = None
+
+
+class PixverseVideoResponse(BaseModel):
     ErrCode: Optional[int] = Field(None)
     ErrMsg: Optional[str] = Field(None)
-    Resp: Optional[PixverseDto_V2OpenAPII2VResp] = Field(None)
+    Resp: Optional[PixverseVideoIdResponseObject] = Field(None)
 
 
-class PixverseDto_V2OpenAPII2VResp(BaseModel):
+class PixverseVideoIdResponseObject(BaseModel):
     video_id: int = Field(..., description='Video_id')
 
 
 class PixverseGenerationStatusResponse(BaseModel):
     ErrCode: Optional[int] = Field(None)
     ErrMsg: Optional[str] = Field(None)
-    Resp: Optional[PixverseDto_GetOpenapiMediaDetailResp] = Field(None)
+    Resp: Optional[PixverseGenerationStatusResponseObject] = Field(None)
 
 
-class PixverseDto_GetOpenapiMediaDetailResp(BaseModel):
+class PixverseGenerationStatusResponseObject(BaseModel):
     create_time: Optional[str] = Field(None)
     id: Optional[int] = Field(None)
     modify_time: Optional[str] = Field(None)
