@@ -241,6 +241,7 @@ class RecraftColorRGBNode:
     """
 
     RETURN_TYPES = (RecraftIO.COLOR,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     RETURN_NAMES = ("recraft_color",)
     FUNCTION = "create_color"
     CATEGORY = "api node/image/Recraft"
@@ -286,6 +287,7 @@ class RecraftControlsNode:
 
     RETURN_TYPES = (RecraftIO.CONTROLS,)
     RETURN_NAMES = ("recraft_controls",)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "create_controls"
     CATEGORY = "api node/image/Recraft"
 
