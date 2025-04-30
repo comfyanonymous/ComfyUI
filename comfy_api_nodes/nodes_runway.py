@@ -21,7 +21,7 @@ from comfy_api_nodes.apis.client import (
     PollingOperation,
     EmptyRequest,
 )
-from comfy_api_nodes.nodes_api import (
+from comfy_api_nodes.apinode_utils import (
     download_url_to_bytesio,
     upload_images_to_comfyapi,
 )

@@ -11,8 +11,8 @@ from comfy_api_nodes.apis.client import (
     HttpMethod,
     SynchronousOperation,
 )
-from comfy_api_nodes.nodes_api import (
-    downscale_input,
+from comfy_api_nodes.apinode_utils import (
+    downscale_image_tensor,
     validate_aspect_ratio,
     process_image_response,
 )
@@ -220,7 +220,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
                 raise Exception(f"BFL API encountered an error: {response.json()}")
 
     def _convert_image_to_base64(self, image: torch.Tensor):
-        scaled_image = downscale_input(image, total_pixels=2048 * 2048)
+        scaled_image = downscale_image_tensor(image, total_pixels=2048 * 2048)
         # remove batch dimension if present
         if len(scaled_image.shape) > 3:
             scaled_image = scaled_image[0]

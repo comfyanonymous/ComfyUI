@@ -18,7 +18,7 @@ from comfy_api_nodes.apis.client import (
     HttpMethod,
     SynchronousOperation,
 )
-from comfy_api_nodes.nodes_api import (
+from comfy_api_nodes.apinode_utils import (
     bytesio_to_image_tensor,
     download_url_to_bytesio,
 )
