@@ -458,6 +458,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
                 size=size,
             ),
             files=files if files else None,
+            content_type="multipart/form-data",
             auth_token=auth_token,
         )
 

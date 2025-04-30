@@ -165,6 +165,45 @@ class ApiClient:
         self.timeout = timeout
         self.verify_ssl = verify_ssl
 
+    def _create_json_payload_args(
+        self,
+        data: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        return {
+            "json": data,
+            "headers": headers,
+        }
+
+    def _create_form_data_args(
+        self,
+        data: Dict[str, Any],
+        files: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        if headers:
+            del headers["Content-Type"]
+
+        return {
+            "data": data,
+            "files": files,
+            "headers": headers,
+        }
+
+    def _create_urlencoded_form_data_args(
+        self,
+        data: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        headers = headers or {}
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+        return {
+            "data": data,
+            "headers": headers,
+        }
+
+
     def get_headers(self) -> Dict[str, str]:
         """Get headers for API requests, including authentication if available"""
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -179,9 +218,10 @@ class ApiClient:
         method: str,
         path: str,
         params: Optional[Dict[str, Any]] = None,
-        json: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
         files: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
+        content_type: str = "application/json",
     ) -> Dict[str, Any]:
         """
         Make an HTTP request to the API
@@ -190,9 +230,10 @@ class ApiClient:
             method: HTTP method (GET, POST, etc.)
             path: API endpoint path (will be joined with base_url)
             params: Query parameters
-            json: JSON body data
+            data: body data
             files: Files to upload
             headers: Additional headers
+            content_type: Content type of the request. Defaults to application/json.
 
         Returns:
             Parsed JSON response
@@ -214,34 +255,25 @@ class ApiClient:
         logging.debug(f"[DEBUG] Request Headers: {request_headers}")
         logging.debug(f"[DEBUG] Files: {files}")
         logging.debug(f"[DEBUG] Params: {params}")
-        logging.debug(f"[DEBUG] Json: {json}")
+        logging.debug(f"[DEBUG] Data: {data}")
+
+        match content_type:
+            case "application/x-www-form-urlencoded":
+                payload_args = self._create_urlencoded_form_data_args(data, request_headers)
+            case "multipart/form-data":
+                payload_args = self._create_form_data_args(data, files, request_headers)
+            case _:
+                payload_args = self._create_json_payload_args(data, request_headers)
 
         try:
-            # If files are present, use data parameter instead of json
-            if files:
-                form_data = {}
-                if json:
-                    form_data.update(json)
-                response = requests.request(
-                    method=method,
-                    url=url,
-                    params=params,
-                    data=form_data,  # Use data instead of json
-                    files=files,
-                    headers=request_headers,
-                    timeout=self.timeout,
-                    verify=self.verify_ssl,
-                )
-            else:
-                response = requests.request(
-                    method=method,
-                    url=url,
-                    params=params,
-                    json=json,
-                    headers=request_headers,
-                    timeout=self.timeout,
-                    verify=self.verify_ssl,
-                )
+            response = requests.request(
+                method=method,
+                url=url,
+                params=params,
+                timeout=self.timeout,
+                verify=self.verify_ssl,
+                **payload_args,
+            )
 
             # Raise exception for error status codes
             response.raise_for_status()
@@ -367,6 +399,7 @@ class SynchronousOperation(Generic[T, R]):
         auth_token: Optional[str] = None,
         timeout: float = 604800.0,
         verify_ssl: bool = True,
+        content_type: str = "application/json",
     ):
         self.endpoint = endpoint
         self.request = request
@@ -377,6 +410,7 @@ class SynchronousOperation(Generic[T, R]):
         self.timeout = timeout
         self.verify_ssl = verify_ssl
         self.files = files
+        self.content_type = content_type
 
     def execute(self, client: Optional[ApiClient] = None) -> R:
         """Execute the API operation using the provided client or create one"""
@@ -408,9 +442,10 @@ class SynchronousOperation(Generic[T, R]):
             resp = client.request(
                 method=self.endpoint.method.value,
                 path=self.endpoint.path,
-                json=request_dict,
+                data=request_dict,
                 params=self.endpoint.query_params,
                 files=self.files,
+                content_type=self.content_type,
             )
 
             # Debug log for response
