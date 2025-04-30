@@ -2267,6 +2267,7 @@ def init_builtin_extra_nodes():
         "nodes_kling.py",
         "nodes_runway.py",
         "nodes_luma.py",
+        "nodes_recraft.py",
     ]
 
     import_failed = []
