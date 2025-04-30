@@ -228,8 +228,28 @@ class VeoVideoGenerationNode(ComfyNodeABC):
 
             poll_response = poll_operation.execute()
 
+            # Check for error in poll response
+            if hasattr(poll_response, 'error') and poll_response.error:
+                error_message = f"Veo API error: {poll_response.error.message} (code: {poll_response.error.code})"
+                logging.error(error_message)
+                raise Exception(error_message)
+
             if poll_response.done:
-                if poll_response.response and poll_response.response.videos and len(poll_response.response.videos) > 0:
+                # Check for RAI filtered content
+                if (hasattr(poll_response.response, 'raiMediaFilteredCount') and
+                    poll_response.response.raiMediaFilteredCount > 0):
+
+                    # Extract reason message if available
+                    if (hasattr(poll_response.response, 'raiMediaFilteredReasons') and
+                        poll_response.response.raiMediaFilteredReasons):
+                        reason = poll_response.response.raiMediaFilteredReasons[0]
+                        error_message = f"Content filtered by Google's Responsible AI practices: {reason} ({poll_response.response.raiMediaFilteredCount} videos filtered.)"
+
+                    logging.error(error_message)
+                    raise Exception(error_message)
+
+                # Process successful response
+                if poll_response.response and hasattr(poll_response.response, 'videos') and poll_response.response.videos and len(poll_response.response.videos) > 0:
                     video = poll_response.response.videos[0]
 
                     # Check if video is provided as base64 or URL
