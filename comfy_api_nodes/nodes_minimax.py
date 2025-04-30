@@ -1,4 +1,3 @@
-from typing import Literal
 from comfy.comfy_types.node_typing import IO
 from comfy_api.input_impl.video_types import VideoFromFile
 from comfy_api_nodes.apis import (
@@ -6,6 +5,7 @@ from comfy_api_nodes.apis import (
     MinimaxVideoGenerationResponse,
     MinimaxFileRetrieveResponse,
     MinimaxTaskResultResponse,
+    SubjectReferenceItem,
     Model
 )
 from comfy_api_nodes.apis.client import (
@@ -17,20 +17,17 @@ from comfy_api_nodes.apis.client import (
 )
 from comfy_api_nodes.nodes_api import (
     download_url_to_bytesio,
+    upload_images_to_comfyapi,
 )
 
+import torch
 import logging
-import folder_paths
 
 
 class MinimaxTextToVideoNode:
     """
     Generates videos synchronously based on a prompt, and optional parameters using Minimax's API.
     """
-
-    def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
-        self.type: Literal["output"] = "output"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -47,10 +44,7 @@ class MinimaxTextToVideoNode:
                 "model": (
                     [
                         "T2V-01",
-                        "I2V-01-Director",
-                        "S2V-01",
-                        "I2V-01",
-                        "I2V-01-live",
+                        "T2V-01-Director",
                     ],
                     {
                         "default": "T2V-01",
@@ -87,8 +81,25 @@ class MinimaxTextToVideoNode:
         prompt_text,
         seed=0,
         model="T2V-01",
+        image: torch.Tensor=None, # used for ImageToVideo
+        subject: torch.Tensor=None, # used for SubjectToVideo
         auth_token=None,
     ):
+        '''
+        Function used between Minimax nodes - supports T2V, I2V, and S2V, based on provided arguments.
+        '''
+        # upload image, if passed in
+        image_url = None
+        if image is not None:
+            image_url = upload_images_to_comfyapi(image, max_images=1, auth_token=auth_token)[0]
+
+        # TODO: figure out how to deal with subject properly, API returns invalid params when using S2V-01 model
+        subject_reference = None
+        if subject is not None:
+            subject_url = upload_images_to_comfyapi(subject, max_images=1, auth_token=auth_token)[0]
+            subject_reference = [SubjectReferenceItem(image=subject_url)]
+
+
         video_generate_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/minimax/video_generation",
@@ -100,8 +111,8 @@ class MinimaxTextToVideoNode:
                 model=Model(model),
                 prompt=prompt_text,
                 callback_url=None,
-                first_frame_image=None,
-                subject_reference=None,
+                first_frame_image=image_url,
+                subject_reference=subject_reference,
                 prompt_optimizer=None,
             ),
             auth_token=auth_token,
@@ -158,13 +169,135 @@ class MinimaxTextToVideoNode:
         return (VideoFromFile(video_io),)
 
 
+class MinimaxImageToVideoNode(MinimaxTextToVideoNode):
+    """
+    Generates videos synchronously based on an image and prompt, and optional parameters using Minimax's API.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": (
+                    IO.IMAGE,
+                    {
+                        "tooltip": "Image to use as first frame of video generation"
+                    },
+                ),
+                "prompt_text": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Text prompt to guide the video generation",
+                    },
+                ),
+                "model": (
+                    [
+                        "I2V-01-Director",
+                        "I2V-01",
+                        "I2V-01-live",
+                    ],
+                    {
+                        "default": "I2V-01",
+                        "tooltip": "Model to use for video generation",
+                    },
+                ),
+            },
+            "optional": {
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    RETURN_TYPES = ("VIDEO",)
+    DESCRIPTION = "Generates videos from an image and prompts using Minimax's API"
+    FUNCTION = "generate_video"
+    CATEGORY = "api node/video/Minimax"
+    API_NODE = True
+    OUTPUT_NODE = True
+
+
+class MinimaxSubjectToVideoNode(MinimaxTextToVideoNode):
+    """
+    Generates videos synchronously based on an image and prompt, and optional parameters using Minimax's API.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "subject": (
+                    IO.IMAGE,
+                    {
+                        "tooltip": "Image of subject to reference video generation"
+                    },
+                ),
+                "prompt_text": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Text prompt to guide the video generation",
+                    },
+                ),
+                "model": (
+                    [
+                        "S2V-01",
+                    ],
+                    {
+                        "default": "S2V-01",
+                        "tooltip": "Model to use for video generation",
+                    },
+                ),
+            },
+            "optional": {
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    RETURN_TYPES = ("VIDEO",)
+    DESCRIPTION = "Generates videos from an image and prompts using Minimax's API"
+    FUNCTION = "generate_video"
+    CATEGORY = "api node/video/Minimax"
+    API_NODE = True
+    OUTPUT_NODE = True
+
+
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
     "MinimaxTextToVideoNode": MinimaxTextToVideoNode,
+    "MinimaxImageToVideoNode": MinimaxImageToVideoNode,
+    # "MinimaxSubjectToVideoNode": MinimaxSubjectToVideoNode,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     "MinimaxTextToVideoNode": "Minimax Text to Video",
+    "MinimaxImageToVideoNode": "Minimax Image to Video",
+    "MinimaxSubjectToVideoNode": "Minimax Subject to Video",
 }
