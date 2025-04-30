@@ -6,6 +6,19 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
+pixverse_templates = {
+    "Microwave": 324641385496960,
+    "Suit Swagger": 328545151283968,
+    "Anything, Robot": 313358700761536,
+    "Subject 3 Fever": 327828816843648,
+    "kiss kiss": 315446315336768,
+}
+
+
+class PixverseIO:
+    TEMPLATE = "PIXVERSE_TEMPLATE"
+
+
 class PixverseStatus(int, Enum):
     successful = 1
     generating = 5
@@ -57,7 +70,7 @@ class PixverseDto_V2OpenAPIT2VReq(BaseModel):
     negative_prompt: Optional[str] = Field(None)
     seed: Optional[int] = Field(None)
     style: Optional[str] = Field(None)
-    template_id: Optional[str] = Field(None)
+    template_id: Optional[int] = Field(None)
     water_mark: Optional[bool] = Field(None)
 
 
