@@ -181,7 +181,7 @@ class ApiClient:
         files: Dict[str, Any],
         headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
-        if headers:
+        if headers and "Content-Type" in headers:
             del headers["Content-Type"]
 
         return {
@@ -571,7 +571,7 @@ class PollingOperation(Generic[T, R]):
                     method=self.poll_endpoint.method.value,
                     path=self.poll_endpoint.path,
                     params=self.poll_endpoint.query_params,
-                    json=request_dict,
+                    data=request_dict,
                 )
 
                 # Parse response
