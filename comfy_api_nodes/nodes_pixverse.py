@@ -9,6 +9,8 @@ from comfy_api_nodes.apis.pixverse_api import (
     PixverseDuration,
     PixverseMotionMode,
     PixverseStatus,
+    PixverseIO,
+    pixverse_templates,
 )
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
@@ -22,6 +24,32 @@ from comfy_api.input_impl import VideoFromFile
 
 import requests
 from io import BytesIO
+
+
+class PixverseTemplateNode:
+    """
+    Select template for Pixverse Video generation.
+    """
+
+    RETURN_TYPES = (PixverseIO.TEMPLATE,)
+    RETURN_NAMES = ("pixverse_template",)
+    FUNCTION = "create_template"
+    CATEGORY = "api node/video/Pixverse"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "template": (list(pixverse_templates.keys()), ),
+            }
+        }
+
+    def create_template(self, template: str):
+        template_id = pixverse_templates.get(template, None)
+        if template_id is None:
+            raise Exception(f"Template '{template}' is not recognized.")
+        # just return the integer
+        return (template_id,)
 
 
 class PixverseTextToVideoNode(ComfyNodeABC):
@@ -78,6 +106,12 @@ class PixverseTextToVideoNode(ComfyNodeABC):
                         "tooltip": "An optional text description of undesired elements on an image.",
                     },
                 ),
+                "pixverse_template": (
+                    PixverseIO.TEMPLATE,
+                    {
+                        "tooltip": "An optional template to influence style of generation, created by the Pixverse Template node."
+                    }
+                )
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
@@ -93,6 +127,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
         motion_mode: str,
         seed,
         negative_prompt: str=None,
+        pixverse_template: int=None,
         auth_token=None,
         **kwargs,
     ):
@@ -118,6 +153,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
                 duration=duration_seconds,
                 motion_mode=motion_mode,
                 negative_prompt=negative_prompt if negative_prompt else None,
+                template_id=pixverse_template,
                 seed=seed,
             ),
             auth_token=auth_token,
@@ -146,9 +182,11 @@ class PixverseTextToVideoNode(ComfyNodeABC):
 
 
 NODE_CLASS_MAPPINGS = {
-    "PixverseTextToVideoNode": PixverseTextToVideoNode
+    "PixverseTextToVideoNode": PixverseTextToVideoNode,
+    "PixverseTemplateNode": PixverseTemplateNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "PixverseTextToVideoNode": "Pixverse Text to Video"
+    "PixverseTextToVideoNode": "Pixverse Text to Video",
+    "PixverseTemplateNode": "Pixverse Template",
 }
