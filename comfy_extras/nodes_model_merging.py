@@ -209,6 +209,9 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
         metadata["modelspec.predict_key"] = "epsilon"
     elif model.model.model_type == comfy.model_base.ModelType.V_PREDICTION:
         metadata["modelspec.predict_key"] = "v"
+        extra_keys["v_pred"] = torch.tensor([])
+        if getattr(model_sampling, "zsnr", False):
+            extra_keys["ztsnr"] = torch.tensor([])
 
     if not args.disable_metadata:
         metadata["prompt"] = prompt_info
