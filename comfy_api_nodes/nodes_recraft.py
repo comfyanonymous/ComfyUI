@@ -91,7 +91,7 @@ class SaveSVGNode:
                 "type": self.type
             })
             counter += 1
-        return (None,)
+        return { "ui": { "images": results } }
 
 
 class RecraftColorRGBNode:
