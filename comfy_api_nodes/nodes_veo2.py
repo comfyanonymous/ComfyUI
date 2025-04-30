@@ -108,6 +108,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
                         "max": 0xFFFFFFFF,
                         "step": 1,
                         "display": "number",
+                        "control_after_generate": True,
                         "tooltip": "Seed for video generation (0 for random)",
                     },
                 ),

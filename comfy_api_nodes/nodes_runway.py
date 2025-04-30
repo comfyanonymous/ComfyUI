@@ -128,7 +128,7 @@ class RunwayImageToVideoNode(ComfyNodeABC):
                     IO.COMBO, RunwayImageToVideoRequest, "ratio", enum_type=AspectRatio
                 ),
                 "seed": model_field_to_node_input(
-                    IO.INT, RunwayImageToVideoRequest, "seed"
+                    IO.INT, RunwayImageToVideoRequest, "seed", control_after_generate=True
                 ),
             },
             "optional": {
