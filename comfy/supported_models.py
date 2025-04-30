@@ -993,6 +993,10 @@ class WAN21_Vace(WAN21_T2V):
         "model_type": "vace",
     }
 
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        self.memory_usage_factor = 1.2 * self.memory_usage_factor
+
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.WAN21_Vace(self, image_to_video=False, device=device)
         return out
