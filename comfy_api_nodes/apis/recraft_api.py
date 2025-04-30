@@ -70,6 +70,68 @@ class RecraftControls:
                                              artistic_level=self.artistic_level, no_text=self.no_text)
 
 
+class RecraftColor:
+    def __init__(self, r: int, g: int, b: int):
+        self.color = [r, g, b]
+
+    def create_api_model(self):
+        return RecraftColorObject(rgb=self.color)
+
+
+class RecraftColorChain:
+    def __init__(self):
+        self.colors: list[RecraftColor] = []
+
+    def get_first(self):
+        if len(self.colors) > 0:
+            return self.colors[0]
+        return None
+
+    def add(self, color: RecraftColor):
+        self.colors.append(color)
+
+    def create_api_model(self):
+        if not self.colors:
+            return None
+        colors_api = [x.create_api_model() for x in self.colors]
+        return colors_api
+
+    def clone(self):
+        c = RecraftColorChain()
+        for color in self.colors:
+            c.add(color)
+        return c
+
+    def clone_and_merge(self, other: RecraftColorChain):
+        c = self.clone()
+        for color in other.colors:
+            c.add(color)
+        return c
+
+
+class RecraftControls:
+    def __init__(self, colors: RecraftColorChain=None, background_color: RecraftColorChain=None,
+                 artistic_level: int=None, no_text: bool=None):
+        self.colors = colors
+        self.background_color = background_color
+        self.artistic_level = artistic_level
+        self.no_text = no_text
+
+    def create_api_model(self):
+        if self.colors is None and self.background_color is None and self.artistic_level is None and self.no_text is None:
+            return None
+        colors_api = None
+        background_color_api = None
+        if self.colors:
+            colors_api = self.colors.create_api_model()
+        if self.background_color:
+            first_background = self.background_color.get_first()
+            background_color_api = first_background.create_api_model() if first_background else None
+
+        return RecraftControlsObject(colors=colors_api, background_color=background_color_api,
+                                             artistic_level=self.artistic_level, no_text=self.no_text)
+
+
 class RecraftStyle:
     def __init__(self, style: str=None, substyle: str=None, style_id: str=None):
         self.style = style

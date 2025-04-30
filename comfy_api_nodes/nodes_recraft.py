@@ -235,6 +235,75 @@ class RecraftControlsNode:
         return (RecraftControls(colors=colors, background_color=background_color), )
 
 
+class RecraftColorRGBNode:
+    """
+    Create Recraft Color by choosing specific RGB values.
+    """
+
+    RETURN_TYPES = (RecraftIO.COLOR,)
+    RETURN_NAMES = ("recraft_color",)
+    FUNCTION = "create_color"
+    CATEGORY = "api node/image/Recraft"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "r": (IO.INT, {
+                    "default": 0,
+                    "min": 0,
+                    "max": 255,
+                    "tooltip": "Red value of color."
+                }),
+                "g": (IO.INT, {
+                    "default": 0,
+                    "min": 0,
+                    "max": 255,
+                    "tooltip": "Green value of color."
+                }),
+                "b": (IO.INT, {
+                    "default": 0,
+                    "min": 0,
+                    "max": 255,
+                    "tooltip": "Blue value of color."
+                }),
+            },
+            "optional": {
+                "recraft_color": (RecraftIO.COLOR,),
+            }
+        }
+
+    def create_color(self, r: int, g: int, b: int, recraft_color: RecraftColorChain=None):
+        recraft_color = recraft_color.clone() if recraft_color else RecraftColorChain()
+        recraft_color.add(RecraftColor(r, g, b))
+        return (recraft_color, )
+
+
+class RecraftControlsNode:
+    """
+    Create Recraft Controls for customizing Recraft generation.
+    """
+
+    RETURN_TYPES = (RecraftIO.CONTROLS,)
+    RETURN_NAMES = ("recraft_controls",)
+    FUNCTION = "create_controls"
+    CATEGORY = "api node/image/Recraft"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+            },
+            "optional": {
+                "colors": (RecraftIO.COLOR,),
+                "background_color": (RecraftIO.COLOR,),
+            }
+        }
+
+    def create_controls(self, colors: RecraftColorChain=None, background_color: RecraftColorChain=None):
+        return (RecraftControls(colors=colors, background_color=background_color), )
+
+
 class RecraftStyleV3RealisticImageNode:
     """
     Select realistic_image style and optional substyle.
