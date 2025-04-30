@@ -22,5 +22,5 @@ psutil
 kornia>=0.7.1
 spandrel
 soundfile
-av>=14.1.0
+av>=14.2.0
 pydantic~=2.0
