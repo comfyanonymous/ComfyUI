@@ -496,7 +496,7 @@ class PollingOperation(Generic[T, R]):
         request: Optional[T] = None,
         api_base: str | None = None,
         auth_token: Optional[str] = None,
-        poll_interval: float = 1.0,
+        poll_interval: float = 5.0,
     ):
         self.poll_endpoint = poll_endpoint
         self.request = request
