@@ -105,7 +105,7 @@ from typing import (
     TypeVar,
     Generic,
 )
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 from enum import Enum
 import json
 import requests
@@ -127,11 +127,15 @@ class EmptyRequest(BaseModel):
 
 class UploadRequest(BaseModel):
     filename: str = Field(..., description="Filename to upload")
-    content_type: str = Field(..., description="Mime type of the file. For example: image/png, image/jpeg, video/mp4, etc.")
+    content_type: str | None = Field(
+        None,
+        description="Mime type of the file. For example: image/png, image/jpeg, video/mp4, etc.",
+    )
+
 
 class UploadResponse(BaseModel):
-    download_url: HttpUrl = Field(..., description='URL to GET uploaded file')
-    upload_url: HttpUrl = Field(..., description='URL to PUT file to upload')
+    download_url: str = Field(..., description="URL to GET uploaded file")
+    upload_url: str = Field(..., description="URL to PUT file to upload")
 
 
 class HttpMethod(str, Enum):
