@@ -1,6 +1,8 @@
 import io
+import logging
 from typing import Optional
 from comfy.utils import common_upscale
+from comfy_api.input_impl import VideoFromFile
 from comfy_api_nodes.apis.client import (
     ApiClient,
     ApiEndpoint,
@@ -20,7 +22,27 @@ import base64
 import uuid
 from io import BytesIO
 
-def downscale_image_tensor(image, total_pixels=1536 * 1024):
+
+def download_url_to_video_output(
+    video_url: str, timeout: int = None
+) -> tuple[VideoFromFile]:
+    """Downloads a video from a URL and returns a `VIDEO` output.
+
+    Args:
+        video_url: The URL of the video to download.
+
+    Returns:
+        A Comfy node `VIDEO` output.
+    """
+    video_io = download_url_to_bytesio(video_url, timeout)
+    if video_io is None:
+        error_msg = f"Failed to download video from {video_url}"
+        logging.error(error_msg)
+        raise ValueError(error_msg)
+    return (VideoFromFile(video_io),)
+
+
+def downscale_image_tensor(image, total_pixels=1536 * 1024) -> torch.Tensor:
     """Downscale input image tensor to roughly the specified total pixels."""
     samples = image.movedim(-1, 1)
     total = int(total_pixels)
@@ -34,14 +56,27 @@ def downscale_image_tensor(image, total_pixels=1536 * 1024):
     s = s.movedim(1, -1)
     return s
 
-def validate_and_cast_response(response):
+
+def validate_and_cast_response(response, timeout: int = None) -> torch.Tensor:
+    """Validates and casts a response to a torch.Tensor.
+
+    Args:
+        response: The response to validate and cast.
+        timeout: Request timeout in seconds. Defaults to None (no timeout).
+
+    Returns:
+        A torch.Tensor representing the image (1, H, W, C).
+
+    Raises:
+        ValueError: If the response is not valid.
+    """
     # validate raw JSON response
     data = response.data
     if not data or len(data) == 0:
-        raise Exception("No images returned from API endpoint")
+        raise ValueError("No images returned from API endpoint")
 
     # Initialize list to store image tensors
-    image_tensors = []
+    image_tensors: list[torch.Tensor] = []
 
     # Process each image in the data array
     for image_data in data:
@@ -49,16 +84,16 @@ def validate_and_cast_response(response):
         b64_data = image_data.b64_json
 
         if not image_url and not b64_data:
-            raise Exception("No image was generated in the response")
+            raise ValueError("No image was generated in the response")
 
         if b64_data:
             img_data = base64.b64decode(b64_data)
             img = Image.open(io.BytesIO(img_data))
 
         elif image_url:
-            img_response = requests.get(image_url)
+            img_response = requests.get(image_url, timeout=timeout)
             if img_response.status_code != 200:
-                raise Exception("Failed to download the image")
+                raise ValueError("Failed to download the image")
             img = Image.open(io.BytesIO(img_response.content))
 
         img = img.convert("RGBA")
@@ -79,31 +114,46 @@ def validate_aspect_ratio(
     maximum_ratio: float,
     minimum_ratio_str: str,
     maximum_ratio_str: str,
-):
+) -> float:
+    """Validates and casts an aspect ratio string to a float.
+
+    Args:
+        aspect_ratio: The aspect ratio string to validate.
+        minimum_ratio: The minimum aspect ratio.
+        maximum_ratio: The maximum aspect ratio.
+        minimum_ratio_str: The minimum aspect ratio string.
+        maximum_ratio_str: The maximum aspect ratio string.
+
+    Returns:
+        The validated and cast aspect ratio.
+
+    Raises:
+        Exception: If the aspect ratio is not valid.
+    """
     # get ratio values
     numbers = aspect_ratio.split(":")
     if len(numbers) != 2:
-        raise Exception(
+        raise TypeError(
             f"Aspect ratio must be in the format X:Y, such as 16:9, but was {aspect_ratio}."
         )
     try:
         numerator = int(numbers[0])
         denominator = int(numbers[1])
-    except ValueError:
-        raise Exception(
+    except ValueError as exc:
+        raise TypeError(
             f"Aspect ratio must contain numbers separated by ':', such as 16:9, but was {aspect_ratio}."
-        )
+        ) from exc
     calculated_ratio = numerator / denominator
     # if not close to minimum and maximum, check bounds
     if not math.isclose(calculated_ratio, minimum_ratio) or not math.isclose(
         calculated_ratio, maximum_ratio
     ):
         if calculated_ratio < minimum_ratio:
-            raise Exception(
+            raise TypeError(
                 f"Aspect ratio cannot reduce to any less than {minimum_ratio_str} ({minimum_ratio}), but was {aspect_ratio} ({calculated_ratio})."
             )
         elif calculated_ratio > maximum_ratio:
-            raise Exception(
+            raise TypeError(
                 f"Aspect ratio cannot reduce to any greater than {maximum_ratio_str} ({maximum_ratio}), but was {aspect_ratio} ({calculated_ratio})."
             )
     return aspect_ratio
@@ -149,7 +199,7 @@ def bytesio_to_image_tensor(image_bytesio: BytesIO, mode: str = "RGBA") -> torch
     return torch.from_numpy(image_array).unsqueeze(0)
 
 
-def process_image_response(response: requests.Response):
+def process_image_response(response: requests.Response) -> torch.Tensor:
     """Uses content from a Response object and converts it to a torch.Tensor"""
     return bytesio_to_image_tensor(BytesIO(response.content))
 
@@ -256,6 +306,16 @@ def tensor_to_data_uri(
 def upload_images_to_comfyapi(
     image: torch.Tensor, max_images=8, auth_token=None, mime_type: Optional[str] = None
 ) -> list[str]:
+    """
+    Uploads images to ComfyUI API and returns download URLs.
+    To upload multiple images, stack them in the batch dimension first.
+
+    Args:
+        image: Input torch.Tensor image.
+        max_images: Maximum number of images to upload.
+        auth_token: Optional authentication token.
+        mime_type: Optional MIME type for the image.
+    """
     # if batch, try to upload each file if max_images is greater than 0
     idx_image = 0
     download_urls: list[str] = []
@@ -295,7 +355,7 @@ def upload_images_to_comfyapi(
         try:
             upload_response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            raise Exception(f"Could not upload one or more images: {e}")
+            raise ValueError(f"Could not upload one or more images: {e}") from e
         # add download_url to list
         download_urls.append(response.download_url)
 
@@ -307,6 +367,3 @@ def upload_images_to_comfyapi(
             if idx_image >= batch_length:
                 break
     return download_urls
-
-
-
