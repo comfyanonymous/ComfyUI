@@ -117,6 +117,8 @@ T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R", bound=BaseModel)
 P = TypeVar("P", bound=BaseModel)  # For poll response
 
+PROGRESS_BAR_MAX = 100
+
 
 class EmptyRequest(BaseModel):
     """Base class for empty request bodies.
@@ -508,7 +510,7 @@ class PollingOperation(Generic[T, R]):
         """Poll until the task is complete"""
         poll_count = 0
         if self.progress_extractor:
-            progress = utils.ProgressBar(100)
+            progress = utils.ProgressBar(PROGRESS_BAR_MAX)
 
         while True:
             try:
@@ -547,7 +549,7 @@ class PollingOperation(Generic[T, R]):
                 if self.progress_extractor:
                     new_progress = self.progress_extractor(response_obj)
                     if new_progress is not None:
-                        progress.update(new_progress)
+                        progress.update_absolute(new_progress, total=PROGRESS_BAR_MAX)
 
                 if status == TaskStatus.COMPLETED:
                     logging.debug("[DEBUG] Task completed successfully")
