@@ -11,11 +11,14 @@ from pydantic import BaseModel, Field, conint
 class RecraftStyle:
     def __init__(self, style: str, substyle: str=None):
         self.style = style
+        if substyle == "None":
+            substyle = None
         self.substyle = substyle
 
 
 class RecraftIO:
     STYLEV3 = "RECRAFT_V3_STYLE"
+    SVG = "SVG" # TODO: if acceptable, move into ComfyUI's typing class
 
 
 class RecraftStyleV3(str, Enum):
