@@ -71,11 +71,12 @@ class RecraftControls:
 
 
 class RecraftStyle:
-    def __init__(self, style: str, substyle: str=None):
+    def __init__(self, style: str=None, substyle: str=None, style_id: str=None):
         self.style = style
         if substyle == "None":
             substyle = None
         self.substyle = substyle
+        self.style_id = style_id
 
 
 class RecraftIO:
@@ -244,6 +245,7 @@ class RecraftImageGenerationRequest(BaseModel):
     style: Optional[str] = Field(None, description='The style to apply to the generated image (e.g., "digital_illustration")')
     substyle: Optional[str] = Field(None, description='The substyle to apply to the generated image, depending on the style input')
     controls: Optional[RecraftControlsObject] = Field(None, description='A set of custom parameters to tweak generation process')
+    style_id: Optional[str] = Field(None, description='Use a previously uploaded style as a reference; UUID')
     # text_layout
 
 
