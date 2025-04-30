@@ -89,20 +89,6 @@ class PixverseImageVideoRequest(BaseModel):
     water_mark: Optional[bool] = Field(None)
 
 
-# class PixverseImageVideoRequest(BaseModel):
-#     quality: Optional[PixverseQuality] = Field(None)
-#     duration: Optional[PixverseDuration] = Field(None)
-#     img_id: int = Field(...)
-#     model: Optional[str] = Field("v3.5")
-#     motion_mode: Optional[PixverseMotionMode] = Field(PixverseMotionMode.normal)
-#     prompt: Optional[str ]= Field(None)
-#     negative_prompt: Optional[str] = Field(None)
-#     seed: Optional[int] = Field(None)
-#     style: Optional[str] = Field(None)
-#     template_id: Optional[int] = Field(None)
-#     water_mark: Optional[bool] = Field(None)
-
-
 class PixverseTransitionVideoRequest(BaseModel):
     quality: PixverseQuality = Field(...)
     duration: PixverseDuration = Field(...)
