@@ -105,7 +105,7 @@ from typing import (
     TypeVar,
     Generic,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 from enum import Enum
 import json
 import requests
@@ -127,11 +127,11 @@ class EmptyRequest(BaseModel):
 
 class UploadRequest(BaseModel):
     filename: str = Field(..., description="Filename to upload")
-    mime_type: str = Field(..., description="Mime type of the file. For example: image/png, image/jpeg, video/mp4, etc.")
+    content_type: str = Field(..., description="Mime type of the file. For example: image/png, image/jpeg, video/mp4, etc.")
 
 class UploadResponse(BaseModel):
-    download_url: str = Field(..., description='URL to GET uploaded file')
-    upload_url: str = Field(..., description='URL to PUT file to upload')
+    download_url: HttpUrl = Field(..., description='URL to GET uploaded file')
+    upload_url: HttpUrl = Field(..., description='URL to PUT file to upload')
 
 
 class HttpMethod(str, Enum):
@@ -297,7 +297,7 @@ class ApiClient:
     def upload_file(
         upload_url: str,
         file: io.BytesIO | str,
-        mime_type: str | None = None,
+        content_type: str | None = None,
     ):
         """Upload a file to the API. Make sure the file has a filename equal to what the url expects.
 
@@ -307,8 +307,8 @@ class ApiClient:
             mime_type: Optional mime type to set for the upload
         """
         headers = {}
-        if mime_type:
-            headers["Content-Type"] = mime_type
+        if content_type:
+            headers["Content-Type"] = content_type
 
         if isinstance(file, io.BytesIO):
             file.seek(0)  # Ensure we're at the start of the file
@@ -503,7 +503,6 @@ class PollingOperation(Generic[T, R]):
     def _poll_until_complete(self, client: ApiClient) -> R:
         """Poll until the task is complete"""
         poll_count = 0
-        progress = 0
         if self.progress_extractor:
             progress = utils.ProgressBar(100)
 
@@ -542,11 +541,15 @@ class PollingOperation(Generic[T, R]):
 
                 # If progress extractor is provided, extract progress
                 if self.progress_extractor:
-                    progress.update(self.progress_extractor(response_obj))
+                    new_progress = self.progress_extractor(response_obj)
+                    if new_progress is not None:
+                        progress.update(new_progress)
 
                 if status == TaskStatus.COMPLETED:
                     logging.debug("[DEBUG] Task completed successfully")
                     self.final_response = response_obj
+                    if self.progress_extractor:
+                        progress.update(100)
                     return self.final_response
                 elif status == TaskStatus.FAILED:
                     logging.debug(f"[DEBUG] Task failed: {json.dumps(resp)}")

@@ -327,13 +327,13 @@ def upload_images_to_comfyapi(
                 request_model=UploadRequest,
                 response_model=UploadResponse,
             ),
-            request=UploadRequest(filename=img_binary.name, mime_type=mime_type),
+            request=UploadRequest(filename=img_binary.name, content_type=mime_type),
             auth_token=auth_token,
         )
         response = operation.execute()
 
         upload_response = ApiClient.upload_file(
-            response.upload_url, img_binary, mime_type=mime_type
+            response.upload_url, img_binary, content_type=mime_type
         )
         # verify success
         try:
