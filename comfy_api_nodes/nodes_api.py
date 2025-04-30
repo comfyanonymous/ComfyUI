@@ -229,6 +229,9 @@ def _tensor_to_pil(image: torch.Tensor, total_pixels: int = 2048 * 2048) -> Imag
 
 def _pil_to_bytesio(img: Image.Image, mime_type: str = "image/png") -> BytesIO:
     """Converts a PIL Image to a BytesIO object."""
+    if not mime_type:
+        mime_type = "image/png"
+
     img_byte_arr = io.BytesIO()
     # Derive PIL format from MIME type (e.g., 'image/png' -> 'PNG')
     pil_format = mime_type.split("/")[-1].upper()
@@ -256,6 +259,9 @@ def tensor_to_bytesio(
     Returns:
         Named BytesIO object containing the image data.
     """
+    if not mime_type:
+        mime_type = "image/png"
+
     pil_image = _tensor_to_pil(image, total_pixels=total_pixels)
     img_binary = _pil_to_bytesio(pil_image, mime_type=mime_type)
     img_binary.name = (
@@ -307,7 +313,7 @@ def tensor_to_data_uri(
 
 
 def upload_images_to_comfyapi(
-    image: torch.Tensor, max_images=8, auth_token=None, mime_type: str = "image/png"
+    image: torch.Tensor, max_images=8, auth_token=None, mime_type: Optional[str] = None
 ) -> list[str]:
     # if batch, try to upload each file if max_images is greater than 0
     idx_image = 0
@@ -323,6 +329,12 @@ def upload_images_to_comfyapi(
         # get BytesIO version of image
         img_binary = tensor_to_bytesio(curr_image, mime_type=mime_type)
         # first, request upload/download urls from comfy API
+        if not mime_type:
+            request_object = UploadRequest(filename=img_binary.name)
+        else:
+            request_object = UploadRequest(
+                filename=img_binary.name, content_type=mime_type
+            )
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/customers/storage",
@@ -330,7 +342,7 @@ def upload_images_to_comfyapi(
                 request_model=UploadRequest,
                 response_model=UploadResponse,
             ),
-            request=UploadRequest(filename=img_binary.name, content_type=mime_type),
+            request=request_object,
             auth_token=auth_token,
         )
         response = operation.execute()
