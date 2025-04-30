@@ -88,6 +88,8 @@ jobs:
             cd ComfyUI_windows_portable
             python_embeded/python.exe -s ComfyUI/main.py --quick-test-for-ci --cpu
 
+            python_embeded/python.exe -s ./update/update.py ComfyUI/
+
             ls
 
         - name: Upload binaries to release
