@@ -413,7 +413,7 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/Luma"
+    CATEGORY = "api node/video/Luma"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -531,7 +531,7 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/Luma"
+    CATEGORY = "api node/video/Luma"
 
     @classmethod
     def INPUT_TYPES(s):
