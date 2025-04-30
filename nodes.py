@@ -2268,6 +2268,7 @@ def init_builtin_extra_nodes():
         "nodes_runway.py",
         "nodes_luma.py",
         "nodes_recraft.py",
+        "nodes_pixverse.py",
     ]
 
     import_failed = []
