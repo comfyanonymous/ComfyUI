@@ -32,6 +32,7 @@ from comfy_api_nodes.apinode_utils import (
 )
 from server import PromptServer
 
+import os
 import torch
 from io import BytesIO
 from PIL import UnidentifiedImageError
