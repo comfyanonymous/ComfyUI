@@ -432,6 +432,13 @@ class KlingTextToVideoNode(KlingNodeBase):
                 "negative_prompt": model_field_to_node_input(
                     IO.STRING, KlingText2VideoRequest, "negative_prompt", multiline=True
                 ),
+                "model_name": model_field_to_node_input(
+                    IO.COMBO,
+                    KlingText2VideoRequest,
+                    "model_name",
+                    enum_type=ModelName,
+                    default="kling-v2-master",
+                ),
                 "cfg_scale": model_field_to_node_input(
                     IO.FLOAT,
                     KlingText2VideoRequest,
@@ -766,6 +773,16 @@ class KlingCameraControlI2VNode(KlingImage2VideoNode):
                     "negative_prompt",
                     multiline=True,
                 ),
+                "model_name": model_field_to_node_input(
+                    IO.COMBO,
+                    KlingImage2VideoRequest,
+                    "model_name",
+                    enum_type=ModelName,
+                    default="kling-v2-master",
+                ),
+                "start_frame": model_field_to_node_input(
+                    IO.IMAGE, KlingImage2VideoRequest, "image"
+                ),
                 "cfg_scale": model_field_to_node_input(
                     IO.FLOAT,
                     KlingImage2VideoRequest,
@@ -801,6 +818,8 @@ class KlingCameraControlI2VNode(KlingImage2VideoNode):
         start_frame: torch.Tensor,
         prompt: str,
         negative_prompt: str,
+        model_name: str,
+        start_frame: torch.Tensor,
         cfg_scale: float,
         aspect_ratio: str,
         camera_control: KlingCameraControl,
