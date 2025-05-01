@@ -331,10 +331,10 @@ def upload_images_to_comfyapi(
         img_binary = tensor_to_bytesio(curr_image, mime_type=mime_type)
         # first, request upload/download urls from comfy API
         if not mime_type:
-            request_object = UploadRequest(filename=img_binary.name)
+            request_object = UploadRequest(file_name=img_binary.name)
         else:
             request_object = UploadRequest(
-                filename=img_binary.name, content_type=mime_type
+                file_name=img_binary.name, content_type=mime_type
             )
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
