@@ -787,7 +787,6 @@ class IdeogramV3(ComfyNodeABC):
         display_image_urls_on_node(image_urls, unique_id)
         return (download_and_process_images(image_urls),)
 
-
 NODE_CLASS_MAPPINGS = {
     "IdeogramV1": IdeogramV1,
     "IdeogramV2": IdeogramV2,

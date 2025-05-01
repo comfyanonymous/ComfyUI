@@ -144,32 +144,74 @@ class Error(BaseModel):
     )
 
 
+bytes_aliased=bytes
 class BFLFluxProGenerateRequest(BaseModel):
-    guidance_scale: Optional[float] = Field(
-        None, description='The guidance scale for generation.', ge=1.0, le=20.0
+    guidance_scale: Optional[confloat(ge=1.0, le=20.0)] = Field(
+        None, description='The guidance scale for generation.'
     )
-    height: int = Field(
-        ..., description='The height of the image to generate.', ge=64, le=2048
+    height: conint(ge=64, le=2048) = Field(
+        ..., description='The height of the image to generate.'
     )
     negative_prompt: Optional[str] = Field(
         None, description='The negative prompt for image generation.'
     )
-    num_images: Optional[int] = Field(
-        None, description='The number of images to generate.', ge=1, le=4
+    num_images: Optional[conint(ge=1, le=4)] = Field(
+        None, description='The number of images to generate.'
     )
-    num_inference_steps: Optional[int] = Field(
-        None, description='The number of inference steps.', ge=1, le=100
+    num_inference_steps: Optional[conint(ge=1, le=100)] = Field(
+        None, description='The number of inference steps.'
     )
     prompt: str = Field(..., description='The text prompt for image generation.')
     seed: Optional[int] = Field(None, description='The seed value for reproducibility.')
-    width: int = Field(
-        ..., description='The width of the image to generate.', ge=64, le=2048
+    width: conint(ge=64, le=2048) = Field(
+        ..., description='The width of the image to generate.'
     )
 
 
 class BFLFluxProGenerateResponse(BaseModel):
     id: str = Field(..., description='The unique identifier for the generation task.')
     polling_url: str = Field(..., description='URL to poll for the generation result.')
+
+
+class ComfyNode(BaseModel):
+    category: Optional[str] = Field(
+        None,
+        description='UI category where the node is listed, used for grouping nodes.',
+    )
+    comfy_node_name: Optional[str] = Field(
+        None, description='Unique identifier for the node'
+    )
+    deprecated: Optional[bool] = Field(
+        None,
+        description='Indicates if the node is deprecated. Deprecated nodes are hidden in the UI.',
+    )
+    description: Optional[str] = Field(
+        None, description="Brief description of the node's functionality or purpose."
+    )
+    experimental: Optional[bool] = Field(
+        None,
+        description='Indicates if the node is experimental, subject to changes or removal.',
+    )
+    function: Optional[str] = Field(
+        None, description='Name of the entry-point function to execute the node.'
+    )
+    input_types: Optional[str] = Field(None, description='Defines input parameters')
+    output_is_list: Optional[List[bool]] = Field(
+        None, description='Boolean values indicating if each output is a list.'
+    )
+    return_names: Optional[str] = Field(
+        None, description='Names of the outputs for clarity in workflows.'
+    )
+    return_types: Optional[str] = Field(
+        None, description='Specifies the types of outputs produced by the node.'
+    )
+
+
+class ComfyNodeCloudBuildInfo(BaseModel):
+    build_id: Optional[str] = None
+    location: Optional[str] = None
+    project_id: Optional[str] = None
+    project_number: Optional[str] = None
 
 
 class Customer(BaseModel):
@@ -198,6 +240,16 @@ class CustomerStorageResourceResponse(BaseModel):
     upload_url: Optional[str] = Field(
         None,
         description='The signed URL to use for uploading the file to the specified path',
+    )
+
+
+class Error(BaseModel):
+    details: Optional[List[str]] = Field(
+        None,
+        description='Optional detailed information about the error or hints for resolving it.',
+    )
+    message: Optional[str] = Field(
+        None, description='A clear and concise description of the error.'
     )
 
 
@@ -414,11 +466,8 @@ class ImageRequest(BaseModel):
         None,
         description='Optional. Description of what to exclude. Only for V_1, V_1_TURBO, V_2, V_2_TURBO.',
     )
-    num_images: Optional[int] = Field(
-        1,
-        description='Optional. Number of images to generate (1-8). Defaults to 1.',
-        ge=1,
-        le=8,
+    num_images: Optional[conint(ge=1, le=8)] = Field(
+        1, description='Optional. Number of images to generate (1-8). Defaults to 1.'
     )
     prompt: str = Field(
         ..., description='Required. The prompt to use to generate the image.'
@@ -427,11 +476,8 @@ class ImageRequest(BaseModel):
         None,
         description="Optional. Resolution (e.g., 'RESOLUTION_1024_1024'). Only for model V_2. Cannot be used with aspect_ratio.",
     )
-    seed: Optional[int] = Field(
-        None,
-        description='Optional. A number between 0 and 2147483647.',
-        ge=0,
-        le=2147483647,
+    seed: Optional[conint(ge=0, le=2147483647)] = Field(
+        None, description='Optional. A number between 0 and 2147483647.'
     )
     style_type: Optional[str] = Field(
         None,
@@ -1060,41 +1106,29 @@ class AspectRatio(str, Enum):
 
 
 class Config(BaseModel):
-    horizontal: Optional[float] = Field(
+    horizontal: Optional[confloat(ge=-10.0, le=10.0)] = Field(
         None,
         description="Controls camera's movement along horizontal axis (x-axis). Negative indicates left, positive indicates right.",
-        ge=-10.0,
-        le=10.0,
     )
-    pan: Optional[float] = Field(
+    pan: Optional[confloat(ge=-10.0, le=10.0)] = Field(
         None,
         description="Controls camera's rotation in vertical plane (x-axis). Negative indicates downward rotation, positive indicates upward rotation.",
-        ge=-10.0,
-        le=10.0,
     )
-    roll: Optional[float] = Field(
+    roll: Optional[confloat(ge=-10.0, le=10.0)] = Field(
         None,
         description="Controls camera's rolling amount (z-axis). Negative indicates counterclockwise, positive indicates clockwise.",
-        ge=-10.0,
-        le=10.0,
     )
-    tilt: Optional[float] = Field(
+    tilt: Optional[confloat(ge=-10.0, le=10.0)] = Field(
         None,
         description="Controls camera's rotation in horizontal plane (y-axis). Negative indicates left rotation, positive indicates right rotation.",
-        ge=-10.0,
-        le=10.0,
     )
-    vertical: Optional[float] = Field(
+    vertical: Optional[confloat(ge=-10.0, le=10.0)] = Field(
         None,
         description="Controls camera's movement along vertical axis (y-axis). Negative indicates downward, positive indicates upward.",
-        ge=-10.0,
-        le=10.0,
     )
-    zoom: Optional[float] = Field(
+    zoom: Optional[confloat(ge=-10.0, le=10.0)] = Field(
         None,
         description="Controls change in camera's focal length. Negative indicates narrower field of view, positive indicates wider field of view.",
-        ge=-10.0,
-        le=10.0,
     )
 
 
@@ -1157,11 +1191,9 @@ class KlingImage2VideoRequest(BaseModel):
         description='The callback notification address. Server will notify when the task status changes.',
     )
     camera_control: Optional[CameraControl] = None
-    cfg_scale: Optional[float] = Field(
+    cfg_scale: Optional[confloat(ge=0.0, le=1.0)] = Field(
         0.5,
         description="Flexibility in video generation. The higher the value, the lower the model's degree of flexibility, and the stronger the relevance to the user's prompt.",
-        ge=0.0,
-        le=1.0,
     )
     duration: Optional[Duration] = Field('5', description='Video length in seconds')
     dynamic_masks: Optional[List[DynamicMask]] = Field(
@@ -1185,11 +1217,11 @@ class KlingImage2VideoRequest(BaseModel):
         description='Video generation mode. std: Standard Mode, which is cost-effective. pro: Professional Mode, generates videos with longer duration but higher quality output.',
     )
     model_name: Optional[ModelName] = Field('kling-v1', description='Model Name')
-    negative_prompt: Optional[str] = Field(
-        None, description='Negative text prompt', max_length=2500
+    negative_prompt: Optional[constr(max_length=2500)] = Field(
+        None, description='Negative text prompt'
     )
-    prompt: Optional[str] = Field(
-        None, description='Positive text prompt', max_length=2500
+    prompt: Optional[constr(max_length=2500)] = Field(
+        None, description='Positive text prompt'
     )
     static_mask: Optional[AnyUrl] = Field(
         None,
@@ -1235,12 +1267,12 @@ class KlingImage2VideoResponse(BaseModel):
 
 
 class Config1(BaseModel):
-    horizontal: Optional[float] = Field(None, ge=-10.0, le=10.0)
-    pan: Optional[float] = Field(None, ge=-10.0, le=10.0)
-    roll: Optional[float] = Field(None, ge=-10.0, le=10.0)
-    tilt: Optional[float] = Field(None, ge=-10.0, le=10.0)
-    vertical: Optional[float] = Field(None, ge=-10.0, le=10.0)
-    zoom: Optional[float] = Field(None, ge=-10.0, le=10.0)
+    horizontal: Optional[confloat(ge=-10.0, le=10.0)] = None
+    pan: Optional[confloat(ge=-10.0, le=10.0)] = None
+    roll: Optional[confloat(ge=-10.0, le=10.0)] = None
+    tilt: Optional[confloat(ge=-10.0, le=10.0)] = None
+    vertical: Optional[confloat(ge=-10.0, le=10.0)] = None
+    zoom: Optional[confloat(ge=-10.0, le=10.0)] = None
 
 
 class CameraControl1(BaseModel):
@@ -1260,18 +1292,18 @@ class KlingText2VideoRequest(BaseModel):
         None, description='The callback notification address'
     )
     camera_control: Optional[CameraControl1] = None
-    cfg_scale: Optional[float] = Field(
-        0.5, description='Flexibility in video generation', ge=0.0, le=1.0
+    cfg_scale: Optional[confloat(ge=0.0, le=1.0)] = Field(
+        0.5, description='Flexibility in video generation'
     )
     duration: Optional[Duration] = '5'
     external_task_id: Optional[str] = Field(None, description='Customized Task ID')
     mode: Optional[Mode] = Field('std', description='Video generation mode')
     model_name: Optional[ModelName1] = Field('kling-v1', description='Model Name')
-    negative_prompt: Optional[str] = Field(
-        None, description='Negative text prompt', max_length=2500
+    negative_prompt: Optional[constr(max_length=2500)] = Field(
+        None, description='Negative text prompt'
     )
-    prompt: Optional[str] = Field(
-        None, description='Positive text prompt', max_length=2500
+    prompt: Optional[constr(max_length=2500)] = Field(
+        None, description='Positive text prompt'
     )
 
 
@@ -1805,10 +1837,9 @@ class MinimaxVideoGenerationRequest(BaseModel):
         ...,
         description='Required. ID of model. Options: T2V-01-Director, I2V-01-Director, S2V-01, I2V-01, I2V-01-live, T2V-01',
     )
-    prompt: Optional[str] = Field(
+    prompt: Optional[constr(max_length=2000)] = Field(
         None,
         description='Description of the video. Should be less than 2000 characters. Supports camera movement instructions in [brackets].',
-        max_length=2000,
     )
     prompt_optimizer: Optional[bool] = Field(
         True,
@@ -1824,6 +1855,29 @@ class MinimaxVideoGenerationResponse(BaseModel):
     base_resp: MinimaxBaseResponse
     task_id: str = Field(
         ..., description='The task ID for the asynchronous video generation task.'
+    )
+
+
+class NodeStatus(str, Enum):
+    NodeStatusActive = 'NodeStatusActive'
+    NodeStatusDeleted = 'NodeStatusDeleted'
+    NodeStatusBanned = 'NodeStatusBanned'
+
+
+class NodeVersionStatus(str, Enum):
+    NodeVersionStatusActive = 'NodeVersionStatusActive'
+    NodeVersionStatusDeleted = 'NodeVersionStatusDeleted'
+    NodeVersionStatusBanned = 'NodeVersionStatusBanned'
+    NodeVersionStatusPending = 'NodeVersionStatusPending'
+    NodeVersionStatusFlagged = 'NodeVersionStatusFlagged'
+
+
+class NodeVersionUpdateRequest(BaseModel):
+    changelog: Optional[str] = Field(
+        None, description='The changelog describing the version changes.'
+    )
+    deprecated: Optional[bool] = Field(
+        None, description='Whether the version is deprecated.'
     )
 
 
@@ -2027,13 +2081,22 @@ class OpenAIImageGenerationResponse(BaseModel):
     usage: Optional[Usage] = None
 
 
-class AspectRatio2(RootModel[float]):
-    root: float = Field(
-        ...,
-        description='Aspect ratio (width / height)',
-        ge=0.4,
-        le=2.5,
-        title='Aspectratio',
+class PersonalAccessToken(BaseModel):
+    createdAt: Optional[datetime] = Field(
+        None, description='[Output Only]The date and time the token was created.'
+    )
+    description: Optional[str] = Field(
+        None,
+        description="Optional. A more detailed description of the token's intended use.",
+    )
+    id: Optional[UUID] = Field(None, description='Unique identifier for the GitCommit')
+    name: Optional[str] = Field(
+        None,
+        description='Required. The name of the token. Can be a simple description.',
+    )
+    token: Optional[str] = Field(
+        None,
+        description='[Output Only]. The personal access token. Only returned during creation.',
     )
 
 
@@ -2041,10 +2104,9 @@ class IngredientsMode(str, Enum):
     creative = 'creative'
     precise = 'precise'
 
-bytes_aliased = bytes
 
 class PikaBodyGenerate22C2vGenerate22PikascenesPost(BaseModel):
-    aspectRatio: Optional[AspectRatio2] = Field(
+    aspectRatio: Optional[confloat(ge=0.4, le=2.5)] = Field(
         None, description='Aspect ratio (width / height)', title='Aspectratio'
     )
     duration: Optional[int] = Field(5, title='Duration')
@@ -2079,7 +2141,7 @@ class PikaBodyGenerate22KeyframeGenerate22PikaframesPost(BaseModel):
 
 
 class PikaBodyGenerate22T2vGenerate22T2vPost(BaseModel):
-    aspectRatio: Optional[AspectRatio2] = Field(
+    aspectRatio: Optional[confloat(ge=0.4, le=2.5)] = Field(
         None, description='Aspect ratio (width / height)', title='Aspectratio'
     )
     duration: Optional[int] = Field(5, title='Duration')
@@ -2201,6 +2263,10 @@ class CannyHighThreshold(RootModel[int]):
         ge=0,
         le=500,
         title='Canny High Threshold',
+    )
+    style_id: Optional[str] = Field(
+        None,
+        description='The style ID to apply to the generated image (e.g., "123e4567-e89b-12d3-a456-426614174000"). If style_id is provided, style should not be provided.',
     )
 
 
@@ -2453,7 +2519,7 @@ class RunwayPromptImageDetailedObject(BaseModel):
         ...,
         description="The position of the image in the output video. 'last' is currently supported for gen3a_turbo only.",
     )
-    uri: str = Field(
+    uri: AnyUrl = Field(
         ..., description='A HTTPS URL or data URI containing an encoded image.'
     )
 
@@ -4563,6 +4629,109 @@ class LumaGenerationRequest(BaseModel):
     model: LumaVideoModel
     resolution: LumaVideoModelOutputResolution
     duration: LumaVideoModelOutputDuration
+
+
+class StripeCharge(BaseModel):
+    amount: Optional[int] = None
+    amount_captured: Optional[int] = None
+    amount_refunded: Optional[int] = None
+    application: Optional[str] = None
+    application_fee: Optional[str] = None
+    application_fee_amount: Optional[int] = None
+    balance_transaction: Optional[str] = None
+    billing_details: Optional[StripeBillingDetails] = None
+    calculated_statement_descriptor: Optional[str] = None
+    captured: Optional[bool] = None
+    created: Optional[int] = None
+    currency: Optional[str] = None
+    customer: Optional[str] = None
+    description: Optional[str] = None
+    destination: Optional[Any] = None
+    dispute: Optional[Any] = None
+    disputed: Optional[bool] = None
+    failure_balance_transaction: Optional[Any] = None
+    failure_code: Optional[Any] = None
+    failure_message: Optional[Any] = None
+    fraud_details: Optional[Dict[str, Any]] = None
+    id: Optional[str] = None
+    invoice: Optional[Any] = None
+    livemode: Optional[bool] = None
+    metadata: Optional[Dict[str, Any]] = None
+    object: Optional[Object] = None
+    on_behalf_of: Optional[Any] = None
+    order: Optional[Any] = None
+    outcome: Optional[StripeOutcome] = None
+    paid: Optional[bool] = None
+    payment_intent: Optional[str] = None
+    payment_method: Optional[str] = None
+    payment_method_details: Optional[StripePaymentMethodDetails] = None
+    radar_options: Optional[Dict[str, Any]] = None
+    receipt_email: Optional[str] = None
+    receipt_number: Optional[str] = None
+    receipt_url: Optional[str] = None
+    refunded: Optional[bool] = None
+    refunds: Optional[StripeRefundList] = None
+    review: Optional[Any] = None
+    shipping: Optional[StripeShipping] = None
+    source: Optional[Any] = None
+    source_transfer: Optional[Any] = None
+    statement_descriptor: Optional[Any] = None
+    statement_descriptor_suffix: Optional[Any] = None
+    status: Optional[str] = None
+    transfer_data: Optional[Any] = None
+    transfer_group: Optional[Any] = None
+
+
+class StripeChargeList(BaseModel):
+    data: Optional[List[StripeCharge]] = None
+    has_more: Optional[bool] = None
+    object: Optional[str] = None
+    total_count: Optional[int] = None
+    url: Optional[str] = None
+
+
+class StripePaymentIntent(BaseModel):
+    amount: Optional[int] = None
+    amount_capturable: Optional[int] = None
+    amount_details: Optional[StripeAmountDetails] = None
+    amount_received: Optional[int] = None
+    application: Optional[str] = None
+    application_fee_amount: Optional[int] = None
+    automatic_payment_methods: Optional[Any] = None
+    canceled_at: Optional[int] = None
+    cancellation_reason: Optional[str] = None
+    capture_method: Optional[str] = None
+    charges: Optional[StripeChargeList] = None
+    client_secret: Optional[str] = None
+    confirmation_method: Optional[str] = None
+    created: Optional[int] = None
+    currency: Optional[str] = None
+    customer: Optional[str] = None
+    description: Optional[str] = None
+    id: Optional[str] = None
+    invoice: Optional[str] = None
+    last_payment_error: Optional[Any] = None
+    latest_charge: Optional[str] = None
+    livemode: Optional[bool] = None
+    metadata: Optional[Dict[str, Any]] = None
+    next_action: Optional[Any] = None
+    object: Optional[Object2] = None
+    on_behalf_of: Optional[Any] = None
+    payment_method: Optional[str] = None
+    payment_method_configuration_details: Optional[Any] = None
+    payment_method_options: Optional[StripePaymentMethodOptions] = None
+    payment_method_types: Optional[List[str]] = None
+    processing: Optional[Any] = None
+    receipt_email: Optional[str] = None
+    review: Optional[Any] = None
+    setup_future_usage: Optional[Any] = None
+    shipping: Optional[StripeShipping] = None
+    source: Optional[Any] = None
+    statement_descriptor: Optional[Any] = None
+    statement_descriptor_suffix: Optional[Any] = None
+    status: Optional[str] = None
+    transfer_data: Optional[Any] = None
+    transfer_group: Optional[Any] = None
 
 
 class LumaGeneration(BaseModel):
