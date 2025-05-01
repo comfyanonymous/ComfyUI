@@ -10,6 +10,8 @@ from comfy_api_nodes.apis import (
     PikaVideoResponse,
     PikaBodyGenerate22C2vGenerate22PikascenesPost,
     IngredientsMode,
+    PikaDurationEnum,
+    PikaResolutionEnum,
 )
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
@@ -82,14 +84,16 @@ class PikaNodeBase(ComfyNodeABC):
                 control_after_generate=True,
             ),
             "resolution": model_field_to_node_input(
-                IO.STRING,
+                IO.COMBO,
                 request_model,
                 "resolution",
+                enum_type=PikaResolutionEnum,
             ),
             "duration": model_field_to_node_input(
-                IO.INT,
+                IO.COMBO,
                 request_model,
                 "duration",
+                enum_type=PikaDurationEnum,
             ),
         }
 
@@ -234,6 +238,9 @@ class PikaTextToVideoNodeV2_2(PikaNodeBase):
                     PikaBodyGenerate22T2vGenerate22T2vPost,
                     "aspectRatio",
                     step=0.001,
+                    min=0.4,
+                    max=2.5,
+                    default=1.7777777777777777,
                 ),
             },
             "hidden": {
@@ -303,6 +310,8 @@ class PikaScenesV2_2(PikaNodeBase):
                     PikaBodyGenerate22C2vGenerate22PikascenesPost,
                     "aspectRatio",
                     step=0.001,
+                    min=0.4,
+                    max=2.5,
                     default=1.7777777777777777,
                 ),
             },
