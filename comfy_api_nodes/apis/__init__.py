@@ -1289,7 +1289,7 @@ class Position(str, Enum):
 
 
 class RunwayPromptImageDetailedObject(BaseModel):
-    uri: AnyUrl = Field(
+    uri: str = Field(
         ..., description="A HTTPS URL or data URI containing an encoded image."
     )
     position: Position = Field(
@@ -1315,9 +1315,9 @@ class RunwayAspectRatioEnum(str, Enum):
 
 
 class RunwayPromptImageObject(
-    RootModel[Union[AnyUrl, List[RunwayPromptImageDetailedObject]]]
+    RootModel[Union[str, List[RunwayPromptImageDetailedObject]]]
 ):
-    root: Union[AnyUrl, List[RunwayPromptImageDetailedObject]] = Field(
+    root: Union[str, List[RunwayPromptImageDetailedObject]] = Field(
         ...,
         description="Image(s) to use for the video generation. Can be a single URI or an array of image objects with positions.",
     )
