@@ -1,3 +1,14 @@
+"""
+`camera_control` supported:
+
+- pro | 5s duration | kling-v1-5
+
+`camera_control` not supported:
+
+- std | 10s duration | kling-v1-6
+
+"""
+
 from typing import Union, Optional
 import math
 import logging
@@ -72,11 +83,6 @@ def is_valid_video_response(response: KlingText2VideoResponse) -> bool:
     )
 
 
-def is_camera_control_supported(model_name: str, duration: str, mode: str) -> bool:
-    """`camera_control` is only supported in `pro` mode with `5s` duration and `kling-v1-5`"""
-    return model_name == "kling-v1-5" and duration == "5" and mode == "pro"
-
-
 def get_camera_control_input_config(
     tooltip: str, default: float = 0.0
 ) -> tuple[IO, InputTypeOptions]:
@@ -92,39 +98,86 @@ def get_camera_control_input_config(
     return IO.FLOAT, input_config
 
 
-def _get_camera_control_inputs() -> dict[str, tuple[IO, InputTypeOptions]]:
-    """Returns a dictionary of camera control inputs common to Kling video generation nodes."""
-    return {
-        "camera_control_type": (
-            IO.COMBO,
-            {
-                "options": [
-                    camera_control_type.value for camera_control_type in CameraType
-                ],
-                "default": "simple",
-                "tooltip": "Predefined camera movements type. simple: Customizable camera movement. down_back: Camera descends and moves backward. forward_up: Camera moves forward and tilts up. right_turn_forward: Rotate right and move forward. left_turn_forward: Rotate left and move forward.",
-            },
-        ),
-        "camera_control_horizontal": get_camera_control_input_config(
-            "Controls camera's movement along horizontal axis (x-axis). Negative indicates left, positive indicates right"
-        ),
-        "camera_control_vertical": get_camera_control_input_config(
-            "Controls camera's movement along vertical axis (y-axis). Negative indicates downward, positive indicates upward."
-        ),
-        "camera_control_pan": get_camera_control_input_config(
-            "Controls camera's rotation in vertical plane (x-axis). Negative indicates downward rotation, positive indicates upward rotation.",
-            default=0.5,
-        ),
-        "camera_control_roll": get_camera_control_input_config(
-            "Controls camera's rotation in horizontal plane (y-axis). Negative indicates left rotation, positive indicates right rotation.",
-        ),
-        "camera_control_tilt": get_camera_control_input_config(
-            "Controls camera's rolling amount (z-axis). Negative indicates counterclockwise, positive indicates clockwise.",
-        ),
-        "camera_control_zoom": get_camera_control_input_config(
-            "Controls change in camera's focal length. Negative indicates narrower field of view, positive indicates wider field of view.",
-        ),
-    }
+class KlingCameraControls(ComfyNodeABC):
+    """Kling Camera Controls Node"""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "camera_control_type": (
+                    IO.COMBO,
+                    {
+                        "options": [
+                            camera_control_type.value
+                            for camera_control_type in CameraType
+                        ],
+                        "default": "simple",
+                        "tooltip": "Predefined camera movements type. simple: Customizable camera movement. down_back: Camera descends and moves backward. forward_up: Camera moves forward and tilts up. right_turn_forward: Rotate right and move forward. left_turn_forward: Rotate left and move forward.",
+                    },
+                ),
+                "horizontal_movement": get_camera_control_input_config(
+                    "Controls camera's movement along horizontal axis (x-axis). Negative indicates left, positive indicates right"
+                ),
+                "vertical_movement": get_camera_control_input_config(
+                    "Controls camera's movement along vertical axis (y-axis). Negative indicates downward, positive indicates upward."
+                ),
+                "pan": get_camera_control_input_config(
+                    "Controls camera's rotation in vertical plane (x-axis). Negative indicates downward rotation, positive indicates upward rotation.",
+                    default=0.5,
+                ),
+                "tilt": get_camera_control_input_config(
+                    "Controls camera's rotation in horizontal plane (y-axis). Negative indicates left rotation, positive indicates right rotation.",
+                ),
+                "roll": get_camera_control_input_config(
+                    "Controls camera's rolling amount (z-axis). Negative indicates counterclockwise, positive indicates clockwise.",
+                ),
+                "zoom": get_camera_control_input_config(
+                    "Controls change in camera's focal length. Negative indicates narrower field of view, positive indicates wider field of view.",
+                ),
+            }
+        }
+
+    DESCRIPTION = "Kling Camera Controls Node. Not all model and mode combinations support camera control. Please refer to the Kling API documentation for more information."
+    RETURN_TYPES = ("CAMERA_CONTROL",)
+    RETURN_NAMES = ("camera_control",)
+    FUNCTION = "main"
+
+    def main(
+        self,
+        camera_control_type: str,
+        horizontal_movement: float,
+        vertical_movement: float,
+        pan: float,
+        tilt: float,
+        roll: float,
+        zoom: float,
+    ):
+        if not is_valid_camera_control_configs(
+            [
+                horizontal_movement,
+                vertical_movement,
+                pan,
+                tilt,
+                roll,
+                zoom,
+            ]
+        ):
+            return "Invalid camera control configs: at least one of the values must be non-zero"
+
+        return (
+            CameraControl(
+                type=CameraType(camera_control_type),
+                config=CameraConfig(
+                    horizontal=horizontal_movement,
+                    vertical=vertical_movement,
+                    pan=pan,
+                    roll=roll,
+                    tilt=tilt,
+                    zoom=zoom,
+                ),
+            ),
+        )
 
 
 class KlingNodeBase(ComfyNodeABC):
@@ -135,12 +188,6 @@ class KlingNodeBase(ComfyNodeABC):
         cls,
         prompt,
         negative_prompt,
-        camera_control_horizontal,
-        camera_control_vertical,
-        camera_control_pan,
-        camera_control_roll,
-        camera_control_tilt,
-        camera_control_zoom,
     ) -> Union[str, bool]:
         if not is_valid_prompt(prompt):
             return "Prompt is required"
@@ -148,17 +195,6 @@ class KlingNodeBase(ComfyNodeABC):
             return "Prompt must be less than 2500 characters"
         if negative_prompt and len(negative_prompt) >= 2500:
             return "Negative prompt must be less than 2500 characters"
-        if not is_valid_camera_control_configs(
-            [
-                camera_control_horizontal,
-                camera_control_vertical,
-                camera_control_pan,
-                camera_control_roll,
-                camera_control_tilt,
-                camera_control_zoom,
-            ]
-        ):
-            return "Invalid camera control configs"
         return True
 
     FUNCTION = "api_call"
@@ -204,6 +240,13 @@ class KlingTextToVideoNode(KlingNodeBase):
                 "negative_prompt": model_field_to_node_input(
                     IO.STRING, KlingText2VideoRequest, "negative_prompt", multiline=True
                 ),
+                "model_name": model_field_to_node_input(
+                    IO.COMBO,
+                    KlingText2VideoRequest,
+                    "model_name",
+                    enum_type=ModelName,
+                    default="kling-v2-master",
+                ),
                 "cfg_scale": model_field_to_node_input(
                     IO.FLOAT, KlingText2VideoRequest, "cfg_scale"
                 ),
@@ -219,7 +262,9 @@ class KlingTextToVideoNode(KlingNodeBase):
                     "aspect_ratio",
                     enum_type=AspectRatio,
                 ),
-                **_get_camera_control_inputs(),
+            },
+            "optional": {
+                "camera_control": ("CAMERA_CONTROL", {}),
             },
             "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
         }
@@ -231,33 +276,14 @@ class KlingTextToVideoNode(KlingNodeBase):
         self,
         prompt: str,
         negative_prompt: str,
-        duration: int,
-        mode: str,
+        model_name: str,
         cfg_scale: float,
+        mode: str,
+        duration: int,
         aspect_ratio: str,
-        camera_control_type: str,
-        camera_control_horizontal: float,
-        camera_control_vertical: float,
-        camera_control_pan: float,
-        camera_control_roll: float,
-        camera_control_tilt: float,
-        camera_control_zoom: float,
+        camera_control: Optional[CameraControl] = None,
         auth_token: Optional[str] = None,
     ) -> tuple[VideoFromFile]:
-        camera_control = None
-        if is_camera_control_supported("kling-v1-6", duration, mode):
-            camera_control = CameraControl(
-                type=CameraType(camera_control_type),
-                config=CameraConfig(
-                    horizontal=camera_control_horizontal,
-                    vertical=camera_control_vertical,
-                    pan=camera_control_pan,
-                    roll=camera_control_roll,
-                    tilt=camera_control_tilt,
-                    zoom=camera_control_zoom,
-                ).model_dump(exclude_none=True),
-            )
-
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_TEXT_TO_VIDEO,
@@ -270,6 +296,7 @@ class KlingTextToVideoNode(KlingNodeBase):
                 negative_prompt=negative_prompt if negative_prompt else None,
                 duration=Duration(duration),
                 mode=Mode(mode),
+                model_name=ModelName(model_name),
                 cfg_scale=cfg_scale,
                 aspect_ratio=AspectRatio(aspect_ratio),
                 camera_control=camera_control,
@@ -284,8 +311,6 @@ class KlingTextToVideoNode(KlingNodeBase):
             raise KlingApiError(error_msg)
 
         task_id = initial_response.data.task_id
-        logging.debug("Kling task submitted. Task ID: %s", task_id)
-
         final_response = self.poll_for_task_status(task_id, auth_token)
         if not is_valid_video_response(final_response):
             error_msg = (
@@ -330,12 +355,6 @@ class KlingImage2VideoNode(KlingNodeBase):
     def INPUT_TYPES(s):
         return {
             "required": {
-                "model_name": model_field_to_node_input(
-                    IO.COMBO, KlingImage2VideoRequest, "model_name", enum_type=ModelName
-                ),
-                "start_frame": model_field_to_node_input(
-                    IO.IMAGE, KlingImage2VideoRequest, "image"
-                ),
                 "prompt": model_field_to_node_input(
                     IO.STRING, KlingImage2VideoRequest, "prompt", multiline=True
                 ),
@@ -344,6 +363,16 @@ class KlingImage2VideoNode(KlingNodeBase):
                     KlingImage2VideoRequest,
                     "negative_prompt",
                     multiline=True,
+                ),
+                "model_name": model_field_to_node_input(
+                    IO.COMBO,
+                    KlingImage2VideoRequest,
+                    "model_name",
+                    enum_type=ModelName,
+                    default="kling-v2-master",
+                ),
+                "start_frame": model_field_to_node_input(
+                    IO.IMAGE, KlingImage2VideoRequest, "image"
                 ),
                 "cfg_scale": model_field_to_node_input(
                     IO.FLOAT, KlingImage2VideoRequest, "cfg_scale"
@@ -360,9 +389,9 @@ class KlingImage2VideoNode(KlingNodeBase):
                 "duration": model_field_to_node_input(
                     IO.COMBO, KlingImage2VideoRequest, "duration", enum_type=Duration
                 ),
-                **_get_camera_control_inputs(),
             },
             "optional": {
+                "camera_control": ("CAMERA_CONTROL", {}),
                 "end_frame": model_field_to_node_input(
                     IO.IMAGE, KlingImage2VideoRequest, "image_tail"
                 ),
@@ -375,41 +404,18 @@ class KlingImage2VideoNode(KlingNodeBase):
 
     def api_call(
         self,
-        model_name: str,
-        start_frame: torch.Tensor,
         prompt: str,
         negative_prompt: str,
+        model_name: str,
+        start_frame: torch.Tensor,
         cfg_scale: float,
         mode: str,
         aspect_ratio: str,
         duration: str,
-        camera_control_type: str,
-        camera_control_horizontal: float,
-        camera_control_vertical: float,
-        camera_control_pan: float,
-        camera_control_roll: float,
-        camera_control_tilt: float,
-        camera_control_zoom: float,
+        camera_control: Optional[CameraControl] = None,
         end_frame: Optional[torch.Tensor] = None,
         auth_token: Optional[str] = None,
     ) -> tuple[VideoFromFile]:
-        camera_control = None
-        if is_camera_control_supported(model_name, duration, mode):
-            config = None
-            if camera_control_type != "right_turn_forward":
-                config = CameraConfig(
-                    horizontal=camera_control_horizontal,
-                    vertical=camera_control_vertical,
-                    pan=camera_control_pan,
-                    roll=camera_control_roll,
-                    tilt=camera_control_tilt,
-                    zoom=camera_control_zoom,
-                )
-            camera_control = CameraControl(
-                type=CameraType(camera_control_type),
-                config=config if config else None,
-            )
-
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_IMAGE_TO_VIDEO,
@@ -442,8 +448,6 @@ class KlingImage2VideoNode(KlingNodeBase):
             raise KlingApiError(error_msg)
 
         task_id = initial_response.data.task_id
-        logging.debug("Kling task submitted. Task ID: %s", task_id)
-
         final_response = KlingImage2VideoNode.poll_for_task_status(task_id, auth_token)
         if not is_valid_video_response(final_response):
             error_msg = (
@@ -459,11 +463,13 @@ class KlingImage2VideoNode(KlingNodeBase):
 
 
 NODE_CLASS_MAPPINGS = {
+    "KlingCameraControls": KlingCameraControls,
     "KlingTextToVideoNode": KlingTextToVideoNode,
     "KlingImage2VideoNode": KlingImage2VideoNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "KlingCameraControls": "Kling Camera Controls",
     "KlingTextToVideoNode": "Kling Text to Video",
     "KlingImage2VideoNode": "Kling Image to Video",
 }
