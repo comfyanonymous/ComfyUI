@@ -278,6 +278,7 @@ class ExtendIntermediateSigmas:
 
         # linear space for our interpolation function
         x = torch.linspace(0, 1, steps + 1, device=sigmas.device)[1:-1]
+        computed_spacing = interpolator(x)
 
         extended_sigmas = []
         for i in range(len(sigmas) - 1):
@@ -287,7 +288,7 @@ class ExtendIntermediateSigmas:
             extended_sigmas.append(sigma_current)
 
             if end_at_sigma <= sigma_current <= start_at_sigma:
-                interpolated_steps = interpolator(x) * (sigma_next - sigma_current) + sigma_current
+                interpolated_steps = computed_spacing * (sigma_next - sigma_current) + sigma_current
                 extended_sigmas.extend(interpolated_steps.tolist())
 
         # Add the last sigma value
