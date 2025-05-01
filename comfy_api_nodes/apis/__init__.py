@@ -2984,9 +2984,9 @@ class RunwayAspectRatioEnum(str, Enum):
 
 
 class RunwayPromptImageObject(
-    RootModel[Union[str, List[RunwayPromptImageDetailedObject]]]
+    RootModel[Union[AnyUrl, List[RunwayPromptImageDetailedObject]]]
 ):
-    root: Union[str, List[RunwayPromptImageDetailedObject]] = Field(
+    root: Union[AnyUrl, List[RunwayPromptImageDetailedObject]] = Field(
         ...,
         description='Image(s) to use for the video generation. Can be a single URI or an array of image objects with positions.',
     )
@@ -4681,6 +4681,14 @@ class StripeCharge(BaseModel):
     status: Optional[str] = None
     transfer_data: Optional[Any] = None
     transfer_group: Optional[Any] = None
+
+
+class StripeChargeList(BaseModel):
+    object: Optional[str] = None
+    data: Optional[List[StripeCharge]] = None
+    has_more: Optional[bool] = None
+    total_count: Optional[int] = None
+    url: Optional[str] = None
 
 
 class StripePaymentIntent(BaseModel):
