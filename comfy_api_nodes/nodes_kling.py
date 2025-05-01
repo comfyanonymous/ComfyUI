@@ -1,15 +1,4 @@
-"""
-`camera_control` supported:
-
-- pro | 5s duration | kling-v1-5
-
-`camera_control` not supported:
-
-- std | 10s duration | kling-v1-6
-
-"""
-
-from typing import Union, Optional
+from typing import Optional
 import math
 import logging
 import torch
@@ -39,9 +28,9 @@ from comfy_api_nodes.apinode_utils import (
     tensor_to_base64_string,
     download_url_to_video_output,
 )
+from comfy_api_nodes.mapper_utils import model_field_to_node_input
 from comfy.comfy_types.node_typing import IO, InputTypeOptions, ComfyNodeABC
 from comfy_api.input_impl import VideoFromFile
-from comfy_api_nodes.mapper_utils import model_field_to_node_input
 
 KLING_API_VERSION = "v1"
 PATH_TEXT_TO_VIDEO = f"/proxy/kling/{KLING_API_VERSION}/videos/text2video"
@@ -51,6 +40,9 @@ PATH_LIP_SYNC = f"/proxy/kling/{KLING_API_VERSION}/videos/lip-sync"
 PATH_VIDEO_EFFECTS = f"/proxy/kling/{KLING_API_VERSION}/videos/effects"
 PATH_CHARACTER_IMAGE = f"/proxy/kling/{KLING_API_VERSION}/images/generations"
 PATH_VIRTUAL_TRY_ON = f"/proxy/kling/{KLING_API_VERSION}/images/kolors-virtual-try-on"
+
+MAX_PROMPT_LENGTH_T2V = 2500
+MAX_PROMPT_LENGTH_I2V = 500
 
 
 class KlingApiError(Exception):
@@ -81,6 +73,19 @@ def is_valid_video_response(response: KlingText2VideoResponse) -> bool:
         and response.data.task_result.videos
         and len(response.data.task_result.videos) > 0
     )
+
+
+def validate_prompts(prompt: str, negative_prompt: str, max_length: int) -> bool:
+    """Verifies that the positive prompt is not empty and that neither promt is too long."""
+    if not prompt:
+        raise ValueError("Positive prompt is empty")
+    if len(prompt) > max_length:
+        raise ValueError(f"Positive prompt is too long: {len(prompt)} characters")
+    if negative_prompt and len(negative_prompt) > max_length:
+        raise ValueError(
+            f"Negative prompt is too long: {len(negative_prompt)} characters"
+        )
+    return True
 
 
 def get_camera_control_input_config(
@@ -183,20 +188,6 @@ class KlingCameraControls(ComfyNodeABC):
 class KlingNodeBase(ComfyNodeABC):
     """Base class for Kling nodes."""
 
-    @classmethod
-    def VALIDATE_INPUTS(
-        cls,
-        prompt,
-        negative_prompt,
-    ) -> Union[str, bool]:
-        if not is_valid_prompt(prompt):
-            return "Prompt is required"
-        if len(prompt) >= 2500:
-            return "Prompt must be less than 2500 characters"
-        if negative_prompt and len(negative_prompt) >= 2500:
-            return "Negative prompt must be less than 2500 characters"
-        return True
-
     FUNCTION = "api_call"
     CATEGORY = "api node/video/Kling"
     API_NODE = True
@@ -284,6 +275,7 @@ class KlingTextToVideoNode(KlingNodeBase):
         camera_control: Optional[CameraControl] = None,
         auth_token: Optional[str] = None,
     ) -> tuple[VideoFromFile]:
+        validate_prompts(prompt, negative_prompt, MAX_PROMPT_LENGTH_T2V)
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_TEXT_TO_VIDEO,
@@ -416,6 +408,7 @@ class KlingImage2VideoNode(KlingNodeBase):
         end_frame: Optional[torch.Tensor] = None,
         auth_token: Optional[str] = None,
     ) -> tuple[VideoFromFile]:
+        validate_prompts(prompt, negative_prompt, MAX_PROMPT_LENGTH_I2V)
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_IMAGE_TO_VIDEO,
