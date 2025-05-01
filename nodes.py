@@ -2267,7 +2267,6 @@ def init_builtin_extra_nodes():
         "nodes_minimax.py",
         "nodes_veo2.py",
         "nodes_kling.py",
-        "nodes_runway.py",
         "nodes_bfl.py",
         "nodes_luma.py",
         "nodes_recraft.py",
