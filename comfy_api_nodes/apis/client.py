@@ -411,7 +411,6 @@ class SynchronousOperation(Generic[T, R]):
         self.verify_ssl = verify_ssl
         self.files = files
         self.content_type = content_type
-
     def execute(self, client: Optional[ApiClient] = None) -> R:
         """Execute the API operation using the provided client or create one"""
         try:
@@ -430,6 +429,10 @@ class SynchronousOperation(Generic[T, R]):
                 if isinstance(self.request, EmptyRequest)
                 else self.request.model_dump(exclude_none=True)
             )
+            if request_dict:
+                for key, value in request_dict.items():
+                    if isinstance(value, Enum):
+                        request_dict[key] = value.value
 
             if request_dict:
                for key, value in request_dict.items():
