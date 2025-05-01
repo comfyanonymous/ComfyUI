@@ -266,7 +266,7 @@ class ExtendIntermediateSigmas:
 
     FUNCTION = "extend"
 
-    def extend(self, sigmas, steps, start_at_sigma, end_at_sigma, spacing):
+    def extend(self, sigmas: torch.Tensor, steps: int, start_at_sigma: float, end_at_sigma: float, spacing: str):
         if start_at_sigma < 0:
             start_at_sigma = float("inf")
 
