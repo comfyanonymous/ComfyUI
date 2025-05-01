@@ -102,6 +102,9 @@ AVERAGE_DURATION_VIDEO_EXTEND = 320
 
 R = TypeVar("R")
 
+MAX_PROMPT_LENGTH_T2V = 2500
+MAX_PROMPT_LENGTH_I2V = 500
+
 
 class KlingApiError(Exception):
     """Base exception for Kling API errors."""
