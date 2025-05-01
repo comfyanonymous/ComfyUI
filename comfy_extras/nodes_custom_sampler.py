@@ -387,6 +387,90 @@ class SamplerEulerAncestralCFGPP:
             {"eta": eta, "s_noise": s_noise})
         return (sampler, )
 
+class SamplerEulerMultipass:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "s_churn": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step":0.01, "round": False}),
+                     "s_tmin": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 20000.0, "step":0.01, "round": False}),
+                     "s_tmax": ("FLOAT", {"default": 20000.0, "min": 0.0, "max": 20000.0, "step":0.01, "round": False}),
+                     "pass_steps": ("INT", {"default": 2, "min": 1, "max": 100}),
+                     "pass_sigma_max": ("FLOAT", {"default": 20000.0, "min": 0.0, "max": 20000.0, "step":0.01, "round": False}),
+                     "pass_sigma_min": ("FLOAT", {"default": 12.0, "min": 0.0, "max": 20000.0, "step":0.01, "round": False}),
+                      }
+               }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, s_noise, s_churn, s_tmin, s_tmax, pass_steps, pass_sigma_max, pass_sigma_min):
+        sampler = comfy.samplers.ksampler("euler_multipass", {"s_noise": s_noise, "s_churn": s_churn, "s_tmin": s_tmin, "s_tmax": s_tmax, "pass_steps": pass_steps, "pass_sigma_max": pass_sigma_max, "pass_sigma_min": pass_sigma_min})
+        return (sampler, )
+
+class SamplerEulerAncestralMultipass:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "pass_steps": ("INT", {"default": 2, "min": 1, "max": 100}),
+                     "pass_sigma_max": ("FLOAT", {"default": 20000.0, "min": 0.0, "max": 20000.0, "step":0.01, "round": False}),
+                     "pass_sigma_min": ("FLOAT", {"default": 12.0, "min": 0.0, "max": 20000.0, "step":0.01, "round": False}),
+                      }
+               }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, eta, s_noise, pass_steps, pass_sigma_max, pass_sigma_min):
+        sampler = comfy.samplers.ksampler("euler_ancestral_multipass", {"eta": eta, "s_noise": s_noise, "pass_steps": pass_steps, "pass_sigma_max": pass_sigma_max, "pass_sigma_min": pass_sigma_min})
+        return (sampler, )
+
+class SamplerEulerMultipassCFGPP:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "s_churn": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step":0.01, "round": False}),
+                     "s_tmin": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 20000.0, "step":0.01, "round": False}),
+                     "s_tmax": ("FLOAT", {"default": 20000.0, "min": 0.0, "max": 20000.0, "step":0.01, "round": False}),
+                     "pass_steps": ("INT", {"default": 2, "min": 1, "max": 100}),
+                     "pass_sigma_max": ("FLOAT", {"default": 20000.0, "min": 0.0, "max": 20000.0, "step":0.01, "round": False}),
+                     "pass_sigma_min": ("FLOAT", {"default": 12.0, "min": 0.0, "max": 20000.0, "step":0.01, "round": False}),
+                      }
+               }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, s_noise, s_churn, s_tmin, s_tmax, pass_steps, pass_sigma_max, pass_sigma_min):
+        sampler = comfy.samplers.ksampler("euler_multipass_cfg_pp", {"s_noise": s_noise, "s_churn": s_churn, "s_tmin": s_tmin, "s_tmax": s_tmax, "pass_steps": pass_steps, "pass_sigma_max": pass_sigma_max, "pass_sigma_min": pass_sigma_min})
+        return (sampler, )
+
+class SamplerEulerAncestralMultipassCFGPP:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "pass_steps": ("INT", {"default": 3, "min": 1, "max": 100}),
+                     "pass_sigma_max": ("FLOAT", {"default": 20000.0, "min": 0.0, "max": 20000.0, "step":0.01, "round": False}),
+                     "pass_sigma_min": ("FLOAT", {"default": 20.0, "min": 0.0, "max": 20000.0, "step":0.01, "round": False}),
+                      }
+               }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, eta, s_noise, pass_steps, pass_sigma_max, pass_sigma_min):
+        sampler = comfy.samplers.ksampler("euler_multipass_ancestral_cfg_pp", {"eta": eta, "s_noise": s_noise, "pass_steps": pass_steps, "pass_sigma_max": pass_sigma_max, "pass_sigma_min": pass_sigma_min})
+        return (sampler, )
+
 class SamplerLMS:
     @classmethod
     def INPUT_TYPES(s):
@@ -725,6 +809,10 @@ NODE_CLASS_MAPPINGS = {
     "KSamplerSelect": KSamplerSelect,
     "SamplerEulerAncestral": SamplerEulerAncestral,
     "SamplerEulerAncestralCFGPP": SamplerEulerAncestralCFGPP,
+    "SamplerEulerMultipass": SamplerEulerMultipass,
+    "SamplerEulerAncestralMultipass": SamplerEulerAncestralMultipass,
+    "SamplerEulerMultipassCFGPP": SamplerEulerMultipassCFGPP,
+    "SamplerEulerAncestralMultipassCFGPP": SamplerEulerAncestralMultipassCFGPP,
     "SamplerLMS": SamplerLMS,
     "SamplerDPMPP_3M_SDE": SamplerDPMPP_3M_SDE,
     "SamplerDPMPP_2M_SDE": SamplerDPMPP_2M_SDE,
@@ -747,4 +835,6 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SamplerEulerAncestralCFGPP": "SamplerEulerAncestralCFG++",
+    "SamplerEulerMultipassCFGPP": "SamplerEulerMultipassCFG++",
+    "SamplerEulerAncestralMultipassCFGPP": "SamplerEulerAncestralMultipassCFG++",
 }
