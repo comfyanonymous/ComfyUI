@@ -798,3 +798,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "IdeogramV2": "Ideogram V2",
     "IdeogramV3": "Ideogram V3",
 }
+
