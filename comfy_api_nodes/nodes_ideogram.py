@@ -3,6 +3,7 @@ from inspect import cleandoc
 from PIL import Image
 import numpy as np
 import io
+import torch
 from comfy_api_nodes.apis import (
     IdeogramGenerateRequest,
     IdeogramGenerateResponse,
@@ -209,14 +210,26 @@ V3_RESOLUTIONS= [
     "1536x640"
 ]
 
-def download_and_process_image(image_url):
-    """Helper function to download and process image from URL"""
+def download_and_process_images(image_urls):
+    """Helper function to download and process multiple images from URLs"""
 
-    # Using functions from apinode_utils.py to handle downloading and processing
-    image_bytesio = download_url_to_bytesio(image_url)  # Download image content to BytesIO
-    img_tensor = bytesio_to_image_tensor(image_bytesio, mode="RGB")  # Convert to torch.Tensor with RGB mode
+    # Initialize list to store image tensors
+    image_tensors = []
 
-    return img_tensor
+    for image_url in image_urls:
+        # Using functions from apinode_utils.py to handle downloading and processing
+        image_bytesio = download_url_to_bytesio(image_url)  # Download image content to BytesIO
+        img_tensor = bytesio_to_image_tensor(image_bytesio, mode="RGB")  # Convert to torch.Tensor with RGB mode
+        image_tensors.append(img_tensor)
+
+    # Stack tensors to match (N, width, height, channels)
+    if image_tensors:
+        stacked_tensors = torch.cat(image_tensors, dim=0)
+    else:
+        raise Exception("No valid images were processed")
+
+    return stacked_tensors
+
 
 class IdeogramV1(ComfyNodeABC):
     """
@@ -340,12 +353,13 @@ class IdeogramV1(ComfyNodeABC):
 
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")
-        image_url = response.data[0].url
 
-        if not image_url:
-            raise Exception("No image URL was generated in the response")
+        image_urls = [image_data.url for image_data in response.data if image_data.url]
 
-        return (download_and_process_image(image_url),)
+        if not image_urls:
+            raise Exception("No image URLs were generated in the response")
+
+        return (download_and_process_images(image_urls),)
 
 
 class IdeogramV2(ComfyNodeABC):
@@ -511,12 +525,13 @@ class IdeogramV2(ComfyNodeABC):
 
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")
-        image_url = response.data[0].url
 
-        if not image_url:
-            raise Exception("No image URL was generated in the response")
+        image_urls = [image_data.url for image_data in response.data if image_data.url]
 
-        return (download_and_process_image(image_url),)
+        if not image_urls:
+            raise Exception("No image URLs were generated in the response")
+
+        return (download_and_process_images(image_urls),)
 
 class IdeogramV3(ComfyNodeABC):
     """
@@ -734,12 +749,14 @@ class IdeogramV3(ComfyNodeABC):
 
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")
-        image_url = response.data[0].url
 
-        if not image_url:
-            raise Exception("No image URL was generated in the response")
+        image_urls = [image_data.url for image_data in response.data if image_data.url]
 
-        return (download_and_process_image(image_url),)
+        if not image_urls:
+            raise Exception("No image URLs were generated in the response")
+
+        return (download_and_process_images(image_urls),)
+
 
 NODE_CLASS_MAPPINGS = {
     "IdeogramV1": IdeogramV1,
@@ -752,3 +769,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "IdeogramV2": "Ideogram V2",
     "IdeogramV3": "Ideogram V3",
 }
+
