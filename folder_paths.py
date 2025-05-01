@@ -4,7 +4,7 @@ import os
 import time
 import mimetypes
 import logging
-from typing import Literal
+from typing import Literal, List
 from collections.abc import Collection
 
 from comfy.cli_args import args
@@ -85,6 +85,7 @@ cache_helper = CacheHelper()
 
 extension_mimetypes_cache = {
     "webp" : "image",
+    "fbx" : "model",
 }
 
 def map_legacy(folder_name: str) -> str:
@@ -140,11 +141,14 @@ def get_directory_by_type(type_name: str) -> str | None:
         return get_input_directory()
     return None
 
-def filter_files_content_types(files: list[str], content_types: Literal["image", "video", "audio"]) -> list[str]:
+def filter_files_content_types(files: list[str], content_types: List[Literal["image", "video", "audio", "model"]]) -> list[str]:
     """
     Example:
         files = os.listdir(folder_paths.get_input_directory())
-        filter_files_content_types(files, ["image", "audio", "video"])
+        videos = filter_files_content_types(files, ["video"])
+
+    Note:
+        - 'model' in MIME context refers to 3D models, not files containing trained weights and parameters
     """
     global extension_mimetypes_cache
     result = []

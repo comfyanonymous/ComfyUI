@@ -38,6 +38,7 @@ class LTXVImgToVideo:
                              "height": ("INT", {"default": 512, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
                              "length": ("INT", {"default": 97, "min": 9, "max": nodes.MAX_RESOLUTION, "step": 8}),
                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
+                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0}),
                              }}
 
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
@@ -46,7 +47,7 @@ class LTXVImgToVideo:
     CATEGORY = "conditioning/video_models"
     FUNCTION = "generate"
 
-    def generate(self, positive, negative, image, vae, width, height, length, batch_size):
+    def generate(self, positive, negative, image, vae, width, height, length, batch_size, strength):
         pixels = comfy.utils.common_upscale(image.movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
         encode_pixels = pixels[:, :, :, :3]
         t = vae.encode(encode_pixels)
@@ -59,7 +60,7 @@ class LTXVImgToVideo:
             dtype=torch.float32,
             device=latent.device,
         )
-        conditioning_latent_frames_mask[:, :, :t.shape[2]] = 0
+        conditioning_latent_frames_mask[:, :, :t.shape[2]] = 1.0 - strength
 
         return (positive, negative, {"samples": latent, "noise_mask": conditioning_latent_frames_mask}, )
 
@@ -152,6 +153,15 @@ class LTXVAddGuide:
         return node_helpers.conditioning_set_values(cond, {"keyframe_idxs": keyframe_idxs})
 
     def append_keyframe(self, positive, negative, frame_idx, latent_image, noise_mask, guiding_latent, strength, scale_factors):
+        _, latent_idx = self.get_latent_index(
+            cond=positive,
+            latent_length=latent_image.shape[2],
+            guide_length=guiding_latent.shape[2],
+            frame_idx=frame_idx,
+            scale_factors=scale_factors,
+        )
+        noise_mask[:, :, latent_idx:latent_idx + guiding_latent.shape[2]] = 1.0
+
         positive = self.add_keyframe_index(positive, frame_idx, guiding_latent, scale_factors)
         negative = self.add_keyframe_index(negative, frame_idx, guiding_latent, scale_factors)
 
@@ -385,7 +395,7 @@ def encode_single_frame(output_file, image_array: np.ndarray, crf):
     container = av.open(output_file, "w", format="mp4")
     try:
         stream = container.add_stream(
-            "h264", rate=1, options={"crf": str(crf), "preset": "veryfast"}
+            "libx264", rate=1, options={"crf": str(crf), "preset": "veryfast"}
         )
         stream.height = image_array.shape[0]
         stream.width = image_array.shape[1]
@@ -446,10 +456,9 @@ class LTXVPreprocess:
     CATEGORY = "image"
 
     def preprocess(self, image, img_compression):
-        if img_compression > 0:
-            output_images = []
-            for i in range(image.shape[0]):
-                output_images.append(preprocess(image[i], img_compression))
+        output_images = []
+        for i in range(image.shape[0]):
+            output_images.append(preprocess(image[i], img_compression))
         return (torch.stack(output_images),)
 
 

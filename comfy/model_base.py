@@ -36,6 +36,9 @@ import comfy.ldm.hunyuan_video.model
 import comfy.ldm.cosmos.model
 import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
+import comfy.ldm.hunyuan3d.model
+import comfy.ldm.hidream.model
+import comfy.ldm.chroma.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -58,6 +61,7 @@ class ModelType(Enum):
     FLOW = 6
     V_PREDICTION_CONTINUOUS = 7
     FLUX = 8
+    IMG_TO_IMG = 9
 
 
 from comfy.model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling, ModelSamplingContinuousV
@@ -88,6 +92,8 @@ def model_sampling(model_config, model_type):
     elif model_type == ModelType.FLUX:
         c = comfy.model_sampling.CONST
         s = comfy.model_sampling.ModelSamplingFlux
+    elif model_type == ModelType.IMG_TO_IMG:
+        c = comfy.model_sampling.IMG_TO_IMG
 
     class ModelSampling(s, c):
         pass
@@ -139,6 +145,7 @@ class BaseModel(torch.nn.Module):
     def _apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         sigma = t
         xc = self.model_sampling.calculate_input(sigma, x)
+
         if c_concat is not None:
             xc = torch.cat([xc] + [c_concat], dim=1)
 
@@ -600,6 +607,19 @@ class SDXL_instructpix2pix(IP2P, SDXL):
         else:
             self.process_ip2p_image_in = lambda image: image #diffusers ip2p
 
+class Lotus(BaseModel):
+    def extra_conds(self, **kwargs):
+        out = {}
+        cross_attn = kwargs.get("cross_attn", None)
+        out['c_crossattn'] = comfy.conds.CONDCrossAttn(cross_attn)
+        device = kwargs["device"]
+        task_emb = torch.tensor([1, 0]).float().to(device)
+        task_emb = torch.cat([torch.sin(task_emb), torch.cos(task_emb)]).unsqueeze(0)
+        out['y'] = comfy.conds.CONDRegular(task_emb)
+        return out
+
+    def __init__(self, model_config, model_type=ModelType.IMG_TO_IMG, device=None):
+        super().__init__(model_config, model_type, device=device)
 
 class StableCascade_C(BaseModel):
     def __init__(self, model_config, model_type=ModelType.STABLE_CASCADE, device=None):
@@ -767,8 +787,8 @@ class PixArt(BaseModel):
         return out
 
 class Flux(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.flux.model.Flux)
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None, unet_model=comfy.ldm.flux.model.Flux):
+        super().__init__(model_config, model_type, device=device, unet_model=unet_model)
 
     def concat_cond(self, **kwargs):
         try:
@@ -974,31 +994,41 @@ class WAN21(BaseModel):
 
     def concat_cond(self, **kwargs):
         noise = kwargs.get("noise", None)
-        if self.diffusion_model.patch_embedding.weight.shape[1] == noise.shape[1]:
+        extra_channels = self.diffusion_model.patch_embedding.weight.shape[1] - noise.shape[1]
+        if extra_channels == 0:
             return None
 
         image = kwargs.get("concat_latent_image", None)
         device = kwargs["device"]
 
         if image is None:
-            image = torch.zeros_like(noise)
+            shape_image = list(noise.shape)
+            shape_image[1] = extra_channels
+            image = torch.zeros(shape_image, dtype=noise.dtype, layout=noise.layout, device=noise.device)
+        else:
+            image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+            for i in range(0, image.shape[1], 16):
+                image[:, i: i + 16] = self.process_latent_in(image[:, i: i + 16])
+            image = utils.resize_to_batch_size(image, noise.shape[0])
 
-        image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
-        image = self.process_latent_in(image)
-        image = utils.resize_to_batch_size(image, noise.shape[0])
-
-        if not self.image_to_video:
+        if not self.image_to_video or extra_channels == image.shape[1]:
             return image
+
+        if image.shape[1] > (extra_channels - 4):
+            image = image[:, :(extra_channels - 4)]
 
         mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
         if mask is None:
             mask = torch.zeros_like(noise)[:, :4]
         else:
-            mask = 1.0 - torch.mean(mask, dim=1, keepdim=True)
+            if mask.shape[1] != 4:
+                mask = torch.mean(mask, dim=1, keepdim=True)
+            mask = 1.0 - mask
             mask = utils.common_upscale(mask.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
             if mask.shape[-3] < noise.shape[-3]:
                 mask = torch.nn.functional.pad(mask, (0, 0, 0, 0, 0, noise.shape[-3] - mask.shape[-3]), mode='constant', value=0)
-            mask = mask.repeat(1, 4, 1, 1, 1)
+            if mask.shape[1] == 1:
+                mask = mask.repeat(1, 4, 1, 1, 1)
             mask = utils.resize_to_batch_size(mask, noise.shape[0])
 
         return torch.cat((mask, image), dim=1)
@@ -1012,4 +1042,82 @@ class WAN21(BaseModel):
         clip_vision_output = kwargs.get("clip_vision_output", None)
         if clip_vision_output is not None:
             out['clip_fea'] = comfy.conds.CONDRegular(clip_vision_output.penultimate_hidden_states)
+        return out
+
+
+class WAN21_Vace(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.VaceWanModel)
+        self.image_to_video = image_to_video
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        noise = kwargs.get("noise", None)
+        noise_shape = list(noise.shape)
+        vace_frames = kwargs.get("vace_frames", None)
+        if vace_frames is None:
+            noise_shape[1] = 32
+            vace_frames = torch.zeros(noise_shape, device=noise.device, dtype=noise.dtype)
+
+        for i in range(0, vace_frames.shape[1], 16):
+            vace_frames = vace_frames.clone()
+            vace_frames[:, i:i + 16] = self.process_latent_in(vace_frames[:, i:i + 16])
+
+        mask = kwargs.get("vace_mask", None)
+        if mask is None:
+            noise_shape[1] = 64
+            mask = torch.ones(noise_shape, device=noise.device, dtype=noise.dtype)
+
+        out['vace_context'] = comfy.conds.CONDRegular(torch.cat([vace_frames.to(noise), mask.to(noise)], dim=1))
+
+        vace_strength = kwargs.get("vace_strength", 1.0)
+        out['vace_strength'] = comfy.conds.CONDConstant(vace_strength)
+        return out
+
+
+class Hunyuan3Dv2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hunyuan3d.model.Hunyuan3Dv2)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        guidance = kwargs.get("guidance", 5.0)
+        if guidance is not None:
+            out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
+        return out
+
+class HiDream(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hidream.model.HiDreamImageTransformer2DModel)
+
+    def encode_adm(self, **kwargs):
+        return kwargs["pooled_output"]
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        conditioning_llama3 = kwargs.get("conditioning_llama3", None)
+        if conditioning_llama3 is not None:
+            out['encoder_hidden_states_llama3'] = comfy.conds.CONDRegular(conditioning_llama3)
+        image_cond = kwargs.get("concat_latent_image", None)
+        if image_cond is not None:
+            out['image_cond'] = comfy.conds.CONDNoiseShape(self.process_latent_in(image_cond))
+        return out
+
+class Chroma(Flux):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.chroma.model.Chroma)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+
+        guidance = kwargs.get("guidance", 0)
+        if guidance is not None:
+            out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
