@@ -714,6 +714,7 @@ class CLIPType(Enum):
     LUMINA2 = 12
     WAN = 13
     HIDREAM = 14
+    CHROMA = 15
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -818,7 +819,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             elif clip_type == CLIPType.LTXV:
                 clip_target.clip = comfy.text_encoders.lt.ltxv_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.lt.LTXVT5Tokenizer
-            elif clip_type == CLIPType.PIXART:
+            elif clip_type == CLIPType.PIXART or clip_type == CLIPType.CHROMA:
                 clip_target.clip = comfy.text_encoders.pixart_t5.pixart_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.pixart_t5.PixArtTokenizer
             elif clip_type == CLIPType.WAN:
