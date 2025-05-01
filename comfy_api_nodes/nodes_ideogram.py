@@ -417,7 +417,7 @@ class IdeogramV2(ComfyNodeABC):
                 "style_type": (
                     IO.COMBO,
                     {
-                        "options": ["NONE", "ANIME", "CINEMATIC", "CREATIVE", "DIGITAL_ART", "PHOTOGRAPHIC"],
+                        "options": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"],
                         "default": "NONE",
                         "tooltip": "Style type for generation (V2 only)",
                     },
