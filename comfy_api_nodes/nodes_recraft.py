@@ -23,7 +23,7 @@ from comfy_api_nodes.apinode_utils import (
     download_url_to_bytesio,
 )
 import folder_paths
-
+import json
 import os
 import torch
 from io import BytesIO
@@ -70,22 +70,42 @@ class SaveSVGNode:
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
         results = list()
-        for batch_number, svg_bytes in enumerate(svg.data):
-            # NOTE: no way to do metadata for SVG right now, maybe figure this out later
-            # metadata = None
-            # if not args.disable_metadata:
-            #     metadata = PngInfo()
-            #     if prompt is not None:
-            #         metadata.add_text("prompt", json.dumps(prompt))
-            #     if extra_pnginfo is not None:
-            #         for x in extra_pnginfo:
-            #             metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
+        # Prepare metadata JSON
+        metadata_dict = {}
+        if prompt is not None:
+            metadata_dict["prompt"] = prompt
+        if extra_pnginfo is not None:
+            metadata_dict.update(extra_pnginfo)
+
+        # Convert metadata to JSON string
+        metadata_json = json.dumps(metadata_dict, indent=2) if metadata_dict else None
+
+        for batch_number, svg_bytes in enumerate(svg.data):
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.svg"
+
+            # Read SVG content
+            svg_bytes.seek(0)
+            svg_content = svg_bytes.read().decode('utf-8')
+
+            # Inject metadata if available
+            if metadata_json:
+                # Create metadata element with CDATA section
+                metadata_element = f"""  <metadata>
+    <![CDATA[
+{metadata_json}
+    ]]>
+  </metadata>
+"""
+                # Insert metadata after opening svg tag using regex
+                import re
+                svg_content = re.sub(r'(<svg[^>]*>)', r'\1\n' + metadata_element, svg_content)
+
+            # Write the modified SVG to file
             with open(os.path.join(full_output_folder, file), 'wb') as svg_file:
-                svg_bytes.seek(0)
-                svg_file.write(svg_bytes.read())
+                svg_file.write(svg_content.encode('utf-8'))
+
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
