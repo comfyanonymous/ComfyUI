@@ -53,4 +53,4 @@ jobs:
             Generated automatically by the a Github workflow.
           branch: update-api-stubs
           delete-branch: true
-          base: main
+          base: master
