@@ -1,7 +1,7 @@
 import torch
 from torch import Tensor, nn
 
-from .math import attention
+from comfy.ldm.flux.math import attention
 from comfy.ldm.flux.layers import (
     MLPEmbedder,
     RMSNorm,
