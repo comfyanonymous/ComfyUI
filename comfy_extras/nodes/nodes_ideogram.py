@@ -62,22 +62,20 @@ class IdeogramGenerate(CustomNode):
         headers = {"Api-Key": api_key, "Content-Type": "application/json"}
 
         payload = {
-            "image_request": {
-                "prompt": prompt,
-                "resolution": resolution,
-                "model": model,
-                "magic_prompt_option": magic_prompt_option,
-                "num_images": num_images,
-                "style_type": style_type,
-            }
+            "prompt": prompt,
+            "resolution": resolution,
+            "model": model,
+            "magic_prompt": magic_prompt_option,
+            "num_images": num_images,
+            "style_type": style_type,
         }
 
         if negative_prompt:
-            payload["image_request"]["negative_prompt"] = negative_prompt
+            payload["negative_prompt"] = negative_prompt
         if seed:
-            payload["image_request"]["seed"] = seed
+            payload["seed"] = seed
 
-        response = requests.post("https://api.ideogram.ai/generate", headers=headers, json=payload)
+        response = requests.post("https://api.ideogram.ai/v1/ideogram-v3/generate", headers=headers, json=payload)
         response.raise_for_status()
 
         images = []
@@ -133,21 +131,19 @@ class IdeogramEdit(CustomNode):
             mask_pil.save(mask_bytes, format="PNG")
 
             files = {
-                "image_file": ("image.png", image_bytes.getvalue()),
+                "image": ("image.png", image_bytes.getvalue()),
                 "mask": ("mask.png", mask_bytes.getvalue()),
             }
 
             data = {
                 "prompt": prompt,
-                "model": model,
-                "magic_prompt_option": magic_prompt_option,
+                "magic_prompt": magic_prompt_option,
                 "num_images": num_images,
-                "style_type": style_type,
             }
             if seed:
                 data["seed"] = seed
 
-            response = requests.post("https://api.ideogram.ai/edit", headers=headers, files=files, data=data)
+            response = requests.post("https://api.ideogram.ai/v1/ideogram-v3/edit", headers=headers, files=files, data=data)
             response.raise_for_status()
 
             for item in response.json()["data"]:
@@ -198,15 +194,14 @@ class IdeogramRemix(CustomNode):
             image_pil.save(image_bytes, format="PNG")
 
             files = {
-                "image_file": ("image.png", image_bytes.getvalue()),
+                "image": ("image.png", image_bytes.getvalue()),
             }
 
             data = {
                 "prompt": prompt,
                 "resolution": resolution,
-                "model": model,
                 "image_weight": image_weight,
-                "magic_prompt_option": magic_prompt_option,
+                "magic_prompt": magic_prompt_option,
                 "num_images": num_images,
                 "style_type": style_type,
             }
@@ -218,9 +213,7 @@ class IdeogramRemix(CustomNode):
 
             # data = {"image_request": data}
 
-            response = requests.post("https://api.ideogram.ai/remix", headers=headers, files=files, data={
-                "image_request": json.dumps(data)
-            })
+            response = requests.post("https://api.ideogram.ai/v1/ideogram-v3/remix", headers=headers, files=files, data=data)
             response.raise_for_status()
 
             for item in response.json()["data"]:
