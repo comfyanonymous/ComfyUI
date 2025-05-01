@@ -431,6 +431,11 @@ class SynchronousOperation(Generic[T, R]):
                 else self.request.model_dump(exclude_none=True)
             )
 
+            if request_dict:
+               for key, value in request_dict.items():
+                   if isinstance(value, Enum):
+                       request_dict[key] = value.value
+
             # Debug log for request
             logging.debug(
                 f"[DEBUG] API Request: {self.endpoint.method.value} {self.endpoint.path}"
