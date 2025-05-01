@@ -249,6 +249,46 @@ class SetFirstSigma:
         sigmas[0] = sigma
         return (sigmas, )
 
+class ExpandSigmas:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"sigmas": ("SIGMAS", ),
+                     "steps": ("INT", {"default": 2, "min": 1, "max": 100}),
+                     "sigma_min": ("FLOAT", {"default": 12.0, "min":  0.0, "max": 20000.0, "step": 0.01, "round": False}),
+                     "sigma_max": ("FLOAT", {"default": -1.0, "min": -1.0, "max": 20000.0, "step": 0.01, "round": False}),
+                    }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "sampling/custom_sampling/sigmas"
+
+    FUNCTION = "expand"
+
+    def expand(self, sigmas, steps, sigma_max, sigma_min):
+        if sigma_max < 0:
+            sigma_max = float("inf")
+
+        expanded_sigmas = []
+        for i in range(len(sigmas) - 1):
+            sigma_current = sigmas[i]
+            sigma_next = sigmas[i+1]
+
+            expanded_sigmas.append(sigma_current)
+
+            if sigma_min <= sigma_current <= sigma_max:
+                #XXX: Might be nice to interpolate the sigmas with different methods.
+                #     Would require writing this not as a loop.
+                interpolated_steps = torch.linspace(sigma_current, sigma_next, steps + 1, device=sigmas.device)[1:-1]
+                expanded_sigmas.extend(interpolated_steps.tolist())
+
+        # Add the last sigma value
+        if len(sigmas) > 0:
+            expanded_sigmas.append(sigmas[-1])
+
+        expanded_sigmas = torch.FloatTensor(expanded_sigmas)
+
+        return (expanded_sigmas,)
+
 class KSamplerSelect:
     @classmethod
     def INPUT_TYPES(s):
@@ -735,6 +775,7 @@ NODE_CLASS_MAPPINGS = {
     "SplitSigmasDenoise": SplitSigmasDenoise,
     "FlipSigmas": FlipSigmas,
     "SetFirstSigma": SetFirstSigma,
+    "ExpandSigmas": ExpandSigmas,
 
     "CFGGuider": CFGGuider,
     "DualCFGGuider": DualCFGGuider,
