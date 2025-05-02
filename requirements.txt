@@ -17,6 +17,18 @@ Pillow
 scipy
 tqdm
 psutil
+opencv-python>=4.8.0
+flash-attn>=2.3.0
+nvidia-cuda-runtime-cu12>=12.0.0
+nvidia-cuda-nvrtc-cu12>=12.0.0
+nvidia-cudnn-cu12>=8.9.0
+nvidia-cublas-cu12>=12.0.0
+nvidia-cufft-cu12>=11.0.0
+nvidia-curand-cu12>=10.3.0
+nvidia-cusolver-cu12>=11.4.0
+nvidia-cusparse-cu12>=12.1.0
+nvidia-nccl-cu12>=2.18.0
+nvidia-nvtx-cu12>=12.0.0
 
 #non essential dependencies:
 kornia>=0.7.1

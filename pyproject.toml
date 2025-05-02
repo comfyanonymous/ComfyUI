@@ -34,4 +34,26 @@ lint.select = [
 exclude = ["*.ipynb"]
 
 [tool.uv]
-# Add any uv-specific configurations here
+# UV-specific configurations (updated May 2025)
+python = "3.11"
+system = false
+verbosity = 1
+threads = "auto"
+no-binary = []
+only-binary = []
+
+[tool.uv.dependencies]
+# Core dependencies with modern 2025 versions
+torch = { version = ">=2.3.0", source = "pytorch" }
+torchvision = { version = ">=0.18.0", source = "pytorch" }
+numpy = ">=2.0.0"
+pillow = ">=10.0.0"
+aiohttp = ">=3.9.0"
+rich = ">=13.6.0"
+tqdm = ">=4.66.0"
+transformers = ">=4.38.0"
+diffusers = ">=0.25.0"
+safetensors = ">=0.4.0"
+
+[tool.uv.sources]
+pytorch = { url = "https://download.pytorch.org/whl/cu121" }
