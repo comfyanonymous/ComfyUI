@@ -1,6 +1,6 @@
 from __future__ import annotations
 from inspect import cleandoc
-from comfy.utils import ProgressBar
+from comfy.utils import ProgressBar, common_upscale
 from comfy.comfy_types.node_typing import IO
 from comfy_api_nodes.apis.recraft_api import (
     RecraftImageGenerationRequest,
@@ -542,6 +542,7 @@ class RecraftImageToImageNode:
             substyle=recraft_style.substyle,
             style_id=recraft_style.style_id,
             controls=controls_api,
+            random_seed=seed,
         )
 
         images = []
@@ -649,7 +650,16 @@ class RecraftImageInpaintingNode:
             style=recraft_style.style,
             substyle=recraft_style.substyle,
             style_id=recraft_style.style_id,
+            random_seed=seed,
         )
+
+        # prepare mask tensor
+        _, H, W, _ = image.shape
+        mask = mask.unsqueeze(-1)
+        mask = mask.movedim(-1,1)
+        mask = common_upscale(mask, width=W, height=H, upscale_method="nearest-exact", crop="disabled")
+        mask = mask.movedim(1,-1)
+        mask = (mask > 0.5).float()
 
         images = []
         total = image.shape[0]
@@ -658,7 +668,7 @@ class RecraftImageInpaintingNode:
             sub_bytes = handle_recraft_file_request(
                 image=image[i],
                 mask=mask[i:i+1],
-                path="/proxy/recraft/images/imageInpainting",
+                path="/proxy/recraft/images/inpaint",
                 request=request,
                 auth_token=auth_token,
             )
@@ -1056,14 +1066,14 @@ class RecraftCreativeUpscaleNode(RecraftCrispUpscaleNode):
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
     "RecraftTextToImageNode": RecraftTextToImageNode,
-    # "RecraftImageToImageNode": RecraftImageToImageNode,
-    # "RecraftImageInpaintingNode": RecraftImageInpaintingNode,
+    "RecraftImageToImageNode": RecraftImageToImageNode,
+    "RecraftImageInpaintingNode": RecraftImageInpaintingNode,
     "RecraftTextToVectorNode": RecraftTextToVectorNode,
     "RecraftVectorizeImageNode": RecraftVectorizeImageNode,
     "RecraftRemoveBackgroundNode": RecraftRemoveBackgroundNode,
-    # "RecraftReplaceBackgroundNode": RecraftReplaceBackgroundNode,
+    "RecraftReplaceBackgroundNode": RecraftReplaceBackgroundNode,
     "RecraftCrispUpscaleNode": RecraftCrispUpscaleNode,
-    # "RecraftCreativeUpscaleNode": RecraftCreativeUpscaleNode,
+    "RecraftCreativeUpscaleNode": RecraftCreativeUpscaleNode,
     "RecraftStyleV3RealisticImage": RecraftStyleV3RealisticImageNode,
     "RecraftStyleV3DigitalIllustration": RecraftStyleV3DigitalIllustrationNode,
     "RecraftStyleV3LogoRaster": RecraftStyleV3LogoRasterNode,
@@ -1075,14 +1085,14 @@ NODE_CLASS_MAPPINGS = {
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     "RecraftTextToImageNode": "Recraft Text to Image",
-    # "RecraftImageToImageNode": "Recraft Image to Image",
-    # "RecraftImageInpaintingNode": "Recraft Image Inpainting",
+    "RecraftImageToImageNode": "Recraft Image to Image",
+    "RecraftImageInpaintingNode": "Recraft Image Inpainting",
     "RecraftTextToVectorNode": "Recraft Text to Vector",
     "RecraftVectorizeImageNode": "Recraft Vectorize Image",
     "RecraftRemoveBackgroundNode": "Recraft Remove Background",
-    # "RecraftReplaceBackgroundNode": "Recraft Replace Background",
+    "RecraftReplaceBackgroundNode": "Recraft Replace Background",
     "RecraftCrispUpscaleNode": "Recraft Crisp Upscale Image",
-    # "RecraftCreativeUpscaleNode": "Recraft Creative Upscale Image",
+    "RecraftCreativeUpscaleNode": "Recraft Creative Upscale Image",
     "RecraftStyleV3RealisticImage": "Recraft Style - Realistic Image",
     "RecraftStyleV3DigitalIllustration": "Recraft Style - Digital Illustration",
     "RecraftStyleV3LogoRaster": "Recraft Style - Logo Raster",

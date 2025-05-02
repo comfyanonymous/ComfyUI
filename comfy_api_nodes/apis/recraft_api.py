@@ -247,6 +247,7 @@ class RecraftImageGenerationRequest(BaseModel):
     controls: Optional[RecraftControlsObject] = Field(None, description='A set of custom parameters to tweak generation process')
     style_id: Optional[str] = Field(None, description='Use a previously uploaded style as a reference; UUID')
     strength: Optional[confloat(ge=0.0, le=1.0)] = Field(None, description='Defines the difference with the original image, should lie in [0, 1], where 0 means almost identical, and 1 means miserable similarity')
+    random_seed: Optional[int] = Field(None, description="Seed for video generation")
     # text_layout
 
 
