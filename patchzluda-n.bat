@@ -22,6 +22,7 @@ copy zluda\cublas.dll venv\Lib\site-packages\torch\lib\cublas64_11.dll /y >NUL
 copy zluda\cusparse.dll venv\Lib\site-packages\torch\lib\cusparse64_11.dll /y >NUL
 copy zluda\nvrtc.dll venv\Lib\site-packages\torch\lib\nvrtc64_112_0.dll /y >NUL
 copy zluda\cudnn.dll venv\Lib\site-packages\torch\lib\cudnn64_9.dll /y >NUL
+copy comfy\customzluda\zluda.py comfy\zluda.py /y >NUL
 
 echo  :: ZLUDA patched for HIP SDK 6.2.4 with miopen and triton-flash attention.
 pause
