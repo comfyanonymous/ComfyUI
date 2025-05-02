@@ -16,8 +16,6 @@ import comfy.sampler_helpers
 import comfy.model_patcher
 import comfy.patcher_extension
 import comfy.hooks
-import scipy.stats
-import numpy
 
 
 def add_area_dims(area, num_dims):
@@ -442,20 +440,43 @@ def normal_scheduler(model_sampling, steps, sgm=False, floor=False):
 
     return torch.FloatTensor(sigs)
 
-# Implemented based on: https://arxiv.org/abs/2407.12173
-def beta_scheduler(model_sampling, steps, alpha=0.6, beta=0.6):
-    total_timesteps = (len(model_sampling.sigmas) - 1)
-    ts = 1 - numpy.linspace(0, 1, steps, endpoint=False)
-    ts = numpy.rint(scipy.stats.beta.ppf(ts, alpha, beta) * total_timesteps)
+# Implemented based on: https://arxiv.org/abs/2407.12173, but with a slightly incorrect
+# implementation. See beta_verus_scheduler for the proper implementation.
+def beta_scheduler(model_sampling, steps, alpha=0.6, beta=0.6, endpoint=False):
+    # Lazy loader
+    if not hasattr(beta_scheduler, "_init_done"):
+        import numpy as np
+        from scipy.stats import beta as sp_beta
+        beta_scheduler._np = np
+        beta_scheduler._sp_beta = sp_beta
+        beta_scheduler._init_done = True
+
+    np      = beta_scheduler._np
+    sp_beta = beta_scheduler._sp_beta
+
+    total_timesteps = len(model_sampling.sigmas) - 1
+    ts = 1 - np.linspace(0, 1, steps, endpoint=endpoint)
+    ts = np.rint(sp_beta.ppf(ts, alpha, beta) * total_timesteps)
 
     sigs = []
     last_t = -1
     for t in ts:
         if t != last_t:
-            sigs += [float(model_sampling.sigmas[int(t)])]
+            sigs.append(float(model_sampling.sigmas[int(t)]))
         last_t = t
-    sigs += [0.0]
+    sigs.append(0.0)
     return torch.FloatTensor(sigs)
+
+# Loads beta, but sets the endpoints to true instead of false. This reflects
+# the actual interval of the beta distribution, [0, 1].
+def beta_verus_scheduler(model_sampling, steps, alpha=0.6, beta=0.6):
+    return beta_scheduler(
+        model_sampling,
+        steps,
+        alpha=alpha,
+        beta=beta,
+        endpoint=True
+    )
 
 # from: https://github.com/genmoai/models/blob/main/src/mochi_preview/infer.py#L41
 def linear_quadratic_schedule(model_sampling, steps, threshold_noise=0.025, linear_steps=None):
@@ -1040,6 +1061,7 @@ SCHEDULER_HANDLERS = {
     "simple": SchedulerHandler(simple_scheduler),
     "ddim_uniform": SchedulerHandler(ddim_scheduler),
     "beta": SchedulerHandler(beta_scheduler),
+    "beta_verus": SchedulerHandler(beta_verus_scheduler),
     "linear_quadratic": SchedulerHandler(linear_quadratic_schedule),
     "kl_optimal": SchedulerHandler(kl_optimal_scheduler, use_ms=False),
 }
