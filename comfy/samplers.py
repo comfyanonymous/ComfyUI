@@ -445,7 +445,7 @@ def normal_scheduler(model_sampling, steps, sgm=False, floor=False):
 # Implemented based on: https://arxiv.org/abs/2407.12173
 def beta_scheduler(model_sampling, steps, alpha=0.6, beta=0.6):
     total_timesteps = (len(model_sampling.sigmas) - 1)
-    ts = 1 - numpy.linspace(0, 1, steps, endpoint=False)
+    ts = 1 - numpy.linspace(0, 1, steps)
     ts = numpy.rint(scipy.stats.beta.ppf(ts, alpha, beta) * total_timesteps)
 
     sigs = []
