@@ -2258,6 +2258,7 @@ def init_builtin_extra_nodes():
         "nodes_optimalsteps.py",
         "nodes_hidream.py",
         "nodes_fresca.py",
+        "nodes_preview_any.py",
     ]
 
     api_nodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_api_nodes")
