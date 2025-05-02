@@ -103,7 +103,42 @@ def get_camera_control_input_config(
     return IO.FLOAT, input_config
 
 
-class KlingCameraControls(ComfyNodeABC):
+class KlingNodeBase(ComfyNodeABC):
+    """
+    Base class for Kling nodes.
+
+    Compatibility Table
+    ===================
+    | Mode | Duration | Model Name       | Camera Control | Image Tail |
+    |------|----------|------------------|----------------|------------|
+    | std  | 5        | kling-v1         | No             | Yes        |
+    | std  | 5        | kling-v1-5       | No             | Yes        |
+    | std  | 5        | kling-v1-6       | No             | No         |
+    | std  | 5        | kling-v2-master  | No             | No         |
+    | std  | 10       | kling-v1         | No             | No         |
+    | std  | 10       | kling-v1-5       | No             | No         |
+    | std  | 10       | kling-v1-6       | No             | No         |
+    | std  | 10       | kling-v2-master  | No             | No         |
+    | pro  | 5        | kling-v1         | No             | Yes        |
+    | pro  | 5        | kling-v1-5       | Yes            | Yes        |
+    | pro  | 5        | kling-v1-6       | No             | Yes        |
+    | pro  | 5        | kling-v2-master  | No             | No         |
+    | pro  | 10       | kling-v1         | No             | No         |
+    | pro  | 10       | kling-v1-5       | No             | Yes        |
+    | pro  | 10       | kling-v1-6       | No             | Yes        |
+    | pro  | 10       | kling-v2-master  | No             | No         |
+
+    **Note**: Although the combo of pro mode, kling-v1-5 model, and 5s duration
+    supports both camera_control and image_tail, you can only use one feature
+    at a time.
+    """
+
+    FUNCTION = "api_call"
+    CATEGORY = "api node/video/Kling"
+    API_NODE = True
+
+
+class KlingCameraControls(KlingNodeBase):
     """Kling Camera Controls Node"""
 
     @classmethod
@@ -148,16 +183,16 @@ class KlingCameraControls(ComfyNodeABC):
     RETURN_NAMES = ("camera_control",)
     FUNCTION = "main"
 
-    def main(
-        self,
-        camera_control_type: str,
+    @classmethod
+    def VALIDATE_INPUTS(
+        cls,
         horizontal_movement: float,
         vertical_movement: float,
         pan: float,
         tilt: float,
         roll: float,
         zoom: float,
-    ):
+    ) -> bool | str:
         if not is_valid_camera_control_configs(
             [
                 horizontal_movement,
@@ -169,7 +204,18 @@ class KlingCameraControls(ComfyNodeABC):
             ]
         ):
             return "Invalid camera control configs: at least one of the values must be non-zero"
+        return True
 
+    def main(
+        self,
+        camera_control_type: str,
+        horizontal_movement: float,
+        vertical_movement: float,
+        pan: float,
+        tilt: float,
+        roll: float,
+        zoom: float,
+    ) -> tuple[CameraControl]:
         return (
             CameraControl(
                 type=CameraType(camera_control_type),
@@ -185,18 +231,8 @@ class KlingCameraControls(ComfyNodeABC):
         )
 
 
-class KlingNodeBase(ComfyNodeABC):
-    """Base class for Kling nodes."""
-
-    FUNCTION = "api_call"
-    CATEGORY = "api node/video/Kling"
-    API_NODE = True
-
-
 class KlingTextToVideoNode(KlingNodeBase):
-    """
-    Kling Text to Video Node.
-    """
+    """Kling Text to Video Node"""
 
     @staticmethod
     def poll_for_task_status(task_id: str, auth_token: str) -> KlingText2VideoResponse:
@@ -254,13 +290,11 @@ class KlingTextToVideoNode(KlingNodeBase):
                     enum_type=AspectRatio,
                 ),
             },
-            "optional": {
-                "camera_control": ("CAMERA_CONTROL", {}),
-            },
             "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
         }
 
-    RETURN_TYPES = ("VIDEO",)
+    RETURN_TYPES = ("VIDEO", "STRING", "STRING")
+    RETURN_NAMES = ("VIDEO", "Kling ID", "Duration (sec)")
     DESCRIPTION = "Kling Text to Video Node"
 
     def api_call(
@@ -274,7 +308,7 @@ class KlingTextToVideoNode(KlingNodeBase):
         aspect_ratio: str,
         camera_control: Optional[CameraControl] = None,
         auth_token: Optional[str] = None,
-    ) -> tuple[VideoFromFile]:
+    ) -> tuple[VideoFromFile, str, str]:
         validate_prompts(prompt, negative_prompt, MAX_PROMPT_LENGTH_T2V)
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
@@ -311,16 +345,79 @@ class KlingTextToVideoNode(KlingNodeBase):
             logging.error(error_msg)
             raise KlingApiError(error_msg)
 
-        video_url = str(final_response.data.task_result.videos[0].url)
-        logging.debug("Kling task %s succeeded. Video URL: %s", task_id, video_url)
+        video = final_response.data.task_result.videos[0]
+        logging.debug("Kling task %s succeeded. Video URL: %s", task_id, video.url)
+        return (
+            download_url_to_video_output(video.url),
+            str(video.id),
+            str(video.duration),
+        )
 
-        return (download_url_to_video_output(video_url),)
+
+class KlingCameraControlT2VNode(KlingTextToVideoNode):
+    """
+    Kling Text to Video Camera Control Node. This node is a text to video node, but it supports controlling the camera.
+    Duration, mode, and model_name request fields are hard-coded because camera control is only supported in pro mode with the kling-v1-5 model at 5s duration as of 2025-05-02.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "prompt": model_field_to_node_input(
+                    IO.STRING, KlingText2VideoRequest, "prompt", multiline=True
+                ),
+                "negative_prompt": model_field_to_node_input(
+                    IO.STRING,
+                    KlingText2VideoRequest,
+                    "negative_prompt",
+                    multiline=True,
+                ),
+                "cfg_scale": model_field_to_node_input(
+                    IO.FLOAT, KlingText2VideoRequest, "cfg_scale"
+                ),
+                "aspect_ratio": model_field_to_node_input(
+                    IO.COMBO,
+                    KlingText2VideoRequest,
+                    "aspect_ratio",
+                    enum_type=AspectRatio,
+                ),
+                "camera_control": (
+                    "CAMERA_CONTROL",
+                    {
+                        "tooltip": "Can be created using the Kling Camera Controls node. Controls the camera movement and motion during the video generation.",
+                    },
+                ),
+            },
+            "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
+        }
+
+    DESCRIPTION = "Transform text into cinematic videos with professional camera movements that simulate real-world cinematography. Control virtual camera actions including zoom, rotation, pan, tilt, and first-person view, while maintaining focus on your original text."
+
+    def api_call(
+        self,
+        prompt: str,
+        negative_prompt: str,
+        cfg_scale: float,
+        aspect_ratio: str,
+        camera_control: Optional[CameraControl] = None,
+        auth_token: Optional[str] = None,
+    ):
+        return super().api_call(
+            model_name="kling-v1-5",
+            cfg_scale=cfg_scale,
+            mode="pro",
+            aspect_ratio=aspect_ratio,
+            duration="5",
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            camera_control=camera_control,
+            auth_token=auth_token,
+        )
 
 
 class KlingImage2VideoNode(KlingNodeBase):
-    """
-    Kling Image to Video Node.
-    """
+    """Kling Image to Video Node"""
 
     @staticmethod
     def poll_for_task_status(task_id: str, auth_token: str) -> KlingImage2VideoResponse:
@@ -347,6 +444,9 @@ class KlingImage2VideoNode(KlingNodeBase):
     def INPUT_TYPES(s):
         return {
             "required": {
+                "start_frame": model_field_to_node_input(
+                    IO.IMAGE, KlingImage2VideoRequest, "image"
+                ),
                 "prompt": model_field_to_node_input(
                     IO.STRING, KlingImage2VideoRequest, "prompt", multiline=True
                 ),
@@ -362,9 +462,6 @@ class KlingImage2VideoNode(KlingNodeBase):
                     "model_name",
                     enum_type=ModelName,
                     default="kling-v2-master",
-                ),
-                "start_frame": model_field_to_node_input(
-                    IO.IMAGE, KlingImage2VideoRequest, "image"
                 ),
                 "cfg_scale": model_field_to_node_input(
                     IO.FLOAT, KlingImage2VideoRequest, "cfg_scale"
@@ -382,24 +479,19 @@ class KlingImage2VideoNode(KlingNodeBase):
                     IO.COMBO, KlingImage2VideoRequest, "duration", enum_type=Duration
                 ),
             },
-            "optional": {
-                "camera_control": ("CAMERA_CONTROL", {}),
-                "end_frame": model_field_to_node_input(
-                    IO.IMAGE, KlingImage2VideoRequest, "image_tail"
-                ),
-            },
             "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
         }
 
-    RETURN_TYPES = ("VIDEO",)
+    RETURN_TYPES = ("VIDEO", "STRING", "STRING")
+    RETURN_NAMES = ("VIDEO", "Kling ID", "Duration (sec)")
     DESCRIPTION = "Kling Image to Video Node"
 
     def api_call(
         self,
+        start_frame: torch.Tensor,
         prompt: str,
         negative_prompt: str,
         model_name: str,
-        start_frame: torch.Tensor,
         cfg_scale: float,
         mode: str,
         aspect_ratio: str,
@@ -449,20 +541,190 @@ class KlingImage2VideoNode(KlingNodeBase):
             logging.error(error_msg)
             raise KlingApiError(error_msg)
 
-        video_url = str(final_response.data.task_result.videos[0].url)
-        logging.info("Attempting to download video from URL: %s", video_url)
+        video = final_response.data.task_result.videos[0]
+        logging.info("Kling task %s succeeded. Video URL: %s", task_id, video.url)
 
-        return (download_url_to_video_output(video_url),)
+        return (
+            download_url_to_video_output(video.url),
+            str(video.id),
+            str(video.duration),
+        )
+
+
+class KlingCameraControlI2VNode(KlingImage2VideoNode):
+    """
+    Kling Image to Video Camera Control Node. This node is a image to video node, but it supports controlling the camera.
+    Duration, mode, and model_name request fields are hard-coded because camera control is only supported in pro mode with the kling-v1-5 model at 5s duration as of 2025-05-02.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "start_frame": model_field_to_node_input(
+                    IO.IMAGE, KlingImage2VideoRequest, "image"
+                ),
+                "prompt": model_field_to_node_input(
+                    IO.STRING, KlingImage2VideoRequest, "prompt", multiline=True
+                ),
+                "negative_prompt": model_field_to_node_input(
+                    IO.STRING,
+                    KlingImage2VideoRequest,
+                    "negative_prompt",
+                    multiline=True,
+                ),
+                "cfg_scale": model_field_to_node_input(
+                    IO.FLOAT, KlingImage2VideoRequest, "cfg_scale"
+                ),
+                "aspect_ratio": model_field_to_node_input(
+                    IO.COMBO,
+                    KlingImage2VideoRequest,
+                    "aspect_ratio",
+                    enum_type=AspectRatio,
+                ),
+                "camera_control": (
+                    "CAMERA_CONTROL",
+                    {
+                        "tooltip": "Can be created using the Kling Camera Controls node. Controls the camera movement and motion during the video generation.",
+                    },
+                ),
+            },
+            "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
+        }
+
+    DESCRIPTION = "Transform still images into cinematic videos with professional camera movements that simulate real-world cinematography. Control virtual camera actions including zoom, rotation, pan, tilt, and first-person view, while maintaining focus on your original image."
+
+    def api_call(
+        self,
+        start_frame: torch.Tensor,
+        prompt: str,
+        negative_prompt: str,
+        cfg_scale: float,
+        aspect_ratio: str,
+        camera_control: CameraControl,
+        auth_token: Optional[str] = None,
+    ):
+        return super().api_call(
+            model_name="kling-v1-5",
+            start_frame=start_frame,
+            cfg_scale=cfg_scale,
+            mode="pro",
+            aspect_ratio=aspect_ratio,
+            duration="5",
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            camera_control=camera_control,
+            auth_token=auth_token,
+        )
+
+
+class KlingStartEndFrameNode(KlingImage2VideoNode):
+    """
+    Kling First Last Frame Node. This node allows creation of a video from a first and last frame. It calls the normal image to video endpoint, but only allows the subset of input options that support the `image_tail` request field.
+    """
+
+    @staticmethod
+    def get_mode_string_mapping() -> dict[str, tuple[str, str, str]]:
+        """
+        Returns a mapping of mode strings to their corresponding (mode, duration, model_name) tuples.
+        Only includes config combos that support the `image_tail` request field.
+        """
+        return {
+            "standard mode / 5s duration / kling-v1": ("std", "5", "kling-v1"),
+            "standard mode / 5s duration / kling-v1-5": ("std", "5", "kling-v1-5"),
+            "pro mode / 5s duration / kling-v1": ("pro", "5", "kling-v1"),
+            "pro mode / 5s duration / kling-v1-5": ("pro", "5", "kling-v1-5"),
+            "pro mode / 5s duration / kling-v1-6": ("pro", "5", "kling-v1-6"),
+            "pro mode / 10s duration / kling-v1-5": ("pro", "10", "kling-v1-5"),
+            "pro mode / 10s duration / kling-v1-6": ("pro", "10", "kling-v1-6"),
+        }
+
+    @classmethod
+    def INPUT_TYPES(s):
+        modes = list(KlingStartEndFrameNode.get_mode_string_mapping().keys())
+        return {
+            "required": {
+                "start_frame": model_field_to_node_input(
+                    IO.IMAGE, KlingImage2VideoRequest, "image"
+                ),
+                "end_frame": model_field_to_node_input(
+                    IO.IMAGE, KlingImage2VideoRequest, "image_tail"
+                ),
+                "prompt": model_field_to_node_input(
+                    IO.STRING, KlingImage2VideoRequest, "prompt", multiline=True
+                ),
+                "negative_prompt": model_field_to_node_input(
+                    IO.STRING,
+                    KlingImage2VideoRequest,
+                    "negative_prompt",
+                    multiline=True,
+                ),
+                "cfg_scale": model_field_to_node_input(
+                    IO.FLOAT, KlingImage2VideoRequest, "cfg_scale"
+                ),
+                "aspect_ratio": model_field_to_node_input(
+                    IO.COMBO,
+                    KlingImage2VideoRequest,
+                    "aspect_ratio",
+                    enum_type=AspectRatio,
+                ),
+                "mode": (
+                    modes,
+                    {
+                        "default": modes[2],
+                        "tooltip": "The configuration to use for the video generation following the format: mode / duration / model_name.",
+                    },
+                ),
+            },
+            "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
+        }
+
+    DESCRIPTION = "Generate a video sequence that transitions between your provided start and end images. The node creates all frames in between, producing a smooth transformation from the first frame to the last."
+
+    def parse_inputs_from_mode(self, mode: str) -> tuple[str, str, str]:
+        """Parses the mode input into a tuple of (model_name, duration, mode)."""
+        return KlingStartEndFrameNode.get_mode_string_mapping()[mode]
+
+    def api_call(
+        self,
+        start_frame: torch.Tensor,
+        end_frame: torch.Tensor,
+        prompt: str,
+        negative_prompt: str,
+        cfg_scale: float,
+        aspect_ratio: str,
+        mode: str,
+        auth_token: Optional[str] = None,
+    ):
+        mode, duration, model_name = self.parse_inputs_from_mode(mode)
+        return super().api_call(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            model_name=model_name,
+            start_frame=start_frame,
+            cfg_scale=cfg_scale,
+            mode=mode,
+            aspect_ratio=aspect_ratio,
+            duration=duration,
+            end_frame=end_frame,
+            auth_token=auth_token,
+        )
 
 
 NODE_CLASS_MAPPINGS = {
     "KlingCameraControls": KlingCameraControls,
     "KlingTextToVideoNode": KlingTextToVideoNode,
     "KlingImage2VideoNode": KlingImage2VideoNode,
+    "KlingCameraControlI2VNode": KlingCameraControlI2VNode,
+    "KlingCameraControlT2VNode": KlingCameraControlT2VNode,
+    "KlingStartEndFrameNode": KlingStartEndFrameNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "KlingCameraControls": "Kling Camera Controls",
     "KlingTextToVideoNode": "Kling Text to Video",
     "KlingImage2VideoNode": "Kling Image to Video",
+    "KlingCameraControlI2VNode": "Kling Image to Video (Camera Control)",
+    "KlingCameraControlT2VNode": "Kling Text to Video (Camera Control)",
+    "KlingStartEndFrameNode": "Kling Start-End Frame to Video",
 }
