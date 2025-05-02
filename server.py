@@ -416,6 +416,17 @@ class PromptServer():
 
                 if os.path.isfile(file):
                     if 'preview' in request.rel_url.query:
+                        extension = os.path.splitext(filename)[-1]
+                        if extension and extension.lower() == ".svg":
+                            with open(file, "r") as f:
+                                return web.Response(
+                                    body=f.read(),
+                                    content_type="image/svg+xml",
+                                    headers={
+                                        "Content-Disposition": f'filename="{filename}"'
+                                    },
+                                )
+
                         with Image.open(file) as img:
                             preview_info = request.rel_url.query['preview'].split(';')
                             image_format = preview_info[0]
