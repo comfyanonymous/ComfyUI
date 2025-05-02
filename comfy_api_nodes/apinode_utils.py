@@ -23,9 +23,7 @@ import uuid
 from io import BytesIO
 
 
-def download_url_to_video_output(
-    video_url: str, timeout: int = None
-) -> tuple[VideoFromFile]:
+def download_url_to_video_output(video_url: str, timeout: int = None) -> VideoFromFile:
     """Downloads a video from a URL and returns a `VIDEO` output.
 
     Args:
@@ -39,7 +37,7 @@ def download_url_to_video_output(
         error_msg = f"Failed to download video from {video_url}"
         logging.error(error_msg)
         raise ValueError(error_msg)
-    return (VideoFromFile(video_io),)
+    return VideoFromFile(video_io)
 
 
 def downscale_image_tensor(image, total_pixels=1536 * 1024) -> torch.Tensor:

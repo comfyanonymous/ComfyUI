@@ -314,7 +314,7 @@ class KlingTextToVideoNode(KlingNodeBase):
         video_url = str(final_response.data.task_result.videos[0].url)
         logging.debug("Kling task %s succeeded. Video URL: %s", task_id, video_url)
 
-        return download_url_to_video_output(video_url)
+        return (download_url_to_video_output(video_url),)
 
 
 class KlingImage2VideoNode(KlingNodeBase):
@@ -452,7 +452,7 @@ class KlingImage2VideoNode(KlingNodeBase):
         video_url = str(final_response.data.task_result.videos[0].url)
         logging.info("Attempting to download video from URL: %s", video_url)
 
-        return download_url_to_video_output(video_url)
+        return (download_url_to_video_output(video_url),)
 
 
 NODE_CLASS_MAPPINGS = {
