@@ -116,6 +116,16 @@ def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, co
     if converted_to_check is None:
         converted_to_check = []
 
+    def combine(self, other: SVG):
+        return SVG(self.data + other.data)
+
+    @staticmethod
+    def combine_all(svgs: list[SVG]):
+        all_svgs = []
+        for svg in svgs:
+            all_svgs.extend(svg.data)
+        return SVG(all_svgs)
+
 
     if formatter is None:
         formatter = lambda v: v  # Multipart representation of value
