@@ -1,4 +1,6 @@
+from __future__ import annotations
 from inspect import cleandoc
+from comfy.utils import ProgressBar
 from comfy.comfy_types.node_typing import IO
 from comfy_api_nodes.apis.recraft_api import (
     RecraftImageGenerationRequest,
@@ -17,10 +19,12 @@ from comfy_api_nodes.apis.client import (
     ApiEndpoint,
     HttpMethod,
     SynchronousOperation,
+    EmptyRequest,
 )
 from comfy_api_nodes.apinode_utils import (
     bytesio_to_image_tensor,
     download_url_to_bytesio,
+    tensor_to_bytesio,
 )
 import folder_paths
 import json
@@ -29,12 +33,66 @@ import torch
 from io import BytesIO
 
 
+def handle_recraft_file_request(
+        image: torch.Tensor,
+        path: str,
+        mask: torch.Tensor=None,
+        total_pixels=4096*4096,
+        timeout=1024,
+        request=None,
+        auth_token=None
+    ) -> list[BytesIO]:
+        """
+        Handle sending common Recraft file-only request to get back file bytes.
+        """
+        if request is None:
+            request = EmptyRequest()
+
+        files = {
+            'image': tensor_to_bytesio(image, total_pixels=total_pixels).read()
+        }
+        if mask is not None:
+            files['mask'] = tensor_to_bytesio(mask, total_pixels=total_pixels).read()
+
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path=path,
+                method=HttpMethod.POST,
+                request_model=type(request),
+                response_model=RecraftImageGenerationResponse,
+            ),
+            request=request,
+            files=files,
+            content_type="multipart/form-data",
+            auth_token=auth_token,
+        )
+        response: RecraftImageGenerationResponse = operation.execute()
+        all_bytesio = []
+        if response.image is not None:
+            all_bytesio.append(download_url_to_bytesio(response.image.url, timeout=timeout))
+        else:
+            for data in response.data:
+                all_bytesio.append(download_url_to_bytesio(data.url, timeout=timeout))
+
+        return all_bytesio
+
+
 class SVG:
     """
     Stores SVG representations via a list of BytesIO objects.
     """
     def __init__(self, data: list[BytesIO]):
         self.data = data
+
+    def combine(self, other: SVG):
+        return SVG(self.data + other.data)
+
+    @staticmethod
+    def combine_all(svgs: list[SVG]):
+        all_svgs = []
+        for svg in svgs:
+            all_svgs.extend(svg.data)
+        return SVG(all_svgs)
 
 
 class SaveSVGNode:
@@ -349,7 +407,7 @@ class RecraftTextToImageNode:
             ),
             request=RecraftImageGenerationRequest(
                 prompt=prompt,
-                negative_prompts=negative_prompt,
+                negative_prompt=negative_prompt,
                 model=RecraftModel.recraftv3,
                 size=size,
                 n=n,
@@ -372,6 +430,243 @@ class RecraftTextToImageNode:
         output_image = torch.cat(images, dim=0)
 
         return (output_image,)
+
+
+class RecraftImageToImageNode:
+    """
+    Modify image based on prompt and strength.
+    """
+
+    RETURN_TYPES = (IO.IMAGE,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/Recraft"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": (IO.IMAGE, ),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation.",
+                    },
+                ),
+                "n": (
+                    IO.INT,
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 6,
+                        "tooltip": "The number of images to generate.",
+                    },
+                ),
+                "strength": (
+                    IO.FLOAT,
+                    {
+                        "default": 0.5,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                        "tooltip": "Defines the difference with the original image, should lie in [0, 1], where 0 means almost identical, and 1 means miserable similarity."
+                    }
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
+                    },
+                ),
+            },
+            "optional": {
+                "recraft_style": (RecraftIO.STYLEV3,),
+                "negative_prompt": (
+                    IO.STRING,
+                    {
+                        "default": "",
+                        "forceInput": True,
+                        "tooltip": "An optional text description of undesired elements on an image.",
+                    },
+                ),
+                "recraft_controls": (
+                    RecraftIO.CONTROLS,
+                    {
+                        "tooltip": "Optional additional controls over the generation via the Recraft Controls node."
+                    },
+                ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    def api_call(
+        self,
+        image: torch.Tensor,
+        prompt: str,
+        n: int,
+        strength: float,
+        seed,
+        auth_token=None,
+        recraft_style: RecraftStyle = None,
+        negative_prompt: str = None,
+        recraft_controls: RecraftControls = None,
+        **kwargs,
+    ):
+        default_style = RecraftStyle(RecraftStyleV3.realistic_image)
+        if recraft_style is None:
+            recraft_style = default_style
+
+        controls_api = None
+        if recraft_controls:
+            controls_api = recraft_controls.create_api_model()
+
+        if not negative_prompt:
+            negative_prompt = None
+
+        request = RecraftImageGenerationRequest(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            model=RecraftModel.recraftv3,
+            n=n,
+            strength=round(strength, 2),
+            style=recraft_style.style,
+            substyle=recraft_style.substyle,
+            style_id=recraft_style.style_id,
+            controls=controls_api,
+        )
+
+        images = []
+        total = image.shape[0]
+        pbar = ProgressBar(total)
+        for i in range(total):
+            sub_bytes = handle_recraft_file_request(
+                image=image[i],
+                path="/proxy/recraft/images/imageToImage",
+                request=request,
+                auth_token=auth_token,
+            )
+            images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
+            pbar.update(1)
+
+        images_tensor = torch.cat(images, dim=0)
+        return (images_tensor, )
+
+
+class RecraftImageInpaintingNode:
+    """
+    Modify image based on prompt and mask.
+    """
+
+    RETURN_TYPES = (IO.IMAGE,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/Recraft"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": (IO.IMAGE, ),
+                "mask": (IO.MASK, ),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation.",
+                    },
+                ),
+                "n": (
+                    IO.INT,
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 6,
+                        "tooltip": "The number of images to generate.",
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
+                    },
+                ),
+            },
+            "optional": {
+                "recraft_style": (RecraftIO.STYLEV3,),
+                "negative_prompt": (
+                    IO.STRING,
+                    {
+                        "default": "",
+                        "forceInput": True,
+                        "tooltip": "An optional text description of undesired elements on an image.",
+                    },
+                ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    def api_call(
+        self,
+        image: torch.Tensor,
+        mask: torch.Tensor,
+        prompt: str,
+        n: int,
+        seed,
+        auth_token=None,
+        recraft_style: RecraftStyle = None,
+        negative_prompt: str = None,
+        **kwargs,
+    ):
+        default_style = RecraftStyle(RecraftStyleV3.realistic_image)
+        if recraft_style is None:
+            recraft_style = default_style
+
+        if not negative_prompt:
+            negative_prompt = None
+
+        request = RecraftImageGenerationRequest(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            model=RecraftModel.recraftv3,
+            n=n,
+            style=recraft_style.style,
+            substyle=recraft_style.substyle,
+            style_id=recraft_style.style_id,
+        )
+
+        images = []
+        total = image.shape[0]
+        pbar = ProgressBar(total)
+        for i in range(total):
+            sub_bytes = handle_recraft_file_request(
+                image=image[i],
+                mask=mask[i:i+1],
+                path="/proxy/recraft/images/imageInpainting",
+                request=request,
+                auth_token=auth_token,
+            )
+            images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
+            pbar.update(1)
+
+        images_tensor = torch.cat(images, dim=0)
+        return (images_tensor, )
 
 
 class RecraftTextToVectorNode:
@@ -477,7 +772,7 @@ class RecraftTextToVectorNode:
             ),
             request=RecraftImageGenerationRequest(
                 prompt=prompt,
-                negative_prompts=negative_prompt,
+                negative_prompt=negative_prompt,
                 model=RecraftModel.recraftv3,
                 size=size,
                 n=n,
@@ -495,11 +790,280 @@ class RecraftTextToVectorNode:
         return (SVG(svg_data),)
 
 
+class RecraftVectorizeImageNode:
+    """
+    Generates SVG synchronously from an input image.
+    """
+
+    RETURN_TYPES = (RecraftIO.SVG,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/Recraft"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": (IO.IMAGE, ),
+            },
+            "optional": {
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    def api_call(
+        self,
+        image: torch.Tensor,
+        auth_token=None,
+        **kwargs,
+    ):
+        svgs = []
+        total = image.shape[0]
+        pbar = ProgressBar(total)
+        for i in range(total):
+            sub_bytes = handle_recraft_file_request(
+                image=image[i],
+                path="/proxy/recraft/images/vectorize",
+                auth_token=auth_token,
+            )
+            svgs.append(SVG(sub_bytes))
+            pbar.update(1)
+
+        return (SVG.combine_all(svgs), )
+
+
+class RecraftReplaceBackgroundNode:
+    """
+    Replace background on image, based on provided prompt.
+    """
+
+    RETURN_TYPES = (IO.IMAGE,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/Recraft"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": (IO.IMAGE, ),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation.",
+                    },
+                ),
+                "n": (
+                    IO.INT,
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 6,
+                        "tooltip": "The number of images to generate.",
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "Seed to determine if node should re-run; actual results are nondeterministic regardless of seed.",
+                    },
+                ),
+            },
+            "optional": {
+                "recraft_style": (RecraftIO.STYLEV3,),
+                "negative_prompt": (
+                    IO.STRING,
+                    {
+                        "default": "",
+                        "forceInput": True,
+                        "tooltip": "An optional text description of undesired elements on an image.",
+                    },
+                ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    def api_call(
+        self,
+        image: torch.Tensor,
+        prompt: str,
+        n: int,
+        seed,
+        auth_token=None,
+        recraft_style: RecraftStyle = None,
+        negative_prompt: str = None,
+        **kwargs,
+    ):
+        default_style = RecraftStyle(RecraftStyleV3.realistic_image)
+        if recraft_style is None:
+            recraft_style = default_style
+
+        if not negative_prompt:
+            negative_prompt = None
+
+        request = RecraftImageGenerationRequest(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            model=RecraftModel.recraftv3,
+            n=n,
+            style=recraft_style.style,
+            substyle=recraft_style.substyle,
+            style_id=recraft_style.style_id,
+        )
+
+        images = []
+        total = image.shape[0]
+        pbar = ProgressBar(total)
+        for i in range(total):
+            sub_bytes = handle_recraft_file_request(
+                image=image[i],
+                path="/proxy/recraft/images/replaceBackground",
+                request=request,
+                auth_token=auth_token,
+            )
+            images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
+            pbar.update(1)
+
+        images_tensor = torch.cat(images, dim=0)
+        return (images_tensor, )
+
+
+class RecraftRemoveBackgroundNode:
+    """
+    Remove background from image, and return processed image and mask.
+    """
+
+    RETURN_TYPES = (IO.IMAGE, IO.MASK)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/Recraft"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": (IO.IMAGE, ),
+            },
+            "optional": {
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    def api_call(
+        self,
+        image: torch.Tensor,
+        auth_token=None,
+        **kwargs,
+    ):
+        images = []
+        total = image.shape[0]
+        pbar = ProgressBar(total)
+        for i in range(total):
+            sub_bytes = handle_recraft_file_request(
+                image=image[i],
+                path="/proxy/recraft/images/removeBackground",
+                auth_token=auth_token,
+            )
+            images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
+            pbar.update(1)
+
+        images_tensor = torch.cat(images, dim=0)
+        # use alpha channel as masks, in B,H,W format
+        masks_tensor = images_tensor[:,:,:,-1:].squeeze(-1)
+        return (images_tensor, masks_tensor)
+
+
+class RecraftCrispUpscaleNode:
+    """
+    Upscale image synchronously.
+    Enhances a given raster image using ‘crisp upscale’ tool, increasing image resolution, making the image sharper and cleaner.
+    """
+
+    RETURN_TYPES = (IO.IMAGE,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/Recraft"
+
+    RECRAFT_PATH = "/proxy/recraft/images/crispUpscale"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": (IO.IMAGE, ),
+            },
+            "optional": {
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    def api_call(
+        self,
+        image: torch.Tensor,
+        auth_token=None,
+        **kwargs,
+    ):
+        images = []
+        total = image.shape[0]
+        pbar = ProgressBar(total)
+        for i in range(total):
+            sub_bytes = handle_recraft_file_request(
+                image=image[i],
+                path=self.RECRAFT_PATH,
+                auth_token=auth_token,
+            )
+            images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
+            pbar.update(1)
+
+        images_tensor = torch.cat(images, dim=0)
+        return (images_tensor,)
+
+
+class RecraftCreativeUpscaleNode(RecraftCrispUpscaleNode):
+    """
+    Upscale image synchronously.
+    Enhances a given raster image using ‘creative upscale’ tool, boosting resolution with a focus on refining small details and faces.
+    """
+
+    RETURN_TYPES = (IO.IMAGE,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/Recraft"
+
+    RECRAFT_PATH = "/proxy/recraft/images/creativeUpscale"
+
+
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
     "RecraftTextToImageNode": RecraftTextToImageNode,
+    # "RecraftImageToImageNode": RecraftImageToImageNode,
+    # "RecraftImageInpaintingNode": RecraftImageInpaintingNode,
     "RecraftTextToVectorNode": RecraftTextToVectorNode,
+    "RecraftVectorizeImageNode": RecraftVectorizeImageNode,
+    "RecraftRemoveBackgroundNode": RecraftRemoveBackgroundNode,
+    # "RecraftReplaceBackgroundNode": RecraftReplaceBackgroundNode,
+    "RecraftCrispUpscaleNode": RecraftCrispUpscaleNode,
+    # "RecraftCreativeUpscaleNode": RecraftCreativeUpscaleNode,
     "RecraftStyleV3RealisticImage": RecraftStyleV3RealisticImageNode,
     "RecraftStyleV3DigitalIllustration": RecraftStyleV3DigitalIllustrationNode,
     "RecraftStyleV3LogoRaster": RecraftStyleV3LogoRasterNode,
@@ -511,7 +1075,14 @@ NODE_CLASS_MAPPINGS = {
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     "RecraftTextToImageNode": "Recraft Text to Image",
+    # "RecraftImageToImageNode": "Recraft Image to Image",
+    # "RecraftImageInpaintingNode": "Recraft Image Inpainting",
     "RecraftTextToVectorNode": "Recraft Text to Vector",
+    "RecraftVectorizeImageNode": "Recraft Vectorize Image",
+    "RecraftRemoveBackgroundNode": "Recraft Remove Background",
+    # "RecraftReplaceBackgroundNode": "Recraft Replace Background",
+    "RecraftCrispUpscaleNode": "Recraft Crisp Upscale Image",
+    # "RecraftCreativeUpscaleNode": "Recraft Creative Upscale Image",
     "RecraftStyleV3RealisticImage": "Recraft Style - Realistic Image",
     "RecraftStyleV3DigitalIllustration": "Recraft Style - Digital Illustration",
     "RecraftStyleV3LogoRaster": "Recraft Style - Logo Raster",

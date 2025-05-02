@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field, conint
+from pydantic import BaseModel, Field, conint, confloat
 
 
 class RecraftColor:
@@ -238,14 +238,15 @@ class RecraftControlsObject(BaseModel):
 
 class RecraftImageGenerationRequest(BaseModel):
     prompt: str = Field(..., description='The text prompt describing the image to generate')
-    size: RecraftImageSize = Field(..., description='The size of the generated image (e.g., "1024x1024")')
+    size: Optional[RecraftImageSize] = Field(None, description='The size of the generated image (e.g., "1024x1024")')
     n: conint(ge=1, le=6) = Field(..., description='The number of images to generate')
-    negative_prompts: Optional[str] = Field(None, description='A text description of undesired elements on an image')
+    negative_prompt: Optional[str] = Field(None, description='A text description of undesired elements on an image')
     model: Optional[RecraftModel] = Field(RecraftModel.recraftv3, description='The model to use for generation (e.g., "recraftv3")')
     style: Optional[str] = Field(None, description='The style to apply to the generated image (e.g., "digital_illustration")')
     substyle: Optional[str] = Field(None, description='The substyle to apply to the generated image, depending on the style input')
     controls: Optional[RecraftControlsObject] = Field(None, description='A set of custom parameters to tweak generation process')
     style_id: Optional[str] = Field(None, description='Use a previously uploaded style as a reference; UUID')
+    strength: Optional[confloat(ge=0.0, le=1.0)] = Field(None, description='Defines the difference with the original image, should lie in [0, 1], where 0 means almost identical, and 1 means miserable similarity')
     # text_layout
 
 
@@ -257,4 +258,5 @@ class RecraftReturnedObject(BaseModel):
 class RecraftImageGenerationResponse(BaseModel):
     created: int = Field(..., description='Unix timestamp when the generation was created')
     credits: int = Field(..., description='Number of credits used for the generation')
-    data: list[RecraftReturnedObject] = Field(..., description=' Array of generated image information')
+    data: Optional[list[RecraftReturnedObject]] = Field(None, description='Array of generated image information')
+    image: Optional[RecraftReturnedObject] = Field(None, description='Single generated image')

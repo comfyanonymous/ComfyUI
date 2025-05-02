@@ -51,6 +51,31 @@ class StabilityStylePreset(str, Enum):
     tile_texture = "tile-texture"
 
 
+class Stability_SD3_5_Model(str, Enum):
+    sd3_5_large = "sd3.5-large"
+    sd3_5_large_turbo = "sd3.5-large-turbo"
+    #sd3_5_medium = "sd3.5-medium"
+
+
+class Stability_SD3_5_GenerationMode(str, Enum):
+    text_to_image = "text-to-image"
+    image_to_image = "image-to-image"
+
+
+class StabilityStable3_5Request(BaseModel):
+    model: str = Field(...)
+    mode: str = Field(...)
+    prompt: str = Field(...)
+    negative_prompt: Optional[str] = Field(None)
+    aspect_ratio: Optional[str] = Field(None)
+    seed: Optional[int] = Field(None)
+    output_format: Optional[str] = Field(StabilityFormat.png.value)
+    image: Optional[str] = Field(None)
+    style_preset: Optional[str] = Field(None)
+    cfg_scale: float = Field(...)
+    strength: Optional[confloat(ge=0.0, le=1.0)] = Field(None)
+
+
 class StabilityStableUltraRequest(BaseModel):
     prompt: str = Field(...)
     negative_prompt: Optional[str] = Field(None)

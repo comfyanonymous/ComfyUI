@@ -3,7 +3,12 @@ from inspect import cleandoc
 from comfy.comfy_types.node_typing import IO, ComfyNodeABC
 from comfy_api_nodes.apis.bfl_api import (
     BFLStatus,
+    BFLFluxExpandImageRequest,
+    BFLFluxFillImageRequest,
+    BFLFluxCannyImageRequest,
+    BFLFluxDepthImageRequest,
     BFLFluxProGenerateRequest,
+    BFLFluxProUltraGenerateRequest,
     BFLFluxProGenerateResponse,
 )
 from comfy_api_nodes.apis.client import (
@@ -23,6 +28,84 @@ import requests
 import torch
 import base64
 import time
+
+
+def convert_mask_to_image(mask: torch.Tensor):
+    """
+    Make mask have the expected amount of dims (4) and channels (3) to be recognized as an image.
+    """
+    mask = mask.unsqueeze(-1)
+    mask = torch.cat([mask]*3, dim=-1)
+    return mask
+
+
+def handle_bfl_synchronous_operation(
+    operation: SynchronousOperation, timeout_bfl_calls=360
+):
+    response_api: BFLFluxProGenerateResponse = operation.execute()
+    return _poll_until_generated(
+        response_api.polling_url, timeout=timeout_bfl_calls
+    )
+
+def _poll_until_generated(polling_url: str, timeout=360):
+    # used bfl-comfy-nodes to verify code implementation:
+    # https://github.com/black-forest-labs/bfl-comfy-nodes/tree/main
+    start_time = time.time()
+    retries_404 = 0
+    max_retries_404 = 5
+    retry_404_seconds = 2
+    retry_202_seconds = 2
+    retry_pending_seconds = 1
+    request = requests.Request(method=HttpMethod.GET, url=polling_url)
+    # NOTE: should True loop be replaced with checking if workflow has been interrupted?
+    while True:
+        response = requests.Session().send(request.prepare())
+        if response.status_code == 200:
+            result = response.json()
+            if result["status"] == BFLStatus.ready:
+                img_url = result["result"]["sample"]
+                img_response = requests.get(img_url)
+                return process_image_response(img_response)
+            elif result["status"] in [
+                BFLStatus.request_moderated,
+                BFLStatus.content_moderated,
+            ]:
+                status = result["status"]
+                raise Exception(
+                    f"BFL API did not return an image due to: {status}."
+                )
+            elif result["status"] == BFLStatus.error:
+                raise Exception(f"BFL API encountered an error: {result}.")
+            elif result["status"] == BFLStatus.pending:
+                time.sleep(retry_pending_seconds)
+                continue
+        elif response.status_code == 404:
+            if retries_404 < max_retries_404:
+                retries_404 += 1
+                time.sleep(retry_404_seconds)
+                continue
+            raise Exception(
+                f"BFL API could not find task after {max_retries_404} tries."
+            )
+        elif response.status_code == 202:
+            time.sleep(retry_202_seconds)
+        elif time.time() - start_time > timeout:
+            raise Exception(
+                f"BFL API experienced a timeout; could not return request under {timeout} seconds."
+            )
+        else:
+            raise Exception(f"BFL API encountered an error: {response.json()}")
+
+def convert_image_to_base64(image: torch.Tensor):
+    scaled_image = downscale_image_tensor(image, total_pixels=2048 * 2048)
+    # remove batch dimension if present
+    if len(scaled_image.shape) > 3:
+        scaled_image = scaled_image[0]
+    image_np = (scaled_image.numpy() * 255).astype(np.uint8)
+    img = Image.fromarray(image_np)
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format="PNG")
+    return base64.b64encode(img_byte_arr.getvalue()).decode()
 
 
 class FluxProUltraImageNode(ComfyNodeABC):
@@ -133,10 +216,10 @@ class FluxProUltraImageNode(ComfyNodeABC):
             endpoint=ApiEndpoint(
                 path="/proxy/bfl/flux-pro-1.1-ultra/generate",
                 method=HttpMethod.POST,
-                request_model=BFLFluxProGenerateRequest,
+                request_model=BFLFluxProUltraGenerateRequest,
                 response_model=BFLFluxProGenerateResponse,
             ),
-            request=BFLFluxProGenerateRequest(
+            request=BFLFluxProUltraGenerateRequest(
                 prompt=prompt,
                 prompt_upsampling=prompt_upsampling,
                 seed=seed,
@@ -151,7 +234,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
                 image_prompt=(
                     image_prompt
                     if image_prompt is None
-                    else self._convert_image_to_base64(image_prompt)
+                    else convert_image_to_base64(image_prompt)
                 ),
                 image_prompt_strength=(
                     None if image_prompt is None else round(image_prompt_strength, 2)
@@ -159,85 +242,650 @@ class FluxProUltraImageNode(ComfyNodeABC):
             ),
             auth_token=auth_token,
         )
-        output_image = self._handle_bfl_synchronous_operation(operation)
+        output_image = handle_bfl_synchronous_operation(operation)
         return (output_image,)
 
-    def _handle_bfl_synchronous_operation(
-        self, operation: SynchronousOperation, timeout_bfl_calls=360
+
+
+class FluxProImageNode(ComfyNodeABC):
+    """
+    Generates images synchronously based on prompt and resolution.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation",
+                    },
+                ),
+                "prompt_upsampling": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
+                    },
+                ),
+                "width": (
+                    IO.INT,
+                    {
+                        "default": 1024,
+                        "min": 256,
+                        "max": 1440,
+                        "step": 32,
+                    },
+                ),
+                "height": (
+                    IO.INT,
+                    {
+                        "default": 768,
+                        "min": 256,
+                        "max": 1440,
+                        "step": 32,
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+            },
+            "optional": {
+                "image_prompt": (IO.IMAGE,),
+                # "image_prompt_strength": (
+                #     IO.FLOAT,
+                #     {
+                #         "default": 0.1,
+                #         "min": 0.0,
+                #         "max": 1.0,
+                #         "step": 0.01,
+                #         "tooltip": "Blend between the prompt and the image prompt.",
+                #     },
+                # ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    RETURN_TYPES = (IO.IMAGE,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/bfl"
+
+    def api_call(
+        self,
+        prompt: str,
+        prompt_upsampling,
+        width: int,
+        height: int,
+        seed=0,
+        image_prompt=None,
+        # image_prompt_strength=0.1,
+        auth_token=None,
+        **kwargs,
     ):
-        response_api: BFLFluxProGenerateResponse = operation.execute()
-        return self._poll_until_generated(
-            response_api.polling_url, timeout=timeout_bfl_calls
+        image_prompt = (
+                    image_prompt
+                    if image_prompt is None
+                    else convert_image_to_base64(image_prompt)
+                )
+
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/bfl/flux-pro-1.1/generate",
+                method=HttpMethod.POST,
+                request_model=BFLFluxProGenerateRequest,
+                response_model=BFLFluxProGenerateResponse,
+            ),
+            request=BFLFluxProGenerateRequest(
+                prompt=prompt,
+                prompt_upsampling=prompt_upsampling,
+                width=width,
+                height=height,
+                seed=seed,
+                image_prompt=image_prompt,
+            ),
+            auth_token=auth_token,
         )
+        output_image = handle_bfl_synchronous_operation(operation)
+        return (output_image,)
 
-    def _poll_until_generated(self, polling_url: str, timeout=360):
-        # used bfl-comfy-nodes to verify code implementation:
-        # https://github.com/black-forest-labs/bfl-comfy-nodes/tree/main
-        start_time = time.time()
-        retries_404 = 0
-        max_retries_404 = 5
-        retry_404_seconds = 2
-        retry_202_seconds = 2
-        retry_pending_seconds = 1
-        request = requests.Request(method=HttpMethod.GET, url=polling_url)
-        # NOTE: should True loop be replaced with checking if workflow has been interrupted?
-        while True:
-            response = requests.Session().send(request.prepare())
-            if response.status_code == 200:
-                result = response.json()
-                if result["status"] == BFLStatus.ready:
-                    img_url = result["result"]["sample"]
-                    img_response = requests.get(img_url)
-                    return process_image_response(img_response)
-                elif result["status"] in [
-                    BFLStatus.request_moderated,
-                    BFLStatus.content_moderated,
-                ]:
-                    status = result["status"]
-                    raise Exception(
-                        f"BFL API did not return an image due to: {status}."
-                    )
-                elif result["status"] == BFLStatus.error:
-                    raise Exception(f"BFL API encountered an error: {result}.")
-                elif result["status"] == BFLStatus.pending:
-                    time.sleep(retry_pending_seconds)
-                    continue
-            elif response.status_code == 404:
-                if retries_404 < max_retries_404:
-                    retries_404 += 1
-                    time.sleep(retry_404_seconds)
-                    continue
-                raise Exception(
-                    f"BFL API could not find task after {max_retries_404} tries."
-                )
-            elif response.status_code == 202:
-                time.sleep(retry_202_seconds)
-            elif time.time() - start_time > timeout:
-                raise Exception(
-                    f"BFL API experienced a timeout; could not return request under {timeout} seconds."
-                )
-            else:
-                raise Exception(f"BFL API encountered an error: {response.json()}")
 
-    def _convert_image_to_base64(self, image: torch.Tensor):
-        scaled_image = downscale_image_tensor(image, total_pixels=2048 * 2048)
-        # remove batch dimension if present
-        if len(scaled_image.shape) > 3:
-            scaled_image = scaled_image[0]
-        image_np = (scaled_image.numpy() * 255).astype(np.uint8)
-        img = Image.fromarray(image_np)
-        img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, format="PNG")
-        return base64.b64encode(img_byte_arr.getvalue()).decode()
+class FluxProExpandNode(ComfyNodeABC):
+    """
+    Outpaints image based on prompt.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": (IO.IMAGE,),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation",
+                    },
+                ),
+                "prompt_upsampling": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
+                    },
+                ),
+                "top": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 2048,
+                        "tooltip": "Number of pixels to expand at the top of the image"
+                    },
+                ),
+                "bottom": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 2048,
+                        "tooltip": "Number of pixels to expand at the bottom of the image"
+                    },
+                ),
+                "left": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 2048,
+                        "tooltip": "Number of pixels to expand at the left side of the image"
+                    },
+                ),
+                "right": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 2048,
+                        "tooltip": "Number of pixels to expand at the right side of the image"
+                    },
+                ),
+                "guidance": (
+                    IO.FLOAT,
+                    {
+                        "default": 60,
+                        "min": 1.5,
+                        "max": 100,
+                        "tooltip": "Guidance strength for the image generation process"
+                    },
+                ),
+                "steps": (
+                    IO.INT,
+                    {
+                        "default": 50,
+                        "min": 15,
+                        "max": 50,
+                        "tooltip": "Number of steps for the image generation process"
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+            },
+            "optional": {
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    RETURN_TYPES = (IO.IMAGE,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/bfl"
+
+    def api_call(
+        self,
+        image: torch.Tensor,
+        prompt: str,
+        prompt_upsampling: bool,
+        top: int,
+        bottom: int,
+        left: int,
+        right: int,
+        steps: int,
+        guidance: float,
+        seed=0,
+        auth_token=None,
+        **kwargs,
+    ):
+        image = convert_image_to_base64(image)
+
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/bfl/flux-pro-1.0-expand/generate",
+                method=HttpMethod.POST,
+                request_model=BFLFluxExpandImageRequest,
+                response_model=BFLFluxProGenerateResponse,
+            ),
+            request=BFLFluxExpandImageRequest(
+                prompt=prompt,
+                prompt_upsampling=prompt_upsampling,
+                top=top,
+                bottom=bottom,
+                left=left,
+                right=right,
+                steps=steps,
+                guidance=guidance,
+                seed=seed,
+                image=image,
+            ),
+            auth_token=auth_token,
+        )
+        output_image = handle_bfl_synchronous_operation(operation)
+        return (output_image,)
+
+
+
+class FluxProFillNode(ComfyNodeABC):
+    """
+    Inpaints image based on mask and prompt.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": (IO.IMAGE,),
+                "mask": (IO.MASK,),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation",
+                    },
+                ),
+                "prompt_upsampling": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
+                    },
+                ),
+                "guidance": (
+                    IO.FLOAT,
+                    {
+                        "default": 60,
+                        "min": 1.5,
+                        "max": 100,
+                        "tooltip": "Guidance strength for the image generation process"
+                    },
+                ),
+                "steps": (
+                    IO.INT,
+                    {
+                        "default": 50,
+                        "min": 15,
+                        "max": 50,
+                        "tooltip": "Number of steps for the image generation process"
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+            },
+            "optional": {
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    RETURN_TYPES = (IO.IMAGE,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/bfl"
+
+    def api_call(
+        self,
+        image: torch.Tensor,
+        mask: torch.Tensor,
+        prompt: str,
+        prompt_upsampling: bool,
+        steps: int,
+        guidance: float,
+        seed=0,
+        auth_token=None,
+        **kwargs,
+    ):
+        # make sure image will have alpha channel removed
+        image = convert_image_to_base64(image[:,:,:,:3])
+        mask = convert_image_to_base64(convert_mask_to_image(mask))
+
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/bfl/flux-pro-1.0-fill/generate",
+                method=HttpMethod.POST,
+                request_model=BFLFluxFillImageRequest,
+                response_model=BFLFluxProGenerateResponse,
+            ),
+            request=BFLFluxFillImageRequest(
+                prompt=prompt,
+                prompt_upsampling=prompt_upsampling,
+                steps=steps,
+                guidance=guidance,
+                seed=seed,
+                image=image,
+                mask=mask,
+            ),
+            auth_token=auth_token,
+        )
+        output_image = handle_bfl_synchronous_operation(operation)
+        return (output_image,)
+
+
+class FluxProCannyNode(ComfyNodeABC):
+    """
+    Generate image using a control image (canny).
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "control_image": (IO.IMAGE,),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation",
+                    },
+                ),
+                "prompt_upsampling": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
+                    },
+                ),
+                "canny_low_threshold": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 500,
+                        "tooltip": "Low threshold for Canny edge detection; ignored if skip_processing is True"
+                    },
+                ),
+                "canny_high_threshold": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 500,
+                        "tooltip": "High threshold for Canny edge detection; ignored if skip_processing is True"
+                    },
+                ),
+                "skip_preprocessing": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                        "tooltip": "Whether to skip preprocessing; set to True if control_image already is canny-fied, False if it is a raw image.",
+                    },
+                ),
+                "guidance": (
+                    IO.FLOAT,
+                    {
+                        "default": 30,
+                        "min": 1,
+                        "max": 100,
+                        "tooltip": "Guidance strength for the image generation process"
+                    },
+                ),
+                "steps": (
+                    IO.INT,
+                    {
+                        "default": 50,
+                        "min": 15,
+                        "max": 50,
+                        "tooltip": "Number of steps for the image generation process"
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+            },
+            "optional": {
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    RETURN_TYPES = (IO.IMAGE,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/bfl"
+
+    def api_call(
+        self,
+        control_image: torch.Tensor,
+        prompt: str,
+        prompt_upsampling: bool,
+        canny_low_threshold: int,
+        canny_high_threshold: int,
+        skip_preprocessing: bool,
+        steps: int,
+        guidance: float,
+        seed=0,
+        auth_token=None,
+        **kwargs,
+    ):
+        control_image = convert_image_to_base64(control_image[:,:,:,:3])
+        preprocessed_image = None
+
+        if skip_preprocessing:
+            preprocessed_image = control_image
+            control_image = None
+            canny_low_threshold = None
+            canny_high_threshold = None
+
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/bfl/flux-pro-1.0-canny/generate",
+                method=HttpMethod.POST,
+                request_model=BFLFluxCannyImageRequest,
+                response_model=BFLFluxProGenerateResponse,
+            ),
+            request=BFLFluxCannyImageRequest(
+                prompt=prompt,
+                prompt_upsampling=prompt_upsampling,
+                steps=steps,
+                guidance=guidance,
+                seed=seed,
+                control_image=control_image,
+                canny_low_threshold=canny_low_threshold,
+                canny_high_threshold=canny_high_threshold,
+                preprocessed_image=preprocessed_image,
+            ),
+            auth_token=auth_token,
+        )
+        output_image = handle_bfl_synchronous_operation(operation)
+        return (output_image,)
+
+
+class FluxProDepthNode(ComfyNodeABC):
+    """
+    Generate image using a control image (depth).
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "control_image": (IO.IMAGE,),
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation",
+                    },
+                ),
+                "prompt_upsampling": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
+                    },
+                ),
+                "skip_preprocessing": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                        "tooltip": "Whether to skip preprocessing; set to True if control_image already is depth-ified, False if it is a raw image.",
+                    },
+                ),
+                "guidance": (
+                    IO.FLOAT,
+                    {
+                        "default": 15,
+                        "min": 1,
+                        "max": 100,
+                        "tooltip": "Guidance strength for the image generation process"
+                    },
+                ),
+                "steps": (
+                    IO.INT,
+                    {
+                        "default": 50,
+                        "min": 15,
+                        "max": 50,
+                        "tooltip": "Number of steps for the image generation process"
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+            },
+            "optional": {
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    RETURN_TYPES = (IO.IMAGE,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/bfl"
+
+    def api_call(
+        self,
+        control_image: torch.Tensor,
+        prompt: str,
+        prompt_upsampling: bool,
+        skip_preprocessing: bool,
+        steps: int,
+        guidance: float,
+        seed=0,
+        auth_token=None,
+        **kwargs,
+    ):
+        control_image = convert_image_to_base64(control_image[:,:,:,:3])
+        preprocessed_image = None
+
+        if skip_preprocessing:
+            preprocessed_image = control_image
+            control_image = None
+
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/bfl/flux-pro-1.0-canny/generate",
+                method=HttpMethod.POST,
+                request_model=BFLFluxDepthImageRequest,
+                response_model=BFLFluxProGenerateResponse,
+            ),
+            request=BFLFluxDepthImageRequest(
+                prompt=prompt,
+                prompt_upsampling=prompt_upsampling,
+                steps=steps,
+                guidance=guidance,
+                seed=seed,
+                control_image=control_image,
+                preprocessed_image=preprocessed_image,
+            ),
+            auth_token=auth_token,
+        )
+        output_image = handle_bfl_synchronous_operation(operation)
+        return (output_image,)
 
 
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
     "FluxProUltraImageNode": FluxProUltraImageNode,
+    # "FluxProImageNode": FluxProImageNode,
+    # "FluxProExpandNode": FluxProExpandNode,
+    # "FluxProFillNode": FluxProFillNode,
+    # "FluxProCannyNode": FluxProCannyNode,
+    # "FluxProDepthNode": FluxProDepthNode,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     "FluxProUltraImageNode": "Flux 1.1 [pro] Ultra Image",
+    # "FluxProImageNode": "Flux 1.1 [pro] Image",
+    # "FluxProExpandNode": "Flux.1 Expand Image",
+    # "FluxProFillNode": "Flux.1 Fill Image",
+    # "FluxProCannyNode": "Flux.1 Canny Control Image",
+    # "FluxProDepthNode": "Flux.1 Depth Control Image",
 }
