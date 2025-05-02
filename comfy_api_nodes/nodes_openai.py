@@ -116,11 +116,13 @@ class OpenAIDalle2(ComfyNodeABC):
     ):
         model = "dall-e-2"
         path = "/proxy/openai/images/generations"
+        content_type = "application/json"
         request_class = OpenAIImageGenerationRequest
         img_binary = None
 
         if image is not None and mask is not None:
             path = "/proxy/openai/images/edits"
+            content_type = "multipart/form-data"
             request_class = OpenAIImageEditRequest
 
             input_tensor = image.squeeze().cpu()
@@ -166,6 +168,7 @@ class OpenAIDalle2(ComfyNodeABC):
                 if img_binary
                 else None
             ),
+            content_type=content_type,
             auth_token=auth_token,
         )
 
@@ -401,7 +404,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
         if image is not None:
             path = "/proxy/openai/images/edits"
             request_class = OpenAIImageEditRequest
-            content_type="multipart/form-data",
+            content_type ="multipart/form-data"
 
             batch_size = image.shape[0]
 
