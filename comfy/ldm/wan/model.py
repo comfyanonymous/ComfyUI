@@ -631,6 +631,7 @@ class VaceWanModel(WanModel):
             if ii is not None:
                 c_skip, c = self.vace_blocks[ii](c, x=x_orig, e=e0, freqs=freqs, context=context, context_img_len=context_img_len)
                 x += c_skip * vace_strength
+                del c_skip
         # head
         x = self.head(x, e)
 

@@ -6,16 +6,6 @@ This repository contains the implementation of a sketch-to-image generation pipe
 
 The primary objective of this project is to enable interactive image generation based on simple line drawings. By integrating edge detection (via Canny), prompt conditioning, and latent diffusion techniques, the model allows users to guide both the structure and style of the generated image.
 
-## Features
-
-- Sketch-to-image synthesis using a multi-stage diffusion pipeline
-- Canny edge-based conditioning via ControlNet
-- Modular, node-based workflow using ComfyUI
-- Prompt encoding with CLIP
-- Evaluation through SSIM and FID metrics
-- Supports training and inference with pretrained models (Stable Cascade)
-
-
 
 ## Shortcuts
 
@@ -54,7 +44,6 @@ The primary objective of this project is to enable interactive image generation 
 | `Ctrl` + `Alt` + LMB                   | Disconnect all wires from clicked slot                                                                             |
 
 `Ctrl` can also be replaced with `Cmd` instead for macOS users
-
 
 
 ## Jupyter Notebook

@@ -141,7 +141,7 @@ import nodes
 import comfy.model_management
 import comfyui_version
 import app.logger
-
+import hook_breaker_ac10a0
 
 def cuda_malloc_warning():
     device = comfy.model_management.get_torch_device()
@@ -215,6 +215,7 @@ def prompt_worker(q, server_instance):
                 comfy.model_management.soft_empty_cache()
                 last_gc_collect = current_time
                 need_gc = False
+                hook_breaker_ac10a0.restore_functions()
 
 
 async def run(server_instance, address='', port=8188, verbose=True, call_on_start=None):
@@ -268,7 +269,9 @@ def start_comfyui(asyncio_loop=None):
     prompt_server = server.PromptServer(asyncio_loop)
     q = execution.PromptQueue(prompt_server)
 
+    hook_breaker_ac10a0.save_functions()
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
+    hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()
 

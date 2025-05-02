@@ -28,8 +28,8 @@ class SDXLTokenizer:
 
     def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = {}
-        out["g"] = self.clip_g.tokenize_with_weights(text, return_word_ids)
-        out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids)
+        out["g"] = self.clip_g.tokenize_with_weights(text, return_word_ids, **kwargs)
+        out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids, **kwargs)
         return out
 
     def untokenize(self, token_weight_pair):
