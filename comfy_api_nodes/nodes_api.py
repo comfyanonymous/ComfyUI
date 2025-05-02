@@ -1,21 +1,22 @@
+import base64
 import io
+import math
 from inspect import cleandoc
 
-from comfy.utils import common_upscale
+import numpy as np
+import requests
+import torch
+from PIL import Image
+
 from comfy.comfy_types.node_typing import IO, ComfyNodeABC, InputTypeDict
+from comfy.utils import common_upscale
 from comfy_api_nodes.apis import (
-    OpenAIImageGenerationRequest,
     OpenAIImageEditRequest,
-    OpenAIImageGenerationResponse
+    OpenAIImageGenerationRequest,
+    OpenAIImageGenerationResponse,
 )
 from comfy_api_nodes.apis.client import ApiEndpoint, HttpMethod, SynchronousOperation
 
-import numpy as np
-from PIL import Image
-import requests
-import torch
-import math
-import base64
 
 def downscale_input(image):
     samples = image.movedim(-1,1)
@@ -331,6 +332,11 @@ class OpenAIGPTImage1(ComfyNodeABC):
                     "default": None,
                     "tooltip": "Optional mask for inpainting (white areas will be replaced)",
                 }),
+                "moderation": (IO.COMBO, {
+                    "options": ["low","auto"],
+                    "default": "low",
+                    "tooltip": "Moderation level",
+                }),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG"
@@ -343,7 +349,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
-    def api_call(self, prompt, seed=0, quality="low", background="opaque", image=None, mask=None, n=1, size="1024x1024", auth_token=None):
+    def api_call(self, prompt, seed=0, quality="low", background="opaque", image=None, mask=None, n=1, size="1024x1024", auth_token=None, moderation="low"):
         model = "gpt-image-1"
         path = "/proxy/openai/images/generations"
         request_class = OpenAIImageGenerationRequest
@@ -415,6 +421,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
                 n=n,
                 seed=seed,
                 size=size,
+                moderation=moderation,
             ),
             files=files if files else None,
             auth_token=auth_token
