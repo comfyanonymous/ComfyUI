@@ -36,7 +36,7 @@ def get_package_version(package_name):
         return version(package_name)
 
 # Check and install/update comfyui-frontend-package
-required_frontend_version = "1.18.5"
+required_frontend_version = "1.18.6"
 frontend_package_name = "comfyui-frontend-package"
 
 try:
@@ -56,7 +56,7 @@ except Exception:
     print("\nComfyUI Frontend Package was missing. Installed it.")
 
 # Check and install/update comfyui-workflow-templates
-required_templates_version = "0.1.1"
+required_templates_version = "0.1.3"
 templates_package_name = "comfyui-workflow-templates"
 
 try:
