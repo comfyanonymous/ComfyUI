@@ -16,6 +16,8 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 - [Credits](#credits)
 
 ## What's New?
+* If you want to enable MIOPEN , Triton and Flash-Attention use the install-n.bat . This will install torch 2.7 , with latest nightly zluda and patch the correct files into comfyui-zluda. This features do not work very well and you are on your own if you want to try these.
+---- You have to install HIP 6.2.4 - Download and extract HIP Addon inside the folder (information down below on installation section). ---
 * If you choose to install hip 6.2 instead of 5.7 (and make sure the path's are there) comfyui-zluda will install latest zluda not 3.8.4 like 5.7.1. 
 * Florance2 is now fixed , (probably some other nodes too) you need to disable "do_sample" meaning change it from True to False, now it would work without needing to edit it's node.
 * Added onnxruntime fix so that it now uses cpu-only regardless of node. So now  nodes like pulid, reactor, infiniteyou etc works without problems and can now use codeformer too.
@@ -75,12 +77,17 @@ If coming from the very start, you need :
    *** (*** this app installs zluda for 5.7.1 by default, if you want to use 6.1 or 6.2 you have to get the latest zluda link from
     [lshyqqtiger's ZLUDA Fork](https://github.com/lshqqytiger/ZLUDA/releases) then you can use `patchzluda2.bat`, run it paste the link via right click (a correct link would be like this, `https://github.com/lshqqytiger/ZLUDA/releases/download/rel.d60bddbc870827566b3d2d417e00e1d2d8acc026/ZLUDA-windows-rocm6-amd64.zip` press enter and it would patch that zluda into comfy for you. Of course this also would mean you have to change the variables below from 
 "5.7" to "6.x" where needed) ***
-   
+
+((((if you want to try miopen-triton with high end gpu, install hip 6.2.4 from the url above then download hip sdk addon from this url `https://drive.google.com/file/d/1JSVDV9yKCJ_vldXb5hS7NEHUeDJGoG6M/view?usp=sharing` and extract that into `C:\Program Files\AMD\ROCm\6.2`)))
+
 5. Add the system variable HIP_PATH, value: `C:\\Program Files\\AMD\\ROCm\\5.7\\` (This is the default folder, if you
    have installed it on another drive, change if necessary)
     1. Check the variables on the lower part (System Variables), there should be a variable called: HIP_PATH.
     2. Also check the variables on the lower part (System Variables), there should be a variable called: "Path".
        Double-click it and click "New" add this: `C:\Program Files\AMD\ROCm\5.7\bin`
+
+    ((( these should be  HIP_PATH, value: `C:\\Program Files\\AMD\\ROCm\\6.2\\` and Path variable  `C:\Program Files\AMD\ROCm\6.2\bin` )))
+
 6. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
 
 - from [Brknsoul Repository](https://github.com/brknsoul/ROCmLibs) (for hip 5.7.1)
@@ -109,18 +116,22 @@ cd ComfyUI-Zluda
 ```bash
 install.bat
 ```
+((( use `install-n.bat` if you want to install for miopen-triton combo for high end gpu's )))
 
 to start for later use (or create a shortcut to) :
 
 ```bash
 comfyui.bat
 ```
+((( use `comfyui-n.bat` if you want to use miopen-triton combo for high end gpu's, that basically changes the attention to pytorch attention which works with flash attention )))
 
 also for later when you need to repatch zluda (maybe a torch update etc.) you can use:
 
 ```bash
 patchzluda.bat
 ```
+
+((( `patchzluda.bat` for miopen-triton setup)))
 
 - The first generation would take around 10-15 minutes, there won't be any progress or indicator on the webui or cmd
   window, just wait. Zluda creates a database for use with generation with your gpu.
