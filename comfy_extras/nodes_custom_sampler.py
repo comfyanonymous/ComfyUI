@@ -141,6 +141,7 @@ class BetaSamplingScheduler:
                      "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                      "alpha": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 50.0, "step":0.01, "round": False}),
                      "beta": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 50.0, "step":0.01, "round": False}),
+                     "verus": ("BOOLEAN", {"default": False})
                       }
                }
     RETURN_TYPES = ("SIGMAS",)
@@ -148,8 +149,8 @@ class BetaSamplingScheduler:
 
     FUNCTION = "get_sigmas"
 
-    def get_sigmas(self, model, steps, alpha, beta):
-        sigmas = comfy.samplers.beta_scheduler(model.get_model_object("model_sampling"), steps, alpha=alpha, beta=beta)
+    def get_sigmas(self, model, steps, alpha, beta, verus):
+        sigmas = comfy.samplers.beta_scheduler(model.get_model_object("model_sampling"), steps, alpha=alpha, beta=beta, endpoint=verus)
         return (sigmas, )
 
 class VPScheduler:
