@@ -392,6 +392,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
     ):
         model = "gpt-image-1"
         path = "/proxy/openai/images/generations"
+        content_type="application/json"
         request_class = OpenAIImageGenerationRequest
         img_binaries = []
         mask_binary = None
@@ -400,6 +401,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
         if image is not None:
             path = "/proxy/openai/images/edits"
             request_class = OpenAIImageEditRequest
+            content_type="multipart/form-data",
 
             batch_size = image.shape[0]
 
@@ -461,7 +463,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
                 size=size,
             ),
             files=files if files else None,
-            content_type="multipart/form-data",
+            content_type=content_type,
             auth_token=auth_token,
         )
 
