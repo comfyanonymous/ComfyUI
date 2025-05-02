@@ -35,6 +35,44 @@ If you cannot find an existing issue that describes your bug or feature, create 
 
 * Please refer to the article on [creating pull requests](https://github.com/comfyanonymous/ComfyUI/wiki/How-to-Contribute-Code) and contributing to this project.
 
+## Development Environment Setup
+
+### Setting Up with UV (Recommended)
+
+*Added 2025-05-02 by kairin*
+
+We recommend using [UV](https://github.com/astral-sh/uv) for faster, more reliable package management:
+
+1. **Install UV**:
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   source $HOME/.local/bin/env  # For bash/zsh
+   ```
+
+2. **Set up development environment**:
+   ```bash
+   git clone https://github.com/comfyanonymous/ComfyUI.git
+   cd ComfyUI
+   
+   # Create virtual environment
+   uv venv
+   source .venv/bin/activate  # Linux/macOS
+   # or
+   .venv\Scripts\activate     # Windows
+   
+   # Install dependencies
+   uv pip install -r requirements.txt
+   
+   # Install development dependencies
+   uv add --dev pytest black isort
+   ```
+
+3. **Install in development mode**:
+   ```bash
+   uv pip install -e .
+   ```
+
+### Working with Dependencies
 
 ## Thank You
 

@@ -192,6 +192,35 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
 Put your VAE in: models/vae
 
+## Installation Options
+
+### Option 1: Install with UV (Recommended)
+
+*Added 2025-05-02*
+
+[UV](https://github.com/astral-sh/uv) is a faster, more reliable Python package installer that we now recommend for ComfyUI.
+
+1. **Install UV**:
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   source $HOME/.local/bin/env  # For bash/zsh
+   ```
+
+2. **Install ComfyUI dependencies**:
+   ```bash
+   # Create and activate virtual environment
+   uv venv
+   source .venv/bin/activate  # Linux/macOS
+   # or
+   .venv\Scripts\activate     # Windows
+   
+   # Install dependencies
+   uv pip install -r requirements.txt
+   ```
+
+For detailed instructions on using UV with ComfyUI, see our [UV Migration Guide](UV_MIGRATION.md).
+
+### Option 2: Install with pip (Traditional)
 
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:

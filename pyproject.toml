@@ -1,6 +1,11 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "ComfyUI"
 version = "0.3.30"
+description = "The most powerful and modular diffusion model GUI, api and backend with a graph/nodes interface."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
@@ -9,6 +14,11 @@ requires-python = ">=3.9"
 homepage = "https://www.comfy.org/"
 repository = "https://github.com/comfyanonymous/ComfyUI"
 documentation = "https://docs.comfy.org/"
+
+[project.optional-dependencies]
+advanced = [
+    # Include dependencies from requirements_advanced.txt here
+]
 
 [tool.ruff]
 lint.select = [
@@ -22,3 +32,6 @@ lint.select = [
   "F",
 ]
 exclude = ["*.ipynb"]
+
+[tool.uv]
+# Add any uv-specific configurations here
