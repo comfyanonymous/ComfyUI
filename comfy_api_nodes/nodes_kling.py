@@ -550,6 +550,9 @@ class KlingCameraControlT2VNode(KlingTextToVideoNode):
     def INPUT_TYPES(s):
         return {
             "required": {
+                "start_frame": model_field_to_node_input(
+                    IO.IMAGE, KlingImage2VideoRequest, "image"
+                ),
                 "prompt": model_field_to_node_input(
                     IO.STRING, KlingText2VideoRequest, "prompt", multiline=True
                 ),
@@ -783,9 +786,6 @@ class KlingCameraControlI2VNode(KlingImage2VideoNode):
                     enum_type=ModelName,
                     default="kling-v2-master",
                 ),
-                "start_frame": model_field_to_node_input(
-                    IO.IMAGE, KlingImage2VideoRequest, "image"
-                ),
                 "cfg_scale": model_field_to_node_input(
                     IO.FLOAT,
                     KlingImage2VideoRequest,
@@ -822,7 +822,6 @@ class KlingCameraControlI2VNode(KlingImage2VideoNode):
         prompt: str,
         negative_prompt: str,
         model_name: str,
-        start_frame: torch.Tensor,
         cfg_scale: float,
         aspect_ratio: str,
         camera_control: KlingCameraControl,
