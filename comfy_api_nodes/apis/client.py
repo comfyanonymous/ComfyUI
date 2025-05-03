@@ -157,7 +157,7 @@ class ApiClient:
         self,
         base_url: str,
         api_key: Optional[str] = None,
-        timeout: float = 30.0,
+        timeout: float = 3600.0,
         verify_ssl: bool = True,
     ):
         self.base_url = base_url
