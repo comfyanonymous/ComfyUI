@@ -524,3 +524,21 @@ def upload_images_to_comfyapi(
             if idx_image >= batch_length:
                 break
     return download_urls
+
+
+def resize_mask_to_image(mask: torch.Tensor, image: torch.Tensor,
+                         upscale_method="nearest-exact", crop="disabled",
+                         allow_gradient=True, add_channel_dim=False):
+    """
+    Resize mask to be the same dimensions as an image, while maintaining proper format for API calls.
+    """
+    _, H, W, _ = image.shape
+    mask = mask.unsqueeze(-1)
+    mask = mask.movedim(-1,1)
+    mask = common_upscale(mask, width=W, height=H, upscale_method=upscale_method, crop=crop)
+    mask = mask.movedim(1,-1)
+    if not add_channel_dim:
+        mask = mask.squeeze(-1)
+    if not allow_gradient:
+        mask = (mask > 0.5).float()
+    return mask

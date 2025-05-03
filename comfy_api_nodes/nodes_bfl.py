@@ -20,6 +20,7 @@ from comfy_api_nodes.apinode_utils import (
     downscale_image_tensor,
     validate_aspect_ratio,
     process_image_response,
+    resize_mask_to_image,
 )
 
 import numpy as np
@@ -589,9 +590,11 @@ class FluxProFillNode(ComfyNodeABC):
         auth_token=None,
         **kwargs,
     ):
+        # prepare mask
+        mask = resize_mask_to_image(mask, image)
+        mask = convert_image_to_base64(convert_mask_to_image(mask))
         # make sure image will have alpha channel removed
         image = convert_image_to_base64(image[:,:,:,:3])
-        mask = convert_image_to_base64(convert_mask_to_image(mask))
 
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
@@ -641,20 +644,22 @@ class FluxProCannyNode(ComfyNodeABC):
                     },
                 ),
                 "canny_low_threshold": (
-                    IO.INT,
+                    IO.FLOAT,
                     {
-                        "default": 0,
-                        "min": 0,
-                        "max": 500,
+                        "default": 0.1,
+                        "min": 0.01,
+                        "max": 0.99,
+                        "step": 0.01,
                         "tooltip": "Low threshold for Canny edge detection; ignored if skip_processing is True"
                     },
                 ),
                 "canny_high_threshold": (
-                    IO.INT,
+                    IO.FLOAT,
                     {
-                        "default": 0,
-                        "min": 0,
-                        "max": 500,
+                        "default": 0.4,
+                        "min": 0.01,
+                        "max": 0.99,
+                        "step": 0.01,
                         "tooltip": "High threshold for Canny edge detection; ignored if skip_processing is True"
                     },
                 ),
@@ -712,8 +717,8 @@ class FluxProCannyNode(ComfyNodeABC):
         control_image: torch.Tensor,
         prompt: str,
         prompt_upsampling: bool,
-        canny_low_threshold: int,
-        canny_high_threshold: int,
+        canny_low_threshold: float,
+        canny_high_threshold: float,
         skip_preprocessing: bool,
         steps: int,
         guidance: float,
@@ -723,6 +728,13 @@ class FluxProCannyNode(ComfyNodeABC):
     ):
         control_image = convert_image_to_base64(control_image[:,:,:,:3])
         preprocessed_image = None
+
+        # scale canny threshold between 0-500, to match BFL's API
+        def scale_value(value: float, min_val=0, max_val=500):
+            return min_val + value * (max_val - min_val)
+        canny_low_threshold = int(round(scale_value(canny_low_threshold)))
+        canny_high_threshold = int(round(scale_value(canny_high_threshold)))
+
 
         if skip_preprocessing:
             preprocessed_image = control_image
@@ -849,7 +861,7 @@ class FluxProDepthNode(ComfyNodeABC):
 
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
-                path="/proxy/bfl/flux-pro-1.0-canny/generate",
+                path="/proxy/bfl/flux-pro-1.0-depth/generate",
                 method=HttpMethod.POST,
                 request_model=BFLFluxDepthImageRequest,
                 response_model=BFLFluxProGenerateResponse,
@@ -874,18 +886,18 @@ class FluxProDepthNode(ComfyNodeABC):
 NODE_CLASS_MAPPINGS = {
     "FluxProUltraImageNode": FluxProUltraImageNode,
     # "FluxProImageNode": FluxProImageNode,
-    # "FluxProExpandNode": FluxProExpandNode,
-    # "FluxProFillNode": FluxProFillNode,
-    # "FluxProCannyNode": FluxProCannyNode,
-    # "FluxProDepthNode": FluxProDepthNode,
+    "FluxProExpandNode": FluxProExpandNode,
+    "FluxProFillNode": FluxProFillNode,
+    "FluxProCannyNode": FluxProCannyNode,
+    "FluxProDepthNode": FluxProDepthNode,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     "FluxProUltraImageNode": "Flux 1.1 [pro] Ultra Image",
     # "FluxProImageNode": "Flux 1.1 [pro] Image",
-    # "FluxProExpandNode": "Flux.1 Expand Image",
-    # "FluxProFillNode": "Flux.1 Fill Image",
-    # "FluxProCannyNode": "Flux.1 Canny Control Image",
-    # "FluxProDepthNode": "Flux.1 Depth Control Image",
+    "FluxProExpandNode": "Flux.1 Expand Image",
+    "FluxProFillNode": "Flux.1 Fill Image",
+    "FluxProCannyNode": "Flux.1 Canny Control Image",
+    "FluxProDepthNode": "Flux.1 Depth Control Image",
 }

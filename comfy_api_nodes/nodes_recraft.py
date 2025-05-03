@@ -1,6 +1,6 @@
 from __future__ import annotations
 from inspect import cleandoc
-from comfy.utils import ProgressBar, common_upscale
+from comfy.utils import ProgressBar
 from comfy.comfy_types.node_typing import IO
 from comfy_api_nodes.apis.recraft_api import (
     RecraftImageGenerationRequest,
@@ -25,6 +25,7 @@ from comfy_api_nodes.apinode_utils import (
     bytesio_to_image_tensor,
     download_url_to_bytesio,
     tensor_to_bytesio,
+    resize_mask_to_image,
 )
 import folder_paths
 import json
@@ -654,12 +655,7 @@ class RecraftImageInpaintingNode:
         )
 
         # prepare mask tensor
-        _, H, W, _ = image.shape
-        mask = mask.unsqueeze(-1)
-        mask = mask.movedim(-1,1)
-        mask = common_upscale(mask, width=W, height=H, upscale_method="nearest-exact", crop="disabled")
-        mask = mask.movedim(1,-1)
-        mask = (mask > 0.5).float()
+        mask = resize_mask_to_image(mask, image, allow_gradient=False, add_channel_dim=True)
 
         images = []
         total = image.shape[0]
