@@ -1,6 +1,6 @@
 [project]
 name = "ComfyUI"
-version = "0.3.30"
+version = "0.3.31"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
@@ -12,6 +12,7 @@ documentation = "https://docs.comfy.org/"
 
 [tool.ruff]
 lint.select = [
+  "N805", # invalid-first-argument-name-for-method
   "S307", # suspicious-eval-usage
   "S102", # exec
   "T",    # print-usage

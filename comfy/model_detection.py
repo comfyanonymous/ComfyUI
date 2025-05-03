@@ -164,7 +164,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         if in_key in state_dict_keys:
             dit_config["in_channels"] = state_dict[in_key].shape[1] // (patch_size * patch_size)
         dit_config["out_channels"] = 16
-        dit_config["vec_in_dim"] = 768
+        vec_in_key = '{}vector_in.in_layer.weight'.format(key_prefix)
+        if vec_in_key in state_dict_keys:
+            dit_config["vec_in_dim"] = state_dict[vec_in_key].shape[1]
         dit_config["context_in_dim"] = 4096
         dit_config["hidden_size"] = 3072
         dit_config["mlp_ratio"] = 4.0
@@ -174,7 +176,16 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["axes_dim"] = [16, 56, 56]
         dit_config["theta"] = 10000
         dit_config["qkv_bias"] = True
-        dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
+        if '{}distilled_guidance_layer.0.norms.0.scale'.format(key_prefix) in state_dict_keys or '{}distilled_guidance_layer.norms.0.scale'.format(key_prefix) in state_dict_keys: #Chroma
+            dit_config["image_model"] = "chroma"
+            dit_config["in_channels"] = 64
+            dit_config["out_channels"] = 64
+            dit_config["in_dim"] = 64
+            dit_config["out_dim"] = 3072
+            dit_config["hidden_dim"] = 5120
+            dit_config["n_layers"] = 5
+        else:
+            dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
         return dit_config
 
     if '{}t5_yproj.weight'.format(key_prefix) in state_dict_keys: #Genmo mochi preview
