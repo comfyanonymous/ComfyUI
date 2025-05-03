@@ -66,7 +66,7 @@ if branch is None:
     try:
         ref = repo.lookup_reference('refs/remotes/origin/master')
     except:
-        print("pulling.")
+        print("pulling.")  # noqa: T201
         pull(repo)
         ref = repo.lookup_reference('refs/remotes/origin/master')
     repo.checkout(ref)
