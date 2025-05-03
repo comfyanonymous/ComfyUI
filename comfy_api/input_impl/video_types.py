@@ -89,7 +89,7 @@ class VideoFromFile(VideoInput):
 
     def save_to(
         self,
-        path: str,
+        path: str | io.BytesIO,
         format: VideoContainer = VideoContainer.AUTO,
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None
@@ -116,7 +116,23 @@ class VideoFromFile(VideoInput):
                 )
 
             streams = container.streams
-            with av.open(path, mode='w', options={"movflags": "use_metadata_tags"}) as output_container:
+            open_kwargs = {
+                "mode": "w",
+                "options": {"movflags": "use_metadata_tags"}
+            }
+
+            if not isinstance(path, str):
+                # Explicit format is needed for non-path destinations (like BytesIO)
+                output_format_str = (
+                    format.value.lower()
+                    if format != VideoContainer.AUTO
+                    else container.format.name
+                )
+                if "," in output_format_str:
+                    output_format_str = output_format_str.split(",")[0]
+                open_kwargs["format"] = output_format_str
+
+            with av.open(path, **open_kwargs) as output_container:
                 # Copy over the original metadata
                 for key, value in container.metadata.items():
                     if metadata is None or key not in metadata:

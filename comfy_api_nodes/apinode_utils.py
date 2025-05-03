@@ -3,6 +3,9 @@ import logging
 from typing import Optional
 from comfy.utils import common_upscale
 from comfy_api.input_impl import VideoFromFile
+from comfy_api.util import VideoContainer, VideoCodec
+from comfy_api.input.video_types import VideoInput
+from comfy_api.input.basic_types import AudioInput
 from comfy_api_nodes.apis.client import (
     ApiClient,
     ApiEndpoint,
@@ -21,6 +24,7 @@ import math
 import base64
 import uuid
 from io import BytesIO
+import av
 
 
 def download_url_to_video_output(video_url: str, timeout: int = None) -> VideoFromFile:
@@ -197,6 +201,11 @@ def bytesio_to_image_tensor(image_bytesio: BytesIO, mode: str = "RGBA") -> torch
     return torch.from_numpy(image_array).unsqueeze(0)
 
 
+def download_url_to_image_tensor(url: str, timeout: int = None) -> torch.Tensor:
+    """Downloads an image from a URL and returns a [B, H, W, C] tensor."""
+    image_bytesio = download_url_to_bytesio(url, timeout)
+    return bytesio_to_image_tensor(image_bytesio)
+
 def process_image_response(response: requests.Response) -> torch.Tensor:
     """Uses content from a Response object and converts it to a torch.Tensor"""
     return bytesio_to_image_tensor(BytesIO(response.content))
@@ -299,6 +308,156 @@ def tensor_to_data_uri(
     """
     base64_string = tensor_to_base64_string(image_tensor, total_pixels, mime_type)
     return f"data:{mime_type};base64,{base64_string}"
+
+
+def upload_file_to_comfyapi(
+    file_bytes_io: BytesIO,
+    filename: str,
+    upload_mime_type: str,
+    auth_token: Optional[str] = None,
+) -> str:
+    """
+    Uploads a single file to ComfyUI API and returns its download URL.
+
+    Args:
+        file_bytes_io: BytesIO object containing the file data.
+        filename: The filename of the file.
+        upload_mime_type: MIME type of the file.
+        auth_token: Optional authentication token.
+
+    Returns:
+        The download URL for the uploaded file.
+    """
+    request_object = UploadRequest(file_name=filename, content_type=upload_mime_type)
+    operation = SynchronousOperation(
+        endpoint=ApiEndpoint(
+            path="/customers/storage",
+            method=HttpMethod.POST,
+            request_model=UploadRequest,
+            response_model=UploadResponse,
+        ),
+        request=request_object,
+        auth_token=auth_token,
+    )
+
+    response: UploadResponse = operation.execute()
+    upload_response = ApiClient.upload_file(
+        response.upload_url, file_bytes_io, content_type=upload_mime_type
+    )
+    upload_response.raise_for_status()
+
+    return response.download_url
+
+
+def upload_video_to_comfyapi(
+    video: VideoInput,
+    auth_token: Optional[str] = None,
+    container: VideoContainer = VideoContainer.MP4,
+    codec: VideoCodec = VideoCodec.H264,
+    max_duration: Optional[int] = None,
+) -> str:
+    """
+    Uploads a single video to ComfyUI API and returns its download URL.
+    Uses the specified container and codec for saving the video before upload.
+
+    Args:
+        video: Input VideoInput object.
+        auth_token: Optional authentication token.
+        container: The video container format to use (default: MP4).
+        codec: The video codec to use (default: H264).
+        max_duration: Optional maximum duration of the video in seconds. If the video is longer than this, an error will be raised.
+
+    Returns:
+        The download URL for the uploaded video file.
+    """
+    if max_duration is not None:
+        try:
+            actual_duration = video.duration_seconds
+            if actual_duration is not None and actual_duration > max_duration:
+                raise ValueError(
+                    f"Video duration ({actual_duration:.2f}s) exceeds the maximum allowed ({max_duration}s)."
+                )
+        except Exception as e:
+            logging.error(f"Error getting video duration: {e}")
+            raise ValueError(f"Could not verify video duration from source: {e}") from e
+
+    upload_mime_type = f"video/{container.value.lower()}"
+    filename = f"uploaded_video.{container.value.lower()}"
+
+    # Convert VideoInput to BytesIO using specified container/codec
+    video_bytes_io = io.BytesIO()
+    video.save_to(video_bytes_io, format=container, codec=codec)
+    video_bytes_io.seek(0)
+
+    return upload_file_to_comfyapi(
+        video_bytes_io, filename, upload_mime_type, auth_token
+    )
+
+
+def upload_audio_to_comfyapi(
+    audio: AudioInput,
+    auth_token: Optional[str] = None,
+) -> str:
+    """
+    Uploads a single audio input to ComfyUI API and returns its download URL.
+    Encodes the raw waveform into MP4/AAC format before uploading.
+
+    Args:
+        audio: Input AudioInput object (containing waveform tensor and sample_rate).
+        auth_token: Optional authentication token.
+
+    Returns:
+        The download URL for the uploaded audio file.
+    """
+    waveform: torch.Tensor = audio["waveform"]
+    sample_rate: int = audio["sample_rate"]
+
+    # If batch is > 1, take first item
+    if waveform.shape[0] > 1:
+        waveform = waveform[0]
+
+    # Check waveform tensor shape
+    if waveform.ndim != 3 or waveform.shape[0] != 1:
+        raise ValueError("Expected waveform tensor shape (1, channels, samples)")
+
+    # Prepare data for av library
+    audio_data_np = waveform.squeeze(0).cpu().numpy()
+    if audio_data_np.dtype != np.float32:
+        audio_data_np = audio_data_np.astype(np.float32)
+
+    # Ensure the array is C-contiguous
+    if not audio_data_np.flags["C_CONTIGUOUS"]:
+        audio_data_np = np.ascontiguousarray(audio_data_np)
+
+    # Default to MP4/AAC
+    container_format = "mp4"
+    codec_name = "aac"
+    upload_mime_type = "audio/mp4"
+    filename = "uploaded_audio.mp4"
+
+    audio_bytes_io = io.BytesIO()
+    with av.open(audio_bytes_io, mode="w", format=container_format) as output_container:
+        audio_stream = output_container.add_stream(codec_name, rate=sample_rate)
+        frame = av.AudioFrame.from_ndarray(
+            audio_data_np,
+            format="fltp",
+            layout="stereo" if audio_data_np.shape[0] > 1 else "mono",
+        )
+        frame.sample_rate = sample_rate
+        frame.pts = 0
+
+        for packet in audio_stream.encode(frame):
+            output_container.mux(packet)
+
+        # Flush stream
+        for packet in audio_stream.encode(None):
+            output_container.mux(packet)
+
+    audio_bytes_io.seek(0)  # Reset buffer position for reading
+
+    return upload_file_to_comfyapi(
+        audio_bytes_io, filename, upload_mime_type, auth_token
+    )
 
 
 def upload_images_to_comfyapi(
