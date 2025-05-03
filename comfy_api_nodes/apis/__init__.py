@@ -147,32 +147,56 @@ class Error(BaseModel):
 bytes_aliased = bytes
 
 
-class BFLFluxProGenerateRequest(BaseModel):
-    guidance_scale: Optional[float] = Field(
-        None, description="The guidance scale for generation.", ge=1.0, le=20.0
+class PersonalAccessToken(BaseModel):
+    id: Optional[UUID] = Field(None, description='Unique identifier for the GitCommit')
+    name: Optional[str] = Field(
+        None,
+        description='Required. The name of the token. Can be a simple description.',
     )
-    height: int = Field(
-        ..., description="The height of the image to generate.", ge=64, le=2048
+    description: Optional[str] = Field(
+        None,
+        description="Optional. A more detailed description of the token's intended use.",
     )
-    negative_prompt: Optional[str] = Field(
-        None, description="The negative prompt for image generation."
+    createdAt: Optional[datetime] = Field(
+        None, description='[Output Only]The date and time the token was created.'
     )
-    num_images: Optional[int] = Field(
-        None, description="The number of images to generate.", ge=1, le=4
-    )
-    num_inference_steps: Optional[int] = Field(
-        None, description="The number of inference steps.", ge=1, le=100
-    )
-    prompt: str = Field(..., description="The text prompt for image generation.")
-    seed: Optional[int] = Field(None, description="The seed value for reproducibility.")
-    width: int = Field(
-        ..., description="The width of the image to generate.", ge=64, le=2048
+    token: Optional[str] = Field(
+        None,
+        description='[Output Only]. The personal access token. Only returned during creation.',
     )
 
 
-class BFLFluxProGenerateResponse(BaseModel):
-    id: str = Field(..., description="The unique identifier for the generation task.")
-    polling_url: str = Field(..., description="URL to poll for the generation result.")
+class GitCommitSummary(BaseModel):
+    commit_hash: Optional[str] = Field(None, description='The hash of the commit')
+    commit_name: Optional[str] = Field(None, description='The name of the commit')
+    branch_name: Optional[str] = Field(
+        None, description='The branch where the commit was made'
+    )
+    author: Optional[str] = Field(None, description='The author of the commit')
+    timestamp: Optional[datetime] = Field(
+        None, description='The timestamp when the commit was made'
+    )
+    status_summary: Optional[Dict[str, str]] = Field(
+        None, description='A map of operating system to status pairs'
+    )
+
+
+class User(BaseModel):
+    id: Optional[str] = Field(None, description='The unique id for this user.')
+    email: Optional[str] = Field(None, description='The email address for this user.')
+    name: Optional[str] = Field(None, description='The name for this user.')
+    isApproved: Optional[bool] = Field(
+        None, description='Indicates if the user is approved.'
+    )
+    isAdmin: Optional[bool] = Field(
+        None, description='Indicates if the user has admin privileges.'
+    )
+
+
+class PublisherUser(BaseModel):
+    id: Optional[str] = Field(None, description='The unique id for this user.')
+    email: Optional[str] = Field(None, description='The email address for this user.')
+    name: Optional[str] = Field(None, description='The name for this user.')
 
 
 class ErrorResponse(BaseModel):
@@ -345,7 +369,7 @@ class StyleType(str, Enum):
 
 
 class IdeogramColorPalette1(BaseModel):
-    name: str = Field(..., description="Name of the preset color palette")
+    name: str = Field(..., description='Name of the preset color palette')
 
 
 class Member(BaseModel):
@@ -359,7 +383,7 @@ class Member(BaseModel):
 
 class IdeogramColorPalette2(BaseModel):
     members: List[Member] = Field(
-        ..., description="Array of color definitions with optional weights"
+        ..., description='Array of color definitions with optional weights'
     )
 
 
@@ -368,42 +392,25 @@ class IdeogramColorPalette(
 ):
     root: Union[IdeogramColorPalette1, IdeogramColorPalette2] = Field(
         ...,
-        description="A color palette specification that can either use a preset name or explicit color definitions with weights",
+        description='A color palette specification that can either use a preset name or explicit color definitions with weights',
     )
 
 
 class ImageRequest(BaseModel):
+    prompt: str = Field(
+        ..., description='Required. The prompt to use to generate the image.'
+    )
     aspect_ratio: Optional[str] = Field(
         None,
         description="Optional. The aspect ratio (e.g., 'ASPECT_16_9', 'ASPECT_1_1'). Cannot be used with resolution. Defaults to 'ASPECT_1_1' if unspecified.",
     )
-    color_palette: Optional[Dict[str, Any]] = Field(
-        None, description="Optional. Color palette object. Only for V_2, V_2_TURBO."
-    )
+    model: str = Field(..., description="The model used (e.g., 'V_2', 'V_2A_TURBO')")
     magic_prompt_option: Optional[str] = Field(
         None, description="Optional. MagicPrompt usage ('AUTO', 'ON', 'OFF')."
     )
-    model: str = Field(..., description="The model used (e.g., 'V_2', 'V_2A_TURBO')")
-    negative_prompt: Optional[str] = Field(
-        None,
-        description="Optional. Description of what to exclude. Only for V_1, V_1_TURBO, V_2, V_2_TURBO.",
-    )
-    num_images: Optional[int] = Field(
-        1,
-        description="Optional. Number of images to generate (1-8). Defaults to 1.",
-        ge=1,
-        le=8,
-    )
-    prompt: str = Field(
-        ..., description="Required. The prompt to use to generate the image."
-    )
-    resolution: Optional[str] = Field(
-        None,
-        description="Optional. Resolution (e.g., 'RESOLUTION_1024_1024'). Only for model V_2. Cannot be used with aspect_ratio.",
-    )
     seed: Optional[int] = Field(
         None,
-        description="Optional. A number between 0 and 2147483647.",
+        description='Optional. A number between 0 and 2147483647.',
         ge=0,
         le=2147483647,
     )
@@ -411,11 +418,28 @@ class ImageRequest(BaseModel):
         None,
         description="Optional. Style type ('AUTO', 'GENERAL', 'REALISTIC', 'DESIGN', 'RENDER_3D', 'ANIME'). Only for models V_2 and above.",
     )
+    negative_prompt: Optional[str] = Field(
+        None,
+        description='Optional. Description of what to exclude. Only for V_1, V_1_TURBO, V_2, V_2_TURBO.',
+    )
+    num_images: Optional[int] = Field(
+        1,
+        description='Optional. Number of images to generate (1-8). Defaults to 1.',
+        ge=1,
+        le=8,
+    )
+    resolution: Optional[str] = Field(
+        None,
+        description="Optional. Resolution (e.g., 'RESOLUTION_1024_1024'). Only for model V_2. Cannot be used with aspect_ratio.",
+    )
+    color_palette: Optional[Dict[str, Any]] = Field(
+        None, description='Optional. Color palette object. Only for V_2, V_2_TURBO.'
+    )
 
 
 class IdeogramGenerateRequest(BaseModel):
     image_request: ImageRequest = Field(
-        ..., description="The image generation request parameters."
+        ..., description='The image generation request parameters.'
     )
 
 
@@ -426,31 +450,31 @@ class IdeogramGenerateRequest(BaseModel):
 
 
 class Datum(BaseModel):
-    is_image_safe: Optional[bool] = Field(
-        None, description="Indicates whether the image is considered safe."
-    )
     prompt: Optional[str] = Field(
-        None, description="The prompt used to generate this image."
+        None, description='The prompt used to generate this image.'
     )
     resolution: Optional[str] = Field(
         None, description="The resolution of the generated image (e.g., '1024x1024')."
     )
-    seed: Optional[int] = Field(
-        None, description="The seed value used for this generation."
+    is_image_safe: Optional[bool] = Field(
+        None, description='Indicates whether the image is considered safe.'
     )
+    seed: Optional[int] = Field(
+        None, description='The seed value used for this generation.'
+    )
+    url: Optional[str] = Field(None, description='URL to the generated image.')
     style_type: Optional[str] = Field(
         None,
         description="The style type used for generation (e.g., 'REALISTIC', 'ANIME').",
     )
-    url: Optional[str] = Field(None, description="URL to the generated image.")
 
 
 class IdeogramGenerateResponse(BaseModel):
     created: Optional[datetime] = Field(
-        None, description="Timestamp when the generation was created."
+        None, description='Timestamp when the generation was created.'
     )
     data: Optional[List[Datum]] = Field(
-        None, description="Array of generated image information."
+        None, description='Array of generated image information.'
     )
 
 
@@ -1111,40 +1135,130 @@ class ModelName(str, Enum):
     kling_v2_master = "kling-v2-master"
 
 
-class ColorPalette(BaseModel):
-    name: str = Field(..., description="Name of the color palette", examples=["PASTEL"])
+class MagicPrompt1(str, Enum):
+    AUTO = 'AUTO'
+    ON = 'ON'
+    OFF = 'OFF'
 
 
-class MagicPrompt(str, Enum):
-    ON = "ON"
-    OFF = "OFF"
+class StyleType1(str, Enum):
+    AUTO = 'AUTO'
+    GENERAL = 'GENERAL'
+    REALISTIC = 'REALISTIC'
+    DESIGN = 'DESIGN'
 
 
-class StyleType(str, Enum):
-    GENERAL = "GENERAL"
+class IdeogramV3RemixRequest(BaseModel):
+    image: Optional[StrictBytes] = None
+    prompt: str
+    image_weight: Optional[int] = Field(50, ge=1, le=100)
+    seed: Optional[int] = Field(None, ge=0, le=2147483647)
+    resolution: Optional[str] = None
+    aspect_ratio: Optional[str] = None
+    rendering_speed: Optional[RenderingSpeed1] = None
+    magic_prompt: Optional[MagicPrompt1] = None
+    negative_prompt: Optional[str] = None
+    num_images: Optional[int] = Field(None, ge=1, le=8)
+    color_palette: Optional[Dict[str, Any]] = None
+    style_codes: Optional[List[str]] = None
+    style_type: Optional[StyleType1] = None
+    style_reference_images: Optional[List[StrictBytes]] = None
 
 
-class KlingErrorResponse(BaseModel):
-    code: int = Field(
+class Datum1(BaseModel):
+    prompt: Optional[str] = None
+    resolution: Optional[str] = None
+    is_image_safe: Optional[bool] = None
+    seed: Optional[int] = None
+    url: Optional[str] = None
+    style_type: Optional[str] = None
+
+
+class IdeogramV3IdeogramResponse(BaseModel):
+    created: Optional[datetime] = None
+    data: Optional[List[Datum1]] = None
+
+
+class IdeogramV3ReframeRequest(BaseModel):
+    image: Optional[StrictBytes] = None
+    resolution: str
+    num_images: Optional[int] = Field(None, ge=1, le=8)
+    seed: Optional[int] = Field(None, ge=0, le=2147483647)
+    rendering_speed: Optional[RenderingSpeed1] = None
+    color_palette: Optional[Dict[str, Any]] = None
+    style_codes: Optional[List[str]] = None
+    style_reference_images: Optional[List[StrictBytes]] = None
+
+
+class IdeogramV3ReplaceBackgroundRequest(BaseModel):
+    image: Optional[StrictBytes] = None
+    prompt: str
+    magic_prompt: Optional[MagicPrompt1] = None
+    num_images: Optional[int] = Field(None, ge=1, le=8)
+    seed: Optional[int] = Field(None, ge=0, le=2147483647)
+    rendering_speed: Optional[RenderingSpeed1] = None
+    color_palette: Optional[Dict[str, Any]] = None
+    style_codes: Optional[List[str]] = None
+    style_reference_images: Optional[List[StrictBytes]] = None
+
+
+class KlingTaskStatus(str, Enum):
+    submitted = 'submitted'
+    processing = 'processing'
+    succeed = 'succeed'
+    failed = 'failed'
+
+
+class KlingVideoGenModelName(str, Enum):
+    kling_v1 = 'kling-v1'
+    kling_v1_5 = 'kling-v1-5'
+    kling_v1_6 = 'kling-v1-6'
+    kling_v2_master = 'kling-v2-master'
+
+
+class KlingVideoGenMode(str, Enum):
+    std = 'std'
+    pro = 'pro'
+
+
+class KlingVideoGenAspectRatio(str, Enum):
+    field_16_9 = '16:9'
+    field_9_16 = '9:16'
+    field_1_1 = '1:1'
+
+
+class KlingVideoGenDuration(str, Enum):
+    field_5 = '5'
+    field_10 = '10'
+
+
+class KlingVideoGenCfgScale(RootModel[float]):
+    root: float = Field(
         ...,
-        description="- 1000: Authentication failed\n- 1001: Authorization is empty\n- 1002: Authorization is invalid\n- 1003: Authorization is not yet valid\n- 1004: Authorization has expired\n- 1100: Account exception\n- 1101: Account in arrears (postpaid scenario)\n- 1102: Resource pack depleted or expired (prepaid scenario)\n- 1103: Unauthorized access to requested resource\n- 1200: Invalid request parameters\n- 1201: Invalid parameters\n- 1202: Invalid request method\n- 1203: Requested resource does not exist\n- 1300: Trigger platform strategy\n- 1301: Trigger content security policy\n- 1302: API request too frequent\n- 1303: Concurrency/QPS exceeds limit\n- 1304: Trigger IP whitelist policy\n- 5000: Internal server error\n- 5001: Service temporarily unavailable\n- 5002: Server internal timeout\n",
-    )
-    message: str = Field(..., description="Human-readable error message")
-    request_id: str = Field(
-        ..., description="Request ID for tracking and troubleshooting"
+        description="Flexibility in video generation. The higher the value, the lower the model's degree of flexibility, and the stronger the relevance to the user's prompt.",
+        ge=0.0,
+        le=1.0,
     )
 
 
-class AspectRatio(str, Enum):
-    field_16_9 = "16:9"
-    field_9_16 = "9:16"
-    field_1_1 = "1:1"
+class KlingCameraControlType(str, Enum):
+    simple = 'simple'
+    down_back = 'down_back'
+    forward_up = 'forward_up'
+    right_turn_forward = 'right_turn_forward'
+    left_turn_forward = 'left_turn_forward'
 
 
-class Config(BaseModel):
+class KlingCameraConfig(BaseModel):
     horizontal: Optional[float] = Field(
         None,
         description="Controls camera's movement along horizontal axis (x-axis). Negative indicates left, positive indicates right.",
+        ge=-10.0,
+        le=10.0,
+    )
+    vertical: Optional[float] = Field(
+        None,
+        description="Controls camera's movement along vertical axis (y-axis). Negative indicates downward, positive indicates upward.",
         ge=-10.0,
         le=10.0,
     )
@@ -1154,21 +1268,15 @@ class Config(BaseModel):
         ge=-10.0,
         le=10.0,
     )
-    roll: Optional[float] = Field(
-        None,
-        description="Controls camera's rolling amount (z-axis). Negative indicates counterclockwise, positive indicates clockwise.",
-        ge=-10.0,
-        le=10.0,
-    )
     tilt: Optional[float] = Field(
         None,
         description="Controls camera's rotation in horizontal plane (y-axis). Negative indicates left rotation, positive indicates right rotation.",
         ge=-10.0,
         le=10.0,
     )
-    vertical: Optional[float] = Field(
+    roll: Optional[float] = Field(
         None,
-        description="Controls camera's movement along vertical axis (y-axis). Negative indicates downward, positive indicates upward.",
+        description="Controls camera's rolling amount (z-axis). Negative indicates counterclockwise, positive indicates clockwise.",
         ge=-10.0,
         le=10.0,
     )
@@ -1180,194 +1288,105 @@ class Config(BaseModel):
     )
 
 
-class Type(str, Enum):
-    simple = "simple"
-    down_back = "down_back"
-    forward_up = "forward_up"
-    right_turn_forward = "right_turn_forward"
-    left_turn_forward = "left_turn_forward"
+class KlingVideoResult(BaseModel):
+    id: Optional[str] = Field(None, description='Generated video ID')
+    url: Optional[AnyUrl] = Field(None, description='URL for generated video')
+    duration: Optional[str] = Field(None, description='Total video duration')
 
 
-class CameraControl(BaseModel):
-    config: Optional[Config] = None
-    type: Optional[Type] = Field(
-        None,
-        description="Predefined camera movements type. simple: Customizable camera movement. down_back: Camera descends and moves backward. forward_up: Camera moves forward and tilts up. right_turn_forward: Rotate right and move forward. left_turn_forward: Rotate left and move forward.",
-    )
+class KlingAudioUploadType(str, Enum):
+    file = 'file'
+    url = 'url'
 
 
-class Duration(str, Enum):
-    field_5 = "5"
-    field_10 = "10"
+class KlingLipSyncMode(str, Enum):
+    text2video = 'text2video'
+    audio2video = 'audio2video'
 
 
-class Trajectory(BaseModel):
-    x: Optional[int] = Field(
-        None,
-        description="The horizontal coordinate of trajectory point. Based on bottom-left corner of image as origin (0,0).",
-    )
-    y: Optional[int] = Field(
-        None,
-        description="The vertical coordinate of trajectory point. Based on bottom-left corner of image as origin (0,0).",
-    )
+class KlingLipSyncVoiceLanguage(str, Enum):
+    zh = 'zh'
+    en = 'en'
 
 
-class DynamicMask(BaseModel):
-    mask: Optional[AnyUrl] = Field(
-        None,
-        description="Dynamic Brush Application Area (Mask image created by users using the motion brush). The aspect ratio must match the input image.",
-    )
-    trajectories: Optional[List[Trajectory]] = None
+class KlingDualCharacterEffectsScene(str, Enum):
+    hug = 'hug'
+    kiss = 'kiss'
+    heart_gesture = 'heart_gesture'
 
 
-class Mode(str, Enum):
-    std = "std"
-    pro = "pro"
+class KlingSingleImageEffectsScene(str, Enum):
+    bloombloom = 'bloombloom'
+    dizzydizzy = 'dizzydizzy'
+    fuzzyfuzzy = 'fuzzyfuzzy'
+    squish = 'squish'
+    expansion = 'expansion'
 
 
-class ModelName(str, Enum):
-    kling_v1 = "kling-v1"
-    kling_v1_5 = "kling-v1-5"
-    kling_v1_6 = "kling-v1-6"
-    kling_v2_master = "kling-v2-master"
+class KlingCharacterEffectModelName(str, Enum):
+    kling_v1 = 'kling-v1'
+    kling_v1_5 = 'kling-v1-5'
+    kling_v1_6 = 'kling-v1-6'
 
 
-class KlingImage2VideoRequest(BaseModel):
-    aspect_ratio: Optional[AspectRatio] = "16:9"
-    callback_url: Optional[AnyUrl] = Field(
-        None,
-        description="The callback notification address. Server will notify when the task status changes.",
-    )
-    camera_control: Optional[CameraControl] = None
-    cfg_scale: Optional[float] = Field(
-        0.5,
-        description="Flexibility in video generation. The higher the value, the lower the model's degree of flexibility, and the stronger the relevance to the user's prompt.",
-        ge=0.0,
-        le=1.0,
-    )
-    duration: Optional[Duration] = Field("5", description="Video length in seconds")
-    dynamic_masks: Optional[List[DynamicMask]] = Field(
-        None,
-        description="Dynamic Brush Configuration List (up to 6 groups). For 5-second videos, trajectory length must not exceed 77 coordinates.",
-    )
-    external_task_id: Optional[str] = Field(
-        None,
-        description="Customized Task ID. Must be unique within a single user account.",
-    )
-    image: Optional[str] = Field(
-        None,
-        description="Reference Image - URL or Base64 encoded string, cannot exceed 10MB, resolution not less than 300*300px, aspect ratio between 1:2.5 ~ 2.5:1. Base64 should not include data:image prefix.",
-    )
-    image_tail: Optional[str] = Field(
-        None,
-        description="Reference Image - End frame control. URL or Base64 encoded string, cannot exceed 10MB, resolution not less than 300*300px. Base64 should not include data:image prefix.",
-    )
-    mode: Optional[Mode] = Field(
-        "std",
-        description="Video generation mode. std: Standard Mode, which is cost-effective. pro: Professional Mode, generates videos with longer duration but higher quality output.",
-    )
-    model_name: Optional[ModelName] = Field("kling-v1", description="Model Name")
-    negative_prompt: Optional[str] = Field(
-        None, description="Negative text prompt", max_length=2500
-    )
-    prompt: Optional[str] = Field(
-        None, description="Positive text prompt", max_length=2500
-    )
-    static_mask: Optional[AnyUrl] = Field(
-        None,
-        description="Static Brush Application Area (Mask image created by users using the motion brush). The aspect ratio must match the input image.",
-    )
+class KlingSingleImageEffectModelName(str, Enum):
+    kling_v1_6 = 'kling-v1-6'
+
+
+class KlingSingleImageEffectDuration(str, Enum):
+    field_5 = '5'
+
+
+class KlingDualCharacterImages(RootModel[List[str]]):
+    root: List[str] = Field(..., max_length=2, min_length=2)
+
+
+class KlingImageGenAspectRatio(str, Enum):
+    field_16_9 = '16:9'
+    field_9_16 = '9:16'
+    field_1_1 = '1:1'
+    field_4_3 = '4:3'
+    field_3_4 = '3:4'
+    field_3_2 = '3:2'
+    field_2_3 = '2:3'
+    field_21_9 = '21:9'
+
+
+class KlingImageGenImageReferenceType(str, Enum):
+    subject = 'subject'
+    face = 'face'
+
+
+class KlingImageGenModelName(str, Enum):
+    kling_v1 = 'kling-v1'
+    kling_v1_5 = 'kling-v1-5'
+
+
+class KlingImageResult(BaseModel):
+    index: Optional[int] = Field(None, description='Image Number (0-9)')
+    url: Optional[AnyUrl] = Field(None, description='URL for generated image')
+
+
+class KlingVirtualTryOnModelName(str, Enum):
+    kolors_virtual_try_on_v1 = 'kolors-virtual-try-on-v1'
+    kolors_virtual_try_on_v1_5 = 'kolors-virtual-try-on-v1-5'
 
 
 class TaskInfo(BaseModel):
     external_task_id: Optional[str] = None
 
 
-class Video(BaseModel):
-    duration: Optional[str] = Field(None, description="Total video duration")
-    id: Optional[str] = Field(None, description="Generated video ID")
-    url: Optional[AnyUrl] = Field(None, description="URL for generated video")
-
-
 class TaskResult(BaseModel):
-    videos: Optional[List[Video]] = None
-
-
-class TaskStatus(str, Enum):
-    submitted = "submitted"
-    processing = "processing"
-    succeed = "succeed"
-    failed = "failed"
+    videos: Optional[List[KlingVideoResult]] = None
 
 
 class Data(BaseModel):
-    created_at: Optional[int] = Field(None, description="Task creation time")
-    task_id: Optional[str] = Field(None, description="Task ID")
+    task_id: Optional[str] = Field(None, description='Task ID')
+    task_status: Optional[KlingTaskStatus] = None
     task_info: Optional[TaskInfo] = None
+    created_at: Optional[int] = Field(None, description='Task creation time')
+    updated_at: Optional[int] = Field(None, description='Task update time')
     task_result: Optional[TaskResult] = None
-    task_status: Optional[TaskStatus] = None
-    updated_at: Optional[int] = Field(None, description="Task update time")
-
-
-class KlingImage2VideoResponse(BaseModel):
-    code: Optional[int] = Field(None, description="Error code")
-    data: Optional[Data] = None
-    message: Optional[str] = Field(None, description="Error message")
-    request_id: Optional[str] = Field(None, description="Request ID")
-
-
-class Config1(BaseModel):
-    horizontal: Optional[float] = Field(None, ge=-10.0, le=10.0)
-    pan: Optional[float] = Field(None, ge=-10.0, le=10.0)
-    roll: Optional[float] = Field(None, ge=-10.0, le=10.0)
-    tilt: Optional[float] = Field(None, ge=-10.0, le=10.0)
-    vertical: Optional[float] = Field(None, ge=-10.0, le=10.0)
-    zoom: Optional[float] = Field(None, ge=-10.0, le=10.0)
-
-
-class CameraControl1(BaseModel):
-    config: Optional[Config1] = None
-    type: Optional[Type] = Field(None, description="Predefined camera movements type")
-
-
-class ModelName1(str, Enum):
-    kling_v1 = "kling-v1"
-    kling_v1_6 = "kling-v1-6"
-    kling_v2_master = "kling-v2-master"
-
-
-class KlingText2VideoRequest(BaseModel):
-    aspect_ratio: Optional[AspectRatio] = "16:9"
-    callback_url: Optional[AnyUrl] = Field(
-        None, description="The callback notification address"
-    )
-    camera_control: Optional[CameraControl1] = None
-    cfg_scale: Optional[float] = Field(
-        0.5, description="Flexibility in video generation", ge=0.0, le=1.0
-    )
-    duration: Optional[Duration] = "5"
-    external_task_id: Optional[str] = Field(None, description="Customized Task ID")
-    mode: Optional[Mode] = Field("std", description="Video generation mode")
-    model_name: Optional[ModelName1] = Field("kling-v1", description="Model Name")
-    negative_prompt: Optional[str] = Field(
-        None, description="Negative text prompt", max_length=2500
-    )
-    prompt: Optional[str] = Field(
-        None, description="Positive text prompt", max_length=2500
-    )
-
-
-class TaskResult1(BaseModel):
-    videos: Optional[List[Video]] = None
-
-
-class Data1(BaseModel):
-    created_at: Optional[int] = Field(None, description="Task creation time")
-    task_id: Optional[str] = Field(None, description="Task ID")
-    task_info: Optional[TaskInfo] = None
-    task_result: Optional[TaskResult1] = None
-    task_status: Optional[TaskStatus] = None
-    updated_at: Optional[int] = Field(None, description="Task update time")
 
 
 class KlingText2VideoResponse(BaseModel):
@@ -1814,27 +1833,16 @@ class GenerationType3(str, Enum):
 
 
 class LumaVideoModel(str, Enum):
-    ray_2 = "ray-2"
-    ray_flash_2 = "ray-flash-2"
-    ray_1_6 = "ray-1-6"
-
-
-class LumaVideoModelOutputDuration1(str, Enum):
-    field_5s = "5s"
-    field_9s = "9s"
-
-
-class LumaVideoModelOutputDuration(
-    RootModel[Union[LumaVideoModelOutputDuration1, str]]
-):
-    root: Union[LumaVideoModelOutputDuration1, str]
+    ray_2 = 'ray-2'
+    ray_flash_2 = 'ray-flash-2'
+    ray_1_6 = 'ray-1-6'
 
 
 class LumaVideoModelOutputResolution1(str, Enum):
-    field_540p = "540p"
-    field_720p = "720p"
-    field_1080p = "1080p"
-    field_4k = "4k"
+    field_540p = '540p'
+    field_720p = '720p'
+    field_1080p = '1080p'
+    field_4k = '4k'
 
 
 class LumaVideoModelOutputResolution(
@@ -1843,32 +1851,78 @@ class LumaVideoModelOutputResolution(
     root: Union[LumaVideoModelOutputResolution1, str]
 
 
-class MinimaxBaseResponse(BaseModel):
-    status_code: int = Field(
+class LumaVideoModelOutputDuration1(str, Enum):
+    field_5s = '5s'
+    field_9s = '9s'
+
+
+class LumaVideoModelOutputDuration(
+    RootModel[Union[LumaVideoModelOutputDuration1, str]]
+):
+    root: Union[LumaVideoModelOutputDuration1, str]
+
+
+class LumaImageModel(str, Enum):
+    photon_1 = 'photon-1'
+    photon_flash_1 = 'photon-flash-1'
+
+
+class LumaImageRef(BaseModel):
+    url: Optional[AnyUrl] = Field(None, description='The URL of the image reference')
+    weight: Optional[float] = Field(
+        None, description='The weight of the image reference'
+    )
+
+
+class LumaImageIdentity(BaseModel):
+    images: Optional[List[AnyUrl]] = Field(
+        None, description='The URLs of the image identity'
+    )
+
+
+class LumaModifyImageRef(BaseModel):
+    url: Optional[AnyUrl] = Field(None, description='The URL of the image reference')
+    weight: Optional[float] = Field(
+        None, description='The weight of the modify image reference'
+    )
+
+
+class Type1(str, Enum):
+    generation = 'generation'
+
+
+class LumaGenerationReference(BaseModel):
+    type: Literal['generation']
+    id: UUID = Field(..., description='The ID of the generation')
+
+
+class Type2(str, Enum):
+    image = 'image'
+
+
+class LumaImageReference(BaseModel):
+    type: Literal['image']
+    url: AnyUrl = Field(..., description='The URL of the image')
+
+
+class LumaKeyframe(RootModel[Union[LumaGenerationReference, LumaImageReference]]):
+    root: Union[LumaGenerationReference, LumaImageReference] = Field(
         ...,
-        description="Status code. 0 indicates success, other values indicate errors.",
-    )
-    status_msg: str = Field(
-        ..., description="Specific error details or success message."
+        description='A keyframe can be either a Generation reference, an Image, or a Video',
+        discriminator='type',
     )
 
 
-class File(BaseModel):
-    bytes: Optional[int] = Field(None, description="File size in bytes")
-    created_at: Optional[int] = Field(
-        None, description="Unix timestamp when the file was created, in seconds"
-    )
-    download_url: Optional[str] = Field(
-        None, description="The URL to download the video"
-    )
-    file_id: Optional[int] = Field(None, description="Unique identifier for the file")
-    filename: Optional[str] = Field(None, description="The name of the file")
-    purpose: Optional[str] = Field(None, description="The purpose of using the file")
+class LumaGenerationType(str, Enum):
+    video = 'video'
+    image = 'image'
 
 
-class MinimaxFileRetrieveResponse(BaseModel):
-    base_resp: MinimaxBaseResponse
-    file: File
+class LumaState(str, Enum):
+    queued = 'queued'
+    dreaming = 'dreaming'
+    completed = 'completed'
+    failed = 'failed'
 
 
 class Status(str, Enum):
@@ -2844,28 +2898,14 @@ class PixverseTextVideoRequest(BaseModel):
     motion_mode: Optional[MotionMode] = None
     negative_prompt: Optional[str] = None
     prompt: str
-    quality: Quality1
+    quality: Quality
     seed: Optional[int] = None
-    style: Optional[Style1] = None
+    style: Optional[Style] = None
     template_id: Optional[int] = None
     water_mark: Optional[bool] = None
 
 
-class PixverseTransitionVideoRequest(BaseModel):
-    duration: Duration2
-    first_frame_img: int
-    last_frame_img: int
-    model: Model1
-    motion_mode: MotionMode
-    prompt: str
-    quality: Quality1
-    seed: int
-    style: Optional[Style1] = None
-    template_id: Optional[int] = None
-    water_mark: Optional[bool] = None
-
-
-class Resp1(BaseModel):
+class Resp(BaseModel):
     video_id: Optional[int] = None
 
 
@@ -3092,6 +3132,8 @@ class RunwayPromptImageDetailedObject(BaseModel):
         ...,
         description="The position of the image in the output video. 'last' is currently supported for gen3a_turbo only.",
     )
+    durationSeconds: Optional[int] = None
+    enhancePrompt: Optional[bool] = None
 
 
 class RunwayDurationEnum(int, Enum):
@@ -4328,9 +4370,16 @@ class IdeogramV3EditRequest(BaseModel):
         None,
         description='Determine if MagicPrompt should be used in generating the request or not.',
     )
-    mask: Optional[bytes_aliased] = Field(
+    mimeType: Optional[str] = Field(None, description='Video MIME type')
+
+
+class Response(BaseModel):
+    field_type: Optional[str] = Field(
         None,
-        description="A black and white image of the same size as the image being edited (max size 10MB). Black regions in the mask should match up with the regions of the image that you would like to edit; only JPEG, WebP and PNG formats are supported at this time.",
+        alias='@type',
+        examples=[
+            'type.googleapis.com/cloud.ai.large_models.vision.GenerateVideoResponse'
+        ],
     )
     num_images: Optional[int] = Field(
         None, description='The number of images to generate.'
@@ -4731,11 +4780,9 @@ class RecraftImageGenerationRequest(BaseModel):
     seed: Optional[int] = Field(
         None, description="Seed value for reproducible generation"
     )
+    color_palette: Optional[ColorPalette] = None
     style_codes: Optional[List[StyleCode]] = Field(
-        None, description="Array of style codes in hexadecimal format"
-    )
-    style_reference_images: Optional[List[str]] = Field(
-        None, description="Array of reference image URLs or identifiers"
+        None, description='Array of style codes in hexadecimal format'
     )
     controls: Optional[Controls] = Field(
         None, description='The controls for the generated image'
@@ -4758,93 +4805,9 @@ class LumaGenerationRequest(BaseModel):
         None,
         description='The callback URL of the generation, a POST request with Generation object will be sent to the callback URL when the generation is dreaming, completed, or failed',
     )
-    duration: LumaVideoModelOutputDuration
-    generation_type: Optional[GenerationType1] = "video"
-    keyframes: Optional[LumaKeyframes] = None
-    loop: Optional[bool] = Field(None, description="Whether to loop the video")
     model: LumaVideoModel
-    prompt: str = Field(..., description="The prompt of the generation")
     resolution: LumaVideoModelOutputResolution
-
-
-class CharacterRef(BaseModel):
-    identity0: Optional[LumaImageIdentity] = None
-
-
-class LumaImageGenerationRequest(BaseModel):
-    aspect_ratio: Optional[LumaAspectRatio] = "16:9"
-    callback_url: Optional[AnyUrl] = Field(
-        None, description="The callback URL for the generation"
-    )
-    character_ref: Optional[CharacterRef] = None
-    generation_type: Optional[GenerationType2] = "image"
-    image_ref: Optional[List[LumaImageRef]] = None
-    model: Optional[LumaImageModel] = "photon-1"
-    modify_image_ref: Optional[LumaModifyImageRef] = None
-    prompt: Optional[str] = Field(None, description="The prompt of the generation")
-    style_ref: Optional[List[LumaImageRef]] = None
-
-
-class LumaUpscaleVideoGenerationRequest(BaseModel):
-    callback_url: Optional[AnyUrl] = Field(
-        None, description="The callback URL for the upscale"
-    )
-    generation_type: Optional[GenerationType3] = "upscale_video"
-    resolution: Optional[LumaVideoModelOutputResolution] = None
-
-
-class PikaBodyGenerate22C2vGenerate22PikascenesPost(BaseModel):
-    aspectRatio: Optional[AspectRatio2] = Field(
-        None, description="Aspect ratio (width / height)", title="Aspectratio"
-    )
-    duration: Optional[PikaDurationEnum] = 5
-    images: Optional[List[bytes_aliased]] = Field(
-        None, description="Array of images to process", title="Images"
-    )
-    ingredientsMode: IngredientsMode = Field(..., title="Ingredientsmode")
-    negativePrompt: Optional[str] = Field(None, title="Negativeprompt")
-    promptText: Optional[str] = Field(None, title="Prompttext")
-    resolution: Optional[PikaResolutionEnum] = "1080p"
-    seed: Optional[int] = Field(None, title="Seed")
-
-
-class PikaBodyGenerate22I2vGenerate22I2vPost(BaseModel):
-    duration: Optional[PikaDurationEnum] = 5
-    image: Optional[str] = Field(None, title="Image")
-    negativePrompt: Optional[str] = Field(None, title="Negativeprompt")
-    promptText: Optional[str] = Field(None, title="Prompttext")
-    resolution: Optional[PikaResolutionEnum] = "1080p"
-    seed: Optional[int] = Field(None, title="Seed")
-
-
-class PikaBodyGenerate22KeyframeGenerate22PikaframesPost(BaseModel):
-    duration: Optional[int] = Field(None, ge=5, le=10, title="Duration")
-    keyFrames: List[bytes_aliased] = Field(
-        ..., description="Array of keyframe images", title="Keyframes"
-    )
-    negativePrompt: Optional[str] = Field(None, title="Negativeprompt")
-    promptText: str = Field(..., title="Prompttext")
-    resolution: Optional[PikaResolutionEnum] = "1080p"
-    seed: Optional[int] = Field(None, title="Seed")
-
-
-class PikaBodyGenerate22T2vGenerate22T2vPost(BaseModel):
-    aspectRatio: Optional[float] = Field(
-        1.7777777777777777,
-        description="Aspect ratio (width / height)",
-        ge=0.4,
-        le=2.5,
-        title="Aspectratio",
-    )
-    duration: Optional[PikaDurationEnum] = 5
-    negativePrompt: Optional[str] = Field(None, title="Negativeprompt")
-    promptText: str = Field(..., title="Prompttext")
-    resolution: Optional[PikaResolutionEnum] = "1080p"
-    seed: Optional[int] = Field(None, title="Seed")
-
-
-class PikaHTTPValidationError(BaseModel):
-    detail: Optional[List[PikaValidationError]] = Field(None, title="Detail")
+    duration: LumaVideoModelOutputDuration
 
 
 class StripeCharge(BaseModel):

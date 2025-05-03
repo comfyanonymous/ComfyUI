@@ -104,6 +104,11 @@ R = TypeVar("R")
 
 MAX_PROMPT_LENGTH_T2V = 2500
 MAX_PROMPT_LENGTH_I2V = 500
+MAX_PROMPT_LENGTH_IMAGE_GEN = 500
+MAX_NEGATIVE_PROMPT_LENGTH_IMAGE_GEN = 200
+MAX_PROMPT_LENGTH_LIP_SYNC = 120
+
+R = TypeVar("R")
 
 
 class KlingApiError(Exception):
@@ -439,8 +444,7 @@ class KlingTextToVideoNode(KlingNodeBase):
                     IO.COMBO,
                     KlingText2VideoRequest,
                     "model_name",
-                    enum_type=ModelName,
-                    default="kling-v2-master",
+                    enum_type=KlingVideoGenModelName,
                 ),
                 "cfg_scale": model_field_to_node_input(
                     IO.FLOAT,
