@@ -47,7 +47,7 @@ class Load3D():
 
         video = None
 
-        if image['recording'] is not "":
+        if image['recording'] != "":
             recording_video_path = folder_paths.get_annotated_filepath(image['recording'])
 
             video = VideoFromFile(recording_video_path)
