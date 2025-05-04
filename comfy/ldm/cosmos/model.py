@@ -27,8 +27,6 @@ from torchvision import transforms
 from enum import Enum
 import logging
 
-from comfy.ldm.modules.diffusionmodules.mmdit import RMSNorm
-
 from .blocks import (
     FinalLayer,
     GeneralDITTransformerBlock,
@@ -195,7 +193,7 @@ class GeneralDIT(nn.Module):
 
         if self.affline_emb_norm:
             logging.debug("Building affine embedding normalization layer")
-            self.affline_norm = RMSNorm(model_channels, elementwise_affine=True, eps=1e-6)
+            self.affline_norm = operations.RMSNorm(model_channels, elementwise_affine=True, eps=1e-6, device=device, dtype=dtype)
         else:
             self.affline_norm = nn.Identity()
 
