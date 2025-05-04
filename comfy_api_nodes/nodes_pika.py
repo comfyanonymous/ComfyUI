@@ -758,6 +758,332 @@ class PikaStartEndFrameNode2_2(PikaNodeBase):
         return self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
 
+class PikAdditionsNode(PikaNodeBase):
+    """Pika Pikadditions Node. Add an image into a video."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video": (IO.VIDEO, {"tooltip": "The video to add an image to."}),
+                "image": (IO.IMAGE, {"tooltip": "The image to add to the video."}),
+                "prompt_text": model_field_to_node_input(
+                    IO.STRING,
+                    PikaBodyGeneratePikadditionsGeneratePikadditionsPost,
+                    "promptText",
+                    multiline=True,
+                ),
+                "negative_prompt": model_field_to_node_input(
+                    IO.STRING,
+                    PikaBodyGeneratePikadditionsGeneratePikadditionsPost,
+                    "negativePrompt",
+                    multiline=True,
+                ),
+                "seed": model_field_to_node_input(
+                    IO.INT,
+                    PikaBodyGeneratePikadditionsGeneratePikadditionsPost,
+                    "seed",
+                    min=0,
+                    max=0xFFFFFFFF,
+                    control_after_generate=True,
+                ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    DESCRIPTION = "Add any object or image into your video. Upload a video and specify what you’d like to add to create a seamlessly integrated result."
+
+    def api_call(
+        self,
+        video: VideoInput,
+        image: torch.Tensor,
+        prompt_text: str,
+        negative_prompt: str,
+        seed: int,
+        auth_token: Optional[str] = None,
+    ) -> tuple[VideoFromFile]:
+        # Convert video to BytesIO
+        video_bytes_io = io.BytesIO()
+        video.save_to(video_bytes_io, format=VideoContainer.MP4, codec=VideoCodec.H264)
+        video_bytes_io.seek(0)
+
+        # Convert image to BytesIO
+        image_bytes_io = tensor_to_bytesio(image)
+        image_bytes_io.seek(0)
+
+        pika_files = [
+            ("video", ("video.mp4", video_bytes_io, "video/mp4")),
+            ("image", ("image.png", image_bytes_io, "image/png")),
+        ]
+
+        # Prepare non-file data
+        pika_request_data = PikaBodyGeneratePikadditionsGeneratePikadditionsPost(
+            promptText=prompt_text,
+            negativePrompt=negative_prompt,
+            seed=seed,
+        )
+
+        initial_operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path=PATH_PIKADDITIONS,
+                method=HttpMethod.POST,
+                request_model=PikaBodyGeneratePikadditionsGeneratePikadditionsPost,
+                response_model=PikaGenerateResponse,
+            ),
+            request=pika_request_data,
+            files=pika_files,
+            content_type="multipart/form-data",
+            auth_token=auth_token,
+        )
+
+        return self.execute_task(initial_operation, auth_token)
+
+
+class PikaSwapsNode(PikaNodeBase):
+    """Pika Pikaswaps Node."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video": (IO.VIDEO, {"tooltip": "The video to swap an object in."}),
+                "image": (
+                    IO.IMAGE,
+                    {
+                        "tooltip": "The image used to replace the masked object in the video."
+                    },
+                ),
+                "mask": (
+                    IO.MASK,
+                    {"tooltip": "Use the mask to define areas in the video to replace"},
+                ),
+                "prompt_text": model_field_to_node_input(
+                    IO.STRING,
+                    PikaBodyGeneratePikaswapsGeneratePikaswapsPost,
+                    "promptText",
+                    multiline=True,
+                ),
+                "negative_prompt": model_field_to_node_input(
+                    IO.STRING,
+                    PikaBodyGeneratePikaswapsGeneratePikaswapsPost,
+                    "negativePrompt",
+                    multiline=True,
+                ),
+                "seed": model_field_to_node_input(
+                    IO.INT,
+                    PikaBodyGeneratePikaswapsGeneratePikaswapsPost,
+                    "seed",
+                    min=0,
+                    max=0xFFFFFFFF,
+                    control_after_generate=True,
+                ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    DESCRIPTION = "Swap out any object or region of your video with a new image or object. Define areas to replace either with a mask or coordinates."
+    RETURN_TYPES = ("VIDEO",)
+
+    def api_call(
+        self,
+        video: VideoInput,
+        image: torch.Tensor,
+        mask: torch.Tensor,
+        prompt_text: str,
+        negative_prompt: str,
+        seed: int,
+        auth_token: Optional[str] = None,
+    ) -> tuple[VideoFromFile]:
+        # Convert video to BytesIO
+        video_bytes_io = io.BytesIO()
+        video.save_to(video_bytes_io, format=VideoContainer.MP4, codec=VideoCodec.H264)
+        video_bytes_io.seek(0)
+
+        # Convert mask to binary mask with three channels
+        mask = torch.round(mask)
+        mask = mask.repeat(1, 3, 1, 1)
+
+        # Convert 3-channel binary mask to BytesIO
+        mask_bytes_io = io.BytesIO()
+        mask_bytes_io.write(mask.numpy().astype(np.uint8))
+        mask_bytes_io.seek(0)
+
+        # Convert image to BytesIO
+        image_bytes_io = tensor_to_bytesio(image)
+        image_bytes_io.seek(0)
+
+        pika_files = [
+            ("video", ("video.mp4", video_bytes_io, "video/mp4")),
+            ("image", ("image.png", image_bytes_io, "image/png")),
+            ("modifyRegionMask", ("mask.png", mask_bytes_io, "image/png")),
+        ]
+
+        # Prepare non-file data
+        pika_request_data = PikaBodyGeneratePikaswapsGeneratePikaswapsPost(
+            promptText=prompt_text,
+            negativePrompt=negative_prompt,
+            seed=seed,
+        )
+
+        initial_operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path=PATH_PIKADDITIONS,
+                method=HttpMethod.POST,
+                request_model=PikaBodyGeneratePikadditionsGeneratePikadditionsPost,
+                response_model=PikaGenerateResponse,
+            ),
+            request=pika_request_data,
+            files=pika_files,
+            content_type="multipart/form-data",
+            auth_token=auth_token,
+        )
+
+        return self.execute_task(initial_operation, auth_token)
+
+
+class PikaffectsNode(PikaNodeBase):
+    """Pika Pikaffects Node."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": (
+                    IO.IMAGE,
+                    {"tooltip": "The reference image to apply the Pikaffect to."},
+                ),
+                "pikaffect": model_field_to_node_input(
+                    IO.COMBO,
+                    PikaBodyGeneratePikaffectsGeneratePikaffectsPost,
+                    "pikaffect",
+                    enum_type=Pikaffect,
+                    default="Cake-ify",
+                ),
+                "prompt_text": model_field_to_node_input(
+                    IO.STRING,
+                    PikaBodyGeneratePikaffectsGeneratePikaffectsPost,
+                    "promptText",
+                    multiline=True,
+                ),
+                "negative_prompt": model_field_to_node_input(
+                    IO.STRING,
+                    PikaBodyGeneratePikaffectsGeneratePikaffectsPost,
+                    "negativePrompt",
+                    multiline=True,
+                ),
+                "seed": model_field_to_node_input(
+                    IO.INT,
+                    PikaBodyGeneratePikaffectsGeneratePikaffectsPost,
+                    "seed",
+                    min=0,
+                    max=0xFFFFFFFF,
+                    control_after_generate=True,
+                ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    DESCRIPTION = "Generate a video with a specific Pikaffect. Supported Pikaffects: Cake-ify, Crumble, Crush, Decapitate, Deflate, Dissolve, Explode, Eye-pop, Inflate, Levitate, Melt, Peel, Poke, Squish, Ta-da, Tear"
+
+    def api_call(
+        self,
+        image: torch.Tensor,
+        pikaffect: str,
+        prompt_text: str,
+        negative_prompt: str,
+        seed: int,
+        auth_token: Optional[str] = None,
+    ) -> tuple[VideoFromFile]:
+
+        initial_operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path=PATH_PIKAFFECTS,
+                method=HttpMethod.POST,
+                request_model=PikaBodyGeneratePikaffectsGeneratePikaffectsPost,
+                response_model=PikaGenerateResponse,
+            ),
+            request=PikaBodyGeneratePikaffectsGeneratePikaffectsPost(
+                pikaffect=pikaffect,
+                promptText=prompt_text,
+                negativePrompt=negative_prompt,
+                seed=seed,
+            ),
+            files={"image": ("image.png", tensor_to_bytesio(image), "image/png")},
+            content_type="multipart/form-data",
+            auth_token=auth_token,
+        )
+
+        return self.execute_task(initial_operation, auth_token)
+
+
+class PikaStartEndFrameNode2_2(PikaNodeBase):
+    """PikaFrames v2.2 Node."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image_start": (IO.IMAGE, {"tooltip": "The first image to combine."}),
+                "image_end": (IO.IMAGE, {"tooltip": "The last image to combine."}),
+                **cls.get_base_inputs_types(
+                    PikaBodyGenerate22KeyframeGenerate22PikaframesPost
+                ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+            },
+        }
+
+    DESCRIPTION = "Generate a video by combining your first and last frame. Upload two images to define the start and end points, and let the AI create a smooth transition between them."
+
+    def api_call(
+        self,
+        image_start: torch.Tensor,
+        image_end: torch.Tensor,
+        prompt_text: str,
+        negative_prompt: str,
+        seed: int,
+        resolution: str,
+        duration: int,
+        auth_token: Optional[str] = None,
+    ) -> tuple[VideoFromFile]:
+
+        pika_files = [
+            (
+                "keyFrames",
+                ("image_start.png", tensor_to_bytesio(image_start), "image/png"),
+            ),
+            ("keyFrames", ("image_end.png", tensor_to_bytesio(image_end), "image/png")),
+        ]
+
+        initial_operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path=PATH_PIKAFRAMES,
+                method=HttpMethod.POST,
+                request_model=PikaBodyGenerate22KeyframeGenerate22PikaframesPost,
+                response_model=PikaGenerateResponse,
+            ),
+            request=PikaBodyGenerate22KeyframeGenerate22PikaframesPost(
+                promptText=prompt_text,
+                negativePrompt=negative_prompt,
+                seed=seed,
+                resolution=resolution,
+                duration=duration,
+            ),
+            files=pika_files,
+            content_type="multipart/form-data",
+            auth_token=auth_token,
+        )
+
+        return self.execute_task(initial_operation, auth_token)
+
+
 NODE_CLASS_MAPPINGS = {
     "PikaImageToVideoNode2_2": PikaImageToVideoV2_2,
     "PikaTextToVideoNode2_2": PikaTextToVideoNodeV2_2,
