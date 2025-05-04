@@ -250,9 +250,13 @@ class ApiClient:
         data: Dict[str, Any],
         files: Dict[str, Any],
         headers: Optional[Dict[str, str]] = None,
+        multipart_parser = None,
     ) -> Dict[str, Any]:
         if headers and "Content-Type" in headers:
             del headers["Content-Type"]
+
+        if multipart_parser:
+            data = multipart_parser(data)
 
         return {
             "data": data,
