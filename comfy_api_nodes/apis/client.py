@@ -180,9 +180,13 @@ class ApiClient:
         data: Dict[str, Any],
         files: Dict[str, Any],
         headers: Optional[Dict[str, str]] = None,
+        multipart_parser = None,
     ) -> Dict[str, Any]:
         if headers and "Content-Type" in headers:
             del headers["Content-Type"]
+
+        if multipart_parser:
+            data = multipart_parser(data)
 
         return {
             "data": data,
@@ -222,6 +226,7 @@ class ApiClient:
         files: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
         content_type: str = "application/json",
+        multipart_parser: Callable = None,
     ) -> Dict[str, Any]:
         """
         Make an HTTP request to the API
@@ -261,7 +266,7 @@ class ApiClient:
             case "application/x-www-form-urlencoded":
                 payload_args = self._create_urlencoded_form_data_args(data, request_headers)
             case "multipart/form-data":
-                payload_args = self._create_form_data_args(data, files, request_headers)
+                payload_args = self._create_form_data_args(data, files, request_headers, multipart_parser)
             case _:
                 payload_args = self._create_json_payload_args(data, request_headers)
 
@@ -400,6 +405,7 @@ class SynchronousOperation(Generic[T, R]):
         timeout: float = 604800.0,
         verify_ssl: bool = True,
         content_type: str = "application/json",
+        multipart_parser: Callable = None,
     ):
         self.endpoint = endpoint
         self.request = request
@@ -411,6 +417,7 @@ class SynchronousOperation(Generic[T, R]):
         self.verify_ssl = verify_ssl
         self.files = files
         self.content_type = content_type
+        self.multipart_parser = multipart_parser
     def execute(self, client: Optional[ApiClient] = None) -> R:
         """Execute the API operation using the provided client or create one"""
         try:
@@ -454,6 +461,7 @@ class SynchronousOperation(Generic[T, R]):
                 params=self.endpoint.query_params,
                 files=self.files,
                 content_type=self.content_type,
+                multipart_parser=self.multipart_parser
             )
 
             # Debug log for response
