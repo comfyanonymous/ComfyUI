@@ -543,7 +543,6 @@ class RecraftImageToImageNode:
             substyle=recraft_style.substyle,
             style_id=recraft_style.style_id,
             controls=controls_api,
-            random_seed=seed,
         )
 
         images = []
