@@ -31,7 +31,7 @@ def container_to_output_format(container_format: str | None) -> str | None:
 
 
 def get_open_write_kwargs(
-    dest: str | io.BytesIO, container_format: str, to_format: str
+    dest: str | io.BytesIO, container_format: str, to_format: str | None
 ) -> dict:
     """Get kwargs for writing a `VideoFromFile` to a file/stream with `av.open`"""
     open_kwargs = {
@@ -45,7 +45,7 @@ def get_open_write_kwargs(
         # Set output format explicitly, since it cannot be inferred from file extension
         if to_format == VideoContainer.AUTO:
             to_format = container_format.lower()
-        else:
+        elif isinstance(to_format, str):
             to_format = to_format.lower()
         open_kwargs["format"] = container_to_output_format(to_format)
 
