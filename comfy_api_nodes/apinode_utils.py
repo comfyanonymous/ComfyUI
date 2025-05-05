@@ -361,7 +361,7 @@ def upload_video_to_comfyapi(
     Uses the specified container and codec for saving the video before upload.
 
     Args:
-        video: Input VideoInput object.
+        video: VideoInput object (Comfy VIDEO type).
         auth_token: Optional authentication token.
         container: The video container format to use (default: MP4).
         codec: The video codec to use (default: H264).
@@ -394,47 +394,41 @@ def upload_video_to_comfyapi(
     )
 
 
-def upload_audio_to_comfyapi(
-    audio: AudioInput,
-    auth_token: Optional[str] = None,
-) -> str:
+def audio_tensor_to_contiguous_ndarray(waveform: torch.Tensor) -> np.ndarray:
     """
-    Uploads a single audio input to ComfyUI API and returns its download URL.
-    Encodes the raw waveform into MP4/AAC format before uploading.
+    Prepares audio waveform for av library by converting to a contiguous numpy array.
 
     Args:
-        audio: Input AudioInput object (containing waveform tensor and sample_rate).
-        auth_token: Optional authentication token.
+        waveform: a tensor of shape (1, channels, samples) derived from a Comfy `AUDIO` type.
 
     Returns:
-        The download URL for the uploaded audio file.
+        Contiguous numpy array of the audio waveform. If the audio was batched,
+            the first item is taken.
     """
-    waveform: torch.Tensor = audio["waveform"]
-    sample_rate: int = audio["sample_rate"]
+    if waveform.ndim != 3 or waveform.shape[0] != 1:
+        raise ValueError("Expected waveform tensor shape (1, channels, samples)")
 
     # If batch is > 1, take first item
     if waveform.shape[0] > 1:
         waveform = waveform[0]
 
-    # Check waveform tensor shape
-    if waveform.ndim != 3 or waveform.shape[0] != 1:
-        raise ValueError("Expected waveform tensor shape (1, channels, samples)")
-
-    # Prepare data for av library
-    audio_data_np = waveform.squeeze(0).cpu().numpy()
+    # Prepare for av: remove batch dim, move to CPU, make contiguous, convert to numpy array
+    audio_data_np = waveform.squeeze(0).cpu().contiguous().numpy()
     if audio_data_np.dtype != np.float32:
         audio_data_np = audio_data_np.astype(np.float32)
 
-    # Ensure the array is C-contiguous
-    if not audio_data_np.flags["C_CONTIGUOUS"]:
-        audio_data_np = np.ascontiguousarray(audio_data_np)
+    return audio_data_np
 
-    # Default to MP4/AAC
-    container_format = "mp4"
-    codec_name = "aac"
-    upload_mime_type = "audio/mp4"
-    filename = "uploaded_audio.mp4"
 
+def audio_ndarray_to_bytesio(
+    audio_data_np: np.ndarray,
+    sample_rate: int,
+    container_format: str = "mp4",
+    codec_name: str = "aac",
+) -> BytesIO:
+    """
+    Encodes a numpy array of audio data into a BytesIO object.
+    """
     audio_bytes_io = io.BytesIO()
     with av.open(audio_bytes_io, mode="w", format=container_format) as output_container:
         audio_stream = output_container.add_stream(codec_name, rate=sample_rate)
@@ -453,11 +447,37 @@ def upload_audio_to_comfyapi(
         for packet in audio_stream.encode(None):
             output_container.mux(packet)
 
-    audio_bytes_io.seek(0)  # Reset buffer position for reading
+    audio_bytes_io.seek(0)
+    return audio_bytes_io
 
-    return upload_file_to_comfyapi(
-        audio_bytes_io, filename, upload_mime_type, auth_token
+
+def upload_audio_to_comfyapi(
+    audio: AudioInput,
+    auth_token: Optional[str] = None,
+    container_format: str = "mp4",
+    codec_name: str = "aac",
+    mime_type: str = "audio/mp4",
+    filename: str = "uploaded_audio.mp4",
+) -> str:
+    """
+    Uploads a single audio input to ComfyUI API and returns its download URL.
+    Encodes the raw waveform into the specified format before uploading.
+
+    Args:
+        audio: a Comfy `AUDIO` type (contains waveform tensor and sample_rate)
+        auth_token: Optional authentication token.
+
+    Returns:
+        The download URL for the uploaded audio file.
+    """
+    sample_rate: int = audio["sample_rate"]
+    waveform: torch.Tensor = audio["waveform"]
+    audio_data_np = audio_tensor_to_contiguous_ndarray(waveform)
+    audio_bytes_io = audio_ndarray_to_bytesio(
+        audio_data_np, sample_rate, container_format, codec_name
     )
+
+    return upload_file_to_comfyapi(audio_bytes_io, filename, mime_type, auth_token)
 
 
 def upload_images_to_comfyapi(
