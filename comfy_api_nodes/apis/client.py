@@ -108,7 +108,8 @@ from comfy.cli_args import args
 from comfy import utils
 from . import request_logger
 
-# Import models from your generated stubs
+from comfy.cli_args import args
+from comfy import utils
 
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R", bound=BaseModel)
