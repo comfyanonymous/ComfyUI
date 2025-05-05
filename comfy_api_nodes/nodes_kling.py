@@ -151,8 +151,9 @@ def is_valid_task_creation_response(response: KlingText2VideoResponse) -> bool:
 def is_valid_video_response(response: KlingText2VideoResponse) -> bool:
     """Verifies that the response contains a task result with at least one video."""
     return (
-        "task_result" in response.data
-        and "videos" in response.data.task_result
+        response.data is not None
+        and response.data.task_result is not None
+        and response.data.task_result.videos is not None
         and len(response.data.task_result.videos) > 0
     )
 
