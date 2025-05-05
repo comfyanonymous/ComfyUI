@@ -26,6 +26,7 @@ from comfy_api_nodes.apinode_utils import (
     download_url_to_bytesio,
     tensor_to_bytesio,
     resize_mask_to_image,
+    validate_string,
 )
 import folder_paths
 import json
@@ -455,6 +456,7 @@ class RecraftTextToImageNode:
         auth_token=None,
         **kwargs,
     ):
+        validate_string(prompt, strip_whitespace=False, max_length=1000)
         default_style = RecraftStyle(RecraftStyleV3.realistic_image)
         if recraft_style is None:
             recraft_style = default_style
@@ -589,6 +591,7 @@ class RecraftImageToImageNode:
         recraft_controls: RecraftControls = None,
         **kwargs,
     ):
+        validate_string(prompt, strip_whitespace=False, max_length=1000)
         default_style = RecraftStyle(RecraftStyleV3.realistic_image)
         if recraft_style is None:
             recraft_style = default_style
@@ -702,6 +705,7 @@ class RecraftImageInpaintingNode:
         negative_prompt: str = None,
         **kwargs,
     ):
+        validate_string(prompt, strip_whitespace=False, max_length=1000)
         default_style = RecraftStyle(RecraftStyleV3.realistic_image)
         if recraft_style is None:
             recraft_style = default_style
@@ -717,7 +721,6 @@ class RecraftImageInpaintingNode:
             style=recraft_style.style,
             substyle=recraft_style.substyle,
             style_id=recraft_style.style_id,
-            random_seed=seed,
         )
 
         # prepare mask tensor
@@ -825,6 +828,7 @@ class RecraftTextToVectorNode:
         auth_token=None,
         **kwargs,
     ):
+        validate_string(prompt, strip_whitespace=False, max_length=1000)
         # create RecraftStyle so strings will be formatted properly (i.e. "None" will become None)
         recraft_style = RecraftStyle(RecraftStyleV3.vector_illustration, substyle=substyle)
 

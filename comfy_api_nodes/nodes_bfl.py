@@ -21,6 +21,7 @@ from comfy_api_nodes.apinode_utils import (
     validate_aspect_ratio,
     process_image_response,
     resize_mask_to_image,
+    validate_string,
 )
 
 import numpy as np
@@ -213,6 +214,8 @@ class FluxProUltraImageNode(ComfyNodeABC):
         auth_token=None,
         **kwargs,
     ):
+        if image_prompt is None:
+            validate_string(prompt, strip_whitespace=False)
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/bfl/flux-pro-1.1-ultra/generate",

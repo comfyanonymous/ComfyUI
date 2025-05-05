@@ -23,6 +23,7 @@ from comfy_api_nodes.apis.client import (
 from comfy_api_nodes.apinode_utils import (
     bytesio_to_image_tensor,
     tensor_to_bytesio,
+    validate_string,
 )
 
 import torch
@@ -125,6 +126,7 @@ class StabilityStableImageUltraNode:
     def api_call(self, prompt: str, aspect_ratio: str, style_preset: str, seed: int,
                  negative_prompt: str=None, image: torch.Tensor = None, image_denoise: float=None,
                  auth_token=None):
+        validate_string(prompt, strip_whitespace=False)
         # prepare image binary if image present
         image_binary = None
         if image is not None:
@@ -256,6 +258,7 @@ class StabilityStableImageSD_3_5Node:
     def api_call(self, model: str, prompt: str, aspect_ratio: str, style_preset: str, seed: int, cfg_scale: float,
                  negative_prompt: str=None, image: torch.Tensor = None, image_denoise: float=None,
                  auth_token=None):
+        validate_string(prompt, strip_whitespace=False)
         # prepare image binary if image present
         image_binary = None
         mode = Stability_SD3_5_GenerationMode.text_to_image
@@ -370,6 +373,7 @@ class StabilityUpscaleConservativeNode:
 
     def api_call(self, image: torch.Tensor, prompt: str, creativity: float, seed: int, negative_prompt: str=None,
                  auth_token=None):
+        validate_string(prompt, strip_whitespace=False)
         image_binary = tensor_to_bytesio(image, total_pixels=1024*1024).read()
 
         if not negative_prompt:
@@ -474,6 +478,7 @@ class StabilityUpscaleCreativeNode:
 
     def api_call(self, image: torch.Tensor, prompt: str, creativity: float, style_preset: str, seed: int, negative_prompt: str=None,
                  auth_token=None):
+        validate_string(prompt, strip_whitespace=False)
         image_binary = tensor_to_bytesio(image, total_pixels=1024*1024).read()
 
         if not negative_prompt:

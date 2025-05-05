@@ -18,6 +18,7 @@ from comfy_api_nodes.apis.client import (
 from comfy_api_nodes.apinode_utils import (
     download_url_to_bytesio,
     upload_images_to_comfyapi,
+    validate_string,
 )
 
 import torch
@@ -88,6 +89,8 @@ class MinimaxTextToVideoNode:
         '''
         Function used between Minimax nodes - supports T2V, I2V, and S2V, based on provided arguments.
         '''
+        if image is None:
+            validate_string(prompt_text, field_name="prompt_text")
         # upload image, if passed in
         image_url = None
         if image is not None:

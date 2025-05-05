@@ -562,3 +562,14 @@ def resize_mask_to_image(mask: torch.Tensor, image: torch.Tensor,
     if not allow_gradient:
         mask = (mask > 0.5).float()
     return mask
+
+
+def validate_string(string: str, strip_whitespace=True, field_name="prompt", min_length=None, max_length=None):
+    if strip_whitespace:
+        string = string.strip()
+    if min_length and len(string) < min_length:
+        raise Exception(f"Field '{field_name}' cannot be shorter than {min_length} characters; was {len(string)} characters long.")
+    if max_length and len(string) > max_length:
+        raise Exception(f" Field '{field_name} cannot be longer than {max_length} characters; was {len(string)} characters long.")
+    if not string:
+        raise Exception(f"Field '{field_name}' cannot be empty.")

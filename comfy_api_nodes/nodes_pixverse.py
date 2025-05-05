@@ -24,6 +24,7 @@ from comfy_api_nodes.apis.client import (
 )
 from comfy_api_nodes.apinode_utils import (
     tensor_to_bytesio,
+    validate_string,
 )
 from comfy.comfy_types.node_typing import IO, ComfyNodeABC
 from comfy_api.input_impl import VideoFromFile
@@ -163,6 +164,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
         auth_token=None,
         **kwargs,
     ):
+        validate_string(prompt, strip_whitespace=False)
         # 1080p is limited to 5 seconds duration
         # only normal motion_mode supported for 1080p or for non-5 second duration
         if quality == PixverseQuality.res_1080p:
@@ -292,6 +294,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
         auth_token=None,
         **kwargs,
     ):
+        validate_string(prompt, strip_whitespace=False)
         img_id = upload_image_to_pixverse(image, auth_token=auth_token)
 
         # 1080p is limited to 5 seconds duration
@@ -427,6 +430,7 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
         auth_token=None,
         **kwargs,
     ):
+        validate_string(prompt, strip_whitespace=False)
         first_frame_id = upload_image_to_pixverse(first_frame, auth_token=auth_token)
         last_frame_id = upload_image_to_pixverse(last_frame, auth_token=auth_token)
 

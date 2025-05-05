@@ -21,7 +21,8 @@ from comfy_api_nodes.apis.client import (
 
 from comfy_api_nodes.apinode_utils import (
     downscale_image_tensor,
-    validate_and_cast_response
+    validate_and_cast_response,
+    validate_string,
 )
 
 class OpenAIDalle2(ComfyNodeABC):
@@ -114,6 +115,7 @@ class OpenAIDalle2(ComfyNodeABC):
         size="1024x1024",
         auth_token=None,
     ):
+        validate_string(prompt, strip_whitespace=False)
         model = "dall-e-2"
         path = "/proxy/openai/images/generations"
         content_type = "application/json"
@@ -258,6 +260,7 @@ class OpenAIDalle3(ComfyNodeABC):
         size="1024x1024",
         auth_token=None,
     ):
+        validate_string(prompt, strip_whitespace=False)
         model = "dall-e-3"
 
         # build the operation
@@ -393,6 +396,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
         size="1024x1024",
         auth_token=None,
     ):
+        validate_string(prompt, strip_whitespace=False)
         model = "gpt-image-1"
         path = "/proxy/openai/images/generations"
         content_type="application/json"

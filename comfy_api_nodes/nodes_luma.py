@@ -32,6 +32,7 @@ from comfy_api_nodes.apis.client import (
 from comfy_api_nodes.apinode_utils import (
     upload_images_to_comfyapi,
     process_image_response,
+    validate_string,
 )
 
 import requests
@@ -216,6 +217,7 @@ class LumaImageGenerationNode(ComfyNodeABC):
         auth_token=None,
         **kwargs,
     ):
+        validate_string(prompt, strip_whitespace=True, min_length=3)
         # handle image_luma_ref
         api_image_ref = None
         if image_luma_ref is not None:
@@ -327,7 +329,7 @@ class LumaImageModifyNode(ComfyNodeABC):
                     IO.FLOAT,
                     {
                         "default": 1.0,
-                        "min": 0.2,
+                        "min": 0.02,
                         "max": 1.0,
                         "step": 0.01,
                         "tooltip": "Weight of the image; the closer to 0.0, the less the image will be modified.",
@@ -484,6 +486,7 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
         auth_token=None,
         **kwargs,
     ):
+        validate_string(prompt, strip_whitespace=False, min_length=3)
         duration = duration if model != LumaVideoModel.ray_1_6 else None
         resolution = resolution if model != LumaVideoModel.ray_1_6 else None
 
