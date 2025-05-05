@@ -54,20 +54,20 @@ def upload_image_to_pixverse(image: torch.Tensor, auth_token=None):
     response_upload: PixverseImageUploadResponse = operation.execute()
 
     if response_upload.Resp is None:
-        raise Exception(f"Pixverse image upload request failed: '{response_upload.ErrMsg}'")
+        raise Exception(f"PixVerse image upload request failed: '{response_upload.ErrMsg}'")
 
     return response_upload.Resp.img_id
 
 
 class PixverseTemplateNode:
     """
-    Select template for Pixverse Video generation.
+    Select template for PixVerse Video generation.
     """
 
     RETURN_TYPES = (PixverseIO.TEMPLATE,)
     RETURN_NAMES = ("pixverse_template",)
     FUNCTION = "create_template"
-    CATEGORY = "api node/video/Pixverse"
+    CATEGORY = "api node/video/PixVerse"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -94,7 +94,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/video/Pixverse"
+    CATEGORY = "api node/video/PixVerse"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -142,7 +142,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
                 "pixverse_template": (
                     PixverseIO.TEMPLATE,
                     {
-                        "tooltip": "An optional template to influence style of generation, created by the Pixverse Template node."
+                        "tooltip": "An optional template to influence style of generation, created by the PixVerse Template node."
                     }
                 )
             },
@@ -195,7 +195,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
         response_api = operation.execute()
 
         if response_api.Resp is None:
-            raise Exception(f"Pixverse request failed: '{response_api.ErrMsg}'")
+            raise Exception(f"PixVerse request failed: '{response_api.ErrMsg}'")
 
         operation = PollingOperation(
             poll_endpoint=ApiEndpoint(
@@ -224,7 +224,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/video/Pixverse"
+    CATEGORY = "api node/video/PixVerse"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -272,7 +272,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
                 "pixverse_template": (
                     PixverseIO.TEMPLATE,
                     {
-                        "tooltip": "An optional template to influence style of generation, created by the Pixverse Template node."
+                        "tooltip": "An optional template to influence style of generation, created by the PixVerse Template node."
                     }
                 )
             },
@@ -327,7 +327,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
         response_api = operation.execute()
 
         if response_api.Resp is None:
-            raise Exception(f"Pixverse request failed: '{response_api.ErrMsg}'")
+            raise Exception(f"PixVerse request failed: '{response_api.ErrMsg}'")
 
         operation = PollingOperation(
             poll_endpoint=ApiEndpoint(
@@ -356,7 +356,7 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/video/Pixverse"
+    CATEGORY = "api node/video/PixVerse"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -407,7 +407,7 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
                 "pixverse_template": (
                     PixverseIO.TEMPLATE,
                     {
-                        "tooltip": "An optional template to influence style of generation, created by the Pixverse Template node."
+                        "tooltip": "An optional template to influence style of generation, created by the PixVerse Template node."
                     }
                 )
             },
@@ -465,7 +465,7 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
         response_api = operation.execute()
 
         if response_api.Resp is None:
-            raise Exception(f"Pixverse request failed: '{response_api.ErrMsg}'")
+            raise Exception(f"PixVerse request failed: '{response_api.ErrMsg}'")
 
         operation = PollingOperation(
             poll_endpoint=ApiEndpoint(
@@ -493,8 +493,8 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "PixverseTextToVideoNode": "Pixverse Text to Video",
-    "PixverseImageToVideoNode": "Pixverse Image to Video",
-    "PixverseTransitionVideoNode": "Pixverse Transition Video",
-    "PixverseTemplateNode": "Pixverse Template",
+    "PixverseTextToVideoNode": "PixVerse Text to Video",
+    "PixverseImageToVideoNode": "PixVerse Image to Video",
+    "PixverseTransitionVideoNode": "PixVerse Transition Video",
+    "PixverseTemplateNode": "PixVerse Template",
 }

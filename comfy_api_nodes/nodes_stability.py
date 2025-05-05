@@ -55,7 +55,7 @@ class StabilityStableImageUltraNode:
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/stability"
+    CATEGORY = "api node/image/Stability AI"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -182,7 +182,7 @@ class StabilityStableImageSD_3_5Node:
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/stability"
+    CATEGORY = "api node/image/Stability AI"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -320,7 +320,7 @@ class StabilityUpscaleConservativeNode:
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/stability"
+    CATEGORY = "api node/image/Stability AI"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -420,7 +420,7 @@ class StabilityUpscaleCreativeNode:
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/stability"
+    CATEGORY = "api node/image/Stability AI"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -543,7 +543,7 @@ class StabilityUpscaleFastNode:
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/stability"
+    CATEGORY = "api node/image/Stability AI"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -601,9 +601,9 @@ NODE_CLASS_MAPPINGS = {
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "StabilityStableImageUltraNode": "Stability Stable Image Ultra",
-    "StabilityStableImageSD_3_5Node": "Stability Stable Diffusion 3.5 Image",
-    "StabilityUpscaleConservativeNode": "Stability Upscale Conservative",
-    "StabilityUpscaleCreativeNode": "Stability Upscale Creative",
-    "StabilityUpscaleFastNode": "Stability Upscale Fast",
+    "StabilityStableImageUltraNode": "Stability AI Stable Image Ultra",
+    "StabilityStableImageSD_3_5Node": "Stability AI Stable Diffusion 3.5 Image",
+    "StabilityUpscaleConservativeNode": "Stability AI Upscale Conservative",
+    "StabilityUpscaleCreativeNode": "Stability AI Upscale Creative",
+    "StabilityUpscaleFastNode": "Stability AI Upscale Fast",
 }

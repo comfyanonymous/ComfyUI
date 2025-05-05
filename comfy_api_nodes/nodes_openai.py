@@ -101,7 +101,7 @@ class OpenAIDalle2(ComfyNodeABC):
 
     RETURN_TYPES = (IO.IMAGE,)
     FUNCTION = "api_call"
-    CATEGORY = "api node/image/openai"
+    CATEGORY = "api node/image/OpenAI"
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
@@ -247,7 +247,7 @@ class OpenAIDalle3(ComfyNodeABC):
 
     RETURN_TYPES = (IO.IMAGE,)
     FUNCTION = "api_call"
-    CATEGORY = "api node/image/openai"
+    CATEGORY = "api node/image/OpenAI"
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
@@ -380,7 +380,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
 
     RETURN_TYPES = (IO.IMAGE,)
     FUNCTION = "api_call"
-    CATEGORY = "api node/image/openai"
+    CATEGORY = "api node/image/OpenAI"
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 

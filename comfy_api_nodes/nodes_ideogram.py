@@ -307,7 +307,7 @@ class IdeogramV1(ComfyNodeABC):
 
     RETURN_TYPES = (IO.IMAGE,)
     FUNCTION = "api_call"
-    CATEGORY = "api node/image/ideogram/v1"
+    CATEGORY = "api node/image/Ideogram/v1"
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
@@ -462,7 +462,7 @@ class IdeogramV2(ComfyNodeABC):
 
     RETURN_TYPES = (IO.IMAGE,)
     FUNCTION = "api_call"
-    CATEGORY = "api node/image/ideogram/v2"
+    CATEGORY = "api node/image/Ideogram/v2"
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
@@ -625,7 +625,7 @@ class IdeogramV3(ComfyNodeABC):
 
     RETURN_TYPES = (IO.IMAGE,)
     FUNCTION = "api_call"
-    CATEGORY = "api node/image/ideogram/v3"
+    CATEGORY = "api node/image/Ideogram/v3"
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 

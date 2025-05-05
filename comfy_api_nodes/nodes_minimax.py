@@ -27,7 +27,7 @@ import logging
 
 class MinimaxTextToVideoNode:
     """
-    Generates videos synchronously based on a prompt, and optional parameters using Minimax's API.
+    Generates videos synchronously based on a prompt, and optional parameters using MiniMax's API.
     """
 
     @classmethod
@@ -71,9 +71,9 @@ class MinimaxTextToVideoNode:
         }
 
     RETURN_TYPES = ("VIDEO",)
-    DESCRIPTION = "Generates videos from prompts using Minimax's API"
+    DESCRIPTION = "Generates videos from prompts using MiniMax's API"
     FUNCTION = "generate_video"
-    CATEGORY = "api node/video/Minimax"
+    CATEGORY = "api node/video/MiniMax"
     API_NODE = True
     OUTPUT_NODE = True
 
@@ -87,7 +87,7 @@ class MinimaxTextToVideoNode:
         auth_token=None,
     ):
         '''
-        Function used between Minimax nodes - supports T2V, I2V, and S2V, based on provided arguments.
+        Function used between MiniMax nodes - supports T2V, I2V, and S2V, based on provided arguments.
         '''
         if image is None:
             validate_string(prompt_text, field_name="prompt_text")
@@ -124,7 +124,7 @@ class MinimaxTextToVideoNode:
 
         task_id = response.task_id
         if not task_id:
-            raise Exception(f"Minimax generation failed: {response.base_resp}")
+            raise Exception(f"MiniMax generation failed: {response.base_resp}")
 
         video_generate_operation = PollingOperation(
             poll_endpoint=ApiEndpoint(
@@ -174,7 +174,7 @@ class MinimaxTextToVideoNode:
 
 class MinimaxImageToVideoNode(MinimaxTextToVideoNode):
     """
-    Generates videos synchronously based on an image and prompt, and optional parameters using Minimax's API.
+    Generates videos synchronously based on an image and prompt, and optional parameters using MiniMax's API.
     """
 
     @classmethod
@@ -225,16 +225,16 @@ class MinimaxImageToVideoNode(MinimaxTextToVideoNode):
         }
 
     RETURN_TYPES = ("VIDEO",)
-    DESCRIPTION = "Generates videos from an image and prompts using Minimax's API"
+    DESCRIPTION = "Generates videos from an image and prompts using MiniMax's API"
     FUNCTION = "generate_video"
-    CATEGORY = "api node/video/Minimax"
+    CATEGORY = "api node/video/MiniMax"
     API_NODE = True
     OUTPUT_NODE = True
 
 
 class MinimaxSubjectToVideoNode(MinimaxTextToVideoNode):
     """
-    Generates videos synchronously based on an image and prompt, and optional parameters using Minimax's API.
+    Generates videos synchronously based on an image and prompt, and optional parameters using MiniMax's API.
     """
 
     @classmethod
@@ -283,9 +283,9 @@ class MinimaxSubjectToVideoNode(MinimaxTextToVideoNode):
         }
 
     RETURN_TYPES = ("VIDEO",)
-    DESCRIPTION = "Generates videos from an image and prompts using Minimax's API"
+    DESCRIPTION = "Generates videos from an image and prompts using MiniMax's API"
     FUNCTION = "generate_video"
-    CATEGORY = "api node/video/Minimax"
+    CATEGORY = "api node/video/MiniMax"
     API_NODE = True
     OUTPUT_NODE = True
 
@@ -300,7 +300,7 @@ NODE_CLASS_MAPPINGS = {
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "MinimaxTextToVideoNode": "Minimax Text to Video",
-    "MinimaxImageToVideoNode": "Minimax Image to Video",
-    "MinimaxSubjectToVideoNode": "Minimax Subject to Video",
+    "MinimaxTextToVideoNode": "MiniMax Text to Video",
+    "MinimaxImageToVideoNode": "MiniMax Image to Video",
+    "MinimaxSubjectToVideoNode": "MiniMax Subject to Video",
 }

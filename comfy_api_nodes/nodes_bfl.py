@@ -200,7 +200,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/bfl"
+    CATEGORY = "api node/image/BFL"
 
     def api_call(
         self,
@@ -326,7 +326,7 @@ class FluxProImageNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/bfl"
+    CATEGORY = "api node/image/BFL"
 
     def api_call(
         self,
@@ -468,7 +468,7 @@ class FluxProExpandNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/bfl"
+    CATEGORY = "api node/image/BFL"
 
     def api_call(
         self,
@@ -579,7 +579,7 @@ class FluxProFillNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/bfl"
+    CATEGORY = "api node/image/BFL"
 
     def api_call(
         self,
@@ -713,7 +713,7 @@ class FluxProCannyNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/bfl"
+    CATEGORY = "api node/image/BFL"
 
     def api_call(
         self,
@@ -841,7 +841,7 @@ class FluxProDepthNode(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
     API_NODE = True
-    CATEGORY = "api node/image/bfl"
+    CATEGORY = "api node/image/BFL"
 
     def api_call(
         self,
