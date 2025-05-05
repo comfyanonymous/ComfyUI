@@ -179,7 +179,7 @@ def validate_prompts(prompt: str, negative_prompt: str, max_length: int) -> bool
     return True
 
 
-def validate_task_creation_response(response):
+def validate_task_creation_response(response) -> None:
     """Validates that the Kling task creation request was successful."""
     if not is_valid_task_creation_response(response):
         error_msg = f"Kling initial request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
@@ -187,7 +187,7 @@ def validate_task_creation_response(response):
         raise KlingApiError(error_msg)
 
 
-def validate_video_result_response(response):
+def validate_video_result_response(response) -> None:
     """Validates that the Kling task result contains a video."""
     if not is_valid_video_response(response):
         error_msg = f"Kling task {response.data.task_id} succeeded but no video data found in response."
@@ -195,7 +195,7 @@ def validate_video_result_response(response):
         raise KlingApiError(error_msg)
 
 
-def validate_image_result_response(response):
+def validate_image_result_response(response) -> None:
     """Validates that the Kling task result contains an image."""
     if not is_valid_image_response(response):
         error_msg = f"Kling task {response.data.task_id} succeeded but no image data found in response."
@@ -221,7 +221,7 @@ def get_camera_control_input_config(
 def get_video_from_response(response) -> KlingVideoResult:
     """Returns the first video object from the Kling video generation task result."""
     video = response.data.task_result.videos[0]
-    logging.debug(
+    logging.info(
         "Kling task %s succeeded. Video URL: %s", response.data.task_id, video.url
     )
     return video
@@ -229,7 +229,7 @@ def get_video_from_response(response) -> KlingVideoResult:
 
 def get_images_from_response(response) -> list[KlingImageResult]:
     images = response.data.task_result.images
-    logging.debug("Kling task %s succeeded. Images: %s", response.data.task_id, images)
+    logging.info("Kling task %s succeeded. Images: %s", response.data.task_id, images)
     return images
 
 
@@ -255,10 +255,7 @@ def image_result_to_node_output(
 
 
 class KlingNodeBase(ComfyNodeABC):
-    """
-    Base class for Kling nodes.
-
-    """
+    """Base class for Kling nodes."""
 
     FUNCTION = "api_call"
     CATEGORY = "api node/video/Kling"

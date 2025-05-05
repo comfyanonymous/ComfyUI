@@ -173,7 +173,7 @@ class PikaNodeBase(ComfyNodeABC):
             raise PikaApiError(error_msg)
 
         video_url = str(final_response.url)
-        logging.debug("Pika task %s succeeded. Video URL: %s", task_id, video_url)
+        logging.info("Pika task %s succeeded. Video URL: %s", task_id, video_url)
 
         return (download_url_to_video_output(video_url),)
 
