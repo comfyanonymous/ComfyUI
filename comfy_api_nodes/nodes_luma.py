@@ -94,7 +94,7 @@ class LumaConceptsNode(ComfyNodeABC):
     RETURN_NAMES = ("luma_concepts",)
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "create_concepts"
-    CATEGORY = "api node/image/Luma"
+    CATEGORY = "api node/video/Luma"
 
     @classmethod
     def INPUT_TYPES(s):
