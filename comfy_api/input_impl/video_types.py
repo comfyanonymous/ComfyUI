@@ -253,7 +253,12 @@ class VideoFromComponents(VideoInput):
                     start = i * samples_per_frame
                     end = start + samples_per_frame
                     # TODO(Feature) - Add support for stereo audio
-                    chunk = self.__components.audio['waveform'][0, 0, start:end].unsqueeze(0).numpy()
+                    chunk = (
+                        self.__components.audio["waveform"][0, 0, start:end]
+                        .unsqueeze(0)
+                        .contiguous()
+                        .numpy()
+                    )
                     audio_frame = av.AudioFrame.from_ndarray(chunk, format='fltp', layout='mono')
                     audio_frame.sample_rate = audio_sample_rate
                     audio_frame.pts = i * samples_per_frame
