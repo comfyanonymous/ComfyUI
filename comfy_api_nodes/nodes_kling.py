@@ -192,7 +192,7 @@ def validate_video_result_response(response) -> None:
     """Validates that the Kling task result contains a video."""
     if not is_valid_video_response(response):
         error_msg = f"Kling task {response.data.task_id} succeeded but no video data found in response."
-        logging.error(error_msg)
+        logging.error(f"Error: {error_msg}.\nResponse: {response}")
         raise KlingApiError(error_msg)
 
 
@@ -200,7 +200,7 @@ def validate_image_result_response(response) -> None:
     """Validates that the Kling task result contains an image."""
     if not is_valid_image_response(response):
         error_msg = f"Kling task {response.data.task_id} succeeded but no image data found in response."
-        logging.error(error_msg)
+        logging.error(f"Error: {error_msg}.\nResponse: {response}")
         raise KlingApiError(error_msg)
 
 
