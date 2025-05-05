@@ -161,8 +161,9 @@ def is_valid_video_response(response: KlingText2VideoResponse) -> bool:
 def is_valid_image_response(response: KlingVirtualTryOnResponse) -> bool:
     """Verifies that the response contains a task result with at least one image."""
     return (
-        "task_result" in response.data
-        and "images" in response.data.task_result
+        response.data is not None
+        and response.data.task_result is not None
+        and response.data.task_result.images is not None
         and len(response.data.task_result.images) > 0
     )
 
