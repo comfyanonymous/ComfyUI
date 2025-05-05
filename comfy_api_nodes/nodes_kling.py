@@ -1,29 +1,7 @@
-"""
-Kling API Nodes
+"""Kling API Nodes
 
-Compatibility Table
-| Mode | Duration | Model Name       | Camera Control | Image Tail |
-|------|----------|------------------|----------------|------------|
-| std  | 5        | kling-v1         | No             | Yes        |
-| std  | 5        | kling-v1-5       | No             | Yes        |
-| std  | 5        | kling-v1-6       | No             | No         |
-| std  | 5        | kling-v2-master  | No             | No         |
-| std  | 10       | kling-v1         | No             | No         |
-| std  | 10       | kling-v1-5       | No             | No         |
-| std  | 10       | kling-v1-6       | No             | No         |
-| std  | 10       | kling-v2-master  | No             | No         |
-| pro  | 5        | kling-v1         | No             | Yes        |
-| pro  | 5        | kling-v1-5       | Yes            | Yes        |
-| pro  | 5        | kling-v1-6       | No             | Yes        |
-| pro  | 5        | kling-v2-master  | No             | No         |
-| pro  | 10       | kling-v1         | No             | No         |
-| pro  | 10       | kling-v1-5       | No             | Yes        |
-| pro  | 10       | kling-v1-6       | No             | Yes        |
-| pro  | 10       | kling-v2-master  | No             | No         |
-
-**Note**: Although the combo of pro mode, kling-v1-5 model, and 5s duration
-supports both camera_control and image_tail, you can only use one feature
-at a time.
+For source of truth on the allowed permutations of request fields, please reference:
+- [Compatibility Table](https://app.klingai.com/global/dev/document-api/apiReference/model/skillsMap)
 """
 
 from typing import Optional, TypeVar, Any
@@ -355,8 +333,26 @@ class KlingCameraControls(KlingNodeBase):
 class KlingTextToVideoNode(KlingNodeBase):
     """Kling Text to Video Node"""
 
+    @staticmethod
+    def get_mode_string_mapping() -> dict[str, tuple[str, str, str]]:
+        """
+        Returns a mapping of mode strings to their corresponding (mode, duration, model_name) tuples.
+        Only includes config combos that support the `image_tail` request field.
+
+        See: [Kling API Docs Capability Map](https://app.klingai.com/global/dev/document-api/apiReference/model/skillsMap)
+        """
+        return {
+            "standard mode / 5s duration / kling-v1": ("std", "5", "kling-v1"),
+            "standard mode / 10s duration / kling-v1": ("std", "10", "kling-v1"),
+            "pro mode / 5s duration / kling-v1": ("pro", "5", "kling-v1"),
+            "pro mode / 10s duration / kling-v1": ("pro", "10", "kling-v1"),
+            "standard mode / 5s duration / kling-v1-6": ("std", "5", "kling-v1-6"),
+            "standard mode / 10s duration / kling-v1-6": ("std", "10", "kling-v1-6"),
+        }
+
     @classmethod
     def INPUT_TYPES(s):
+        modes = list(KlingTextToVideoNode.get_mode_string_mapping().keys())
         return {
             "required": {
                 "prompt": model_field_to_node_input(
@@ -365,32 +361,21 @@ class KlingTextToVideoNode(KlingNodeBase):
                 "negative_prompt": model_field_to_node_input(
                     IO.STRING, KlingText2VideoRequest, "negative_prompt", multiline=True
                 ),
-                "model_name": model_field_to_node_input(
-                    IO.COMBO,
-                    KlingText2VideoRequest,
-                    "model_name",
-                    enum_type=KlingVideoGenModelName,
-                ),
                 "cfg_scale": model_field_to_node_input(
                     IO.FLOAT, KlingText2VideoRequest, "cfg_scale"
-                ),
-                "mode": model_field_to_node_input(
-                    IO.COMBO,
-                    KlingText2VideoRequest,
-                    "mode",
-                    enum_type=KlingVideoGenMode,
-                ),
-                "duration": model_field_to_node_input(
-                    IO.COMBO,
-                    KlingText2VideoRequest,
-                    "duration",
-                    enum_type=KlingVideoGenDuration,
                 ),
                 "aspect_ratio": model_field_to_node_input(
                     IO.COMBO,
                     KlingText2VideoRequest,
                     "aspect_ratio",
                     enum_type=KlingVideoGenAspectRatio,
+                ),
+                "mode": (
+                    modes,
+                    {
+                        "default": modes[4],
+                        "tooltip": "The configuration to use for the video generation following the format: mode / duration / model_name.",
+                    },
                 ),
             },
             "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
@@ -415,15 +400,14 @@ class KlingTextToVideoNode(KlingNodeBase):
         self,
         prompt: str,
         negative_prompt: str,
-        model_name: str,
         cfg_scale: float,
         mode: str,
-        duration: int,
         aspect_ratio: str,
         camera_control: Optional[KlingCameraControl] = None,
         auth_token: Optional[str] = None,
     ) -> tuple[VideoFromFile, str, str]:
         validate_prompts(prompt, negative_prompt, MAX_PROMPT_LENGTH_T2V)
+        mode, duration, model_name = self.get_mode_string_mapping()[mode]
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_TEXT_TO_VIDEO,
@@ -543,7 +527,7 @@ class KlingImage2VideoNode(KlingNodeBase):
                     enum_type=KlingVideoGenModelName,
                 ),
                 "cfg_scale": model_field_to_node_input(
-                    IO.FLOAT, KlingImage2VideoRequest, "cfg_scale"
+                    IO.FLOAT, KlingImage2VideoRequest, "cfg_scale", default=0.8
                 ),
                 "mode": model_field_to_node_input(
                     IO.COMBO,
@@ -597,6 +581,11 @@ class KlingImage2VideoNode(KlingNodeBase):
         auth_token: Optional[str] = None,
     ) -> tuple[VideoFromFile]:
         validate_prompts(prompt, negative_prompt, MAX_PROMPT_LENGTH_I2V)
+
+        if camera_control is not None:
+            # Camera control type for image 2 video is always simple
+            camera_control.type = KlingCameraControlType.simple
+
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_IMAGE_TO_VIDEO,
@@ -711,14 +700,15 @@ class KlingStartEndFrameNode(KlingImage2VideoNode):
         """
         Returns a mapping of mode strings to their corresponding (mode, duration, model_name) tuples.
         Only includes config combos that support the `image_tail` request field.
+
+        See: [Kling API Docs Capability Map](https://app.klingai.com/global/dev/document-api/apiReference/model/skillsMap)
         """
         return {
             "standard mode / 5s duration / kling-v1": ("std", "5", "kling-v1"),
-            "standard mode / 5s duration / kling-v1-5": ("std", "5", "kling-v1-5"),
             "pro mode / 5s duration / kling-v1": ("pro", "5", "kling-v1"),
             "pro mode / 5s duration / kling-v1-5": ("pro", "5", "kling-v1-5"),
-            "pro mode / 5s duration / kling-v1-6": ("pro", "5", "kling-v1-6"),
             "pro mode / 10s duration / kling-v1-5": ("pro", "10", "kling-v1-5"),
+            "pro mode / 5s duration / kling-v1-6": ("pro", "5", "kling-v1-6"),
             "pro mode / 10s duration / kling-v1-6": ("pro", "10", "kling-v1-6"),
         }
 
