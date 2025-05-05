@@ -33,6 +33,7 @@ import json
 import os
 import torch
 from io import BytesIO
+from PIL import UnidentifiedImageError
 
 
 def handle_recraft_file_request(
@@ -144,6 +145,21 @@ def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, co
             converted.append((current_key, formatter(value)))
 
     return dict(converted)
+
+
+class handle_recraft_image_output:
+    """
+    Catch an exception related to receiving SVG data instead of image, when Infinite Style Library style_id is in use.
+    """
+    def __init__(self):
+        pass
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None and exc_type is UnidentifiedImageError:
+            raise Exception("Received output data was not an image; likely an SVG. If you used style_id, make sure it is not a Vector art style.")
 
 
 class SVG:
@@ -372,6 +388,34 @@ class RecraftStyleV3LogoRasterNode(RecraftStyleV3RealisticImageNode):
     RECRAFT_STYLE = RecraftStyleV3.logo_raster
 
 
+class RecraftStyleInfiniteStyleLibrary:
+    """
+    Select style based on preexisting UUID from Recraft's Infinite Style Library.
+    """
+
+    RETURN_TYPES = (RecraftIO.STYLEV3,)
+    RETURN_NAMES = ("recraft_style",)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "create_style"
+    CATEGORY = "api node/image/Recraft"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "style_id": (IO.STRING, {
+                    "default": "",
+                    "tooltip": "UUID of style from Infinite Style Library.",
+                })
+            }
+        }
+
+    def create_style(self, style_id: str):
+        if not style_id:
+            raise Exception("The style_id input cannot be empty.")
+        return (RecraftStyle(style_id=style_id),)
+
+
 class RecraftTextToImageNode:
     """
     Generates images synchronously based on prompt and resolution.
@@ -491,9 +535,10 @@ class RecraftTextToImageNode:
         response: RecraftImageGenerationResponse = operation.execute()
         images = []
         for data in response.data:
-            image = bytesio_to_image_tensor(
-                download_url_to_bytesio(data.url, timeout=1024)
-            )
+            with handle_recraft_image_output():
+                image = bytesio_to_image_tensor(
+                    download_url_to_bytesio(data.url, timeout=1024)
+                )
             if len(image.shape) < 4:
                 image = image.unsqueeze(0)
             images.append(image)
@@ -625,7 +670,8 @@ class RecraftImageToImageNode:
                 request=request,
                 auth_token=auth_token,
             )
-            images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
+            with handle_recraft_image_output():
+                images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
 
         images_tensor = torch.cat(images, dim=0)
@@ -737,7 +783,8 @@ class RecraftImageInpaintingNode:
                 request=request,
                 auth_token=auth_token,
             )
-            images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
+            with handle_recraft_image_output():
+                images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
 
         images_tensor = torch.cat(images, dim=0)
@@ -1143,6 +1190,7 @@ NODE_CLASS_MAPPINGS = {
     "RecraftStyleV3RealisticImage": RecraftStyleV3RealisticImageNode,
     "RecraftStyleV3DigitalIllustration": RecraftStyleV3DigitalIllustrationNode,
     "RecraftStyleV3LogoRaster": RecraftStyleV3LogoRasterNode,
+    "RecraftStyleV3InfiniteStyleLibrary": RecraftStyleInfiniteStyleLibrary,
     "RecraftColorRGB": RecraftColorRGBNode,
     "RecraftControls": RecraftControlsNode,
     "SaveSVG": SaveSVGNode,
@@ -1162,6 +1210,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RecraftStyleV3RealisticImage": "Recraft Style - Realistic Image",
     "RecraftStyleV3DigitalIllustration": "Recraft Style - Digital Illustration",
     "RecraftStyleV3LogoRaster": "Recraft Style - Logo Raster",
+    "RecraftStyleV3InfiniteStyleLibrary": "Recraft Style - Infinite Style Library",
     "RecraftColorRGB": "Recraft Color RGB",
     "RecraftControls": "Recraft Controls",
     "SaveSVG": "Save SVG",
