@@ -427,10 +427,10 @@ class OpenAIGPTImage1(ComfyNodeABC):
                     files.append(("image[]", img_binary))
 
         if mask is not None:
-            if image.shape[0] != 1:
-                raise Exception("Cannot use a mask with multiple image")
             if image is None:
                 raise Exception("Cannot use a mask without an input image")
+            if image.shape[0] != 1:
+                raise Exception("Cannot use a mask with multiple image")
             if mask.shape[1:] != image.shape[1:-1]:
                 raise Exception("Mask and Image must be the same size")
             batch, height, width = mask.shape
