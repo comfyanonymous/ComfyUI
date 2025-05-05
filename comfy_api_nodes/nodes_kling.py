@@ -440,12 +440,6 @@ class KlingTextToVideoNode(KlingNodeBase):
                 "negative_prompt": model_field_to_node_input(
                     IO.STRING, KlingText2VideoRequest, "negative_prompt", multiline=True
                 ),
-                "model_name": model_field_to_node_input(
-                    IO.COMBO,
-                    KlingText2VideoRequest,
-                    "model_name",
-                    enum_type=KlingVideoGenModelName,
-                ),
                 "cfg_scale": model_field_to_node_input(
                     IO.FLOAT,
                     KlingText2VideoRequest,
