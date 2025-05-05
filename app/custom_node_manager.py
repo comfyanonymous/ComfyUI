@@ -127,8 +127,8 @@ class CustomNodeManager:
 
                 if os.path.exists(workflows_dir):
                     if folder_name != "example_workflows":
-                        logging.warning(
-                            "WARNING: Found example workflow folder '%s' for custom node '%s', consider renaming it to 'example_workflows'",
+                        logging.debug(
+                            "Found example workflow folder '%s' for custom node '%s', consider renaming it to 'example_workflows'",
                             folder_name, module_name)
 
                     webapp.add_routes(
