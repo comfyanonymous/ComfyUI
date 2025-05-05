@@ -327,7 +327,7 @@ class LumaImageModifyNode(ComfyNodeABC):
                     IO.FLOAT,
                     {
                         "default": 1.0,
-                        "min": 0.0,
+                        "min": 0.2,
                         "max": 1.0,
                         "step": 0.01,
                         "tooltip": "Weight of the image; the closer to 0.0, the less the image will be modified.",
