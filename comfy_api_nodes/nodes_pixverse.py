@@ -431,7 +431,7 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
                 "pixverse_template": (
                     PixverseIO.TEMPLATE,
                     {
-                        "tooltip": "An optional template to influence style of generation, created by the Pixverse Template node."
+                        "tooltip": "An optional template to influence style of generation, created by the PixVerse Template node."
                     }
                 )
             },
