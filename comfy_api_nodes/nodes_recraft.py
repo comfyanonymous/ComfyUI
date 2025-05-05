@@ -1195,6 +1195,7 @@ NODE_CLASS_MAPPINGS = {
     "RecraftStyleV3RealisticImage": RecraftStyleV3RealisticImageNode,
     "RecraftStyleV3DigitalIllustration": RecraftStyleV3DigitalIllustrationNode,
     "RecraftStyleV3LogoRaster": RecraftStyleV3LogoRasterNode,
+    "RecraftStyleV3InfiniteStyleLibrary": RecraftStyleInfiniteStyleLibrary,
     "RecraftColorRGB": RecraftColorRGBNode,
     "RecraftControls": RecraftControlsNode,
 }
@@ -1213,6 +1214,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RecraftStyleV3RealisticImage": "Recraft Style - Realistic Image",
     "RecraftStyleV3DigitalIllustration": "Recraft Style - Digital Illustration",
     "RecraftStyleV3LogoRaster": "Recraft Style - Logo Raster",
+    "RecraftStyleV3InfiniteStyleLibrary": "Recraft Style - Infinite Style Library",
     "RecraftColorRGB": "Recraft Color RGB",
     "RecraftControls": "Recraft Controls",
 }
