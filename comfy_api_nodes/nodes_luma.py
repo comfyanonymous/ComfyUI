@@ -328,11 +328,11 @@ class LumaImageModifyNode(ComfyNodeABC):
                 "image_weight": (
                     IO.FLOAT,
                     {
-                        "default": 1.0,
-                        "min": 0.02,
-                        "max": 1.0,
+                        "default": 0.1,
+                        "min": 0.0,
+                        "max": 0.98,
                         "step": 0.01,
-                        "tooltip": "Weight of the image; the closer to 0.0, the less the image will be modified.",
+                        "tooltip": "Weight of the image; the closer to 1.0, the less the image will be modified.",
                     },
                 ),
                 "model": ([model.value for model in LumaImageModel],),
@@ -380,7 +380,7 @@ class LumaImageModifyNode(ComfyNodeABC):
                 prompt=prompt,
                 model=model,
                 modify_image_ref=LumaModifyImageRef(
-                    url=image_url, weight=round(image_weight, 2)
+                    url=image_url, weight=round(max(min(1.0-image_weight, 0.98), 0.0), 2)
                 ),
             ),
             auth_token=auth_token,
