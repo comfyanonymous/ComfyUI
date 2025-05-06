@@ -20,7 +20,7 @@ class WebcamCapture(nodes.LoadImage):
 
     CATEGORY = "image"
 
-    def load_capture(s, image, **kwargs):
+    def load_capture(self, image, **kwargs):
         return super().load_image(folder_paths.get_annotated_filepath(image))
 
 

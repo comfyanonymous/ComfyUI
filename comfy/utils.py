@@ -29,17 +29,45 @@ import itertools
 from torch.nn.functional import interpolate
 from einops import rearrange
 
-def load_torch_file(ckpt, safe_load=False, device=None):
+ALWAYS_SAFE_LOAD = False
+if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in pytorch 2.4, the unsafe path should be removed once earlier versions are deprecated
+    class ModelCheckpoint:
+        pass
+    ModelCheckpoint.__module__ = "pytorch_lightning.callbacks.model_checkpoint"
+
+    from numpy.core.multiarray import scalar
+    from numpy import dtype
+    from numpy.dtypes import Float64DType
+    from _codecs import encode
+
+    torch.serialization.add_safe_globals([ModelCheckpoint, scalar, dtype, Float64DType, encode])
+    ALWAYS_SAFE_LOAD = True
+    logging.info("Checkpoint files will always be loaded safely.")
+else:
+    logging.info("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
+
+def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
         device = torch.device("cpu")
+    metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
-        sd = safetensors.torch.load_file(ckpt, device=device.type)
+        try:
+            with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
+                sd = {}
+                for k in f.keys():
+                    sd[k] = f.get_tensor(k)
+                if return_metadata:
+                    metadata = f.metadata()
+        except Exception as e:
+            if len(e.args) > 0:
+                message = e.args[0]
+                if "HeaderTooLarge" in message:
+                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt or invalid. Make sure this is actually a safetensors file and not a ckpt or pt or other filetype.".format(message, ckpt))
+                if "MetadataIncompleteBuffer" in message:
+                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt/incomplete. Check the file size and make sure you have copied/downloaded it correctly.".format(message, ckpt))
+            raise e
     else:
-        if safe_load:
-            if not 'weights_only' in torch.load.__code__.co_varnames:
-                logging.warning("Warning torch.load doesn't support weights_only on this pytorch version, loading unsafely.")
-                safe_load = False
-        if safe_load:
+        if safe_load or ALWAYS_SAFE_LOAD:
             pl_sd = torch.load(ckpt, map_location=device, weights_only=True)
         else:
             pl_sd = torch.load(ckpt, map_location=device, pickle_module=comfy.checkpoint_pickle)
@@ -55,7 +83,7 @@ def load_torch_file(ckpt, safe_load=False, device=None):
                     sd = pl_sd
             else:
                 sd = pl_sd
-    return sd
+    return (sd, metadata) if return_metadata else sd
 
 def save_torch_file(sd, ckpt, metadata=None):
     if metadata is not None:

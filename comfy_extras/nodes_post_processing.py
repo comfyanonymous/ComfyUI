@@ -6,7 +6,7 @@ import math
 
 import comfy.utils
 import comfy.model_management
-
+import node_helpers
 
 class Blend:
     def __init__(self):
@@ -34,6 +34,7 @@ class Blend:
     CATEGORY = "image/postprocessing"
 
     def blend_images(self, image1: torch.Tensor, image2: torch.Tensor, blend_factor: float, blend_mode: str):
+        image1, image2 = node_helpers.image_alpha_fix(image1, image2)
         image2 = image2.to(image1.device)
         if image1.shape != image2.shape:
             image2 = image2.permute(0, 3, 1, 2)
@@ -140,6 +141,7 @@ class Quantize:
 
     CATEGORY = "image/postprocessing"
 
+    @staticmethod
     def bayer(im, pal_im, order):
         def normalized_bayer_matrix(n):
             if n == 0:

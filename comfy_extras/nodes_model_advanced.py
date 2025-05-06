@@ -3,6 +3,8 @@ import comfy.model_sampling
 import comfy.latent_formats
 import nodes
 import torch
+import node_helpers
+
 
 class LCM(comfy.model_sampling.EPS):
     def calculate_denoised(self, sigma, model_output, model_input):
@@ -17,10 +19,6 @@ class LCM(comfy.model_sampling.EPS):
         c_out = scaled_timestep / (scaled_timestep**2 + sigma_data**2) ** 0.5
 
         return c_out * x0 + c_skip * model_input
-
-class X0(comfy.model_sampling.EPS):
-    def calculate_denoised(self, sigma, model_output, model_input):
-        return model_output
 
 class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete):
     original_timesteps = 50
@@ -54,7 +52,7 @@ class ModelSamplingDiscrete:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["eps", "v_prediction", "lcm", "x0"],),
+                              "sampling": (["eps", "v_prediction", "lcm", "x0", "img_to_img"],),
                               "zsnr": ("BOOLEAN", {"default": False}),
                               }}
 
@@ -75,7 +73,9 @@ class ModelSamplingDiscrete:
             sampling_type = LCM
             sampling_base = ModelSamplingDiscreteDistilled
         elif sampling == "x0":
-            sampling_type = X0
+            sampling_type = comfy.model_sampling.X0
+        elif sampling == "img_to_img":
+            sampling_type = comfy.model_sampling.IMG_TO_IMG
 
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass
@@ -189,7 +189,7 @@ class ModelSamplingContinuousEDM:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["v_prediction", "edm_playground_v2.5", "eps"],),
+                              "sampling": (["v_prediction", "edm", "edm_playground_v2.5", "eps"],),
                               "sigma_max": ("FLOAT", {"default": 120.0, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               "sigma_min": ("FLOAT", {"default": 0.002, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               }}
@@ -206,6 +206,9 @@ class ModelSamplingContinuousEDM:
         sigma_data = 1.0
         if sampling == "eps":
             sampling_type = comfy.model_sampling.EPS
+        elif sampling == "edm":
+            sampling_type = comfy.model_sampling.EDM
+            sigma_data = 0.5
         elif sampling == "v_prediction":
             sampling_type = comfy.model_sampling.V_PREDICTION
         elif sampling == "edm_playground_v2.5":
@@ -291,6 +294,24 @@ class RescaleCFG:
         m.set_model_sampler_cfg_function(rescale_cfg)
         return (m, )
 
+class ModelComputeDtype:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "dtype": (["default", "fp32", "fp16", "bf16"],),
+                              }}
+
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "advanced/debug/model"
+
+    def patch(self, model, dtype):
+        m = model.clone()
+        m.set_model_compute_dtype(node_helpers.string_to_torch_dtype(dtype))
+        return (m, )
+
+
 NODE_CLASS_MAPPINGS = {
     "ModelSamplingDiscrete": ModelSamplingDiscrete,
     "ModelSamplingContinuousEDM": ModelSamplingContinuousEDM,
@@ -300,4 +321,5 @@ NODE_CLASS_MAPPINGS = {
     "ModelSamplingAuraFlow": ModelSamplingAuraFlow,
     "ModelSamplingFlux": ModelSamplingFlux,
     "RescaleCFG": RescaleCFG,
+    "ModelComputeDtype": ModelComputeDtype,
 }

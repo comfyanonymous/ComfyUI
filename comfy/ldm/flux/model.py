@@ -109,15 +109,17 @@ class Flux(nn.Module):
         img = self.img_in(img)
         vec = self.time_in(timestep_embedding(timesteps, 256).to(img.dtype))
         if self.params.guidance_embed:
-            if guidance is None:
-                raise ValueError("Didn't get guidance strength for guidance distilled model.")
-            vec = vec + self.guidance_in(timestep_embedding(guidance, 256).to(img.dtype))
+            if guidance is not None:
+                vec = vec + self.guidance_in(timestep_embedding(guidance, 256).to(img.dtype))
 
         vec = vec + self.vector_in(y[:,:self.params.vec_in_dim])
         txt = self.txt_in(txt)
 
-        ids = torch.cat((txt_ids, img_ids), dim=1)
-        pe = self.pe_embedder(ids)
+        if img_ids is not None:
+            ids = torch.cat((txt_ids, img_ids), dim=1)
+            pe = self.pe_embedder(ids)
+        else:
+            pe = None
 
         blocks_replace = patches_replace.get("dit", {})
         for i, block in enumerate(self.double_blocks):
@@ -186,7 +188,7 @@ class Flux(nn.Module):
         img = self.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
         return img
 
-    def forward(self, x, timestep, context, y, guidance, control=None, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, y, guidance=None, control=None, transformer_options={}, **kwargs):
         bs, c, h, w = x.shape
         patch_size = self.patch_size
         x = comfy.ldm.common_dit.pad_to_patch_size(x, (patch_size, patch_size))

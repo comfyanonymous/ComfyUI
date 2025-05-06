@@ -227,6 +227,7 @@ class HunyuanVideo(nn.Module):
         timesteps: Tensor,
         y: Tensor,
         guidance: Tensor = None,
+        guiding_frame_index=None,
         control=None,
         transformer_options={},
     ) -> Tensor:
@@ -237,12 +238,21 @@ class HunyuanVideo(nn.Module):
         img = self.img_in(img)
         vec = self.time_in(timestep_embedding(timesteps, 256, time_factor=1.0).to(img.dtype))
 
-        vec = vec + self.vector_in(y[:, :self.params.vec_in_dim])
+        if guiding_frame_index is not None:
+            token_replace_vec = self.time_in(timestep_embedding(guiding_frame_index, 256, time_factor=1.0))
+            vec_ = self.vector_in(y[:, :self.params.vec_in_dim])
+            vec = torch.cat([(vec_ + token_replace_vec).unsqueeze(1), (vec_ + vec).unsqueeze(1)], dim=1)
+            frame_tokens = (initial_shape[-1] // self.patch_size[-1]) * (initial_shape[-2] // self.patch_size[-2])
+            modulation_dims = [(0, frame_tokens, 0), (frame_tokens, None, 1)]
+            modulation_dims_txt = [(0, None, 1)]
+        else:
+            vec = vec + self.vector_in(y[:, :self.params.vec_in_dim])
+            modulation_dims = None
+            modulation_dims_txt = None
 
         if self.params.guidance_embed:
-            if guidance is None:
-                raise ValueError("Didn't get guidance strength for guidance distilled model.")
-            vec = vec + self.guidance_in(timestep_embedding(guidance, 256).to(img.dtype))
+            if guidance is not None:
+                vec = vec + self.guidance_in(timestep_embedding(guidance, 256).to(img.dtype))
 
         if txt_mask is not None and not torch.is_floating_point(txt_mask):
             txt_mask = (txt_mask - 1).to(img.dtype) * torch.finfo(img.dtype).max
@@ -265,14 +275,14 @@ class HunyuanVideo(nn.Module):
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["img"], out["txt"] = block(img=args["img"], txt=args["txt"], vec=args["vec"], pe=args["pe"], attn_mask=args["attention_mask"])
+                    out["img"], out["txt"] = block(img=args["img"], txt=args["txt"], vec=args["vec"], pe=args["pe"], attn_mask=args["attention_mask"], modulation_dims_img=args["modulation_dims_img"], modulation_dims_txt=args["modulation_dims_txt"])
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": img, "txt": txt, "vec": vec, "pe": pe, "attention_mask": attn_mask}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": img, "txt": txt, "vec": vec, "pe": pe, "attention_mask": attn_mask, 'modulation_dims_img': modulation_dims, 'modulation_dims_txt': modulation_dims_txt}, {"original_block": block_wrap})
                 txt = out["txt"]
                 img = out["img"]
             else:
-                img, txt = block(img=img, txt=txt, vec=vec, pe=pe, attn_mask=attn_mask)
+                img, txt = block(img=img, txt=txt, vec=vec, pe=pe, attn_mask=attn_mask, modulation_dims_img=modulation_dims, modulation_dims_txt=modulation_dims_txt)
 
             if control is not None: # Controlnet
                 control_i = control.get("input")
@@ -287,13 +297,13 @@ class HunyuanVideo(nn.Module):
             if ("single_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["img"] = block(args["img"], vec=args["vec"], pe=args["pe"], attn_mask=args["attention_mask"])
+                    out["img"] = block(args["img"], vec=args["vec"], pe=args["pe"], attn_mask=args["attention_mask"], modulation_dims=args["modulation_dims"])
                     return out
 
-                out = blocks_replace[("single_block", i)]({"img": img, "vec": vec, "pe": pe, "attention_mask": attn_mask}, {"original_block": block_wrap})
+                out = blocks_replace[("single_block", i)]({"img": img, "vec": vec, "pe": pe, "attention_mask": attn_mask, 'modulation_dims': modulation_dims}, {"original_block": block_wrap})
                 img = out["img"]
             else:
-                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask)
+                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask, modulation_dims=modulation_dims)
 
             if control is not None: # Controlnet
                 control_o = control.get("output")
@@ -304,17 +314,17 @@ class HunyuanVideo(nn.Module):
 
         img = img[:, : img_len]
 
-        img = self.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
+        img = self.final_layer(img, vec, modulation_dims=modulation_dims)  # (N, T, patch_size ** 2 * out_channels)
 
         shape = initial_shape[-3:]
         for i in range(len(shape)):
             shape[i] = shape[i] // self.patch_size[i]
         img = img.reshape([img.shape[0]] + shape + [self.out_channels] + self.patch_size)
         img = img.permute(0, 4, 1, 5, 2, 6, 3, 7)
-        img = img.reshape(initial_shape)
+        img = img.reshape(initial_shape[0], self.out_channels, initial_shape[2], initial_shape[3], initial_shape[4])
         return img
 
-    def forward(self, x, timestep, context, y, guidance, attention_mask=None, control=None, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, y, guidance=None, attention_mask=None, guiding_frame_index=None, control=None, transformer_options={}, **kwargs):
         bs, c, t, h, w = x.shape
         patch_size = self.patch_size
         t_len = ((t + (patch_size[0] // 2)) // patch_size[0])
@@ -326,5 +336,5 @@ class HunyuanVideo(nn.Module):
         img_ids[:, :, :, 2] = img_ids[:, :, :, 2] + torch.linspace(0, w_len - 1, steps=w_len, device=x.device, dtype=x.dtype).reshape(1, 1, -1)
         img_ids = repeat(img_ids, "t h w c -> b (t h w) c", b=bs)
         txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)
-        out = self.forward_orig(x, img_ids, context, txt_ids, attention_mask, timestep, y, guidance, control, transformer_options)
+        out = self.forward_orig(x, img_ids, context, txt_ids, attention_mask, timestep, y, guidance, guiding_frame_index, control, transformer_options)
         return out

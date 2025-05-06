@@ -382,3 +382,87 @@ class HunyuanVideo(LatentFormat):
     ]
 
     latent_rgb_factors_bias = [ 0.0259, -0.0192, -0.0761]
+
+class Cosmos1CV8x8x8(LatentFormat):
+    latent_channels = 16
+    latent_dimensions = 3
+
+    latent_rgb_factors = [
+        [ 0.1817,  0.2284,  0.2423],
+        [-0.0586, -0.0862, -0.3108],
+        [-0.4703, -0.4255, -0.3995],
+        [ 0.0803,  0.1963,  0.1001],
+        [-0.0820, -0.1050,  0.0400],
+        [ 0.2511,  0.3098,  0.2787],
+        [-0.1830, -0.2117, -0.0040],
+        [-0.0621, -0.2187, -0.0939],
+        [ 0.3619,  0.1082,  0.1455],
+        [ 0.3164,  0.3922,  0.2575],
+        [ 0.1152,  0.0231, -0.0462],
+        [-0.1434, -0.3609, -0.3665],
+        [ 0.0635,  0.1471,  0.1680],
+        [-0.3635, -0.1963, -0.3248],
+        [-0.1865,  0.0365,  0.2346],
+        [ 0.0447,  0.0994,  0.0881]
+    ]
+
+    latent_rgb_factors_bias = [-0.1223, -0.1889, -0.1976]
+
+class Wan21(LatentFormat):
+    latent_channels = 16
+    latent_dimensions = 3
+
+    latent_rgb_factors = [
+            [-0.1299, -0.1692,  0.2932],
+            [ 0.0671,  0.0406,  0.0442],
+            [ 0.3568,  0.2548,  0.1747],
+            [ 0.0372,  0.2344,  0.1420],
+            [ 0.0313,  0.0189, -0.0328],
+            [ 0.0296, -0.0956, -0.0665],
+            [-0.3477, -0.4059, -0.2925],
+            [ 0.0166,  0.1902,  0.1975],
+            [-0.0412,  0.0267, -0.1364],
+            [-0.1293,  0.0740,  0.1636],
+            [ 0.0680,  0.3019,  0.1128],
+            [ 0.0032,  0.0581,  0.0639],
+            [-0.1251,  0.0927,  0.1699],
+            [ 0.0060, -0.0633,  0.0005],
+            [ 0.3477,  0.2275,  0.2950],
+            [ 0.1984,  0.0913,  0.1861]
+        ]
+
+    latent_rgb_factors_bias = [-0.1835, -0.0868, -0.3360]
+
+    def __init__(self):
+        self.scale_factor = 1.0
+        self.latents_mean = torch.tensor([
+            -0.7571, -0.7089, -0.9113, 0.1075, -0.1745, 0.9653, -0.1517, 1.5508,
+            0.4134, -0.0715, 0.5517, -0.3632, -0.1922, -0.9497, 0.2503, -0.2921
+        ]).view(1, self.latent_channels, 1, 1, 1)
+        self.latents_std = torch.tensor([
+            2.8184, 1.4541, 2.3275, 2.6558, 1.2196, 1.7708, 2.6052, 2.0743,
+            3.2687, 2.1526, 2.8652, 1.5579, 1.6382, 1.1253, 2.8251, 1.9160
+        ]).view(1, self.latent_channels, 1, 1, 1)
+
+
+        self.taesd_decoder_name = None #TODO
+
+    def process_in(self, latent):
+        latents_mean = self.latents_mean.to(latent.device, latent.dtype)
+        latents_std = self.latents_std.to(latent.device, latent.dtype)
+        return (latent - latents_mean) * self.scale_factor / latents_std
+
+    def process_out(self, latent):
+        latents_mean = self.latents_mean.to(latent.device, latent.dtype)
+        latents_std = self.latents_std.to(latent.device, latent.dtype)
+        return latent * latents_std / self.scale_factor + latents_mean
+
+class Hunyuan3Dv2(LatentFormat):
+    latent_channels = 64
+    latent_dimensions = 1
+    scale_factor = 0.9990943042622529
+
+class Hunyuan3Dv2mini(LatentFormat):
+    latent_channels = 64
+    latent_dimensions = 1
+    scale_factor = 1.0188137142395404

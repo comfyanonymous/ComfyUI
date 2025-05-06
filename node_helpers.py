@@ -1,4 +1,5 @@
 import hashlib
+import torch
 
 from comfy.cli_args import args
 
@@ -35,3 +36,19 @@ def hasher():
         "sha512": hashlib.sha512
     }
     return hashfuncs[args.default_hashing_function]
+
+def string_to_torch_dtype(string):
+    if string == "fp32":
+        return torch.float32
+    if string == "fp16":
+        return torch.float16
+    if string == "bf16":
+        return torch.bfloat16
+
+def image_alpha_fix(destination, source):
+    if destination.shape[-1] < source.shape[-1]:
+        source = source[...,:destination.shape[-1]]
+    elif destination.shape[-1] > source.shape[-1]:
+        destination = torch.nn.functional.pad(destination, (0, 1))
+        destination[..., -1] = 1.0
+    return destination, source

@@ -25,7 +25,7 @@ import comfy.sample
 import comfy.sd
 import comfy.utils
 import comfy.controlnet
-from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict
+from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
 
 import comfy.clip_vision
 
@@ -63,6 +63,8 @@ class CLIPTextEncode(ComfyNodeABC):
     DESCRIPTION = "Encodes a text prompt using a CLIP model into an embedding that can be used to guide the diffusion model towards generating specific images."
 
     def encode(self, clip, text):
+        if clip is None:
+            raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
         tokens = clip.tokenize(text)
         return (clip.encode_from_tokens_scheduled(tokens), )
 
@@ -477,7 +479,7 @@ class SaveLatent:
 
         file = f"{filename}_{counter:05}_.latent"
 
-        results = list()
+        results: list[FileLocator] = []
         results.append({
             "filename": file,
             "subfolder": subfolder,
@@ -487,7 +489,7 @@ class SaveLatent:
         file = os.path.join(full_output_folder, file)
 
         output = {}
-        output["latent_tensor"] = samples["samples"]
+        output["latent_tensor"] = samples["samples"].contiguous()
         output["latent_format_version_0"] = torch.tensor([])
 
         comfy.utils.save_torch_file(output, file, metadata=metadata)
@@ -768,6 +770,7 @@ class VAELoader:
             vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
             sd = comfy.utils.load_torch_file(vae_path)
         vae = comfy.sd.VAE(sd=sd)
+        vae.throw_exception_if_invalid()
         return (vae,)
 
 class ControlNetLoader:
@@ -783,6 +786,8 @@ class ControlNetLoader:
     def load_controlnet(self, control_net_name):
         controlnet_path = folder_paths.get_full_path_or_raise("controlnet", control_net_name)
         controlnet = comfy.controlnet.load_controlnet(controlnet_path)
+        if controlnet is None:
+            raise RuntimeError("ERROR: controlnet file is invalid and does not contain a valid controlnet model.")
         return (controlnet,)
 
 class DiffControlNetLoader:
@@ -912,7 +917,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -922,23 +927,10 @@ class CLIPLoader:
 
     CATEGORY = "advanced/loaders"
 
-    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 / clip-g / clip-l\nstable_audio: t5\nmochi: t5"
+    DESCRIPTION = "[Recipes]\n\nstable_diffusion: clip-l\nstable_cascade: clip-g\nsd3: t5 xxl/ clip-g / clip-l\nstable_audio: t5 base\nmochi: t5 xxl\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\n hidream: llama-3.1 (Recommend) or t5"
 
     def load_clip(self, clip_name, type="stable_diffusion", device="default"):
-        if type == "stable_cascade":
-            clip_type = comfy.sd.CLIPType.STABLE_CASCADE
-        elif type == "sd3":
-            clip_type = comfy.sd.CLIPType.SD3
-        elif type == "stable_audio":
-            clip_type = comfy.sd.CLIPType.STABLE_AUDIO
-        elif type == "mochi":
-            clip_type = comfy.sd.CLIPType.MOCHI
-        elif type == "ltxv":
-            clip_type = comfy.sd.CLIPType.LTXV
-        elif type == "pixart":
-            clip_type = comfy.sd.CLIPType.PIXART
-        else:
-            clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
+        clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
 
         model_options = {}
         if device == "cpu":
@@ -953,7 +945,7 @@ class DualCLIPLoader:
     def INPUT_TYPES(s):
         return {"required": { "clip_name1": (folder_paths.get_filename_list("text_encoders"), ),
                               "clip_name2": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["sdxl", "sd3", "flux", "hunyuan_video"], ),
+                              "type": (["sdxl", "sd3", "flux", "hunyuan_video", "hidream"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -963,19 +955,13 @@ class DualCLIPLoader:
 
     CATEGORY = "advanced/loaders"
 
-    DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5"
+    DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5\nhidream: at least one of t5 or llama, recommended t5 and llama"
 
     def load_clip(self, clip_name1, clip_name2, type, device="default"):
+        clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
+
         clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", clip_name1)
         clip_path2 = folder_paths.get_full_path_or_raise("text_encoders", clip_name2)
-        if type == "sdxl":
-            clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
-        elif type == "sd3":
-            clip_type = comfy.sd.CLIPType.SD3
-        elif type == "flux":
-            clip_type = comfy.sd.CLIPType.FLUX
-        elif type == "hunyuan_video":
-            clip_type = comfy.sd.CLIPType.HUNYUAN_VIDEO
 
         model_options = {}
         if device == "cpu":
@@ -997,6 +983,8 @@ class CLIPVisionLoader:
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path_or_raise("clip_vision", clip_name)
         clip_vision = comfy.clip_vision.load(clip_path)
+        if clip_vision is None:
+            raise RuntimeError("ERROR: clip vision file is invalid and does not contain a valid vision model.")
         return (clip_vision,)
 
 class CLIPVisionEncode:
@@ -1058,10 +1046,11 @@ class StyleModelApply:
         for t in conditioning:
             (txt, keys) = t
             keys = keys.copy()
-            if strength_type == "attn_bias" and strength != 1.0:
+            # even if the strength is 1.0 (i.e, no change), if there's already a mask, we have to add to it
+            if "attention_mask" in keys or (strength_type == "attn_bias" and strength != 1.0):
                 # math.log raises an error if the argument is zero
                 # torch.log returns -inf, which is what we want
-                attn_bias = torch.log(torch.Tensor([strength]))
+                attn_bias = torch.log(torch.Tensor([strength if strength_type == "attn_bias" else 1.0]))
                 # get the size of the mask image
                 mask_ref_size = keys.get("attention_mask_img_shape", (1, 1))
                 n_ref = mask_ref_size[0] * mask_ref_size[1]
@@ -1510,7 +1499,7 @@ class KSampler:
         return {
             "required": {
                 "model": ("MODEL", {"tooltip": "The model used for denoising the input latent."}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The random seed used for creating the noise."}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True, "tooltip": "The random seed used for creating the noise."}),
                 "steps": ("INT", {"default": 20, "min": 1, "max": 10000, "tooltip": "The number of steps used in the denoising process."}),
                 "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01, "tooltip": "The Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality."}),
                 "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"tooltip": "The algorithm used when sampling, this can affect the quality, speed, and style of the generated output."}),
@@ -1538,7 +1527,7 @@ class KSamplerAdvanced:
         return {"required":
                     {"model": ("MODEL",),
                     "add_noise": (["enable", "disable"], ),
-                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
                     "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
@@ -1640,6 +1629,7 @@ class LoadImage:
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        files = folder_paths.filter_files_content_types(files, ["image"])
         return {"required":
                     {"image": (sorted(files), {"image_upload": True})},
                 }
@@ -1677,6 +1667,9 @@ class LoadImage:
             image = torch.from_numpy(image)[None,]
             if 'A' in i.getbands():
                 mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
+                mask = 1. - torch.from_numpy(mask)
+            elif i.mode == 'P' and 'transparency' in i.info:
+                mask = np.array(i.convert('RGBA').getchannel('A')).astype(np.float32) / 255.0
                 mask = 1. - torch.from_numpy(mask)
             else:
                 mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
@@ -1755,6 +1748,29 @@ class LoadImageMask:
             return "Invalid image file: {}".format(image)
 
         return True
+
+
+class LoadImageOutput(LoadImage):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("COMBO", {
+                    "image_upload": True,
+                    "image_folder": "output",
+                    "remote": {
+                        "route": "/internal/files/output",
+                        "refresh_button": True,
+                        "control_after_refresh": "first",
+                    },
+                }),
+            }
+        }
+
+    DESCRIPTION = "Load an image from the output folder. When the refresh button is clicked, the node will update the image list and automatically select the first image, allowing for easy iteration."
+    EXPERIMENTAL = True
+    FUNCTION = "load_image"
+
 
 class ImageScale:
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
@@ -1942,6 +1958,7 @@ NODE_CLASS_MAPPINGS = {
     "PreviewImage": PreviewImage,
     "LoadImage": LoadImage,
     "LoadImageMask": LoadImageMask,
+    "LoadImageOutput": LoadImageOutput,
     "ImageScale": ImageScale,
     "ImageScaleBy": ImageScaleBy,
     "ImageInvert": ImageInvert,
@@ -2042,6 +2059,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PreviewImage": "Preview Image",
     "LoadImage": "Load Image",
     "LoadImageMask": "Load Image (as Mask)",
+    "LoadImageOutput": "Load Image (from Outputs)",
     "ImageScale": "Upscale Image",
     "ImageScaleBy": "Upscale Image By",
     "ImageUpscaleWithModel": "Upscale Image (using Model)",
@@ -2088,21 +2106,25 @@ def get_module_name(module_path: str) -> str:
 
 
 def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes") -> bool:
-    module_name = os.path.basename(module_path)
+    module_name = get_module_name(module_path)
     if os.path.isfile(module_path):
         sp = os.path.splitext(module_path)
         module_name = sp[0]
+        sys_module_name = module_name
+    elif os.path.isdir(module_path):
+        sys_module_name = module_path.replace(".", "_x_")
+
     try:
         logging.debug("Trying to load custom node {}".format(module_path))
         if os.path.isfile(module_path):
-            module_spec = importlib.util.spec_from_file_location(module_name, module_path)
+            module_spec = importlib.util.spec_from_file_location(sys_module_name, module_path)
             module_dir = os.path.split(module_path)[0]
         else:
-            module_spec = importlib.util.spec_from_file_location(module_name, os.path.join(module_path, "__init__.py"))
+            module_spec = importlib.util.spec_from_file_location(sys_module_name, os.path.join(module_path, "__init__.py"))
             module_dir = module_path
 
         module = importlib.util.module_from_spec(module_spec)
-        sys.modules[module_name] = module
+        sys.modules[sys_module_name] = module
         module_spec.loader.exec_module(module)
 
         LOADED_MODULE_DIRS[module_name] = os.path.abspath(module_dir)
@@ -2225,11 +2247,32 @@ def init_builtin_extra_nodes():
         "nodes_lt.py",
         "nodes_hooks.py",
         "nodes_load_3d.py",
+        "nodes_cosmos.py",
+        "nodes_video.py",
+        "nodes_lumina2.py",
+        "nodes_wan.py",
+        "nodes_lotus.py",
+        "nodes_hunyuan3d.py",
+        "nodes_primitive.py",
+        "nodes_cfg.py",
+        "nodes_optimalsteps.py",
+        "nodes_hidream.py",
+        "nodes_fresca.py",
+        "nodes_preview_any.py",
+    ]
+
+    api_nodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_api_nodes")
+    api_nodes_files = [
+        "nodes_api.py",
     ]
 
     import_failed = []
     for node_file in extras_files:
         if not load_custom_node(os.path.join(extras_dir, node_file), module_parent="comfy_extras"):
+            import_failed.append(node_file)
+
+    for node_file in api_nodes_files:
+        if not load_custom_node(os.path.join(api_nodes_dir, node_file), module_parent="comfy_api_nodes"):
             import_failed.append(node_file)
 
     return import_failed

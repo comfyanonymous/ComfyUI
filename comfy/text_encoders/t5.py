@@ -203,7 +203,7 @@ class T5Stack(torch.nn.Module):
         mask = None
         if attention_mask is not None:
             mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])).expand(attention_mask.shape[0], 1, attention_mask.shape[-1], attention_mask.shape[-1])
-            mask = mask.masked_fill(mask.to(torch.bool), float("-inf"))
+            mask = mask.masked_fill(mask.to(torch.bool), -torch.finfo(x.dtype).max)
 
         intermediate = None
         optimized_attention = optimized_attention_for_device(x.device, mask=attention_mask is not None, small_input=True)
@@ -239,8 +239,11 @@ class T5(torch.nn.Module):
     def set_input_embeddings(self, embeddings):
         self.shared = embeddings
 
-    def forward(self, input_ids, *args, **kwargs):
-        x = self.shared(input_ids, out_dtype=kwargs.get("dtype", torch.float32))
+    def forward(self, input_ids, attention_mask, embeds=None, num_tokens=None, **kwargs):
+        if input_ids is None:
+            x = embeds
+        else:
+            x = self.shared(input_ids, out_dtype=kwargs.get("dtype", torch.float32))
         if self.dtype not in [torch.float32, torch.float16, torch.bfloat16]:
             x = torch.nan_to_num(x) #Fix for fp8 T5 base
-        return self.encoder(x, *args, **kwargs)
+        return self.encoder(x, attention_mask=attention_mask, **kwargs)
