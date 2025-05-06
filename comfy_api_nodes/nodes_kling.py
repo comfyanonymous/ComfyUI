@@ -412,10 +412,13 @@ class KlingTextToVideoNode(KlingNodeBase):
         mode: str,
         aspect_ratio: str,
         camera_control: Optional[KlingCameraControl] = None,
+        model_name: Optional[str] = None,
+        duration: Optional[str] = None,
         auth_token: Optional[str] = None,
     ) -> tuple[VideoFromFile, str, str]:
         validate_prompts(prompt, negative_prompt, MAX_PROMPT_LENGTH_T2V)
-        mode, duration, model_name = self.get_mode_string_mapping()[mode]
+        if model_name is None:
+            mode, duration, model_name = self.get_mode_string_mapping()[mode]
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_TEXT_TO_VIDEO,
@@ -502,9 +505,9 @@ class KlingCameraControlT2VNode(KlingTextToVideoNode):
         auth_token: Optional[str] = None,
     ):
         return super().api_call(
-            model_name=KlingVideoGenModelName.kling_v1_5,
+            model_name=KlingVideoGenModelName.kling_v1,
             cfg_scale=cfg_scale,
-            mode=KlingVideoGenMode.pro,
+            mode=KlingVideoGenMode.std,
             aspect_ratio=KlingVideoGenAspectRatio(aspect_ratio),
             duration=KlingVideoGenDuration.field_5,
             prompt=prompt,
