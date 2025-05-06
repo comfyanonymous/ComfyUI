@@ -89,6 +89,7 @@ operation = PollingOperation(
 result = operation.execute(client=api_client)  # Returns the final ImageGenerationResult when done
 """
 
+from __future__ import annotations
 import logging
 import time
 import io
@@ -196,7 +197,6 @@ class ApiClient:
             "headers": headers,
         }
 
-
     def get_headers(self) -> Dict[str, str]:
         """Get headers for API requests, including authentication if available"""
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -251,13 +251,14 @@ class ApiClient:
         logging.debug(f"[DEBUG] Params: {params}")
         logging.debug(f"[DEBUG] Data: {data}")
 
-        match content_type:
-            case "application/x-www-form-urlencoded":
-                payload_args = self._create_urlencoded_form_data_args(data, request_headers)
-            case "multipart/form-data":
-                payload_args = self._create_form_data_args(data, files, request_headers, multipart_parser)
-            case _:
-                payload_args = self._create_json_payload_args(data, request_headers)
+        if content_type == "application/x-www-form-urlencoded":
+            payload_args = self._create_urlencoded_form_data_args(data, request_headers)
+        elif content_type == "multipart/form-data":
+            payload_args = self._create_form_data_args(
+                data, files, request_headers, multipart_parser
+            )
+        else:
+            payload_args = self._create_json_payload_args(data, request_headers)
 
         try:
             response = requests.request(

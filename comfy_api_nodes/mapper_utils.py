@@ -99,19 +99,18 @@ def model_field_to_node_input(
     field_info: FieldInfo = base_model.model_fields[field_name]
     result: NodeInput
 
-    match input_type:
-        case IO.IMAGE:
-            result = _model_field_to_image_input(field_info, **kwargs)
-        case IO.STRING:
-            result = _model_field_to_string_input(field_info, **kwargs)
-        case IO.FLOAT:
-            result = _model_field_to_float_input(field_info, **kwargs)
-        case IO.INT:
-            result = _model_field_to_int_input(field_info, **kwargs)
-        case IO.COMBO:
-            result = _model_field_to_combo_input(field_info, **kwargs)
-        case _:
-            message = f"Invalid input type: {input_type}"
-            raise ValueError(message)
+    if input_type == IO.IMAGE:
+        result = _model_field_to_image_input(field_info, **kwargs)
+    elif input_type == IO.STRING:
+        result = _model_field_to_string_input(field_info, **kwargs)
+    elif input_type == IO.FLOAT:
+        result = _model_field_to_float_input(field_info, **kwargs)
+    elif input_type == IO.INT:
+        result = _model_field_to_int_input(field_info, **kwargs)
+    elif input_type == IO.COMBO:
+        result = _model_field_to_combo_input(field_info, **kwargs)
+    else:
+        message = f"Invalid input type: {input_type}"
+        raise ValueError(message)
 
     return result

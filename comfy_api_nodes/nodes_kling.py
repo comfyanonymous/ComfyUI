@@ -4,6 +4,7 @@ For source of truth on the allowed permutations of request fields, please refere
 - [Compatibility Table](https://app.klingai.com/global/dev/document-api/apiReference/model/skillsMap)
 """
 
+from __future__ import annotations
 from typing import Optional, TypeVar, Any
 import math
 import logging
