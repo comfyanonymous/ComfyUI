@@ -205,6 +205,7 @@ class CLIP:
                 cond, pooled = o[:2]
                 
                 pooled_dict = {"pooled_output": pooled}
+                # add clip_start_percent and clip_end_percent in pooled
                 if len(o) > 2 and isinstance(o[2], dict):
                     pooled_dict.update(o[2])
                 
