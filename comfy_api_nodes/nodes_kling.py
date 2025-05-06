@@ -1388,7 +1388,7 @@ class KlingVirtualTryOnNode(KlingImageGenerationBase):
         validate_image_result_response(final_response)
 
         images = get_images_from_response(final_response)
-        return image_result_to_node_output(images)
+        return (image_result_to_node_output(images),)
 
 
 class KlingImageGenerationNode(KlingImageGenerationBase):
@@ -1517,7 +1517,7 @@ class KlingImageGenerationNode(KlingImageGenerationBase):
         validate_image_result_response(final_response)
 
         images = get_images_from_response(final_response)
-        return image_result_to_node_output(images)
+        return (image_result_to_node_output(images),)
 
 
 NODE_CLASS_MAPPINGS = {
