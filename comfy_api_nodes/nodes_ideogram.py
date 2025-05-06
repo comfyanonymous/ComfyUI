@@ -21,6 +21,7 @@ from comfy_api_nodes.apis.client import (
 from comfy_api_nodes.apinode_utils import (
     download_url_to_bytesio,
     bytesio_to_image_tensor,
+    resize_mask_to_image,
 )
 
 V1_V1_RES_MAP = {
@@ -649,6 +650,10 @@ class IdeogramV3(ComfyNodeABC):
 
             # Process image and mask
             input_tensor = image.squeeze().cpu()
+            # Resize mask to match image dimension
+            mask = resize_mask_to_image(mask, image, allow_gradient=False)
+            # Invert mask, as Ideogram API will edit black areas instead of white areas (opposite of convention).
+            mask = 1.0 - mask
 
             # Validate mask dimensions match image
             if mask.shape[1:] != image.shape[1:-1]:
