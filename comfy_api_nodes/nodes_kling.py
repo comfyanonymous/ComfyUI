@@ -1001,6 +1001,8 @@ class KlingDualCharacterVideoEffectNode(KlingVideoEffectsBase):
         }
 
     DESCRIPTION = "Achieve different special effects when generating a video based on the effect_scene. First image will be positioned on left side, second on right side of the composite."
+    RETURN_TYPES = ("VIDEO", "STRING")
+    RETURN_NAMES = ("VIDEO", "duration")
 
     def api_call(
         self,
@@ -1012,7 +1014,7 @@ class KlingDualCharacterVideoEffectNode(KlingVideoEffectsBase):
         duration: KlingVideoGenDuration,
         auth_token: Optional[str] = None,
     ):
-        return super().api_call(
+        video, _, duration = super().api_call(
             dual_character=True,
             effect_scene=effect_scene,
             model_name=model_name,
@@ -1022,7 +1024,7 @@ class KlingDualCharacterVideoEffectNode(KlingVideoEffectsBase):
             image_2=image_right,
             auth_token=auth_token,
         )
-
+        return video, duration
 
 class KlingSingleImageVideoEffectNode(KlingVideoEffectsBase):
     """Kling Single Image Video Effect Node"""
