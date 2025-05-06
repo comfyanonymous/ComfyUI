@@ -88,7 +88,7 @@ class CLIP:
         if no_init:
             return
         
-        self.clip_type_enum = clip_type_enum # MODIFIED: Store the original CLIPType
+        self.clip_type_enum = clip_type_enum
 
         params = target.params.copy()
         clip = target.clip
@@ -134,7 +134,7 @@ class CLIP:
         n.tokenizer_options = self.tokenizer_options.copy()
         n.use_clip_schedule = self.use_clip_schedule
         n.apply_hooks_to_conds = self.apply_hooks_to_conds
-        n.clip_type_enum = self.clip_type_enum # MODIFIED: Clone the stored CLIPType
+        n.clip_type_enum = self.clip_type_enum
         return n
 
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
@@ -198,17 +198,14 @@ class CLIP:
                 o = self.cond_stage_model.encode_token_weights(tokens)
                 cond, pooled = o[:2]
                 
-                # --- MODIFICATION FOR SCHEDULED PATH (CONSISTENCY) ---
-                # Populate initial pooled_dict including o[2] if present, then filter
                 pooled_dict = {"pooled_output": pooled}
-                if len(o) > 2 and isinstance(o[2], dict): # Check if o[2] is a dict
+                if len(o) > 2 and isinstance(o[2], dict):
                     pooled_dict.update(o[2])
                 
                 if hasattr(self, 'clip_type_enum') and self.clip_type_enum == CLIPType.CHROMA:
                     if 'attention_mask' in pooled_dict:
                         logging.debug(f"CLIP type {self.clip_type_enum.name} (scheduled path): Removing 'attention_mask' from conditioning output.")
                         pooled_dict.pop('attention_mask', None)
-                # --- END MODIFICATION FOR SCHEDULED PATH ---
 
                 pooled_dict["clip_start_percent"] = t_range[0]
                 pooled_dict["clip_end_percent"] = t_range[1]
@@ -235,17 +232,15 @@ class CLIP:
         cond, pooled = o[:2]
         if return_dict:
             out = {"cond": cond, "pooled_output": pooled}
-            if len(o) > 2 and isinstance(o[2], dict): # Check if o[2] is a dict
+            if len(o) > 2 and isinstance(o[2], dict):
                 for k in o[2]:
                     out[k] = o[2][k]
             self.add_hooks_to_dict(out)
 
-            # ---- START MODIFICATION for non-scheduled path ----
             if hasattr(self, 'clip_type_enum') and self.clip_type_enum == CLIPType.CHROMA:
                 if 'attention_mask' in out:
                     logging.debug(f"CLIP type {self.clip_type_enum.name} (non-scheduled path): Removing 'attention_mask' from conditioning output.")
                     out.pop('attention_mask', None)
-            # ---- END MODIFICATION for non-scheduled path ----
             return out
 
         if return_pooled:
@@ -837,12 +832,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             elif clip_type == CLIPType.LTXV:
                 clip_target.clip = comfy.text_encoders.lt.ltxv_te(**common_t5_args)
                 clip_target.tokenizer = comfy.text_encoders.lt.LTXVT5Tokenizer
-            # ---- START MODIFICATION for T5_XXL model selection ----
-            elif clip_type == CLIPType.PIXART: # CHROMA removed from this OR condition
-                                               # PIXART keeps its specific text encoder.
+            elif clip_type == CLIPType.PIXART: 
                 clip_target.clip = comfy.text_encoders.pixart_t5.pixart_te(**common_t5_args)
                 clip_target.tokenizer = comfy.text_encoders.pixart_t5.PixArtTokenizer
-            # ---- END MODIFICATION for T5_XXL model selection ----
             elif clip_type == CLIPType.WAN:
                 clip_target.clip = comfy.text_encoders.wan.te(**common_t5_args)
                 clip_target.tokenizer = comfy.text_encoders.wan.WanT5Tokenizer
@@ -852,12 +844,6 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                                                                         clip_l=False, clip_g=False, t5=True, llama=False, dtype_llama=None, llama_scaled_fp8=None)
                 clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
             else: 
-                # This 'else' now covers:
-                # - MOCHI (T5XXL)
-                # - CHROMA (T5XXL) - because it's not caught by the PIXART elif anymore
-                # - STABLE_DIFFUSION (T5XXL) - if it falls here by default
-                # - Any other unhandled CLIPType with T5XXL
-                # All these will use comfy.text_encoders.genmo.mochi_te
                 if clip_type == CLIPType.CHROMA:
                     logging.debug(f"TEModel.T5_XXL with CLIPType.CHROMA: Using Mochi-like TE (comfy.text_encoders.genmo.mochi_te) for tensor generation.")
                 else:
@@ -882,17 +868,13 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                                                                         clip_l=False, clip_g=False, t5=False, llama=True, dtype_t5=None, t5xxl_scaled_fp8=None)
             clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
         else:
-            # clip_l default
-            # This branch is taken for TEModel.CLIP_L or if te_model is None/unrecognized.
-            # If clip_type is CHROMA here (e.g. Chroma with a CLIP-L model),
-            # sd1_clip.SD1ClipModel will be used, and its attention_mask will be removed by the CLIP class logic.
             if clip_type == CLIPType.SD3:
                 clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=True, clip_g=False, t5=False)
                 clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
             elif clip_type == CLIPType.HIDREAM:
                 clip_target.clip = comfy.text_encoders.hidream.hidream_clip(clip_l=True, clip_g=False, t5=False, llama=False, dtype_t5=None, dtype_llama=None, t5xxl_scaled_fp8=None, llama_scaled_fp8=None)
                 clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
-            else: # Default for CLIP_L like models (includes STABLE_DIFFUSION, and CHROMA if CLIP_L)
+            else: 
                 clip_target.clip = sd1_clip.SD1ClipModel
                 clip_target.tokenizer = sd1_clip.SD1Tokenizer
     elif len(clip_data) == 2:
@@ -940,7 +922,6 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         parameters += comfy.utils.calculate_parameters(c)
         tokenizer_data, model_options = comfy.text_encoders.long_clipl.model_options_long_clip(c, tokenizer_data, model_options)
 
-    # MODIFIED: Pass the original clip_type (enum) to the CLIP constructor
     clip = CLIP(clip_target, embedding_directory=embedding_directory, parameters=parameters, tokenizer_data=tokenizer_data, model_options=model_options, clip_type_enum=clip_type)
     
     for c in clip_data:
