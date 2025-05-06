@@ -28,9 +28,6 @@ from comfy_api_nodes.apinode_utils import (
 class OpenAIDalle2(ComfyNodeABC):
     """
     Generates images synchronously via OpenAI's DALL·E 2 endpoint.
-
-    Uses the proxy at /proxy/openai/images/generations. Returned URLs are short‑lived,
-    so download or cache results if you need to keep them.
     """
 
     def __init__(self):
@@ -183,9 +180,6 @@ class OpenAIDalle2(ComfyNodeABC):
 class OpenAIDalle3(ComfyNodeABC):
     """
     Generates images synchronously via OpenAI's DALL·E 3 endpoint.
-
-    Uses the proxy at /proxy/openai/images/generations. Returned URLs are short‑lived,
-    so download or cache results if you need to keep them.
     """
 
     def __init__(self):
@@ -291,9 +285,6 @@ class OpenAIDalle3(ComfyNodeABC):
 class OpenAIGPTImage1(ComfyNodeABC):
     """
     Generates images synchronously via OpenAI's GPT Image 1 endpoint.
-
-    Uses the proxy at /proxy/openai/images/generations. Returned URLs are short‑lived,
-    so download or cache results if you need to keep them.
     """
 
     def __init__(self):

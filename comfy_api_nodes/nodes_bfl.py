@@ -112,7 +112,7 @@ def convert_image_to_base64(image: torch.Tensor):
 
 class FluxProUltraImageNode(ComfyNodeABC):
     """
-    Generates images synchronously based on prompt and resolution.
+    Generates images using Flux Pro 1.1 Ultra via api based on prompt and resolution.
     """
 
     MINIMUM_RATIO = 1 / 4

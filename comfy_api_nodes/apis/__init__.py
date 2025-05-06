@@ -568,6 +568,7 @@ class KlingImageGenImageReferenceType(str, Enum):
 class KlingImageGenModelName(str, Enum):
     kling_v1 = 'kling-v1'
     kling_v1_5 = 'kling-v1-5'
+    kling_v2 = 'kling-v2'
 
 
 class KlingImageResult(BaseModel):
