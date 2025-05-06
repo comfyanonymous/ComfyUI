@@ -808,7 +808,7 @@ class KlingVideoExtendNode(KlingNodeBase):
 
     RETURN_TYPES = ("VIDEO", "STRING", "STRING")
     RETURN_NAMES = ("VIDEO", "video_id", "duration")
-    DESCRIPTION = "Kling Video Extend Node. Extend videos made by other Kling nodes. The Kling ID is output by Kling Nodes."
+    DESCRIPTION = "Kling Video Extend Node. Extend videos made by other Kling nodes. The video_id is created by using other Kling Nodes."
 
     def get_response(self, task_id: str, auth_token: str) -> KlingVideoExtendResponse:
         return poll_until_finished(
