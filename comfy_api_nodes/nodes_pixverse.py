@@ -428,12 +428,6 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
                         "tooltip": "An optional text description of undesired elements on an image.",
                     },
                 ),
-                "pixverse_template": (
-                    PixverseIO.TEMPLATE,
-                    {
-                        "tooltip": "An optional template to influence style of generation, created by the PixVerse Template node."
-                    }
-                )
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
@@ -482,7 +476,6 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
                 duration=duration_seconds,
                 motion_mode=motion_mode,
                 negative_prompt=negative_prompt if negative_prompt else None,
-                template_id=pixverse_template,
                 seed=seed,
             ),
             auth_kwargs=kwargs,
