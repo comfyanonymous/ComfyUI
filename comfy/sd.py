@@ -216,7 +216,9 @@ class CLIP:
 
                 pooled_dict["clip_start_percent"] = t_range[0]
                 pooled_dict["clip_end_percent"] = t_range[1]
+                # add/update any keys with the provided add_dict
                 pooled_dict.update(add_dict)
+                # add hooks stored on clip
                 self.add_hooks_to_dict(pooled_dict)
                 all_cond_pooled.append([cond, pooled_dict])
                 if show_pbar:
