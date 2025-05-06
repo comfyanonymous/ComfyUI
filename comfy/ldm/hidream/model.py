@@ -699,10 +699,13 @@ class HiDreamImageTransformer2DModel(nn.Module):
         y: Optional[torch.Tensor] = None,
         context: Optional[torch.Tensor] = None,
         encoder_hidden_states_llama3=None,
+        image_cond=None,
         control = None,
         transformer_options = {},
     ) -> torch.Tensor:
         bs, c, h, w = x.shape
+        if image_cond is not None:
+            x = torch.cat([x, image_cond], dim=-1)
         hidden_states = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
         timesteps = t
         pooled_embeds = y

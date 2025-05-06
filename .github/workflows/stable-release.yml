@@ -12,7 +12,7 @@ on:
         description: 'CUDA version'
         required: true
         type: string
-        default: "126"
+        default: "128"
       python_minor:
         description: 'Python minor version'
         required: true
@@ -22,7 +22,7 @@ on:
         description: 'Python patch version'
         required: true
         type: string
-        default: "9"
+        default: "10"
 
 
 jobs:
@@ -90,6 +90,8 @@ jobs:
 
           cd ComfyUI_windows_portable
           python_embeded/python.exe -s ComfyUI/main.py --quick-test-for-ci --cpu
+
+          python_embeded/python.exe -s ./update/update.py ComfyUI/
 
           ls
 
