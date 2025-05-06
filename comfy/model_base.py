@@ -1111,7 +1111,7 @@ class HiDream(BaseModel):
         return out
 
 class Chroma(Flux):
-    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.chroma.model.Chroma)
 
     def extra_conds(self, **kwargs):
