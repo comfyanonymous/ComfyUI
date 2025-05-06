@@ -163,10 +163,13 @@ class CLIP:
         all_cond_pooled: list[tuple[torch.Tensor, dict[str]]] = []
         all_hooks = self.patcher.forced_hooks
         if all_hooks is None or not self.use_clip_schedule:
+           # if no hooks or shouldn't use clip schedule, do unscheduled encode_from_tokens and perform add_dict
             return_pooled = "unprojected" if unprojected else True
             pooled_dict = self.encode_from_tokens(tokens, return_pooled=return_pooled, return_dict=True)
             cond = pooled_dict.pop("cond")
+            # add/update any keys with the provided add_dict
             pooled_dict.update(add_dict)
+            # add hooks stored on clip
             all_cond_pooled.append([cond, pooled_dict])
         else:
             scheduled_keyframes = all_hooks.get_hooks_for_clip_schedule()
@@ -185,6 +188,7 @@ class CLIP:
 
             for scheduled_opts in scheduled_keyframes:
                 t_range = scheduled_opts[0]
+                # don't bother encoding any conds outside of start_percent and end_percent bounds
                 if "start_percent" in add_dict:
                     if t_range[1] < add_dict["start_percent"]:
                         continue
@@ -194,7 +198,9 @@ class CLIP:
                 hooks_keyframes = scheduled_opts[1]
                 for hook, keyframe in hooks_keyframes:
                     hook.hook_keyframe._current_keyframe = keyframe
+                # apply appropriate hooks with values that match new hook_keyframe
                 self.patcher.patch_hooks(all_hooks)
+                # perform encoding as normal
                 o = self.cond_stage_model.encode_token_weights(tokens)
                 cond, pooled = o[:2]
                 
@@ -872,6 +878,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=True, clip_g=False, t5=False)
                 clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
             elif clip_type == CLIPType.HIDREAM:
+                # Detect
                 clip_target.clip = comfy.text_encoders.hidream.hidream_clip(clip_l=True, clip_g=False, t5=False, llama=False, dtype_t5=None, dtype_llama=None, t5xxl_scaled_fp8=None, llama_scaled_fp8=None)
                 clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
             else: 
@@ -901,6 +908,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_g = TEModel.CLIP_G in hidream_dualclip_classes
             t5 = TEModel.T5_XXL in hidream_dualclip_classes
             llama = TEModel.LLAMA3_8 in hidream_dualclip_classes
+            # Initialize t5xxl_detect and llama_detect kwargs if needed
             
             t5_kwargs = t5xxl_detect(clip_data) if t5 else {}
             llama_kwargs = llama_detect(clip_data) if llama else {}
