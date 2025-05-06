@@ -785,6 +785,10 @@ class LTXV(supported_models_base.BASE):
     vae_key_prefix = ["vae."]
     text_encoder_key_prefix = ["text_encoders."]
 
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        self.memory_usage_factor = (unet_config.get("cross_attention_dim", 2048) / 2048) * 5.5
+
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.LTXV(self, device=device)
         return out
