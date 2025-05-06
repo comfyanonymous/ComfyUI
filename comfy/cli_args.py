@@ -148,6 +148,7 @@ parser.add_argument("--windows-standalone-build", action="store_true", help="Win
 
 parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
 parser.add_argument("--disable-all-custom-nodes", action="store_true", help="Disable loading all custom nodes.")
+parser.add_argument("--disable-api-nodes", action="store_true", help="Disable loading all api nodes.")
 
 parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
@@ -191,6 +192,13 @@ parser.add_argument(
 parser.add_argument("--user-directory", type=is_valid_directory, default=None, help="Set the ComfyUI user directory with an absolute path. Overrides --base-directory.")
 
 parser.add_argument("--enable-compress-response-body", action="store_true", help="Enable compressing response body.")
+
+parser.add_argument(
+    "--comfy-api-base",
+    type=str,
+    default="https://api.comfy.org",
+    help="Set the base URL for the ComfyUI API.  (default: https://api.comfy.org)",
+)
 
 if comfy.options.args_parsing:
     args = parser.parse_args()
