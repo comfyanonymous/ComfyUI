@@ -270,7 +270,7 @@ def start_comfyui(asyncio_loop=None):
     q = execution.PromptQueue(prompt_server)
 
     hook_breaker_ac10a0.save_functions()
-    nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
+    nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes, init_api_nodes=not args.disable_api_nodes)
     hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()
