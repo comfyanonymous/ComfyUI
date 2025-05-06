@@ -831,30 +831,25 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.sd2_clip.SD2ClipModel
             clip_target.tokenizer = comfy.text_encoders.sd2_clip.SD2Tokenizer
         elif te_model == TEModel.T5_XXL:
-            common_t5_args = t5xxl_detect(clip_data) 
             if clip_type == CLIPType.SD3:
-                clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, **common_t5_args)
+                clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, **t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
             elif clip_type == CLIPType.LTXV:
-                clip_target.clip = comfy.text_encoders.lt.ltxv_te(**common_t5_args)
+                clip_target.clip = comfy.text_encoders.lt.ltxv_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.lt.LTXVT5Tokenizer
-            elif clip_type == CLIPType.PIXART: 
-                clip_target.clip = comfy.text_encoders.pixart_t5.pixart_te(**common_t5_args)
+            elif clip_type == CLIPType.PIXART:
+                clip_target.clip = comfy.text_encoders.pixart_t5.pixart_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.pixart_t5.PixArtTokenizer
             elif clip_type == CLIPType.WAN:
-                clip_target.clip = comfy.text_encoders.wan.te(**common_t5_args)
+                clip_target.clip = comfy.text_encoders.wan.te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.wan.WanT5Tokenizer
                 tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
             elif clip_type == CLIPType.HIDREAM:
-                clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**common_t5_args,
+                clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**t5xxl_detect(clip_data),
                                                                         clip_l=False, clip_g=False, t5=True, llama=False, dtype_llama=None, llama_scaled_fp8=None)
                 clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
-            else: 
-                if clip_type == CLIPType.CHROMA:
-                    logging.debug(f"TEModel.T5_XXL with CLIPType.CHROMA: Using Mochi-like TE (comfy.text_encoders.genmo.mochi_te) for tensor generation.")
-                else:
-                    logging.debug(f"TEModel.T5_XXL with CLIPType.{clip_type.name if clip_type else 'Unknown'}: Falling to Mochi-like TE (comfy.text_encoders.genmo.mochi_te).")
-                clip_target.clip = comfy.text_encoders.genmo.mochi_te(**common_t5_args)
+            else: #CLIPType.MOCHI or CLIPType.CHROMA
+                clip_target.clip = comfy.text_encoders.genmo.mochi_te(**t5xxl_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.genmo.MochiT5Tokenizer
         elif te_model == TEModel.T5_XXL_OLD:
             clip_target.clip = comfy.text_encoders.cosmos.te(**t5xxl_detect(clip_data))
