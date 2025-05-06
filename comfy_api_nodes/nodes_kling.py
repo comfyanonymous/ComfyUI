@@ -225,13 +225,16 @@ def video_result_to_node_output(
 
 
 def image_result_to_node_output(
-    image: KlingImageResult,
+    images: list[KlingImageResult],
 ) -> torch.Tensor:
     """
     Converts a KlingImageResult to a tuple containing a [B, H, W, C] tensor.
     If multiple images are returned, they will be stacked along the batch dimension.
     """
-    return (download_url_to_image_tensor(image.url),)
+    if len(images) == 1:
+        return download_url_to_image_tensor(images[0].url)
+    else:
+        return torch.cat([download_url_to_image_tensor(image.url) for image in images])
 
 
 class KlingNodeBase(ComfyNodeABC):
@@ -1384,8 +1387,8 @@ class KlingVirtualTryOnNode(KlingImageGenerationBase):
         final_response = self.get_response(task_id, auth_token)
         validate_image_result_response(final_response)
 
-        image = get_images_from_response(final_response)
-        return image_result_to_node_output(image)
+        images = get_images_from_response(final_response)
+        return image_result_to_node_output(images)
 
 
 class KlingImageGenerationNode(KlingImageGenerationBase):
@@ -1513,8 +1516,8 @@ class KlingImageGenerationNode(KlingImageGenerationBase):
         final_response = self.get_response(task_id, auth_token)
         validate_image_result_response(final_response)
 
-        image = get_images_from_response(final_response)
-        return image_result_to_node_output(image)
+        images = get_images_from_response(final_response)
+        return image_result_to_node_output(images)
 
 
 NODE_CLASS_MAPPINGS = {
