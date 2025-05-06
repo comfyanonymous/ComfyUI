@@ -278,7 +278,6 @@ class ApiClient:
             "headers": headers,
         }
 
-
     def get_headers(self) -> Dict[str, str]:
         """Get headers for API requests, including authentication if available"""
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
