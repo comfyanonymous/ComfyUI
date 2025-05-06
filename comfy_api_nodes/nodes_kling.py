@@ -362,7 +362,12 @@ class KlingTextToVideoNode(KlingNodeBase):
                     IO.STRING, KlingText2VideoRequest, "negative_prompt", multiline=True
                 ),
                 "cfg_scale": model_field_to_node_input(
-                    IO.FLOAT, KlingText2VideoRequest, "cfg_scale"
+                    IO.FLOAT,
+                    KlingText2VideoRequest,
+                    "cfg_scale",
+                    default=1.0,
+                    min=0.0,
+                    max=1.0,
                 ),
                 "aspect_ratio": model_field_to_node_input(
                     IO.COMBO,
@@ -459,7 +464,12 @@ class KlingCameraControlT2VNode(KlingTextToVideoNode):
                     multiline=True,
                 ),
                 "cfg_scale": model_field_to_node_input(
-                    IO.FLOAT, KlingText2VideoRequest, "cfg_scale"
+                    IO.FLOAT,
+                    KlingText2VideoRequest,
+                    "cfg_scale",
+                    default=0.75,
+                    min=0.0,
+                    max=1.0,
                 ),
                 "aspect_ratio": model_field_to_node_input(
                     IO.COMBO,
@@ -527,7 +537,12 @@ class KlingImage2VideoNode(KlingNodeBase):
                     enum_type=KlingVideoGenModelName,
                 ),
                 "cfg_scale": model_field_to_node_input(
-                    IO.FLOAT, KlingImage2VideoRequest, "cfg_scale", default=0.8
+                    IO.FLOAT,
+                    KlingImage2VideoRequest,
+                    "cfg_scale",
+                    default=0.8,
+                    min=0.0,
+                    max=1.0,
                 ),
                 "mode": model_field_to_node_input(
                     IO.COMBO,
@@ -646,7 +661,12 @@ class KlingCameraControlI2VNode(KlingImage2VideoNode):
                     multiline=True,
                 ),
                 "cfg_scale": model_field_to_node_input(
-                    IO.FLOAT, KlingImage2VideoRequest, "cfg_scale"
+                    IO.FLOAT,
+                    KlingImage2VideoRequest,
+                    "cfg_scale",
+                    default=0.75,
+                    min=0.0,
+                    max=1.0,
                 ),
                 "aspect_ratio": model_field_to_node_input(
                     IO.COMBO,
@@ -733,7 +753,12 @@ class KlingStartEndFrameNode(KlingImage2VideoNode):
                     multiline=True,
                 ),
                 "cfg_scale": model_field_to_node_input(
-                    IO.FLOAT, KlingImage2VideoRequest, "cfg_scale"
+                    IO.FLOAT,
+                    KlingImage2VideoRequest,
+                    "cfg_scale",
+                    default=0.5,
+                    min=0.0,
+                    max=1.0,
                 ),
                 "aspect_ratio": model_field_to_node_input(
                     IO.COMBO,
@@ -797,7 +822,12 @@ class KlingVideoExtendNode(KlingNodeBase):
                     multiline=True,
                 ),
                 "cfg_scale": model_field_to_node_input(
-                    IO.FLOAT, KlingVideoExtendRequest, "cfg_scale"
+                    IO.FLOAT,
+                    KlingVideoExtendRequest,
+                    "cfg_scale",
+                    default=0.5,
+                    min=0.0,
+                    max=1.0,
                 ),
                 "video_id": model_field_to_node_input(
                     IO.STRING, KlingVideoExtendRequest, "video_id", forceInput=True
