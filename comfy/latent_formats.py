@@ -466,3 +466,7 @@ class Hunyuan3Dv2mini(LatentFormat):
     latent_channels = 64
     latent_dimensions = 1
     scale_factor = 1.0188137142395404
+
+class ACEAudio(LatentFormat):
+    latent_channels = 8
+    latent_dimensions = 2
