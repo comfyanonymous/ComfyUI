@@ -1,6 +1,6 @@
 import torch
 import comfy.model_management
-
+import node_helpers
 
 class TextEncodeAceStepAudio:
     @classmethod
@@ -9,15 +9,18 @@ class TextEncodeAceStepAudio:
             "clip": ("CLIP", ),
             "tags": ("STRING", {"multiline": True, "dynamicPrompts": True}),
             "lyrics": ("STRING", {"multiline": True, "dynamicPrompts": True}),
+            "lyrics_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
             }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
 
-    def encode(self, clip, tags, lyrics):
+    def encode(self, clip, tags, lyrics, lyrics_strength):
         tokens = clip.tokenize(tags, lyrics=lyrics)
-        return (clip.encode_from_tokens_scheduled(tokens), )
+        conditioning = clip.encode_from_tokens_scheduled(tokens)
+        conditioning = node_helpers.conditioning_set_values(conditioning, {"lyrics_strength": lyrics_strength})
+        return (conditioning, )
 
 
 class EmptyAceStepLatentAudio:
