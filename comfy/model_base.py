@@ -1139,4 +1139,5 @@ class ACEStep(BaseModel):
         if cross_attn is not None:
             out['lyric_token_idx'] = comfy.conds.CONDRegular(conditioning_lyrics)
         out['speaker_embeds'] = comfy.conds.CONDRegular(torch.zeros(noise.shape[0], 512, device=noise.device, dtype=noise.dtype))
+        out['lyrics_strength'] = comfy.conds.CONDConstant(kwargs.get("lyrics_strength", 1.0))
         return out
