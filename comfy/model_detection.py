@@ -226,6 +226,31 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
         return dit_config
 
+    if '{}genre_embedder.weight'.format(key_prefix) in state_dict_keys: #ACE-Step model
+        dit_config = {}
+        dit_config["audio_model"] = "ace"
+        dit_config["attention_head_dim"] = 128
+        dit_config["in_channels"] = 8
+        dit_config["inner_dim"] = 2560
+        dit_config["max_height"] = 16
+        dit_config["max_position"] = 32768
+        dit_config["max_width"] = 32768
+        dit_config["mlp_ratio"] = 2.5
+        dit_config["num_attention_heads"] = 20
+        dit_config["num_layers"] = 24
+        dit_config["out_channels"] = 8
+        dit_config["patch_size"] = [16, 1]
+        dit_config["rope_theta"] = 1000000.0
+        dit_config["speaker_embedding_dim"] = 512
+        dit_config["text_embedding_dim"] = 768
+
+        dit_config["ssl_encoder_depths"] = [8, 8]
+        dit_config["ssl_latent_dims"] = [1024, 768]
+        dit_config["ssl_names"] = ["mert", "m-hubert"]
+        dit_config["lyric_encoder_vocab_size"] = 6693
+        dit_config["lyric_hidden_size"] = 1024
+        return dit_config
+
     if '{}t_block.1.weight'.format(key_prefix) in state_dict_keys: # PixArt
         patch_size = 2
         dit_config = {}
