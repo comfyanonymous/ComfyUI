@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import gc
 import json
 import threading
@@ -35,6 +36,7 @@ def _execute_prompt(
         span_context: dict,
         progress_handler: ExecutorToClientProgress | None,
         configuration: Configuration | None) -> dict:
+    configuration = copy.deepcopy(configuration) if configuration is not None else None
     execution_context = current_execution_context()
     if len(execution_context.folder_names_and_paths) == 0 or configuration is not None:
         init_default_paths(execution_context.folder_names_and_paths, configuration, replace_existing=True)
@@ -59,7 +61,7 @@ async def __execute_prompt(
     from ..cmd.execution import PromptExecutor
 
     progress_handler = progress_handler or ServerStub()
-
+    prompt_executor: PromptExecutor = None
     try:
         prompt_executor: PromptExecutor = _prompt_executor.executor
     except (LookupError, AttributeError):
@@ -121,11 +123,9 @@ def _cleanup():
         pass
 
 
-class EmbeddedComfyClient:
+class Comfy:
     """
-    Embedded client for comfy executing prompts as a library.
-
-    This client manages a single-threaded executor to run long-running or blocking tasks
+    This manages a single-threaded executor to run long-running or blocking workflows
     asynchronously without blocking the asyncio event loop. It initializes a PromptExecutor
     in a dedicated thread for executing prompts and handling server-stub communications.
     Example usage:
@@ -186,7 +186,17 @@ class EmbeddedComfyClient:
         self._is_running = False
 
     async def queue_prompt_api(self,
-                               prompt: PromptDict) -> V1QueuePromptResponse:
+                               prompt: PromptDict | str | dict) -> V1QueuePromptResponse:
+        """
+        Queues a prompt for execution, returning the output when it is complete.
+        :param prompt: a PromptDict, string or dictionary containing a so-called Workflow API prompt
+        :return: a response of URLs for Save-related nodes and the node outputs
+        """
+        if isinstance(prompt, str):
+            prompt = json.loads(prompt)
+        if isinstance(prompt, dict):
+            from comfy.api.components.schema.prompt import Prompt
+            prompt = Prompt.validate(prompt)
         outputs = await self.queue_prompt(prompt)
         return V1QueuePromptResponse(urls=[], outputs=outputs)
 
@@ -217,3 +227,6 @@ class EmbeddedComfyClient:
         finally:
             with self._task_count_lock:
                 self._task_count -= 1
+
+
+EmbeddedComfyClient = Comfy

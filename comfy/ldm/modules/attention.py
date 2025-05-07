@@ -600,23 +600,23 @@ def attention_flash(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
 optimized_attention = attention_basic
 
 if model_management.sage_attention_enabled():
-    logger.info("Using sage attention")
+    logger.debug("Using sage attention")
     optimized_attention = attention_sage
 elif model_management.xformers_enabled():
-    logger.info("Using xformers attention")
+    logger.debug("Using xformers attention")
     optimized_attention = attention_xformers
 elif model_management.flash_attention_enabled():
-    logging.info("Using Flash Attention")
+    logging.debug("Using Flash Attention")
     optimized_attention = attention_flash
 elif model_management.pytorch_attention_enabled():
-    logger.info("Using pytorch attention")
+    logger.debug("Using pytorch attention")
     optimized_attention = attention_pytorch
 else:
     if args.use_split_cross_attention:
-        logger.info("Using split optimization for attention")
+        logger.debug("Using split optimization for attention")
         optimized_attention = attention_split
     else:
-        logger.info("Using sub quadratic optimization for attention, if you have memory or speed issues try using: --use-split-cross-attention")
+        logger.debug("Using sub quadratic optimization for attention, if you have memory or speed issues try using: --use-split-cross-attention")
         optimized_attention = attention_sub_quad
 
 optimized_attention_masked = optimized_attention

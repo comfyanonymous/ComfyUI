@@ -6,7 +6,7 @@ import pytest
 
 from comfy.api.components.schema.prompt import Prompt
 from comfy.cli_args_types import Configuration
-from comfy.client.embedded_comfy_client import EmbeddedComfyClient
+from comfy.client.embedded_comfy_client import Comfy
 
 _TEST_WORKFLOW = {
     "0": {
@@ -29,7 +29,7 @@ async def test_respect_cwd_param():
         from comfy.cmd.folder_paths import models_dir
         assert os.path.commonpath([os.getcwd(), models_dir]) == os.getcwd(), "at the time models_dir is accessed, the cwd should be the actual cwd, since there is no other configuration"
 
-        client = EmbeddedComfyClient(config)
+        client = Comfy(config)
         prompt = Prompt.validate(_TEST_WORKFLOW)
         outputs = await client.queue_prompt_api(prompt)
         path_as_imported = outputs.outputs["0"]["path"][0]

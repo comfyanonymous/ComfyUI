@@ -67,7 +67,7 @@ def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optio
     configuration = configuration or args
 
     if base_paths_from_configuration:
-        base_paths = [Path(configuration.cwd) if configuration.cwd is not None else None] + [Path(configuration.base_directory) if configuration.base_directory is not None else None] + configuration.base_paths
+        base_paths = [Path(configuration.cwd) if configuration.cwd is not None else None] + [Path(configuration.base_directory) if configuration.base_directory is not None else None] + (configuration.base_paths or [])
         base_paths = [Path(path) for path in base_paths if path is not None]
         if len(base_paths) == 0:
             base_paths = [Path(os.getcwd())]
@@ -250,7 +250,7 @@ def exists_annotated_filepath(name):
     return os.path.exists(filepath)
 
 
-def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, extensions: Optional[set[str] | frozenset[str]] = None, is_default: bool = False) -> str:
+def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, extensions: Optional[set[str] | frozenset[str]] = None, is_default: bool = False, folder_names_and_paths: Optional[FolderNames] = None) -> str:
     """
     Registers a model path for the given canonical name.
     :param folder_name: the folder name
@@ -258,7 +258,7 @@ def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, e
     :param extensions: supported file extensions
     :return: the folder path
     """
-    folder_names_and_paths = _folder_names_and_paths()
+    folder_names_and_paths = folder_names_and_paths or _folder_names_and_paths()
     if full_folder_path is None:
         if folder_name not in folder_names_and_paths:
             folder_names_and_paths.add(ModelPaths(folder_names=[folder_name], supported_extensions=set(extensions) if extensions is not None else _supported_pt_extensions()))

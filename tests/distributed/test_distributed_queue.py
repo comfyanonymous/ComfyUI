@@ -12,7 +12,7 @@ from aiohttp import ClientSession
 from testcontainers.rabbitmq import RabbitMqContainer
 
 from comfy.client.aio_client import AsyncRemoteComfyClient
-from comfy.client.embedded_comfy_client import EmbeddedComfyClient
+from comfy.client.embedded_comfy_client import Comfy
 from comfy.client.sdxl_with_refiner_workflow import sdxl_workflow_with_refiner
 from comfy.component_model.executor_types import Executor
 from comfy.component_model.make_mutable import make_mutable
@@ -86,7 +86,7 @@ async def test_distributed_prompt_queues_same_process():
                     assert incoming is not None
                     incoming_named = NamedQueueTuple(incoming)
                     assert incoming_named.prompt_id == incoming_prompt_id
-                    async with EmbeddedComfyClient() as embedded_comfy_client:
+                    async with Comfy() as embedded_comfy_client:
                         outputs = await embedded_comfy_client.queue_prompt(incoming_named.prompt,
                                                                            incoming_named.prompt_id)
                     worker.task_done(incoming_named.prompt_id, outputs, ExecutionStatus("success", True, []))

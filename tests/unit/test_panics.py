@@ -6,7 +6,7 @@ import pytest
 import torch
 
 from comfy.cli_args_types import Configuration
-from comfy.client.embedded_comfy_client import EmbeddedComfyClient
+from comfy.client.embedded_comfy_client import Comfy
 from comfy.component_model.make_mutable import make_mutable
 from comfy.component_model.tensor_types import RGBImageBatch
 from comfy.distributed.executors import ContextVarExecutor
@@ -153,7 +153,7 @@ async def test_panic_on_exception_with_executor(executor_cls, executor_kwargs):
                                                  NODE_DISPLAY_NAME_MAPPINGS=TEST_NODE_DISPLAY_NAME_MAPPINGS)),
           patch('sys.exit') as mock_exit):
         try:
-            async with EmbeddedComfyClient(configuration=config, executor=executor) as client:
+            async with Comfy(configuration=config, executor=executor) as client:
                 # Queue our failing workflow
                 await client.queue_prompt(create_failing_workflow())
         except SystemExit:
@@ -188,7 +188,7 @@ async def test_no_panic_when_disabled_with_executor(executor_cls, executor_kwarg
                                                  NODE_DISPLAY_NAME_MAPPINGS=TEST_NODE_DISPLAY_NAME_MAPPINGS)),
           patch('sys.exit') as mock_exit):
         try:
-            async with EmbeddedComfyClient(configuration=config, executor=executor) as client:
+            async with Comfy(configuration=config, executor=executor) as client:
                 # Queue our failing workflow
                 await client.queue_prompt(create_failing_workflow())
         except SystemExit:
@@ -213,7 +213,7 @@ async def test_executor_cleanup(executor_cls, executor_kwargs):
 
     with context_add_custom_nodes(ExportedNodes(NODE_CLASS_MAPPINGS=TEST_NODE_CLASS_MAPPINGS,
                                                 NODE_DISPLAY_NAME_MAPPINGS=TEST_NODE_DISPLAY_NAME_MAPPINGS)):
-        async with EmbeddedComfyClient(executor=executor) as client:
+        async with Comfy(executor=executor) as client:
             # Create a simple workflow that doesn't raise
             workflow = create_failing_workflow()
             workflow["1"]["inputs"]["should_raise"] = False
@@ -235,7 +235,7 @@ async def test_parallel_execution(executor_cls, executor_kwargs):
 
     with context_add_custom_nodes(ExportedNodes(NODE_CLASS_MAPPINGS=TEST_NODE_CLASS_MAPPINGS,
                                                 NODE_DISPLAY_NAME_MAPPINGS=TEST_NODE_DISPLAY_NAME_MAPPINGS)):
-        async with EmbeddedComfyClient(executor=executor) as client:
+        async with Comfy(executor=executor) as client:
             # Create multiple non-failing workflows
             workflow = create_failing_workflow()
             workflow["1"]["inputs"]["should_raise"] = False

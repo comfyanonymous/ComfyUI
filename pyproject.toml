@@ -96,6 +96,8 @@ dependencies = [
     "jax",
     "colour",
     "av",
+    "typer",
+    "ijson",
 ]
 
 [build-system]
@@ -157,7 +159,8 @@ withtriton = ["comfyui[cuda, triton]"] # Depends on 'cuda' and 'triton' extras
 
 [project.scripts]
 comfyui = "comfy.cmd.main:entrypoint"
-comfyui-worker = "comfy.cmd.worker:entrypoint"
+comfyui-worker = "comfy.entrypoints.worker:entrypoint"
+comfyui-workflow = "comfy.entrypoints.workflow:entrypoint"
 
 [project.urls]
 Homepage = "https://github.com/comfyanonymous/ComfyUI" # Example

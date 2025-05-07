@@ -13,8 +13,9 @@ class FileOutput(TypedDict, total=False):
 
 
 class Output(TypedDict, total=False):
-    latents: NotRequired[List[FileOutput]]
-    images: NotRequired[List[FileOutput]]
+    latents: NotRequired[list[FileOutput]]
+    images: NotRequired[list[FileOutput]]
+    videos: NotRequired[list[FileOutput]]
 
 
 @dataclasses.dataclass

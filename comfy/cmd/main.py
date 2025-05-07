@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from comfy.component_model.entrypoints_common import configure_application_paths, executor_from_args
 # main_pre must be the earliest import since it suppresses some spurious warnings
 from .main_pre import args
 from . import hook_breaker_ac10a0
@@ -243,12 +244,19 @@ async def _start_comfyui(from_script_dir: Optional[Path] = None):
     if args.quick_test_for_ci:
         # for CI purposes, try importing all the nodes
         import_all_nodes_in_workspace(raise_on_failure=True)
-        exit(0)
+        return
     else:
         # we no longer lazily load nodes. we'll do it now for the sake of creating directories
         import_all_nodes_in_workspace(raise_on_failure=False)
         # now that nodes are loaded, create more directories if appropriate
         folder_paths.create_directories()
+
+    if len(args.workflows) > 0:
+        configure_application_paths(args)
+        executor = await executor_from_args(args)
+        from ..entrypoints.workflow import run_workflows
+        await run_workflows(executor, args.workflows)
+        return
 
     # replaced my folder_paths.create_directories
     call_on_start = None

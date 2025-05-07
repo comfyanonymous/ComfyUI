@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple, Literal, List, Callable
+from typing import Tuple, Literal, List
 
 from ..api.components.schema.prompt import PromptDict, Prompt
 from ..auth.permissions import ComfyJwt, jwt_decode
-from ..cli_args_types import Configuration
-from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.queue_types import NamedQueueTuple, TaskInvocation, ExecutionStatus
 
 

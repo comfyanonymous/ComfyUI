@@ -64,7 +64,8 @@ def add_model_folder_path(
         folder_name: str,
         full_folder_path: Optional[str] = ...,
         extensions: Optional[Union[set[str], frozenset[str]]] = ...,
-        is_default: bool = ...
+        is_default: bool = ...,
+        folder_names_and_paths: Optional[FolderNames] = ...,
 ) -> str: ...
 
 
