@@ -4,6 +4,7 @@ import comfy.text_encoders.t5
 import os
 import re
 import torch
+import logging
 
 from tokenizers import Tokenizer
 from .ace_text_cleaners import multilingual_cleaners
@@ -71,7 +72,7 @@ class VoiceBpeTokenizer:
                     token_idx = self.encode(line, lang)
                 lyric_token_idx = lyric_token_idx + token_idx + [2]
             except Exception as e:
-                print("tokenize error", e, "for line", line, "major_language", lang)
+                logging.warning("tokenize error {} for line {} major_language {}".format(e, line, lan))
         return {"input_ids": lyric_token_idx}
 
     @staticmethod
