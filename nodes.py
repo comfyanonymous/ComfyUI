@@ -2289,6 +2289,9 @@ def init_builtin_api_nodes():
         "nodes_pika.py",
     ]
 
+    if not load_custom_node(os.path.join(api_nodes_dir, "canary.py"), module_parent="comfy_api_nodes"):
+        return api_nodes_files
+
     import_failed = []
     for node_file in api_nodes_files:
         if not load_custom_node(os.path.join(api_nodes_dir, node_file), module_parent="comfy_api_nodes"):
