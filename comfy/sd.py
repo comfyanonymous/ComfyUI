@@ -15,6 +15,7 @@ import comfy.ldm.lightricks.vae.causal_video_autoencoder
 import comfy.ldm.cosmos.vae
 import comfy.ldm.wan.vae
 import comfy.ldm.hunyuan3d.vae
+import comfy.ldm.ace.vae.music_dcae_pipeline
 import yaml
 import math
 
@@ -42,6 +43,7 @@ import comfy.text_encoders.cosmos
 import comfy.text_encoders.lumina2
 import comfy.text_encoders.wan
 import comfy.text_encoders.hidream
+import comfy.text_encoders.ace
 
 import comfy.model_patcher
 import comfy.lora
@@ -437,6 +439,19 @@ class VAE:
                 ddconfig = {"embed_dim": 64, "num_freqs": 8, "include_pi": False, "heads": 16, "width": 1024, "num_decoder_layers": 16, "qkv_bias": False, "qk_norm": True, "geo_decoder_mlp_expand_ratio": mlp_expand, "geo_decoder_downsample_ratio": downsample_ratio, "geo_decoder_ln_post": ln_post}
                 self.first_stage_model = comfy.ldm.hunyuan3d.vae.ShapeVAE(**ddconfig)
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+            elif "vocoder.backbone.channel_layers.0.0.bias" in sd: #Ace Step Audio
+                self.first_stage_model = comfy.ldm.ace.vae.music_dcae_pipeline.MusicDCAE(source_sample_rate=44100)
+                self.memory_used_encode = lambda shape, dtype: (shape[2] * 300) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (shape[2] * shape[3] * 72000) * model_management.dtype_size(dtype)
+                self.latent_channels = 8
+                self.output_channels = 2
+                # self.upscale_ratio = 2048
+                # self.downscale_ratio = 2048
+                self.latent_dim = 2
+                self.process_output = lambda audio: audio
+                self.process_input = lambda audio: audio
+                self.working_dtypes = [torch.bfloat16, torch.float32]
+                self.disable_offload = True
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -715,6 +730,7 @@ class CLIPType(Enum):
     WAN = 13
     HIDREAM = 14
     CHROMA = 15
+    ACE = 16
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -840,8 +856,13 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.aura_t5.AuraT5Model
             clip_target.tokenizer = comfy.text_encoders.aura_t5.AuraT5Tokenizer
         elif te_model == TEModel.T5_BASE:
-            clip_target.clip = comfy.text_encoders.sa_t5.SAT5Model
-            clip_target.tokenizer = comfy.text_encoders.sa_t5.SAT5Tokenizer
+            if clip_type == CLIPType.ACE or "spiece_model" in clip_data[0]:
+                clip_target.clip = comfy.text_encoders.ace.AceT5Model
+                clip_target.tokenizer = comfy.text_encoders.ace.AceT5Tokenizer
+                tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
+            else:
+                clip_target.clip = comfy.text_encoders.sa_t5.SAT5Model
+                clip_target.tokenizer = comfy.text_encoders.sa_t5.SAT5Tokenizer
         elif te_model == TEModel.GEMMA_2_2B:
             clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.lumina2.LuminaTokenizer
