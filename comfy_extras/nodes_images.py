@@ -266,14 +266,18 @@ class SaveSVGNode:
             if metadata_json:
                 # Create metadata element with CDATA section
                 metadata_element = f"""  <metadata>
-    <![CDATA[
-{metadata_json}
-    ]]>
-  </metadata>
-"""
-                # Insert metadata after opening svg tag using regex
-                # import re # Already imported at the top
-                svg_content = re.sub(r'(<svg[^>]*>)', r'\1\n' + metadata_element, svg_content)
+                <![CDATA[
+            {metadata_json}
+                ]]>
+            </metadata>
+            """
+                # Insert metadata after opening svg tag using regex with a replacement function
+                def replacement(match):
+                    # match.group(1) contains the captured <svg> tag
+                    return match.group(1) + '\n' + metadata_element
+
+                # Apply the substitution
+                svg_content = re.sub(r'(<svg[^>]*>)', replacement, svg_content, flags=re.UNICODE)
 
             # Write the modified SVG to file
             with open(os.path.join(full_output_folder, file), 'wb') as svg_file:
