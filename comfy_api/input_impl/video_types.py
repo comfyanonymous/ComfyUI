@@ -12,6 +12,46 @@ import torch
 from comfy_api.input import VideoInput
 from comfy_api.util import VideoContainer, VideoCodec, VideoComponents
 
+
+def container_to_output_format(container_format: str | None) -> str | None:
+    """
+    A container's `format` may be a comma-separated list of formats.
+    E.g., iso container's `format` may be `mov,mp4,m4a,3gp,3g2,mj2`.
+    However, writing to a file/stream with `av.open` requires a single format,
+    or `None` to auto-detect.
+    """
+    if not container_format:
+        return None  # Auto-detect
+
+    if "," not in container_format:
+        return container_format
+
+    formats = container_format.split(",")
+    return formats[0]
+
+
+def get_open_write_kwargs(
+    dest: str | io.BytesIO, container_format: str, to_format: str | None
+) -> dict:
+    """Get kwargs for writing a `VideoFromFile` to a file/stream with `av.open`"""
+    open_kwargs = {
+        "mode": "w",
+        # If isobmff, preserve custom metadata tags (workflow, prompt, extra_pnginfo)
+        "options": {"movflags": "use_metadata_tags"},
+    }
+
+    is_write_to_buffer = isinstance(dest, io.BytesIO)
+    if is_write_to_buffer:
+        # Set output format explicitly, since it cannot be inferred from file extension
+        if to_format == VideoContainer.AUTO:
+            to_format = container_format.lower()
+        elif isinstance(to_format, str):
+            to_format = to_format.lower()
+        open_kwargs["format"] = container_to_output_format(to_format)
+
+    return open_kwargs
+
+
 class VideoFromFile(VideoInput):
     """
     Class representing video input from a file.
@@ -89,7 +129,7 @@ class VideoFromFile(VideoInput):
 
     def save_to(
         self,
-        path: str,
+        path: str | io.BytesIO,
         format: VideoContainer = VideoContainer.AUTO,
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None
@@ -116,7 +156,9 @@ class VideoFromFile(VideoInput):
                 )
 
             streams = container.streams
-            with av.open(path, mode='w', options={"movflags": "use_metadata_tags"}) as output_container:
+
+            open_kwargs = get_open_write_kwargs(path, container_format, format)
+            with av.open(path, **open_kwargs) as output_container:
                 # Copy over the original metadata
                 for key, value in container.metadata.items():
                     if metadata is None or key not in metadata:
@@ -211,7 +253,12 @@ class VideoFromComponents(VideoInput):
                     start = i * samples_per_frame
                     end = start + samples_per_frame
                     # TODO(Feature) - Add support for stereo audio
-                    chunk = self.__components.audio['waveform'][0, 0, start:end].unsqueeze(0).numpy()
+                    chunk = (
+                        self.__components.audio["waveform"][0, 0, start:end]
+                        .unsqueeze(0)
+                        .contiguous()
+                        .numpy()
+                    )
                     audio_frame = av.AudioFrame.from_ndarray(chunk, format='fltp', layout='mono')
                     audio_frame.sample_rate = audio_sample_rate
                     audio_frame.pts = i * samples_per_frame

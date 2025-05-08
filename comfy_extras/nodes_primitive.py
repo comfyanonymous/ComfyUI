@@ -21,6 +21,21 @@ class String(ComfyNodeABC):
         return (value,)
 
 
+class StringMultiline(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypeDict:
+        return {
+            "required": {"value": (IO.STRING, {"multiline": True,},)},
+        }
+
+    RETURN_TYPES = (IO.STRING,)
+    FUNCTION = "execute"
+    CATEGORY = "utils/primitive"
+
+    def execute(self, value: str) -> tuple[str]:
+        return (value,)
+
+
 class Int(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypeDict:
@@ -68,6 +83,7 @@ class Boolean(ComfyNodeABC):
 
 NODE_CLASS_MAPPINGS = {
     "PrimitiveString": String,
+    "PrimitiveStringMultiline": StringMultiline,
     "PrimitiveInt": Int,
     "PrimitiveFloat": Float,
     "PrimitiveBoolean": Boolean,
@@ -75,6 +91,7 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "PrimitiveString": "String",
+    "PrimitiveStringMultiline": "String (Multiline)",
     "PrimitiveInt": "Int",
     "PrimitiveFloat": "Float",
     "PrimitiveBoolean": "Boolean",

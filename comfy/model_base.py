@@ -39,6 +39,7 @@ import comfy.ldm.wan.model
 import comfy.ldm.hunyuan3d.model
 import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
+import comfy.ldm.ace.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1111,7 +1112,7 @@ class HiDream(BaseModel):
         return out
 
 class Chroma(Flux):
-    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.chroma.model.Chroma)
 
     def extra_conds(self, **kwargs):
@@ -1120,4 +1121,23 @@ class Chroma(Flux):
         guidance = kwargs.get("guidance", 0)
         if guidance is not None:
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
+        return out
+
+class ACEStep(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.ace.model.ACEStepTransformer2DModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        noise = kwargs.get("noise", None)
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        conditioning_lyrics = kwargs.get("conditioning_lyrics", None)
+        if cross_attn is not None:
+            out['lyric_token_idx'] = comfy.conds.CONDRegular(conditioning_lyrics)
+        out['speaker_embeds'] = comfy.conds.CONDRegular(torch.zeros(noise.shape[0], 512, device=noise.device, dtype=noise.dtype))
+        out['lyrics_strength'] = comfy.conds.CONDConstant(kwargs.get("lyrics_strength", 1.0))
         return out
