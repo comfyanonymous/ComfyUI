@@ -1,7 +1,12 @@
 # Original from: https://github.com/ace-step/ACE-Step/blob/main/music_dcae/music_dcae_pipeline.py
 import torch
 from .autoencoder_dc import AutoencoderDC
-import torchaudio
+import logging
+try:
+    import torchaudio
+except:
+    logging.warning("torchaudio missing, ACE model will be broken")
+
 import torchvision.transforms as transforms
 from .music_vocoder import ADaMoSHiFiGANV1
 
