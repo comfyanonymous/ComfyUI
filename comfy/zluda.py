@@ -24,46 +24,37 @@ def get_package_version(package_name):
         from importlib_metadata import version
         return version(package_name)
 
-def ensure_package(package_name, required_version, suppress_errors=False):
+def ensure_package(package_name, required_version):
     try:
         installed_version = get_package_version(package_name)
         print(f"Installed version of {package_name}: {installed_version}")
         
         from packaging import version
         if version.parse(installed_version) < version.parse(required_version):
-            install_package(package_name, required_version, upgrade=True, suppress_errors=suppress_errors)
+            install_package(package_name, required_version, upgrade=True)
             print(f"\n{package_name} outdated. Upgraded to {required_version}.")
     except Exception:
-        install_package(package_name, required_version, suppress_errors=suppress_errors)
+        install_package(package_name, required_version)
         print(f"\n{package_name} was missing. Installed it.")
 
-def install_package(package_name, version, upgrade=False, suppress_errors=False):
+def install_package(package_name, version, upgrade=False):
     import subprocess
     import sys
-    import platform
-    
     args = [sys.executable, '-m', 'pip', 'install', f'{package_name}=={version}', '--quiet']
     if upgrade:
         args.append('--upgrade')
-    
-    if suppress_errors and platform.system() == 'Windows':
-        # For Windows with error suppression, we need to join the command and use shell=True
-        command = ' '.join(args) + ' 2>nul'
-        subprocess.check_call(command, shell=True)
-    else:
-        # Normal execution without shell
-        subprocess.check_call(args)
+    subprocess.check_call(args)
 
-# List of packages and their required versions with special flags
+# List of packages and their required versions
 packages_to_check = [
-    ("comfyui-frontend-package", "1.18.9", False),
-    ("comfyui-workflow-templates", "0.1.3", False),
-    ("av", "14.3.0", True)  # Special case: suppress errors for av
+    ("comfyui-frontend-package", "1.18.9"),
+    ("comfyui-workflow-templates", "0.1.3"),
+    ("av", "14.3.0")
 ]
 
 # Check and install/update all packages
-for package_name, required_version, suppress_errors in packages_to_check:
-    ensure_package(package_name, required_version, suppress_errors)
+for package_name, required_version in packages_to_check:
+    ensure_package(package_name, required_version)
 # ------------------- End Version Check -------------------
 
 # ------------------- ZLUDA Detection -------------------
