@@ -26,7 +26,7 @@ from typing import Union, List
 from enum import Enum
 # ------------------- main imports -------------------
 
-# ------------------- ComfyUI Frontend Version Check -------------------
+# ------------------- ComfyUI Package Version Check -------------------
 def get_package_version(package_name):
     try:
         from importlib.metadata import version
@@ -35,66 +35,47 @@ def get_package_version(package_name):
         from importlib_metadata import version
         return version(package_name)
 
-# Check and install/update comfyui-frontend-package
-required_frontend_version = "1.18.6"
-frontend_package_name = "comfyui-frontend-package"
+def ensure_package(package_name, required_version, suppress_errors=False):
+    try:
+        installed_version = get_package_version(package_name)
+        print(f"Installed version of {package_name}: {installed_version}")
+        
+        from packaging import version
+        if version.parse(installed_version) < version.parse(required_version):
+            install_package(package_name, required_version, upgrade=True, suppress_errors=suppress_errors)
+            print(f"\n{package_name} outdated. Upgraded to {required_version}.")
+    except Exception:
+        install_package(package_name, required_version, suppress_errors=suppress_errors)
+        print(f"\n{package_name} was missing. Installed it.")
 
-try:
-    installed_version = get_package_version(frontend_package_name)
-    # print(f"\nInstalled version of {frontend_package_name}: {installed_version}")
-    
-    from packaging import version
-    if version.parse(installed_version) < version.parse(required_frontend_version):
-        import subprocess
-        import sys
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{frontend_package_name}=={required_frontend_version}', '--quiet', '--upgrade'])
-        print(f"\nComfyUI Frontend Package outdated. Upgraded to {required_frontend_version}.")
-except Exception:
+def install_package(package_name, version, upgrade=False, suppress_errors=False):
     import subprocess
     import sys
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{frontend_package_name}=={required_frontend_version}', '--quiet'])
-    print("\nComfyUI Frontend Package was missing. Installed it.")
-
-# Check and install/update comfyui-workflow-templates
-required_templates_version = "0.1.3"
-templates_package_name = "comfyui-workflow-templates"
-
-try:
-    installed_version = get_package_version(templates_package_name)
-    # print(f"Installed version of {templates_package_name}: {installed_version}")
+    import platform
     
-    from packaging import version
-    if version.parse(installed_version) < version.parse(required_templates_version):
-        import subprocess
-        import sys
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{templates_package_name}=={required_templates_version}', '--quiet', '--upgrade'])
-        print(f"\nComfyUI Workflow Templates outdated. Upgraded to {required_templates_version}.")
-except Exception:
-    import subprocess
-    import sys
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{templates_package_name}=={required_templates_version}', '--quiet'])
-    print("\nComfyUI Workflow Templates was missing. Installed it.")
-
-# Check and install/update pyav
-required_templates_version = "14.3.0"
-templates_package_name = "av"
-
-try:
-    installed_version = get_package_version(templates_package_name)
-    print(f"Installed version of {templates_package_name}: {installed_version}")
+    args = [sys.executable, '-m', 'pip', 'install', f'{package_name}=={version}', '--quiet']
+    if upgrade:
+        args.append('--upgrade')
     
-    from packaging import version
-    if version.parse(installed_version) < version.parse(required_templates_version):
-        import subprocess
-        import sys
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{templates_package_name}=={required_templates_version}', '--quiet', '--upgrade'])
-        print(f"\nPYAV outdated. Upgraded to {required_templates_version}.")
-except Exception:
-    import subprocess
-    import sys
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{templates_package_name}=={required_templates_version}', '--quiet'])
-    print("\nPYAV was missing. Installed it.")     
-# ------------------- End Frontend Version Check -------------------
+    if suppress_errors and platform.system() == 'Windows':
+        # For Windows with error suppression, we need to join the command and use shell=True
+        command = ' '.join(args) + ' 2>nul'
+        subprocess.check_call(command, shell=True)
+    else:
+        # Normal execution without shell
+        subprocess.check_call(args)
+
+# List of packages and their required versions with special flags
+packages_to_check = [
+    ("comfyui-frontend-package", "1.18.6", False),
+    ("comfyui-workflow-templates", "0.1.3", False),
+    ("av", "14.3.0", True)  # Special case: suppress errors for av
+]
+
+# Check and install/update all packages
+for package_name, required_version, suppress_errors in packages_to_check:
+    ensure_package(package_name, required_version, suppress_errors)
+# ------------------- End Version Check -------------------
 
 # ------------------- Triton Setup -------------------
 print("\n  ::  ------------------------ ZLUDA -----------------------  ::  ")
