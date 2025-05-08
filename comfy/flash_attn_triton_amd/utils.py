@@ -276,5 +276,5 @@ def is_cdna():
 
 
 def is_rdna():
-    return is_hip() and triton.runtime.driver.active.get_current_target().arch in ("gfx1030", "gfx1100", "gfx1101",
+    return is_hip() and triton.runtime.driver.active.get_current_target().arch in ("gfx1030", "gfx1031", "gfx1100", "gfx1101", 
                                                                                    "gfx1102", "gfx1200", "gfx1201")
