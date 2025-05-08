@@ -101,9 +101,11 @@ import json
 import requests
 from urllib.parse import urljoin, urlparse
 from pydantic import BaseModel, Field
+import uuid # For generating unique operation IDs
 
 from comfy.cli_args import args
 from comfy import utils
+from . import request_logger
 
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R", bound=BaseModel)
@@ -183,6 +185,10 @@ class ApiClient:
         # Default retry status codes: 408 (Request Timeout), 429 (Too Many Requests),
         # 500, 502, 503, 504 (Server Errors)
         self.retry_status_codes = retry_status_codes or (408, 429, 500, 502, 503, 504)
+
+    def _generate_operation_id(self, path: str) -> str:
+        """Generates a unique operation ID for logging."""
+        return f"{path.strip('/').replace('/', '_')}_{uuid.uuid4().hex[:8]}"
 
     def _create_json_payload_args(
         self,
@@ -345,6 +351,16 @@ class ApiClient:
         else:
             payload_args = self._create_json_payload_args(data, request_headers)
 
+        operation_id = self._generate_operation_id(path)
+        request_logger.log_request_response(
+            operation_id=operation_id,
+            request_method=method,
+            request_url=url,
+            request_headers=request_headers,
+            request_params=params,
+            request_data=data if content_type == "application/json" else "[form-data or other]"
+        )
+
         try:
             response = requests.request(
                 method=method,
@@ -382,8 +398,32 @@ class ApiClient:
 
             # Raise exception for error status codes
             response.raise_for_status()
+
+            # Log successful response
+            response_content_to_log = response.content
+            try:
+                # Attempt to parse JSON for prettier logging, fallback to raw content
+                response_content_to_log = response.json()
+            except json.JSONDecodeError:
+                pass # Keep as bytes/str if not JSON
+
+            request_logger.log_request_response(
+                operation_id=operation_id,
+                request_method=method, # Pass request details again for context in log
+                request_url=url,
+                response_status_code=response.status_code,
+                response_headers=dict(response.headers),
+                response_content=response_content_to_log
+            )
             
         except requests.ConnectionError as e:
+            error_message = f"ConnectionError: {str(e)}"
+            request_logger.log_request_response(
+                operation_id=operation_id,
+                request_method=method,
+                request_url=url,
+                error_message=error_message
+            )
             # Only perform connectivity check if we've exhausted all retries
             if retry_count >= self.max_retries:
                 # Check connectivity to determine if it's a local or API issue
@@ -422,12 +462,24 @@ class ApiClient:
             
             # If we've exhausted retries and didn't identify the specific issue,
             # raise a generic exception
-            raise Exception(
+            final_error_message = (
                 f"Unable to connect to the API server after {self.max_retries} attempts. "
                 f"Please check your internet connection or try again later."
-            ) from e
+            )
+            request_logger.log_request_response( # Log final failure
+                operation_id=operation_id,
+                request_method=method, request_url=url,
+                error_message=final_error_message
+            )
+            raise Exception(final_error_message) from e
 
         except requests.Timeout as e:
+            error_message = f"Timeout: {str(e)}"
+            request_logger.log_request_response(
+                operation_id=operation_id,
+                request_method=method, request_url=url,
+                error_message=error_message
+            )
             # Retry timeouts if we haven't exhausted retries
             if retry_count < self.max_retries:
                 delay = self.retry_delay * (self.retry_backoff_factor ** retry_count)
@@ -447,38 +499,68 @@ class ApiClient:
                     multipart_parser=multipart_parser,
                     retry_count=retry_count + 1,
                 )
-            
-            raise Exception(
+            final_error_message = (
                 f"Request timed out after {self.timeout} seconds and {self.max_retries} retry attempts. "
                 f"The server might be experiencing high load or the operation is taking longer than expected."
-            ) from e
+            )
+            request_logger.log_request_response( # Log final failure
+                operation_id=operation_id,
+                request_method=method, request_url=url,
+                error_message=final_error_message
+            )
+            raise Exception(final_error_message) from e
 
         except requests.HTTPError as e:
             status_code = e.response.status_code if hasattr(e, "response") else None
-            error_message = f"HTTP Error: {str(e)}"
+            original_error_message = f"HTTP Error: {str(e)}"
+            error_content_for_log = None
+            if hasattr(e, "response") and e.response is not None:
+                error_content_for_log = e.response.content
+                try:
+                    error_content_for_log = e.response.json()
+                except json.JSONDecodeError:
+                    pass
 
-            # Try to extract detailed error message from JSON response
+
+            # Try to extract detailed error message from JSON response for user display
+            # but log the full error content.
+            user_display_error_message = original_error_message
+
             try:
-                if hasattr(e, "response") and e.response.content:
+                if hasattr(e, "response") and e.response is not None and e.response.content:
                     error_json = e.response.json()
                     if "error" in error_json and "message" in error_json["error"]:
-                        error_message = f"API Error: {error_json['error']['message']}"
+                        user_display_error_message = f"API Error: {error_json['error']['message']}"
                         if "type" in error_json["error"]:
-                            error_message += f" (Type: {error_json['error']['type']})"
+                            user_display_error_message += f" (Type: {error_json['error']['type']})"
+                    elif isinstance(error_json, dict): # Handle cases where error is just a JSON dict
+                        user_display_error_message = f"API Error: {json.dumps(error_json)}"
+                    else: # Non-dict JSON error
+                        user_display_error_message = f"API Error: {str(error_json)}"
+            except json.JSONDecodeError:
+                # If not JSON, use the raw content if it's not too long, or a summary
+                if hasattr(e, "response") and e.response is not None and e.response.content:
+                    raw_content = e.response.content.decode(errors='ignore')
+                    if len(raw_content) < 200: # Arbitrary limit for display
+                        user_display_error_message = f"API Error (raw): {raw_content}"
                     else:
-                        error_message = f"API Error: {error_json}"
-            except Exception as json_error:
-                # If we can't parse the JSON, fall back to the original error message
-                logging.debug(
-                    f"[DEBUG] Failed to parse error response: {str(json_error)}"
-                )
+                        user_display_error_message = f"API Error (raw, status {status_code})"
 
-            logging.debug(f"[DEBUG] API Error: {error_message} (Status: {status_code})")
-            if hasattr(e, "response") and e.response.content:
+            request_logger.log_request_response(
+                operation_id=operation_id,
+                request_method=method, request_url=url,
+                response_status_code=status_code,
+                response_headers=dict(e.response.headers) if hasattr(e, "response") and e.response is not None else None,
+                response_content=error_content_for_log,
+                error_message=original_error_message # Log the original exception string as error
+            )
+
+            logging.debug(f"[DEBUG] API Error: {user_display_error_message} (Status: {status_code})")
+            if hasattr(e, "response") and e.response is not None and e.response.content:
                 logging.debug(f"[DEBUG] Response content: {e.response.content}")
-                
+
             # Retry if the status code is in our retry list and we haven't exhausted retries
-            if (status_code in self.retry_status_codes and 
+            if (status_code in self.retry_status_codes and
                 retry_count < self.max_retries):
                 
                 delay = self.retry_delay * (self.retry_backoff_factor ** retry_count)
@@ -499,17 +581,18 @@ class ApiClient:
                     retry_count=retry_count + 1,
                 )
             
-            # Specific error messages for common status codes
+            # Specific error messages for common status codes for user display
             if status_code == 401:
-                error_message = "Unauthorized: Please login first to use this node."
+                user_display_error_message = "Unauthorized: Please login first to use this node."
             elif status_code == 402:
-                error_message = "Payment Required: Please add credits to your account to use this node."
+                user_display_error_message = "Payment Required: Please add credits to your account to use this node."
             elif status_code == 409:
-                error_message = "There is a problem with your account. Please contact support@comfy.org."
+                user_display_error_message = "There is a problem with your account. Please contact support@comfy.org."
             elif status_code == 429:
-                error_message = "Rate Limit Exceeded: Please try again later."
-                
-            raise Exception(error_message)
+                user_display_error_message = "Rate Limit Exceeded: Please try again later."
+            # else, user_display_error_message remains as parsed from response or original HTTPError string
+
+            raise Exception(user_display_error_message) # Raise with the user-friendly message
 
         # Parse and return JSON response
         if response.content:
@@ -557,46 +640,96 @@ class ApiClient:
 
         # Try the upload with retries
         last_exception = None
-        for retry in range(max_retries + 1):
+        operation_id = f"upload_{upload_url.split('/')[-1]}_{uuid.uuid4().hex[:8]}" # Simplified ID for uploads
+
+        # Log initial attempt (without full file data for brevity)
+        request_logger.log_request_response(
+            operation_id=operation_id,
+            request_method="PUT",
+            request_url=upload_url,
+            request_headers=headers,
+            request_data=f"[File data of type {content_type or 'unknown'}, size {len(data)} bytes]"
+        )
+
+        for retry_attempt in range(max_retries + 1):
             try:
                 response = requests.put(upload_url, data=data, headers=headers)
                 response.raise_for_status()
+                request_logger.log_request_response(
+                    operation_id=operation_id,
+                    request_method="PUT", request_url=upload_url, # For context
+                    response_status_code=response.status_code,
+                    response_headers=dict(response.headers),
+                    response_content="File uploaded successfully." # Or response.text if available
+                )
                 return response
-            
+
             except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
                 last_exception = e
-                if retry < max_retries:
-                    delay = retry_delay * (retry_backoff_factor ** retry)
+                error_message_for_log = f"{type(e).__name__}: {str(e)}"
+                response_content_for_log = None
+                status_code_for_log = None
+                headers_for_log = None
+
+                if hasattr(e, 'response') and e.response is not None:
+                    status_code_for_log = e.response.status_code
+                    headers_for_log = dict(e.response.headers)
+                    try:
+                        response_content_for_log = e.response.json()
+                    except json.JSONDecodeError:
+                        response_content_for_log = e.response.content
+
+
+                request_logger.log_request_response(
+                    operation_id=operation_id,
+                    request_method="PUT", request_url=upload_url,
+                    response_status_code=status_code_for_log,
+                    response_headers=headers_for_log,
+                    response_content=response_content_for_log,
+                    error_message=error_message_for_log
+                )
+
+                if retry_attempt < max_retries:
+                    delay = retry_delay * (retry_backoff_factor ** retry_attempt)
                     logging.warning(
                         f"File upload failed: {str(e)}. "
-                        f"Retrying in {delay:.2f}s ({retry + 1}/{max_retries})"
+                        f"Retrying in {delay:.2f}s ({retry_attempt + 1}/{max_retries})"
                     )
                     time.sleep(delay)
                 else:
-                    break
-        
-        # If we've exhausted all retries, check if it's a network issue
+                    break # Max retries reached
+
+        # If we've exhausted all retries, determine the final error type and raise
+        final_error_message = f"Failed to upload file after {max_retries + 1} attempts. Error: {str(last_exception)}"
         try:
-            # Try to determine if it's a local network issue
-            check_response = requests.get("https://www.google.com", timeout=5.0)
-            if check_response.status_code < 500:
-                # Internet works but upload failed, likely a server or URL issue
-                raise Exception(
-                    f"Failed to upload file after {max_retries} attempts. "
-                    f"The upload service may be experiencing issues. Error: {str(last_exception)}"
-                ) from last_exception
-            else:
-                # Even Google check failed, likely a local network issue
-                raise LocalNetworkError(
-                    f"Failed to upload file due to network connectivity issues. "
-                    f"Please check your internet connection and try again."
-                ) from last_exception
-        except (requests.RequestException, socket.error):
-            # Could not reach Google, definitely a local network issue
-            raise LocalNetworkError(
-                f"Failed to upload file due to network connectivity issues. "
-                f"Please check your internet connection and try again."
-            ) from last_exception
+            # Check basic internet connectivity
+            check_response = requests.get("https://www.google.com", timeout=5.0, verify=True) # Assuming verify=True is desired
+            if check_response.status_code >= 500: # Google itself has an issue (rare)
+                 final_error_message = (f"Failed to upload file. Internet connectivity check to Google failed "
+                                       f"(status {check_response.status_code}). Original error: {str(last_exception)}")
+                 # Not raising LocalNetworkError here as Google itself might be down.
+            # If Google is reachable, the issue is likely with the upload server or a more specific local problem
+            # not caught by a simple Google ping (e.g., DNS for the specific upload URL, firewall).
+            # The original last_exception is probably most relevant.
+
+        except (requests.RequestException, socket.error) as conn_check_exc:
+            # Could not reach Google, likely a local network issue
+            final_error_message = (f"Failed to upload file due to network connectivity issues "
+                                   f"(cannot reach Google: {str(conn_check_exc)}). "
+                                   f"Original upload error: {str(last_exception)}")
+            request_logger.log_request_response( # Log final failure reason
+                operation_id=operation_id,
+                request_method="PUT", request_url=upload_url,
+                error_message=final_error_message
+            )
+            raise LocalNetworkError(final_error_message) from last_exception
+
+        request_logger.log_request_response( # Log final failure reason if not LocalNetworkError
+            operation_id=operation_id,
+            request_method="PUT", request_url=upload_url,
+            error_message=final_error_message
+        )
+        raise Exception(final_error_message) from last_exception
 
 
 class ApiEndpoint(Generic[T, R]):
