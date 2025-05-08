@@ -2,7 +2,12 @@
 import torch
 import torch.nn as nn
 from torch import Tensor
-from torchaudio.transforms import MelScale
+import logging
+try:
+    from torchaudio.transforms import MelScale
+except:
+    logging.warning("torchaudio missing, ACE model will be broken")
+
 import comfy.model_management
 
 class LinearSpectrogram(nn.Module):
