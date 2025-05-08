@@ -56,7 +56,7 @@ def install_package(package_name, version, upgrade=False, suppress_errors=False)
 
 # List of packages and their required versions with special flags
 packages_to_check = [
-    ("comfyui-frontend-package", "1.18.6", False),
+    ("comfyui-frontend-package", "1.18.9", False),
     ("comfyui-workflow-templates", "0.1.3", False),
     ("av", "14.3.0", True)  # Special case: suppress errors for av
 ]
