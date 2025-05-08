@@ -7,7 +7,7 @@ import torch
 import logging
 
 from tokenizers import Tokenizer
-from .ace_text_cleaners import multilingual_cleaners
+from .ace_text_cleaners import multilingual_cleaners, japanese_to_romaji
 
 SUPPORT_LANGUAGES = {
     "en": 259, "de": 260, "fr": 262, "es": 284, "it": 285,
@@ -64,6 +64,14 @@ class VoiceBpeTokenizer:
                 lang = "zh"
             if "spa" in lang:
                 lang = "es"
+
+            try:
+                line_out = japanese_to_romaji(line)
+                if line_out != line:
+                    lang = "ja"
+                line = line_out
+            except:
+                pass
 
             try:
                 if structure_pattern.match(line):

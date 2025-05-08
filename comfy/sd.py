@@ -441,7 +441,7 @@ class VAE:
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
             elif "vocoder.backbone.channel_layers.0.0.bias" in sd: #Ace Step Audio
                 self.first_stage_model = comfy.ldm.ace.vae.music_dcae_pipeline.MusicDCAE(source_sample_rate=44100)
-                self.memory_used_encode = lambda shape, dtype: (shape[2] * 300) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (shape[2] * 330) * model_management.dtype_size(dtype)
                 self.memory_used_decode = lambda shape, dtype: (shape[2] * shape[3] * 87000) * model_management.dtype_size(dtype)
                 self.latent_channels = 8
                 self.output_channels = 2
