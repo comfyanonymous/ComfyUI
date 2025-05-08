@@ -63,6 +63,26 @@ except Exception:
     import sys
     subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{templates_package_name}=={required_templates_version}', '--quiet'])
     print("\nComfyUI Workflow Templates was missing. Installed it.")
+
+# Check and install/update pyav
+required_templates_version = "14.3.0"
+templates_package_name = "av"
+
+try:
+    installed_version = get_package_version(templates_package_name)
+    print(f"Installed version of {templates_package_name}: {installed_version}")
+    
+    from packaging import version
+    if version.parse(installed_version) < version.parse(required_templates_version):
+        import subprocess
+        import sys
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{templates_package_name}=={required_templates_version}', '--quiet', '--upgrade'])
+        print(f"\nPYAV outdated. Upgraded to {required_templates_version}.")
+except Exception:
+    import subprocess
+    import sys
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', f'{templates_package_name}=={required_templates_version}', '--quiet'])
+    print("\nPYAV was missing. Installed it.") 
 # ------------------- End Frontend Version Check -------------------
 
 # ------------------- ZLUDA Detection -------------------
