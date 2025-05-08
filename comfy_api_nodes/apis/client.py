@@ -94,7 +94,7 @@ import logging
 import time
 import io
 import socket
-from typing import Dict, Type, Optional, Any, TypeVar, Generic, Callable, Tuple, List, Union
+from typing import Dict, Type, Optional, Any, TypeVar, Generic, Callable, Tuple
 from enum import Enum
 import json
 import requests
@@ -241,10 +241,10 @@ class ApiClient:
     def _check_connectivity(self, target_url: str) -> Dict[str, bool]:
         """
         Check connectivity to determine if network issues are local or server-related.
-        
+
         Args:
             target_url: URL to check connectivity to
-            
+
         Returns:
             Dictionary with connectivity status details
         """
@@ -254,12 +254,12 @@ class ApiClient:
             "is_local_issue": False,
             "is_api_issue": False
         }
-        
+
         # First check basic internet connectivity using a reliable external site
         try:
             # Use a reliable external domain for checking basic connectivity
-            check_response = requests.get("https://www.google.com", 
-                                         timeout=5.0, 
+            check_response = requests.get("https://www.google.com",
+                                         timeout=5.0,
                                          verify=self.verify_ssl)
             if check_response.status_code < 500:
                 results["internet_accessible"] = True
@@ -267,13 +267,13 @@ class ApiClient:
             results["internet_accessible"] = False
             results["is_local_issue"] = True
             return results
-        
+
         # Now check API server connectivity
         try:
             # Extract domain from the target URL to do a simpler health check
             parsed_url = urlparse(target_url)
             api_base = f"{parsed_url.scheme}://{parsed_url.netloc}"
-            
+
             # Try to reach the API domain
             api_response = requests.get(f"{api_base}/health", timeout=5.0, verify=self.verify_ssl)
             if api_response.status_code < 500:
@@ -285,7 +285,7 @@ class ApiClient:
             results["api_accessible"] = False
             # If we can reach the internet but not the API, it's an API issue
             results["is_api_issue"] = True
-        
+
         return results
 
     def request(
@@ -367,17 +367,17 @@ class ApiClient:
             )
 
             # Check if we should retry based on status code
-            if (response.status_code in self.retry_status_codes and 
+            if (response.status_code in self.retry_status_codes and
                 retry_count < self.max_retries):
-                
+
                 # Calculate delay with exponential backoff
                 delay = self.retry_delay * (self.retry_backoff_factor ** retry_count)
-                
+
                 logging.warning(
                     f"Request failed with status {response.status_code}. "
                     f"Retrying in {delay:.2f}s ({retry_count + 1}/{self.max_retries})"
                 )
-                
+
                 time.sleep(delay)
                 return self.request(
                     method=method,
@@ -410,7 +410,7 @@ class ApiClient:
                 response_headers=dict(response.headers),
                 response_content=response_content_to_log
             )
-            
+
         except requests.ConnectionError as e:
             error_message = f"ConnectionError: {str(e)}"
             request_logger.log_request_response(
@@ -423,18 +423,18 @@ class ApiClient:
             if retry_count >= self.max_retries:
                 # Check connectivity to determine if it's a local or API issue
                 connectivity = self._check_connectivity(self.base_url)
-                
+
                 if connectivity["is_local_issue"]:
                     raise LocalNetworkError(
-                        f"Unable to connect to the API server due to local network issues. "
-                        f"Please check your internet connection and try again."
+                        "Unable to connect to the API server due to local network issues. "
+                        "Please check your internet connection and try again."
                     ) from e
                 elif connectivity["is_api_issue"]:
                     raise ApiServerError(
                         f"The API server at {self.base_url} is currently unreachable. "
                         f"The service may be experiencing issues. Please try again later."
                     ) from e
-            
+
             # If we haven't exhausted retries yet, retry the request
             if retry_count < self.max_retries:
                 delay = self.retry_delay * (self.retry_backoff_factor ** retry_count)
@@ -454,7 +454,7 @@ class ApiClient:
                     multipart_parser=multipart_parser,
                     retry_count=retry_count + 1,
                 )
-            
+
             # If we've exhausted retries and didn't identify the specific issue,
             # raise a generic exception
             final_error_message = (
@@ -557,7 +557,7 @@ class ApiClient:
             # Retry if the status code is in our retry list and we haven't exhausted retries
             if (status_code in self.retry_status_codes and
                 retry_count < self.max_retries):
-                
+
                 delay = self.retry_delay * (self.retry_backoff_factor ** retry_count)
                 logging.warning(
                     f"HTTP error {status_code}. "
@@ -575,7 +575,7 @@ class ApiClient:
                     multipart_parser=multipart_parser,
                     retry_count=retry_count + 1,
                 )
-            
+
             # Specific error messages for common status codes for user display
             if status_code == 401:
                 user_display_error_message = "Unauthorized: Please login first to use this node."
@@ -610,7 +610,7 @@ class ApiClient:
         retry_backoff_factor: float = 2.0,
     ):
         """Upload a file to the API with retry logic.
-        
+
         Args:
             upload_url: The URL to upload to
             file: Either a file path string, BytesIO object, or tuple of (file_path, filename)
@@ -788,7 +788,7 @@ class SynchronousOperation(Generic[T, R]):
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.retry_backoff_factor = retry_backoff_factor
-        
+
     def execute(self, client: Optional[ApiClient] = None) -> R:
         """Execute the API operation using the provided client or create one with retry support"""
         try:
@@ -964,7 +964,7 @@ class PollingOperation(Generic[T, R]):
         poll_count = 0
         consecutive_errors = 0
         max_consecutive_errors = min(5, self.max_retries * 2)  # Limit consecutive errors
-        
+
         if self.progress_extractor:
             progress = utils.ProgressBar(PROGRESS_BAR_MAX)
 
@@ -1000,7 +1000,7 @@ class PollingOperation(Generic[T, R]):
 
                 # Parse response
                 response_obj = self.poll_endpoint.response_model.model_validate(resp)
-                
+
                 # Check if task is complete
                 status = self._check_task_status(response_obj)
                 logging.debug(f"[DEBUG] Task Status: {status}")
@@ -1037,14 +1037,14 @@ class PollingOperation(Generic[T, R]):
                     raise Exception(
                         f"Polling aborted after {consecutive_errors} consecutive network errors: {str(e)}"
                     ) from e
-                
+
                 # Log the error but continue polling
                 logging.warning(
                     f"Network error during polling (attempt {poll_count}/{self.max_poll_attempts}): {str(e)}. "
                     f"Will retry in {self.poll_interval} seconds."
                 )
                 time.sleep(self.poll_interval)
-                
+
             except Exception as e:
                 # For other errors, increment count and potentially abort
                 consecutive_errors += 1
@@ -1052,14 +1052,14 @@ class PollingOperation(Generic[T, R]):
                     raise Exception(
                         f"Polling aborted after {consecutive_errors} consecutive errors: {str(e)}"
                     ) from e
-                
+
                 logging.error(f"[DEBUG] Polling error: {str(e)}")
                 logging.warning(
                     f"Error during polling (attempt {poll_count}/{self.max_poll_attempts}): {str(e)}. "
                     f"Will retry in {self.poll_interval} seconds."
                 )
                 time.sleep(self.poll_interval)
-        
+
         # If we've exhausted all polling attempts
         raise Exception(
             f"Polling timed out after {poll_count} attempts ({poll_count * self.poll_interval} seconds). "
