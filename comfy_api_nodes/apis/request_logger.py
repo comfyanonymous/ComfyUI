@@ -123,4 +123,3 @@ if __name__ == '__main__':
         response_status_code=200,
         response_content=b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR...' # Sample binary data
     )
-    print(f"Test logs should be in: {get_log_directory()}")
