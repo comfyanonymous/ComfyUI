@@ -433,11 +433,8 @@ class CustomerAttnProcessor2_0:
 
         # the output of sdp = (batch, num_heads, seq_len, head_dim)
         hidden_states = optimized_attention(
-            query, key, value, heads=query.shape[1], mask=attention_mask, skip_reshape=True, skip_output_reshape=True,
-        )
-
-        hidden_states = hidden_states.transpose(1, 2).reshape(batch_size, -1, attn.heads * head_dim)
-        hidden_states = hidden_states.to(query.dtype)
+            query, key, value, heads=query.shape[1], mask=attention_mask, skip_reshape=True,
+        ).to(query.dtype)
 
         # linear proj
         hidden_states = attn.to_out[0](hidden_states)
