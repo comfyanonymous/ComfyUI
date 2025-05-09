@@ -880,7 +880,14 @@ class PromptServer():
 
         return json_data
 
-    def send_progress_text(self, text: Union[bytes, bytearray, str], sid=None):
+    def send_progress_text(
+        self, text: Union[bytes, bytearray, str], node_id: str, sid=None
+    ):
         if isinstance(text, str):
             text = text.encode("utf-8")
-        self.send_sync(BinaryEventTypes.TEXT, text, sid)
+        node_id_bytes = str(node_id).encode("utf-8")
+
+        # Pack the node_id length as a 4-byte unsigned integer, followed by the node_id bytes
+        message = struct.pack(">I", len(node_id_bytes)) + node_id_bytes + text
+
+        self.send_sync(BinaryEventTypes.TEXT, message, sid)
