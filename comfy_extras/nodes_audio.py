@@ -233,14 +233,14 @@ class SaveAudio:
             if format == "opus":
                 out_stream = output_container.add_stream("libopus", rate=sample_rate)
             elif format == "mp3":
-                out_stream = output_container.add_stream("libmp3lame", rate=sample_rate)
+                out_stream = output_container.add_stream("mp3", rate=sample_rate)
             elif format == "flac":
                 out_stream = output_container.add_stream("flac", rate=sample_rate)
             else:  # wav
                 out_stream = output_container.add_stream("pcm_s16le", rate=sample_rate)
             
             # Set channel layout
-            out_stream.layout = in_stream.layout
+            # out_stream.layout = in_stream.layout
             
             # Copy frames from input to output
             for frame in input_container.decode(audio=0):
