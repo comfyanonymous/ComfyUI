@@ -1,5 +1,3 @@
-import re
-
 from comfy.comfy_types.node_typing import IO
 
 class LogicIF():
