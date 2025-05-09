@@ -43,7 +43,7 @@ def handle_recraft_file_request(
         total_pixels=4096*4096,
         timeout=1024,
         request=None,
-        auth_token=None
+        auth_kwargs: dict[str,str] = None,
     ) -> list[BytesIO]:
         """
         Handle sending common Recraft file-only request to get back file bytes.
@@ -67,7 +67,7 @@ def handle_recraft_file_request(
             request=request,
             files=files,
             content_type="multipart/form-data",
-            auth_token=auth_token,
+            auth_kwargs=auth_kwargs,
             multipart_parser=recraft_multipart_parser,
         )
         response: RecraftImageGenerationResponse = operation.execute()
@@ -485,6 +485,7 @@ class RecraftTextToImageNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -497,7 +498,6 @@ class RecraftTextToImageNode:
         recraft_style: RecraftStyle = None,
         negative_prompt: str = None,
         recraft_controls: RecraftControls = None,
-        auth_token=None,
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False, max_length=1000)
@@ -530,7 +530,7 @@ class RecraftTextToImageNode:
                 style_id=recraft_style.style_id,
                 controls=controls_api,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response: RecraftImageGenerationResponse = operation.execute()
         images = []
@@ -620,6 +620,7 @@ class RecraftImageToImageNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -630,7 +631,6 @@ class RecraftImageToImageNode:
         n: int,
         strength: float,
         seed,
-        auth_token=None,
         recraft_style: RecraftStyle = None,
         negative_prompt: str = None,
         recraft_controls: RecraftControls = None,
@@ -668,7 +668,7 @@ class RecraftImageToImageNode:
                 image=image[i],
                 path="/proxy/recraft/images/imageToImage",
                 request=request,
-                auth_token=auth_token,
+                auth_kwargs=kwargs,
             )
             with handle_recraft_image_output():
                 images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
@@ -736,6 +736,7 @@ class RecraftImageInpaintingNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -746,7 +747,6 @@ class RecraftImageInpaintingNode:
         prompt: str,
         n: int,
         seed,
-        auth_token=None,
         recraft_style: RecraftStyle = None,
         negative_prompt: str = None,
         **kwargs,
@@ -781,7 +781,7 @@ class RecraftImageInpaintingNode:
                 mask=mask[i:i+1],
                 path="/proxy/recraft/images/inpaint",
                 request=request,
-                auth_token=auth_token,
+                auth_kwargs=kwargs,
             )
             with handle_recraft_image_output():
                 images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
@@ -860,6 +860,7 @@ class RecraftTextToVectorNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -872,7 +873,6 @@ class RecraftTextToVectorNode:
         seed,
         negative_prompt: str = None,
         recraft_controls: RecraftControls = None,
-        auth_token=None,
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False, max_length=1000)
@@ -903,7 +903,7 @@ class RecraftTextToVectorNode:
                 substyle=recraft_style.substyle,
                 controls=controls_api,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response: RecraftImageGenerationResponse = operation.execute()
         svg_data = []
@@ -934,13 +934,13 @@ class RecraftVectorizeImageNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
     def api_call(
         self,
         image: torch.Tensor,
-        auth_token=None,
         **kwargs,
     ):
         svgs = []
@@ -950,7 +950,7 @@ class RecraftVectorizeImageNode:
             sub_bytes = handle_recraft_file_request(
                 image=image[i],
                 path="/proxy/recraft/images/vectorize",
-                auth_token=auth_token,
+                auth_kwargs=kwargs,
             )
             svgs.append(SVG(sub_bytes))
             pbar.update(1)
@@ -1015,6 +1015,7 @@ class RecraftReplaceBackgroundNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -1024,7 +1025,6 @@ class RecraftReplaceBackgroundNode:
         prompt: str,
         n: int,
         seed,
-        auth_token=None,
         recraft_style: RecraftStyle = None,
         negative_prompt: str = None,
         **kwargs,
@@ -1054,7 +1054,7 @@ class RecraftReplaceBackgroundNode:
                 image=image[i],
                 path="/proxy/recraft/images/replaceBackground",
                 request=request,
-                auth_token=auth_token,
+                auth_kwargs=kwargs,
             )
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
@@ -1084,13 +1084,13 @@ class RecraftRemoveBackgroundNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
     def api_call(
         self,
         image: torch.Tensor,
-        auth_token=None,
         **kwargs,
     ):
         images = []
@@ -1100,7 +1100,7 @@ class RecraftRemoveBackgroundNode:
             sub_bytes = handle_recraft_file_request(
                 image=image[i],
                 path="/proxy/recraft/images/removeBackground",
-                auth_token=auth_token,
+                auth_kwargs=kwargs,
             )
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
@@ -1135,13 +1135,13 @@ class RecraftCrispUpscaleNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
     def api_call(
         self,
         image: torch.Tensor,
-        auth_token=None,
         **kwargs,
     ):
         images = []
@@ -1151,7 +1151,7 @@ class RecraftCrispUpscaleNode:
             sub_bytes = handle_recraft_file_request(
                 image=image[i],
                 path=self.RECRAFT_PATH,
-                auth_token=auth_token,
+                auth_kwargs=kwargs,
             )
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
