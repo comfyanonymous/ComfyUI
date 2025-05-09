@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import av
-import tempfile
 import torchaudio
 import torch
 import comfy.model_management
@@ -167,10 +166,8 @@ class SaveAudio:
 
     CATEGORY = "audio"
     def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=None, extra_pnginfo=None):
-        import av
         import io
-        import numpy as np
-        
+
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
         results: list[FileLocator] = []
@@ -191,10 +188,10 @@ class SaveAudio:
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.{format}"
             output_path = os.path.join(full_output_folder, file)
-            
+
             # Use original sample rate initially
             sample_rate = audio["sample_rate"]
-            
+
             # Handle Opus sample rate requirements
             if format == "opus":
                 if sample_rate > 48000:
@@ -207,29 +204,29 @@ class SaveAudio:
                             break
                     if sample_rate not in OPUS_RATES:  # Fallback if still not supported
                         sample_rate = 48000
-                
+
                 # Resample if necessary
                 if sample_rate != audio["sample_rate"]:
                     waveform = torchaudio.functional.resample(waveform, audio["sample_rate"], sample_rate)
-            
+
             # Create in-memory WAV buffer
             wav_buffer = io.BytesIO()
             torchaudio.save(wav_buffer, waveform, sample_rate, format="WAV")
             wav_buffer.seek(0)  # Rewind for reading
-            
+
             # Use PyAV to convert and add metadata
             input_container = av.open(wav_buffer)
-            
+
             # Create output with specified format
             output_buffer = io.BytesIO()
             output_container = av.open(output_buffer, mode='w', format=format)
-            
+
             # Set metadata on the container
             for key, value in metadata.items():
                 output_container.metadata[key] = value
-            
+
             # Set up the output stream with appropriate properties
-            in_stream = input_container.streams.audio[0]
+            input_container.streams.audio[0]
             if format == "opus":
                 out_stream = output_container.add_stream("libopus", rate=sample_rate)
             elif format == "mp3":
@@ -238,34 +235,34 @@ class SaveAudio:
                 out_stream = output_container.add_stream("flac", rate=sample_rate)
             else:  # wav
                 out_stream = output_container.add_stream("pcm_s16le", rate=sample_rate)
-            
+
             # Set channel layout
             # out_stream.layout = in_stream.layout
-            
+
             # Copy frames from input to output
             for frame in input_container.decode(audio=0):
                 frame.pts = None  # Let PyAV handle timestamps
                 output_container.mux(out_stream.encode(frame))
-            
+
             # Flush encoder
             output_container.mux(out_stream.encode(None))
-            
+
             # Close containers
             output_container.close()
             input_container.close()
-            
+
             # Write the output to file
             output_buffer.seek(0)
             with open(output_path, 'wb') as f:
                 f.write(output_buffer.getbuffer())
-            
+
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
                 "type": self.type
             })
             counter += 1
-        
+
         return { "ui": { "audio": results } }
 
 class PreviewAudio(SaveAudio):
