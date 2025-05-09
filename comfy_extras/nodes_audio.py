@@ -8,7 +8,6 @@ import folder_paths
 import os
 import io
 import json
-import struct
 import random
 import hashlib
 import node_helpers
@@ -90,61 +89,6 @@ class VAEDecodeAudio:
         audio /= std
         return ({"waveform": audio, "sample_rate": 44100}, )
 
-
-def create_vorbis_comment_block(comment_dict, last_block):
-    vendor_string = b'ComfyUI'
-    vendor_length = len(vendor_string)
-
-    comments = []
-    for key, value in comment_dict.items():
-        comment = f"{key}={value}".encode('utf-8')
-        comments.append(struct.pack('<I', len(comment)) + comment)
-
-    user_comment_list_length = len(comments)
-    user_comments = b''.join(comments)
-
-    comment_data = struct.pack('<I', vendor_length) + vendor_string + struct.pack('<I', user_comment_list_length) + user_comments
-    if last_block:
-        id = b'\x84'
-    else:
-        id = b'\x04'
-    comment_block = id + struct.pack('>I', len(comment_data))[1:] + comment_data
-
-    return comment_block
-
-def insert_or_replace_vorbis_comment(flac_io, comment_dict):
-    if len(comment_dict) == 0:
-        return flac_io
-
-    flac_io.seek(4)
-
-    blocks = []
-    last_block = False
-
-    while not last_block:
-        header = flac_io.read(4)
-        last_block = (header[0] & 0x80) != 0
-        block_type = header[0] & 0x7F
-        block_length = struct.unpack('>I', b'\x00' + header[1:])[0]
-        block_data = flac_io.read(block_length)
-
-        if block_type == 4 or block_type == 1:
-            pass
-        else:
-            header = bytes([(header[0] & (~0x80))]) + header[1:]
-            blocks.append(header + block_data)
-
-    blocks.append(create_vorbis_comment_block(comment_dict, last_block=True))
-
-    new_flac_io = io.BytesIO()
-    new_flac_io.write(b'fLaC')
-    for block in blocks:
-        new_flac_io.write(block)
-
-    new_flac_io.write(flac_io.read())
-    return new_flac_io
-
-
 class SaveAudio:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -166,7 +110,6 @@ class SaveAudio:
 
     CATEGORY = "audio"
     def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=None, extra_pnginfo=None):
-        import io
 
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
@@ -237,6 +180,7 @@ class SaveAudio:
                 out_stream = output_container.add_stream("pcm_s16le", rate=sample_rate)
 
             # Set channel layout
+            # this causes mp3 to fail
             # out_stream.layout = in_stream.layout
 
             # Copy frames from input to output
