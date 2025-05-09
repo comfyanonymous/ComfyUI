@@ -80,13 +80,13 @@ If coming from the very start, you need :
 
 ((((if you want to try miopen-triton with high end gpu, install hip 6.2.4 from the url above then download hip sdk addon from this url `https://drive.google.com/file/d/1JSVDV9yKCJ_vldXb5hS7NEHUeDJGoG6M/view?usp=sharing` and extract that into `C:\Program Files\AMD\ROCm\6.2`)))
 
-5. Add the system variable HIP_PATH, value: `C:\\Program Files\\AMD\\ROCm\\5.7\\` (This is the default folder, if you
+5. Add the system variable HIP_PATH, value: `C:\Program Files\AMD\ROCm\5.7\` (This is the default folder, if you
    have installed it on another drive, change if necessary)
     1. Check the variables on the lower part (System Variables), there should be a variable called: HIP_PATH.
     2. Also check the variables on the lower part (System Variables), there should be a variable called: "Path".
        Double-click it and click "New" add this: `C:\Program Files\AMD\ROCm\5.7\bin`
 
-    ((( these should be  HIP_PATH, value: `C:\\Program Files\\AMD\\ROCm\\6.2\\` and Path variable  `C:\Program Files\AMD\ROCm\6.2\bin` )))
+    ((( these should be  HIP_PATH, value: `C:\Program Files\AMD\ROCm\6.2\` and Path variable  `C:\Program Files\AMD\ROCm\6.2\bin` )))
 
 6. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
 
