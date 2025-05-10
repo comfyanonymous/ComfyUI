@@ -2,6 +2,10 @@ import nodes
 import folder_paths
 import os
 
+from comfy.comfy_types import IO
+from comfy_api.input_impl import VideoFromFile
+
+
 def normalize_path(path):
     return path.replace('\\', '/')
 
@@ -21,8 +25,8 @@ class Load3D():
             "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
         }}
 
-    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "IMAGE", "IMAGE", "LOAD3D_CAMERA")
-    RETURN_NAMES = ("image", "mask", "mesh_path", "normal", "lineart", "camera_info")
+    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "IMAGE", "IMAGE", "LOAD3D_CAMERA", IO.VIDEO)
+    RETURN_NAMES = ("image", "mask", "mesh_path", "normal", "lineart", "camera_info", "recording_video")
 
     FUNCTION = "process"
     EXPERIMENTAL = True
@@ -41,7 +45,14 @@ class Load3D():
         normal_image, ignore_mask2 = load_image_node.load_image(image=normal_path)
         lineart_image, ignore_mask3 = load_image_node.load_image(image=lineart_path)
 
-        return output_image, output_mask, model_file, normal_image, lineart_image, image['camera_info']
+        video = None
+
+        if image['recording'] != "":
+            recording_video_path = folder_paths.get_annotated_filepath(image['recording'])
+
+            video = VideoFromFile(recording_video_path)
+
+        return output_image, output_mask, model_file, normal_image, lineart_image, image['camera_info'], video
 
 class Load3DAnimation():
     @classmethod
@@ -59,8 +70,8 @@ class Load3DAnimation():
             "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
         }}
 
-    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "IMAGE", "LOAD3D_CAMERA")
-    RETURN_NAMES = ("image", "mask", "mesh_path", "normal", "camera_info")
+    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "IMAGE", "LOAD3D_CAMERA", IO.VIDEO)
+    RETURN_NAMES = ("image", "mask", "mesh_path", "normal", "camera_info", "recording_video")
 
     FUNCTION = "process"
     EXPERIMENTAL = True
@@ -77,7 +88,14 @@ class Load3DAnimation():
         ignore_image, output_mask = load_image_node.load_image(image=mask_path)
         normal_image, ignore_mask2 = load_image_node.load_image(image=normal_path)
 
-        return output_image, output_mask, model_file, normal_image, image['camera_info']
+        video = None
+
+        if image['recording'] != "":
+            recording_video_path = folder_paths.get_annotated_filepath(image['recording'])
+
+            video = VideoFromFile(recording_video_path)
+
+        return output_image, output_mask, model_file, normal_image, image['camera_info'], video
 
 class Preview3D():
     @classmethod
