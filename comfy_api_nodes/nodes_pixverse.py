@@ -34,7 +34,7 @@ import requests
 from io import BytesIO
 
 
-def upload_image_to_pixverse(image: torch.Tensor, auth_token=None):
+def upload_image_to_pixverse(image: torch.Tensor, auth_kwargs=None):
     # first, upload image to Pixverse and get image id to use in actual generation call
     files = {
         "image": tensor_to_bytesio(image)
@@ -49,7 +49,7 @@ def upload_image_to_pixverse(image: torch.Tensor, auth_token=None):
         request=EmptyRequest(),
         files=files,
         content_type="multipart/form-data",
-        auth_token=auth_token,
+        auth_kwargs=auth_kwargs,
     )
     response_upload: PixverseImageUploadResponse = operation.execute()
 
@@ -148,6 +148,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -161,7 +162,6 @@ class PixverseTextToVideoNode(ComfyNodeABC):
         seed,
         negative_prompt: str=None,
         pixverse_template: int=None,
-        auth_token=None,
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False)
@@ -190,7 +190,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
                 template_id=pixverse_template,
                 seed=seed,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response_api = operation.execute()
 
@@ -207,7 +207,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
             completed_statuses=[PixverseStatus.successful],
             failed_statuses=[PixverseStatus.contents_moderation, PixverseStatus.failed, PixverseStatus.deleted],
             status_extractor=lambda x: x.Resp.status,
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response_poll = operation.execute()
 
@@ -278,6 +278,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -291,11 +292,10 @@ class PixverseImageToVideoNode(ComfyNodeABC):
         seed,
         negative_prompt: str=None,
         pixverse_template: int=None,
-        auth_token=None,
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False)
-        img_id = upload_image_to_pixverse(image, auth_token=auth_token)
+        img_id = upload_image_to_pixverse(image, auth_kwargs=kwargs)
 
         # 1080p is limited to 5 seconds duration
         # only normal motion_mode supported for 1080p or for non-5 second duration
@@ -322,7 +322,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
                 template_id=pixverse_template,
                 seed=seed,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response_api = operation.execute()
 
@@ -339,7 +339,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
             completed_statuses=[PixverseStatus.successful],
             failed_statuses=[PixverseStatus.contents_moderation, PixverseStatus.failed, PixverseStatus.deleted],
             status_extractor=lambda x: x.Resp.status,
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response_poll = operation.execute()
 
@@ -407,6 +407,7 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -420,12 +421,11 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
         motion_mode: str,
         seed,
         negative_prompt: str=None,
-        auth_token=None,
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False)
-        first_frame_id = upload_image_to_pixverse(first_frame, auth_token=auth_token)
-        last_frame_id = upload_image_to_pixverse(last_frame, auth_token=auth_token)
+        first_frame_id = upload_image_to_pixverse(first_frame, auth_kwargs=kwargs)
+        last_frame_id = upload_image_to_pixverse(last_frame, auth_kwargs=kwargs)
 
         # 1080p is limited to 5 seconds duration
         # only normal motion_mode supported for 1080p or for non-5 second duration
@@ -452,7 +452,7 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
                 negative_prompt=negative_prompt if negative_prompt else None,
                 seed=seed,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response_api = operation.execute()
 
@@ -469,7 +469,7 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
             completed_statuses=[PixverseStatus.successful],
             failed_statuses=[PixverseStatus.contents_moderation, PixverseStatus.failed, PixverseStatus.deleted],
             status_extractor=lambda x: x.Resp.status,
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response_poll = operation.execute()
 

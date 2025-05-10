@@ -20,7 +20,8 @@ Usage Examples:
 # 1. Create the API client
 api_client = ApiClient(
     base_url="https://api.example.com",
-    api_key="your_api_key_here",
+    auth_token="your_auth_token_here",
+    comfy_api_key="your_comfy_api_key_here",
     timeout=30.0,
     verify_ssl=True
 )
@@ -146,12 +147,14 @@ class ApiClient:
     def __init__(
         self,
         base_url: str,
-        api_key: Optional[str] = None,
+        auth_token: Optional[str] = None,
+        comfy_api_key: Optional[str] = None,
         timeout: float = 3600.0,
         verify_ssl: bool = True,
     ):
         self.base_url = base_url
-        self.api_key = api_key
+        self.auth_token = auth_token
+        self.comfy_api_key = comfy_api_key
         self.timeout = timeout
         self.verify_ssl = verify_ssl
 
@@ -201,8 +204,10 @@ class ApiClient:
         """Get headers for API requests, including authentication if available"""
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+        elif self.comfy_api_key:
+            headers["X-API-KEY"] = self.comfy_api_key
 
         return headers
 
@@ -236,7 +241,7 @@ class ApiClient:
             requests.RequestException: If the request fails
         """
         url = urljoin(self.base_url, path)
-        self.check_auth_token(self.api_key)
+        self.check_auth(self.auth_token, self.comfy_api_key)
         # Combine default headers with any provided headers
         request_headers = self.get_headers()
         if headers:
@@ -320,11 +325,11 @@ class ApiClient:
             return response.json()
         return {}
 
-    def check_auth_token(self, auth_token):
-        """Verify that an auth token is present."""
-        if auth_token is None:
+    def check_auth(self, auth_token, comfy_api_key):
+        """Verify that an auth token is present or comfy_api_key is present"""
+        if auth_token is None and comfy_api_key is None:
             raise Exception("Unauthorized: Please login first to use this node.")
-        return auth_token
+        return auth_token or comfy_api_key
 
     @staticmethod
     def upload_file(
@@ -392,6 +397,8 @@ class SynchronousOperation(Generic[T, R]):
         files: Optional[Dict[str, Any]] = None,
         api_base: str | None = None,
         auth_token: Optional[str] = None,
+        comfy_api_key: Optional[str] = None,
+        auth_kwargs: Optional[Dict[str,str]] = None,
         timeout: float = 604800.0,
         verify_ssl: bool = True,
         content_type: str = "application/json",
@@ -403,6 +410,10 @@ class SynchronousOperation(Generic[T, R]):
         self.error = None
         self.api_base: str = api_base or args.comfy_api_base
         self.auth_token = auth_token
+        self.comfy_api_key = comfy_api_key
+        if auth_kwargs is not None:
+            self.auth_token = auth_kwargs.get("auth_token", self.auth_token)
+            self.comfy_api_key = auth_kwargs.get("comfy_api_key", self.comfy_api_key)
         self.timeout = timeout
         self.verify_ssl = verify_ssl
         self.files = files
@@ -415,7 +426,8 @@ class SynchronousOperation(Generic[T, R]):
             if client is None:
                 client = ApiClient(
                     base_url=self.api_base,
-                    api_key=self.auth_token,
+                    auth_token=self.auth_token,
+                    comfy_api_key=self.comfy_api_key,
                     timeout=self.timeout,
                     verify_ssl=self.verify_ssl,
                 )
@@ -502,12 +514,18 @@ class PollingOperation(Generic[T, R]):
         request: Optional[T] = None,
         api_base: str | None = None,
         auth_token: Optional[str] = None,
+        comfy_api_key: Optional[str] = None,
+        auth_kwargs: Optional[Dict[str,str]] = None,
         poll_interval: float = 5.0,
     ):
         self.poll_endpoint = poll_endpoint
         self.request = request
         self.api_base: str = api_base or args.comfy_api_base
         self.auth_token = auth_token
+        self.comfy_api_key = comfy_api_key
+        if auth_kwargs is not None:
+            self.auth_token = auth_kwargs.get("auth_token", self.auth_token)
+            self.comfy_api_key = auth_kwargs.get("comfy_api_key", self.comfy_api_key)
         self.poll_interval = poll_interval
 
         # Polling configuration
@@ -528,7 +546,8 @@ class PollingOperation(Generic[T, R]):
             if client is None:
                 client = ApiClient(
                     base_url=self.api_base,
-                    api_key=self.auth_token,
+                    auth_token=self.auth_token,
+                    comfy_api_key=self.comfy_api_key,
                 )
             return self._poll_until_complete(client)
         except Exception as e:

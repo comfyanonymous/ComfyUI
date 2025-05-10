@@ -179,6 +179,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -211,7 +212,6 @@ class FluxProUltraImageNode(ComfyNodeABC):
         seed=0,
         image_prompt=None,
         image_prompt_strength=0.1,
-        auth_token=None,
         **kwargs,
     ):
         if image_prompt is None:
@@ -244,7 +244,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
                     None if image_prompt is None else round(image_prompt_strength, 2)
                 ),
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         output_image = handle_bfl_synchronous_operation(operation)
         return (output_image,)
@@ -319,6 +319,7 @@ class FluxProImageNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -337,7 +338,6 @@ class FluxProImageNode(ComfyNodeABC):
         seed=0,
         image_prompt=None,
         # image_prompt_strength=0.1,
-        auth_token=None,
         **kwargs,
     ):
         image_prompt = (
@@ -361,7 +361,7 @@ class FluxProImageNode(ComfyNodeABC):
                 seed=seed,
                 image_prompt=image_prompt,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         output_image = handle_bfl_synchronous_operation(operation)
         return (output_image,)
@@ -461,6 +461,7 @@ class FluxProExpandNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -482,7 +483,6 @@ class FluxProExpandNode(ComfyNodeABC):
         steps: int,
         guidance: float,
         seed=0,
-        auth_token=None,
         **kwargs,
     ):
         image = convert_image_to_base64(image)
@@ -506,7 +506,7 @@ class FluxProExpandNode(ComfyNodeABC):
                 seed=seed,
                 image=image,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         output_image = handle_bfl_synchronous_operation(operation)
         return (output_image,)
@@ -572,6 +572,7 @@ class FluxProFillNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -590,7 +591,6 @@ class FluxProFillNode(ComfyNodeABC):
         steps: int,
         guidance: float,
         seed=0,
-        auth_token=None,
         **kwargs,
     ):
         # prepare mask
@@ -615,7 +615,7 @@ class FluxProFillNode(ComfyNodeABC):
                 image=image,
                 mask=mask,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         output_image = handle_bfl_synchronous_operation(operation)
         return (output_image,)
@@ -706,6 +706,7 @@ class FluxProCannyNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -726,7 +727,6 @@ class FluxProCannyNode(ComfyNodeABC):
         steps: int,
         guidance: float,
         seed=0,
-        auth_token=None,
         **kwargs,
     ):
         control_image = convert_image_to_base64(control_image[:,:,:,:3])
@@ -763,7 +763,7 @@ class FluxProCannyNode(ComfyNodeABC):
                 canny_high_threshold=canny_high_threshold,
                 preprocessed_image=preprocessed_image,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         output_image = handle_bfl_synchronous_operation(operation)
         return (output_image,)
@@ -834,6 +834,7 @@ class FluxProDepthNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -852,7 +853,6 @@ class FluxProDepthNode(ComfyNodeABC):
         steps: int,
         guidance: float,
         seed=0,
-        auth_token=None,
         **kwargs,
     ):
         control_image = convert_image_to_base64(control_image[:,:,:,:3])
@@ -878,7 +878,7 @@ class FluxProDepthNode(ComfyNodeABC):
                 control_image=control_image,
                 preprocessed_image=preprocessed_image,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         output_image = handle_bfl_synchronous_operation(operation)
         return (output_image,)
