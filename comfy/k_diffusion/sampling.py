@@ -1277,6 +1277,7 @@ def res_multistep(model, x, sigmas, extra_args=None, callback=None, disable=None
     phi1_fn = lambda t: torch.expm1(t) / t
     phi2_fn = lambda t: (phi1_fn(t) - 1.0) / t
 
+    old_sigma_down = None
     old_denoised = None
     uncond_denoised = None
     def post_cfg_function(args):
@@ -1304,9 +1305,9 @@ def res_multistep(model, x, sigmas, extra_args=None, callback=None, disable=None
                 x = x + d * dt
         else:
             # Second order multistep method in https://arxiv.org/pdf/2308.02157
-            t, t_next, t_prev = t_fn(sigmas[i]), t_fn(sigma_down), t_fn(sigmas[i - 1])
+            t, t_old, t_next, t_prev = t_fn(sigmas[i]), t_fn(old_sigma_down), t_fn(sigma_down), t_fn(sigmas[i - 1])
             h = t_next - t
-            c2 = (t_prev - t) / h
+            c2 = (t_prev - t_old) / h
 
             phi1_val, phi2_val = phi1_fn(-h), phi2_fn(-h)
             b1 = torch.nan_to_num(phi1_val - phi2_val / c2, nan=0.0)
@@ -1326,6 +1327,7 @@ def res_multistep(model, x, sigmas, extra_args=None, callback=None, disable=None
             old_denoised = uncond_denoised
         else:
             old_denoised = denoised
+        old_sigma_down = sigma_down
     return x
 
 @torch.no_grad()
