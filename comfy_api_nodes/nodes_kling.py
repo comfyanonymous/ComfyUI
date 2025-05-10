@@ -184,6 +184,33 @@ def validate_image_result_response(response) -> None:
         raise KlingApiError(error_msg)
 
 
+def validate_input_image(image: torch.Tensor) -> None:
+    """
+    Validates the input image adheres to the expectations of the Kling API:
+    - The image resolution should not be less than 300*300px
+    - The aspect ratio of the image should be between 1:2.5 ~ 2.5:1
+
+    See: https://app.klingai.com/global/dev/document-api/apiReference/model/imageToVideo
+    """
+    if len(image.shape) == 4:
+        height, width = image.shape[1], image.shape[2]
+    elif len(image.shape) == 3:
+        height, width = image.shape[0], image.shape[1]
+    else:
+        raise ValueError("Invalid image tensor shape.")
+
+    # Ensure minimum resolution is met
+    if height < 300:
+        raise ValueError("Image height must be at least 300px")
+    if width < 300:
+        raise ValueError("Image width must be at least 300px")
+
+    # Ensure aspect ratio is within acceptable range
+    aspect_ratio = width / height
+    if aspect_ratio < 1 / 2.5 or aspect_ratio > 2.5:
+        raise ValueError("Image aspect ratio must be between 1:2.5 and 2.5:1")
+
+
 def get_camera_control_input_config(
     tooltip: str, default: float = 0.0
 ) -> tuple[IO, InputTypeOptions]:
@@ -530,7 +557,10 @@ class KlingImage2VideoNode(KlingNodeBase):
         return {
             "required": {
                 "start_frame": model_field_to_node_input(
-                    IO.IMAGE, KlingImage2VideoRequest, "image"
+                    IO.IMAGE,
+                    KlingImage2VideoRequest,
+                    "image",
+                    tooltip="The reference image used to generate the video.",
                 ),
                 "prompt": model_field_to_node_input(
                     IO.STRING, KlingImage2VideoRequest, "prompt", multiline=True
@@ -607,9 +637,10 @@ class KlingImage2VideoNode(KlingNodeBase):
         auth_token: Optional[str] = None,
     ) -> tuple[VideoFromFile]:
         validate_prompts(prompt, negative_prompt, MAX_PROMPT_LENGTH_I2V)
+        validate_input_image(start_frame)
 
         if camera_control is not None:
-            # Camera control type for image 2 video is always simple
+            # Camera control type for image 2 video is always `simple`
             camera_control.type = KlingCameraControlType.simple
 
         initial_operation = SynchronousOperation(

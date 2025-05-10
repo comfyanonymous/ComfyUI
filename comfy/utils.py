@@ -28,6 +28,9 @@ import logging
 import itertools
 from torch.nn.functional import interpolate
 from einops import rearrange
+from comfy.cli_args import args
+
+MMAP_TORCH_FILES = args.mmap_torch_files
 
 ALWAYS_SAFE_LOAD = False
 if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in pytorch 2.4, the unsafe path should be removed once earlier versions are deprecated
@@ -67,8 +70,12 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
                     raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt/incomplete. Check the file size and make sure you have copied/downloaded it correctly.".format(message, ckpt))
             raise e
     else:
+        torch_args = {}
+        if MMAP_TORCH_FILES:
+            torch_args["mmap"] = True
+
         if safe_load or ALWAYS_SAFE_LOAD:
-            pl_sd = torch.load(ckpt, map_location=device, weights_only=True)
+            pl_sd = torch.load(ckpt, map_location=device, weights_only=True, **torch_args)
         else:
             pl_sd = torch.load(ckpt, map_location=device, pickle_module=comfy.checkpoint_pickle)
         if "global_step" in pl_sd:

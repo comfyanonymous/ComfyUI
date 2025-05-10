@@ -234,9 +234,7 @@ def download_and_process_images(image_urls):
 
 class IdeogramV1(ComfyNodeABC):
     """
-    Generates images synchronously using the Ideogram V1 model.
-
-    Images links are available for a limited period of time; if you would like to keep the image, you must download it.
+    Generates images using the Ideogram V1 model.
     """
 
     def __init__(self):
@@ -365,9 +363,7 @@ class IdeogramV1(ComfyNodeABC):
 
 class IdeogramV2(ComfyNodeABC):
     """
-    Generates images synchronously using the Ideogram V2 model.
-
-    Images links are available for a limited period of time; if you would like to keep the image, you must download it.
+    Generates images using the Ideogram V2 model.
     """
 
     def __init__(self):
@@ -536,10 +532,7 @@ class IdeogramV2(ComfyNodeABC):
 
 class IdeogramV3(ComfyNodeABC):
     """
-    Generates images synchronously using the Ideogram V3 model.
-
-    Supports both regular image generation from text prompts and image editing with mask.
-    Images links are available for a limited period of time; if you would like to keep the image, you must download it.
+    Generates images using the Ideogram V3 model. Supports both regular image generation from text prompts and image editing with mask.
     """
 
     def __init__(self):
