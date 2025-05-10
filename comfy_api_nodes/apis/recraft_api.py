@@ -81,7 +81,6 @@ class RecraftStyle:
 
 class RecraftIO:
     STYLEV3 = "RECRAFT_V3_STYLE"
-    SVG = "SVG" # TODO: if acceptable, move into ComfyUI's typing class
     COLOR = "RECRAFT_COLOR"
     CONTROLS = "RECRAFT_CONTROLS"
 
