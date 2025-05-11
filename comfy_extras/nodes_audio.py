@@ -153,7 +153,8 @@ class SaveAudio:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "audio": ("AUDIO", ),
-                              "filename_prefix": ("STRING", {"default": "audio/ComfyUI"})},
+                              "filename_prefix": ("STRING", {"default": "audio/ComfyUI"}),
+                              "bit_depth": ([16, 24], )},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -164,7 +165,7 @@ class SaveAudio:
 
     CATEGORY = "audio"
 
-    def save_audio(self, audio, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+    def save_audio(self, audio, filename_prefix="ComfyUI", bit_depth=16, prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
         results: list[FileLocator] = []
@@ -182,7 +183,7 @@ class SaveAudio:
             file = f"{filename_with_batch_num}_{counter:05}_.flac"
 
             buff = io.BytesIO()
-            torchaudio.save(buff, waveform, audio["sample_rate"], format="FLAC")
+            torchaudio.save(buff, waveform, audio["sample_rate"], format="FLAC", bits_per_sample=bit_depth)
 
             buff = insert_or_replace_vorbis_comment(buff, metadata)
 
