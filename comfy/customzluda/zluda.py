@@ -261,7 +261,7 @@ def do_hijack():
                 def amd_flash_wrapper(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None):
                     try:
                         if (query.shape[-1] <= 128 and 
-                            not attn_mask and 
+                            attn_mask is None and # fix flash-attention error : "Flash attention error: Boolean value of Tensor with more than one value is ambiguous" 
                             query.dtype != torch.float32):
                             if scale is None:
                                 scale = query.shape[-1] ** -0.5
