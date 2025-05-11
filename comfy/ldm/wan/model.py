@@ -250,14 +250,14 @@ class VaceWanAttentionBlock(WanAttentionBlock):
 class WanCamAdapter(nn.Module):
     def __init__(self, in_dim, out_dim, kernel_size, stride, num_residual_blocks=1, operation_settings={}):
         super(WanCamAdapter, self).__init__()
-        
+
         # Pixel Unshuffle: reduce spatial dimensions by a factor of 8
         self.pixel_unshuffle = nn.PixelUnshuffle(downscale_factor=8)
-        
+
         # Convolution: reduce spatial dimensions by a factor
         #  of 2 (without overlap)
         self.conv = operation_settings.get("operations").Conv2d(in_dim * 64, out_dim, kernel_size=kernel_size, stride=stride, padding=0, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
-        
+
         # Residual blocks for feature extraction
         self.residual_blocks = nn.Sequential(
             *[WanCamResidualBlock(out_dim, operation_settings = operation_settings) for _ in range(num_residual_blocks)]
@@ -267,19 +267,19 @@ class WanCamAdapter(nn.Module):
         # Reshape to merge the frame dimension into batch
         bs, c, f, h, w = x.size()
         x = x.permute(0, 2, 1, 3, 4).contiguous().view(bs * f, c, h, w)
-        
+
         # Pixel Unshuffle operation
         x_unshuffled = self.pixel_unshuffle(x)
-        
+
         # Convolution operation
         x_conv = self.conv(x_unshuffled)
-        
+
         # Feature extraction with residual blocks
         out = self.residual_blocks(x_conv)
-        
+
         # Reshape to restore original bf dimension
         out = out.view(bs, f, out.size(1), out.size(2), out.size(3))
-        
+
         # Permute dimensions to reorder (if needed), e.g., swap channels and feature frames
         out = out.permute(0, 2, 1, 3, 4)
 
