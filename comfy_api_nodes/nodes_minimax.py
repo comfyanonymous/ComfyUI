@@ -67,6 +67,7 @@ class MinimaxTextToVideoNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -84,7 +85,7 @@ class MinimaxTextToVideoNode:
         model="T2V-01",
         image: torch.Tensor=None, # used for ImageToVideo
         subject: torch.Tensor=None, # used for SubjectToVideo
-        auth_token=None,
+        **kwargs,
     ):
         '''
         Function used between MiniMax nodes - supports T2V, I2V, and S2V, based on provided arguments.
@@ -94,12 +95,12 @@ class MinimaxTextToVideoNode:
         # upload image, if passed in
         image_url = None
         if image is not None:
-            image_url = upload_images_to_comfyapi(image, max_images=1, auth_token=auth_token)[0]
+            image_url = upload_images_to_comfyapi(image, max_images=1, auth_kwargs=kwargs)[0]
 
         # TODO: figure out how to deal with subject properly, API returns invalid params when using S2V-01 model
         subject_reference = None
         if subject is not None:
-            subject_url = upload_images_to_comfyapi(subject, max_images=1, auth_token=auth_token)[0]
+            subject_url = upload_images_to_comfyapi(subject, max_images=1, auth_kwargs=kwargs)[0]
             subject_reference = [SubjectReferenceItem(image=subject_url)]
 
 
@@ -118,7 +119,7 @@ class MinimaxTextToVideoNode:
                 subject_reference=subject_reference,
                 prompt_optimizer=None,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response = video_generate_operation.execute()
 
@@ -137,7 +138,7 @@ class MinimaxTextToVideoNode:
             completed_statuses=["Success"],
             failed_statuses=["Fail"],
             status_extractor=lambda x: x.status.value,
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         task_result = video_generate_operation.execute()
 
@@ -153,7 +154,7 @@ class MinimaxTextToVideoNode:
                 query_params={"file_id": int(file_id)},
             ),
             request=EmptyRequest(),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         file_result = file_retrieve_operation.execute()
 
@@ -221,6 +222,7 @@ class MinimaxImageToVideoNode(MinimaxTextToVideoNode):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -279,6 +281,7 @@ class MinimaxSubjectToVideoNode(MinimaxTextToVideoNode):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
