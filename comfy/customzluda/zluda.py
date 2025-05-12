@@ -58,7 +58,7 @@ def install_package(package_name, version, upgrade=False):
 
 # List of packages and their required versions
 packages_to_check = [
-    ("comfyui-frontend-package", "1.18.10"),
+    ("comfyui-frontend-package", "1.19.9"),
     ("comfyui-workflow-templates", "0.1.14"),
     ("av", "14.3.0")
 ]
