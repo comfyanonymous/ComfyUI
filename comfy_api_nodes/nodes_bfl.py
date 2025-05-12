@@ -137,14 +137,19 @@ def convert_mask_to_image(mask: torch.Tensor):
 
 
 def handle_bfl_synchronous_operation(
-    operation: SynchronousOperation, timeout_bfl_calls=360
+    operation: SynchronousOperation,
+    timeout_bfl_calls=360,
+    node_id: Union[str, None] = None,
 ):
     response_api: BFLFluxProGenerateResponse = operation.execute()
     return _poll_until_generated(
-        response_api.polling_url, timeout=timeout_bfl_calls
+        response_api.polling_url, timeout=timeout_bfl_calls, node_id=node_id
     )
 
-def _poll_until_generated(polling_url: str, timeout=360):
+
+def _poll_until_generated(
+    polling_url: str, timeout=360, node_id: Union[str, None] = None
+):
     # used bfl-comfy-nodes to verify code implementation:
     # https://github.com/black-forest-labs/bfl-comfy-nodes/tree/main
     start_time = time.time()
@@ -156,11 +161,21 @@ def _poll_until_generated(polling_url: str, timeout=360):
     request = requests.Request(method=HttpMethod.GET, url=polling_url)
     # NOTE: should True loop be replaced with checking if workflow has been interrupted?
     while True:
+        if node_id:
+            time_elapsed = time.time() - start_time
+            PromptServer.instance.send_progress_text(
+                f"Generating ({time_elapsed:.0f}s)", node_id
+            )
+
         response = requests.Session().send(request.prepare())
         if response.status_code == 200:
             result = response.json()
             if result["status"] == BFLStatus.ready:
                 img_url = result["result"]["sample"]
+                if node_id:
+                    PromptServer.instance.send_progress_text(
+                        f"Result URL: {img_url}", node_id
+                    )
                 img_response = requests.get(img_url)
                 return process_image_response(img_response)
             elif result["status"] in [
