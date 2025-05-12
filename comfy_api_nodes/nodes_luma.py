@@ -36,11 +36,20 @@ from comfy_api_nodes.apinode_utils import (
     process_image_response,
     validate_string,
 )
+from server import PromptServer
 
 import requests
 import torch
 from io import BytesIO
 
+LUMA_T2V_AVERAGE_DURATION = 105
+LUMA_I2V_AVERAGE_DURATION = 100
+
+def image_result_url_extractor(response: LumaGeneration):
+    return response.assets.image if hasattr(response, "assets") and hasattr(response.assets, "image") else None
+
+def video_result_url_extractor(response: LumaGeneration):
+    return response.assets.video if hasattr(response, "assets") and hasattr(response.assets, "video") else None
 
 class LumaReferenceNode(ComfyNodeABC):
     """
@@ -204,6 +213,7 @@ class LumaImageGenerationNode(ComfyNodeABC):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -217,6 +227,7 @@ class LumaImageGenerationNode(ComfyNodeABC):
         image_luma_ref: LumaReferenceChain = None,
         style_image: torch.Tensor = None,
         character_image: torch.Tensor = None,
+        unique_id: str = None,
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=True, min_length=3)
@@ -271,6 +282,8 @@ class LumaImageGenerationNode(ComfyNodeABC):
             completed_statuses=[LumaState.completed],
             failed_statuses=[LumaState.failed],
             status_extractor=lambda x: x.state,
+            result_url_extractor=image_result_url_extractor,
+            node_id=unique_id,
             auth_kwargs=kwargs,
         )
         response_poll = operation.execute()
@@ -353,6 +366,7 @@ class LumaImageModifyNode(ComfyNodeABC):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -363,6 +377,7 @@ class LumaImageModifyNode(ComfyNodeABC):
         image: torch.Tensor,
         image_weight: float,
         seed,
+        unique_id: str = None,
         **kwargs,
     ):
         # first, upload image
@@ -399,6 +414,8 @@ class LumaImageModifyNode(ComfyNodeABC):
             completed_statuses=[LumaState.completed],
             failed_statuses=[LumaState.failed],
             status_extractor=lambda x: x.state,
+            result_url_extractor=image_result_url_extractor,
+            node_id=unique_id,
             auth_kwargs=kwargs,
         )
         response_poll = operation.execute()
@@ -473,6 +490,7 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -486,6 +504,7 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
         loop: bool,
         seed,
         luma_concepts: LumaConceptChain = None,
+        unique_id: str = None,
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False, min_length=3)
@@ -512,6 +531,9 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
         )
         response_api: LumaGeneration = operation.execute()
 
+        if unique_id:
+            PromptServer.instance.send_progress_text(f"Luma video generation started: {response_api.id}", unique_id)
+
         operation = PollingOperation(
             poll_endpoint=ApiEndpoint(
                 path=f"/proxy/luma/generations/{response_api.id}",
@@ -522,6 +544,9 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
             completed_statuses=[LumaState.completed],
             failed_statuses=[LumaState.failed],
             status_extractor=lambda x: x.state,
+            result_url_extractor=video_result_url_extractor,
+            node_id=unique_id,
+            estimated_duration=LUMA_T2V_AVERAGE_DURATION,
             auth_kwargs=kwargs,
         )
         response_poll = operation.execute()
@@ -597,6 +622,7 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -611,6 +637,7 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
         first_image: torch.Tensor = None,
         last_image: torch.Tensor = None,
         luma_concepts: LumaConceptChain = None,
+        unique_id: str = None,
         **kwargs,
     ):
         if first_image is None and last_image is None:
@@ -642,6 +669,9 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
         )
         response_api: LumaGeneration = operation.execute()
 
+        if unique_id:
+            PromptServer.instance.send_progress_text(f"Luma video generation started: {response_api.id}", unique_id)
+
         operation = PollingOperation(
             poll_endpoint=ApiEndpoint(
                 path=f"/proxy/luma/generations/{response_api.id}",
@@ -652,6 +682,9 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
             completed_statuses=[LumaState.completed],
             failed_statuses=[LumaState.failed],
             status_extractor=lambda x: x.state,
+            result_url_extractor=video_result_url_extractor,
+            node_id=unique_id,
+            estimated_duration=LUMA_I2V_AVERAGE_DURATION,
             auth_kwargs=kwargs,
         )
         response_poll = operation.execute()
