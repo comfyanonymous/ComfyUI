@@ -671,7 +671,6 @@ class KlingImage2VideoNode(KlingNodeBase):
                 negative_prompt=negative_prompt if negative_prompt else None,
                 cfg_scale=cfg_scale,
                 mode=KlingVideoGenMode(mode),
-                aspect_ratio=KlingVideoGenAspectRatio(aspect_ratio),
                 duration=KlingVideoGenDuration(duration),
                 camera_control=camera_control,
             ),
