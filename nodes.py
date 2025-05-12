@@ -2264,6 +2264,7 @@ def init_builtin_extra_nodes():
         "nodes_apg.py",
         "nodes_preview_any.py",
         "nodes_ace.py",
+        "nodes_string.py",
     ]
 
     import_failed = []
