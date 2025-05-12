@@ -27,7 +27,7 @@ class APG:
 
         def pre_cfg_function(args):
             nonlocal running_avg, prev_sigma
-            
+
             cond = args["conds_out"][0]
             uncond = args["conds_out"][1]
             sigma = args["sigma"][0]
@@ -35,29 +35,29 @@ class APG:
             if prev_sigma is not None and sigma > prev_sigma:
                 running_avg = 0
             prev_sigma = sigma
-            
+
             guidance = cond - uncond
-            
+
             if momentum > 0:
                 if not torch.is_tensor(running_avg):
                     running_avg = guidance
                 else:
                     running_avg = momentum * running_avg + guidance
                 guidance = running_avg
-            
+
             if norm_threshold > 0:
                 guidance_norm = guidance.norm(p=2, dim=[-1, -2, -3], keepdim=True)
                 scale = torch.minimum(
-                    torch.ones_like(guidance_norm), 
+                    torch.ones_like(guidance_norm),
                     norm_threshold / guidance_norm
                 )
                 guidance = guidance * scale
-            
+
             guidance_parallel, guidance_orthogonal = project(guidance, cond)
             modified_guidance = guidance_orthogonal + eta * guidance_parallel
-            
+
             modified_cond = uncond + modified_guidance
-            
+
             return [modified_cond, uncond]
 
         m = model.clone()
