@@ -791,6 +791,7 @@ class PikAdditionsNode(PikaNodeBase):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -803,6 +804,7 @@ class PikAdditionsNode(PikaNodeBase):
         prompt_text: str,
         negative_prompt: str,
         seed: int,
+        unique_id: str,
         **kwargs,
     ) -> tuple[VideoFromFile]:
         # Convert video to BytesIO
@@ -839,7 +841,7 @@ class PikAdditionsNode(PikaNodeBase):
             auth_kwargs=kwargs,
         )
 
-        return self.execute_task(initial_operation, auth_kwargs=kwargs)
+        return self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
 
 class PikaSwapsNode(PikaNodeBase):
@@ -884,6 +886,7 @@ class PikaSwapsNode(PikaNodeBase):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -898,6 +901,7 @@ class PikaSwapsNode(PikaNodeBase):
         prompt_text: str,
         negative_prompt: str,
         seed: int,
+        unique_id: str,
         **kwargs,
     ) -> tuple[VideoFromFile]:
         # Convert video to BytesIO
@@ -944,7 +948,7 @@ class PikaSwapsNode(PikaNodeBase):
             auth_kwargs=kwargs,
         )
 
-        return self.execute_task(initial_operation, auth_kwargs=kwargs)
+        return self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
 
 class PikaffectsNode(PikaNodeBase):
@@ -989,6 +993,7 @@ class PikaffectsNode(PikaNodeBase):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -1001,6 +1006,7 @@ class PikaffectsNode(PikaNodeBase):
         prompt_text: str,
         negative_prompt: str,
         seed: int,
+        unique_id: str,
         **kwargs,
     ) -> tuple[VideoFromFile]:
 
@@ -1022,7 +1028,7 @@ class PikaffectsNode(PikaNodeBase):
             auth_kwargs=kwargs,
         )
 
-        return self.execute_task(initial_operation, auth_kwargs=kwargs)
+        return self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
 
 class PikaStartEndFrameNode2_2(PikaNodeBase):
@@ -1041,6 +1047,7 @@ class PikaStartEndFrameNode2_2(PikaNodeBase):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -1055,6 +1062,7 @@ class PikaStartEndFrameNode2_2(PikaNodeBase):
         seed: int,
         resolution: str,
         duration: int,
+        unique_id: str,
         **kwargs,
     ) -> tuple[VideoFromFile]:
 
@@ -1085,7 +1093,7 @@ class PikaStartEndFrameNode2_2(PikaNodeBase):
             auth_kwargs=kwargs,
         )
 
-        return self.execute_task(initial_operation, auth_kwargs=kwargs)
+        return self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
 
 NODE_CLASS_MAPPINGS = {
