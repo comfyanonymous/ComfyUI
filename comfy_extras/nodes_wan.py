@@ -303,7 +303,6 @@ class WanCameraImageToVideo:
         return {"required": {"positive": ("CONDITIONING", ),
                              "negative": ("CONDITIONING", ),
                              "vae": ("VAE", ),
-                             "camera_conditions": ("LATENT", ),
                              "width": ("INT", {"default": 832, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
                              "height": ("INT", {"default": 480, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
                              "length": ("INT", {"default": 81, "min": 1, "max": nodes.MAX_RESOLUTION, "step": 4}),
@@ -311,6 +310,7 @@ class WanCameraImageToVideo:
                 },
                 "optional": {"clip_vision_output": ("CLIP_VISION_OUTPUT", ),
                              "start_image": ("IMAGE", ),
+                             "camera_conditions": ("WAN_CAMERA_EMBEDDING", ),
                 }}
 
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
@@ -319,7 +319,7 @@ class WanCameraImageToVideo:
 
     CATEGORY = "conditioning/video_models"
 
-    def encode(self, positive, negative, vae, camera_conditions, width, height, length, batch_size, start_image=None, clip_vision_output=None):
+    def encode(self, positive, negative, vae, width, height, length, batch_size, start_image=None, clip_vision_output=None, camera_conditions=None):
         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
         concat_latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
         concat_latent = comfy.latent_formats.Wan21().process_out(concat_latent)
@@ -329,8 +329,12 @@ class WanCameraImageToVideo:
             concat_latent_image = vae.encode(start_image[:, :, :, :3])
             concat_latent[:,:,:concat_latent_image.shape[2]] = concat_latent_image[:,:,:concat_latent.shape[2]]
 
-            positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent, 'camera_conditions': camera_conditions})
-            negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent, 'camera_conditions': camera_conditions})
+            positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent})
+            negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent})
+
+        if camera_conditions is not None:
+            positive = node_helpers.conditioning_set_values(positive, {'camera_conditions': camera_conditions})
+            negative = node_helpers.conditioning_set_values(negative, {'camera_conditions': camera_conditions})
 
         if clip_vision_output is not None:
             positive = node_helpers.conditioning_set_values(positive, {"clip_vision_output": clip_vision_output})

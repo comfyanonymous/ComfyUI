@@ -1083,7 +1083,8 @@ class WAN21_Camera(WAN21):
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
         camera_conditions = kwargs.get("camera_conditions", None)
-        out['camera_conditions'] = comfy.conds.CONDRegular(camera_conditions)
+        if camera_conditions is not None:
+            out['camera_conditions'] = comfy.conds.CONDRegular(camera_conditions)
         return out
 
 class Hunyuan3Dv2(BaseModel):
