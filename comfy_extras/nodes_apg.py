@@ -28,9 +28,12 @@ class APG:
         def pre_cfg_function(args):
             nonlocal running_avg, prev_sigma
 
+            if len(args["conds_out"]) == 1: return args["conds_out"]
+
             cond = args["conds_out"][0]
             uncond = args["conds_out"][1]
             sigma = args["sigma"][0]
+            cond_scale = args["cond_scale"]
 
             if prev_sigma is not None and sigma > prev_sigma:
                 running_avg = 0
@@ -56,9 +59,9 @@ class APG:
             guidance_parallel, guidance_orthogonal = project(guidance, cond)
             modified_guidance = guidance_orthogonal + eta * guidance_parallel
 
-            modified_cond = uncond + modified_guidance
+            modified_cond = (uncond + modified_guidance) + (cond - uncond) / cond_scale
 
-            return [modified_cond, uncond]
+            return [modified_cond, uncond] + args["conds_out"][2:]
 
         m = model.clone()
         m.set_model_sampler_pre_cfg_function(pre_cfg_function)
