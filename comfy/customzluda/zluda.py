@@ -6,6 +6,11 @@ os.environ.pop("ROCM_HOME", None)
 os.environ.pop("HIP_HOME", None)
 os.environ.pop("ROCM_VERSION", None)
 
+#triton fix?
+os.environ["FLASH_ATTENTION_TRITON_AMD_ENABLE"] = "TRUE"
+os.environ["FLASH_ATTENTION_TRITON_AMD_AUTOTUNE"] = "TRUE"
+os.environ["TRITON_DEBUG"] = "1"     # Verbose logging
+
 paths = os.environ["PATH"].split(";")
 paths_no_rocm = [p for p in paths if "rocm" not in p.lower()]
 os.environ["PATH"] = ";".join(paths_no_rocm)
@@ -17,6 +22,10 @@ os.environ['DISABLE_ADDMM_CUDA_LT'] = '1'
 # ------------------- main imports -------------------
 # main imports
 import torch
+
+torch._dynamo.config.suppress_errors = True  # Skip compilation errors
+torch._dynamo.config.optimize_ddp = False    # Disable distributed optimizations
+
 import ctypes
 import shutil
 import subprocess
