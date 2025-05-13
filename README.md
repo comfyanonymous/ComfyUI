@@ -75,16 +75,16 @@ If coming from the very start, you need :
 4. Install **HIP SDK 5.7.1** from [HERE](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html) the correct version, "Windows 10 & 11 5.7.1 HIP SDK"
 
    *** (*** this app installs zluda for 5.7.1 by default, if you want to use 6.1 or 6.2 you have to get the latest zluda link from
-    [lshyqqtiger's ZLUDA Fork](https://github.com/lshqqytiger/ZLUDA/releases) then you can use `patchzluda2.bat`, run it paste the link via right click (a correct link would be like this, `https://github.com/lshqqytiger/ZLUDA/releases/download/rel.d60bddbc870827566b3d2d417e00e1d2d8acc026/ZLUDA-windows-rocm6-amd64.zip` press enter and it would patch that zluda into comfy for you. Of course this also would mean you have to change the variables below from 
-"5.7" to "6.x" where needed) ***
+    [lshyqqtiger's ZLUDA Fork](https://github.com/lshqqytiger/ZLUDA/releases) then you can use `patchzluda2.bat`, run it paste the link via right click (a correct link would be like this, 
+    `https://github.com/lshqqytiger/ZLUDA/releases/download/rel.d60bddbc870827566b3d2d417e00e1d2d8acc026/ZLUDA-windows-rocm6-amd64.zip` press enter and it would patch that zluda into comfy for you. Of course this also would mean you have to change the variables below 
+     from "5.7" to "6.x" where needed) ***
 
-((((if you want to try miopen-triton with high end gpu, install hip 6.2.4 from the url above then download hip sdk addon from this url `https://drive.google.com/file/d/1JSVDV9yKCJ_vldXb5hS7NEHUeDJGoG6M/view?usp=sharing` and extract that into `C:\Program Files\AMD\ROCm\6.2`)))
-
-5. Add the system variable HIP_PATH, value: `C:\Program Files\AMD\ROCm\5.7\` (This is the default folder, if you
-   have installed it on another drive, change if necessary)
+5. Add the system variable HIP_PATH, value: `C:\Program Files\AMD\ROCm\5.7\` (This is the default folder with default 5.7.1 installed, if you
+   have installed it on another drive, change if necessary, if you have installed 6.2.4, or other newer versions the numbers should reflect that.)
     1. Check the variables on the lower part (System Variables), there should be a variable called: HIP_PATH.
     2. Also check the variables on the lower part (System Variables), there should be a variable called: "Path".
-       Double-click it and click "New" add this: `C:\Program Files\AMD\ROCm\5.7\bin`
+       Double-click it and click "New" add this: `C:\Program Files\AMD\ROCm\5.7\bin` (This is the default folder with default 5.7.1 installed, if you
+   have installed it on another drive, change if necessary, if you have installed 6.2.4, or other newer versions the numbers should reflect that.)
 
     ((( these should be  HIP_PATH, value: `C:\Program Files\AMD\ROCm\6.2\` and Path variable  `C:\Program Files\AMD\ROCm\6.2\bin` )))
 
@@ -99,7 +99,7 @@ If coming from the very start, you need :
     2. Open your downloaded optimized library archive and put them inside the library folder (overwriting if
        necessary): "C:\\Program Files\\AMD\\ROCm\\5.7\\bin\\rocblas\\library"
        * There could be a rocblas.dll file in the archive as well, if it is present then copy it inside "C:\Program Files\AMD\ROCm\5.7\bin\rocblas"
-8. Reboot your system.
+7. Reboot your system.
 
 ## Setup (Windows-Only)
 
@@ -125,13 +125,31 @@ comfyui.bat
 ```
 ((( use `comfyui-n.bat` if you want to use miopen-triton combo for high end gpu's, that basically changes the attention to pytorch attention which works with flash attention )))
 
+    YOU NEED TO DO THESE ADDITIONAL STEPS : if you want to try miopen-triton with high end gpu :
+    * install hip 6.2.4 from the url above then download hip sdk addon from this url `https://drive.google.com/file/d/1JSVDV9yKCJ_vldXb5hS7NEHUeDJGoG6M/view?usp=sharing` and extract that into `C:\Program Files\AMD\ROCm\6.2`
+    * To install triton package , FOR PYTHON 10 : `https://github.com/lshqqytiger/triton/releases/download/bb314b47/triton-3.3.0+gitbb314b47-cp310-cp310-win_amd64.whl`
+                                  FOR PYTHON 11: `https://github.com/lshqqytiger/triton/releases/download/5dcd7566/triton-3.3.0+git5dcd7566-cp311-cp311-win_amd64.whl`
+      Download correct package for the python version you are using into the comfyui-zluda folder THEN
+      Enter the comfyui-zluda directory, open up commandline. Enter venv :
+      venv\scripts\activate (enter)
+      pip install triton-3.3.0+gitbb314b47-cp310-cp310-win_amd64.whl (or the other file if you have downloaded that version) (enter)  
+
+    --- To install flash-attention package and use "flash-attention" in comfyui :
+      - Add this line to comfyui-n.bat
+      `set FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE`
+      And change the `--use-pytorch-cross-attention` to `--use-flash-attention`
+      2 - Download and extract this into comfyui-zluda folder, `https://github.com/user-attachments/files/20140536/flash_attn-2.7.4.post1-py3-none-any.zip`
+      3 - THEN activate the venv and install the "flash_attn-2.7.4.post1-py3-none-any.whl"
+          env\scripts\activate (enter)
+          pip install flash_attn-2.7.4.post1-py3-none-any.whl  (enter) 
+
 also for later when you need to repatch zluda (maybe a torch update etc.) you can use:
 
 ```bash
 patchzluda.bat
 ```
 
-((( `patchzluda.bat` for miopen-triton setup)))
+((( `patchzluda-n.bat` for miopen-triton setup)))
 
 - The first generation would take around 10-15 minutes, there won't be any progress or indicator on the webui or cmd
   window, just wait. Zluda creates a database for use with generation with your gpu.
