@@ -12,10 +12,6 @@ except:
 
 
 def rms_norm(x, weight=None, eps=1e-6):
-    
-    if eps is None: # Ensure eps is not None
-        eps = 1e-6
-        
     if rms_norm_torch is not None and not (torch.jit.is_tracing() or torch.jit.is_scripting()):
         if weight is None:
             return rms_norm_torch(x, (x.shape[-1],), eps=eps)
@@ -34,7 +30,7 @@ if RMSNorm is None:
         def __init__(
             self,
             normalized_shape,
-            eps=1e-6,  # Changed default from None to 1e-6
+            eps=1e-6,
             elementwise_affine=True,
             device=None,
             dtype=None,
