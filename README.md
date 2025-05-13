@@ -143,6 +143,8 @@ comfyui.bat
           env\scripts\activate (enter)
           pip install flash_attn-2.7.4.post1-py3-none-any.whl  (enter) 
 
+    --- To use sage-attention , you have to change the "--use-pytorch-cross-attention" to "--use-sage-attention". My advice is make a seperate batch file for all different attention types instead of changing them.
+
 also for later when you need to repatch zluda (maybe a torch update etc.) you can use:
 
 ```bash
