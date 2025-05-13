@@ -60,6 +60,7 @@ class CacheHelper:
     def __init__(self):
         self.cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
         self.active = False
+        self.refresh = False
 
     def get(self, key: str, default=None) -> tuple[list[str], dict[str, float], float]:
         if not self.active:
@@ -67,19 +68,24 @@ class CacheHelper:
         return self.cache.get(key, default)
 
     def set(self, key: str, value: tuple[list[str], dict[str, float], float]) -> None:
-        if self.active:
-            self.cache[key] = value
+        self.cache[key] = value
 
     def clear(self):
         self.cache.clear()
 
     def __enter__(self):
+        if self.refresh:
+            self.clear()
+            self.refresh = False
         self.active = True
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.active = False
-        self.clear()
+
+    def __call__(self, refresh=False):
+        self.refresh = refresh
+        return self
 
 cache_helper = CacheHelper()
 
