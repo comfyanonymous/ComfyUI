@@ -4,7 +4,7 @@ import os
 import time
 import mimetypes
 import logging
-from typing import Literal
+from typing import Literal, List
 from collections.abc import Collection
 
 from comfy.cli_args import args
@@ -45,6 +45,7 @@ folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetwo
 folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")], supported_pt_extensions)
 
 folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
+folder_names_and_paths["hidream_empty_latents"] = ([os.path.join(models_dir, "hidream_empty_latents")], supported_pt_extensions)
 
 output_directory = os.path.join(base_path, "output")
 temp_directory = os.path.join(base_path, "temp")
@@ -141,7 +142,7 @@ def get_directory_by_type(type_name: str) -> str | None:
         return get_input_directory()
     return None
 
-def filter_files_content_types(files: list[str], content_types: Literal["image", "video", "audio", "model"]) -> list[str]:
+def filter_files_content_types(files: list[str], content_types: List[Literal["image", "video", "audio", "model"]]) -> list[str]:
     """
     Example:
         files = os.listdir(folder_paths.get_input_directory())
