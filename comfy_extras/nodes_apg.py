@@ -14,7 +14,7 @@ class APG:
                 "model": ("MODEL",),
                 "eta": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01, "tooltip": "Controls the scale of the parallel guidance vector. Default CFG behavior at a setting of 1."}),
                 "norm_threshold": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 50.0, "step": 0.1, "tooltip": "Normalize guidance vector to this value, normalization disable at a setting of 0."}),
-                "momentum": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip":"Controls a running average of guidance during diffusion, disabled at a setting of 0."}),
+                "momentum": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 1.0, "step": 0.01, "tooltip":"Controls a running average of guidance during diffusion, disabled at a setting of 0."}),
             }
         }
     RETURN_TYPES = ("MODEL",)
@@ -41,7 +41,7 @@ class APG:
 
             guidance = cond - uncond
 
-            if momentum > 0:
+            if momentum != 0:
                 if not torch.is_tensor(running_avg):
                     running_avg = guidance
                 else:
