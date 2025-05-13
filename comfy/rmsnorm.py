@@ -30,7 +30,7 @@ if RMSNorm is None:
         def __init__(
             self,
             normalized_shape,
-            eps=None,
+            eps=1e-6,
             elementwise_affine=True,
             device=None,
             dtype=None,
