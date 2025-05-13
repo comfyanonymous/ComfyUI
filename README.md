@@ -161,6 +161,10 @@ patchzluda.bat
 
 ## Troubleshooting
 
+- If you installed miopen-triton setup with install.n.bat , getting ":: Triton core imported successfully , :: Running Triton kernel test... , :: Triton test failed , :: Triton available but failed verification" Do this to fix it :
+   * Copy "libs" folder from python install directory under(C:\Users\username\AppData\Local\Programs\Python\Python310) Or 311 , whatever python you are using, to under "comfyui-zluda\venv" so ,
+   * For example : "C:\Users\username\AppData\Local\Programs\Python\Python310\libs" to "d:\Comfyui-Zluda\venv\* Beware, there are two similar folders under venv , "Lib" and "Library" , so this would be a similarly named folder , don't mistake them.
+  Then try running comfy again.
 - DO NOT use non-english characters as folder names to put comfyui-zluda under.
 - Wipe your pip cache "C:\Users\USERNAME\AppData\Local\pip\cache" You can also do this when venv is active with :
   `pip cache purge`
