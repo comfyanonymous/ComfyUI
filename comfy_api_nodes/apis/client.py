@@ -943,15 +943,11 @@ class PollingOperation(Generic[T, R]):
             if client is None:
                 client = ApiClient(
                     base_url=self.api_base,
-<<<<<<< HEAD
                     auth_token=self.auth_token,
                     comfy_api_key=self.comfy_api_key,
-=======
-                    api_key=self.auth_token,
                     max_retries=self.max_retries,
                     retry_delay=self.retry_delay,
                     retry_backoff_factor=self.retry_backoff_factor,
->>>>>>> a998cdb6 (rework how errors are handled on the client side)
                 )
             return self._poll_until_complete(client)
         except LocalNetworkError as e:
