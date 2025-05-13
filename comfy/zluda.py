@@ -24,6 +24,24 @@ def get_package_version(package_name):
         from importlib_metadata import version
         return version(package_name)
 
+def parse_requirements_file(requirements_path):
+    """Parse requirements.txt file and extract package versions."""
+    requirements = {}
+    try:
+        with open(requirements_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    if '==' in line:
+                        pkg, version = line.split('==', 1)
+                        requirements[pkg] = version.strip()
+                    elif '>=' in line:
+                        pkg, version = line.split('>=', 1)
+                        requirements[pkg] = version.strip()
+    except FileNotFoundError:
+        print(f"  ::  Warning: requirements.txt not found at {requirements_path}")
+    return requirements
+
 def ensure_package(package_name, required_version):
     try:
         installed_version = get_package_version(package_name)
@@ -40,21 +58,27 @@ def ensure_package(package_name, required_version):
 def install_package(package_name, version, upgrade=False):
     import subprocess
     import sys
-    args = [sys.executable, '-m', 'pip', 'install', f'{package_name}=={version}', '--quiet']
+    args = [sys.executable, '-m', 'pip', 'install', 
+            f'{package_name}=={version}', 
+            '--quiet', 
+            '--disable-pip-version-check']
     if upgrade:
         args.append('--upgrade')
     subprocess.check_call(args)
 
-# List of packages and their required versions
-packages_to_check = [
-    ("comfyui-frontend-package", "1.19.9"),
-    ("comfyui-workflow-templates", "0.1.14"),
-    ("av", "14.3.0")
+import os
+requirements_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'requirements.txt')
+required_packages = parse_requirements_file(requirements_path)
+
+packages_to_monitor = [
+    "comfyui-frontend-package",
+    "comfyui-workflow-templates",
+    "av"
 ]
 
-# Check and install/update all packages
-for package_name, required_version in packages_to_check:
-    ensure_package(package_name, required_version)
+for package_name in packages_to_monitor:
+    if package_name in required_packages:
+        ensure_package(package_name, required_packages[package_name])
 # ------------------- End Version Check -------------------
 
 # ------------------- ZLUDA Detection -------------------
