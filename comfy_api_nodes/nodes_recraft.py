@@ -1,6 +1,7 @@
 from __future__ import annotations
 from inspect import cleandoc
 from comfy.utils import ProgressBar
+from comfy_extras.nodes_images import SVG # Added
 from comfy.comfy_types.node_typing import IO
 from comfy_api_nodes.apis.recraft_api import (
     RecraftImageGenerationRequest,
@@ -28,9 +29,6 @@ from comfy_api_nodes.apinode_utils import (
     resize_mask_to_image,
     validate_string,
 )
-import folder_paths
-import json
-import os
 import torch
 from io import BytesIO
 from PIL import UnidentifiedImageError
@@ -43,7 +41,7 @@ def handle_recraft_file_request(
         total_pixels=4096*4096,
         timeout=1024,
         request=None,
-        auth_token=None
+        auth_kwargs: dict[str,str] = None,
     ) -> list[BytesIO]:
         """
         Handle sending common Recraft file-only request to get back file bytes.
@@ -67,7 +65,7 @@ def handle_recraft_file_request(
             request=request,
             files=files,
             content_type="multipart/form-data",
-            auth_token=auth_token,
+            auth_kwargs=auth_kwargs,
             multipart_parser=recraft_multipart_parser,
         )
         response: RecraftImageGenerationResponse = operation.execute()
@@ -160,102 +158,6 @@ class handle_recraft_image_output:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None and exc_type is UnidentifiedImageError:
             raise Exception("Received output data was not an image; likely an SVG. If you used style_id, make sure it is not a Vector art style.")
-
-
-class SVG:
-    """
-    Stores SVG representations via a list of BytesIO objects.
-    """
-    def __init__(self, data: list[BytesIO]):
-        self.data = data
-
-    def combine(self, other: SVG):
-        return SVG(self.data + other.data)
-
-    @staticmethod
-    def combine_all(svgs: list[SVG]):
-        all_svgs = []
-        for svg in svgs:
-            all_svgs.extend(svg.data)
-        return SVG(all_svgs)
-
-
-class SaveSVGNode:
-    """
-    Save SVG files on disk.
-    """
-
-    def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
-        self.type = "output"
-        self.prefix_append = ""
-
-    RETURN_TYPES = ()
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "save_svg"
-    CATEGORY = "api node/image/Recraft"
-    OUTPUT_NODE = True
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "svg": (RecraftIO.SVG,),
-                "filename_prefix": ("STRING", {"default": "svg/ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."})
-            },
-            "hidden": {
-                "prompt": "PROMPT",
-                "extra_pnginfo": "EXTRA_PNGINFO"
-            }
-        }
-
-    def save_svg(self, svg: SVG, filename_prefix="svg/ComfyUI", prompt=None, extra_pnginfo=None):
-        filename_prefix += self.prefix_append
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
-        results = list()
-
-        # Prepare metadata JSON
-        metadata_dict = {}
-        if prompt is not None:
-            metadata_dict["prompt"] = prompt
-        if extra_pnginfo is not None:
-            metadata_dict.update(extra_pnginfo)
-
-        # Convert metadata to JSON string
-        metadata_json = json.dumps(metadata_dict, indent=2) if metadata_dict else None
-
-        for batch_number, svg_bytes in enumerate(svg.data):
-            filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
-            file = f"{filename_with_batch_num}_{counter:05}_.svg"
-
-            # Read SVG content
-            svg_bytes.seek(0)
-            svg_content = svg_bytes.read().decode('utf-8')
-
-            # Inject metadata if available
-            if metadata_json:
-                # Create metadata element with CDATA section
-                metadata_element = f"""  <metadata>
-    <![CDATA[
-{metadata_json}
-    ]]>
-  </metadata>
-"""
-                # Insert metadata after opening svg tag using regex
-                import re
-                svg_content = re.sub(r'(<svg[^>]*>)', r'\1\n' + metadata_element, svg_content)
-
-            # Write the modified SVG to file
-            with open(os.path.join(full_output_folder, file), 'wb') as svg_file:
-                svg_file.write(svg_content.encode('utf-8'))
-
-            results.append({
-                "filename": file,
-                "subfolder": subfolder,
-                "type": self.type
-            })
-            counter += 1
-        return { "ui": { "images": results } }
 
 
 class RecraftColorRGBNode:
@@ -485,6 +387,7 @@ class RecraftTextToImageNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -497,7 +400,6 @@ class RecraftTextToImageNode:
         recraft_style: RecraftStyle = None,
         negative_prompt: str = None,
         recraft_controls: RecraftControls = None,
-        auth_token=None,
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False, max_length=1000)
@@ -530,7 +432,7 @@ class RecraftTextToImageNode:
                 style_id=recraft_style.style_id,
                 controls=controls_api,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response: RecraftImageGenerationResponse = operation.execute()
         images = []
@@ -620,6 +522,7 @@ class RecraftImageToImageNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -630,7 +533,6 @@ class RecraftImageToImageNode:
         n: int,
         strength: float,
         seed,
-        auth_token=None,
         recraft_style: RecraftStyle = None,
         negative_prompt: str = None,
         recraft_controls: RecraftControls = None,
@@ -668,7 +570,7 @@ class RecraftImageToImageNode:
                 image=image[i],
                 path="/proxy/recraft/images/imageToImage",
                 request=request,
-                auth_token=auth_token,
+                auth_kwargs=kwargs,
             )
             with handle_recraft_image_output():
                 images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
@@ -736,6 +638,7 @@ class RecraftImageInpaintingNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -746,7 +649,6 @@ class RecraftImageInpaintingNode:
         prompt: str,
         n: int,
         seed,
-        auth_token=None,
         recraft_style: RecraftStyle = None,
         negative_prompt: str = None,
         **kwargs,
@@ -781,7 +683,7 @@ class RecraftImageInpaintingNode:
                 mask=mask[i:i+1],
                 path="/proxy/recraft/images/inpaint",
                 request=request,
-                auth_token=auth_token,
+                auth_kwargs=kwargs,
             )
             with handle_recraft_image_output():
                 images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
@@ -796,8 +698,8 @@ class RecraftTextToVectorNode:
     Generates SVG synchronously based on prompt and resolution.
     """
 
-    RETURN_TYPES = (RecraftIO.SVG,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    RETURN_TYPES = ("SVG",) # Changed
+    DESCRIPTION = cleandoc(__doc__ or "") if 'cleandoc' in globals() else __doc__ # Keep cleandoc if other nodes use it
     FUNCTION = "api_call"
     API_NODE = True
     CATEGORY = "api node/image/Recraft"
@@ -860,6 +762,7 @@ class RecraftTextToVectorNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -872,7 +775,6 @@ class RecraftTextToVectorNode:
         seed,
         negative_prompt: str = None,
         recraft_controls: RecraftControls = None,
-        auth_token=None,
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False, max_length=1000)
@@ -903,7 +805,7 @@ class RecraftTextToVectorNode:
                 substyle=recraft_style.substyle,
                 controls=controls_api,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response: RecraftImageGenerationResponse = operation.execute()
         svg_data = []
@@ -918,8 +820,8 @@ class RecraftVectorizeImageNode:
     Generates SVG synchronously from an input image.
     """
 
-    RETURN_TYPES = (RecraftIO.SVG,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    RETURN_TYPES = ("SVG",) # Changed
+    DESCRIPTION = cleandoc(__doc__ or "") if 'cleandoc' in globals() else __doc__ # Keep cleandoc if other nodes use it
     FUNCTION = "api_call"
     API_NODE = True
     CATEGORY = "api node/image/Recraft"
@@ -934,13 +836,13 @@ class RecraftVectorizeImageNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
     def api_call(
         self,
         image: torch.Tensor,
-        auth_token=None,
         **kwargs,
     ):
         svgs = []
@@ -950,7 +852,7 @@ class RecraftVectorizeImageNode:
             sub_bytes = handle_recraft_file_request(
                 image=image[i],
                 path="/proxy/recraft/images/vectorize",
-                auth_token=auth_token,
+                auth_kwargs=kwargs,
             )
             svgs.append(SVG(sub_bytes))
             pbar.update(1)
@@ -1015,6 +917,7 @@ class RecraftReplaceBackgroundNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -1024,7 +927,6 @@ class RecraftReplaceBackgroundNode:
         prompt: str,
         n: int,
         seed,
-        auth_token=None,
         recraft_style: RecraftStyle = None,
         negative_prompt: str = None,
         **kwargs,
@@ -1054,7 +956,7 @@ class RecraftReplaceBackgroundNode:
                 image=image[i],
                 path="/proxy/recraft/images/replaceBackground",
                 request=request,
-                auth_token=auth_token,
+                auth_kwargs=kwargs,
             )
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
@@ -1084,13 +986,13 @@ class RecraftRemoveBackgroundNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
     def api_call(
         self,
         image: torch.Tensor,
-        auth_token=None,
         **kwargs,
     ):
         images = []
@@ -1100,7 +1002,7 @@ class RecraftRemoveBackgroundNode:
             sub_bytes = handle_recraft_file_request(
                 image=image[i],
                 path="/proxy/recraft/images/removeBackground",
-                auth_token=auth_token,
+                auth_kwargs=kwargs,
             )
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
@@ -1135,13 +1037,13 @@ class RecraftCrispUpscaleNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
     def api_call(
         self,
         image: torch.Tensor,
-        auth_token=None,
         **kwargs,
     ):
         images = []
@@ -1151,7 +1053,7 @@ class RecraftCrispUpscaleNode:
             sub_bytes = handle_recraft_file_request(
                 image=image[i],
                 path=self.RECRAFT_PATH,
-                auth_token=auth_token,
+                auth_kwargs=kwargs,
             )
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
@@ -1193,7 +1095,6 @@ NODE_CLASS_MAPPINGS = {
     "RecraftStyleV3InfiniteStyleLibrary": RecraftStyleInfiniteStyleLibrary,
     "RecraftColorRGB": RecraftColorRGBNode,
     "RecraftControls": RecraftControlsNode,
-    "SaveSVG": SaveSVGNode,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -1213,5 +1114,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RecraftStyleV3InfiniteStyleLibrary": "Recraft Style - Infinite Style Library",
     "RecraftColorRGB": "Recraft Color RGB",
     "RecraftControls": "Recraft Controls",
-    "SaveSVG": "Save SVG",
 }

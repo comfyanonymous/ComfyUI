@@ -924,6 +924,10 @@ class HunyuanVideo(BaseModel):
         if guiding_frame_index is not None:
             out['guiding_frame_index'] = comfy.conds.CONDRegular(torch.FloatTensor([guiding_frame_index]))
 
+        ref_latent = kwargs.get("ref_latent", None)
+        if ref_latent is not None:
+            out['ref_latent'] = comfy.conds.CONDRegular(self.process_latent_in(ref_latent))
+
         return out
 
     def scale_latent_inpaint(self, latent_image, **kwargs):

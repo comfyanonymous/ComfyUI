@@ -114,6 +114,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
@@ -133,7 +134,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         person_generation="ALLOW",
         seed=0,
         image=None,
-        auth_token=None,
+        **kwargs,
     ):
         # Prepare the instances for the request
         instances = []
@@ -179,7 +180,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
                 instances=instances,
                 parameters=parameters
             ),
-            auth_token=auth_token
+            auth_kwargs=kwargs,
         )
 
         initial_response = initial_operation.execute()
@@ -213,7 +214,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
             request=Veo2GenVidPollRequest(
                 operationName=operation_name
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
             poll_interval=5.0
         )
 
