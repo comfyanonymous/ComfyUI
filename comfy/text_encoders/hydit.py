@@ -41,8 +41,8 @@ class HyditTokenizer:
 
     def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = {}
-        out["hydit_clip"] = self.hydit_clip.tokenize_with_weights(text, return_word_ids)
-        out["mt5xl"] = self.mt5xl.tokenize_with_weights(text, return_word_ids)
+        out["hydit_clip"] = self.hydit_clip.tokenize_with_weights(text, return_word_ids, **kwargs)
+        out["mt5xl"] = self.mt5xl.tokenize_with_weights(text, return_word_ids, **kwargs)
         return out
 
     def untokenize(self, token_weight_pair):

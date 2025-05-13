@@ -16,11 +16,11 @@ class HiDreamTokenizer:
 
     def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = {}
-        out["g"] = self.clip_g.tokenize_with_weights(text, return_word_ids)
-        out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids)
-        t5xxl = self.t5xxl.tokenize_with_weights(text, return_word_ids)
+        out["g"] = self.clip_g.tokenize_with_weights(text, return_word_ids, **kwargs)
+        out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids, **kwargs)
+        t5xxl = self.t5xxl.tokenize_with_weights(text, return_word_ids, **kwargs)
         out["t5xxl"] = [t5xxl[0]]  # Use only first 128 tokens
-        out["llama"] = self.llama.tokenize_with_weights(text, return_word_ids)
+        out["llama"] = self.llama.tokenize_with_weights(text, return_word_ids, **kwargs)
         return out
 
     def untokenize(self, token_weight_pair):
