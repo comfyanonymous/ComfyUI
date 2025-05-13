@@ -286,6 +286,12 @@ def model_lora_keys_unet(model, key_map={}):
                     key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
                     key_map["lycoris_{}".format(key_lora)] = k #SimpleTuner lycoris format
 
+    if isinstance(model, comfy.model_base.ACEStep):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"): #Official ACE step lora format
+                key_lora = k[len("diffusion_model."):-len(".weight")]
+                key_map["{}".format(key_lora)] = k
+
     return key_map
 
 
