@@ -12,14 +12,14 @@ CAMERA_DICT = {
     "base_T_norm": 1.5,
     "base_angle": np.pi/3,
     "Static": {     "angle":[0., 0., 0.],   "T":[0., 0., 0.]},
-    "Pan Up": {     "angle":[0., 0., 0.],   "T":[0., 1., 0.]},
-    "Pan Down": {   "angle":[0., 0., 0.],   "T":[0.,-1.,0.]},
-    "Pan Left": {   "angle":[0., 0., 0.],   "T":[1.,0.,0.]},
-    "Pan Right": {  "angle":[0., 0., 0.],   "T": [-1.,0.,0.]},
-    "Zoom In": {    "angle":[0., 0., 0.],   "T": [0.,0.,-2.]},
-    "Zoom Out": {   "angle":[0., 0., 0.],   "T": [0.,0.,2.]},
-    "Anti Clockwise (CW)": {        "angle": [0., 0., 1.],  "T":[0., 0., 0.]},
-    "ClockWise (CW)": {         "angle": [0., 0., -1.], "T":[0., 0., 0.]},
+    "Pan Up": {     "angle":[0., 0., 0.],   "T":[0., -1., 0.]},
+    "Pan Down": {   "angle":[0., 0., 0.],   "T":[0.,1.,0.]},
+    "Pan Left": {   "angle":[0., 0., 0.],   "T":[-1.,0.,0.]},
+    "Pan Right": {  "angle":[0., 0., 0.],   "T": [1.,0.,0.]},
+    "Zoom In": {    "angle":[0., 0., 0.],   "T": [0.,0.,2.]},
+    "Zoom Out": {   "angle":[0., 0., 0.],   "T": [0.,0.,-2.]},
+    "Anti Clockwise (ACW)": {        "angle": [0., 0., -1.],  "T":[0., 0., 0.]},
+    "ClockWise (CW)": {         "angle": [0., 0., 1.], "T":[0., 0., 0.]},
 }
 
 
@@ -153,7 +153,7 @@ class WanCameraEmbeding:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "camera_pose":(["Static","Pan Up","Pan Down","Pan Left","Pan Right","Zoom In","Zoom Out","Anti Clockwise (CW)", "ClockWise (CW)"],{"default":"Static"}),
+                "camera_pose":(["Static","Pan Up","Pan Down","Pan Left","Pan Right","Zoom In","Zoom Out","Anti Clockwise (ACW)", "ClockWise (CW)"],{"default":"Static"}),
                 "width": ("INT", {"default": 832, "min": 16, "max": MAX_RESOLUTION, "step": 16}),
                 "height": ("INT", {"default": 480, "min": 16, "max": MAX_RESOLUTION, "step": 16}),
                 "length": ("INT", {"default": 81, "min": 1, "max": MAX_RESOLUTION, "step": 4}),
