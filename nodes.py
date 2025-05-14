@@ -2280,6 +2280,7 @@ def init_builtin_api_nodes():
     api_nodes_files = [
         "nodes_ideogram.py",
         "nodes_openai.py",
+        "nodes_vertex_gemini.py",
         "nodes_minimax.py",
         "nodes_veo2.py",
         "nodes_kling.py",

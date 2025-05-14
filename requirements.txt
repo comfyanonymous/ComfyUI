@@ -17,6 +17,7 @@ Pillow
 scipy
 tqdm
 psutil
+google-genai
 
 #non essential dependencies:
 kornia>=0.7.1
