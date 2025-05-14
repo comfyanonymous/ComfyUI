@@ -55,6 +55,21 @@ def apply_custom_paths():
         folder_paths.set_user_directory(user_dir)
 
 
+# These are created at startup if missing. Other data directories are created on-demand when needed.
+def create_data_folders():
+    data_dirs = [
+        folder_paths.get_input_directory(),
+        folder_paths.get_temp_directory()
+    ]
+
+    for dir_path in data_dirs:
+        if not os.path.exists(dir_path):
+            try:
+                os.makedirs(dir_path)
+            except:
+                logging.error(f"Failed to create directory: {dir_path}")
+
+
 def execute_prestartup_script():
     def execute_script(script_path):
         module_name = os.path.splitext(script_path)[0]
@@ -72,7 +87,11 @@ def execute_prestartup_script():
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     for custom_node_path in node_paths:
-        possible_modules = os.listdir(custom_node_path)
+        if not os.path.exists(custom_node_path):
+            logging.warning(f"Directory {custom_node_path} for custom nodes does not exist, skipping")
+            continue
+
+        possible_modules = os.listdir(os.path.realpath(custom_node_path))
         node_prestartup_times = []
 
         for possible_module in possible_modules:
@@ -95,7 +114,9 @@ def execute_prestartup_script():
             logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
         logging.info("")
 
+
 apply_custom_paths()
+create_data_folders()
 execute_prestartup_script()
 
 
@@ -283,7 +304,6 @@ def start_comfyui(asyncio_loop=None):
     if args.quick_test_for_ci:
         exit(0)
 
-    os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
     call_on_start = None
     if args.auto_launch:
         def startup_server(scheme, address, port):
