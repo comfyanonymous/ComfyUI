@@ -446,8 +446,9 @@ class RecraftTextToImageNode:
             with handle_recraft_image_output():
                 if unique_id and data.url:
                     urls.append(data.url)
+                    urls_string = '\n'.join(urls)
                     PromptServer.instance.send_progress_text(
-                        f"Result URL: {'\n'.join(urls)}", unique_id
+                        f"Result URL: {urls_string}", unique_id
                     )
                 image = bytesio_to_image_tensor(
                     download_url_to_bytesio(data.url, timeout=1024)
