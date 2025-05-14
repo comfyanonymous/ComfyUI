@@ -1105,7 +1105,7 @@ class PollingOperation(Generic[T, R]):
             except Exception as e:
                 # For other errors, increment count and potentially abort
                 consecutive_errors += 1
-                if consecutive_errors >= max_consecutive_errors:
+                if consecutive_errors >= max_consecutive_errors or status == TaskStatus.FAILED:
                     raise Exception(
                         f"Polling aborted after {consecutive_errors} consecutive errors: {str(e)}"
                     ) from e
