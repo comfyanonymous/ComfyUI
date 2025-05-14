@@ -2,6 +2,22 @@ import re
 
 from comfy.comfy_types.node_typing import IO
 
+class StringMultiline():
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "string": (IO.STRING, {"multiline": True})
+                }
+            }
+
+    RETURN_TYPES = (IO.STRING,)
+    FUNCTION = "execute"
+    CATEGORY = "utils/string"
+
+    def execute(self, string, **kwargs):
+        return string,
+
 class StringConcatenate():
     @classmethod
     def INPUT_TYPES(s):
@@ -296,6 +312,7 @@ class RegexExtract():
         return result,
 
 NODE_CLASS_MAPPINGS = {
+    "StringMultiline": StringMultiline,
     "StringConcatenate": StringConcatenate,
     "StringSubstring": StringSubstring,
     "StringLength": StringLength,
@@ -309,6 +326,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "StringMultiline": "Multiline String",
     "StringConcatenate": "Concatenate",
     "StringSubstring": "Substring",
     "StringLength": "Length",
