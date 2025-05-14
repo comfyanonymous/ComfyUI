@@ -161,18 +161,23 @@ def test_video_from_file_invalid_file_error():
     with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tmp:
         tmp.write(b"not a video file")
         tmp.flush()
+        tmp_name = tmp.name
 
+    try:
         with pytest.raises(InvalidDataError):
-            video = VideoFromFile(tmp.name)
+            video = VideoFromFile(tmp_name)
             video.get_dimensions()
-
-        os.unlink(tmp.name)
+    finally:
+        os.unlink(tmp_name)
 
 
 def test_video_from_file_audio_only_error():
     """ValueError raised for audio-only files"""
     with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as tmp:
-        with av.open(tmp.name, mode="w") as container:
+        tmp_name = tmp.name
+
+    try:
+        with av.open(tmp_name, mode="w") as container:
             stream = container.add_stream("aac", rate=44100)
             stream.sample_rate = 44100
             stream.format = "fltp"
@@ -190,10 +195,10 @@ def test_video_from_file_audio_only_error():
                 container.mux(packet)
 
         with pytest.raises(ValueError, match="No video stream found"):
-            video = VideoFromFile(tmp.name)
+            video = VideoFromFile(tmp_name)
             video.get_dimensions()
-
-        os.unlink(tmp.name)
+    finally:
+        os.unlink(tmp_name)
 
 
 def test_single_frame_video():
