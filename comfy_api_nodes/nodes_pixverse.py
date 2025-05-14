@@ -1,5 +1,5 @@
 from inspect import cleandoc
-
+from typing import Optional
 from comfy_api_nodes.apis.pixverse_api import (
     PixverseTextVideoRequest,
     PixverseImageVideoRequest,
@@ -34,11 +34,22 @@ import requests
 from io import BytesIO
 
 
+AVERAGE_DURATION_T2V = 32
+AVERAGE_DURATION_I2V = 30
+AVERAGE_DURATION_T2T = 52
+
+
+def get_video_url_from_response(
+    response: PixverseGenerationStatusResponse,
+) -> Optional[str]:
+    if response.Resp is None or response.Resp.url is None:
+        return None
+    return str(response.Resp.url)
+
+
 def upload_image_to_pixverse(image: torch.Tensor, auth_kwargs=None):
     # first, upload image to Pixverse and get image id to use in actual generation call
-    files = {
-        "image": tensor_to_bytesio(image)
-    }
+    files = {"image": tensor_to_bytesio(image)}
     operation = SynchronousOperation(
         endpoint=ApiEndpoint(
             path="/proxy/pixverse/image/upload",
@@ -54,7 +65,9 @@ def upload_image_to_pixverse(image: torch.Tensor, auth_kwargs=None):
     response_upload: PixverseImageUploadResponse = operation.execute()
 
     if response_upload.Resp is None:
-        raise Exception(f"PixVerse image upload request failed: '{response_upload.ErrMsg}'")
+        raise Exception(
+            f"PixVerse image upload request failed: '{response_upload.ErrMsg}'"
+        )
 
     return response_upload.Resp.img_id
 
@@ -73,7 +86,7 @@ class PixverseTemplateNode:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "template": (list(pixverse_templates.keys()), ),
+                "template": (list(pixverse_templates.keys()),),
             }
         }
 
@@ -87,7 +100,7 @@ class PixverseTemplateNode:
 
 class PixverseTextToVideoNode(ComfyNodeABC):
     """
-    Generates videos synchronously based on prompt and output_size.
+    Generates videos based on prompt and output_size.
     """
 
     RETURN_TYPES = (IO.VIDEO,)
@@ -108,9 +121,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
                         "tooltip": "Prompt for the video generation",
                     },
                 ),
-                "aspect_ratio": (
-                    [ratio.value for ratio in PixverseAspectRatio],
-                ),
+                "aspect_ratio": ([ratio.value for ratio in PixverseAspectRatio],),
                 "quality": (
                     [resolution.value for resolution in PixverseQuality],
                     {
@@ -143,12 +154,13 @@ class PixverseTextToVideoNode(ComfyNodeABC):
                     PixverseIO.TEMPLATE,
                     {
                         "tooltip": "An optional template to influence style of generation, created by the PixVerse Template node."
-                    }
-                )
+                    },
+                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -160,8 +172,9 @@ class PixverseTextToVideoNode(ComfyNodeABC):
         duration_seconds: int,
         motion_mode: str,
         seed,
-        negative_prompt: str=None,
-        pixverse_template: int=None,
+        negative_prompt: str = None,
+        pixverse_template: int = None,
+        unique_id: Optional[str] = None,
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False)
@@ -205,19 +218,27 @@ class PixverseTextToVideoNode(ComfyNodeABC):
                 response_model=PixverseGenerationStatusResponse,
             ),
             completed_statuses=[PixverseStatus.successful],
-            failed_statuses=[PixverseStatus.contents_moderation, PixverseStatus.failed, PixverseStatus.deleted],
+            failed_statuses=[
+                PixverseStatus.contents_moderation,
+                PixverseStatus.failed,
+                PixverseStatus.deleted,
+            ],
             status_extractor=lambda x: x.Resp.status,
             auth_kwargs=kwargs,
+            node_id=unique_id,
+            result_url_extractor=get_video_url_from_response,
+            estimated_duration=AVERAGE_DURATION_T2V,
         )
         response_poll = operation.execute()
 
         vid_response = requests.get(response_poll.Resp.url)
+
         return (VideoFromFile(BytesIO(vid_response.content)),)
 
 
 class PixverseImageToVideoNode(ComfyNodeABC):
     """
-    Generates videos synchronously based on prompt and output_size.
+    Generates videos based on prompt and output_size.
     """
 
     RETURN_TYPES = (IO.VIDEO,)
@@ -230,9 +251,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
     def INPUT_TYPES(s):
         return {
             "required": {
-                "image": (
-                    IO.IMAGE,
-                ),
+                "image": (IO.IMAGE,),
                 "prompt": (
                     IO.STRING,
                     {
@@ -273,12 +292,13 @@ class PixverseImageToVideoNode(ComfyNodeABC):
                     PixverseIO.TEMPLATE,
                     {
                         "tooltip": "An optional template to influence style of generation, created by the PixVerse Template node."
-                    }
-                )
+                    },
+                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -290,8 +310,9 @@ class PixverseImageToVideoNode(ComfyNodeABC):
         duration_seconds: int,
         motion_mode: str,
         seed,
-        negative_prompt: str=None,
-        pixverse_template: int=None,
+        negative_prompt: str = None,
+        pixverse_template: int = None,
+        unique_id: Optional[str] = None,
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False)
@@ -337,9 +358,16 @@ class PixverseImageToVideoNode(ComfyNodeABC):
                 response_model=PixverseGenerationStatusResponse,
             ),
             completed_statuses=[PixverseStatus.successful],
-            failed_statuses=[PixverseStatus.contents_moderation, PixverseStatus.failed, PixverseStatus.deleted],
+            failed_statuses=[
+                PixverseStatus.contents_moderation,
+                PixverseStatus.failed,
+                PixverseStatus.deleted,
+            ],
             status_extractor=lambda x: x.Resp.status,
             auth_kwargs=kwargs,
+            node_id=unique_id,
+            result_url_extractor=get_video_url_from_response,
+            estimated_duration=AVERAGE_DURATION_I2V,
         )
         response_poll = operation.execute()
 
@@ -349,7 +377,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
 
 class PixverseTransitionVideoNode(ComfyNodeABC):
     """
-    Generates videos synchronously based on prompt and output_size.
+    Generates videos based on prompt and output_size.
     """
 
     RETURN_TYPES = (IO.VIDEO,)
@@ -362,12 +390,8 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
     def INPUT_TYPES(s):
         return {
             "required": {
-                "first_frame": (
-                    IO.IMAGE,
-                ),
-                "last_frame": (
-                    IO.IMAGE,
-                ),
+                "first_frame": (IO.IMAGE,),
+                "last_frame": (IO.IMAGE,),
                 "prompt": (
                     IO.STRING,
                     {
@@ -408,6 +432,7 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -420,7 +445,8 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
         duration_seconds: int,
         motion_mode: str,
         seed,
-        negative_prompt: str=None,
+        negative_prompt: str = None,
+        unique_id: Optional[str] = None,
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False)
@@ -467,9 +493,16 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
                 response_model=PixverseGenerationStatusResponse,
             ),
             completed_statuses=[PixverseStatus.successful],
-            failed_statuses=[PixverseStatus.contents_moderation, PixverseStatus.failed, PixverseStatus.deleted],
+            failed_statuses=[
+                PixverseStatus.contents_moderation,
+                PixverseStatus.failed,
+                PixverseStatus.deleted,
+            ],
             status_extractor=lambda x: x.Resp.status,
             auth_kwargs=kwargs,
+            node_id=unique_id,
+            result_url_extractor=get_video_url_from_response,
+            estimated_duration=AVERAGE_DURATION_T2V,
         )
         response_poll = operation.execute()
 
