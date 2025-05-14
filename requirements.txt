@@ -18,6 +18,7 @@ scipy
 tqdm
 psutil
 google-genai
+google-cloud-storage
 
 #non essential dependencies:
 kornia>=0.7.1
