@@ -35,7 +35,35 @@ echo  ::  %time:~0,8%  ::  - Installing onnxruntime (required by some nodes)
 pip install onnxruntime --quiet
 echo  ::  %time:~0,8%  ::  - (temporary numpy fix)
 pip uninstall numpy -y --quiet
-pip install numpy==1.26.0 --quiet
+pip install numpy==1.26.4 --quiet
+
+echo  ::  %time:~0,8%  ::  - Detecting Python version and installing appropriate triton package
+for /f "tokens=2 delims=." %%a in ('python -c "import sys; print(sys.version)"') do (
+    set "PY_MINOR=%%a"
+    goto :version_detected
+)
+:version_detected
+
+if "%PY_MINOR%"=="10" (
+    echo  ::  %time:~0,8%  ::  - Python 3.10 detected, installing triton for 3.10
+    pip install https://github.com/lshqqytiger/triton/releases/download/3d100376/triton-3.3.0+git3d100376-cp310-cp310-win_amd64.whl --quiet
+) else if "%PY_MINOR%"=="11" (
+    echo  ::  %time:~0,8%  ::  - Python 3.11 detected, installing triton for 3.11
+    pip install https://github.com/lshqqytiger/triton/releases/download/3d100376/triton-3.3.0+git3d100376-cp311-cp311-win_amd64.whl --quiet
+) else (
+    echo  ::  %time:~0,8%  ::  - WARNING: Unsupported Python version 3.%PY_MINOR%, skipping triton installation
+    echo  ::  %time:~0,8%  ::  - Full version string: 
+    python -c "import sys; print(sys.version)"
+)
+
+echo  ::  %time:~0,8%  ::  - Installing flash-attention
+
+%SystemRoot%\system32\curl.exe -sL --ssl-no-revoke https://github.com/user-attachments/files/20140727/flash_attn.zip > fa.zip
+%SystemRoot%\system32\tar.exe -xf fa.zip
+pip install flash_attn-2.7.4.post1-py3-none-any.whl --quiet
+del fa.zip
+del flash_attn-2.7.4.post1-py3-none-any.whl
+
 echo.
 echo  ::  %time:~0,8%  ::  Custom node(s) installation ...
 echo. 
@@ -72,9 +100,14 @@ set /A "elap=((((10!end:%time:~2,1%=%%100)*60+1!%%100)-((((10!start:%time:~2,1%=
 set /A "cc=elap%%100+100,elap/=100,ss=elap%%60+100,elap/=60,mm=elap%%60+100,hh=elap/60+100"
 echo ..................................................... 
 echo *** Installation is completed in %hh:~1%%time:~2,1%%mm:~1%%time:~2,1%%ss:~1%%time:~8,1%%cc:~1% . 
-echo *** echo *** You can use "comfyui-n.bat" to start the app later. 
+echo *** You can use "comfyui-n.bat" to start the app later. 
+echo *** It is advised to make a copy of "comfyui-n.bat" and modify it to your liking so when updating later it won't cause problems.
+echo *** You can use -- "--use-pytorch-cross-attention" , "--use-quad-cross-attention" , "--use-flash-attention" or "--use-sage-attention" 
 echo ..................................................... 
 echo.
 echo *** Starting the Comfyui-ZLUDA for the first time, please be patient...
 echo.
+set FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
+set MIOPEN_FIND_MODE=2
+set MIOPEN_LOG_LEVEL=3
 .\zluda\zluda.exe -- python main.py --auto-launch --use-pytorch-cross-attention
