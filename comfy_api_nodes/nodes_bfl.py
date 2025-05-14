@@ -1,5 +1,6 @@
 import io
 from inspect import cleandoc
+from typing import Union
 from comfy.comfy_types.node_typing import IO, ComfyNodeABC
 from comfy_api_nodes.apis.bfl_api import (
     BFLStatus,
@@ -30,6 +31,7 @@ import requests
 import torch
 import base64
 import time
+from server import PromptServer
 
 
 def convert_mask_to_image(mask: torch.Tensor):
@@ -42,14 +44,19 @@ def convert_mask_to_image(mask: torch.Tensor):
 
 
 def handle_bfl_synchronous_operation(
-    operation: SynchronousOperation, timeout_bfl_calls=360
+    operation: SynchronousOperation,
+    timeout_bfl_calls=360,
+    node_id: Union[str, None] = None,
 ):
     response_api: BFLFluxProGenerateResponse = operation.execute()
     return _poll_until_generated(
-        response_api.polling_url, timeout=timeout_bfl_calls
+        response_api.polling_url, timeout=timeout_bfl_calls, node_id=node_id
     )
 
-def _poll_until_generated(polling_url: str, timeout=360):
+
+def _poll_until_generated(
+    polling_url: str, timeout=360, node_id: Union[str, None] = None
+):
     # used bfl-comfy-nodes to verify code implementation:
     # https://github.com/black-forest-labs/bfl-comfy-nodes/tree/main
     start_time = time.time()
@@ -61,11 +68,21 @@ def _poll_until_generated(polling_url: str, timeout=360):
     request = requests.Request(method=HttpMethod.GET, url=polling_url)
     # NOTE: should True loop be replaced with checking if workflow has been interrupted?
     while True:
+        if node_id:
+            time_elapsed = time.time() - start_time
+            PromptServer.instance.send_progress_text(
+                f"Generating ({time_elapsed:.0f}s)", node_id
+            )
+
         response = requests.Session().send(request.prepare())
         if response.status_code == 200:
             result = response.json()
             if result["status"] == BFLStatus.ready:
                 img_url = result["result"]["sample"]
+                if node_id:
+                    PromptServer.instance.send_progress_text(
+                        f"Result URL: {img_url}", node_id
+                    )
                 img_response = requests.get(img_url)
                 return process_image_response(img_response)
             elif result["status"] in [
@@ -180,6 +197,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -212,6 +230,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
         seed=0,
         image_prompt=None,
         image_prompt_strength=0.1,
+        unique_id: Union[str, None] = None,
         **kwargs,
     ):
         if image_prompt is None:
@@ -246,7 +265,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation)
+        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 
@@ -320,6 +339,7 @@ class FluxProImageNode(ComfyNodeABC):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -338,6 +358,7 @@ class FluxProImageNode(ComfyNodeABC):
         seed=0,
         image_prompt=None,
         # image_prompt_strength=0.1,
+        unique_id: Union[str, None] = None,
         **kwargs,
     ):
         image_prompt = (
@@ -363,7 +384,7 @@ class FluxProImageNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation)
+        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 
@@ -457,11 +478,11 @@ class FluxProExpandNode(ComfyNodeABC):
                     },
                 ),
             },
-            "optional": {
-            },
+            "optional": {},
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -483,6 +504,7 @@ class FluxProExpandNode(ComfyNodeABC):
         steps: int,
         guidance: float,
         seed=0,
+        unique_id: Union[str, None] = None,
         **kwargs,
     ):
         image = convert_image_to_base64(image)
@@ -508,7 +530,7 @@ class FluxProExpandNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation)
+        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 
@@ -568,11 +590,11 @@ class FluxProFillNode(ComfyNodeABC):
                     },
                 ),
             },
-            "optional": {
-            },
+            "optional": {},
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -591,13 +613,14 @@ class FluxProFillNode(ComfyNodeABC):
         steps: int,
         guidance: float,
         seed=0,
+        unique_id: Union[str, None] = None,
         **kwargs,
     ):
         # prepare mask
         mask = resize_mask_to_image(mask, image)
         mask = convert_image_to_base64(convert_mask_to_image(mask))
         # make sure image will have alpha channel removed
-        image = convert_image_to_base64(image[:,:,:,:3])
+        image = convert_image_to_base64(image[:, :, :, :3])
 
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
@@ -617,7 +640,7 @@ class FluxProFillNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation)
+        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 
@@ -702,11 +725,11 @@ class FluxProCannyNode(ComfyNodeABC):
                     },
                 ),
             },
-            "optional": {
-            },
+            "optional": {},
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -727,9 +750,10 @@ class FluxProCannyNode(ComfyNodeABC):
         steps: int,
         guidance: float,
         seed=0,
+        unique_id: Union[str, None] = None,
         **kwargs,
     ):
-        control_image = convert_image_to_base64(control_image[:,:,:,:3])
+        control_image = convert_image_to_base64(control_image[:, :, :, :3])
         preprocessed_image = None
 
         # scale canny threshold between 0-500, to match BFL's API
@@ -765,7 +789,7 @@ class FluxProCannyNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation)
+        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 
@@ -830,11 +854,11 @@ class FluxProDepthNode(ComfyNodeABC):
                     },
                 ),
             },
-            "optional": {
-            },
+            "optional": {},
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -853,6 +877,7 @@ class FluxProDepthNode(ComfyNodeABC):
         steps: int,
         guidance: float,
         seed=0,
+        unique_id: Union[str, None] = None,
         **kwargs,
     ):
         control_image = convert_image_to_base64(control_image[:,:,:,:3])
@@ -880,7 +905,7 @@ class FluxProDepthNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation)
+        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 

@@ -96,6 +96,7 @@ class OpenAIDalle2(ComfyNodeABC):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -113,6 +114,7 @@ class OpenAIDalle2(ComfyNodeABC):
         mask=None,
         n=1,
         size="1024x1024",
+        unique_id=None,
         **kwargs
     ):
         validate_string(prompt, strip_whitespace=False)
@@ -176,7 +178,7 @@ class OpenAIDalle2(ComfyNodeABC):
 
         response = operation.execute()
 
-        img_tensor = validate_and_cast_response(response)
+        img_tensor = validate_and_cast_response(response, node_id=unique_id)
         return (img_tensor,)
 
 
@@ -242,6 +244,7 @@ class OpenAIDalle3(ComfyNodeABC):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -258,6 +261,7 @@ class OpenAIDalle3(ComfyNodeABC):
         style="natural",
         quality="standard",
         size="1024x1024",
+        unique_id=None,
         **kwargs
     ):
         validate_string(prompt, strip_whitespace=False)
@@ -284,7 +288,7 @@ class OpenAIDalle3(ComfyNodeABC):
 
         response = operation.execute()
 
-        img_tensor = validate_and_cast_response(response)
+        img_tensor = validate_and_cast_response(response, node_id=unique_id)
         return (img_tensor,)
 
 
@@ -375,6 +379,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -394,6 +399,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
         mask=None,
         n=1,
         size="1024x1024",
+        unique_id=None,
         **kwargs
     ):
         validate_string(prompt, strip_whitespace=False)
@@ -476,7 +482,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
 
         response = operation.execute()
 
-        img_tensor = validate_and_cast_response(response)
+        img_tensor = validate_and_cast_response(response, node_id=unique_id)
         return (img_tensor,)
 
 
