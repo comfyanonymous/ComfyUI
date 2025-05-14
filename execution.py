@@ -115,7 +115,6 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
         # patch to parse widget values not just input values
         if isinstance(input_data, dict) and "__value__" in input_data:
             input_data = input_data["__value__"]
-            
         def mark_missing():
             missing_keys[x] = True
             input_data_all[x] = (None,)
