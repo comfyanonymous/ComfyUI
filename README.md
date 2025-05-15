@@ -100,11 +100,11 @@ If coming from the very start, you need :
 
 - from [likelovewant Repository](https://github.com/likelovewant/ROCmLibs-for-gfx1103-AMD780M-APU/releases/tag/v0.6.2.4) (for hip 6.2.4)
 
-    1. Go to folder "C:\Program Files\AMD\ROCm\5.7\bin\rocblas", there would be a "library" folder, backup the files
+    1. Go to folder "C:\Program Files\AMD\ROCm\5.7\bin\rocblas", (or 6.2 if you have installed that) there would be a "library" folder, backup the files
        inside to somewhere else.
     2. Open your downloaded optimized library archive and put them inside the library folder (overwriting if
-       necessary): "C:\\Program Files\\AMD\\ROCm\\5.7\\bin\\rocblas\\library"
-       * There could be a rocblas.dll file in the archive as well, if it is present then copy it inside "C:\Program Files\AMD\ROCm\5.7\bin\rocblas"
+       necessary): "C:\\Program Files\\AMD\\ROCm\\5.7\\bin\\rocblas\\library" (or 6.2 if you have installed that)
+       * There could be a rocblas.dll file in the archive as well, if it is present then copy it inside "C:\Program Files\AMD\ROCm\5.7\bin\rocblas" (or 6.2 if you have installed that)
 7. Reboot your system.
 
 ## Setup (Windows-Only)
