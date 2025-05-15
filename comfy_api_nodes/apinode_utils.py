@@ -1,7 +1,7 @@
 from __future__ import annotations
 import io
 import logging
-from typing import Optional
+from typing import Optional, Union
 from comfy.utils import common_upscale
 from comfy_api.input_impl import VideoFromFile
 from comfy_api.util import VideoContainer, VideoCodec
@@ -15,6 +15,7 @@ from comfy_api_nodes.apis.client import (
     UploadRequest,
     UploadResponse,
 )
+from server import PromptServer
 
 
 import numpy as np
@@ -60,7 +61,9 @@ def downscale_image_tensor(image, total_pixels=1536 * 1024) -> torch.Tensor:
     return s
 
 
-def validate_and_cast_response(response, timeout: int = None) -> torch.Tensor:
+def validate_and_cast_response(
+    response, timeout: int = None, node_id: Union[str, None] = None
+) -> torch.Tensor:
     """Validates and casts a response to a torch.Tensor.
 
     Args:
@@ -94,6 +97,10 @@ def validate_and_cast_response(response, timeout: int = None) -> torch.Tensor:
             img = Image.open(io.BytesIO(img_data))
 
         elif image_url:
+            if node_id:
+                PromptServer.instance.send_progress_text(
+                    f"Result URL: {image_url}", node_id
+                )
             img_response = requests.get(image_url, timeout=timeout)
             if img_response.status_code != 200:
                 raise ValueError("Failed to download the image")
