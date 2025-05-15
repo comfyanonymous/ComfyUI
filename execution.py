@@ -1,3 +1,4 @@
+import farts
 import sys
 import copy
 import logging
