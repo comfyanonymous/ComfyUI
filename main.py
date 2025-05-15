@@ -8,9 +8,13 @@ import time
 from comfy.cli_args import args
 from app.logger import setup_logger
 import itertools
+import comfy.model_management
 import utils.extra_config
 import logging
 import sys
+import atexit
+
+atexit.register(comfy.model_management.soft_empty_cache, clear=True)
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.

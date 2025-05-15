@@ -27,6 +27,10 @@ import comfy.utils
 import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
 
+from fast_sampler import fast_vae_decode
+from fast_sampler import fast_ksampler
+from fast_sampler import fast_vae_tiled_decode
+
 import comfy.clip_vision
 
 import comfy.model_management
@@ -282,49 +286,34 @@ class VAEDecode:
     RETURN_TYPES = ("IMAGE",)
     OUTPUT_TOOLTIPS = ("The decoded image.",)
     FUNCTION = "decode"
-
     CATEGORY = "latent"
     DESCRIPTION = "Decodes latent images back into pixel space images."
 
     def decode(self, vae, samples):
-        images = vae.decode(samples["samples"])
-        if len(images.shape) == 5: #Combine batches
-            images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
-        return (images, )
+        return fast_vae_decode(vae, samples)
 
 class VAEDecodeTiled:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"samples": ("LATENT", ), "vae": ("VAE", ),
-                             "tile_size": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 32}),
-                             "overlap": ("INT", {"default": 64, "min": 0, "max": 4096, "step": 32}),
-                             "temporal_size": ("INT", {"default": 64, "min": 8, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to decode at a time."}),
-                             "temporal_overlap": ("INT", {"default": 8, "min": 4, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to overlap."}),
-                            }}
+        return {
+            "required": {
+                "samples": ("LATENT", {"tooltip": "The latent to be decoded."}),
+                "vae": ("VAE", {"tooltip": "The VAE model used for decoding the latent."}),
+                "tile_size": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 32, "tooltip": "Tile size for tiled decoding."}),
+                "overlap": ("INT", {"default": 64, "min": 0, "max": 4096, "step": 32, "tooltip": "Tile overlap for tiled decoding."}),
+                "temporal_size": ("INT", {"default": 64, "min": 8, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to decode at a time."}),
+                "temporal_overlap": ("INT", {"default": 8, "min": 4, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to overlap."}),
+            }
+        }
     RETURN_TYPES = ("IMAGE",)
+    OUTPUT_TOOLTIPS = ("The decoded image.",)
     FUNCTION = "decode"
-
     CATEGORY = "_for_testing"
+    DESCRIPTION = "Decodes latent images back into pixel space images using tiled decoding for VRAM efficiency."
 
-    def decode(self, vae, samples, tile_size, overlap=64, temporal_size=64, temporal_overlap=8):
-        if tile_size < overlap * 4:
-            overlap = tile_size // 4
-        if temporal_size < temporal_overlap * 2:
-            temporal_overlap = temporal_overlap // 2
-        temporal_compression = vae.temporal_compression_decode()
-        if temporal_compression is not None:
-            temporal_size = max(2, temporal_size // temporal_compression)
-            temporal_overlap = max(1, min(temporal_size // 2, temporal_overlap // temporal_compression))
-        else:
-            temporal_size = None
-            temporal_overlap = None
-
-        compression = vae.spacial_compression_decode()
-        images = vae.decode_tiled(samples["samples"], tile_x=tile_size // compression, tile_y=tile_size // compression, overlap=overlap // compression, tile_t=temporal_size, overlap_t=temporal_overlap)
-        if len(images.shape) == 5: #Combine batches
-            images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
-        return (images, )
-
+    def decode(self, vae, samples, tile_size=512, overlap=64, temporal_size=64, temporal_overlap=8):
+        return fast_vae_tiled_decode(vae, samples, tile_size=tile_size, overlap=overlap,
+                                     temporal_size=temporal_size, temporal_overlap=temporal_overlap)
 class VAEEncode:
     @classmethod
     def INPUT_TYPES(s):
@@ -1473,28 +1462,26 @@ class SetLatentNoiseMask:
         s["noise_mask"] = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
         return (s,)
 
-def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
+def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent,
+                    denoise=1.0, disable_noise=False, start_step=None, last_step=None,
+                    force_full_denoise=False):
+    # Get device and dtype
+    device = comfy.model_management.get_torch_device()
+    dtype = getattr(model.model, 'dtype', torch.float32)
+    is_gpu = device.type == 'cuda' and torch.cuda.is_available()
+
+    # Prepare latent image
     latent_image = latent["samples"]
     latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image)
 
-    if disable_noise:
-        noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
-    else:
-        batch_inds = latent["batch_index"] if "batch_index" in latent else None
-        noise = comfy.sample.prepare_noise(latent_image, seed, batch_inds)
-
-    noise_mask = None
-    if "noise_mask" in latent:
-        noise_mask = latent["noise_mask"]
-
-    callback = latent_preview.prepare_callback(model, steps)
-    disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
-    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
-                                  denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
-                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
-    out = latent.copy()
-    out["samples"] = samples
-    return (out, )
+    # Call fast_ksampler with device, dtype, and is_gpu
+    out = fast_ksampler(
+        model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent,
+        denoise=denoise, disable_noise=disable_noise, start_step=start_step,
+        last_step=last_step, force_full_denoise=force_full_denoise,
+        device=device, dtype=dtype, is_gpu=is_gpu
+    )
+    return out
 
 class KSampler:
     @classmethod
@@ -1502,27 +1489,64 @@ class KSampler:
         return {
             "required": {
                 "model": ("MODEL", {"tooltip": "The model used for denoising the input latent."}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True, "tooltip": "The random seed used for creating the noise."}),
-                "steps": ("INT", {"default": 20, "min": 1, "max": 10000, "tooltip": "The number of steps used in the denoising process."}),
-                "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01, "tooltip": "The Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality."}),
-                "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"tooltip": "The algorithm used when sampling, this can affect the quality, speed, and style of the generated output."}),
-                "scheduler": (comfy.samplers.KSampler.SCHEDULERS, {"tooltip": "The scheduler controls how noise is gradually removed to form the image."}),
-                "positive": ("CONDITIONING", {"tooltip": "The conditioning describing the attributes you want to include in the image."}),
-                "negative": ("CONDITIONING", {"tooltip": "The conditioning describing the attributes you want to exclude from the image."}),
+                "seed": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 0xffffffffffffffff,
+                    "control_after_generate": True,
+                    "tooltip": "The random seed used for creating the noise."
+                }),
+                "steps": ("INT", {
+                    "default": 20,
+                    "min": 1,
+                    "max": 10000,
+                    "tooltip": "The number of steps used in the denoising process."
+                }),
+                "cfg": ("FLOAT", {
+                    "default": 8.0,
+                    "min": 0.0,
+                    "max": 100.0,
+                    "step": 0.1,
+                    "round": 0.01,
+                    "tooltip": "The Classifier-Free Guidance scale balances creativity and adherence to the prompt."
+                }),
+                "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {
+                    "tooltip": "The algorithm used when sampling."
+                }),
+                "scheduler": (comfy.samplers.KSampler.SCHEDULERS, {
+                    "tooltip": "The scheduler controls how noise is gradually removed to form the image."
+                }),
+                "positive": ("CONDITIONING", {
+                    "tooltip": "The conditioning describing the attributes to include."
+                }),
+                "negative": ("CONDITIONING", {
+                    "tooltip": "The conditioning describing the attributes to exclude."
+                }),
                 "latent_image": ("LATENT", {"tooltip": "The latent image to denoise."}),
-                "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "The amount of denoising applied, lower values will maintain the structure of the initial image allowing for image to image sampling."}),
+                "denoise": ("FLOAT", {
+                    "default": 1.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.01,
+                    "tooltip": "The amount of denoising applied."
+                }),
             }
         }
 
     RETURN_TYPES = ("LATENT",)
     OUTPUT_TOOLTIPS = ("The denoised latent.",)
     FUNCTION = "sample"
-
     CATEGORY = "sampling"
-    DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image."
+    DESCRIPTION = "Denoises the latent image using the provided model and conditioning."
 
-    def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0):
-        return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise)
+    def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+               denoise=1.0):
+        latent = latent_image.copy()
+        if "samples" in latent:
+            latent["samples"] = latent["samples"].to(
+                comfy.model_management.get_torch_device(), non_blocking=True)
+        return common_ksampler(
+            model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=denoise)
 
 class KSamplerAdvanced:
     @classmethod
@@ -1618,14 +1642,44 @@ class PreviewImage(SaveImage):
         self.output_dir = folder_paths.get_temp_directory()
         self.type = "temp"
         self.prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
-        self.compress_level = 1
+        self.compress_level = 4  # Faster for previews, SaveImage keeps 1 for fork
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required":
-                    {"images": ("IMAGE", ), },
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
-                }
+        return {"required": {"images": ("IMAGE", )},
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"}}
+
+    def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+        from PIL import Image
+        import numpy as np
+        import os
+
+        filename_prefix += self.prefix_append
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
+        results = []
+
+        for batch_number, image in enumerate(images):
+            i = 255. * image.cpu().numpy()
+            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+            # Adaptive resize to max dimension ~512, preserve aspect ratio
+            max_size = 512
+            if max(img.width, img.height) > max_size:
+                scale = max_size / max(img.width, img.height)
+                new_width = int(img.width * scale)
+                new_height = int(img.height * scale)
+                img = img.resize((new_width, new_height), Image.LANCZOS)
+            filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
+            file = f"{filename_with_batch_num}_{counter:05}_.png"
+            img.save(os.path.join(full_output_folder, file), format="PNG", compress_level=self.compress_level, optimize=True)
+            results.append({
+                "filename": file,
+                "subfolder": subfolder,
+                "type": self.type
+            })
+            counter += 1
+
+        return {"ui": {"images": results}}
 
 class LoadImage:
     @classmethod

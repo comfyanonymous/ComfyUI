@@ -34,6 +34,15 @@ import comfy.hooks
 import comfy.patcher_extension
 from comfy.patcher_extension import CallbacksMP, WrappersMP, PatcherInjection
 from comfy.comfy_types import UnetWrapperFunction
+from comfy.cli_args import args
+from comfy.ldm.models.autoencoder import AutoencoderKL
+from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel
+from comfy.model_management import get_free_memory, get_torch_device
+
+# Global flag for profiling
+PROFILING_ENABLED = args.profile
+DEBUG_ENABLED = args.debug
+VERBOSE_ENABLED = False
 
 def string_to_seed(data):
     crc = 0xFFFFFFFF
@@ -200,10 +209,13 @@ class MemoryCounter:
 
 class ModelPatcher:
     def __init__(self, model, load_device, offload_device, size=0, weight_inplace_update=False):
+        if PROFILING_ENABLED:
+            logging.debug(f"ModelPatcher init: model={type(model).__name__}, load_device={load_device}, offload_device={offload_device}, size={size / (1024**3):.2f} GB")
         self.size = size
         self.model = model
         if not hasattr(self.model, 'device'):
-            logging.debug("Model doesn't have a device attribute.")
+            if DEBUG_ENABLED:
+                logging.debug("Model doesn't have a device attribute.")
             self.model.device = offload_device
         elif self.model.device is None:
             self.model.device = offload_device
@@ -323,8 +335,44 @@ class ModelPatcher:
         return n
 
     def is_clone(self, other):
-        if hasattr(other, 'model') and self.model is other.model:
+        """
+        Check if another ModelPatcher is a clone of this one.
+        Compares model type, patches_uuid, patches content, and base model equivalence.
+        """
+        if not isinstance(other, ModelPatcher) or not hasattr(other, 'model'):
+            if DEBUG_ENABLED:
+                logging.debug("[DEBUG_CLONES] Not clones: invalid other ModelPatcher")
+            return False
+        
+        if self is other:
+            if DEBUG_ENABLED:
+                logging.debug("[DEBUG_CLONES] Models are clones: same ModelPatcher object")
             return True
+        
+        if self.model.__class__ != other.model.__class__:
+            if DEBUG_ENABLED:
+                logging.debug(f"[DEBUG_CLONES] Not clones: different model types {self.model.__class__.__name__} vs {other.model.__class__.__name__}")
+            return False
+        
+        if self.patches_uuid == other.patches_uuid:
+            if self.patches != other.patches:
+                if DEBUG_ENABLED:
+                    logging.debug(f"[DEBUG_CLONES] Not clones: same patches_uuid={self.patches_uuid}, but different patches")
+                return False
+            if DEBUG_ENABLED:
+                logging.debug(f"[DEBUG_CLONES] Models are clones: same patches_uuid={self.patches_uuid} and matching patches")
+            return True
+        
+        self_base = getattr(self.model, 'real_model', getattr(self.model, 'model', self.model))
+        other_base = getattr(other.model, 'real_model', getattr(other.model, 'model', other.model))
+        
+        if self_base is other_base:
+            if DEBUG_ENABLED:
+                logging.debug(f"[DEBUG_CLONES] Models are clones: same base model object, type={self.model.__class__.__name__}")
+            return True
+        
+        if DEBUG_ENABLED:
+            logging.debug(f"[DEBUG_CLONES] Not clones: different base model objects, type={self.model.__class__.__name__}")
         return False
 
     def clone_has_same_weights(self, clone: 'ModelPatcher'):
@@ -584,12 +632,39 @@ class ModelPatcher:
         return loading
 
     def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
+        # Set default device if device_to is None to avoid errors in get_free_memory
+        device = device_to if device_to is not None else comfy.model_management.get_torch_device()
+
         with self.use_ejected():
             self.unpatch_hooks()
             mem_counter = 0
             patch_counter = 0
             lowvram_counter = 0
             loading = self._load_list()
+
+            if PROFILING_ENABLED:
+                # Determine module name for logging
+                module_name = "Unknown"
+                if isinstance(self.model, (AutoencoderKL, comfy.sd.VAE)):
+                    module_name = "VAE"
+                elif isinstance(self.model, UNetModel):
+                    module_name = "UNet"
+                elif hasattr(self, "is_clip") and self.is_clip:
+                    module_name = "CLIP"
+                elif "diffusion_model" in str(type(self.model)):
+                    module_name = "DiffusionModel"
+                elif isinstance(self.model, torch.nn.Module):
+                    module_name = f"{type(self.model).__name__}"
+                logging.debug(f"Loading module: {module_name}, type: {type(self.model).__name__}")
+
+            # Validate and normalize lowvram_model_memory
+            if not isinstance(lowvram_model_memory, (int, float)) or lowvram_model_memory < 0:
+                if PROFILING_ENABLED:
+                    logging.warning(f"Invalid lowvram_model_memory: {lowvram_model_memory}, resetting to 0")
+                lowvram_model_memory = 0
+
+            if PROFILING_ENABLED:
+                logging.debug(f"ModelPatcher.load: model type: {type(self.model).__name__}, device_to: {device_to}, lowvram_model_memory: {lowvram_model_memory / (1024 * 1024):.2f} MB, full_load: {full_load}")
 
             load_completely = []
             loading.sort(reverse=True)
@@ -604,11 +679,23 @@ class ModelPatcher:
                 weight_key = "{}.weight".format(n)
                 bias_key = "{}.bias".format(n)
 
+                is_vae = isinstance(self.model, (AutoencoderKL, comfy.sd.VAE))
+                if VERBOSE_ENABLED:
+                    logging.debug(f"Processing module: {n}, type: {type(m).__name__}, is_vae: {is_vae}, module_mem: {module_mem / (1024 * 1024):.2f} MB")
+
+                # Skip VAE module if already loaded on the target device
+                if is_vae and hasattr(self.model, 'first_stage_model') and hasattr(self.model.first_stage_model, 'device') and self.model.first_stage_model.device == device and hasattr(self.model, '_loaded_to_device') and self.model._loaded_to_device == device:
+                    if PROFILING_ENABLED:
+                        logging.debug(f"Skipping VAE module {n}, already on {device} with _loaded_to_device={self.model._loaded_to_device}")
+                    continue
+
                 if not full_load and hasattr(m, "comfy_cast_weights"):
                     if mem_counter + module_mem >= lowvram_model_memory:
                         lowvram_weight = True
                         lowvram_counter += 1
                         if hasattr(m, "prev_comfy_cast_weights"): #Already lowvramed
+                            if VERBOSE_ENABLED:
+                                logging.debug(f"Skipping module {n}: already in lowvram mode")
                             continue
 
                 cast_weight = self.force_cast_weights
@@ -630,6 +717,9 @@ class ModelPatcher:
                             m.bias_function = [LowVramPatch(bias_key, self.patches)]
                             patch_counter += 1
 
+                    if VERBOSE_ENABLED:
+                        logging.debug(f"Module {n} set to lowvram, weight_key={weight_key}, bias_key={bias_key}, patch_counter={patch_counter}, lowvram_weight={lowvram_weight}")
+
                     cast_weight = True
                 else:
                     if hasattr(m, "comfy_cast_weights"):
@@ -638,6 +728,8 @@ class ModelPatcher:
                     if full_load or mem_counter + module_mem < lowvram_model_memory:
                         mem_counter += module_mem
                         load_completely.append((module_mem, n, m, params))
+                        if VERBOSE_ENABLED:
+                            logging.debug(f"Module {n} added to load_completely, mem_counter={mem_counter / (1024**3):.2f} GB")
 
                 if cast_weight and hasattr(m, "comfy_cast_weights"):
                     m.prev_comfy_cast_weights = m.comfy_cast_weights
@@ -649,7 +741,9 @@ class ModelPatcher:
                 if bias_key in self.weight_wrapper_patches:
                     m.bias_function.extend(self.weight_wrapper_patches[bias_key])
 
-                mem_counter += move_weight_functions(m, device_to)
+                mem_counter += move_weight_functions(m, device)
+                if VERBOSE_ENABLED:
+                    logging.debug(f"Moved weight functions for {n} to device={device}, mem_counter={mem_counter / (1024**3):.2f} GB")
 
             load_completely.sort(reverse=True)
             for x in load_completely:
@@ -658,34 +752,49 @@ class ModelPatcher:
                 params = x[3]
                 if hasattr(m, "comfy_patched_weights"):
                     if m.comfy_patched_weights == True:
+                        if VERBOSE_ENABLED:
+                            logging.debug(f"Skipping module {n}: already patched")
                         continue
 
                 for param in params:
-                    self.patch_weight_to_device("{}.{}".format(n, param), device_to=device_to)
+                    self.patch_weight_to_device("{}.{}".format(n, param), device_to=device)
 
-                logging.debug("lowvram: loaded module regularly {} {}".format(n, m))
+                if VERBOSE_ENABLED:
+                    logging.debug(f"Loaded module {n} regularly, lowvram={self.model.model_lowvram}")
                 m.comfy_patched_weights = True
 
             for x in load_completely:
-                x[2].to(device_to)
+                x[2].to(device)
+                if VERBOSE_ENABLED:
+                    logging.debug(f"Moved module {x[1]} to device={device}")
 
+            # Safe logging with module name
+            lowvram_mb = lowvram_model_memory / (1024 * 1024)
+            mem_counter_mb = mem_counter / (1024 * 1024)
             if lowvram_counter > 0:
-                logging.info("loaded partially {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), patch_counter))
+                if PROFILING_ENABLED:
+                    logging.info(f"Loaded partially {module_name}: {lowvram_mb:.2f} MB, {mem_counter_mb:.2f} MB, patches: {patch_counter}")
                 self.model.model_lowvram = True
             else:
-                logging.info("loaded completely {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
+                if PROFILING_ENABLED:
+                    logging.info(f"Loaded completely {module_name}: {lowvram_mb:.2f} MB, {mem_counter_mb:.2f} MB, full_load: {full_load}")
                 self.model.model_lowvram = False
                 if full_load:
-                    self.model.to(device_to)
+                    self.model.to(device)
                     mem_counter = self.model_size()
+                    if PROFILING_ENABLED:
+                        logging.info(f"Moved entire model to device: {device}, mem_counter: {mem_counter / (1024 * 1024):.2f} MB")
 
             self.model.lowvram_patch_counter += patch_counter
-            self.model.device = device_to
+            self.model.device = device
             self.model.model_loaded_weight_memory = mem_counter
             self.model.current_weight_patches_uuid = self.patches_uuid
 
+            if PROFILING_ENABLED:
+                logging.debug(f"Load completed: model type: {type(self.model).__name__}, device: {self.model.device}, loaded_weight_memory: {self.model.model_loaded_weight_memory / (1024 * 1024):.2f} MB, lowvram: {self.model.model_lowvram}, patch_counter: {self.model.lowvram_patch_counter}")
+
             for callback in self.get_all_callbacks(CallbacksMP.ON_LOAD):
-                callback(self, device_to, lowvram_model_memory, force_patch_weights, full_load)
+                callback(self, device, lowvram_model_memory, force_patch_weights, full_load)
 
             self.apply_hooks(self.forced_hooks, force_apply=True)
 
@@ -695,6 +804,13 @@ class ModelPatcher:
                 old = comfy.utils.set_attr(self.model, k, self.object_patches[k])
                 if k not in self.object_patches_backup:
                     self.object_patches_backup[k] = old
+
+            # Validate and normalize lowvram_model_memory
+            if PROFILING_ENABLED:
+                logging.debug(f"patch_model: model={type(self.model).__name__}, lowvram_model_memory={lowvram_model_memory / (1024**3):.2f} GB, device_to={device_to}")
+            if not isinstance(lowvram_model_memory, (int, float)) or lowvram_model_memory < 0:
+                logging.warning(f"Invalid lowvram_model_memory in patch_model: {lowvram_model_memory}, resetting to 0")
+                lowvram_model_memory = 0
 
             if lowvram_model_memory == 0:
                 full_load = True
@@ -812,21 +928,37 @@ class ModelPatcher:
         with self.use_ejected(skip_and_inject_on_exit_only=True):
             unpatch_weights = self.model.current_weight_patches_uuid is not None and (self.model.current_weight_patches_uuid != self.patches_uuid or force_patch_weights)
             # TODO: force_patch_weights should not unload + reload full model
+            if PROFILING_ENABLED:
+                logging.debug(f"partially_load: unpatch_weights={unpatch_weights}, patches_uuid={self.patches_uuid}, current_weight_patches_uuid={self.model.current_weight_patches_uuid}")
             used = self.model.model_loaded_weight_memory
+            if PROFILING_ENABLED:
+                logging.debug(f"partially_load: used={used / (1024**3):.2f} GB, model_loaded_weight_memory={self.model.model_loaded_weight_memory / (1024**3):.2f} GB")
+
             self.unpatch_model(self.offload_device, unpatch_weights=unpatch_weights)
             if unpatch_weights:
                 extra_memory += (used - self.model.model_loaded_weight_memory)
+                if PROFILING_ENABLED:
+                    logging.debug(f"partially_load: updated extra_memory={extra_memory / (1024**3):.2f} GB after unpatch, used={used / (1024**3):.2f} GB, model_loaded_weight_memory={self.model.model_loaded_weight_memory / (1024**3):.2f} GB")
 
             self.patch_model(load_weights=False)
             full_load = False
             if self.model.model_lowvram == False and self.model.model_loaded_weight_memory > 0:
                 self.apply_hooks(self.forced_hooks, force_apply=True)
+                if PROFILING_ENABLED:
+                    logging.debug(f"partially_load: early return, model_lowvram={self.model.model_lowvram}, model_loaded_weight_memory={self.model.model_loaded_weight_memory / (1024**3):.2f} GB")
                 return 0
             if self.model.model_loaded_weight_memory + extra_memory > self.model_size():
                 full_load = True
+                if PROFILING_ENABLED:
+                    logging.debug(f"partially_load: full_load=True, model_loaded_weight_memory={self.model.model_loaded_weight_memory / (1024**3):.2f} GB, extra_memory={extra_memory / (1024**3):.2f} GB, model_size={self.model_size() / (1024**3):.2f} GB")
+
             current_used = self.model.model_loaded_weight_memory
+            lowvram_model_memory = current_used + extra_memory
+            if PROFILING_ENABLED:
+                logging.debug(f"partially_load: calling load with lowvram_model_memory={lowvram_model_memory / (1024**3):.2f} GB, current_used={current_used / (1024**3):.2f} GB, extra_memory={extra_memory / (1024**3):.2f} GB")
+
             try:
-                self.load(device_to, lowvram_model_memory=current_used + extra_memory, force_patch_weights=force_patch_weights, full_load=full_load)
+                self.load(device_to, lowvram_model_memory=lowvram_model_memory, force_patch_weights=force_patch_weights, full_load=full_load)
             except Exception as e:
                 self.detach()
                 raise e
@@ -834,12 +966,34 @@ class ModelPatcher:
             return self.model.model_loaded_weight_memory - current_used
 
     def detach(self, unpatch_all=True):
+        if PROFILING_ENABLED:
+            free_vram_before = get_free_memory(get_torch_device()) / 1024**3
+            logging.debug(f"detach: Before, free_vram={free_vram_before:.2f} GB, model={self.model.__class__.__name__}")
+        
+        if hasattr(self.model, 'on_patched'):
+            if DEBUG_ENABLED:
+                logging.debug(f"Calling on_patched for {self.model.__class__.__name__}")
+            self.model.on_patched()
         self.eject_model()
         self.model_patches_to(self.offload_device)
         if unpatch_all:
-            self.unpatch_model(self.offload_device, unpatch_weights=unpatch_all)
-        for callback in self.get_all_callbacks(CallbacksMP.ON_DETACH):
-            callback(self, unpatch_all)
+            self.unpatch_model(self.offload_device)
+            
+        if hasattr(self.model, 'to'):
+            self.model.to(self.offload_device)
+            self.model.device = self.offload_device
+            self.model.model_loaded_weight_memory = 0
+                   
+        self.patches = []
+        self.model_patches = 0
+        
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        if PROFILING_ENABLED:
+            free_vram_after = get_free_memory(get_torch_device()) / 1024**3
+            logging.debug(f"detach: After, free_vram={free_vram_after:.2f} GB, freed={(free_vram_after-free_vram_before):.2f} GB, model={self.model.__class__.__name__}")
+        
         return self.model
 
     def current_loaded_device(self):
@@ -1206,4 +1360,3 @@ class ModelPatcher:
 
     def __del__(self):
         self.detach(unpatch_all=False)
-
