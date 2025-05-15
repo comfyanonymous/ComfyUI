@@ -89,7 +89,7 @@ def validate_video_duration(
         logging.error("Error getting duration of video: %s", e)
         return
 
-    epsilon = 0.001
+    epsilon = 0.0001
     if min_duration is not None and min_duration - epsilon > duration:
         raise ValueError(
             f"Video duration must be at least {min_duration}s, got {duration}s"
