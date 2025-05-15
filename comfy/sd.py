@@ -28,6 +28,7 @@ from . import model_detection
 
 from . import sd1_clip
 from . import sdxl_clip
+from comfy.cli_args import args
 import comfy.text_encoders.sd2_clip
 import comfy.text_encoders.sd3_clip
 import comfy.text_encoders.sa_t5
@@ -53,6 +54,8 @@ import comfy.t2i_adapter.adapter
 import comfy.taesd.taesd
 
 import comfy.ldm.flux.redux
+
+DEBUG_ENABLED = args.debug
 
 def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     key_map = {}
@@ -497,18 +500,23 @@ class VAE:
                 pixels = pixels.narrow(d + 1, x_offset, x)
         return pixels
 
-    def decode_tiled_(self, samples, tile_x=64, tile_y=64, overlap = 16):
+    def decode_tiled_(self, samples, tile_x=64, tile_y=64, overlap=16):
+        # Calculate progress bar steps for a single pass
         steps = samples.shape[0] * comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x, tile_y, overlap)
-        steps += samples.shape[0] * comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x // 2, tile_y * 2, overlap)
-        steps += samples.shape[0] * comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x * 2, tile_y // 2, overlap)
         pbar = comfy.utils.ProgressBar(steps)
 
-        decode_fn = lambda a: self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).float()
-        output = self.process_output(
-            (comfy.utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar) +
-            comfy.utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar) +
-             comfy.utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar))
-            / 3.0)
+        # Define decode function with tile logging
+        if not DEBUG_ENABLED:
+            decode_fn = lambda a: self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).float()
+        else:
+            decode_fn = lambda a: (logging.debug(f"Tile shape: {a.shape}, min: {a.min()}, max: {a.max()}"),
+                                   self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).float())[1]
+
+        # Single pass with provided tile sizes
+        output = comfy.utils.tiled_scale(
+            samples, decode_fn, tile_x, tile_y, overlap,
+            upscale_amount=self.upscale_ratio, output_device=self.output_device, pbar=pbar
+        )
         return output
 
     def decode_tiled_1d(self, samples, tile_x=128, overlap=32):
@@ -1068,9 +1076,10 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
             else:
                 logging.warning("no CLIP/text encoder weights in checkpoint, the text encoder model will not be loaded.")
 
-    left_over = sd.keys()
-    if len(left_over) > 0:
-        logging.debug("left over keys: {}".format(left_over))
+    if DEBUG_ENABLED:
+        left_over = sd.keys()
+        if len(left_over) > 0:
+                logging.debug("left over keys: {}".format(left_over))
 
     if output_model:
         model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device())
@@ -1137,9 +1146,10 @@ def load_diffusion_model_state_dict(sd, model_options={}): #load unet in diffuse
     model = model_config.get_model(new_sd, "")
     model = model.to(offload_device)
     model.load_model_weights(new_sd, "")
-    left_over = sd.keys()
-    if len(left_over) > 0:
-        logging.info("left over keys in unet: {}".format(left_over))
+    if DEBUG_ENABLED:
+        left_over = sd.keys()
+        if len(left_over) > 0:
+            logging.info("left over keys in unet: {}".format(left_over))
     return comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device)
 
 

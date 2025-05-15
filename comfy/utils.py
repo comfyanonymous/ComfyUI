@@ -33,6 +33,9 @@ from comfy.cli_args import args
 MMAP_TORCH_FILES = args.mmap_torch_files
 
 ALWAYS_SAFE_LOAD = False
+
+DEBUG_ENABLED = args.debug
+
 if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in pytorch 2.4, the unsafe path should be removed once earlier versions are deprecated
     class ModelCheckpoint:
         pass
@@ -876,116 +879,205 @@ def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
 
 @torch.inference_mode()
 def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_amount=4, out_channels=3, output_device="cpu", downscale=False, index_formulas=None, pbar=None):
+    """
+    Perform tiled scaling of input samples using the provided function with overlap blending.
+    
+    Args:
+        samples: Input tensor of shape [batch, channels, *spatial_dims].
+        function: Function to process each tile (e.g., VAE decode).
+        tile: Tuple of tile sizes for each spatial dimension.
+        overlap: Overlap size or list of overlaps for each dimension.
+        upscale_amount: Scaling factor or list of factors for each dimension.
+        out_channels: Number of output channels.
+        output_device: Device for output tensor.
+        downscale: If True, downscale instead of upscale.
+        index_formulas: Scaling factors for tile positions (defaults to upscale_amount).
+        pbar: Optional progress bar object.
+    
+    Returns:
+        Scaled output tensor of shape [batch, out_channels, *scaled_spatial_dims].
+    """
     dims = len(tile)
 
-    if not (isinstance(upscale_amount, (tuple, list))):
+    # Wrap function to ensure FP32
+    def fp32_function(x):
+        x_fp32 = x.to(dtype=torch.float32)
+        result = function(x_fp32)
+        return result.to(dtype=torch.float32)
+
+    # Convert parameters to lists for multidimensional support
+    if not isinstance(upscale_amount, (tuple, list)):
         upscale_amount = [upscale_amount] * dims
-
-    if not (isinstance(overlap, (tuple, list))):
+    if not isinstance(overlap, (tuple, list)):
         overlap = [overlap] * dims
-
     if index_formulas is None:
         index_formulas = upscale_amount
-
-    if not (isinstance(index_formulas, (tuple, list))):
+    if not isinstance(index_formulas, (tuple, list)):
         index_formulas = [index_formulas] * dims
 
+    # Define scaling functions
     def get_upscale(dim, val):
         up = upscale_amount[dim]
-        if callable(up):
-            return up(val)
-        else:
-            return up * val
+        return up(val) if callable(up) else up * val
 
     def get_downscale(dim, val):
         up = upscale_amount[dim]
-        if callable(up):
-            return up(val)
-        else:
-            return val / up
+        return up(val) if callable(up) else val / up
 
     def get_upscale_pos(dim, val):
         up = index_formulas[dim]
-        if callable(up):
-            return up(val)
-        else:
-            return up * val
+        return up(val) if callable(up) else up * val
 
     def get_downscale_pos(dim, val):
         up = index_formulas[dim]
-        if callable(up):
-            return up(val)
-        else:
-            return val / up
+        return up(val) if callable(up) else val / up
 
-    if downscale:
-        get_scale = get_downscale
-        get_pos = get_downscale_pos
-    else:
-        get_scale = get_upscale
-        get_pos = get_upscale_pos
+    get_scale = get_downscale if downscale else get_upscale
+    get_pos = get_downscale_pos if downscale else get_upscale_pos
 
     def mult_list_upscale(a):
-        out = []
-        for i in range(len(a)):
-            out.append(round(get_scale(i, a[i])))
-        return out
+        """Compute scaled dimensions for output tensor."""
+        return [round(get_scale(i, a[i])) for i in range(len(a))]
 
-    output = torch.empty([samples.shape[0], out_channels] + mult_list_upscale(samples.shape[2:]), device=output_device)
+    # Initialize output tensor
+    output_shape = [samples.shape[0], out_channels] + mult_list_upscale(samples.shape[2:])
+    output = torch.empty(output_shape, device=output_device, dtype=torch.float32)
+    if DEBUG_ENABLED:
+        logging.debug(f"Input shape: {samples.shape}, output shape: {output_shape}, tile: {tile}")
+        logging.debug(f"Input stats: min={samples.min():.4f}, max={samples.max():.4f}, mean={samples.mean():.4f}")
+
+    # Test VAE
+    try:
+        test_input = samples[:1].to(dtype=torch.float32)
+        test_result = fp32_function(test_input).to(output_device, dtype=torch.float32)
+        if DEBUG_ENABLED:
+            logging.debug(f"VAE test result: shape={test_result.shape}, min={test_result.min():.4f}, max={test_result.max():.4f}")
+        if torch.isnan(test_result).any() or torch.isinf(test_result).any():
+            logging.error("VAE produces NaN or Inf in test output. Check VAE model or input latents.")
+            raise RuntimeError("VAE output contains NaN or Inf")
+    except Exception as e:
+        logging.error(f"VAE test failed: {e}")
+        raise
 
     for b in range(samples.shape[0]):
         s = samples[b:b+1]
 
-        # handle entire input fitting in a single tile
+        # Handle case where input fits in a single tile
         if all(s.shape[d+2] <= tile[d] for d in range(dims)):
-            output[b:b+1] = function(s).to(output_device)
+            s_fp32 = s.to(dtype=torch.float32)
+            result = fp32_function(s_fp32).to(output_device, dtype=torch.float32)
+            if DEBUG_ENABLED:
+                logging.debug(f"Single tile result: shape={result.shape}, min={result.min():.4f}, max={result.max():.4f}")
+            if result.shape == output_shape[1:]:
+                output[b:b+1] = result
+            else:
+                result = result.narrow(1, 0, output_shape[1])
+                for d in range(dims):
+                    result = result.narrow(d + 2, 0, output_shape[d + 2])
+                output[b:b+1] = result
             if pbar is not None:
                 pbar.update(1)
             continue
 
-        out = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
-        out_div = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
+        # Initialize accumulation tensors
+        out = torch.zeros(output_shape[1:], device=output_device, dtype=torch.float32)
+        out_div = torch.full_like(out, 1e-6)
 
-        positions = [range(0, s.shape[d+2] - overlap[d], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
+        # Compute tile positions
+        positions = []
+        tile_counts = []
+        for d in range(dims):
+            step = max(1, tile[d] - overlap[d])
+            end = max(0, s.shape[d+2] - tile[d])
+            pos = list(range(0, end + 1, step))
+            if pos and (pos[-1] < end or s.shape[d+2] > tile[d]):
+                pos.append(end)
+            positions.append(pos if pos else [0])
+            tile_counts.append(len(pos))
+        if DEBUG_ENABLED:
+            logging.debug(f"Tile positions: {positions}")
 
+        # Process each tile
+        total_tiles = max(1, len(list(itertools.product(*positions))))
         for it in itertools.product(*positions):
             s_in = s
             upscaled = []
 
+            # Extract tile
             for d in range(dims):
-                pos = max(0, min(s.shape[d + 2] - overlap[d], it[d]))
-                l = min(tile[d], s.shape[d + 2] - pos)
-                s_in = s_in.narrow(d + 2, pos, l)
+                pos = max(0, min(s.shape[d+2] - tile[d], it[d]))
+                length = min(tile[d], s.shape[d+2] - pos)
+                s_in = s_in.narrow(d + 2, pos, length)
                 upscaled.append(round(get_pos(d, pos)))
 
-            ps = function(s_in).to(output_device)
-            mask = torch.ones_like(ps)
+            # Process tile
+            s_in_fp32 = s_in.to(dtype=torch.float32)
+            ps = fp32_function(s_in_fp32).to(output_device, dtype=torch.float32)
+            if DEBUG_ENABLED:
+                logging.debug(f"Tile at {it}: input={s_in.shape}, output={ps.shape}, min={ps.min():.4f}, max={ps.max():.4f}")
+            if torch.isnan(ps).any() or torch.isinf(ps).any():
+                if DEBUG_ENABLED:
+                    logging.warning(f"Tile at {it} contains NaN or Inf, clamping values")
+                ps = torch.clamp(ps, min=-1e6, max=1e6)
+            mask = torch.ones_like(ps, dtype=torch.float32) / total_tiles
 
-            for d in range(2, dims + 2):
-                feather = round(get_scale(d - 2, overlap[d - 2]))
-                if feather >= mask.shape[d]:
+            # Apply feathering for smooth overlap blending
+            for d in range(dims):
+                feather = min(round(get_scale(d, overlap[d])), ps.shape[d + 2] // 16)
+                if feather < 1:
                     continue
                 for t in range(feather):
                     a = (t + 1) / feather
-                    mask.narrow(d, t, 1).mul_(a)
-                    mask.narrow(d, mask.shape[d] - 1 - t, 1).mul_(a)
+                    mask.narrow(d + 2, t, 1).mul_(a)
+                    mask.narrow(d + 2, mask.shape[d + 2] - 1 - t, 1).mul_(a)
+            mask = mask.clamp(min=1e-6)
 
+            # Accumulate results
             o = out
             o_d = out_div
             for d in range(dims):
-                o = o.narrow(d + 2, upscaled[d], mask.shape[d + 2])
-                o_d = o_d.narrow(d + 2, upscaled[d], mask.shape[d + 2])
+                start = upscaled[d]
+                size = min(ps.shape[d + 2], output_shape[d + 2] - start)
+                o = o.narrow(d + 1, start, size)
+                o_d = o_d.narrow(d + 1, start, size)
+                ps = ps.narrow(d + 2, 0, size)
+                mask = mask.narrow(d + 2, 0, size)
 
+            # Squeeze batch dimension
+            ps = ps.squeeze(0)
+            mask = mask.squeeze(0)
             o.add_(ps * mask)
             o_d.add_(mask)
 
             if pbar is not None:
                 pbar.update(1)
 
-        output[b:b+1] = out/out_div
-    return output
+        # Fallback to non-tiled if NaN
+        if torch.isnan(out).any():
+            if DEBUG_ENABLED:
+                logging.warning("NaN detected in tiled output, falling back to non-tiled")
+            s_fp32 = s.to(dtype=torch.float32)
+            result = fp32_function(s_fp32).to(output_device, dtype=torch.float32)
+            if result.shape == output_shape[1:]:
+                output[b:b+1] = result
+            else:
+                result = result.narrow(1, 0, output_shape[1])
+                for d in range(dims):
+                    result = result.narrow(d + 2, 0, output_shape[d + 2])
+                output[b:b+1] = result
+        else:
+            if DEBUG_ENABLED:
+                logging.debug(f"out stats: min={out.min():.4f}, max={out.max():.4f}")
+                logging.debug(f"out_div stats: min={out_div.min():.4f}, max={out_div.max():.4f}")
+            output[b:b+1] = out / out_div
 
-def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
+        if pbar is not None:
+            pbar.update(1)
+
+    return output
+    
+def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap=8, upscale_amount=4, out_channels=3, output_device="cpu", pbar=None):
+    """Wrapper for 2D tiled scaling."""
     return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=output_device, pbar=pbar)
 
 PROGRESS_BAR_ENABLED = True

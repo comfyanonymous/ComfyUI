@@ -8,6 +8,7 @@ from comfy.model_management import get_torch_device, vae_dtype, soft_empty_cache
 from contextlib import contextmanager
 import latent_preview
 import logging
+import traceback
 
 # Global flag for profiling
 PROFILING_ENABLED = args.profile
@@ -41,15 +42,18 @@ def profile_cuda_sync(is_gpu, message="CUDA sync"):
         logging.debug(f"{message} took {time.time() - sync_start:.3f} s")
 
 def is_fp16_safe(device):
-    """Check if FP16 is safe for the GPU (disabled for GTX 1660/Turing)."""
+    """Check if FP16 is safe for the GPU (disabled for Turing)."""
     if device.type != 'cuda':
         return False
     if device in _fp16_safe_cache:
         return _fp16_safe_cache[device]
     try:
         props = torch.cuda.get_device_properties(device)
-        is_safe = props.major >= 8 or props.compute_capability[0] > 7
+        # Disable FP16 for Turing (major == 7) and earlier architectures
+        is_safe = props.major >= 8  # Allow FP16 only for Ampere (8.x) and later
         _fp16_safe_cache[device] = is_safe
+        if DEBUG_ENABLED:
+            logging.debug(f"FP16 safety check for {props.name}: major={props.major}, is_safe={is_safe}")
         return is_safe
     except Exception:
         _fp16_safe_cache[device] = False
@@ -72,7 +76,8 @@ def clear_vram(device, threshold=0.5, min_free=1.5):
         mem_total = torch.cuda.get_device_properties(device).total_memory / 1024**3
         critical_threshold = 0.05 * mem_total + 0.1  # 5% VRAM + 100 MB
         if mem_allocated > threshold * mem_total or (mem_total - mem_allocated) < max(min_free, critical_threshold):
-            logging.debug(f"Clearing VRAM: allocated {mem_allocated:.2f} GB, free {mem_total - mem_allocated:.2f} GB, threshold {critical_threshold:.2f} GB")
+            if PROFILING_ENABLED:
+                logging.debug(f"Clearing VRAM: allocated {mem_allocated:.2f} GB, free {mem_total - mem_allocated:.2f} GB, threshold {critical_threshold:.2f} GB")
             torch.cuda.empty_cache()
             #soft_empty_cache(clear=False)
             mem_after = torch.cuda.memory_allocated(device) / 1024**3
@@ -362,9 +367,9 @@ def fast_vae_decode(vae, samples):
 def fast_vae_tiled_decode(vae, samples, tile_size=512, overlap=64, temporal_size=64, temporal_overlap=8):
     """Fast VAE decoding with tiling for low VRAM, consistent with fast_vae_decode."""
     device, dtype, is_gpu = initialize_device_and_dtype(vae)
-    vae_dtype = vae_dtype(device=device)
+    vae_dtype_val = vae_dtype(device=device)
     if DEBUG_ENABLED:
-        logging.debug(f"VAE dtype: {vae_dtype}")
+        logging.debug(f"VAE dtype: {vae_dtype_val}")
         logging.debug(f"Pre-VAE checkpoint: {time.time()}")
 
     try:
@@ -378,7 +383,7 @@ def fast_vae_tiled_decode(vae, samples, tile_size=512, overlap=64, temporal_size
             mem_allocated = torch.cuda.memory_allocated(device) / 1024**3
             free_mem = mem_total - mem_allocated
             # Estimate memory for tiled decoding (conservative, ~50% of full decode)
-            vae_memory_required = (vae.memory_used_decode(samples["samples"].shape, vae_dtype) / 1024**3 * 0.5
+            vae_memory_required = (vae.memory_used_decode(samples["samples"].shape, vae_dtype_val) / 1024**3 * 0.5
                                   if hasattr(vae, 'memory_used_decode') else 0.75)
             if PROFILING_ENABLED:
                 logging.debug(f"VRAM before tiled VAE: {mem_allocated:.2f} GB / {mem_total:.2f} GB")
@@ -408,7 +413,7 @@ def fast_vae_tiled_decode(vae, samples, tile_size=512, overlap=64, temporal_size
             latent_samples = samples["samples"]
             if PROFILING_ENABLED:
                 logging.debug(f"Latent samples device: {latent_samples.device}, dtype: {latent_samples.dtype}")
-            latent_samples = optimized_transfer(latent_samples, device, vae_dtype)
+            latent_samples = optimized_transfer(latent_samples, device, vae_dtype_val)
             if is_gpu and force_channels_last():
                 latent_samples = latent_samples.to(memory_format=torch.channels_last)
                 vae.first_stage_model.to(memory_format=torch.channels_last)

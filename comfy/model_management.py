@@ -800,7 +800,7 @@ class LoadedModel:
             return self.model_offloaded_memory()
 
         # Handle AutoencoderKL
-        if self.model.model is not None and isinstance(self.model.model, AutoencoderKL):
+        if self.model is not None and isinstance(self.model.model, AutoencoderKL):
             shape = getattr(self.model, 'last_shape', (1, 4, 64, 64))
             dtype = getattr(self.model, 'model_dtype', torch.float32)()
             return estimate_vae_decode_memory(self.model.model, shape, dtype)
