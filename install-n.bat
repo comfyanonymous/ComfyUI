@@ -58,7 +58,7 @@ if "%PY_MINOR%"=="10" (
 
 echo  ::  %time:~0,8%  ::  - Installing flash-attention
 
-%SystemRoot%\system32\curl.exe -sL --ssl-no-revoke https://github.com/user-attachments/files/20140727/flash_attn.zip > fa.zip
+%SystemRoot%\system32\curl.exe -sL --ssl-no-revoke https://github.com/user-attachments/files/20140536/flash_attn-2.7.4.post1-py3-none-any.zip > fa.zip
 %SystemRoot%\system32\tar.exe -xf fa.zip
 pip install flash_attn-2.7.4.post1-py3-none-any.whl --quiet
 del fa.zip
