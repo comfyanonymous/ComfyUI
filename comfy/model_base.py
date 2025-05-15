@@ -1079,6 +1079,17 @@ class WAN21_Vace(WAN21):
         out['vace_strength'] = comfy.conds.CONDConstant(vace_strength)
         return out
 
+class WAN21_Camera(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.CameraWanModel)
+        self.image_to_video = image_to_video
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        camera_conditions = kwargs.get("camera_conditions", None)
+        if camera_conditions is not None:
+            out['camera_conditions'] = comfy.conds.CONDRegular(camera_conditions)
+        return out
 
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
