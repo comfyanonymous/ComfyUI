@@ -93,7 +93,11 @@ class OpenAIDalle2(ComfyNodeABC):
                     },
                 ),
             },
-            "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
+            },
         }
 
     RETURN_TYPES = (IO.IMAGE,)
@@ -110,7 +114,8 @@ class OpenAIDalle2(ComfyNodeABC):
         mask=None,
         n=1,
         size="1024x1024",
-        auth_token=None,
+        unique_id=None,
+        **kwargs
     ):
         validate_string(prompt, strip_whitespace=False)
         model = "dall-e-2"
@@ -168,12 +173,12 @@ class OpenAIDalle2(ComfyNodeABC):
                 else None
             ),
             content_type=content_type,
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
 
         response = operation.execute()
 
-        img_tensor = validate_and_cast_response(response)
+        img_tensor = validate_and_cast_response(response, node_id=unique_id)
         return (img_tensor,)
 
 
@@ -236,7 +241,11 @@ class OpenAIDalle3(ComfyNodeABC):
                     },
                 ),
             },
-            "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
+            },
         }
 
     RETURN_TYPES = (IO.IMAGE,)
@@ -252,7 +261,8 @@ class OpenAIDalle3(ComfyNodeABC):
         style="natural",
         quality="standard",
         size="1024x1024",
-        auth_token=None,
+        unique_id=None,
+        **kwargs
     ):
         validate_string(prompt, strip_whitespace=False)
         model = "dall-e-3"
@@ -273,12 +283,12 @@ class OpenAIDalle3(ComfyNodeABC):
                 style=style,
                 seed=seed,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
 
         response = operation.execute()
 
-        img_tensor = validate_and_cast_response(response)
+        img_tensor = validate_and_cast_response(response, node_id=unique_id)
         return (img_tensor,)
 
 
@@ -366,7 +376,11 @@ class OpenAIGPTImage1(ComfyNodeABC):
                     },
                 ),
             },
-            "hidden": {"auth_token": "AUTH_TOKEN_COMFY_ORG"},
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
+            },
         }
 
     RETURN_TYPES = (IO.IMAGE,)
@@ -385,7 +399,8 @@ class OpenAIGPTImage1(ComfyNodeABC):
         mask=None,
         n=1,
         size="1024x1024",
-        auth_token=None,
+        unique_id=None,
+        **kwargs
     ):
         validate_string(prompt, strip_whitespace=False)
         model = "gpt-image-1"
@@ -462,12 +477,12 @@ class OpenAIGPTImage1(ComfyNodeABC):
             ),
             files=files if files else None,
             content_type=content_type,
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
 
         response = operation.execute()
 
-        img_tensor = validate_and_cast_response(response)
+        img_tensor = validate_and_cast_response(response, node_id=unique_id)
         return (img_tensor,)
 
 

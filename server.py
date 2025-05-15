@@ -32,12 +32,13 @@ from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
-from typing import Optional
+from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
     UNENCODED_PREVIEW_IMAGE = 2
+    TEXT = 3
 
 async def send_socket_catch_exception(function, message):
     try:
@@ -878,3 +879,15 @@ class PromptServer():
                 logging.warning(traceback.format_exc())
 
         return json_data
+
+    def send_progress_text(
+        self, text: Union[bytes, bytearray, str], node_id: str, sid=None
+    ):
+        if isinstance(text, str):
+            text = text.encode("utf-8")
+        node_id_bytes = str(node_id).encode("utf-8")
+
+        # Pack the node_id length as a 4-byte unsigned integer, followed by the node_id bytes
+        message = struct.pack(">I", len(node_id_bytes)) + node_id_bytes + text
+
+        self.send_sync(BinaryEventTypes.TEXT, message, sid)

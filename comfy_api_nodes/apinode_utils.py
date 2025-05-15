@@ -1,6 +1,7 @@
+from __future__ import annotations
 import io
 import logging
-from typing import Optional
+from typing import Optional, Union
 from comfy.utils import common_upscale
 from comfy_api.input_impl import VideoFromFile
 from comfy_api.util import VideoContainer, VideoCodec
@@ -14,6 +15,7 @@ from comfy_api_nodes.apis.client import (
     UploadRequest,
     UploadResponse,
 )
+from server import PromptServer
 
 
 import numpy as np
@@ -59,7 +61,9 @@ def downscale_image_tensor(image, total_pixels=1536 * 1024) -> torch.Tensor:
     return s
 
 
-def validate_and_cast_response(response, timeout: int = None) -> torch.Tensor:
+def validate_and_cast_response(
+    response, timeout: int = None, node_id: Union[str, None] = None
+) -> torch.Tensor:
     """Validates and casts a response to a torch.Tensor.
 
     Args:
@@ -93,6 +97,10 @@ def validate_and_cast_response(response, timeout: int = None) -> torch.Tensor:
             img = Image.open(io.BytesIO(img_data))
 
         elif image_url:
+            if node_id:
+                PromptServer.instance.send_progress_text(
+                    f"Result URL: {image_url}", node_id
+                )
             img_response = requests.get(image_url, timeout=timeout)
             if img_response.status_code != 200:
                 raise ValueError("Failed to download the image")
@@ -314,7 +322,7 @@ def upload_file_to_comfyapi(
     file_bytes_io: BytesIO,
     filename: str,
     upload_mime_type: str,
-    auth_token: Optional[str] = None,
+    auth_kwargs: Optional[dict[str,str]] = None,
 ) -> str:
     """
     Uploads a single file to ComfyUI API and returns its download URL.
@@ -323,7 +331,7 @@ def upload_file_to_comfyapi(
         file_bytes_io: BytesIO object containing the file data.
         filename: The filename of the file.
         upload_mime_type: MIME type of the file.
-        auth_token: Optional authentication token.
+        auth_kwargs: Optional authentication token(s).
 
     Returns:
         The download URL for the uploaded file.
@@ -337,7 +345,7 @@ def upload_file_to_comfyapi(
             response_model=UploadResponse,
         ),
         request=request_object,
-        auth_token=auth_token,
+        auth_kwargs=auth_kwargs,
     )
 
     response: UploadResponse = operation.execute()
@@ -351,7 +359,7 @@ def upload_file_to_comfyapi(
 
 def upload_video_to_comfyapi(
     video: VideoInput,
-    auth_token: Optional[str] = None,
+    auth_kwargs: Optional[dict[str,str]] = None,
     container: VideoContainer = VideoContainer.MP4,
     codec: VideoCodec = VideoCodec.H264,
     max_duration: Optional[int] = None,
@@ -362,7 +370,7 @@ def upload_video_to_comfyapi(
 
     Args:
         video: VideoInput object (Comfy VIDEO type).
-        auth_token: Optional authentication token.
+        auth_kwargs: Optional authentication token(s).
         container: The video container format to use (default: MP4).
         codec: The video codec to use (default: H264).
         max_duration: Optional maximum duration of the video in seconds. If the video is longer than this, an error will be raised.
@@ -390,7 +398,7 @@ def upload_video_to_comfyapi(
     video_bytes_io.seek(0)
 
     return upload_file_to_comfyapi(
-        video_bytes_io, filename, upload_mime_type, auth_token
+        video_bytes_io, filename, upload_mime_type, auth_kwargs
     )
 
 
@@ -453,7 +461,7 @@ def audio_ndarray_to_bytesio(
 
 def upload_audio_to_comfyapi(
     audio: AudioInput,
-    auth_token: Optional[str] = None,
+    auth_kwargs: Optional[dict[str,str]] = None,
     container_format: str = "mp4",
     codec_name: str = "aac",
     mime_type: str = "audio/mp4",
@@ -465,7 +473,7 @@ def upload_audio_to_comfyapi(
 
     Args:
         audio: a Comfy `AUDIO` type (contains waveform tensor and sample_rate)
-        auth_token: Optional authentication token.
+        auth_kwargs: Optional authentication token(s).
 
     Returns:
         The download URL for the uploaded audio file.
@@ -477,11 +485,11 @@ def upload_audio_to_comfyapi(
         audio_data_np, sample_rate, container_format, codec_name
     )
 
-    return upload_file_to_comfyapi(audio_bytes_io, filename, mime_type, auth_token)
+    return upload_file_to_comfyapi(audio_bytes_io, filename, mime_type, auth_kwargs)
 
 
 def upload_images_to_comfyapi(
-    image: torch.Tensor, max_images=8, auth_token=None, mime_type: Optional[str] = None
+    image: torch.Tensor, max_images=8, auth_kwargs: Optional[dict[str,str]] = None, mime_type: Optional[str] = None
 ) -> list[str]:
     """
     Uploads images to ComfyUI API and returns download URLs.
@@ -490,7 +498,7 @@ def upload_images_to_comfyapi(
     Args:
         image: Input torch.Tensor image.
         max_images: Maximum number of images to upload.
-        auth_token: Optional authentication token.
+        auth_kwargs: Optional authentication token(s).
         mime_type: Optional MIME type for the image.
     """
     # if batch, try to upload each file if max_images is greater than 0
@@ -521,7 +529,7 @@ def upload_images_to_comfyapi(
                 response_model=UploadResponse,
             ),
             request=request_object,
-            auth_token=auth_token,
+            auth_kwargs=auth_kwargs,
         )
         response = operation.execute()
 

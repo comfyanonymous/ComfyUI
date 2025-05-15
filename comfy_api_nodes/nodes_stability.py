@@ -120,12 +120,13 @@ class StabilityStableImageUltraNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
     def api_call(self, prompt: str, aspect_ratio: str, style_preset: str, seed: int,
                  negative_prompt: str=None, image: torch.Tensor = None, image_denoise: float=None,
-                 auth_token=None):
+                 **kwargs):
         validate_string(prompt, strip_whitespace=False)
         # prepare image binary if image present
         image_binary = None
@@ -160,7 +161,7 @@ class StabilityStableImageUltraNode:
             ),
             files=files,
             content_type="multipart/form-data",
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response_api = operation.execute()
 
@@ -252,12 +253,13 @@ class StabilityStableImageSD_3_5Node:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
     def api_call(self, model: str, prompt: str, aspect_ratio: str, style_preset: str, seed: int, cfg_scale: float,
                  negative_prompt: str=None, image: torch.Tensor = None, image_denoise: float=None,
-                 auth_token=None):
+                 **kwargs):
         validate_string(prompt, strip_whitespace=False)
         # prepare image binary if image present
         image_binary = None
@@ -298,7 +300,7 @@ class StabilityStableImageSD_3_5Node:
             ),
             files=files,
             content_type="multipart/form-data",
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response_api = operation.execute()
 
@@ -368,11 +370,12 @@ class StabilityUpscaleConservativeNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
     def api_call(self, image: torch.Tensor, prompt: str, creativity: float, seed: int, negative_prompt: str=None,
-                 auth_token=None):
+                 **kwargs):
         validate_string(prompt, strip_whitespace=False)
         image_binary = tensor_to_bytesio(image, total_pixels=1024*1024).read()
 
@@ -398,7 +401,7 @@ class StabilityUpscaleConservativeNode:
             ),
             files=files,
             content_type="multipart/form-data",
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response_api = operation.execute()
 
@@ -473,11 +476,12 @@ class StabilityUpscaleCreativeNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
     def api_call(self, image: torch.Tensor, prompt: str, creativity: float, style_preset: str, seed: int, negative_prompt: str=None,
-                 auth_token=None):
+                 **kwargs):
         validate_string(prompt, strip_whitespace=False)
         image_binary = tensor_to_bytesio(image, total_pixels=1024*1024).read()
 
@@ -506,7 +510,7 @@ class StabilityUpscaleCreativeNode:
             ),
             files=files,
             content_type="multipart/form-data",
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response_api = operation.execute()
 
@@ -521,7 +525,7 @@ class StabilityUpscaleCreativeNode:
             completed_statuses=[StabilityPollStatus.finished],
             failed_statuses=[StabilityPollStatus.failed],
             status_extractor=lambda x: get_async_dummy_status(x),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response_poll: StabilityResultsGetResponse = operation.execute()
 
@@ -555,11 +559,12 @@ class StabilityUpscaleFastNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
             },
         }
 
     def api_call(self, image: torch.Tensor,
-                 auth_token=None):
+                 **kwargs):
         image_binary = tensor_to_bytesio(image, total_pixels=4096*4096).read()
 
         files = {
@@ -576,7 +581,7 @@ class StabilityUpscaleFastNode:
             request=EmptyRequest(),
             files=files,
             content_type="multipart/form-data",
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response_api = operation.execute()
 

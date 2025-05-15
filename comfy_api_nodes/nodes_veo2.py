@@ -3,6 +3,7 @@ import logging
 import base64
 import requests
 import torch
+from typing import Optional
 
 from comfy.comfy_types.node_typing import IO, ComfyNodeABC
 from comfy_api.input_impl.video_types import VideoFromFile
@@ -24,12 +25,30 @@ from comfy_api_nodes.apinode_utils import (
     tensor_to_base64_string
 )
 
+AVERAGE_DURATION_VIDEO_GEN = 32
+
 def convert_image_to_base64(image: torch.Tensor):
     if image is None:
         return None
 
     scaled_image = downscale_image_tensor(image, total_pixels=2048*2048)
     return tensor_to_base64_string(scaled_image)
+
+
+def get_video_url_from_response(poll_response: Veo2GenVidPollResponse) -> Optional[str]:
+    if (
+        poll_response.response
+        and hasattr(poll_response.response, "videos")
+        and poll_response.response.videos
+        and len(poll_response.response.videos) > 0
+    ):
+        video = poll_response.response.videos[0]
+    else:
+        return None
+    if hasattr(video, "gcsUri") and video.gcsUri:
+        return str(video.gcsUri)
+    return None
+
 
 class VeoVideoGenerationNode(ComfyNodeABC):
     """
@@ -114,6 +133,8 @@ class VeoVideoGenerationNode(ComfyNodeABC):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -133,7 +154,8 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         person_generation="ALLOW",
         seed=0,
         image=None,
-        auth_token=None,
+        unique_id: Optional[str] = None,
+        **kwargs,
     ):
         # Prepare the instances for the request
         instances = []
@@ -179,7 +201,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
                 instances=instances,
                 parameters=parameters
             ),
-            auth_token=auth_token
+            auth_kwargs=kwargs,
         )
 
         initial_response = initial_operation.execute()
@@ -213,8 +235,11 @@ class VeoVideoGenerationNode(ComfyNodeABC):
             request=Veo2GenVidPollRequest(
                 operationName=operation_name
             ),
-            auth_token=auth_token,
-            poll_interval=5.0
+            auth_kwargs=kwargs,
+            poll_interval=5.0,
+            result_url_extractor=get_video_url_from_response,
+            node_id=unique_id,
+            estimated_duration=AVERAGE_DURATION_VIDEO_GEN,
         )
 
         # Execute the polling operation
