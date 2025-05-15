@@ -89,7 +89,12 @@ If coming from the very start, you need :
 
     ((( these should be  HIP_PATH, value: `C:\Program Files\AMD\ROCm\6.2\` and Path variable  `C:\Program Files\AMD\ROCm\6.2\bin` )))
 
-6. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
+   5.1  *** YOU MUST DO THIS ADDITIONAL STEP : if you want to try miopen-triton with high end gpu : ***
+   
+    * Install **HIP SDK 6.2.4** from [HERE](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html) the correct version, "Windows 10 & 11 6.2.4 HIP SDK"
+    * Then download hip sdk addon from this url `https://drive.google.com/file/d/1JSVDV9yKCJ_vldXb5hS7NEHUeDJGoG6M/view?usp=sharing` and extract that into `C:\Program Files\AMD\ROCm\6.2`
+
+7. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
 
 - from [Brknsoul Repository](https://github.com/brknsoul/ROCmLibs) (for hip 5.7.1)
 
@@ -125,8 +130,6 @@ to start for later use (or create a shortcut to) :
 comfyui.bat
 ```
 ((( use `comfyui-n.bat` if you want to use miopen-triton combo for high end gpu's, that basically changes the attention to pytorch attention which works with flash attention )))
-
-*** UPDATE : Additional triton and flash-attention install not needed anymore, it is done inside install-n.bat like the other stuff. But please keep the next line in mind. ***
 
     --- To use sage-attention , you have to change the "--use-pytorch-cross-attention" to "--use-sage-attention". My advice is make a seperate batch file for all different attention types instead of changing them.
     --- You can use "--use-pytorch-cross-attention", "--use-quad-cross-attention" , "--use-flash-attention" and "--use-sage-attention" . Also you can activate flash or sage with the help some nodes from pytorch attention.
