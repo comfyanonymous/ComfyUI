@@ -34,7 +34,7 @@ echo  ::  %time:~0,8%  ::  - Installing onnxruntime (required by some nodes)
 pip install onnxruntime --quiet
 echo  ::  %time:~0,8%  ::  - (temporary numpy fix)
 pip uninstall numpy -y --quiet
-pip install numpy==1.26.0 --quiet
+pip install numpy==1.26.4 --quiet
 echo.
 echo  ::  %time:~0,8%  ::  Custom node(s) installation ...
 echo. 
