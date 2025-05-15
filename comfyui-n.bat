@@ -1,6 +1,8 @@
 @echo off
 
-SET MIOPEN_FIND_MODE=2
+set FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
+set MIOPEN_FIND_MODE=2
+set MIOPEN_LOG_LEVEL=3
 set PYTHON="%~dp0/venv/Scripts/python.exe"
 set GIT=
 set VENV_DIR=./venv
