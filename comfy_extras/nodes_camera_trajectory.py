@@ -148,7 +148,7 @@ def get_camera_motion(angle, T, speed, n=81):
     RT = np.stack(RT)
     return RT
 
-class WanCameraEmbeding:
+class WanCameraEmbedding:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -214,5 +214,5 @@ class WanCameraEmbeding:
 
 
 NODE_CLASS_MAPPINGS = {
-    "WanCameraEmbeding": WanCameraEmbeding,
+    "WanCameraEmbedding": WanCameraEmbedding,
 }
