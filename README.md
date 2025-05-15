@@ -16,6 +16,7 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 - [Credits](#credits)
 
 ## What's New?
+* flash-attention download error fixed, also added sage-attention fix, especially for vae out of memory errors that occurs a lot with sage-attention enabled.
 * `install-n.bat` now not only installs everything needed for MIOPEN and Flash-Attention use, it also automates installing triton (only supported for python 3.10.x and 3.11.x) and flash-attention. So if you especially have 6000+ gpu , have HIP 6.2.4 and libraries if necessary, try it. But beware, there are lots of errors yet to be unsolved. So it is still not the default installed version.
 * If you want to enable MIOPEN , Triton and Flash-Attention use the install-n.bat . This will install torch 2.7 , with latest nightly zluda and patch the correct files into comfyui-zluda. This features do not work very well and you are on your own if you want to try these. (---- You have to install HIP 6.2.4 - Download and extract HIP Addon inside the folder (information down below on installation section). ---)
 * If you choose to install hip 6.2 instead of 5.7 (and make sure the path's are there) comfyui-zluda will install latest zluda not 3.8.4 like 5.7.1. 
