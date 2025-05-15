@@ -64,6 +64,11 @@ pip install flash_attn-2.7.4.post1-py3-none-any.whl --quiet
 del fa.zip
 del flash_attn-2.7.4.post1-py3-none-any.whl
 
+echo  ::  %time:~0,8%  ::  - Patching sage-attention
+copy comfy\customzluda\sa\quant_per_block.py venv\Lib\site-packages\sageattention\quant_per_block.py /y >NUL
+copy comfy\customzluda\sa\attn_qk_int8_per_block_causal.py venv\Lib\site-packages\sageattention\attn_qk_int8_per_block_causal.py /y >NUL
+copy comfy\customzluda\sa\attn_qk_int8_per_block.py venv\Lib\site-packages\sageattention\attn_qk_int8_per_block.py /y >NUL
+
 echo.
 echo  ::  %time:~0,8%  ::  Custom node(s) installation ...
 echo. 
