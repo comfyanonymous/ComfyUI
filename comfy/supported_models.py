@@ -995,7 +995,7 @@ class WAN21_FunControl2V(WAN21_T2V):
 class WAN21_Camera(WAN21_T2V):
     unet_config = {
         "image_model": "wan2.1",
-        "model_type": "i2v",
+        "model_type": "camera",
         "in_dim": 32,
     }
 
