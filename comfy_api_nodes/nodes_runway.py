@@ -1,0 +1,394 @@
+"""Runway API Nodes
+
+API Docs:
+  - https://docs.dev.runwayml.com/api/#tag/Task-management/paths/~1v1~1tasks~1%7Bid%7D/delete
+
+User Guides:
+  - https://help.runwayml.com/hc/en-us/sections/30265301423635-Gen-3-Alpha
+  - https://help.runwayml.com/hc/en-us/articles/37327109429011-Creating-with-Gen-4-Video
+  - https://help.runwayml.com/hc/en-us/articles/33927968552339-Creating-with-Act-One-on-Gen-3-Alpha-and-Turbo
+  - https://help.runwayml.com/hc/en-us/articles/34170748696595-Creating-with-Keyframes-on-Gen-3
+
+"""
+
+from typing import Union, Optional, Any
+from enum import Enum
+
+import torch
+
+from comfy_api_nodes.apis import (
+    RunwayImageToVideoRequest,
+    RunwayImageToVideoResponse,
+    RunwayTaskStatusResponse as TaskStatusResponse,
+    RunwayTaskStatusEnum as TaskStatus,
+    RunwayModelEnum as Model,
+    RunwayDurationEnum as Duration,
+    RunwayAspectRatioEnum as AspectRatio,
+    RunwayPromptImageObject,
+    RunwayPromptImageDetailedObject,
+)
+from comfy_api_nodes.apis.client import (
+    ApiEndpoint,
+    HttpMethod,
+    SynchronousOperation,
+    PollingOperation,
+    EmptyRequest,
+)
+from comfy_api_nodes.apinode_utils import (
+    upload_images_to_comfyapi,
+    download_url_to_video_output,
+    image_tensor_pair_to_batch,
+    validate_string,
+)
+from comfy_api_nodes.mapper_utils import model_field_to_node_input
+from comfy_api.input_impl import VideoFromFile
+from comfy.comfy_types.node_typing import IO, ComfyNodeABC
+
+PATH_IMAGE_TO_VIDEO = "/proxy/runway/image-to-video"
+PATH_GET_TASK_STATUS = "/proxy/runway/tasks"
+
+AVERAGE_DURATION_I2V_SECONDS = 128
+AVERAGE_DURATION_FLF_SECONDS = 256
+
+
+class RunwayApiError(Exception):
+    """Base exception for Runway API errors."""
+
+    pass
+
+
+class RunwayBasicAspectRatio(str, Enum):
+    """Aspect ratios supported for Image to Video API when not using gen3a_turbo model."""
+
+    field_1280_720 = "1280:720"
+    field_720_1280 = "720:1280"
+    field_1104_832 = "1104:832"
+    field_832_1104 = "832:1104"
+    field_960_960 = "960:960"
+    field_1584_672 = "1584:672"
+
+
+def get_video_url_from_task_status(response: TaskStatusResponse) -> Union[str, None]:
+    """Returns the video URL from the task status response if it exists."""
+    if response.output and len(response.output) > 0:
+        return response.output[0]
+    return None
+
+
+# TODO: replace with updated image validation utils (upstream)
+def validate_input_image(image: torch.Tensor) -> bool:
+    """
+    Validate the input image is within the size limits for the Runway API.
+    See: https://docs.dev.runwayml.com/assets/inputs/#common-error-reasons
+    """
+    return image.shape[2] < 8000 and image.shape[1] < 8000
+
+
+def poll_until_finished(
+    auth_kwargs: dict[str, str],
+    api_endpoint: ApiEndpoint[Any, TaskStatusResponse],
+    estimated_duration: Optional[int] = None,
+    node_id: Optional[str] = None,
+) -> TaskStatusResponse:
+    """Polls the Runway API endpoint until the task reaches a terminal state, then returns the response."""
+    return PollingOperation(
+        poll_endpoint=api_endpoint,
+        completed_statuses=[
+            TaskStatus.SUCCEEDED.value,
+        ],
+        failed_statuses=[
+            TaskStatus.FAILED.value,
+            TaskStatus.CANCELLED.value,
+        ],
+        status_extractor=lambda response: (response.status.value),
+        auth_kwargs=auth_kwargs,
+        result_url_extractor=get_video_url_from_task_status,
+        estimated_duration=estimated_duration,
+        node_id=node_id,
+        progress_extractor=extract_progress_from_task_status,
+    ).execute()
+
+
+def extract_progress_from_task_status(
+    response: TaskStatusResponse,
+) -> Union[float, None]:
+    if hasattr(response, "progress") and response.progress is not None:
+        return response.progress * 100
+    return None
+
+
+class RunwayVideoGenNode(ComfyNodeABC):
+    """Runway Video Node Base."""
+
+    RETURN_TYPES = ("VIDEO",)
+    FUNCTION = "api_call"
+    CATEGORY = "api node/video/Runway"
+    API_NODE = True
+
+    def validate_task_created(self, response: RunwayImageToVideoResponse) -> bool:
+        """
+        Validate the task creation response from the Runway API matches
+        expected format.
+        """
+        if not bool(response.id):
+            raise RunwayApiError("Invalid initial response from Runway API.")
+        return True
+
+    def validate_response(self, response: RunwayImageToVideoResponse) -> bool:
+        """
+        Validate the successful task status response from the Runway API
+        matches expected format.
+        """
+        if not response.output or len(response.output) == 0:
+            raise RunwayApiError(
+                "Runway task succeeded but no video data found in response."
+            )
+        return True
+
+    def get_response(
+        self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
+    ) -> RunwayImageToVideoResponse:
+        """Poll the task status until it is finished then get the response."""
+        return poll_until_finished(
+            auth_kwargs,
+            ApiEndpoint(
+                path=f"{PATH_GET_TASK_STATUS}/{task_id}",
+                method=HttpMethod.GET,
+                request_model=EmptyRequest,
+                response_model=RunwayImageToVideoResponse,
+            ),
+            estimated_duration=AVERAGE_DURATION_FLF_SECONDS,
+            node_id=node_id,
+        )
+
+    def generate_video(
+        self,
+        request: RunwayImageToVideoRequest,
+        auth_kwargs: dict[str, str],
+        node_id: Optional[str] = None,
+    ) -> tuple[VideoFromFile]:
+        initial_operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path=PATH_IMAGE_TO_VIDEO,
+                method=HttpMethod.POST,
+                request_model=RunwayImageToVideoRequest,
+                response_model=RunwayImageToVideoResponse,
+            ),
+            request=request,
+            auth_kwargs=auth_kwargs,
+        )
+
+        initial_response = initial_operation.execute()
+        self.validate_task_created(initial_response)
+        task_id = initial_response.id
+
+        final_response = self.get_response(task_id, auth_kwargs, node_id)
+        self.validate_response(final_response)
+
+        video_url = get_video_url_from_task_status(final_response)
+        return (download_url_to_video_output(video_url),)
+
+
+class RunwayImageToVideoNode(RunwayVideoGenNode):
+    """Runway Image to Video Node."""
+
+    DESCRIPTION = "Generate a video from a single starting frame. Before diving in, review these best practices to ensure that your input selections will set your generation up for success: https://help.runwayml.com/hc/en-us/articles/33927968552339-Creating-with-Act-One-on-Gen-3-Alpha-and-Turbo."
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "prompt": model_field_to_node_input(
+                    IO.STRING, RunwayImageToVideoRequest, "promptText", multiline=True
+                ),
+                "start_frame": (
+                    IO.IMAGE,
+                    {"tooltip": "Start frame to be used for the video"},
+                ),
+                "model": model_field_to_node_input(
+                    IO.COMBO, RunwayImageToVideoRequest, "model", enum_type=Model
+                ),
+                "duration": model_field_to_node_input(
+                    IO.COMBO, RunwayImageToVideoRequest, "duration", enum_type=Duration
+                ),
+                "ratio": model_field_to_node_input(
+                    IO.COMBO,
+                    RunwayImageToVideoRequest,
+                    "ratio",
+                    enum_type=RunwayBasicAspectRatio,
+                ),
+                "seed": model_field_to_node_input(
+                    IO.INT,
+                    RunwayImageToVideoRequest,
+                    "seed",
+                    control_after_generate=True,
+                ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
+            },
+        }
+
+    def api_call(
+        self,
+        prompt: str,
+        start_frame: torch.Tensor,
+        model: str,
+        duration: str,
+        ratio: str,
+        seed: int,
+        unique_id: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[VideoFromFile]:
+        # Validate inputs
+        validate_string(prompt, min_length=1)
+        validate_input_image(start_frame)
+
+        # Upload image
+        download_urls = upload_images_to_comfyapi(
+            start_frame,
+            max_images=1,
+            mime_type="image/png",
+            auth_kwargs=kwargs,
+        )
+        if len(download_urls) != 1:
+            raise RunwayApiError("Failed to upload one or more images to comfy api.")
+
+        return self.generate_video(
+            RunwayImageToVideoRequest(
+                promptText=prompt,
+                seed=seed,
+                model=Model("gen3a_turbo"),
+                duration=Duration(duration),
+                ratio=AspectRatio(ratio),
+                promptImage=RunwayPromptImageObject(
+                    root=[
+                        RunwayPromptImageDetailedObject(
+                            uri=str(download_urls[0]), position="first"
+                        )
+                    ]
+                ),
+            ),
+            auth_kwargs=kwargs,
+            node_id=unique_id,
+        )
+
+
+class RunwayStartEndFrameNode(RunwayVideoGenNode):
+    """Runway Start End Frame Node."""
+
+    DESCRIPTION = "Upload first and last keyframes, draft a prompt, and generate a video. More complex transitions, such as cases where the Last frame is completely different from the First frame, may benefit from the longer 10s duration. This would give the generation more time to smoothly transition between the two inputs. Before diving in, review these best practices to ensure that your input selections will set your generation up for success: https://help.runwayml.com/hc/en-us/articles/34170748696595-Creating-with-Keyframes-on-Gen-3."
+
+    def get_response(
+        self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
+    ) -> RunwayImageToVideoResponse:
+        return poll_until_finished(
+            auth_kwargs,
+            ApiEndpoint(
+                path=f"{PATH_GET_TASK_STATUS}/{task_id}",
+                method=HttpMethod.GET,
+                request_model=EmptyRequest,
+                response_model=RunwayImageToVideoResponse,
+            ),
+            estimated_duration=AVERAGE_DURATION_FLF_SECONDS,
+            node_id=node_id,
+        )
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "prompt": model_field_to_node_input(
+                    IO.STRING, RunwayImageToVideoRequest, "promptText", multiline=True
+                ),
+                "start_frame": (
+                    IO.IMAGE,
+                    {"tooltip": "Start frame to be used for the video"},
+                ),
+                "end_frame": (
+                    IO.IMAGE,
+                    {
+                        "tooltip": "End frame to be used for the video. Supported for gen3a_turbo only."
+                    },
+                ),
+                "duration": model_field_to_node_input(
+                    IO.COMBO, RunwayImageToVideoRequest, "duration", enum_type=Duration
+                ),
+                "ratio": model_field_to_node_input(
+                    IO.COMBO, RunwayImageToVideoRequest, "ratio", enum_type=AspectRatio
+                ),
+                "seed": model_field_to_node_input(
+                    IO.INT,
+                    RunwayImageToVideoRequest,
+                    "seed",
+                    control_after_generate=True,
+                ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
+            },
+        }
+
+    def api_call(
+        self,
+        prompt: str,
+        start_frame: torch.Tensor,
+        end_frame: torch.Tensor,
+        duration: str,
+        ratio: str,
+        seed: int,
+        unique_id: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[VideoFromFile]:
+        # Validate inputs
+        validate_string(prompt, min_length=1)
+        validate_input_image(start_frame)
+        validate_input_image(end_frame)
+
+        # Upload images
+        stacked_input_images = image_tensor_pair_to_batch(start_frame, end_frame)
+        download_urls = upload_images_to_comfyapi(
+            stacked_input_images,
+            max_images=2,
+            mime_type="image/png",
+            auth_kwargs=kwargs,
+        )
+        if len(download_urls) != 2:
+            raise RunwayApiError("Failed to upload one or more images to comfy api.")
+
+        return self.generate_video(
+            RunwayImageToVideoRequest(
+                promptText=prompt,
+                seed=seed,
+                model=Model("gen3a_turbo"),
+                duration=Duration(duration),
+                ratio=AspectRatio(ratio),
+                promptImage=RunwayPromptImageObject(
+                    root=[
+                        RunwayPromptImageDetailedObject(
+                            uri=str(download_urls[0]), position="first"
+                        ),
+                        RunwayPromptImageDetailedObject(
+                            uri=str(download_urls[1]), position="last"
+                        ),
+                    ]
+                ),
+            ),
+            auth_kwargs=kwargs,
+            node_id=unique_id,
+        )
+
+
+NODE_CLASS_MAPPINGS = {
+    "RunwayStartEndFrameNode": RunwayStartEndFrameNode,
+    "RunwayImageToVideoNode": RunwayImageToVideoNode,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "RunwayStartEndFrameNode": "Runway Start-End Frame to Video",
+    "RunwayImageToVideoNode": "Runway Image to Video",
+}

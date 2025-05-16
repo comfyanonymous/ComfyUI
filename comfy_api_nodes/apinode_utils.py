@@ -573,11 +573,30 @@ def resize_mask_to_image(mask: torch.Tensor, image: torch.Tensor,
 
 
 def validate_string(string: str, strip_whitespace=True, field_name="prompt", min_length=None, max_length=None):
+    if string is None:
+        raise Exception(f"Field '{field_name}' cannot be empty.")
     if strip_whitespace:
         string = string.strip()
     if min_length and len(string) < min_length:
         raise Exception(f"Field '{field_name}' cannot be shorter than {min_length} characters; was {len(string)} characters long.")
     if max_length and len(string) > max_length:
         raise Exception(f" Field '{field_name} cannot be longer than {max_length} characters; was {len(string)} characters long.")
-    if not string:
-        raise Exception(f"Field '{field_name}' cannot be empty.")
+
+
+def image_tensor_pair_to_batch(
+    image1: torch.Tensor, image2: torch.Tensor
+) -> torch.Tensor:
+    """
+    Converts a pair of image tensors to a batch tensor.
+    If the images are not the same size, the smaller image is resized to
+    match the larger image.
+    """
+    if image1.shape[1:] != image2.shape[1:]:
+        image2 = common_upscale(
+            image2.movedim(-1, 1),
+            image1.shape[2],
+            image1.shape[1],
+            "bilinear",
+            "center",
+        ).movedim(1, -1)
+    return torch.cat((image1, image2), dim=0)
