@@ -7,10 +7,17 @@ Use this instead of cli_args to import the args:
 
 It will enable command line argument parsing. If this isn't desired, you must author your own implementation of these fixes.
 """
+import os
+
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
+os.environ["TORCHINDUCTOR_AUTOGRAD_CACHE"] = "1"
+os.environ["BITSANDBYTES_NOWELCOME"] = "1"
+
 import ctypes
 import importlib.util
 import logging
-import os
 import shutil
 import sys
 import warnings
@@ -43,6 +50,7 @@ warnings.filterwarnings("ignore", message="Importing from timm.models.registry i
 warnings.filterwarnings("ignore", message="Importing from timm.models.layers is deprecated, please import via timm.layers", category=FutureWarning)
 warnings.filterwarnings("ignore", message="Inheritance class _InstrumentedApplication from web.Application is discouraged", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message="Please import `gaussian_filter` from the `scipy.ndimage` namespace; the `scipy.ndimage.filters` namespace is deprecated", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message="The installed version of bitsandbytes was compiled without GPU support")
 
 from ..cli_args import args
 
@@ -63,11 +71,6 @@ try:
     from . import cuda_malloc
 except Exception:
     pass
-
-os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
-os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
-os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
-os.environ["TORCHINDUCTOR_AUTOGRAD_CACHE"] = "1"
 
 
 def _fix_pytorch_240():
@@ -108,13 +111,10 @@ def _create_tracer():
     sampler = ProgressSpanSampler()
     provider = TracerProvider(resource=resource, sampler=sampler)
 
-    is_debugging = hasattr(sys, 'gettrace') and sys.gettrace() is not None
     has_endpoint = args.otel_exporter_otlp_endpoint is not None
 
     if has_endpoint:
         otlp_exporter = OTLPSpanExporter()
-    # elif is_debugging:
-    #     otlp_exporter = ConsoleSpanExporter("comfyui")
     else:
         otlp_exporter = SpanExporter()
 
@@ -133,8 +133,8 @@ def _create_tracer():
 
 def _configure_logging():
     logging_level = args.logging_level
-    if args.distributed_queue_worker or args.distributed_queue_frontend or args.distributed_queue_connection_uri is not None:
-        logging.basicConfig(level=logging_level)
+    if len(args.workflows) > 0 or args.distributed_queue_worker or args.distributed_queue_frontend or args.distributed_queue_connection_uri is not None:
+        logging.basicConfig(level=logging_level, stream=sys.stderr)
     else:
         logger.setup_logger(logging_level)
 

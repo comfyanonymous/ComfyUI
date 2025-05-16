@@ -14,7 +14,7 @@ from .executors import ContextVarExecutor
 from .distributed_progress import DistributedExecutorToClientProgress
 from .distributed_types import RpcRequest, RpcReply
 from .process_pool_executor import ProcessPoolExecutor
-from ..client.embedded_comfy_client import EmbeddedComfyClient
+from ..client.embedded_comfy_client import Comfy
 from ..cmd.main_pre import tracer
 from ..component_model.queue_types import ExecutionStatus
 
@@ -24,7 +24,7 @@ class DistributedPromptWorker:
     A distributed prompt worker.
     """
 
-    def __init__(self, embedded_comfy_client: Optional[EmbeddedComfyClient] = None,
+    def __init__(self, embedded_comfy_client: Optional[Comfy] = None,
                  connection_uri: str = "amqp://localhost:5672/",
                  queue_name: str = "comfyui",
                  health_check_port: int = 9090,
@@ -124,7 +124,7 @@ class DistributedPromptWorker:
         self._rpc = await JsonRPC.create(channel=self._channel, auto_delete=True, durable=False)
 
         if self._embedded_comfy_client is None:
-            self._embedded_comfy_client = EmbeddedComfyClient(progress_handler=DistributedExecutorToClientProgress(self._rpc, self._queue_name, self._loop), executor=self._executor)
+            self._embedded_comfy_client = Comfy(progress_handler=DistributedExecutorToClientProgress(self._rpc, self._queue_name, self._loop), executor=self._executor)
         if not self._embedded_comfy_client.is_running:
             await self._exit_stack.enter_async_context(self._embedded_comfy_client)
 

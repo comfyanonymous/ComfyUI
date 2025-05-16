@@ -5,7 +5,7 @@ from importlib.abc import Traversable
 import pytest
 
 from comfy.api.components.schema.prompt import Prompt
-from comfy.client.embedded_comfy_client import EmbeddedComfyClient
+from comfy.client.embedded_comfy_client import Comfy
 from comfy.model_downloader import add_known_models, KNOWN_LORAS
 from comfy.model_downloader_types import CivitFile, HuggingFile
 from comfy_extras.nodes.nodes_audio import TorchAudioNotFoundError
@@ -14,8 +14,8 @@ from . import workflows
 
 
 @pytest.fixture(scope="module", autouse=False)
-async def client(tmp_path_factory) -> EmbeddedComfyClient:
-    async with EmbeddedComfyClient() as client:
+async def client(tmp_path_factory) -> Comfy:
+    async with Comfy() as client:
         yield client
 
 
@@ -28,7 +28,7 @@ def _prepare_for_workflows() -> dict[str, Traversable]:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("workflow_name, workflow_file", _prepare_for_workflows().items())
-async def test_workflow(workflow_name: str, workflow_file: Traversable, has_gpu: bool, client: EmbeddedComfyClient):
+async def test_workflow(workflow_name: str, workflow_file: Traversable, has_gpu: bool, client: Comfy):
     if not has_gpu:
         pytest.skip("requires gpu")
 

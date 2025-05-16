@@ -6,7 +6,7 @@ readme = "README.md" # Optional: if you have a README
 authors = [
     { name = "Contributors_of_ComfyUI" },
 ]
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.10"
 license = { text = "Specify License Here" } # Optional: Add your license
 classifiers = [# Optional: Standard PyPI classifiers
     "Programming Language :: Python :: 3",
@@ -32,7 +32,7 @@ dependencies = [
     "peft>=0.10.0",
     "torchinfo",
     "safetensors>=0.4.2",
-    "bitsandbytes",
+    "bitsandbytes; platform_system != 'Darwin'",
     "aiohttp>=3.11.8",
     "yarl>=1.9.4",
     "accelerate>=0.25.0",
@@ -96,11 +96,14 @@ dependencies = [
     "jax",
     "colour",
     "av",
+    "typer",
+    "ijson",
+    "scikit-learn>=1.4.1"
 ]
 
 [build-system]
-requires = ["setuptools>=61.0", "wheel", "pip"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -109,21 +112,21 @@ namespaces = false
 
 [project.optional-dependencies]
 cpu = [
-    "torch>=2.3.0",
-    "torchvision>=0.15.0",
-    "torchaudio>=2.3.0",
+    "torch",
+    "torchvision",
+    "torchaudio",
 ]
 
 cuda = [
-    "torch>=2.3.0",
-    "torchvision>=0.15.0",
-    "torchaudio>=2.3.0",
+    "torch",
+    "torchvision",
+    "torchaudio",
 ]
 
 rocm = [
-    "torch>=2.3.0",
-    "torchvision>=0.18.0",
-    "torchaudio>=2.3.0",
+    "torch",
+    "torchvision",
+    "torchaudio",
 ]
 
 dev = [
@@ -144,11 +147,9 @@ dev = [
 
 triton = [
     "triton ; sys_platform == 'Linux'",
-    # Using direct URL references with markers for Windows + Python versions
     'triton @ https://github.com/woct0rdho/triton-windows/releases/download/v3.2.0-windows.post9/triton-3.2.0-cp312-cp312-win_amd64.whl ; sys_platform == "Windows" and python_version == "3.12"',
     'triton @ https://github.com/woct0rdho/triton-windows/releases/download/v3.2.0-windows.post9/triton-3.2.0-cp311-cp311-win_amd64.whl ; sys_platform == "Windows" and python_version == "3.11"',
     'triton @ https://github.com/woct0rdho/triton-windows/releases/download/v3.2.0-windows.post9/triton-3.2.0-cp310-cp310-win_amd64.whl ; sys_platform == "Windows" and python_version == "3.10"',
-    # Note: No Python 3.13 wheel provided in requirements-triton.txt for v3.2.0 post9 link
 ]
 
 withtorch = ["comfyui[cuda]"] # Depends on the 'cuda' extra
@@ -157,7 +158,8 @@ withtriton = ["comfyui[cuda, triton]"] # Depends on 'cuda' and 'triton' extras
 
 [project.scripts]
 comfyui = "comfy.cmd.main:entrypoint"
-comfyui-worker = "comfy.cmd.worker:entrypoint"
+comfyui-worker = "comfy.entrypoints.worker:entrypoint"
+comfyui-workflow = "comfy.entrypoints.workflow:entrypoint"
 
 [project.urls]
 Homepage = "https://github.com/comfyanonymous/ComfyUI" # Example
@@ -165,7 +167,7 @@ Repository = "https://github.com/comfyanonymous/ComfyUI" # Example
 
 [tool.uv]
 conflicts = [
-    [ { extra = "cpu" }, { extra = "cuda" }, { extra = "rocm" } ],
+    [{ extra = "cpu" }, { extra = "cuda" }, { extra = "rocm" }],
 ]
 
 [[tool.uv.index]]
@@ -174,32 +176,35 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [[tool.uv.index]]
-name = "pytorch-cu124"
-url = "https://download.pytorch.org/whl/cu124"
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
 explicit = true
 
 [[tool.uv.index]]
-name = "pytorch-rocm" # Added ROCm index
-url = "https://download.pytorch.org/whl/rocm6.2" # Using ROCm 6.2 index from examples
+name = "pytorch-rocm"
+url = "https://download.pytorch.org/whl/rocm6.3"
 explicit = true
 
 [tool.uv.sources]
 torch = [
     { index = "pytorch-cpu", extra = "cpu" },
-    { index = "pytorch-cu124", extra = "cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'linux'" }, # ROCm only on Linux
+    { index = "pytorch-cu126", extra = "cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'linux'" },
 ]
 torchvision = [
     { index = "pytorch-cpu", extra = "cpu" },
-    { index = "pytorch-cu124", extra = "cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'linux'" }, # ROCm only on Linux
+    { index = "pytorch-cu126", extra = "cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'linux'" },
 ]
 torchaudio = [
     { index = "pytorch-cpu", extra = "cpu" },
-    { index = "pytorch-cu124", extra = "cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'linux'" }, # ROCm only on Linux
+    { index = "pytorch-cu126", extra = "cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'linux'" },
 ]
-comfyui-frontend-package = { git = "https://github.com/appmana/appmana-comfyui-frontend", subdirectory = "comfyui_frontend_package" }
+comfyui-frontend-package = [
+#    { git = "https://github.com/appmana/appmana-comfyui-frontend", subdirectory = "comfyui_frontend_package" },
+    { workspace = true }
+]
 
 
 [tool.ruff]
@@ -211,3 +216,9 @@ lint.select = [
     "F", # Pyflakes
 ]
 exclude = ["*.ipynb"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["comfy/", "comfy_extras/"]

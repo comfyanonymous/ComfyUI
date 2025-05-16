@@ -10,16 +10,17 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from .extra_model_paths import load_extra_path_config
+from comfy.component_model.entrypoints_common import configure_application_paths, executor_from_args
 # main_pre must be the earliest import since it suppresses some spurious warnings
 from .main_pre import args
+from . import hook_breaker_ac10a0
+from .extra_model_paths import load_extra_path_config
 from .. import model_management
 from ..analytics.analytics import initialize_event_tracking
 from ..cmd import cuda_malloc
 from ..cmd import folder_paths
 from ..cmd import server as server_module
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
-from ..component_model.queue_types import ExecutionStatus
 from ..distributed.distributed_prompt_queue import DistributedPromptQueue
 from ..distributed.server_stub import ServerStub
 from ..nodes.package import import_all_nodes_in_workspace
@@ -27,16 +28,30 @@ from ..nodes.package import import_all_nodes_in_workspace
 logger = logging.getLogger(__name__)
 
 
-def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
-    from ..cmd.execution import PromptExecutor, CacheType
-    cache_type = CacheType.CLASSIC
+def cuda_malloc_warning():
+    device = model_management.get_torch_device()
+    device_name = model_management.get_torch_device_name(device)
+    cuda_malloc_warning = False
+    if "cudaMallocAsync" in device_name:
+        for b in cuda_malloc.blacklist:
+            if b in device_name:
+                cuda_malloc_warning = True
+        if cuda_malloc_warning:
+            logger.warning(
+                "\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
+
+
+def prompt_worker(q: AbstractPromptQueue, server_instance: server_module.PromptServer):
+    from ..cmd import execution
+    from ..component_model import queue_types
+    from .. import model_management
+    cache_type = execution.CacheType.CLASSIC
     if args.cache_lru > 0:
-        cache_type = CacheType.LRU
+        cache_type = execution.CacheType.LRU
     elif args.cache_none:
-        cache_type = CacheType.DEPENDENCY_AWARE
+        cache_type = execution.CacheType.DEPENDENCY_AWARE
 
-
-    e = PromptExecutor(_server, cache_type=cache_type, cache_size=args.cache_lru)
+    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_size=args.cache_lru)
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -51,18 +66,19 @@ def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
             item, item_id = queue_item
             execution_start_time = time.perf_counter()
             prompt_id = item[1]
-            _server.last_prompt_id = prompt_id
+            server_instance.last_prompt_id = prompt_id
 
             e.execute(item[2], prompt_id, item[3], item[4])
             need_gc = True
             q.task_done(item_id,
                         e.history_result,
-                        status=ExecutionStatus(
+                        status=queue_types.ExecutionStatus(
                             status_str='success' if e.success else 'error',
                             completed=e.success,
                             messages=e.status_messages))
-            if _server.client_id is not None:
-                _server.send_sync("executing", {"node": None, "prompt_id": prompt_id}, _server.client_id)
+            if server_instance.client_id is not None:
+                server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id},
+                                          server_instance.client_id)
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
@@ -88,13 +104,14 @@ def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
                 model_management.soft_empty_cache()
                 last_gc_collect = current_time
                 need_gc = False
+                hook_breaker_ac10a0.restore_functions()
 
 
-async def run(server, address='', port=8188, verbose=True, call_on_start=None):
+async def run(server_instance, address='', port=8188, verbose=True, call_on_start=None):
     addresses = []
     for addr in address.split(","):
         addresses.append((addr, port))
-    await asyncio.gather(server.start_multi_address(addresses, call_on_start), server.publish_loop())
+    await asyncio.gather(server_instance.start_multi_address(addresses, call_on_start), server_instance.publish_loop())
 
 
 def cleanup_temp():
@@ -108,20 +125,12 @@ def cleanup_temp():
         pass
 
 
-def cuda_malloc_warning():
-    device = model_management.get_torch_device()
-    device_name = model_management.get_torch_device_name(device)
-    cuda_malloc_warning = False
-    if "cudaMallocAsync" in device_name:
-        for b in cuda_malloc.blacklist:
-            if b in device_name:
-                cuda_malloc_warning = True
-        if cuda_malloc_warning:
-            logger.warning(
-                "\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
+def start_comfyui(asyncio_loop: asyncio.AbstractEventLoop = None):
+    asyncio_loop = asyncio_loop or asyncio.get_event_loop()
+    asyncio_loop.run_until_complete(_start_comfyui())
 
 
-async def main(from_script_dir: Optional[Path] = None):
+async def _start_comfyui(from_script_dir: Optional[Path] = None):
     """
     Runs ComfyUI's frontend and backend like upstream.
     :param from_script_dir: when set to a path, assumes that you are running ComfyUI's legacy main.py entrypoint at the root of the git repository located at the path
@@ -175,7 +184,9 @@ async def main(from_script_dir: Optional[Path] = None):
         server.external_address = args.external_address
 
     # at this stage, it's safe to import nodes
+    hook_breaker_ac10a0.save_functions()
     server.nodes = import_all_nodes_in_workspace()
+    hook_breaker_ac10a0.restore_functions()
     # as a side effect, this also populates the nodes for execution
 
     if args.distributed_queue_connection_uri is not None:
@@ -202,10 +213,12 @@ async def main(from_script_dir: Optional[Path] = None):
     worker_thread_server = server if not distributed else ServerStub()
     if not distributed or args.distributed_queue_worker:
         if distributed:
-            logger.warning(f"Distributed workers started in the default thread loop cannot notify clients of progress updates. Instead of comfyui or main.py, use comfyui-worker.")
+            logger.warning(
+                f"Distributed workers started in the default thread loop cannot notify clients of progress updates. Instead of comfyui or main.py, use comfyui-worker.")
         # todo: this should really be using an executor instead of doing things this jankilicious way
         ctx = contextvars.copy_context()
-        threading.Thread(target=lambda _q, _worker_thread_server: ctx.run(prompt_worker, _q, _worker_thread_server), daemon=True, args=(q, worker_thread_server,)).start()
+        threading.Thread(target=lambda _q, _worker_thread_server: ctx.run(prompt_worker, _q, _worker_thread_server),
+                         daemon=True, args=(q, worker_thread_server,)).start()
 
     # server has been imported and things should be looking good
     initialize_event_tracking(loop)
@@ -219,7 +232,8 @@ async def main(from_script_dir: Optional[Path] = None):
     folder_paths.add_model_folder_path("checkpoints", os.path.join(folder_paths.get_output_directory(), "checkpoints"))
     folder_paths.add_model_folder_path("clip", os.path.join(folder_paths.get_output_directory(), "clip"))
     folder_paths.add_model_folder_path("vae", os.path.join(folder_paths.get_output_directory(), "vae"))
-    folder_paths.add_model_folder_path("diffusion_models", os.path.join(folder_paths.get_output_directory(), "diffusion_models"))
+    folder_paths.add_model_folder_path("diffusion_models",
+                                       os.path.join(folder_paths.get_output_directory(), "diffusion_models"))
     folder_paths.add_model_folder_path("loras", os.path.join(folder_paths.get_output_directory(), "loras"))
 
     if args.input_directory:
@@ -230,22 +244,30 @@ async def main(from_script_dir: Optional[Path] = None):
     if args.quick_test_for_ci:
         # for CI purposes, try importing all the nodes
         import_all_nodes_in_workspace(raise_on_failure=True)
-        exit(0)
+        return
     else:
         # we no longer lazily load nodes. we'll do it now for the sake of creating directories
         import_all_nodes_in_workspace(raise_on_failure=False)
         # now that nodes are loaded, create more directories if appropriate
         folder_paths.create_directories()
 
+    if len(args.workflows) > 0:
+        configure_application_paths(args)
+        executor = await executor_from_args(args)
+        from ..entrypoints.workflow import run_workflows
+        await run_workflows(executor, args.workflows)
+        return
+
+    # replaced my folder_paths.create_directories
     call_on_start = None
     if args.auto_launch:
-        def startup_server(address, port):
+        def startup_server(scheme="http", address="localhost", port=8188):
             import webbrowser
             if os.name == 'nt' and address == '0.0.0.0' or address == '':
                 address = '127.0.0.1'
             if ':' in address:
                 address = "[{}]".format(address)
-            webbrowser.open(f"http://{address}:{port}")
+            webbrowser.open(f"{scheme}://{address}:{port}")
 
         call_on_start = startup_server
 
@@ -267,7 +289,7 @@ async def main(from_script_dir: Optional[Path] = None):
 
 def entrypoint():
     try:
-        asyncio.run(main())
+        asyncio.run(_start_comfyui())
     except KeyboardInterrupt:
         logger.info(f"Gracefully shutting down due to KeyboardInterrupt")
 

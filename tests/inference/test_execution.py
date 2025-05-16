@@ -9,7 +9,7 @@ from PIL import Image
 from pytest import fixture
 
 from comfy.cli_args import default_configuration
-from comfy.client.embedded_comfy_client import EmbeddedComfyClient
+from comfy.client.embedded_comfy_client import Comfy
 from comfy.component_model.executor_types import SendSyncEvent, SendSyncData, ExecutingMessage, ExecutionErrorMessage, \
     DependencyCycleError
 from comfy.distributed.server_stub import ServerStub
@@ -62,7 +62,7 @@ class _ProgressHandler(ServerStub):
 
 
 class ComfyClient:
-    def __init__(self, embedded_client: EmbeddedComfyClient, progress_handler: _ProgressHandler):
+    def __init__(self, embedded_client: Comfy, progress_handler: _ProgressHandler):
         self.embedded_client = embedded_client
         self.progress_handler = progress_handler
 
@@ -116,7 +116,7 @@ class TestExecution:
         configuration.cache_lru = lru_size
         progress_handler = _ProgressHandler()
         with context_add_custom_nodes(ExportedNodes(NODE_CLASS_MAPPINGS=NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS=NODE_DISPLAY_NAME_MAPPINGS)):
-            async with EmbeddedComfyClient(configuration, progress_handler=progress_handler) as embedded_client:
+            async with Comfy(configuration, progress_handler=progress_handler) as embedded_client:
                 yield ComfyClient(embedded_client, progress_handler)
 
     @fixture

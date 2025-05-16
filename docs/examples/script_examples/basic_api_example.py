@@ -136,8 +136,8 @@ async def main():
     #   configuration.cwd = os.path.dirname(__file__)
     configuration = Configuration()
 
-    from comfy.client.embedded_comfy_client import EmbeddedComfyClient
-    async with EmbeddedComfyClient(configuration=configuration) as client:
+    from comfy.client.embedded_comfy_client import Comfy
+    async with Comfy(configuration=configuration) as client:
         # This will run your prompt
         outputs = await client.queue_prompt(prompt)
 

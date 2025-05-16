@@ -6,7 +6,6 @@ from typing import Optional, List, Callable, Any, Union, Mapping, NamedTuple
 
 import configargparse
 import configargparse as argparse
-from watchdog.events import FileSystemEventHandler
 
 ConfigurationExtender = Callable[[argparse.ArgParser], Optional[argparse.ArgParser]]
 
@@ -16,16 +15,6 @@ class LatentPreviewMethod(enum.Enum):
     Auto = "auto"
     Latent2RGB = "latent2rgb"
     TAESD = "taesd"
-
-
-class ConfigChangeHandler(FileSystemEventHandler):
-    def __init__(self, config_file_paths: List[str], update_callback: Callable[[], None]):
-        self.config_file_paths = config_file_paths
-        self.update_callback = update_callback
-
-    def on_modified(self, event):
-        if not event.is_directory and event.src_path in self.config_file_paths:
-            self.update_callback()
 
 
 ConfigObserver = Callable[[str, Any], None]
@@ -142,6 +131,7 @@ class Configuration(dict):
         log_stdout (bool): Send normal process output to stdout instead of stderr (default)
         panic_when (list[str]): List of fully qualified exception class names to panic (sys.exit(1)) when a workflow raises it.
         enable_compress_response_body (bool): Enable compressing response body.
+        workflows (list[str]): Execute the API workflow(s) specified in the provided files. For each workflow, its outputs will be printed to a line to standard out. Application logging will be redirected to standard error. Use `-` to signify standard in.
     """
 
     def __init__(self, **kwargs):
@@ -235,15 +225,16 @@ class Configuration(dict):
         self.otel_service_name: str = "comfyui"
         self.otel_service_version: str = "0.0.1"
         self.otel_exporter_otlp_endpoint: Optional[str] = None
-        for key, value in kwargs.items():
-            self[key] = value
-
         self.executor_factory: str = "ThreadPoolExecutor"
         self.openai_api_key: Optional[str] = None
         self.ideogram_api_key: Optional[str] = None
         self.anthropic_api_key: Optional[str] = None
         self.user_directory: Optional[str] = None
         self.panic_when: list[str] = []
+        self.workflows: list[str] = []
+        for key, value in kwargs.items():
+            self[key] = value
+        # this must always be last
 
     def __getattr__(self, item):
         if item not in self:
@@ -287,8 +278,8 @@ class Configuration(dict):
         return state
 
     def __setstate__(self, state):
-        self.update(state)
         self._observers = []
+        self.update(state)
 
     @property
     def verbose(self) -> str:

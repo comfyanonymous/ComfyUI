@@ -74,7 +74,10 @@ def setup_logger(log_level: str = 'INFO', capacity: int = 300, use_stdout: bool 
     logger.setLevel(log_level)
 
     stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(logging.Formatter("%(message)s"))
+    stream_handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(name)s] [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    ))
 
     if use_stdout:
         # Only errors and critical to stderr

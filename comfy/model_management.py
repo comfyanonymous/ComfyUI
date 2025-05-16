@@ -263,7 +263,7 @@ try:
     logger.debug("pytorch version: {}".format(torch_version))
     mac_ver = mac_version()
     if mac_ver is not None:
-        logging.info("Mac Version {}".format(mac_ver))
+        logger.debug("Mac Version {}".format(mac_ver))
 except:
     pass
 
@@ -343,7 +343,7 @@ except:
 try:
     if is_amd():
         arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
-        logging.info("AMD arch: {}".format(arch))
+        logger.info("AMD arch: {}".format(arch))
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             if torch_version_numeric[0] >= 2 and torch_version_numeric[1] >= 7:  # works on 2.6 but doesn't actually seem to improve much
                 if any((a in arch) for a in ["gfx1100", "gfx1101"]):  # TODO: more arches
@@ -361,7 +361,7 @@ try:
     if is_nvidia() and PerformanceFeature.Fp16Accumulation in args.fast:
         torch.backends.cuda.matmul.allow_fp16_accumulation = True
         PRIORITIZE_FP16 = True  # TODO: limit to cards where it actually boosts performance
-        logging.info("Enabled fp16 accumulation.")
+        logger.info("Enabled fp16 accumulation.")
 except:
     pass
 
@@ -369,7 +369,7 @@ try:
     if torch_version_numeric[0] == 2 and torch_version_numeric[1] >= 5:
         torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)  # pylint: disable=no-member
 except:
-    logging.warning("Warning, could not set allow_fp16_bf16_reduction_math_sdp")
+    logger.warning("Warning, could not set allow_fp16_bf16_reduction_math_sdp")
 
 if args.lowvram:
     set_vram_to = VRAMState.LOW_VRAM
@@ -386,8 +386,8 @@ if args.force_fp32:
     logger.info("Forcing FP32, if this improves things please report it.")
     FORCE_FP32 = True
 
-if args.force_fp16 or cpu_state == CPUState.MPS:
-    logger.info("Forcing FP16.")
+if args.force_fp16:
+    logger.debug("Forcing FP16.")
     FORCE_FP16 = True
 
 if args.force_bf16:
@@ -1256,7 +1256,7 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
         return True
 
     if (device is not None and is_device_mps(device)) or mps_mode():
-        return True
+        return not bfloat16_support_mps(device)
 
     if cpu_mode():
         return False
@@ -1327,9 +1327,7 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
         return False
 
     if (device is not None and is_device_mps(device)) or mps_mode():
-        if mac_version() < (14,):
-            return False
-        return True
+        return bfloat16_support_mps(device)
 
     if cpu_mode():
         return False
@@ -1366,6 +1364,19 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
             return True
 
     return False
+
+
+def bfloat16_support_mps(device):
+    # test bfloat 16
+    try:
+        x = torch.ones(1, dtype=torch.bfloat16, device=device)
+        x = x + 1.0
+        _ = repr(x)
+        supported = True
+        del x
+    except:
+        supported = False
+    return supported
 
 
 def supports_fp8_compute(device=None):

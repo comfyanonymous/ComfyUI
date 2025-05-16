@@ -1,18 +1,16 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 from importlib.metadata import entry_points
 from types import ModuleType
-from typing import Optional, List
+from typing import Optional
 
 import configargparse as argparse
-from watchdog.observers import Observer
 
 from . import __version__
 from . import options
-from .cli_args_types import LatentPreviewMethod, Configuration, ConfigurationExtender, ConfigChangeHandler, EnumAction, \
+from .cli_args_types import LatentPreviewMethod, Configuration, ConfigurationExtender, EnumAction, \
     EnhancedConfigArgParser, PerformanceFeature, is_valid_directory
 
 # todo: move this
@@ -104,7 +102,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     attn_group.add_argument("--use-quad-cross-attention", action="store_true",
                             help="Use the sub-quadratic cross attention optimization . Ignored when xformers is used.")
     attn_group.add_argument("--use-pytorch-cross-attention", action="store_true",
-                            help="Use the new pytorch 2.0 cross attention function.")
+                            help="Use the new pytorch 2.0 cross attention function (default).", default=True)
     attn_group.add_argument("--use-sage-attention", action="store_true", help="Use sage attention.")
     attn_group.add_argument("--use-flash-attention", action="store_true", help="Use FlashAttention.")
 
@@ -250,6 +248,8 @@ def _create_parser() -> EnhancedConfigArgParser:
 
     parser.add_argument("--enable-compress-response-body", action="store_true", help="Enable compressing response body.")
 
+    parser.add_argument("--workflows", type=str, nargs='+', default=[], help="Execute the API workflow(s) specified in the provided files. For each workflow, its outputs will be printed to a line to standard out. Application logging will be redirected to standard error. Use `-` to signify standard in.")
+
     # now give plugins a chance to add configuration
     for entry_point in entry_points().select(group='comfyui.custom_config'):
         try:
@@ -288,31 +288,7 @@ def _parse_args(parser: Optional[argparse.ArgumentParser] = None, args_parsing: 
     configuration_obj = Configuration(**vars(args))
     configuration_obj.config_files = config_files
     assert all(isinstance(config_file, str) for config_file in config_files)
-    # we always have to set up a watcher, even when there are no existing files
-    if len(config_files) > 0:
-        _setup_config_file_watcher(configuration_obj, parser, config_files)
     return configuration_obj
-
-
-def _setup_config_file_watcher(config: Configuration, parser: EnhancedConfigArgParser, config_files: List[str]):
-    def update_config():
-        new_args, _, _ = parser.parse_known_args()
-        new_config = vars(new_args)
-        config.update(new_config)
-
-    handler = ConfigChangeHandler(config_files, update_config)
-    observer = Observer()
-
-    for config_file in config_files:
-        config_dir = os.path.dirname(config_file) or '.'
-        observer.schedule(handler, path=config_dir, recursive=False)
-
-    observer.start()
-
-    # Ensure the observer is stopped when the program exits
-    import atexit
-    atexit.register(observer.stop)
-    atexit.register(observer.join)
 
 
 def default_configuration() -> Configuration:

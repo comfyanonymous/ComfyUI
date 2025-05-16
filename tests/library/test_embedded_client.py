@@ -4,7 +4,7 @@ import pytest
 import torch
 
 from comfy.cli_args_types import Configuration
-from comfy.client.embedded_comfy_client import EmbeddedComfyClient
+from comfy.client.embedded_comfy_client import Comfy
 from comfy.client.sdxl_with_refiner_workflow import sdxl_workflow_with_refiner
 
 
@@ -16,7 +16,7 @@ async def test_cuda_memory_usage():
     device = torch.device("cuda")
     starting_memory = torch.cuda.memory_allocated(device)
 
-    async with EmbeddedComfyClient() as client:
+    async with Comfy() as client:
         prompt = sdxl_workflow_with_refiner("test")
         outputs = await client.queue_prompt(prompt)
         assert outputs["13"]["images"][0]["abs_path"] is not None
@@ -29,7 +29,7 @@ async def test_cuda_memory_usage():
 
 @pytest.mark.asyncio
 async def test_embedded_comfy():
-    async with EmbeddedComfyClient() as client:
+    async with Comfy() as client:
         prompt = sdxl_workflow_with_refiner("test")
         outputs = await client.queue_prompt(prompt)
         assert outputs["13"]["images"][0]["abs_path"] is not None
@@ -37,14 +37,14 @@ async def test_embedded_comfy():
 @pytest.mark.asyncio
 async def test_configuration_options():
     config = Configuration()
-    async with EmbeddedComfyClient(configuration=config) as client:
+    async with Comfy(configuration=config) as client:
         prompt = sdxl_workflow_with_refiner("test")
         outputs = await client.queue_prompt(prompt)
         assert outputs["13"]["images"][0]["abs_path"] is not None
 
 @pytest.mark.asyncio
 async def test_multithreaded_comfy():
-    async with EmbeddedComfyClient(max_workers=2) as client:
+    async with Comfy(max_workers=2) as client:
         prompt = sdxl_workflow_with_refiner("test")
         outputs_iter = await asyncio.gather(*[client.queue_prompt(prompt) for _ in range(4)])
         assert all(outputs["13"]["images"][0]["abs_path"] is not None for outputs in outputs_iter)

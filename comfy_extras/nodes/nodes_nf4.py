@@ -1,8 +1,11 @@
 import dataclasses
 from typing import Any
 
+from comfy.component_model.suppress_stdout import suppress_stdout_stderr
+
 try:
-    import bitsandbytes as bnb
+    with suppress_stdout_stderr():
+        import bitsandbytes as bnb
     from bitsandbytes.nn.modules import Params4bit, QuantState
 
     has_bitsandbytes = True
