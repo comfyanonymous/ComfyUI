@@ -110,7 +110,6 @@ ComfyUI follows a weekly release cycle every Friday, with three interconnected r
 
 2. **[ComfyUI Desktop](https://github.com/Comfy-Org/desktop)**
    - Builds a new release using the latest stable core version
-   - Version numbers match the core release (e.g., Desktop v1.7.0 uses Core v1.7.0)
 
 3. **[ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend)**
    - Weekly frontend updates are merged into the core repository
