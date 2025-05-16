@@ -1,6 +1,7 @@
 from __future__ import annotations
 import io
 import logging
+import mimetypes
 from typing import Optional, Union
 from comfy.utils import common_upscale
 from comfy_api.input_impl import VideoFromFile
@@ -315,6 +316,22 @@ def tensor_to_data_uri(
         Data URI string (e.g., 'data:image/png;base64,...').
     """
     base64_string = tensor_to_base64_string(image_tensor, total_pixels, mime_type)
+    return f"data:{mime_type};base64,{base64_string}"
+
+
+def text_filepath_to_base64_string(filepath: str) -> str:
+    """Converts a text file to a base64 string."""
+    with open(filepath, "rb") as f:
+        file_content = f.read()
+    return base64.b64encode(file_content).decode("utf-8")
+
+
+def text_filepath_to_data_uri(filepath: str) -> str:
+    """Converts a text file to a data URI."""
+    base64_string = text_filepath_to_base64_string(filepath)
+    mime_type, _ = mimetypes.guess_type(filepath)
+    if mime_type is None:
+        mime_type = "application/octet-stream"
     return f"data:{mime_type};base64,{base64_string}"
 
 
