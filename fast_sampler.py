@@ -4,7 +4,7 @@ import gc
 import time
 from torch.amp import autocast
 from comfy.cli_args import args
-from comfy.model_management import get_torch_device, vae_dtype, soft_empty_cache, free_memory, force_channels_last, estimate_vae_decode_memory, device_supports_non_blocking
+from comfy.model_management import get_torch_device, vae_dtype, soft_empty_cache, free_memory, force_channels_last, estimate_vae_decode_memory, device_supports_non_blocking, directml_enabled
 from contextlib import contextmanager
 import latent_preview
 import logging
@@ -150,7 +150,12 @@ def finalize_images(images, device):
     """Process and finalize output images."""
     if len(images.shape) == 5:  # Combine batches
         images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
-    return images.to(device=device, memory_format=torch.channels_last)
+    # Apply channels_last only for CUDA devices if force_channels_last is enabled
+    is_gpu = device.type == 'cuda' and torch.cuda.is_available()
+    memory_format = torch.channels_last if (is_gpu and not directml_enabled and force_channels_last()) else torch.contiguous_format
+    if DEBUG_ENABLED:
+        logging.debug(f"finalize_images: Using memory_format={memory_format} for device={device}, directml_enabled={directml_enabled}")
+    return images.to(device=device, memory_format=memory_format)
 
 def fast_sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
                 denoise, disable_noise, start_step, last_step, force_full_denoise, noise_mask, callback, seed, device, dtype, is_gpu):
@@ -170,7 +175,11 @@ def fast_sample(model, noise, steps, cfg, sampler_name, scheduler, positive, neg
                 force_full_denoise=force_full_denoise,
                 noise_mask=noise_mask, callback=callback, seed=seed
             )
-            samples = samples.to(device=device, dtype=dtype, memory_format=torch.channels_last)
+            # Apply channels_last only for CUDA devices if force_channels_last is enabled
+            memory_format = torch.channels_last if (is_gpu and not directml_enabled and force_channels_last()) else torch.contiguous_format
+            if DEBUG_ENABLED:
+                logging.debug(f"fast_sample: Using memory_format={memory_format} for device={device}, directml_enabled={directml_enabled}")
+            samples = samples.to(device=device, dtype=dtype, memory_format=memory_format)
     
     if PROFILING_ENABLED:
         logging.debug(f"Sampling completed, took {time.time() - start_time:.3f} s")
@@ -330,15 +339,19 @@ def fast_vae_decode(vae, samples):
         # Preload VAE to device
         preload_model(vae, device, is_vae=True)
 
-        # Transfer latents with channels_last
+        # Transfer latents with appropriate memory format
         with profile_section("VAE latent transfer"):
             non_blocking = is_gpu and device_supports_non_blocking(device)
             latent_samples = samples["samples"].to(device, dtype=vae_dtype_val, non_blocking=non_blocking)
-            if is_gpu and force_channels_last():
+            # Apply channels_last only for CUDA devices if force_channels_last is enabled
+            memory_format = torch.channels_last if (is_gpu and not directml_enabled and force_channels_last()) else torch.contiguous_format
+            if is_gpu and memory_format == torch.channels_last:
+                if DEBUG_ENABLED:
+                    logging.debug(f"fast_vae_decode: Using memory_format={memory_format} for device={device}, directml_enabled={directml_enabled}")
                 latent_samples = latent_samples.to(memory_format=torch.channels_last)
                 vae.first_stage_model.to(memory_format=torch.channels_last)
-            if PROFILING_ENABLED:
-                logging.debug(f"Latent samples device: {latent_samples.device}, dtype: {latent_samples.dtype}")
+            elif DEBUG_ENABLED:
+                logging.debug(f"fast_vae_decode: Using memory_format={memory_format} for device={device}, directml_enabled={directml_enabled}")
 
         # Decode latents
         with torch.no_grad():
@@ -408,15 +421,21 @@ def fast_vae_tiled_decode(vae, samples, tile_size=512, overlap=64, temporal_size
             logging.debug(f"VAE preload took {time.time() - preload_start:.3f} s")
             logging.debug(f"Post-preload checkpoint: {time.time()}")
 
-        # Transfer latents
+        # Transfer latents with appropriate memory format
         with profile_section("VAE latent transfer"):
             latent_samples = samples["samples"]
             if PROFILING_ENABLED:
                 logging.debug(f"Latent samples device: {latent_samples.device}, dtype: {latent_samples.dtype}")
             latent_samples = optimized_transfer(latent_samples, device, vae_dtype_val)
-            if is_gpu and force_channels_last():
+            # Apply channels_last only for CUDA devices if force_channels_last is enabled
+            memory_format = torch.channels_last if (is_gpu and not directml_enabled and force_channels_last()) else torch.contiguous_format
+            if is_gpu and memory_format == torch.channels_last:
+                if DEBUG_ENABLED:
+                    logging.debug(f"fast_vae_tiled_decode: Using memory_format={memory_format} for device={device}, directml_enabled={directml_enabled}")
                 latent_samples = latent_samples.to(memory_format=torch.channels_last)
                 vae.first_stage_model.to(memory_format=torch.channels_last)
+            elif DEBUG_ENABLED:
+                logging.debug(f"fast_vae_tiled_decode: Using memory_format={memory_format} for device={device}, directml_enabled={directml_enabled}")
 
         # Log before decoding
         if PROFILING_ENABLED:

@@ -10,6 +10,7 @@ import torch
 from functools import partial
 import collections
 from comfy import model_management
+from comfy.cli_args import args
 import math
 import logging
 import comfy.sampler_helpers
@@ -19,6 +20,7 @@ import comfy.hooks
 import scipy.stats
 import numpy
 
+DEBUG_ENABLED = args.debug
 
 def add_area_dims(area, num_dims):
     while (len(area) // 2) < num_dims:
@@ -942,15 +944,28 @@ class CFGGuider:
         return sampling_function(self.inner_model, x, timestep, self.conds.get("negative", None), self.conds.get("positive", None), self.cfg, model_options=model_options, seed=seed)
 
     def inner_sample(self, noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed):
-        if latent_image is not None and torch.count_nonzero(latent_image) > 0: #Don't shift the empty latent image.
-            latent_image = self.inner_model.process_latent_in(latent_image)
+        # Workaround for torch.count_nonzero on DirectML
+        if latent_image is not None:
+            if model_management.is_directml_enabled():
+                nonzero_count = torch.sum(latent_image != 0).item()
+                if DEBUG_ENABLED:
+                    logging.debug(f"inner_sample: DirectML count_nonzero replacement: nonzero_count={nonzero_count}")
+            else:
+                nonzero_count = torch.count_nonzero(latent_image).item()
+            if nonzero_count > 0:  # Don't shift the empty latent image
+                latent_image = self.inner_model.process_latent_in(latent_image)
+        else:
+            nonzero_count = 0
 
+        # Process conditions
         self.conds = process_conds(self.inner_model, noise, self.conds, device, latent_image, denoise_mask, seed)
 
+        # Clone model options and add sample sigmas
         extra_model_options = comfy.model_patcher.create_model_options_clone(self.model_options)
         extra_model_options.setdefault("transformer_options", {})["sample_sigmas"] = sigmas
         extra_args = {"model_options": extra_model_options, "seed": seed}
 
+        # Execute sampler with wrappers
         executor = comfy.patcher_extension.WrapperExecutor.new_class_executor(
             sampler.sample,
             sampler,

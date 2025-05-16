@@ -114,13 +114,34 @@ def is_directml_enabled():
     return False
 
 def get_supported_float8_types():
-    """Get supported float8 data types."""
+    """Get supported float8 data types available in the current PyTorch version."""
     float8_types = []
-    for dtype in [torch.float8_e4m3fn, torch.float8_e4m3fnuz, torch.float8_e5m2, torch.float8_e5m2fnuz, torch.float8_e8m0fnu]:
+    # List of potential float8 type names to check
+    float8_type_names = [
+        'float8_e4m3fn',
+        'float8_e4m3fnuz',
+        'float8_e5m2',
+        'float8_e5m2fnuz',
+        'float8_e8m0fnu',
+    ]
+    
+    for dtype_name in float8_type_names:
         try:
-            float8_types.append(dtype)
-        except:
+            # Check if the dtype exists in torch module
+            if hasattr(torch, dtype_name):
+                dtype = getattr(torch, dtype_name)
+                # Verify that the dtype is a valid torch.dtype
+                if isinstance(dtype, torch.dtype):
+                    float8_types.append(dtype)
+        except Exception as e:
+            # Log the error only in debug mode to avoid clutter
+            if DEBUG_ENABLED:
+                logging.debug(f"Failed to access torch.{dtype_name}: {str(e)}")
             pass
+    
+    if DEBUG_ENABLED:
+        logging.debug(f"Supported float8 types: {[str(dtype) for dtype in float8_types]}")
+    
     return float8_types
 
 def get_directml_vram(dev):
@@ -191,7 +212,11 @@ def get_directml_vram(dev):
 FLOAT8_TYPES = get_supported_float8_types()
 XFORMERS_IS_AVAILABLE = False
 XFORMERS_ENABLED_VAE = True
-ENABLE_PYTORCH_ATTENTION = True  # Enable PyTorch attention for better performance
+ENABLE_PYTORCH_ATTENTION = False
+if args.use_pytorch_cross_attention:
+    ENABLE_PYTORCH_ATTENTION = True
+    XFORMERS_IS_AVAILABLE = False
+
 FORCE_FP32 = args.force_fp32
 DISABLE_SMART_MEMORY = args.disable_smart_memory
 
@@ -437,7 +462,7 @@ def flash_attention_enabled():
 def pytorch_attention_enabled():
     """Check if PyTorch attention is enabled."""
     global ENABLE_PYTORCH_ATTENTION
-    return ENABLE_PYTORCH_ATTENTION or not (xformers_enabled() or sage_attention_enabled() or flash_attention_enabled())
+    return ENABLE_PYTORCH_ATTENTION
 
 def pytorch_attention_enabled_vae():
     """Check if PyTorch attention is enabled for VAE."""
@@ -502,29 +527,37 @@ class OOM_EXCEPTION(Exception):
     """Exception raised for out-of-memory errors."""
     pass
 
-if args.use_pytorch_cross_attention:
-    ENABLE_PYTORCH_ATTENTION = True
-    XFORMERS_IS_AVAILABLE = False
 MIN_WEIGHT_MEMORY_RATIO = 0.4 if is_nvidia() else 0.0
-if is_nvidia() and torch_version_numeric[0] >= 2:
-    if not (ENABLE_PYTORCH_ATTENTION or args.use_split_cross_attention or args.use_quad_cross_attention):
-        ENABLE_PYTORCH_ATTENTION = True
-elif is_intel_xpu() or is_ascend_npu() or is_mlu():
-    if not (args.use_split_cross_attention or args.use_quad_cross_attention):
-        ENABLE_PYTORCH_ATTENTION = True
-elif is_amd() and torch_version_numeric[0] >= 2 and torch_version_numeric[1] >= 7:
-    arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
-    logging.info(f"AMD arch: {arch}")
-    if any(a in arch for a in ["gfx1100", "gfx1101"]) and not (args.use_split_cross_attention or args.use_quad_cross_attention):
-        ENABLE_PYTORCH_ATTENTION = True
-if ENABLE_PYTORCH_ATTENTION:
-    torch.backends.cuda.enable_math_sdp(True)
-    torch.backends.cuda.enable_flash_sdp(True)
-    torch.backends.cuda.enable_mem_efficient_sdp(True)
-if torch_version_numeric[0] == 2 and torch_version_numeric[1] >= 5:
-    torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
-else:
-    logging.warning("Could not set allow_fp16_bf16_reduction_math_sdp")
+
+try:
+    if is_nvidia() and torch_version_numeric[0] >= 2:
+        if not (ENABLE_PYTORCH_ATTENTION or args.use_split_cross_attention or args.use_quad_cross_attention):
+            ENABLE_PYTORCH_ATTENTION = True
+    elif is_intel_xpu() or is_ascend_npu() or is_mlu():
+        if not (args.use_split_cross_attention or args.use_quad_cross_attention):
+            ENABLE_PYTORCH_ATTENTION = True
+    elif is_amd() and torch_version_numeric[0] >= 2 and torch_version_numeric[1] >= 7:  # works on 2.6 but doesn't actually seem to improve much
+        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
+        logging.info(f"AMD arch: {arch}")
+        if any(a in arch for a in ["gfx1100", "gfx1101", "gfx1030", "gfx1031", "gfx1032"]) and not (args.use_split_cross_attention or args.use_quad_cross_attention):
+            ENABLE_PYTORCH_ATTENTION = True
+except:
+    pass
+    
+if ENABLE_PYTORCH_ATTENTION and not directml_enabled:
+    try:
+        torch.backends.cuda.enable_math_sdp(True)
+        torch.backends.cuda.enable_flash_sdp(True)
+        torch.backends.cuda.enable_mem_efficient_sdp(True)
+        if torch_version_numeric[0] == 2 and torch_version_numeric[1] >= 5:
+            torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
+        elif DEBUG_ENABLED:
+            logging.debug("Could not set allow_fp16_bf16_reduction_math_sdp due to PyTorch version < 2.5")
+    except Exception as e:
+        if DEBUG_ENABLED:
+            logging.debug(f"Failed to enable CUDA SDP optimizations: {str(e)}")
+elif directml_enabled and DEBUG_ENABLED:
+    logging.debug("Skipped CUDA-specific SDP optimizations (math_sdp, flash_sdp, mem_efficient_sdp, allow_fp16_bf16_reduction_math_sdp) for DirectML")
 
 def get_free_memory(dev=None, torch_free_too=False):
     """
@@ -1350,6 +1383,10 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
         return False
     if args.force_fp16:
         return supports_cast(torch.float16, device)
+    if directml_enabled:
+        if DEBUG_ENABLED:
+            logging.debug("should_use_fp16: DirectML detected, disabling FP16 due to potential instability")
+        return False
     if is_intel_xpu():
         return True
     if is_mlu():
@@ -1358,21 +1395,37 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     if is_ascend_npu():
         return False
     if is_amd():
-        arch = torch.cuda.get_device_properties(device).gcnArchName
-        if any(a in arch for a in ["gfx1030", "gfx1031", "gfx1010", "gfx1011", "gfx1012", "gfx906", "gfx900", "gfx803"]):
-            return manual_cast
-        return True
-    props = torch.cuda.get_device_properties(device)
-    if is_nvidia():
-        # Prefer FP32 for low VRAM or older GPUs
-        total_vram = get_total_memory(device) / (1024**3)
-        if total_vram < 5.9 or props.major <= 7:  # Turing (7.5) or Pascal (6.x)
+        try:
+            arch = torch.cuda.get_device_properties(device).gcnArchName
+            if any(a in arch for a in ["gfx1030", "gfx1031", "gfx1010", "gfx1011", "gfx1012", "gfx906", "gfx900", "gfx803"]):
+                return manual_cast
+            return True
+        except AssertionError:
+            # Fallback for non-CUDA AMD GPUs (e.g., via DirectML)
+            if DEBUG_ENABLED:
+                logging.debug("should_use_fp16: Fallback to False for AMD GPU without CUDA")
             return False
-        if any(platform.win32_ver()) and props.major <= 7:
-            return manual_cast and torch.cuda.is_bf16_supported()
-    if props.major >= 8:
-        return True
-    return torch.cuda.is_bf16_supported() and manual_cast and (not prioritize_performance or model_params * 4 > get_total_memory(device))
+    if is_nvidia():
+        try:
+            props = torch.cuda.get_device_properties(device)
+            # Prefer FP32 for low VRAM or older GPUs
+            total_vram = get_total_memory(device) / (1024**3)
+            if total_vram < 5.9 or props.major <= 7:  # Turing (7.5) or Pascal (6.x)
+                return False
+            if any(platform.win32_ver()) and props.major <= 7:
+                return manual_cast and torch.cuda.is_bf16_supported()
+            if props.major >= 8:
+                return True
+            return torch.cuda.is_bf16_supported() and manual_cast and (not prioritize_performance or model_params * 4 > get_total_memory(device))
+        except AssertionError:
+            # Fallback for non-CUDA NVIDIA GPUs
+            if DEBUG_ENABLED:
+                logging.debug("should_use_fp16: Fallback to False for NVIDIA GPU without CUDA")
+            return False
+    # Fallback for other devices
+    if DEBUG_ENABLED:
+        logging.debug("should_use_fp16: Fallback to False for unknown device")
+    return False
 
 def should_use_bf16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
     """Determine if BF16 should be used for the device."""
