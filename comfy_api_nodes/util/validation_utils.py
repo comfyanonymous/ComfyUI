@@ -7,9 +7,9 @@ from comfy_api.input.video_types import VideoInput
 
 def get_image_dimensions(image: torch.Tensor) -> tuple[int, int]:
     if len(image.shape) == 4:
-        height, width = image.shape[1], image.shape[2]
+        return image.shape[1], image.shape[2]
     elif len(image.shape) == 3:
-        height, width = image.shape[0], image.shape[1]
+        return image.shape[0], image.shape[1]
     else:
         raise ValueError("Invalid image tensor shape.")
 
