@@ -1940,7 +1940,7 @@ class ImagePadForOutpaint:
 
         mask[top:top + d2, left:left + d3] = t
 
-        return (new_image, mask)
+        return (new_image, mask.unsqueeze(0))
 
 
 NODE_CLASS_MAPPINGS = {
