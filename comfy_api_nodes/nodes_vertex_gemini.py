@@ -4,7 +4,10 @@ from inspect import cleandoc
 from google import genai
 from google.genai.types import HttpOptions, Part
 from google.cloud import storage
+from PIL import Image
+import numpy as np
 
+import folder_paths
 from comfy.comfy_types.node_typing import IO, ComfyNodeABC, InputTypeDict
 from comfy_api_nodes.apinode_utils import validate_string
 from server import PromptServer
@@ -49,6 +52,9 @@ class VertexGeminiAPI(ComfyNodeABC):
 
     @classmethod
     def INPUT_TYPES(cls) -> InputTypeDict:
+        input_dir = folder_paths.get_input_directory()
+        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        files = folder_paths.filter_files_content_types(files, ["image"])
         return {
             "required": {
                 "prompt": (
@@ -68,6 +74,9 @@ class VertexGeminiAPI(ComfyNodeABC):
                 )
             },
             "optional": {
+                "image": (IO.IMAGE, {
+                    "tooltip": "uploaded image for gemini api"
+                }),
                 "image_path": (
                     IO.STRING,
                     {
@@ -93,18 +102,30 @@ class VertexGeminiAPI(ComfyNodeABC):
         prompt,
         model="gemini-2.0-flash-001",
         image_path=None,
+        image=None,
         unique_id=None,
         **kwargs
     ):
         validate_string(prompt, strip_whitespace=False)
         client = genai.Client(http_options=HttpOptions(api_version="v1"))
         contents = [prompt]
-        if image_path:
-            storage_client = storage.Client()
+        if image is not None:
+            print("Processing input img")
+            if image.dim() == 4:
+                image = image[0]
 
+            # Ensure shape is (H, W, C)
+            image_np = image.detach().cpu().numpy()
+            # Convert from float32 (0–1) to uint8 (0–255)
+            image_np = (image_np * 255).clip(0, 255).astype(np.uint8)
+            # Convert to PIL image and save
+            img = Image.fromarray(image_np)
+            source_file = "./input/temp_img.jpg"
+            img.save(source_file, format="JPEG")
+            print("processed input image")
+            storage_client = storage.Client()
             # Define bucket and file info
             bucket_name = "comfyui-interview-temp"
-            source_file = image_path              # local path
             file_name = os.path.basename(source_file)
             destination_blob = f"{uuid.uuid4()}/{file_name}"         # name in bucket
             # Upload
