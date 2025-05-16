@@ -146,6 +146,8 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
                 input_data_all[x] = [unique_id]
             if h[x] == "AUTH_TOKEN_COMFY_ORG":
                 input_data_all[x] = [extra_data.get("auth_token_comfy_org", None)]
+            if h[x] == "API_KEY_COMFY_ORG":
+                input_data_all[x] = [extra_data.get("api_key_comfy_org", None)]
     return input_data_all, missing_keys
 
 map_node_over_list = None #Don't hook this please

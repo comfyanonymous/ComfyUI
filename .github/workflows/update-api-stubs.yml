@@ -22,10 +22,19 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install 'datamodel-code-generator[http]'
+          npm install @redocly/cli
+      
+      - name: Download OpenAPI spec
+        run: |
+          curl -o openapi.yaml https://api.comfy.org/openapi
+      
+      - name: Filter OpenAPI spec with Redocly
+        run: |
+          npx @redocly/cli bundle openapi.yaml --output filtered-openapi.yaml --config comfy_api_nodes/redocly.yaml --remove-unused-components
       
       - name: Generate API models
         run: |
-          datamodel-codegen  --use-subclass-enum --url https://api.comfy.org/openapi --output comfy_api_nodes/apis --output-model-type pydantic_v2.BaseModel
+          datamodel-codegen --use-subclass-enum --input filtered-openapi.yaml --output comfy_api_nodes/apis --output-model-type pydantic_v2.BaseModel
       
       - name: Check for changes
         id: git-check
@@ -44,4 +53,4 @@ jobs:
             Generated automatically by the a Github workflow.
           branch: update-api-stubs
           delete-branch: true
-          base: main
+          base: master

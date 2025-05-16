@@ -69,9 +69,11 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [Hunyuan Video](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_video/)
    - [Nvidia Cosmos](https://comfyanonymous.github.io/ComfyUI_examples/cosmos/)
    - [Wan 2.1](https://comfyanonymous.github.io/ComfyUI_examples/wan/)
+- Audio Models
+   - [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
+   - [ACE Step](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
 - 3D Models
    - [Hunyuan3D 2.0](https://docs.comfy.org/tutorials/3d/hunyuan3D-2)
-- [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Smart memory management: can automatically run models on GPUs with as low as 1GB vram.
@@ -300,7 +302,7 @@ For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 pyt
 
 ### AMD ROCm Tips
 
-You can enable experimental memory efficient attention on pytorch 2.5 in ComfyUI on RDNA3 and potentially other AMD GPUs using this command:
+You can enable experimental memory efficient attention on recent pytorch in ComfyUI on some AMD GPUs using this command, it should already be enabled by default on RDNA3. If this improves speed for you on latest pytorch on your GPU please report it so that I can enable it by default.
 
 ```TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention```
 
