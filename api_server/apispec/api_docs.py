@@ -1,7 +1,7 @@
 from aiohttp_apispec import docs, response_schema, request_schema, querystring_schema
 from aiohttp import web
 import asyncio
-from api_server.utils.schemas import *
+from api_server.apispec.schemas import *
 
 def wrap_stable_routes(app):
     """Add Swagger documentation annotations for stable APIs (server.py)"""

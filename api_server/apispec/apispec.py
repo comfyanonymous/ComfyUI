@@ -1,5 +1,5 @@
 from aiohttp_apispec import setup_aiohttp_apispec
-from api_server.routes.api_docs import register_api_docs
+from api_server.apispec.api_docs import register_api_docs
 
 def register_apispec(app):
     """
