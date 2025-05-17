@@ -10,7 +10,7 @@ class SPieceTokenizer:
     def from_pretrained(path, **kwargs):
         return SPieceTokenizer(path, **kwargs)
 
-    def __init__(self, tokenizer_path: bytes | str | Path, add_bos=False, add_eos=True):
+    def __init__(self, tokenizer_path: bytes | str | Path, add_bos=False, add_eos=True, **kwargs):
         self.add_bos = add_bos
         self.add_eos = add_eos
         if torch.is_tensor(tokenizer_path):
@@ -18,7 +18,7 @@ class SPieceTokenizer:
 
         construction_args = {
             'add_bos': self.add_bos,
-            'add_eos': self.add_eos
+            'add_eos': self.add_eos,
         }
 
         if isinstance(tokenizer_path, bytes):
