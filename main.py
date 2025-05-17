@@ -135,6 +135,7 @@ import comfy.model_management
 import comfyui_version
 import app.logger
 import hook_breaker_ac10a0
+from api_server.apispec import register_apispec
 
 def cuda_malloc_warning():
     device = comfy.model_management.get_torch_device()
@@ -271,6 +272,9 @@ def start_comfyui(asyncio_loop=None):
     prompt_server.add_routes()
     hijack_progress(prompt_server)
 
+    # register Swagger UI to main app
+    register_apispec(prompt_server.app)
+
     threading.Thread(target=prompt_worker, daemon=True, args=(q, prompt_server,)).start()
 
     if args.quick_test_for_ci:
@@ -290,6 +294,7 @@ def start_comfyui(asyncio_loop=None):
 
     async def start_all():
         await prompt_server.setup()
+        # start ComfyUI main server
         await run(prompt_server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start)
 
     # Returning these so that other code can integrate with the ComfyUI loop and server
