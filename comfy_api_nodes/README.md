@@ -18,6 +18,8 @@ Follow the instructions [here](https://github.com/Comfy-Org/ComfyUI_frontend) to
 python run main.py --comfy-api-base https://stagingapi.comfy.org
 ```
 
+To authenticate to staging, please login and then ask one of Comfy Org team to whitelist you for access to staging.
+
 API stubs are generated through automatic codegen tools from OpenAPI definitions. Since the Comfy Org OpenAPI definition contains many things from the Comfy Registry as well, we use redocly/cli to filter out only the paths relevant for API nodes.
 
 ### Redocly Instructions 
