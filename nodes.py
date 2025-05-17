@@ -1468,7 +1468,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     # Get device and dtype
     device = comfy.model_management.get_torch_device()
     dtype = getattr(model.model, 'dtype', torch.float32)
-    is_gpu = device.type == 'cuda' and torch.cuda.is_available()
+    is_gpu = (device.type == 'cuda' and torch.cuda.is_available()) or (device.type == 'privateuseone')
 
     # Prepare latent image
     latent_image = latent["samples"]

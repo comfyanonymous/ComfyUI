@@ -87,6 +87,9 @@ _directml_vram_cache = {}
 # Cache for active models memory in DirectML
 _directml_active_memory_cache = {}
 
+# Model management
+current_loaded_models = []
+
 def cpu_mode():
     """Check if system is in CPU mode."""
     global cpu_state
@@ -177,7 +180,7 @@ def get_directml_vram(dev):
     # Try torch_directml heuristic
     if _torch_directml_available:
         try:
-            device_index = dev.index if hasattr(dev, 'index') else 0
+            device_index = dev.index if hasattr(dev, 'index') and dev.index is not None else 0
             device_name = torch_directml.device_name(device_index).lower()
             vram_map = {
                 'gtx 1660': 6 * 1024 * 1024 * 1024,
@@ -188,6 +191,7 @@ def get_directml_vram(dev):
                 'rx 580': 8 * 1024 * 1024 * 1024,
                 'rx 570': 8 * 1024 * 1024 * 1024,
                 'rx 6700': 12 * 1024 * 1024 * 1024,
+                'rx 6800': 16 * 1024 * 1024 * 1024,
                 'arc a770': 16 * 1024 * 1024 * 1024,
             }
             vram = 6 * 1024 * 1024 * 1024
@@ -579,10 +583,55 @@ def get_free_memory(dev=None, torch_free_too=False):
         if directml_enabled:
             total_vram = get_directml_vram(dev)
             cache_key = (dev, 'active_models')
-            if cache_key not in _directml_active_memory_cache:
-                active_models = sum(m.model_loaded_memory() for m in current_loaded_models if m.device == dev)
-                _directml_active_memory_cache[cache_key] = active_models
-            active_models = _directml_active_memory_cache[cache_key]
+            # Invalidate cache if models list has changed
+            current_models_hash = hash(tuple((id(m), m.model_loaded_memory() if not m.is_dead() else 0) for m in current_loaded_models))
+            if cache_key in _directml_active_memory_cache:
+                cached_hash, cached_active_models = _directml_active_memory_cache[cache_key]
+                if cached_hash == current_models_hash:
+                    active_models = cached_active_models
+                    if DEBUG_ENABLED:
+                        logging.debug(f"Using cached active_models={active_models / (1024**3):.2f} GB for device {dev}")
+                else:
+                    if DEBUG_ENABLED:
+                        logging.debug(f"Cache invalidated for {dev}: models list changed")
+                    active_models = None
+            else:
+                active_models = None
+                
+            if active_models is None:
+                active_models = 0
+                try:
+                    if DEBUG_ENABLED:
+                        logging.debug(f"Processing {len(current_loaded_models)} models in get_free_memory for device {dev}")
+                    for m in current_loaded_models:
+                        model_name = m.model.__class__.__name__ if m.model else "Unknown"
+                        if m.device != dev:
+                            if DEBUG_ENABLED:
+                                logging.debug(f"Skipping model {model_name}: device mismatch (model on {m.device}, expected {dev})")
+                            continue
+                        if m.is_dead():
+                            if DEBUG_ENABLED:
+                                logging.debug(f"Skipping model {model_name}: model is dead")
+                            continue
+                        try:
+                            mem = m.model_loaded_memory()
+                            if DEBUG_ENABLED:
+                                logging.debug(f"Loaded model {model_name} on device {m.device}, memory={mem / (1024**3):.2f} GB, is_dead={m.is_dead()}")
+                            if mem <= 0:
+                                logging.warning(f"Model {model_name} returned invalid memory: {mem}. Skipping.")
+                                continue
+                            active_models += mem
+                            if DEBUG_ENABLED:
+                                logging.debug(f"Model {model_name} on {dev}: loaded_memory={mem / (1024**3):.2f} GB")
+                        except Exception as e:
+                            logging.warning(f"Failed to calculate memory for model {model_name}: {str(e)}")
+                    # Update cache
+                    _directml_active_memory_cache[cache_key] = (current_models_hash, active_models)
+                except NameError:
+                    logging.warning("current_loaded_models not defined yet in get_free_memory")
+                    _directml_active_memory_cache[cache_key] = (current_models_hash, 0)
+
+            # Apply safety margin (1.2x) and ensure at least 1 GB free
             mem_free_total = max(1024 * 1024 * 1024, total_vram - active_models * 1.2)
             mem_free_torch = mem_free_total
             if DEBUG_ENABLED:
@@ -776,9 +825,6 @@ def register_vram_optimizer(optimizer):
     """Register a VRAM optimizer."""
     _vram_optimizers.append(optimizer)
 
-# Model management
-current_loaded_models = []
-
 class LoadedModel:
     def __init__(self, model):
         self._set_model(model)
@@ -971,6 +1017,15 @@ def module_size(model, shape=None, dtype=None):
     or using VAE-specific estimation if shape and dtype are provided.
     """
     from diffusers import AutoencoderKL
+
+    # Early check for None model to avoid unnecessary processing
+    if model is None:
+        if DEBUG_ENABLED:
+            logging.warning(
+                f"module_size: Received None model. Assuming minimal memory (1 MB). "
+                f"Call stack: {''.join(traceback.format_stack(limit=5))}"
+            )
+        return 1024 * 1024  # Minimal memory assumption for None model
 
     module_mem = 0
     if shape is not None and dtype is not None and isinstance(model, AutoencoderKL):
