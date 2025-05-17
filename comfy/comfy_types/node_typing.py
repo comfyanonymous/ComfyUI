@@ -236,6 +236,8 @@ class ComfyNodeABC(ABC):
     """Flags a node as deprecated, indicating to users that they should find alternatives to this node."""
     API_NODE: Optional[bool]
     """Flags a node as an API node. See: https://docs.comfy.org/tutorials/api-nodes/overview."""
+    HELP: Optional[str]
+    """Optional long help text for the node, shown in detailed node documentation panels."""
 
     @classmethod
     @abstractmethod

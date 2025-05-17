@@ -584,6 +584,9 @@ class PromptServer():
 
             if hasattr(obj_class, 'API_NODE'):
                 info['api_node'] = obj_class.API_NODE
+
+            if hasattr(obj_class, 'HELP'):
+                info['help'] = obj_class.HELP
             return info
 
         @routes.get("/object_info")
@@ -746,6 +749,9 @@ class PromptServer():
                 web.static('/templates', workflow_templates_path)
             ])
 
+        # Serve node docs assets from backend
+        docs_assets_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'docs', 'assets'))
+        self.app.add_routes([web.static('/docs/assets', docs_assets_path)])
         self.app.add_routes([
             web.static('/', self.web_root),
         ])
