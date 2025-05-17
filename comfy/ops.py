@@ -18,16 +18,16 @@
 
 import torch
 import logging
-import comfy.model_management
 from comfy.cli_args import args, PerformanceFeature
 import comfy.float
 import comfy.rmsnorm
 import contextlib
 
-cast_to = comfy.model_management.cast_to #TODO: remove once no more references
+from comfy.utils import cast_to
+cast_to = cast_to  # Maintain compatibility with code expecting comfy.ops.cast_to
 
 def cast_to_input(weight, input, non_blocking=False, copy=True):
-    return comfy.model_management.cast_to(weight, input.dtype, input.device, non_blocking=non_blocking, copy=copy)
+    return cast_to(weight, input.dtype, input.device, non_blocking=non_blocking, copy=copy)
 
 def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
     if input is not None:
@@ -48,7 +48,7 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
     non_blocking = comfy.model_management.device_supports_non_blocking(device)
     if s.bias is not None:
         has_function = len(s.bias_function) > 0
-        bias = comfy.model_management.cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking, copy=has_function, stream=offload_stream)
+        bias = cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking, copy=has_function, stream=offload_stream)
 
         if has_function:
             with wf_context:
@@ -56,7 +56,7 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
                     bias = f(bias)
 
     has_function = len(s.weight_function) > 0
-    weight = comfy.model_management.cast_to(s.weight, dtype, device, non_blocking=non_blocking, copy=has_function, stream=offload_stream)
+    weight = cast_to(s.weight, dtype, device, non_blocking=non_blocking, copy=has_function, stream=offload_stream)
     if has_function:
         with wf_context:
             for f in s.weight_function:
@@ -308,10 +308,10 @@ def fp8_linear(self, input):
         if scale_input is None:
             scale_input = torch.ones((), device=input.device, dtype=torch.float32)
             input = torch.clamp(input, min=-448, max=448, out=input)
-            input = input.reshape(-1, input_shape[2]).to(dtype).contiguous()
+            input = input.reshape(-1, input_shape[2]).to(dtype)
         else:
             scale_input = scale_input.to(input.device)
-            input = (input * (1.0 / scale_input).to(input_dtype)).reshape(-1, input_shape[2]).to(dtype).contiguous()
+            input = (input * (1.0 / scale_input).to(input_dtype)).reshape(-1, input_shape[2]).to(dtype)
 
         if bias is not None:
             o = torch._scaled_mm(input, w, out_dtype=input_dtype, bias=bias, scale_a=scale_input, scale_b=scale_weight)

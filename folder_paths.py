@@ -9,6 +9,8 @@ from collections.abc import Collection
 
 from comfy.cli_args import args
 
+DEBUG_ENABLED = args.debug
+
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.pt2', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
 
 folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
@@ -245,7 +247,8 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
     except FileNotFoundError:
         logging.warning(f"Warning: Unable to access {directory}. Skipping this path.")
 
-    logging.debug("recursive file list on directory {}".format(directory))
+    if DEBUG_ENABLED:
+        logging.debug("recursive file list on directory {}".format(directory))
     dirpath: str
     subdirs: list[str]
     filenames: list[str]
@@ -267,7 +270,8 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
             except FileNotFoundError:
                 logging.warning(f"Warning: Unable to access {path}. Skipping this path.")
                 continue
-    logging.debug("found {} files".format(len(result)))
+    if DEBUG_ENABLED:
+        logging.debug("found {} files".format(len(result)))
     return result, dirs
 
 def filter_files_extensions(files: Collection[str], extensions: Collection[str]) -> list[str]:
