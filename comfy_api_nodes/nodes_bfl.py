@@ -240,7 +240,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
         | aspect_ratio      | String  | "16:9"  | Width-to-height ratio of the image, must be between 1:4 and 4:1                                                                                                                                                                  |
         | raw               | Boolean | False   | When set to True, generates less processed, more natural-looking images                                                                                                                                                          |
 
-        ### Optional Parameters 
+        ### Optional Parameters
 
         | Parameter             | Type  | Default | Description                                                                                                                                               |
         | --------------------- | ----- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
