@@ -92,7 +92,8 @@ If coming from the very start, you need :
    5.1  *** YOU MUST DO THIS ADDITIONAL STEP : if you want to try miopen-triton with high end gpu : ***
    
     * Install **HIP SDK 6.2.4** from [HERE](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html) the correct version, "Windows 10 & 11 6.2.4 HIP SDK"
-    * Then download hip sdk addon from this url `https://drive.google.com/file/d/1JSVDV9yKCJ_vldXb5hS7NEHUeDJGoG6M/view?usp=sharing` and extract that into `C:\Program Files\AMD\ROCm\6.2`
+    * Then download hip sdk addon from one of these urls and extract that into `C:\Program Files\AMD\ROCm\6.2` .
+    *  [Link-1](https://www.mediafire.com/file/qhct48vamgmn0tv/HIP-SDK-extension-full.zip/file)      [Link-2](https://gofile.io/d/kUXwYu)
 
 7. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
 
