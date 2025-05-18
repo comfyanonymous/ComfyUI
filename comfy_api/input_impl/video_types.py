@@ -80,6 +80,38 @@ class VideoFromFile(VideoInput):
                     return stream.width, stream.height
         raise ValueError(f"No video stream found in file '{self.__file}'")
 
+    def get_duration(self) -> float:
+        """
+        Returns the duration of the video in seconds.
+
+        Returns:
+            Duration in seconds
+        """
+        if isinstance(self.__file, io.BytesIO):
+            self.__file.seek(0)
+        with av.open(self.__file, mode="r") as container:
+            if container.duration is not None:
+                return float(container.duration / av.time_base)
+
+            # Fallback: calculate from frame count and frame rate
+            video_stream = next(
+                (s for s in container.streams if s.type == "video"), None
+            )
+            if video_stream and video_stream.frames and video_stream.average_rate:
+                return float(video_stream.frames / video_stream.average_rate)
+
+            # Last resort: decode frames to count them
+            if video_stream and video_stream.average_rate:
+                frame_count = 0
+                container.seek(0)
+                for packet in container.demux(video_stream):
+                    for _ in packet.decode():
+                        frame_count += 1
+                if frame_count > 0:
+                    return float(frame_count / video_stream.average_rate)
+
+        raise ValueError(f"Could not determine duration for file '{self.__file}'")
+
     def get_components_internal(self, container: InputContainer) -> VideoComponents:
         # Get video frames
         frames = []

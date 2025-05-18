@@ -451,7 +451,7 @@ class VAE:
                 self.latent_dim = 2
                 self.process_output = lambda audio: audio
                 self.process_input = lambda audio: audio
-                self.working_dtypes = [torch.bfloat16, torch.float32]
+                self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
                 self.disable_offload = True
                 self.extra_1d_channel = 16
             else:

@@ -1,3 +1,7 @@
+from typing import Union
+import logging
+import torch
+
 from comfy.comfy_types.node_typing import IO
 from comfy_api.input_impl.video_types import VideoFromFile
 from comfy_api_nodes.apis import (
@@ -20,15 +24,18 @@ from comfy_api_nodes.apinode_utils import (
     upload_images_to_comfyapi,
     validate_string,
 )
+from server import PromptServer
 
-import torch
-import logging
 
+I2V_AVERAGE_DURATION = 114
+T2V_AVERAGE_DURATION = 234
 
 class MinimaxTextToVideoNode:
     """
     Generates videos synchronously based on a prompt, and optional parameters using MiniMax's API.
     """
+
+    AVERAGE_DURATION = T2V_AVERAGE_DURATION
 
     @classmethod
     def INPUT_TYPES(s):
@@ -67,6 +74,8 @@ class MinimaxTextToVideoNode:
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -84,7 +93,8 @@ class MinimaxTextToVideoNode:
         model="T2V-01",
         image: torch.Tensor=None, # used for ImageToVideo
         subject: torch.Tensor=None, # used for SubjectToVideo
-        auth_token=None,
+        unique_id: Union[str, None]=None,
+        **kwargs,
     ):
         '''
         Function used between MiniMax nodes - supports T2V, I2V, and S2V, based on provided arguments.
@@ -94,12 +104,12 @@ class MinimaxTextToVideoNode:
         # upload image, if passed in
         image_url = None
         if image is not None:
-            image_url = upload_images_to_comfyapi(image, max_images=1, auth_token=auth_token)[0]
+            image_url = upload_images_to_comfyapi(image, max_images=1, auth_kwargs=kwargs)[0]
 
         # TODO: figure out how to deal with subject properly, API returns invalid params when using S2V-01 model
         subject_reference = None
         if subject is not None:
-            subject_url = upload_images_to_comfyapi(subject, max_images=1, auth_token=auth_token)[0]
+            subject_url = upload_images_to_comfyapi(subject, max_images=1, auth_kwargs=kwargs)[0]
             subject_reference = [SubjectReferenceItem(image=subject_url)]
 
 
@@ -118,7 +128,7 @@ class MinimaxTextToVideoNode:
                 subject_reference=subject_reference,
                 prompt_optimizer=None,
             ),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         response = video_generate_operation.execute()
 
@@ -137,7 +147,9 @@ class MinimaxTextToVideoNode:
             completed_statuses=["Success"],
             failed_statuses=["Fail"],
             status_extractor=lambda x: x.status.value,
-            auth_token=auth_token,
+            estimated_duration=self.AVERAGE_DURATION,
+            node_id=unique_id,
+            auth_kwargs=kwargs,
         )
         task_result = video_generate_operation.execute()
 
@@ -153,7 +165,7 @@ class MinimaxTextToVideoNode:
                 query_params={"file_id": int(file_id)},
             ),
             request=EmptyRequest(),
-            auth_token=auth_token,
+            auth_kwargs=kwargs,
         )
         file_result = file_retrieve_operation.execute()
 
@@ -163,6 +175,12 @@ class MinimaxTextToVideoNode:
                 f"No video was found in the response. Full response: {file_result.model_dump()}"
             )
         logging.info(f"Generated video URL: {file_url}")
+        if unique_id:
+            if hasattr(file_result.file, "backup_download_url"):
+                message = f"Result URL: {file_url}\nBackup URL: {file_result.file.backup_download_url}"
+            else:
+                message = f"Result URL: {file_url}"
+            PromptServer.instance.send_progress_text(message, unique_id)
 
         video_io = download_url_to_bytesio(file_url)
         if video_io is None:
@@ -176,6 +194,8 @@ class MinimaxImageToVideoNode(MinimaxTextToVideoNode):
     """
     Generates videos synchronously based on an image and prompt, and optional parameters using MiniMax's API.
     """
+
+    AVERAGE_DURATION = I2V_AVERAGE_DURATION
 
     @classmethod
     def INPUT_TYPES(s):
@@ -221,6 +241,8 @@ class MinimaxImageToVideoNode(MinimaxTextToVideoNode):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -236,6 +258,8 @@ class MinimaxSubjectToVideoNode(MinimaxTextToVideoNode):
     """
     Generates videos synchronously based on an image and prompt, and optional parameters using MiniMax's API.
     """
+
+    AVERAGE_DURATION = T2V_AVERAGE_DURATION
 
     @classmethod
     def INPUT_TYPES(s):
@@ -279,6 +303,8 @@ class MinimaxSubjectToVideoNode(MinimaxTextToVideoNode):
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
