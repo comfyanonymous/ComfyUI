@@ -9,7 +9,7 @@ class StringConcatenate():
             "required": {
                 "string_a": (IO.STRING, {"multiline": True}),
                 "string_b": (IO.STRING, {"multiline": True}),
-                "delimiter": (IO.STRING, {"multiline": False, "default": ", "})
+                "delimiter": (IO.STRING, {"multiline": False, "default": ""})
             }
         }
 
