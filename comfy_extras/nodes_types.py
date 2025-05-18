@@ -15,65 +15,40 @@ def float_to_int(value: float, mode: str) -> int:
     else:
         raise ValueError(f"Unknown mode: {mode}")
 
-class IntToFloat:
+class IntToAll:
     @classmethod
     def INPUT_TYPES(cls):
         return {"required": {"value": ("INT", {"default": 0})}}
 
-    RETURN_TYPES = ("FLOAT",)
+    RETURN_TYPES = ("BOOLEAN","FLOAT","STRING",)
     FUNCTION = "convert_type"
     CATEGORY = "utils/type_convert"
 
-    def convert_type(self, value) -> float:
-        return (float(value),)
+    def convert_type(self, value):
+        return (bool(value), float(value), str(value),)
 
-class FloatToInt:
+class FloatToAll:
     @classmethod
     def INPUT_TYPES(cls):
         return {"required": {
                     "value": ("FLOAT", {"default": 0.0, "round": False}),
-                    "mode": (ROUND_MODES,)
+                    "mode": (ROUND_MODES,),
+                    "string_round_value": ("BOOLEAN", {"default": True}),
+                    "string_round_to": ("INT", {"default": 2,   "min": 0})
                     },
                }
 
-    RETURN_TYPES = ("INT",)
+    RETURN_TYPES = ("BOOLEAN","INT","STRING",)
     FUNCTION = "convert_type"
     CATEGORY = "utils/type_convert"
 
-    def convert_type(self, value, mode) -> int:
-        return (float_to_int(value, mode),)
-
-class IntToString:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {"value": ("INT", {"default": 0})}}
-
-    RETURN_TYPES = ("STRING",)
-    FUNCTION = "convert_type"
-    CATEGORY = "utils/type_convert"
-
-    def convert_type(self, value) -> str:
-        return (str(value),)
-
-class FloatToString:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {
-                    "value": ("FLOAT", {"default": 0.0, "round": False}),
-                    "round_value": ("BOOLEAN", {"default": True}),
-                    "round_to": ("INT", {"default": 2,   "min": 0})
-               }}
-
-    RETURN_TYPES = ("STRING",)
-    FUNCTION = "convert_type"
-    CATEGORY = "utils/type_convert"
-
-    def convert_type(self, value, round_value, round_to) -> str:
-        if round_value:
-            out = f"{value:.{round_to}f}"
+    def convert_type(self, value, mode, string_round_value, string_round_to):
+        if string_round_value:
+            string_out = f"{value:.{string_round_to}f}"
         else:
-            out = str(value)
-        return (out,)
+            string_out = str(value)
+
+        return (bool(value), float_to_int(value, mode), string_out,)
 
 class StringToNum:
 
@@ -129,30 +104,6 @@ class BoolToAll:
     def convert_type(self, value):
         return (int(value), float(value), str(value),)
 
-class IntToBool:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {"value": ("INT", {"default": 0})}}
-
-    RETURN_TYPES = ("BOOLEAN",)
-    FUNCTION = "convert_type"
-    CATEGORY = "utils/type_convert"
-
-    def convert_type(self, value) -> bool:
-        return (bool(value),)
-
-class FloatToBool:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {"value": ("FLOAT", {"default": 0})}}
-
-    RETURN_TYPES = ("BOOLEAN",)
-    FUNCTION = "convert_type"
-    CATEGORY = "utils/type_convert"
-
-    def convert_type(self, value) -> bool:
-        return (bool(value),)
-
 class StringToBool:
     @classmethod
     def INPUT_TYPES(cls):
@@ -193,12 +144,8 @@ class StringToCombo:
 
 NODE_CLASS_MAPPINGS = {
     "Boolean to All": BoolToAll,
-    "Integer to Boolean": IntToBool,
-    "Integer to Float": IntToFloat,
-    "Integer to String": IntToString,
-    "Float to Boolean": FloatToBool,
-    "Float to Integer": FloatToInt,
-    "Float to String": FloatToString,
+    "Integer to All": IntToAll,
+    "Float to All": FloatToAll,
     "String to Boolean": StringToBool,
     "String to Number": StringToNum,
     "String to Combo": StringToCombo
