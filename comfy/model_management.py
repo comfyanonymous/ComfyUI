@@ -28,6 +28,8 @@ from enum import Enum
 from comfy.cli_args import args, PerformanceFeature
 from comfy.ldm.models.autoencoder import AutoencoderKL
 
+_directml_active_memory_cache = {}
+
 try:
     import torch_directml
     _torch_directml_available = True
@@ -574,6 +576,7 @@ def get_free_memory(dev=None, torch_free_too=False):
     Returns:
         int or tuple: Free memory in bytes (or tuple with free_torch).
     """
+    global _directml_active_memory_cache
     if dev is None:
         dev = get_torch_device()
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
@@ -584,7 +587,7 @@ def get_free_memory(dev=None, torch_free_too=False):
             total_vram = get_directml_vram(dev)
             cache_key = (dev, 'active_models')
             # Invalidate cache if models list has changed
-            current_models_hash = hash(tuple((id(m), m.model_loaded_memory() if not m.is_dead() else 0) for m in current_loaded_models))
+            current_models_hash = hash(tuple((id(m), m.model_memory()) for m in current_loaded_models if not m.is_dead()))
             if cache_key in _directml_active_memory_cache:
                 cached_hash, cached_active_models = _directml_active_memory_cache[cache_key]
                 if cached_hash == current_models_hash:
@@ -632,7 +635,7 @@ def get_free_memory(dev=None, torch_free_too=False):
                     _directml_active_memory_cache[cache_key] = (current_models_hash, 0)
 
             # Apply safety margin (1.2x) and ensure at least 1 GB free
-            mem_free_total = max(1024 * 1024 * 1024, total_vram - active_models * 1.2)
+            mem_free_total = max(total_vram // 4, total_vram - active_models * 1.4)  # Assume at least 25% VRAM free
             mem_free_torch = mem_free_total
             if DEBUG_ENABLED:
                 logging.debug(f"DirectML: total_vram={total_vram / (1024**3):.0f} GB, active_models={active_models / (1024**3):.2f} GB, free={mem_free_total / (1024**3):.2f} GB")
@@ -726,8 +729,8 @@ def soft_empty_cache(clear=False, device=None, caller="unknown"):
         start_time = time.time()
         logging.debug(f"soft_empty_cache called with clear={clear}, device={device}, caller={caller}")
 
-    # Fixed threshold in bytes (100 MB)
-    MEMORY_THRESHOLD = 100 * 1024 * 1024  # 100 MB
+    # Use lower threshold for DirectML (50 MB) due to lack of empty_cache support; 100 MB for others
+    MEMORY_THRESHOLD = 50 * 1024 * 1024 if directml_enabled else 100 * 1024 * 1024
     cache_key = (device, 'free_memory')
 
     mem_free_total, mem_free_torch = get_free_memory(device, torch_free_too=True)
@@ -752,6 +755,11 @@ def soft_empty_cache(clear=False, device=None, caller="unknown"):
             torch.npu.empty_cache()
         elif is_mlu():
             torch.mlu.empty_cache()
+        # For DirectML, only run garbage collection as empty_cache is not supported
+        elif directml_enabled:
+            gc.collect() # Minimal cleanup; torch_directml.empty_cache not available
+            if PROFILING_ENABLED:
+                logging.debug("DirectML: Ran gc.collect for minimal cleanup (empty_cache not supported)")
 
         if PROFILING_ENABLED:
             free_vram_after, free_torch_after = get_free_memory(device, torch_free_too=True)
@@ -855,7 +863,31 @@ class LoadedModel:
         return self.model.model_size() if hasattr(self.model, 'model_size') else module_size(self.model)
 
     def model_loaded_memory(self):
-        return self.model.loaded_size() if hasattr(self.model, 'loaded_size') else module_size(self.model)
+        """
+        Get the memory footprint of the loaded model.
+
+        Returns:
+            int: Memory size in bytes.
+        """
+        if self.is_dead():
+            return 0
+
+        # Check cached memory
+        if hasattr(self, '_cached_memory') and self._cached_memory is not None:
+            return self._cached_memory
+
+        try:
+            if hasattr(self.model, 'loaded_size'):
+                memory = self.model.loaded_size()
+            else:
+                memory = module_size(self.model)
+        except Exception as e:
+            logging.warning(f"Error when calculating memory model: {e}")
+            memory = 0
+
+        # Cache the result
+        self._cached_memory = memory
+        return memory
 
     def model_offloaded_memory(self):
         return self.model_memory() - self.model_loaded_memory()
@@ -913,6 +945,11 @@ class LoadedModel:
                     real_model = ipex.optimize(real_model.eval(), inplace=True, graph_mode=True, concat_linear=True)
             self.real_model = weakref.ref(real_model)
             self.model_finalizer = weakref.finalize(real_model, cleanup_models)
+            
+            # Invalidate cache
+            if hasattr(self, '_cached_memory'):
+                self._cached_memory = None
+            
             return real_model
 
     def should_reload_model(self, force_patch_weights=False):
@@ -984,14 +1021,36 @@ class LoadedModel:
                 return mem_freed
 
     def model_use_more_vram(self, use_more_vram, force_patch_weights=False):
+        """
+        Load additional model weights to VRAM if available.
+
+        Args:
+            use_more_vram: Available memory in bytes.
+            force_patch_weights: Force re-patching weights.
+
+        Returns:
+            Memory used in bytes, or 0 if model is invalid or no VRAM used.
+        """
         if not use_more_vram:
             if PROFILING_ENABLED:
                 logging.debug(
                     "model_use_more_vram: use_more_vram=False, returning 0")
             return 0
-        mem_required = self.model_memory_required(self.device)
-        extra_memory = min(mem_required * 0.3, 50 * 1024 * 1024 * 1024)  # Reduced to 50 MB chunks
-        return self.model.partially_load(self.device, extra_memory, force_patch_weights=force_patch_weights)
+        if self.model is None or self.is_dead():
+            if DEBUG_ENABLED:
+                model_name = self.real_model().__class__.__name__ if self.real_model is not None else "None"
+                logging.debug(f"Skipping model_use_more_vram: model_is_none={self.model is None}, is_dead={self.is_dead()}, name={model_name}")
+            return 0
+        try:
+            mem_required = self.model_memory_required(self.device)
+            extra_memory = min(mem_required * 0.3, 50 * 1024 * 1024 * 1024)  # Reduced to 50 MB chunks
+            memory_used = self.model.partially_load(self.device, extra_memory, force_patch_weights=force_patch_weights)
+            if DEBUG_ENABLED:
+                logging.debug(f"model_use_more_vram: Loaded {memory_used / 1024**3:.2f} GB for {self.model.__class__.__name__}")
+            return memory_used
+        except Exception as e:
+            logging.error(f"Failed to partially load model {self.model.__class__.__name__}: {e}")
+            return 0
 
     def __eq__(self, other):
         return self.model is other.model
@@ -1015,6 +1074,14 @@ def module_size(model, shape=None, dtype=None):
     """
     Estimate memory size of a module by summing parameter and buffer sizes,
     or using VAE-specific estimation if shape and dtype are provided.
+
+    Args:
+        model: PyTorch module instance.
+        shape: Tuple of (batch, channels, height, width) for VAE estimation.
+        dtype: Data type for VAE estimation (e.g., torch.float16).
+
+    Returns:
+        int: Memory size in bytes.
     """
     from diffusers import AutoencoderKL
 
@@ -1028,7 +1095,9 @@ def module_size(model, shape=None, dtype=None):
         return 1024 * 1024  # Minimal memory assumption for None model
 
     module_mem = 0
-    if shape is not None and dtype is not None and isinstance(model, AutoencoderKL):
+    
+    # VAE-specific estimation
+    if shape is not None and dtype is not None and isinstance(module, AutoencoderKL):
         try:
             batch, channels, height, width = shape
             # Adjusted memory estimate for VAE: reduced multiplier from 64*1.1 to 32*1.05 to avoid overestimation
@@ -1056,22 +1125,22 @@ def module_size(model, shape=None, dtype=None):
                 module_mem += sum(p.numel() * p.element_size() for p in model.parameters())
             if hasattr(model, 'buffers'):
                 module_mem += sum(b.numel() * b.element_size() for b in model.buffers())
-            if module_mem == 0:
-                model_name = model.__class__.__name__.lower()
-                if 'vae' in model_name or isinstance(model, AutoencoderKL):
-                    # Reduced fallback from 3.5 GB to 2.5 GB for VAE
-                    module_mem = 2.5 * 1024**3
-                    logging.warning(
-                        f"Could not estimate module size for {model.__class__.__name__}, "
-                        f"assuming 2.5 GB for VAE"
-                    )
-                else:
-                    # Minimal memory assumption for unknown models
-                    module_mem = 1024 * 1024
-                    logging.warning(
-                        f"Could not estimate module size for {model.__class__.__name__}, "
-                        f"assuming minimal memory (1 MB)"
-                    )
+    if module_mem == 0:
+            model_name = model.__class__.__name__.lower()
+            if 'vae' in model_name or isinstance(model, AutoencoderKL):
+                # Reduced fallback from 3.5 GB to 2.5 GB for VAE
+                module_mem = 2.5 * 1024**3
+                logging.warning(
+                            f"Could not estimate module size for {model.__class__.__name__}, "
+                    f"assuming 2.5 GB for VAE"
+                )
+            else:
+                # Minimal memory assumption for unknown models
+                module_mem = 1024 * 1024
+                logging.warning(
+                            f"Could not estimate module size for {model.__class__.__name__}, "
+                    f"assuming minimal memory (1 MB)"
+                )
 
     if VERBOSE_ENABLED:
         logging.debug(f"Module size for {model.__class__.__name__}: {module_mem / (1024**3):.2f} GB")
@@ -1153,11 +1222,20 @@ def minimum_inference_memory():
 
 
 def cleanup_models_gc():
-    """Clean up dead models and collect garbage if significant memory is freed."""
+    """
+    Clean up dead or invalid models from current_loaded_models and collect garbage.
+    Removes models where is_dead() is True or model is None, with aggressive cleanup for DirectML.
+    """
     dead_memory = 0
-    for cur in current_loaded_models:
-        if cur.is_dead():
-            dead_memory += cur.model_memory()
+    to_remove = []
+    for i, cur in enumerate(current_loaded_models):
+        if cur.is_dead() or cur.model is None:
+            dead_memory += cur.model_memory() if cur.model is not None else 0
+            to_remove.append(i)
+            if DEBUG_ENABLED:
+                model_name = cur.real_model().__class__.__name__ if cur.real_model is not None else "None"
+                logging.debug(f"Removing invalid model at index {i}: is_dead={cur.is_dead()}, model_is_none={cur.model is None}, name={model_name}")
+
     
     if dead_memory > 50 * 1024 * 1024:  # 50 MB threshold
         if PROFILING_ENABLED:
@@ -1169,12 +1247,8 @@ def cleanup_models_gc():
                           
         soft_empty_cache(clear=False, caller="cleanup_models_gc")
     
-    i = len(current_loaded_models) - 1
-    while i >= 0:
-        if current_loaded_models[i].is_dead():
-            logging.warning(f"Removing dead model {current_loaded_models[i].real_model().__class__.__name__}")
-            current_loaded_models.pop(i)
-        i -= 1
+    for i in reversed(to_remove):
+        current_loaded_models.pop(i)
 
 def free_memory(memory_required, device, keep_loaded=None, loaded_models=None, caller="unknown"):
     """
@@ -1283,16 +1357,32 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
 
     Args:
         models: List of models to load.
-        memory_required: Estimated memory needed (bytes).
-        force_patch_weights: Force re-patching model weights.
-        minimum_memory_required: Minimum memory needed for inference.
-        force_full_load: Force full model loading regardless of VRAM state.
+        memory_required: Estimated memory needed in bytes for all models.
+        force_patch_weights: Force re-patching model weights, even if already patched.
+        minimum_memory_required: Minimum memory needed for inference (optional, defaults to minimum_inference_memory).
+        force_full_load: Force full model loading, ignoring low VRAM state.
     """
+    # Clean up dead models and run garbage collection
     cleanup_models_gc()
+    
+    if DEBUG_ENABLED:
+        model_names = [m.model.__class__.__name__ if m.model else "None" for m in current_loaded_models]
+        logging.debug(f"Current loaded models before load: {model_names}, total={len(current_loaded_models)}")
+    
     with profile_section("load_models_gpu"):
-        # Memory cache for efficient memory queries
+        # Cache memory queries to reduce overhead
         memory_cache = {}
         def get_cached_memory(device, torch_free_too=False):
+            """
+            Get cached memory stats for a device to avoid redundant calls to get_free_memory.
+            
+            Args:
+                device: The torch device (e.g., DirectML or CUDA).
+                torch_free_too: If True, return both total and torch-specific free memory.
+            
+            Returns:
+                Free memory in bytes (single value or tuple if torch_free_too=True).
+            """
             cache_key = (device, torch_free_too)
             if cache_key not in memory_cache:
                 try:
@@ -1302,20 +1392,32 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
                     memory_cache[cache_key] = (0, 0) if torch_free_too else 0
             return memory_cache[cache_key]
         
+        # Set default minimum memory if not provided
         if minimum_memory_required is None:
             minimum_memory_required = minimum_inference_memory()
+        
+        # Get the current torch device
         device = get_torch_device()
+        
+        # Skip loading if VRAM is disabled or shared (e.g., CPU offload)
         if vram_state in (VRAMState.DISABLED, VRAMState.SHARED):
             return
-            
+        
+        # Clear VRAM cache aggressively for DirectML to minimize fragmentation
+        if directml_enabled:
+            soft_empty_cache(clear=True, device=device, caller="load_models_gpu")
+            if DEBUG_ENABLED:
+                logging.debug(f"VRAM stats after initial clear: {torch_directml.memory_stats()}")
+        
+        # Create a lookup table for currently loaded models
         model_lookup = {m.model: m for m in current_loaded_models if m.model is not None}
-            
-        # Reset currently_used flag for all loaded models
+        
+        # Mark all currently loaded models as unused
         for loaded_model in current_loaded_models:
             loaded_model.currently_used = False
-
+        
+        # Prepare list of models to load
         loaded = []
-         # Prepare models to load
         for model in models:
             if not hasattr(model, "model"):
                 continue
@@ -1325,11 +1427,11 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
                 model_lookup[model] = loaded_model
             loaded_model.currently_used = True
             loaded.append(loaded_model)
-            
-        # Unload unused models only if necessary
-        device = get_torch_device()
+          
+        # Unload unused models if too many models or low VRAM
         to_remove = []
-        if len(current_loaded_models) > 10 or (is_device_cuda(device) and get_cached_memory(device) < 1 * 1024 * 1024 * 1024):  # >10 models or <1GB VRAM
+        mem_free = get_cached_memory(device)
+        if len(current_loaded_models) > 10 or (is_device_cuda(device) and mem_free < 1 * 1024 * 1024 * 1024): # >10 models or <1GB VRAM
             for i, loaded_model in enumerate(current_loaded_models):
                 if not loaded_model.currently_used:
                     model = loaded_model.model
@@ -1345,33 +1447,44 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
                         logging.error(f"Failed to unload model at index {i}: {e}")
             for i in reversed(to_remove):
                 current_loaded_models.pop(i)
-
+        
+        # Configure low VRAM mode if applicable
         lowvram_model_memory = 0
         if vram_state == VRAMState.LOW_VRAM and not force_full_load:
             lowvram_model_memory = max(
-                int(get_total_memory(device) * MIN_WEIGHT_MEMORY_RATIO), 400 * 1024 * 1024)
+                int(total_vram * MIN_WEIGHT_MEMORY_RATIO), 400 * 1024 * 1024)
         elif vram_state == VRAMState.NO_VRAM:
             lowvram_model_memory = 1
-
+        
+        # Load each model, ensuring sufficient VRAM
         for l in loaded:
             l.currently_used = True
             if l.should_reload_model(force_patch_weights=force_patch_weights) or l.real_model is None:
+                # Calculate memory needed for the model
                 mem_needed = l.model_memory_required(device)
-                mem_free = get_free_memory(device)
+                mem_free = get_cached_memory(device)
+                
                 if DEBUG_ENABLED:
                     logging.debug(
                         f"Loading {l.model.__class__.__name__}: mem_needed={mem_needed / 1024**3:.2f} GB, free={mem_free / 1024**3:.2f} GB")
-
+               
+                # Check if there's enough VRAM; free memory if needed
                 if mem_free < mem_needed + minimum_memory_required:
-                    free_memory(mem_needed + minimum_memory_required,
-                                device, keep_loaded=loaded)
-                    mem_free = get_free_memory(device)
-
+                    free_memory(mem_needed + minimum_memory_required, device, keep_loaded=loaded)
+                    if DEBUG_ENABLED:
+                        mem_free = get_cached_memory(device)
+                        logging.debug(f"After free_memory: free={mem_free / 1024**3:.2f} GB")
+                
+                # Load the model using a stream for offloading
                 stream = get_offload_stream(device)
                 with torch.cuda.stream(stream) if stream is not None else torch.no_grad():
                     l.model_load(lowvram_model_memory=lowvram_model_memory, force_patch_weights=force_patch_weights)
-                if loaded_model not in current_loaded_models:
-                    current_loaded_models.append(l)  # append for efficiency
+                
+                # Add the model to current_loaded_models if not already present
+                if l not in current_loaded_models:
+                    current_loaded_models.append(l)
+                
+                # Synchronize the stream to ensure loading is complete
                 sync_stream(device, stream)
                 if DEBUG_ENABLED:
                     logging.debug(
