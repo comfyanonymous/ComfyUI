@@ -65,6 +65,12 @@ from comfy_api_nodes.apinode_utils import (
     download_url_to_image_tensor,
 )
 from comfy_api_nodes.mapper_utils import model_field_to_node_input
+from comfy_api_nodes.util.validation_utils import (
+    validate_image_dimensions,
+    validate_image_aspect_ratio,
+    validate_video_dimensions,
+    validate_video_duration,
+)
 from comfy_api.input.basic_types import AudioInput
 from comfy_api.input.video_types import VideoInput
 from comfy_api.input_impl import VideoFromFile
@@ -80,18 +86,16 @@ PATH_CHARACTER_IMAGE = f"/proxy/kling/{KLING_API_VERSION}/images/generations"
 PATH_VIRTUAL_TRY_ON = f"/proxy/kling/{KLING_API_VERSION}/images/kolors-virtual-try-on"
 PATH_IMAGE_GENERATIONS = f"/proxy/kling/{KLING_API_VERSION}/images/generations"
 
-
 MAX_PROMPT_LENGTH_T2V = 2500
 MAX_PROMPT_LENGTH_I2V = 500
 MAX_PROMPT_LENGTH_IMAGE_GEN = 500
 MAX_NEGATIVE_PROMPT_LENGTH_IMAGE_GEN = 200
 MAX_PROMPT_LENGTH_LIP_SYNC = 120
 
-# TODO: adjust based on tests
-AVERAGE_DURATION_T2V = 319  # 319,
-AVERAGE_DURATION_I2V = 164  # 164,
-AVERAGE_DURATION_LIP_SYNC = 120
-AVERAGE_DURATION_VIRTUAL_TRY_ON = 19  # 19,
+AVERAGE_DURATION_T2V = 319
+AVERAGE_DURATION_I2V = 164
+AVERAGE_DURATION_LIP_SYNC = 455
+AVERAGE_DURATION_VIRTUAL_TRY_ON = 19
 AVERAGE_DURATION_IMAGE_GEN = 32
 AVERAGE_DURATION_VIDEO_EFFECTS = 320
 AVERAGE_DURATION_VIDEO_EXTEND = 320
@@ -211,23 +215,8 @@ def validate_input_image(image: torch.Tensor) -> None:
 
     See: https://app.klingai.com/global/dev/document-api/apiReference/model/imageToVideo
     """
-    if len(image.shape) == 4:
-        height, width = image.shape[1], image.shape[2]
-    elif len(image.shape) == 3:
-        height, width = image.shape[0], image.shape[1]
-    else:
-        raise ValueError("Invalid image tensor shape.")
-
-    # Ensure minimum resolution is met
-    if height < 300:
-        raise ValueError("Image height must be at least 300px")
-    if width < 300:
-        raise ValueError("Image width must be at least 300px")
-
-    # Ensure aspect ratio is within acceptable range
-    aspect_ratio = width / height
-    if aspect_ratio < 1 / 2.5 or aspect_ratio > 2.5:
-        raise ValueError("Image aspect ratio must be between 1:2.5 and 2.5:1")
+    validate_image_dimensions(image, min_width=300, min_height=300)
+    validate_image_aspect_ratio(image, min_aspect_ratio=1 / 2.5, max_aspect_ratio=2.5)
 
 
 def get_camera_control_input_config(
@@ -1243,6 +1232,17 @@ class KlingLipSyncBase(KlingNodeBase):
     RETURN_TYPES = ("VIDEO", "STRING", "STRING")
     RETURN_NAMES = ("VIDEO", "video_id", "duration")
 
+    def validate_lip_sync_video(self, video: VideoInput):
+        """
+        Validates the input video adheres to the expectations of the Kling Lip Sync API:
+        - Video length does not exceed 10s and is not shorter than 2s
+        - Length and width dimensions should both be between 720px and 1920px
+
+        See: https://app.klingai.com/global/dev/document-api/apiReference/model/videoTolip
+        """
+        validate_video_dimensions(video, 720, 1920)
+        validate_video_duration(video, 2, 10)
+
     def validate_text(self, text: str):
         if not text:
             raise ValueError("Text is required")
@@ -1282,6 +1282,7 @@ class KlingLipSyncBase(KlingNodeBase):
     ) -> tuple[VideoFromFile, str, str]:
         if text:
             self.validate_text(text)
+        self.validate_lip_sync_video(video)
 
         # Upload video to Comfy API and get download URL
         video_url = upload_video_to_comfyapi(video, auth_kwargs=kwargs)
@@ -1352,7 +1353,7 @@ class KlingLipSyncAudioToVideoNode(KlingLipSyncBase):
             },
         }
 
-    DESCRIPTION = "Kling Lip Sync Audio to Video Node. Syncs mouth movements in a video file to the audio content of an audio file."
+    DESCRIPTION = "Kling Lip Sync Audio to Video Node. Syncs mouth movements in a video file to the audio content of an audio file. When using, ensure that the audio contains clearly distinguishable vocals and that the video contains a distinct face. The audio file should not be larger than 5MB. The video file should not be larger than 100MB, should have height/width between 720px and 1920px, and should be between 2s and 10s in length."
 
     def api_call(
         self,
@@ -1464,7 +1465,7 @@ class KlingLipSyncTextToVideoNode(KlingLipSyncBase):
             },
         }
 
-    DESCRIPTION = "Kling Lip Sync Text to Video Node. Syncs mouth movements in a video file to a text prompt."
+    DESCRIPTION = "Kling Lip Sync Text to Video Node. Syncs mouth movements in a video file to a text prompt. The video file should not be larger than 100MB, should have height/width between 720px and 1920px, and should be between 2s and 10s in length."
 
     def api_call(
         self,
