@@ -678,7 +678,7 @@ class PromptServer():
 
             if "prompt" in json_data:
                 prompt = json_data["prompt"]
-                prompt_id = str(uuid.uuid4())
+                prompt_id = str(json_data.get("prompt_id", uuid.uuid4()))
                 valid = await execution.validate_prompt(prompt_id, prompt)
                 extra_data = {}
                 if "extra_data" in json_data:
