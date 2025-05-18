@@ -2281,7 +2281,8 @@ def init_builtin_api_nodes():
         "nodes_pixverse.py",
         "nodes_stability.py",
         "nodes_pika.py",
-        "nodes_runway.py"
+        "nodes_runway.py",
+        "nodes_gemini.py",
     ]
 
     if not load_custom_node(os.path.join(api_nodes_dir, "canary.py"), module_parent="comfy_api_nodes"):
