@@ -184,23 +184,7 @@ def get_directml_vram(dev):
         try:
             device_index = dev.index if hasattr(dev, 'index') and dev.index is not None else 0
             device_name = torch_directml.device_name(device_index).lower()
-            vram_map = {
-                'gtx 1660': 6 * 1024 * 1024 * 1024,
-                'gtx 1650': 4 * 1024 * 1024 * 1024,
-                'rtx 2060': 6 * 1024 * 1024 * 1024,
-                'rtx 3060': 12 * 1024 * 1024 * 1024,
-                'rtx 4060': 8 * 1024 * 1024 * 1024,
-                'rx 580': 8 * 1024 * 1024 * 1024,
-                'rx 570': 8 * 1024 * 1024 * 1024,
-                'rx 6700': 12 * 1024 * 1024 * 1024,
-                'rx 6800': 16 * 1024 * 1024 * 1024,
-                'arc a770': 16 * 1024 * 1024 * 1024,
-            }
-            vram = 6 * 1024 * 1024 * 1024
-            for key, value in vram_map.items():
-                if key in device_name:
-                    vram = value
-                    break
+            vram = 6 * 1024 * 1024 * 1024 #NASTY HACK
             _directml_vram_cache[dev] = vram
             if DEBUG_ENABLED:
                 logging.debug(f"DirectML VRAM for {device_name}: {vram / (1024**3):.0f} GB")
