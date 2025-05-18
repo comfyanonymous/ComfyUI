@@ -218,7 +218,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
     RETURN_TYPES = (IO.IMAGE,)
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     HELP = cleandoc(r'''
-        ![ComfyUI Native Flux 1.1 [pro] Ultra Image node](/docs/assets/flux-1-1-pro-ultra-image.jpg)
+        ![ComfyUI Native Flux 1.1 [pro] Ultra Image node](docs/assets/flux-1-1-pro-ultra-image.jpg)
 
         The Flux 1.1 [pro] Ultra Image node allows you to generate ultra-high-resolution images through text prompts, directly connecting to Black Forest Labs' latest image generation API.
 
