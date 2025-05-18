@@ -555,7 +555,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "RunwayStartEndFrameNode": "Runway Start-End Frame to Video",
+    "RunwayStartEndFrameNode": "Runway First-Last-Frame to Video",
     "RunwayImageToVideoNode": "Runway Image to Video",
     "RunwayTextToImageNode": "Runway Text to Image",
 }

@@ -150,6 +150,7 @@ class GeminiNode(ComfyNodeABC):
     RETURN_TYPES = ("STRING",)
     FUNCTION = "api_call"
     CATEGORY = "api node/text/Gemini"
+    API_NODE = True
 
     def get_parts_from_response(
         self, response: GeminiGenerateContentResponse
