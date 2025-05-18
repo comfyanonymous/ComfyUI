@@ -49,7 +49,7 @@ from comfy_api_nodes.mapper_utils import model_field_to_node_input
 from comfy_api.input_impl import VideoFromFile
 from comfy.comfy_types.node_typing import IO, ComfyNodeABC
 
-PATH_IMAGE_TO_VIDEO = "/proxy/runway/image-to-video"
+PATH_IMAGE_TO_VIDEO = "/proxy/runway/image_to_video"
 PATH_TEXT_TO_IMAGE = "/proxy/runway/text_to_image"
 PATH_GET_TASK_STATUS = "/proxy/runway/tasks"
 
