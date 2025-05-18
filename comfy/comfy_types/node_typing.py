@@ -237,7 +237,7 @@ class ComfyNodeABC(ABC):
     API_NODE: Optional[bool]
     """Flags a node as an API node. See: https://docs.comfy.org/tutorials/api-nodes/overview."""
     HELP: Optional[str]
-    """Optional long help text for the node, shown in detailed node documentation panels."""
+    """The markdown help text for the node. Used to inform users about the node in general."""
 
     @classmethod
     @abstractmethod
