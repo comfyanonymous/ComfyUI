@@ -953,6 +953,14 @@ class PromptQueue:
             self.history[prompt[1]].update(history_result)
             self.server.queue_updated()
 
+    # Note: slow
+    def get_current_queue(self):
+        with self.mutex:
+            out = []
+            for x in self.currently_running.values():
+                out += [x]
+            return (out, copy.deepcopy(self.queue))
+
     # read-safe as long as queue items are immutable
     def get_current_queue_volatile(self):
         with self.mutex:
