@@ -104,26 +104,6 @@ class BoolToAll:
     def convert_type(self, value):
         return (int(value), float(value), str(value),)
 
-class StringToBool:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {
-                "value": ("STRING", {"default": "False", "multiline": False}),
-                "true_text": ("STRING", {"default": "True", "multiline": False}),
-                "case_sensitive": ("BOOLEAN", {"default": True})
-               }}
-
-    RETURN_TYPES = ("BOOLEAN",)
-    FUNCTION = "convert_type"
-    CATEGORY = "utils/type_convert"
-
-    def convert_type(self, value, true_text, case_sensitive) -> bool:
-        if case_sensitive:
-            match = (value == true_text)
-        else:
-            match = (value.casefold() == true_text.casefold())
-        return (match,)
-
 class StringToCombo:
     '''Converts a string into a combo input that may be used with any
        node with a list widget.
@@ -146,7 +126,6 @@ NODE_CLASS_MAPPINGS = {
     "Boolean to All": BoolToAll,
     "Integer to All": IntToAll,
     "Float to All": FloatToAll,
-    "String to Boolean": StringToBool,
     "String to Number": StringToNum,
     "String to Combo": StringToCombo
 }
