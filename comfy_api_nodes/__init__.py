@@ -4,7 +4,7 @@
 # due to its protected namespace feature. Several Kling API models use "model_name" fields
 # (which indicate which Kling model to use in API requests) triggering these warnings:
 #
-# UserWarning: Field "model_name" in KlingSingleImageEffectInput has conflict with 
+# UserWarning: Field "model_name" in KlingSingleImageEffectInput has conflict with
 # protected namespace "model_".
 #
 # Affected versions:
