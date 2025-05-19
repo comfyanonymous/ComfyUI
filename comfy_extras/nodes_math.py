@@ -417,6 +417,34 @@ class MathCompare(ComfyNodeABC):
         else:
             return False,
 
+class MathOperation(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "value_a": (IO.ANY, {}),
+                "value_b": (IO.ANY, {}),
+                "operation": (IO.COMBO, {"options": ["Add", "Subtract", "Multiply", "Divide"]})
+            }
+        }
+
+    RETURN_TYPES = (IO.ANY,)
+    RETURN_NAMES = ("result",)
+    FUNCTION = "execute"
+    CATEGORY = "utils/math"
+
+    def execute(self, value_a, value_b, operation, **kwargs):
+        if operation == "Add":
+            return value_a + value_b,
+        elif operation == "Subtract":
+            return value_a - value_b,
+        elif operation == "Multiply":
+            return value_a * value_b,
+        elif operation == "Divide":
+            return value_a / value_b,
+        else:
+            return 0,
+
 NODE_CLASS_MAPPINGS = {
     "MathAdd": MathAdd,
     "MathSubtract": MathSubtract,
@@ -438,7 +466,8 @@ NODE_CLASS_MAPPINGS = {
     "MathNumberConvert": MathNumberConvert,
     "StringToNumber": StringToNumber,
     "NumberToString": NumberToString,
-    "MathCompare": MathCompare
+    "MathCompare": MathCompare,
+    "MathOperation": MathOperation
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -462,5 +491,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "MathNumberConvert": "Number Convert",
     "StringToNumber": "String To Number",
     "NumberToString": "Number To String",
-    "MathCompare": "Compare"
+    "MathCompare": "Compare",
+    "MathOperation": "Math Operation (Example)"
 }
