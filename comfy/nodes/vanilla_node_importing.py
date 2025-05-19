@@ -3,18 +3,18 @@ from __future__ import annotations
 import importlib
 import logging
 import os
-import shutil
 import sys
 import time
 import types
 from contextlib import contextmanager
-from typing import Dict, List, Iterable
 from os.path import join, basename, dirname, isdir, isfile, exists, abspath, split, splitext, realpath
+from typing import Dict, Iterable
 
 from . import base_nodes
 from .package_typing import ExportedNodes
 from ..component_model.plugins import prompt_server_instance_routes
 
+logger = logging.getLogger(__name__)
 
 class _PromptServerStub():
     def __init__(self):
@@ -30,7 +30,7 @@ def _vanilla_load_importing_execute_prestartup_script(node_paths: Iterable[str])
             spec.loader.exec_module(module)
             return True
         except Exception as e:
-            print(f"Failed to execute startup-script: {script_path} / {e}", file=sys.stderr)
+            logger.error(f"Failed to execute startup-script: {script_path} / {e}")
         return False
 
     node_prestartup_times = []
@@ -52,14 +52,13 @@ def _vanilla_load_importing_execute_prestartup_script(node_paths: Iterable[str])
                 success = execute_script(script_path)
                 node_prestartup_times.append((time.perf_counter() - time_before, module_path, success))
     if len(node_prestartup_times) > 0:
-        print("\nPrestartup times for custom nodes:", file=sys.stderr)
+        logger.debug("\nPrestartup times for custom nodes:")
         for n in sorted(node_prestartup_times):
             if n[2]:
                 import_message = ""
             else:
                 import_message = " (PRESTARTUP FAILED)"
-            print("{:6.1f} seconds{}:".format(n[0], import_message), n[1], file=sys.stderr)
-        print("\n", file=sys.stderr)
+            logger.debug("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
 
 
 @contextmanager
@@ -118,12 +117,10 @@ def _vanilla_load_custom_nodes_1(module_path, ignore=set()) -> ExportedNodes:
                 exported_nodes.NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
             return exported_nodes
         else:
-            print(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.", file=sys.stderr)
+            logger.error(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
             return exported_nodes
     except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        print(f"Cannot import {module_path} module for custom nodes:", e, file=sys.stderr)
+        logger.error(f"Cannot import {module_path} module for custom nodes:", exc_info=e)
         return exported_nodes
 
 
@@ -151,14 +148,12 @@ def _vanilla_load_custom_nodes_2(node_paths: Iterable[str]) -> ExportedNodes:
             exported_nodes.update(possible_exported_nodes)
 
     if len(node_import_times) > 0:
-        print("\nImport times for custom nodes:", file=sys.stderr)
         for n in sorted(node_import_times):
             if n[2]:
                 import_message = ""
             else:
                 import_message = " (IMPORT FAILED)"
-            print("{:6.1f} seconds{}:".format(n[0], import_message), n[1], file=sys.stderr)
-        print("\n", file=sys.stderr)
+            logger.debug(f"{n[0]:6.1f} seconds{import_message}: {n[1]}")
     return exported_nodes
 
 

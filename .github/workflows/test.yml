@@ -9,38 +9,6 @@ name: Backend Tests
 on: [ push ]
 
 jobs:
-  build_and_execute_macos:
-    environment: "Testing"
-    if: false
-    name: Installation, Unit and Workflow Tests for macOS
-    runs-on: ${{ matrix.runner.labels }}
-    strategy:
-      fail-fast: false
-      matrix:
-        runner:
-          - labels: [ self-hosted, m1-8gb ]
-    steps:
-    - uses: actions/checkout@v4
-    - run: |
-        python3 -m venv
-        source venv/bin/activate
-        python -m pip install setuptools pip --upgrade
-        pip install --no-build-isolation .[dev]
-    - name: Run unit tests
-      run: |
-        source venv/bin/activate
-        pytest -v tests/unit
-    - name: Run all other supported tests
-      run: |
-        source venv/bin/activate
-        pytest -v tests/inference
-      env:
-        HF_TOKEN: ${{ secrets.HF_TOKEN }}
-    - name: Lint for errors
-      run: |
-        source venv/bin/activate
-        pylint -j 8 --rcfile=.pylintrc comfy/
-        pylint -j 8 --rcfile=.pylintrc comfy_extras/
   build_and_execute_linux:
     environment: "Testing"
     name: Installation, Unit and Workflow Tests for Linux
@@ -51,9 +19,9 @@ jobs:
       matrix:
         runner:
           - labels: [self-hosted, Linux, X64, cpu]
-            container: "ubuntu:22.04"
+            container: "ubuntu"
           - labels: [self-hosted, Linux, X64, cuda-3090-24gb]
-            container: "nvcr.io/nvidia/pytorch:24.06-py3-igpu"
+            container: "nvcr.io/nvidia/pytorch:24.06-py3"
     steps:
       - run: |
           apt update || true
@@ -72,7 +40,7 @@ jobs:
         run: |
           export UV_BREAK_SYSTEM_PACKAGES=true
           export UV_SYSTEM_PYTHON=true
-          UV_TORCH_BACKEND=auto uv pip install "comfyui[dev] @ git+https://github.com/hiddenswitch/comfyui"
+          UV_TORCH_BACKEND=auto uv sync --inexact
       - name: Run tests
         run: |
           export HSA_OVERRIDE_GFX_VERSION=11.0.0

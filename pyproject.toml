@@ -2,24 +2,25 @@
 name = "comfyui"
 version = "0.3.29"
 description = "An installable version of ComfyUI"
-readme = "README.md" # Optional: if you have a README
+readme = "README.md"
 authors = [
     { name = "Contributors_of_ComfyUI" },
 ]
 requires-python = ">=3.10"
-license = { text = "Specify License Here" } # Optional: Add your license
-classifiers = [# Optional: Standard PyPI classifiers
+license = { text = "GPL-3.0-or-later" }
+classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
-    # Add other relevant classifiers
 ]
 
-# Core dependencies from requirements.txt (excluding torch/torchvision)
 dependencies = [
+    "torch",
+    "torchvision",
+    "torchaudio",
     "comfyui-frontend-package",
     "comfyui-workflow-templates",
     "torchdiffeq>=0.2.3",
@@ -110,25 +111,7 @@ where = ["."]
 include = ["comfy*"]
 namespaces = false
 
-[project.optional-dependencies]
-cpu = [
-    "torch",
-    "torchvision",
-    "torchaudio",
-]
-
-cuda = [
-    "torch",
-    "torchvision",
-    "torchaudio",
-]
-
-rocm = [
-    "torch",
-    "torchvision",
-    "torchaudio",
-]
-
+[dependency-groups]
 dev = [
     "pytest",
     "pytest-asyncio",
@@ -145,16 +128,40 @@ dev = [
     "pylint",
 ]
 
-triton = [
-    "triton ; sys_platform == 'Linux'",
-    'triton @ https://github.com/woct0rdho/triton-windows/releases/download/v3.2.0-windows.post9/triton-3.2.0-cp312-cp312-win_amd64.whl ; sys_platform == "Windows" and python_version == "3.12"',
-    'triton @ https://github.com/woct0rdho/triton-windows/releases/download/v3.2.0-windows.post9/triton-3.2.0-cp311-cp311-win_amd64.whl ; sys_platform == "Windows" and python_version == "3.11"',
-    'triton @ https://github.com/woct0rdho/triton-windows/releases/download/v3.2.0-windows.post9/triton-3.2.0-cp310-cp310-win_amd64.whl ; sys_platform == "Windows" and python_version == "3.10"',
+[project.optional-dependencies]
+cpu = [
+    "torch",
+    "torchvision",
+    "torchaudio",
 ]
 
-withtorch = ["comfyui[cuda]"] # Depends on the 'cuda' extra
-withtriton = ["comfyui[cuda, triton]"] # Depends on 'cuda' and 'triton' extras
+cu126 = [
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "triton ; sys_platform == 'Linux'",
+    "triton-windows ; sys_platform == 'win32'",
+]
 
+cu128 = [
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "triton ; sys_platform == 'Linux'",
+    "triton-windows ; sys_platform == 'win32'",
+]
+
+rocm = [
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "pytorch-triton-rocm"
+]
+
+attention = [
+    "sageattention",
+    "flash_attn ; sys_platform == 'Linux'",
+]
 
 [project.scripts]
 comfyui = "comfy.cmd.main:entrypoint"
@@ -162,12 +169,17 @@ comfyui-worker = "comfy.entrypoints.worker:entrypoint"
 comfyui-workflow = "comfy.entrypoints.workflow:entrypoint"
 
 [project.urls]
-Homepage = "https://github.com/comfyanonymous/ComfyUI" # Example
-Repository = "https://github.com/comfyanonymous/ComfyUI" # Example
+Homepage = "https://github.com/comfyanonymous/ComfyUI"
+Repository = "https://github.com/comfyanonymous/ComfyUI"
 
 [tool.uv]
 conflicts = [
-    [{ extra = "cpu" }, { extra = "cuda" }, { extra = "rocm" }],
+    [{ extra = "cpu" }, { extra = "cu126" }, { extra = "cu128" }, { extra = "rocm" }],
+]
+no-build-isolation-package = [
+    "sageattention",
+    "sage-attention",
+    "flash_attn",
 ]
 
 [[tool.uv.index]]
@@ -181,6 +193,11 @@ url = "https://download.pytorch.org/whl/cu126"
 explicit = true
 
 [[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
 name = "pytorch-rocm"
 url = "https://download.pytorch.org/whl/rocm6.3"
 explicit = true
@@ -188,23 +205,29 @@ explicit = true
 [tool.uv.sources]
 torch = [
     { index = "pytorch-cpu", extra = "cpu" },
-    { index = "pytorch-cu126", extra = "cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'linux'" },
+    { index = "pytorch-cu126", extra = "cu126", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
+    { index = "pytorch-cu128", extra = "cu128", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
+    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'Linux'" },
 ]
 torchvision = [
     { index = "pytorch-cpu", extra = "cpu" },
-    { index = "pytorch-cu126", extra = "cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'linux'" },
+    { index = "pytorch-cu126", extra = "cu126", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
+    { index = "pytorch-cu128", extra = "cu128", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
+    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'Linux'" },
 ]
 torchaudio = [
     { index = "pytorch-cpu", extra = "cpu" },
-    { index = "pytorch-cu126", extra = "cuda", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'linux'" },
+    { index = "pytorch-cu126", extra = "cu126", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
+    { index = "pytorch-cu128", extra = "cu128", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
+    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'Linux'" },
 ]
 comfyui-frontend-package = [
-#    { git = "https://github.com/appmana/appmana-comfyui-frontend", subdirectory = "comfyui_frontend_package" },
-    { workspace = true }
+    { git = "https://github.com/appmana/appmana-comfyui-frontend", subdirectory = "comfyui_frontend_package" },
 ]
+"sageattention" = [
+    { git = "https://github.com/thu-ml/SageAttention.git", extra = "attention", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
+]
+
 
 
 [tool.ruff]

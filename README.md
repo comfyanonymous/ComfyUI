@@ -6,7 +6,7 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 ### New Features
 
 - To run, just type `comfyui` in your command line and press enter.
-- [Installable](#installing) via `uv`: `uv pip install comfyui[cuda]@git+https://github.com/hiddenswitch/ComfyUI.git`.
+- [Installable](#installing) via `uv`: `UV_TORCH_BACKEND=auto uv pip install comfyui@git+https://github.com/hiddenswitch/ComfyUI.git`.
 - [Large Language Models](#large-language-models) with multi-modal support included.
 - [Automatic model downloading](#model-downloading) to save you disk space and time.
 - [Distributed](#distributed-multi-process-and-multi-gpu-comfy) with support for multiple GPUs, multiple backends and frontends, including in containers, using RabbitMQ.
@@ -131,46 +131,36 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
 
 4. Create a virtual environment:
    ```shell
-   uv venv --seed --python 3.12
+   uv venv
    ```
-5. Activate it on
-   **Windows (PowerShell):**
-
+5. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
    ```powershell
-   Set-ExecutionPolicy Unrestricted -Scope Process
-   & .\.venv\Scripts\activate.ps1
+   uv pip install --torch-backend=auto "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
    ```
-
-6. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
-   ```powershell
-   uv pip install setuptools wheel
-   UV_TORCH_BACKEND=auto uv pip install "comfyui[cuda]@git+https://github.com/hiddenswitch/ComfyUI.git"
-   ```
-7. To run the web server:
+6. To run the web server:
    ```shell
-   comfyui
+   uv run comfyui
    ```
    When you run workflows that use well-known models, this will download them automatically.
 
    To make it accessible over the network:
    ```shell
-   comfyui --listen
+   uv run comfyui --listen
    ```
 
 **Running**
 
-On Windows, you will need to open PowerShell and activate your virtual environment whenever you want to run `comfyui`.
+On Windows, you should change into the directory where you ran `uv venv`, then run `comfyui`. For example, if you ran `uv venv` inside `~\Documents\ComfyUI_Workspace\`
 
 ```powershell
 cd ~\Documents\ComfyUI_Workspace\
-& .venv\Scripts\activate.ps1
-comfyui
+uv run comfyui
 ```
 
 Upgrades are delivered frequently and automatically. To force one immediately, run pip upgrade like so:
 
 ```shell
-UV_TORCH_BACKEND=auto uv pip install --no-build-isolation --upgrade "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
+uv pip install --torch-backend=auto --upgrade "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
 ```
 
 ### macOS
@@ -179,9 +169,9 @@ UV_TORCH_BACKEND=auto uv pip install --no-build-isolation --upgrade "comfyui@git
    ```shell
    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
    ```
-   Then, install `python` and `uv`:
+   Then, install `uv`:
    ```shell
-   HOMEBREW_NO_AUTO_UPDATE=1 brew install python@3.12 uv
+   HOMEBREW_NO_AUTO_UPDATE=1 brew install uv
    ```
 3. Switch into a directory that you want to store your outputs, custom nodes and models in. This is your ComfyUI workspace. For example, if you want to store your workspace in a directory called `ComfyUI_Workspace` in your Documents folder:
 
@@ -192,39 +182,31 @@ UV_TORCH_BACKEND=auto uv pip install --no-build-isolation --upgrade "comfyui@git
 
 4. Create a virtual environment:
    ```shell
-   uv venv --seed --python 3.12
-   ```
-5. Activate it on
-   **macOS**
-
-   ```shell
-   source .venv/bin/activate
+   uv venv --python 3.12
    ```
 
-6. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
+5. Run the following command to install `comfyui` into your current environment.
    ```shell
-   uv pip install setuptools wheel
-   UV_TORCH_BACKEND=auto uv pip install "comfyui[cpu]@git+https://github.com/hiddenswitch/ComfyUI.git"
+   uv pip install "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
    ```
-7. To run the web server:
+6. To run the web server:
    ```shell
-   comfyui
+   uv run comfyui
    ```
    When you run workflows that use well-known models, this will download them automatically.
 
    To make it accessible over the network:
    ```shell
-   comfyui --listen
+   uv run comfyui --listen
    ```
 
 **Running**
 
-On macOS, you will need to open the terminal and activate your virtual environment whenever you want to run `comfyui`.
+On macOS, you will need to open the terminal and `cd` into the directory in which you ran `uv venv`. For example, if you ran `uv venv` in `~/Documents/ComfyUI_Workspace/`:
 
 ```shell
 cd ~/Documents/ComfyUI_Workspace/
-source .venv/bin/activate
-comfyui
+uv run comfyui
 ```
 
 ## Model Downloading
@@ -262,16 +244,16 @@ To save space, you will need to enable Developer Mode in the Windows Settings, t
 
 These packages have been adapted to be installable with `pip` and download models to the correct places:
 
-- **ELLA T5 Text Conditioning for SD1.5**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-ella.git`
-- **IP Adapter**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-ipadapter-plus`
-- **ControlNet Auxiliary Preprocessors**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-controlnet-aux.git`.
-- **LayerDiffuse Alpha Channel Diffusion**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-layerdiffuse.git`.
-- **BRIA Background Removal**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-bria-bg-removal.git`
-- **Video Frame Interpolation**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-frame-interpolation`
-- **Video Helper Suite**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-helper-suite`
-- **AnimateDiff Evolved**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-animatediff-evolved`
-- **Impact Pack**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-impact-pack`
-- **TensorRT**: `pip install git+https://github.com/AppMAna/appmana-comfyui-nodes-tensorrt`
+- **ELLA T5 Text Conditioning for SD1.5**: `uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-ella.git`
+- **IP Adapter**: `uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-ipadapter-plus`
+- **ControlNet Auxiliary Preprocessors**: `uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-controlnet-aux.git`.
+- **LayerDiffuse Alpha Channel Diffusion**: `uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-layerdiffuse.git`.
+- **BRIA Background Removal**: `uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-bria-bg-removal.git`
+- **Video Frame Interpolation**: `uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-frame-interpolation`
+- **Video Helper Suite**: `uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-helper-suite`
+- **AnimateDiff Evolved**: `uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-animatediff-evolved`
+- **Impact Pack**: `uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-impact-pack`
+- **TensorRT**: `uv pip install git+https://github.com/AppMAna/appmana-comfyui-nodes-tensorrt`
 
 Custom nodes are generally supported by this fork. Use these for a bug-free experience.
 
@@ -287,20 +269,25 @@ caddy reverse-proxy --from localhost:443 --to localhost:8188 --tls self_signed
 
 ##### Notes for AMD Users
 
-Until a workaround is found, specify these variables:
+Installation for `ROCm` should be explicit:
+```shell
+uv pip install "comfyui[rocm]@git+https://github.com/hiddenswitch/ComfyUI.git"
+```
+
+Then, until a workaround is found, specify these variables:
 
 RDNA 3 (RX 7600 and later)
 
 ```shell
 export HSA_OVERRIDE_GFX_VERSION=11.0.0
-comfyui
+uv run comfyui
 ```
 
 RDNA 2 (RX 6600 and others)
 
 ```shell
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
-comfyui
+uv run comfyui
 ```
 
 You can enable experimental memory efficient attention on pytorch 2.5 in ComfyUI on RDNA3 and potentially other AMD GPUs using this command:
@@ -329,57 +316,6 @@ For models compatible with Cambricon Extension for PyTorch (`torch_mlu`). Here's
 1. Install the Cambricon CNToolkit by adhering to the platform-specific instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cntoolkit_3.7.2/cntoolkit_install_3.7.2/index.html)
 2. Next, install the PyTorch (`torch_mlu`) extension following the instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cambricon_pytorch_1.17.0/user_guide_1.9/index.html)
 3. Launch ComfyUI by running `python main.py`
-
-## Manual Install (Windows, Linux, macOS) For Development
-
-1. Clone this repo:
-   ```shell
-   git clone https://github.com/hiddenswitch/ComfyUI.git
-   cd ComfyUI
-   ```
-2. Create a virtual environment:
-    1. Create an environment:
-       ```shell
-       python -m virtualenv venv
-       ```
-    2. Activate it:
-
-       **Windows (PowerShell):**
-       ```pwsh
-       Set-ExecutionPolicy Unrestricted -Scope Process
-       & .\venv\Scripts\activate.ps1
-       ```
-
-       **Linux and macOS**
-       ```shell
-       source ./venv/bin/activate
-       ```
-
-3. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
-   ```shell
-   pip install -e ".[dev]"
-   ```
-4. To run the web server:
-    ```shell
-    comfyui
-    ```
-   To run tests:
-    ```shell
-    pytest -v tests/
-    ```
-   You can use `comfyui` as an API. Visit the [OpenAPI specification](comfy/api/openapi.yaml). This file can be used to generate typed clients for your preferred language.
-5. To create the standalone binary:
-    ```shell
-    python -m PyInstaller --onefile --noupx -n ComfyUI --add-data="comfy/;comfy/" --paths $(pwd) --paths comfy/cmd main.py
-    ```
-
-Because pip installs the package as editable with `pip install -e .`, any changes you make to the repository will affect the next launch of `comfy`. In IDEA based editors like PyCharm and IntelliJ, the Relodium plugin supports modifying your custom nodes or similar code while the server is running.
-
-## Linux Development Dependencies
-
-```shell
-apt install -y git build-essential clang python3-dev python3-venv
-```
 
 # Large Language Models
 
@@ -420,10 +356,10 @@ First, install this package using the [Installation Instructions](#installing).
 Then, install the custom nodes packages that support video creation workflows:
 
 ```shell
-pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-frame-interpolation
-pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-helper-suite
-pip install git+https://github.com/AppMana/appmana-comfyui-nodes-animatediff-evolved
-pip install git+https://github.com/AppMana/appmana-comfyui-nodes-controlnet-aux.git
+uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-frame-interpolation
+uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-helper-suite
+uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-animatediff-evolved
+uv pip install git+https://github.com/AppMana/appmana-comfyui-nodes-controlnet-aux.git
 ```
 
 Start creating an AnimateDiff workflow. When using these packages, the appropriate models will download automatically.
@@ -438,11 +374,7 @@ Improve the performance of your Mochi model video generation using **Sage Attent
 
 [Use the default Mochi Workflow.](https://github.com/comfyanonymous/ComfyUI_examples/raw/refs/heads/master/mochi/mochi_text_to_video_example.webp) This does not require any custom nodes or any change to your workflow.
 
-Install the dependencies for Windows or Linux using the `withtriton` component, or install the specific dependencies you need from [requirements-triton.txt](./requirements-triton.txt):
-
-```shell
-pip install "comfyui[withtriton]@git+https://github.com/hiddenswitch/ComfyUI.git"
-```
+**Installation**
 
 On Windows, you will need the CUDA Toolkit and Visual Studio 2022. If you do not already have this, use `chocolatey`:
 
@@ -457,16 +389,16 @@ choco install -y vcredist2010 vcredist2013 vcredist140
 
 Then, visit [NVIDIA.com's CUDA Toolkit Download Page](https://developer.nvidia.com/cuda-12-6-0-download-archive?target_os=Windows&target_arch=x86_64&target_version=Server2022&target_type=exe_network) and download and install the CUDA Toolkit. Verify it is correctly installed by running `nvcc --version`.
 
-You are now ready to install Sage Attention 2:
+You are now ready to install Sage Attention 2 and Triton:
 
 ```shell
-uv pip install --no-build-isolation --no-deps "git+https://github.com/thu-ml/SageAttention.git"
+uv pip install --torch-backend=auto "comfyui[attention]@git+https://github.com/hiddenswitch/ComfyUI.git"
 ```
 
 To start ComfyUI with it:
 
 ```shell
-comfyui --use-sage-attention
+uv run comfyui --use-sage-attention
 ```
 
 ![with_sage_attention.webp](./docs/assets/with_sage_attention.webp)
