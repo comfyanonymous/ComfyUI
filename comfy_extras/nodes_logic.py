@@ -1,6 +1,6 @@
-from comfy.comfy_types.node_typing import IO
+from comfy.comfy_types.node_typing import IO, ComfyNodeABC
 
-class LogicIF():
+class LogicIF(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -24,7 +24,7 @@ class LogicIF():
         else:
             return when_false,
 
-class LogicAND():
+class LogicAND(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -41,7 +41,7 @@ class LogicAND():
     def execute(self, input_a, input_b, **kwargs):
         return input_a and input_b,
 
-class LogicOR():
+class LogicOR(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -58,7 +58,7 @@ class LogicOR():
     def execute(self, input_a, input_b, **kwargs):
         return input_a or input_b,
 
-class LogicNOT():
+class LogicNOT(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -74,7 +74,7 @@ class LogicNOT():
     def execute(self, input, **kwargs):
         return not input,
 
-class LogicXOR():
+class LogicXOR(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(s):
         return {
