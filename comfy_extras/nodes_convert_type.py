@@ -1,5 +1,4 @@
 import re
-import nodes
 from comfy.comfy_types.node_typing import IO
 
 # Portions of this code is derived from Itdrdata/ComfyUI-Impact-Pack,
