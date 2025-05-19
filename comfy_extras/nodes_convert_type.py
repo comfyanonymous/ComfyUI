@@ -2,14 +2,7 @@ import re
 from comfy.comfy_types.node_typing import IO
 
 # Portions of this code is derived from Itdrdata/ComfyUI-Impact-Pack,
-# specifically the handling of anytype and parts of the ConvertDataType
-# node.
-
-class AnyType(str):
-    def __ne__(self, __value: object) -> bool:
-        return False
-
-any_typ = AnyType("*")
+# specifically the implementation of ConvertDataType.
 
 class ConvertDataType:
     def __init__(self):
@@ -17,7 +10,7 @@ class ConvertDataType:
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"value": (any_typ,),
+        return {"required": {"value": ("*"),
                              "int_mode": (["truncate","round","bankers_rounding"],),
                              "string_round_value": ("BOOLEAN", {"default": True}),
                              "string_round_to": ("INT", {"default": 2,   "min": 0})
