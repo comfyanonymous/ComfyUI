@@ -226,7 +226,7 @@ class PromptServer():
             return response
 
         @routes.get("/embeddings")
-        def get_embeddings(self):
+        def get_embeddings(request):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
 
