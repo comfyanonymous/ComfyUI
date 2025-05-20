@@ -217,7 +217,6 @@ class FluxProUltraImageNode(ComfyNodeABC):
 
     RETURN_TYPES = (IO.IMAGE,)
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    HELP = "docs/flux-pro-ultra-image-node.md"
     FUNCTION = "api_call"
     API_NODE = True
     CATEGORY = "api node/image/BFL"

@@ -749,6 +749,12 @@ class PromptServer():
                 web.static('/templates', workflow_templates_path)
             ])
 
+        # Serve node documentation markdown from the docs directory
+        docs_dir = os.path.join(os.path.dirname(__file__), 'docs')
+        self.app.add_routes([
+            web.static('/docs', docs_dir)
+        ])
+
         self.app.add_routes([
             web.static('/', self.web_root),
         ])
