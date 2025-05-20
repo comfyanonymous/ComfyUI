@@ -21,13 +21,13 @@ DEFAULT_SERVER_URL = "http://127.0.0.1:8188"
 def api_spec_path() -> str:
     """
     Get the path to the OpenAPI specification file
-    
+
     Returns:
         Path to the OpenAPI specification file
     """
     return os.path.abspath(os.path.join(
-        os.path.dirname(__file__), 
-        "..", 
+        os.path.dirname(__file__),
+        "..",
         "openapi.yaml"
     ))
 
@@ -36,10 +36,10 @@ def api_spec_path() -> str:
 def api_spec(api_spec_path: str) -> Dict[str, Any]:
     """
     Load the OpenAPI specification
-    
+
     Args:
         api_spec_path: Path to the spec file
-        
+
     Returns:
         Parsed OpenAPI specification
     """
@@ -51,7 +51,7 @@ def api_spec(api_spec_path: str) -> Dict[str, Any]:
 def base_url() -> str:
     """
     Get the base URL for the API server
-    
+
     Returns:
         Base URL string
     """
@@ -63,10 +63,10 @@ def base_url() -> str:
 def server_available(base_url: str) -> bool:
     """
     Check if the server is available
-    
+
     Args:
         base_url: Base URL for the API
-        
+
     Returns:
         True if the server is available, False otherwise
     """
@@ -82,24 +82,24 @@ def server_available(base_url: str) -> bool:
 def api_client(base_url: str) -> Generator[Optional[requests.Session], None, None]:
     """
     Create a requests session for API testing
-    
+
     Args:
         base_url: Base URL for the API
-        
+
     Yields:
         Requests session configured for the API
     """
     session = requests.Session()
-    
+
     # Helper function to construct URLs
     def get_url(path: str) -> str:
         return urljoin(base_url, path)
-    
+
     # Add url helper to the session
     session.get_url = get_url  # type: ignore
-    
+
     yield session
-    
+
     # Cleanup
     session.close()
 
@@ -108,24 +108,24 @@ def api_client(base_url: str) -> Generator[Optional[requests.Session], None, Non
 def api_get_json(api_client: requests.Session):
     """
     Helper fixture for making GET requests and parsing JSON responses
-    
+
     Args:
         api_client: API client session
-        
+
     Returns:
         Function that makes GET requests and returns JSON
     """
     def _get_json(path: str, **kwargs):
         url = api_client.get_url(path)  # type: ignore
         response = api_client.get(url, **kwargs)
-        
+
         if response.status_code == 200:
             try:
                 return response.json()
             except ValueError:
                 return None
         return None
-    
+
     return _get_json
 
 
@@ -133,7 +133,7 @@ def api_get_json(api_client: requests.Session):
 def require_server(server_available):
     """
     Skip tests if server is not available
-    
+
     Args:
         server_available: Whether the server is available
     """

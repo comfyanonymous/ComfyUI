@@ -17,20 +17,20 @@ sys.path.insert(0, current_dir)
 def get_all_endpoints(spec):
     """
     Extract all endpoints from an OpenAPI spec
-    
+
     Args:
         spec: Parsed OpenAPI specification
-        
+
     Returns:
         List of dicts with path, method, and tags for each endpoint
     """
     endpoints = []
-    
+
     for path, path_item in spec['paths'].items():
         for method, operation in path_item.items():
             if method.lower() not in ['get', 'post', 'put', 'delete', 'patch']:
                 continue
-                
+
             endpoints.append({
                 'path': path,
                 'method': method.lower(),
@@ -38,7 +38,7 @@ def get_all_endpoints(spec):
                 'operation_id': operation.get('operationId', ''),
                 'summary': operation.get('summary', '')
             })
-    
+
     return endpoints
 
 # Setup logging
@@ -50,10 +50,10 @@ logger = logging.getLogger(__name__)
 def all_endpoints(api_spec: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Get all endpoints from the API spec
-    
+
     Args:
         api_spec: Loaded OpenAPI spec
-    
+
     Returns:
         List of endpoint information
     """
@@ -63,13 +63,13 @@ def all_endpoints(api_spec: Dict[str, Any]) -> List[Dict[str, Any]]:
 def test_endpoints_exist(all_endpoints: List[Dict[str, Any]]):
     """
     Test that endpoints are defined in the spec
-    
+
     Args:
         all_endpoints: List of endpoint information
     """
     # Simple check that we have endpoints defined
     assert len(all_endpoints) > 0, "No endpoints defined in the OpenAPI spec"
-    
+
     # Log the endpoints for informational purposes
     logger.info(f"Found {len(all_endpoints)} endpoints in the OpenAPI spec")
     for endpoint in all_endpoints:
@@ -87,23 +87,23 @@ def test_endpoints_exist(all_endpoints: List[Dict[str, Any]]):
 def test_basic_get_endpoints(require_server, api_client, endpoint_path: str):
     """
     Test that basic GET endpoints exist and respond
-    
+
     Args:
         require_server: Fixture that skips if server is not available
         api_client: API client fixture
         endpoint_path: Path to test
     """
     url = api_client.get_url(endpoint_path)  # type: ignore
-    
+
     try:
         response = api_client.get(url)
-        
+
         # We're just checking that the endpoint exists and returns some kind of response
         # Not necessarily a 200 status code
         assert response.status_code not in [404, 405], f"Endpoint {endpoint_path} does not exist"
-        
+
         logger.info(f"Endpoint {endpoint_path} exists with status code {response.status_code}")
-        
+
     except requests.RequestException as e:
         pytest.fail(f"Request to {endpoint_path} failed: {str(e)}")
 
@@ -111,24 +111,24 @@ def test_basic_get_endpoints(require_server, api_client, endpoint_path: str):
 def test_websocket_endpoint_exists(require_server, base_url: str):
     """
     Test that the WebSocket endpoint exists
-    
+
     Args:
         require_server: Fixture that skips if server is not available
         base_url: Base server URL
     """
     ws_url = urljoin(base_url, "/ws")
-    
+
     # For WebSocket, we can't use a normal GET request
     # Instead, we make a HEAD request to check if the endpoint exists
     try:
         response = requests.head(ws_url)
-        
+
         # WebSocket endpoints often return a 400 Bad Request for HEAD requests
         # but a 404 would indicate the endpoint doesn't exist
         assert response.status_code != 404, "WebSocket endpoint /ws does not exist"
-        
+
         logger.info(f"WebSocket endpoint exists with status code {response.status_code}")
-        
+
     except requests.RequestException as e:
         pytest.fail(f"Request to WebSocket endpoint failed: {str(e)}")
 
@@ -136,35 +136,35 @@ def test_websocket_endpoint_exists(require_server, base_url: str):
 def test_api_models_folder_endpoint(require_server, api_client):
     """
     Test that the /models/{folder} endpoint exists and responds
-    
+
     Args:
         require_server: Fixture that skips if server is not available
         api_client: API client fixture
     """
     # First get available model types
     models_url = api_client.get_url("/models")  # type: ignore
-    
+
     try:
         models_response = api_client.get(models_url)
         assert models_response.status_code == 200, "Failed to get model types"
-        
+
         model_types = models_response.json()
-        
+
         # Skip if no model types available
         if not model_types:
             pytest.skip("No model types available to test")
-            
+
         # Test with the first model type
         model_type = model_types[0]
         models_folder_url = api_client.get_url(f"/models/{model_type}")  # type: ignore
-        
+
         folder_response = api_client.get(models_folder_url)
-        
+
         # We're just checking that the endpoint exists
         assert folder_response.status_code != 404, f"Endpoint /models/{model_type} does not exist"
-        
+
         logger.info(f"Endpoint /models/{model_type} exists with status code {folder_response.status_code}")
-        
+
     except requests.RequestException as e:
         pytest.fail(f"Request failed: {str(e)}")
     except (ValueError, KeyError, IndexError) as e:
@@ -174,35 +174,35 @@ def test_api_models_folder_endpoint(require_server, api_client):
 def test_api_object_info_node_endpoint(require_server, api_client):
     """
     Test that the /object_info/{node_class} endpoint exists and responds
-    
+
     Args:
         require_server: Fixture that skips if server is not available
         api_client: API client fixture
     """
     # First get available node classes
     objects_url = api_client.get_url("/object_info")  # type: ignore
-    
+
     try:
         objects_response = api_client.get(objects_url)
         assert objects_response.status_code == 200, "Failed to get object info"
-        
+
         node_classes = objects_response.json()
-        
+
         # Skip if no node classes available
         if not node_classes:
             pytest.skip("No node classes available to test")
-            
+
         # Test with the first node class
         node_class = next(iter(node_classes.keys()))
         node_url = api_client.get_url(f"/object_info/{node_class}")  # type: ignore
-        
+
         node_response = api_client.get(node_url)
-        
+
         # We're just checking that the endpoint exists
         assert node_response.status_code != 404, f"Endpoint /object_info/{node_class} does not exist"
-        
+
         logger.info(f"Endpoint /object_info/{node_class} exists with status code {node_response.status_code}")
-        
+
     except requests.RequestException as e:
         pytest.fail(f"Request failed: {str(e)}")
     except (ValueError, KeyError, StopIteration) as e:
@@ -212,7 +212,7 @@ def test_api_object_info_node_endpoint(require_server, api_client):
 def test_internal_endpoints_exist(require_server, api_client):
     """
     Test that internal endpoints exist
-    
+
     Args:
         require_server: Fixture that skips if server is not available
         api_client: API client fixture
@@ -223,18 +223,18 @@ def test_internal_endpoints_exist(require_server, api_client):
         "/internal/folder_paths",
         "/internal/files/output"
     ]
-    
+
     for endpoint in internal_endpoints:
         url = api_client.get_url(endpoint)  # type: ignore
-        
+
         try:
             response = api_client.get(url)
-            
+
             # We're just checking that the endpoint exists
             assert response.status_code != 404, f"Endpoint {endpoint} does not exist"
-            
+
             logger.info(f"Endpoint {endpoint} exists with status code {response.status_code}")
-            
+
         except requests.RequestException as e:
             logger.warning(f"Request to {endpoint} failed: {str(e)}")
             # Don't fail the test as internal endpoints might be restricted

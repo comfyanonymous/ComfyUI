@@ -10,7 +10,7 @@ from typing import Dict, Any
 def test_openapi_spec_is_valid(api_spec: Dict[str, Any]):
     """
     Test that the OpenAPI specification is valid
-    
+
     Args:
         api_spec: Loaded OpenAPI spec
     """
@@ -23,7 +23,7 @@ def test_openapi_spec_is_valid(api_spec: Dict[str, Any]):
 def test_spec_has_info(api_spec: Dict[str, Any]):
     """
     Test that the OpenAPI spec has the required info section
-    
+
     Args:
         api_spec: Loaded OpenAPI spec
     """
@@ -35,7 +35,7 @@ def test_spec_has_info(api_spec: Dict[str, Any]):
 def test_spec_has_paths(api_spec: Dict[str, Any]):
     """
     Test that the OpenAPI spec has paths defined
-    
+
     Args:
         api_spec: Loaded OpenAPI spec
     """
@@ -46,7 +46,7 @@ def test_spec_has_paths(api_spec: Dict[str, Any]):
 def test_spec_has_components(api_spec: Dict[str, Any]):
     """
     Test that the OpenAPI spec has components defined
-    
+
     Args:
         api_spec: Loaded OpenAPI spec
     """
@@ -57,7 +57,7 @@ def test_spec_has_components(api_spec: Dict[str, Any]):
 def test_workflow_endpoints_exist(api_spec: Dict[str, Any]):
     """
     Test that core workflow endpoints are defined
-    
+
     Args:
         api_spec: Loaded OpenAPI spec
     """
@@ -69,7 +69,7 @@ def test_workflow_endpoints_exist(api_spec: Dict[str, Any]):
 def test_image_endpoints_exist(api_spec: Dict[str, Any]):
     """
     Test that core image endpoints are defined
-    
+
     Args:
         api_spec: Loaded OpenAPI spec
     """
@@ -80,7 +80,7 @@ def test_image_endpoints_exist(api_spec: Dict[str, Any]):
 def test_model_endpoints_exist(api_spec: Dict[str, Any]):
     """
     Test that core model endpoints are defined
-    
+
     Args:
         api_spec: Loaded OpenAPI spec
     """
@@ -91,18 +91,18 @@ def test_model_endpoints_exist(api_spec: Dict[str, Any]):
 def test_operation_ids_are_unique(api_spec: Dict[str, Any]):
     """
     Test that all operationIds are unique
-    
+
     Args:
         api_spec: Loaded OpenAPI spec
     """
     operation_ids = []
-    
+
     for path, path_item in api_spec['paths'].items():
         for method, operation in path_item.items():
             if method in ['get', 'post', 'put', 'delete', 'patch']:
                 if 'operationId' in operation:
                     operation_ids.append(operation['operationId'])
-    
+
     # Check for duplicates
     duplicates = set([op_id for op_id in operation_ids if operation_ids.count(op_id) > 1])
     assert len(duplicates) == 0, f"Found duplicate operationIds: {duplicates}"
@@ -111,34 +111,34 @@ def test_operation_ids_are_unique(api_spec: Dict[str, Any]):
 def test_all_endpoints_have_operation_ids(api_spec: Dict[str, Any]):
     """
     Test that all endpoints have operationIds
-    
+
     Args:
         api_spec: Loaded OpenAPI spec
     """
     missing = []
-    
+
     for path, path_item in api_spec['paths'].items():
         for method, operation in path_item.items():
             if method in ['get', 'post', 'put', 'delete', 'patch']:
                 if 'operationId' not in operation:
                     missing.append(f"{method.upper()} {path}")
-    
+
     assert len(missing) == 0, f"Found endpoints without operationIds: {missing}"
 
 
 def test_all_endpoints_have_tags(api_spec: Dict[str, Any]):
     """
     Test that all endpoints have tags
-    
+
     Args:
         api_spec: Loaded OpenAPI spec
     """
     missing = []
-    
+
     for path, path_item in api_spec['paths'].items():
         for method, operation in path_item.items():
             if method in ['get', 'post', 'put', 'delete', 'patch']:
                 if 'tags' not in operation or not operation['tags']:
                     missing.append(f"{method.upper()} {path}")
-    
+
     assert len(missing) == 0, f"Found endpoints without tags: {missing}"
