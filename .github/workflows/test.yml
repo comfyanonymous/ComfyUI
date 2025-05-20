@@ -18,10 +18,8 @@ jobs:
       fail-fast: false
       matrix:
         runner:
-          - labels: [self-hosted, Linux, X64, cpu]
-            container: "ubuntu"
           - labels: [self-hosted, Linux, X64, cuda-3060-12gb]
-            container: "nvcr.io/nvidia/pytorch:24.06-py3"
+            container: "nvcr.io/nvidia/pytorch:24.12-py3"
     steps:
       - run: |
           apt update || true
