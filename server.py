@@ -584,9 +584,6 @@ class PromptServer():
 
             if hasattr(obj_class, 'API_NODE'):
                 info['api_node'] = obj_class.API_NODE
-
-            if hasattr(obj_class, 'HELP'):
-                info['help'] = obj_class.HELP
             return info
 
         @routes.get("/object_info")
