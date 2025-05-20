@@ -20,7 +20,7 @@ jobs:
         runner:
           - labels: [self-hosted, Linux, X64, cpu]
             container: "ubuntu"
-          - labels: [self-hosted, Linux, X64, cuda-3090-24gb]
+          - labels: [self-hosted, Linux, X64, cuda-3060-12gb]
             container: "nvcr.io/nvidia/pytorch:24.06-py3"
     steps:
       - run: |
