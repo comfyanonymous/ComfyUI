@@ -39,7 +39,6 @@ def set_torch_compile_wrapper(model: ModelPatcher, backend: str, options: Option
     When keys is None, it will default to using ["diffusion_model"], compiling the whole diffusion_model.
     When a list of keys is provided, it will perform torch.compile on only the selected modules.
     '''
-    torch.compile()
     # clear out any other torch.compile wrappers
     model.remove_wrappers_with_key(WrappersMP.APPLY_MODEL, COMPILE_KEY)
     # if no keys, default to 'diffusion_model'
