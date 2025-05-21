@@ -44,8 +44,8 @@ jobs:
           export HSA_OVERRIDE_GFX_VERSION=11.0.0
           export HIP_VISIBLE_DEVICES=0
           nvidia-smi || rocminfo || true
-          pytest -v tests/unit
+          uv run pytest -v tests/unit
       - name: Lint for errors
         run: |
-          pylint --rcfile=.pylintrc comfy/
-          pylint --rcfile=.pylintrc comfy_extras/
+          uv run pylint --rcfile=.pylintrc comfy/
+          uv run pylint --rcfile=.pylintrc comfy_extras/
