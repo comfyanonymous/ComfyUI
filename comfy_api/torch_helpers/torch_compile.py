@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 COMPILE_KEY = "torch.compile"
-ATTACHMENT_TORCH_COMPILE_KWARGS = "torch_compile_kwargs"
+TORCH_COMPILE_KWARGS = "torch_compile_kwargs"
 
 
 def apply_torch_compile_factory(compiled_module_dict: dict[str, Callable]) -> Callable:
@@ -65,4 +65,4 @@ def set_torch_compile_wrapper(model: ModelPatcher, backend: str, options: Option
         compiled_module_dict=compiled_modules,
     )
     model.add_wrapper_with_key(WrappersMP.APPLY_MODEL, COMPILE_KEY, wrapper_func)
-    model.set_attachments(ATTACHMENT_TORCH_COMPILE_KWARGS, compile_kwargs)
+    model.model_options[TORCH_COMPILE_KWARGS] = compile_kwargs
