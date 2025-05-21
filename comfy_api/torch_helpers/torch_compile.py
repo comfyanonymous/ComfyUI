@@ -15,7 +15,7 @@ TORCH_COMPILE_KWARGS = "torch_compile_kwargs"
 
 def apply_torch_compile_factory(compiled_module_dict: dict[str, Callable]) -> Callable:
     '''
-    Create a wrapper that will refer to the compiled_diffusion_model
+    Create a wrapper that will refer to the compiled_diffusion_model.
     '''
     def apply_torch_compile_wrapper(executor: WrapperExecutor, *args, **kwargs):
         try:
@@ -37,7 +37,7 @@ def set_torch_compile_wrapper(model: ModelPatcher, backend: str, options: Option
     Perform torch.compile that will be applied at sample time for either the whole model or specific params of the BaseModel instance.
 
     When keys is None, it will default to using ["diffusion_model"], compiling the whole diffusion_model.
-    When a list of keys is provided, it will perform torch.compile on only the selected params.
+    When a list of keys is provided, it will perform torch.compile on only the selected modules.
     '''
     torch.compile()
     # clear out any other torch.compile wrappers
@@ -64,5 +64,7 @@ def set_torch_compile_wrapper(model: ModelPatcher, backend: str, options: Option
     wrapper_func = apply_torch_compile_factory(
         compiled_module_dict=compiled_modules,
     )
+    # store wrapper to run on BaseModel's apply_model function
     model.add_wrapper_with_key(WrappersMP.APPLY_MODEL, COMPILE_KEY, wrapper_func)
+    # keep compile kwargs for reference
     model.model_options[TORCH_COMPILE_KWARGS] = compile_kwargs
