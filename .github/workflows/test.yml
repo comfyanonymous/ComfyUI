@@ -38,7 +38,7 @@ jobs:
         run: |
           export UV_BREAK_SYSTEM_PACKAGES=true
           export UV_SYSTEM_PYTHON=true
-          UV_TORCH_BACKEND=auto uv sync --inexact --no-install-package sageattention
+          UV_TORCH_BACKEND=auto uv sync --inexact
       - name: Run tests
         run: |
           export HSA_OVERRIDE_GFX_VERSION=11.0.0
