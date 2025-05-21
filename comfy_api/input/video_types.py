@@ -43,3 +43,13 @@ class VideoInput(ABC):
         components = self.get_components()
         return components.images.shape[2], components.images.shape[1]
 
+    def get_duration(self) -> float:
+        """
+        Returns the duration of the video in seconds.
+
+        Returns:
+            Duration in seconds
+        """
+        components = self.get_components()
+        frame_count = components.images.shape[0]
+        return float(frame_count / components.frame_rate)
