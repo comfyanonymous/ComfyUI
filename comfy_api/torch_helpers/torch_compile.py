@@ -3,7 +3,7 @@ import torch
 
 import comfy.utils
 from comfy.patcher_extension import WrappersMP
-from typing import TYPE_CHECKING, Callable, Union, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
     from comfy.patcher_extension import WrapperExecutor
