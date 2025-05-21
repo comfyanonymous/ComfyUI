@@ -29,7 +29,6 @@ import comfy.model_management
 import node_helpers
 from comfyui_version import __version__
 from app.frontend_management import FrontendManager
-from execution import PromptQueue
 
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
@@ -161,7 +160,7 @@ class PromptServer():
         self.custom_node_manager = CustomNodeManager()
         self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
-        self.prompt_queue = PromptQueue(self)
+        self.prompt_queue = execution.PromptQueue(self)
         self.loop = loop
         self.messages = asyncio.Queue()
         self.client_session:Optional[aiohttp.ClientSession] = None
