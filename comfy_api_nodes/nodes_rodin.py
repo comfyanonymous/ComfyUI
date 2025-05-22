@@ -73,7 +73,7 @@ class Rodin3DAPI:
     """
     RETURN_TYPES = (IO.STRING,)
     RETURN_NAMES = ("3D Model Path",)
-    CATEGORY = "api node/3D/Rodin"
+    CATEGORY = "api node/3d/Rodin"
     DESCRIPTION = cleandoc(__doc__ or "")
     FUNCTION = "api_call"
     API_NODE = True
