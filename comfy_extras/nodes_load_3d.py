@@ -16,7 +16,7 @@ class Load3D():
 
         os.makedirs(input_dir, exist_ok=True)
 
-        files = [normalize_path(os.path.join("3d", f)) for f in os.listdir(input_dir) if f.endswith(('.gltf', '.glb', '.obj', '.mtl', '.fbx', '.stl'))]
+        files = [normalize_path(os.path.join("3d", f)) for f in os.listdir(input_dir) if f.endswith(('.gltf', '.glb', '.obj', '.fbx', '.stl'))]
 
         return {"required": {
             "model_file": (sorted(files), {"file_upload": True}),
