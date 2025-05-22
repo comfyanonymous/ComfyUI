@@ -635,7 +635,7 @@ class VaceWanModel(WanModel):
         t,
         context,
         vace_context,
-        vace_strength=1.0,
+        vace_strength,
         clip_fea=None,
         freqs=None,
         transformer_options={},
@@ -661,8 +661,11 @@ class VaceWanModel(WanModel):
                 context = torch.concat([context_clip, context], dim=1)
             context_img_len = clip_fea.shape[-2]
 
+        orig_shape = list(vace_context.shape)
+        vace_context = vace_context.movedim(0, 1).reshape([-1] + orig_shape[2:])
         c = self.vace_patch_embedding(vace_context.float()).to(vace_context.dtype)
         c = c.flatten(2).transpose(1, 2)
+        c = list(c.split(orig_shape[0], dim=0))
 
         # arguments
         x_orig = x
@@ -682,8 +685,9 @@ class VaceWanModel(WanModel):
 
             ii = self.vace_layers_mapping.get(i, None)
             if ii is not None:
-                c_skip, c = self.vace_blocks[ii](c, x=x_orig, e=e0, freqs=freqs, context=context, context_img_len=context_img_len)
-                x += c_skip * vace_strength
+                for iii in range(len(c)):
+                    c_skip, c[iii] = self.vace_blocks[ii](c[iii], x=x_orig, e=e0, freqs=freqs, context=context, context_img_len=context_img_len)
+                    x += c_skip * vace_strength[iii]
                 del c_skip
         # head
         x = self.head(x, e)

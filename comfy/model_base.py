@@ -1062,20 +1062,25 @@ class WAN21_Vace(WAN21):
         vace_frames = kwargs.get("vace_frames", None)
         if vace_frames is None:
             noise_shape[1] = 32
-            vace_frames = torch.zeros(noise_shape, device=noise.device, dtype=noise.dtype)
-
-        for i in range(0, vace_frames.shape[1], 16):
-            vace_frames = vace_frames.clone()
-            vace_frames[:, i:i + 16] = self.process_latent_in(vace_frames[:, i:i + 16])
+            vace_frames = [torch.zeros(noise_shape, device=noise.device, dtype=noise.dtype)]
 
         mask = kwargs.get("vace_mask", None)
         if mask is None:
             noise_shape[1] = 64
-            mask = torch.ones(noise_shape, device=noise.device, dtype=noise.dtype)
+            mask = [torch.ones(noise_shape, device=noise.device, dtype=noise.dtype)] * len(vace_frames)
 
-        out['vace_context'] = comfy.conds.CONDRegular(torch.cat([vace_frames.to(noise), mask.to(noise)], dim=1))
+        vace_frames_out = []
+        for j in range(len(vace_frames)):
+            vf = vace_frames[j].clone()
+            for i in range(0, vf.shape[1], 16):
+                vf[:, i:i + 16] = self.process_latent_in(vf[:, i:i + 16])
+            vf = torch.cat([vf, mask[j]], dim=1)
+            vace_frames_out.append(vf)
 
-        vace_strength = kwargs.get("vace_strength", 1.0)
+        vace_frames = torch.stack(vace_frames_out, dim=1)
+        out['vace_context'] = comfy.conds.CONDRegular(vace_frames)
+
+        vace_strength = kwargs.get("vace_strength", [1.0] * len(vace_frames_out))
         out['vace_strength'] = comfy.conds.CONDConstant(vace_strength)
         return out
 
