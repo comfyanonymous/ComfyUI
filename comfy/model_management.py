@@ -1257,6 +1257,9 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
     return False
 
 def supports_fp8_compute(device=None):
+    if args.supports_fp8_compute:
+        return True
+
     if not is_nvidia():
         return False
 
