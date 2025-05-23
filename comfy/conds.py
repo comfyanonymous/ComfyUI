@@ -1,7 +1,7 @@
 import torch
 import math
 import comfy.utils
-from comfy.model_management import device_should_use_non_blocking
+from comfy.model_management import device_supports_non_blocking
 
 
 class CONDRegular:
@@ -18,7 +18,7 @@ class CONDRegular:
             return cond
 
     def process_cond(self, batch_size, device, **kwargs):
-        if device_should_use_non_blocking(device):
+        if device_supports_non_blocking(device):
             return self._copy_with(comfy.utils.repeat_to_batch_size(self._pin_memory(self.cond), batch_size).to(device, non_blocking=True))
         else:
             return self._copy_with(comfy.utils.repeat_to_batch_size(self.cond, batch_size).to(device))
