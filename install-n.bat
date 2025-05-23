@@ -65,9 +65,9 @@ del fa.zip
 del flash_attn-2.7.4.post1-py3-none-any.whl
 
 echo  ::  %time:~0,8%  ::  - Patching sage-attention
-copy comfy\customzluda\sa\quant_per_block.py venv\Lib\site-packages\sageattention\quant_per_block.py /y >NUL
-copy comfy\customzluda\sa\attn_qk_int8_per_block_causal.py venv\Lib\site-packages\sageattention\attn_qk_int8_per_block_causal.py /y >NUL
-copy comfy\customzluda\sa\attn_qk_int8_per_block.py venv\Lib\site-packages\sageattention\attn_qk_int8_per_block.py /y >NUL
+copy comfy\customzluda\sa\quant_per_block.py %VIRTUAL_ENV%\Lib\site-packages\sageattention\quant_per_block.py /y >NUL
+copy comfy\customzluda\sa\attn_qk_int8_per_block_causal.py %VIRTUAL_ENV%\Lib\site-packages\sageattention\attn_qk_int8_per_block_causal.py /y >NUL
+copy comfy\customzluda\sa\attn_qk_int8_per_block.py %VIRTUAL_ENV%\Lib\site-packages\sageattention\attn_qk_int8_per_block.py /y >NUL
 
 echo.
 echo  ::  %time:~0,8%  ::  Custom node(s) installation ...
@@ -91,10 +91,10 @@ del zluda.zip
 cd ..
 
 :: Patch DLLs
-copy zluda\cublas.dll venv\Lib\site-packages\torch\lib\cublas64_11.dll /y >NUL
-copy zluda\cusparse.dll venv\Lib\site-packages\torch\lib\cusparse64_11.dll /y >NUL
-copy zluda\nvrtc.dll venv\Lib\site-packages\torch\lib\nvrtc64_112_0.dll /y >NUL
-copy zluda\cudnn.dll venv\Lib\site-packages\torch\lib\cudnn64_9.dll /y >NUL
+copy zluda\cublas.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\cublas64_11.dll /y >NUL
+copy zluda\cusparse.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\cusparse64_11.dll /y >NUL
+copy zluda\nvrtc.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\nvrtc64_112_0.dll /y >NUL
+copy zluda\cudnn.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\cudnn64_9.dll /y >NUL
 copy comfy\customzluda\zluda.py comfy\zluda.py /y >NUL
 
 echo  ::  %time:~0,8%  ::  - ZLUDA patched for HIP SDK 6.2.4 with miopen and triton-flash attention.
