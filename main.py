@@ -8,9 +8,11 @@ import time
 from comfy.cli_args import args
 from app.logger import setup_logger
 import itertools
-import utils.extra_config
 import logging
 import sys
+
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+import utils.extra_config
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
