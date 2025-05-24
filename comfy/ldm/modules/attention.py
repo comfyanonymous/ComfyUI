@@ -20,8 +20,11 @@ if model_management.xformers_enabled():
 if model_management.sage_attention_enabled():
     try:
         from sageattention import sageattn
-    except ModuleNotFoundError:
-        logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
+    except ModuleNotFoundError as e:
+        if e.name == "sageattention":
+            logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
+        else:
+            raise e
         exit(-1)
 
 if model_management.flash_attention_enabled():
