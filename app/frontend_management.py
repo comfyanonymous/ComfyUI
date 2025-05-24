@@ -206,6 +206,19 @@ comfyui-workflow-templates is not installed.
             )
 
     @classmethod
+    def embedded_docs_path(cls) -> str:
+        """Get the path to embedded documentation"""
+        try:
+            import comfyui_embedded_docs
+
+            return str(
+                importlib.resources.files(comfyui_embedded_docs) / "docs"
+            )
+        except ImportError:
+            logging.info("comfyui-embedded-docs package not found")
+            return None
+
+    @classmethod
     def parse_version_string(cls, value: str) -> tuple[str, str, str]:
         """
         Args:
