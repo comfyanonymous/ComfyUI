@@ -10,6 +10,7 @@ from comfy_api_nodes.apis.tripo_api import (
     TripoTaskType,
     TripoStyle,
     TripoFileReference,
+    TripoFileEmptyReference,
     TripoUrlReference,
     TripoTaskResponse,
     TripoTaskStatus,
@@ -139,7 +140,7 @@ class TripoTextToModelNode:
             request=TripoTextToModelRequest(
                 type=TripoTaskType.TEXT_TO_MODEL,
                 prompt=prompt,
-                negative_prompt=negative_prompt,
+                negative_prompt=negative_prompt if negative_prompt else None,
                 model_version=model_version,
                 style=style_enum,
                 texture=texture,
@@ -276,13 +277,15 @@ class TripoMultiviewToModelNode:
             "image_back": image_back,
             "image_right": image_right
         }
+        if image_left is None and image_back is None and image_right is None:
+            raise RuntimeError("At least one of left, back, or right image must be provided for multiview")
         for image_name in ["image", "image_left", "image_back", "image_right"]:
             image_ = image_dict[image_name]
             if image_ is not None:
                 tripo_file = upload_image_to_tripo(image_, **kwargs)
                 images.append(tripo_file)
             else:
-                images.append(None)
+                images.append(TripoFileEmptyReference())
         response = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/tripo/v2/openapi/task",
@@ -292,7 +295,7 @@ class TripoMultiviewToModelNode:
             ),
             request=TripoMultiviewToModelRequest(
                 type=TripoTaskType.MULTIVIEW_TO_MODEL,
-                images=images,
+                files=images,
                 model_version=model_version,
                 orientation=orientation,
                 texture=texture,

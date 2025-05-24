@@ -114,8 +114,11 @@ class TripoObjectReference(BaseModel):
     type: str
     object: TripoObjectStorage
 
+class TripoFileEmptyReference(BaseModel):
+    pass
+
 class TripoFileReference(RootModel):
-    root: Union[TripoFileTokenReference, TripoUrlReference, TripoObjectReference]
+    root: Union[TripoFileTokenReference, TripoUrlReference, TripoObjectReference, TripoFileEmptyReference]
 
 class TripoGetStsTokenRequest(BaseModel):
     format: str = Field(..., description='The format of the image')
