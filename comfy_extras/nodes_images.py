@@ -13,6 +13,7 @@ import os
 import re
 from io import BytesIO
 from inspect import cleandoc
+import torch
 
 from comfy.comfy_types import FileLocator
 
@@ -72,6 +73,24 @@ class ImageFromBatch:
         batch_index = min(s_in.shape[0] - 1, batch_index)
         length = min(s_in.shape[0] - batch_index, length)
         s = s_in[batch_index:batch_index + length].clone()
+        return (s,)
+
+
+class ImageAddNoise:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",),
+                              "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True, "tooltip": "The random seed used for creating the noise."}),
+                              "strength": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "repeat"
+
+    CATEGORY = "image"
+
+    def repeat(self, image, seed, strength):
+        generator = torch.manual_seed(seed)
+        s = torch.clip((image + strength * torch.randn(image.size(), generator=generator, device="cpu").to(image)), min=0.0, max=1.0)
         return (s,)
 
 class SaveAnimatedWEBP:
@@ -295,6 +314,7 @@ NODE_CLASS_MAPPINGS = {
     "ImageCrop": ImageCrop,
     "RepeatImageBatch": RepeatImageBatch,
     "ImageFromBatch": ImageFromBatch,
+    "ImageAddNoise": ImageAddNoise,
     "SaveAnimatedWEBP": SaveAnimatedWEBP,
     "SaveAnimatedPNG": SaveAnimatedPNG,
     "SaveSVGNode": SaveSVGNode,
