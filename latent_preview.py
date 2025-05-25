@@ -23,9 +23,8 @@ def preview_to_image(preview_image: torch.Tensor):
         preview_image = preview_image.cpu()
 
         preview_image.add_(1.0)
-        preview_image.div_(2.0)
+        preview_image.mul_(127.5)
         preview_image.clamp_(0, 1) # change scale from -1..1 to 0..1 and clamp
-        preview_image.mul_(255.) # change to uint8 range
         preview_image.round_() # default behavior when casting is truncate which is wrong for image processing
 
         return Image.fromarray(preview_image.to(dtype=torch.uint8).numpy())
