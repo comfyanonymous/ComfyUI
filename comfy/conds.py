@@ -11,17 +11,13 @@ class CONDRegular:
     def _copy_with(self, cond):
         return self.__class__(cond)
 
-    def _pin_memory(self, cond):
-        if cond.device == torch.device('cpu'):
-            return cond.pin_memory()
-        else:
-            return cond
+    def _pin_cond(self, device):
+        if self.cond.device == torch.device('cpu') and device_supports_non_blocking(device):
+            self.cond = self.cond.pin_memory(device)
 
     def process_cond(self, batch_size, device, **kwargs):
-        if device_supports_non_blocking(device):
-            return self._copy_with(comfy.utils.repeat_to_batch_size(self._pin_memory(self.cond), batch_size).to(device, non_blocking=True))
-        else:
-            return self._copy_with(comfy.utils.repeat_to_batch_size(self.cond, batch_size).to(device))
+        self._pin_cond(device)
+        return self._copy_with(comfy.utils.repeat_to_batch_size(self.cond.to(device, non_blocking=device_supports_non_blocking(device)), batch_size))
 
     def can_concat(self, other):
         if self.cond.shape != other.cond.shape:
