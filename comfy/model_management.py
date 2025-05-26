@@ -301,7 +301,7 @@ try:
         logging.info("AMD arch: {}".format(arch))
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             if torch_version_numeric[0] >= 2 and torch_version_numeric[1] >= 7:  # works on 2.6 but doesn't actually seem to improve much
-                if any((a in arch) for a in ["gfx1100", "gfx1101"]):  # TODO: more arches
+                if any((a in arch) for a in ["gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches
                     ENABLE_PYTORCH_ATTENTION = True
 except:
     pass
