@@ -538,10 +538,10 @@ class TripoConversionNode:
             request=TripoConvertModelRequest(
                 original_model_task_id=original_model_task_id,
                 format=format,
-                quad=quad,
-                face_limit=face_limit,
-                texture_size=texture_size,
-                texture_format=texture_format
+                quad=quad if quad else None,
+                face_limit=face_limit if face_limit != -1 else None,
+                texture_size=texture_size if texture_size != 4096 else None,
+                texture_format=texture_format if texture_format != "JPEG" else None
             ),
             auth_kwargs=kwargs,
         ).execute()
