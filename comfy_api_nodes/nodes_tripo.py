@@ -366,7 +366,9 @@ class TripoRefineNode:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "model_task_id": ("MODEL_TASK_ID",),
+                "model_task_id": ("MODEL_TASK_ID", {
+                    "tooltip": "Must be a v1.4 Tripo model"
+                }),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
@@ -374,6 +376,8 @@ class TripoRefineNode:
                 "unique_id": "UNIQUE_ID",
             },
         }
+
+    DESCRIPTION = "Refine a draft model created by v1.4 Tripo models only."
 
     RETURN_TYPES = ("STRING", "MODEL_TASK_ID",)
     RETURN_NAMES = ("model_file", "model task_id")
