@@ -139,7 +139,7 @@ class EmptyRequest(BaseModel):
 
 class UploadRequest(BaseModel):
     file_name: str = Field(..., description="Filename to upload")
-    content_type: str | None = Field(
+    content_type: Optional[str] = Field(
         None,
         description="Mime type of the file. For example: image/png, image/jpeg, video/mp4, etc.",
     )
