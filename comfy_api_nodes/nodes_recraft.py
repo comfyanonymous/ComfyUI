@@ -32,7 +32,6 @@ from comfy_api_nodes.apinode_utils import (
 )
 from server import PromptServer
 
-import os
 import torch
 from io import BytesIO
 from PIL import UnidentifiedImageError
@@ -116,16 +115,6 @@ def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, co
     if converted_to_check is None:
         converted_to_check = []
 
-    def combine(self, other: SVG):
-        return SVG(self.data + other.data)
-
-    @staticmethod
-    def combine_all(svgs: list[SVG]):
-        all_svgs = []
-        for svg in svgs:
-            all_svgs.extend(svg.data)
-        return SVG(all_svgs)
-
 
     if formatter is None:
         formatter = lambda v: v  # Multipart representation of value
@@ -172,77 +161,6 @@ class handle_recraft_image_output:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None and exc_type is UnidentifiedImageError:
             raise Exception("Received output data was not an image; likely an SVG. If you used style_id, make sure it is not a Vector art style.")
-
-
-class RecraftColorRGBNode:
-    """
-    Create Recraft Color by choosing specific RGB values.
-    """
-
-    RETURN_TYPES = (RecraftIO.COLOR,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    RETURN_NAMES = ("recraft_color",)
-    FUNCTION = "create_color"
-    CATEGORY = "api node/image/Recraft"
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "r": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 255,
-                    "tooltip": "Red value of color."
-                }),
-                "g": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 255,
-                    "tooltip": "Green value of color."
-                }),
-                "b": (IO.INT, {
-                    "default": 0,
-                    "min": 0,
-                    "max": 255,
-                    "tooltip": "Blue value of color."
-                }),
-            },
-            "optional": {
-                "recraft_color": (RecraftIO.COLOR,),
-            }
-        }
-
-    def create_color(self, r: int, g: int, b: int, recraft_color: RecraftColorChain=None):
-        recraft_color = recraft_color.clone() if recraft_color else RecraftColorChain()
-        recraft_color.add(RecraftColor(r, g, b))
-        return (recraft_color, )
-
-
-class RecraftControlsNode:
-    """
-    Create Recraft Controls for customizing Recraft generation.
-    """
-
-    RETURN_TYPES = (RecraftIO.CONTROLS,)
-    RETURN_NAMES = ("recraft_controls",)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "create_controls"
-    CATEGORY = "api node/image/Recraft"
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-            },
-            "optional": {
-                "colors": (RecraftIO.COLOR,),
-                "background_color": (RecraftIO.COLOR,),
-            }
-        }
-
-    def create_controls(self, colors: RecraftColorChain=None, background_color: RecraftColorChain=None):
-        return (RecraftControls(colors=colors, background_color=background_color), )
 
 
 class RecraftColorRGBNode:
