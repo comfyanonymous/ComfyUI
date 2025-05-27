@@ -885,7 +885,7 @@ class OpenAIInputFiles(ComfyNodeABC):
                 "file": (
                     IO.COMBO,
                     {
-                        "tooltip": "Input files to include as context for the model.",
+                        "tooltip": "Input files to include as context for the model. Only accepts text (.txt) and PDF (.pdf) files for now.",
                         "options": input_files,
                         "default": input_files[0] if input_files else None,
                     },
