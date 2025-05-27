@@ -135,6 +135,7 @@ class BaseModel(torch.nn.Module):
         logging.info("model_type {}".format(model_type.name))
         logging.debug("adm {}".format(self.adm_channels))
         self.memory_usage_factor = model_config.memory_usage_factor
+        self.memory_usage_factor_conds = ()
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
@@ -325,18 +326,27 @@ class BaseModel(torch.nn.Module):
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return self.model_sampling.noise_scaling(sigma.reshape([sigma.shape[0]] + [1] * (len(noise.shape) - 1)), noise, latent_image)
 
-    def memory_required(self, input_shape):
+    def memory_required(self, input_shape, cond_shapes={}):
+        input_shapes = [input_shape]
+        for c in self.memory_usage_factor_conds:
+            shape = cond_shapes.get(c, None)
+            if shape is not None and len(shape) > 0:
+                input_shapes += shape
+
         if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention():
             dtype = self.get_dtype()
             if self.manual_cast_dtype is not None:
                 dtype = self.manual_cast_dtype
             #TODO: this needs to be tweaked
-            area = input_shape[0] * math.prod(input_shape[2:])
+            area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
             return (area * comfy.model_management.dtype_size(dtype) * 0.01 * self.memory_usage_factor) * (1024 * 1024)
         else:
             #TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
-            area = input_shape[0] * math.prod(input_shape[2:])
+            area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
             return (area * 0.15 * self.memory_usage_factor) * (1024 * 1024)
+
+    def extra_conds_shapes(self, **kwargs):
+        return {}
 
 
 def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0, seed=None):
