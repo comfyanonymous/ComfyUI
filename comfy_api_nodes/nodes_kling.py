@@ -102,23 +102,6 @@ AVERAGE_DURATION_VIDEO_EXTEND = 320
 
 R = TypeVar("R")
 
-MAX_PROMPT_LENGTH_T2V = 2500
-MAX_PROMPT_LENGTH_I2V = 500
-MAX_PROMPT_LENGTH_IMAGE_GEN = 500
-MAX_NEGATIVE_PROMPT_LENGTH_IMAGE_GEN = 200
-MAX_PROMPT_LENGTH_LIP_SYNC = 120
-
-# TODO: adjust based on tests
-AVERAGE_DURATION_T2V = 319  # 319,
-AVERAGE_DURATION_I2V = 164  # 164,
-AVERAGE_DURATION_LIP_SYNC = 120
-AVERAGE_DURATION_VIRTUAL_TRY_ON = 19  # 19,
-AVERAGE_DURATION_IMAGE_GEN = 32
-AVERAGE_DURATION_VIDEO_EFFECTS = 320
-AVERAGE_DURATION_VIDEO_EXTEND = 320
-
-R = TypeVar("R")
-
 
 class KlingApiError(Exception):
     """Base exception for Kling API errors."""
@@ -557,9 +540,6 @@ class KlingCameraControlT2VNode(KlingTextToVideoNode):
     def INPUT_TYPES(s):
         return {
             "required": {
-                "start_frame": model_field_to_node_input(
-                    IO.IMAGE, KlingImage2VideoRequest, "image"
-                ),
                 "prompt": model_field_to_node_input(
                     IO.STRING, KlingText2VideoRequest, "prompt", multiline=True
                 ),
@@ -786,13 +766,6 @@ class KlingCameraControlI2VNode(KlingImage2VideoNode):
                     "negative_prompt",
                     multiline=True,
                 ),
-                "model_name": model_field_to_node_input(
-                    IO.COMBO,
-                    KlingImage2VideoRequest,
-                    "model_name",
-                    enum_type=ModelName,
-                    default="kling-v2-master",
-                ),
                 "cfg_scale": model_field_to_node_input(
                     IO.FLOAT,
                     KlingImage2VideoRequest,
@@ -828,7 +801,6 @@ class KlingCameraControlI2VNode(KlingImage2VideoNode):
         start_frame: torch.Tensor,
         prompt: str,
         negative_prompt: str,
-        model_name: str,
         cfg_scale: float,
         aspect_ratio: str,
         camera_control: KlingCameraControl,
