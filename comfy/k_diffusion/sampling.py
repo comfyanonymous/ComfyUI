@@ -8,7 +8,6 @@ from tqdm.auto import trange, tqdm
 
 from . import utils
 from . import deis
-from . import res
 import comfy.model_patcher
 import comfy.model_sampling
 
@@ -41,7 +40,7 @@ def get_sigmas_polyexponential(n, sigma_min, sigma_max, rho=1., device='cpu'):
 def get_sigmas_vp(n, beta_d=19.9, beta_min=0.1, eps_s=1e-3, device='cpu'):
     """Constructs a continuous VP noise schedule."""
     t = torch.linspace(1, eps_s, n, device=device)
-    sigmas = torch.sqrt(torch.exp(beta_d * t ** 2 / 2 + beta_min * t) - 1)
+    sigmas = torch.sqrt(torch.special.expm1(beta_d * t ** 2 / 2 + beta_min * t))
     return append_zero(sigmas)
 
 
@@ -689,10 +688,10 @@ def sample_dpmpp_sde(model, x, sigmas, extra_args=None, callback=None, disable=N
     if len(sigmas) <= 1:
         return x
 
+    extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     seed = extra_args.get("seed", None)
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=seed, cpu=True) if noise_sampler is None else noise_sampler
-    extra_args = {} if extra_args is None else extra_args
     s_in = x.new_ones([x.shape[0]])
     sigma_fn = lambda t: t.neg().exp()
     t_fn = lambda sigma: sigma.log().neg()
@@ -763,10 +762,10 @@ def sample_dpmpp_2m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
     if solver_type not in {'heun', 'midpoint'}:
         raise ValueError('solver_type must be \'heun\' or \'midpoint\'')
 
+    extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=seed, cpu=True) if noise_sampler is None else noise_sampler
-    extra_args = {} if extra_args is None else extra_args
     s_in = x.new_ones([x.shape[0]])
 
     old_denoised = None
@@ -809,10 +808,10 @@ def sample_dpmpp_3m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
     if len(sigmas) <= 1:
         return x
 
+    extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=seed, cpu=True) if noise_sampler is None else noise_sampler
-    extra_args = {} if extra_args is None else extra_args
     s_in = x.new_ones([x.shape[0]])
 
     denoised_1, denoised_2 = None, None
@@ -859,7 +858,7 @@ def sample_dpmpp_3m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
 def sample_dpmpp_3m_sde_gpu(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
     if len(sigmas) <= 1:
         return x
-
+    extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
     return sample_dpmpp_3m_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler)
@@ -868,7 +867,7 @@ def sample_dpmpp_3m_sde_gpu(model, x, sigmas, extra_args=None, callback=None, di
 def sample_dpmpp_2m_sde_gpu(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, solver_type='midpoint'):
     if len(sigmas) <= 1:
         return x
-
+    extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
     return sample_dpmpp_2m_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler, solver_type=solver_type)
@@ -877,7 +876,7 @@ def sample_dpmpp_2m_sde_gpu(model, x, sigmas, extra_args=None, callback=None, di
 def sample_dpmpp_sde_gpu(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r=1 / 2):
     if len(sigmas) <= 1:
         return x
-
+    extra_args = {} if extra_args is None else extra_args
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
     return sample_dpmpp_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler, r=r)
@@ -1268,18 +1267,282 @@ def sample_dpmpp_2m_cfg_pp(model, x, sigmas, extra_args=None, callback=None, dis
     return x
 
 @torch.no_grad()
-def sample_res_multistep(model, x, sigmas, extra_args=None, callback=None, disable=None, s_churn=0., s_tmin=0., s_tmax=float('inf'), s_noise=1., noise_sampler=None):
+def res_multistep(model, x, sigmas, extra_args=None, callback=None, disable=None, s_noise=1., noise_sampler=None, eta=1., cfg_pp=False):
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
+    s_in = x.new_ones([x.shape[0]])
+    sigma_fn = lambda t: t.neg().exp()
+    t_fn = lambda sigma: sigma.log().neg()
+    phi1_fn = lambda t: torch.expm1(t) / t
+    phi2_fn = lambda t: (phi1_fn(t) - 1.0) / t
 
-    x0_func = lambda x, sigma: model(x, sigma, **extra_args)
+    old_sigma_down = None
+    old_denoised = None
+    uncond_denoised = None
+    def post_cfg_function(args):
+        nonlocal uncond_denoised
+        uncond_denoised = args["uncond_denoised"]
+        return args["denoised"]
 
-    solver_cfg = res.SolverConfig()
-    solver_cfg.s_churn = s_churn
-    solver_cfg.s_t_max = s_tmax
-    solver_cfg.s_t_min = s_tmin
-    solver_cfg.s_noise = s_noise
+    if cfg_pp:
+        model_options = extra_args.get("model_options", {}).copy()
+        extra_args["model_options"] = comfy.model_patcher.set_model_options_post_cfg_function(model_options, post_cfg_function, disable_cfg1_optimization=True)
 
-    x = res.differential_equation_solver(x0_func, sigmas, solver_cfg, noise_sampler, callback=callback, disable=disable)(x)
+    for i in trange(len(sigmas) - 1, disable=disable):
+        denoised = model(x, sigmas[i] * s_in, **extra_args)
+        sigma_down, sigma_up = get_ancestral_step(sigmas[i], sigmas[i + 1], eta=eta)
+        if callback is not None:
+            callback({"x": x, "i": i, "sigma": sigmas[i], "sigma_hat": sigmas[i], "denoised": denoised})
+        if sigma_down == 0 or old_denoised is None:
+            # Euler method
+            if cfg_pp:
+                d = to_d(x, sigmas[i], uncond_denoised)
+                x = denoised + d * sigma_down
+            else:
+                d = to_d(x, sigmas[i], denoised)
+                dt = sigma_down - sigmas[i]
+                x = x + d * dt
+        else:
+            # Second order multistep method in https://arxiv.org/pdf/2308.02157
+            t, t_old, t_next, t_prev = t_fn(sigmas[i]), t_fn(old_sigma_down), t_fn(sigma_down), t_fn(sigmas[i - 1])
+            h = t_next - t
+            c2 = (t_prev - t_old) / h
+
+            phi1_val, phi2_val = phi1_fn(-h), phi2_fn(-h)
+            b1 = torch.nan_to_num(phi1_val - phi2_val / c2, nan=0.0)
+            b2 = torch.nan_to_num(phi2_val / c2, nan=0.0)
+
+            if cfg_pp:
+                x = x + (denoised - uncond_denoised)
+                x = sigma_fn(h) * x + h * (b1 * uncond_denoised + b2 * old_denoised)
+            else:
+                x = sigma_fn(h) * x + h * (b1 * denoised + b2 * old_denoised)
+
+        # Noise addition
+        if sigmas[i + 1] > 0:
+            x = x + noise_sampler(sigmas[i], sigmas[i + 1]) * s_noise * sigma_up
+
+        if cfg_pp:
+            old_denoised = uncond_denoised
+        else:
+            old_denoised = denoised
+        old_sigma_down = sigma_down
+    return x
+
+@torch.no_grad()
+def sample_res_multistep(model, x, sigmas, extra_args=None, callback=None, disable=None, s_noise=1., noise_sampler=None):
+    return res_multistep(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, s_noise=s_noise, noise_sampler=noise_sampler, eta=0., cfg_pp=False)
+
+@torch.no_grad()
+def sample_res_multistep_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None, s_noise=1., noise_sampler=None):
+    return res_multistep(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, s_noise=s_noise, noise_sampler=noise_sampler, eta=0., cfg_pp=True)
+
+@torch.no_grad()
+def sample_res_multistep_ancestral(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
+    return res_multistep(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, s_noise=s_noise, noise_sampler=noise_sampler, eta=eta, cfg_pp=False)
+
+@torch.no_grad()
+def sample_res_multistep_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
+    return res_multistep(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, s_noise=s_noise, noise_sampler=noise_sampler, eta=eta, cfg_pp=True)
+
+@torch.no_grad()
+def sample_gradient_estimation(model, x, sigmas, extra_args=None, callback=None, disable=None, ge_gamma=2., cfg_pp=False):
+    """Gradient-estimation sampler. Paper: https://openreview.net/pdf?id=o2ND9v0CeK"""
+    extra_args = {} if extra_args is None else extra_args
+    s_in = x.new_ones([x.shape[0]])
+    old_d = None
+
+    uncond_denoised = None
+    def post_cfg_function(args):
+        nonlocal uncond_denoised
+        uncond_denoised = args["uncond_denoised"]
+        return args["denoised"]
+
+    if cfg_pp:
+        model_options = extra_args.get("model_options", {}).copy()
+        extra_args["model_options"] = comfy.model_patcher.set_model_options_post_cfg_function(model_options, post_cfg_function, disable_cfg1_optimization=True)
+
+    for i in trange(len(sigmas) - 1, disable=disable):
+        denoised = model(x, sigmas[i] * s_in, **extra_args)
+        if cfg_pp:
+            d = to_d(x, sigmas[i], uncond_denoised)
+        else:
+            d = to_d(x, sigmas[i], denoised)
+        if callback is not None:
+            callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+        dt = sigmas[i + 1] - sigmas[i]
+        if i == 0:
+            # Euler method
+            if cfg_pp:
+                x = denoised + d * sigmas[i + 1]
+            else:
+                x = x + d * dt
+        else:
+            # Gradient estimation
+            if cfg_pp:
+                d_bar = (ge_gamma - 1) * (d - old_d)
+                x = denoised + d * sigmas[i + 1] + d_bar * dt
+            else:
+                d_bar = ge_gamma * d + (1 - ge_gamma) * old_d
+                x = x + d_bar * dt
+        old_d = d
+    return x
+
+@torch.no_grad()
+def sample_gradient_estimation_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None, ge_gamma=2.):
+    return sample_gradient_estimation(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, ge_gamma=ge_gamma, cfg_pp=True)
+
+@torch.no_grad()
+def sample_er_sde(model, x, sigmas, extra_args=None, callback=None, disable=None, s_noise=1., noise_sampler=None, noise_scaler=None, max_stage=3):
+    """
+    Extended Reverse-Time SDE solver (VE ER-SDE-Solver-3). Arxiv: https://arxiv.org/abs/2309.06169.
+    Code reference: https://github.com/QinpengCui/ER-SDE-Solver/blob/main/er_sde_solver.py.
+    """
+    extra_args = {} if extra_args is None else extra_args
+    seed = extra_args.get("seed", None)
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
+    s_in = x.new_ones([x.shape[0]])
+
+    def default_noise_scaler(sigma):
+        return sigma * ((sigma ** 0.3).exp() + 10.0)
+    noise_scaler = default_noise_scaler if noise_scaler is None else noise_scaler
+    num_integration_points = 200.0
+    point_indice = torch.arange(0, num_integration_points, dtype=torch.float32, device=x.device)
+
+    old_denoised = None
+    old_denoised_d = None
+
+    for i in trange(len(sigmas) - 1, disable=disable):
+        denoised = model(x, sigmas[i] * s_in, **extra_args)
+        if callback is not None:
+            callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+        stage_used = min(max_stage, i + 1)
+        if sigmas[i + 1] == 0:
+            x = denoised
+        elif stage_used == 1:
+            r = noise_scaler(sigmas[i + 1]) / noise_scaler(sigmas[i])
+            x = r * x + (1 - r) * denoised
+        else:
+            r = noise_scaler(sigmas[i + 1]) / noise_scaler(sigmas[i])
+            x = r * x + (1 - r) * denoised
+
+            dt = sigmas[i + 1] - sigmas[i]
+            sigma_step_size = -dt / num_integration_points
+            sigma_pos = sigmas[i + 1] + point_indice * sigma_step_size
+            scaled_pos = noise_scaler(sigma_pos)
+
+            # Stage 2
+            s = torch.sum(1 / scaled_pos) * sigma_step_size
+            denoised_d = (denoised - old_denoised) / (sigmas[i] - sigmas[i - 1])
+            x = x + (dt + s * noise_scaler(sigmas[i + 1])) * denoised_d
+
+            if stage_used >= 3:
+                # Stage 3
+                s_u = torch.sum((sigma_pos - sigmas[i]) / scaled_pos) * sigma_step_size
+                denoised_u = (denoised_d - old_denoised_d) / ((sigmas[i] - sigmas[i - 2]) / 2)
+                x = x + ((dt ** 2) / 2 + s_u * noise_scaler(sigmas[i + 1])) * denoised_u
+            old_denoised_d = denoised_d
+
+        if s_noise != 0 and sigmas[i + 1] > 0:
+            x = x + noise_sampler(sigmas[i], sigmas[i + 1]) * s_noise * (sigmas[i + 1] ** 2 - sigmas[i] ** 2 * r ** 2).sqrt().nan_to_num(nan=0.0)
+        old_denoised = denoised
+    return x
+
+@torch.no_grad()
+def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r=0.5):
+    '''
+    SEEDS-2 - Stochastic Explicit Exponential Derivative-free Solvers (VE Data Prediction) stage 2
+    Arxiv: https://arxiv.org/abs/2305.14267
+    '''
+    extra_args = {} if extra_args is None else extra_args
+    seed = extra_args.get("seed", None)
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
+    s_in = x.new_ones([x.shape[0]])
+
+    inject_noise = eta > 0 and s_noise > 0
+
+    for i in trange(len(sigmas) - 1, disable=disable):
+        denoised = model(x, sigmas[i] * s_in, **extra_args)
+        if callback is not None:
+            callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+        if sigmas[i + 1] == 0:
+            x = denoised
+        else:
+            t, t_next = -sigmas[i].log(), -sigmas[i + 1].log()
+            h = t_next - t
+            h_eta = h * (eta + 1)
+            s = t + r * h
+            fac = 1 / (2 * r)
+            sigma_s = s.neg().exp()
+
+            coeff_1, coeff_2 = (-r * h_eta).expm1(), (-h_eta).expm1()
+            if inject_noise:
+                noise_coeff_1 = (-2 * r * h * eta).expm1().neg().sqrt()
+                noise_coeff_2 = ((-2 * r * h * eta).expm1() - (-2 * h * eta).expm1()).sqrt()
+                noise_1, noise_2 = noise_sampler(sigmas[i], sigma_s), noise_sampler(sigma_s, sigmas[i + 1])
+
+            # Step 1
+            x_2 = (coeff_1 + 1) * x - coeff_1 * denoised
+            if inject_noise:
+                x_2 = x_2 + sigma_s * (noise_coeff_1 * noise_1) * s_noise
+            denoised_2 = model(x_2, sigma_s * s_in, **extra_args)
+
+            # Step 2
+            denoised_d = (1 - fac) * denoised + fac * denoised_2
+            x = (coeff_2 + 1) * x - coeff_2 * denoised_d
+            if inject_noise:
+                x = x + sigmas[i + 1] * (noise_coeff_2 * noise_1 + noise_coeff_1 * noise_2) * s_noise
+    return x
+
+@torch.no_grad()
+def sample_seeds_3(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r_1=1./3, r_2=2./3):
+    '''
+    SEEDS-3 - Stochastic Explicit Exponential Derivative-free Solvers (VE Data Prediction) stage 3
+    Arxiv: https://arxiv.org/abs/2305.14267
+    '''
+    extra_args = {} if extra_args is None else extra_args
+    seed = extra_args.get("seed", None)
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
+    s_in = x.new_ones([x.shape[0]])
+
+    inject_noise = eta > 0 and s_noise > 0
+
+    for i in trange(len(sigmas) - 1, disable=disable):
+        denoised = model(x, sigmas[i] * s_in, **extra_args)
+        if callback is not None:
+            callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+        if sigmas[i + 1] == 0:
+            x = denoised
+        else:
+            t, t_next = -sigmas[i].log(), -sigmas[i + 1].log()
+            h = t_next - t
+            h_eta = h * (eta + 1)
+            s_1 = t + r_1 * h
+            s_2 = t + r_2 * h
+            sigma_s_1, sigma_s_2 = s_1.neg().exp(), s_2.neg().exp()
+
+            coeff_1, coeff_2, coeff_3 = (-r_1 * h_eta).expm1(), (-r_2 * h_eta).expm1(), (-h_eta).expm1()
+            if inject_noise:
+                noise_coeff_1 = (-2 * r_1 * h * eta).expm1().neg().sqrt()
+                noise_coeff_2 = ((-2 * r_1 * h * eta).expm1() - (-2 * r_2 * h * eta).expm1()).sqrt()
+                noise_coeff_3 = ((-2 * r_2 * h * eta).expm1() - (-2 * h * eta).expm1()).sqrt()
+                noise_1, noise_2, noise_3 = noise_sampler(sigmas[i], sigma_s_1), noise_sampler(sigma_s_1, sigma_s_2), noise_sampler(sigma_s_2, sigmas[i + 1])
+
+            # Step 1
+            x_2 = (coeff_1 + 1) * x - coeff_1 * denoised
+            if inject_noise:
+                x_2 = x_2 + sigma_s_1 * (noise_coeff_1 * noise_1) * s_noise
+            denoised_2 = model(x_2, sigma_s_1 * s_in, **extra_args)
+
+            # Step 2
+            x_3 = (coeff_2 + 1) * x - coeff_2 * denoised + (r_2 / r_1) * (coeff_2 / (r_2 * h_eta) + 1) * (denoised_2 - denoised)
+            if inject_noise:
+                x_3 = x_3 + sigma_s_2 * (noise_coeff_2 * noise_1 + noise_coeff_1 * noise_2) * s_noise
+            denoised_3 = model(x_3, sigma_s_2 * s_in, **extra_args)
+
+            # Step 3
+            x = (coeff_3 + 1) * x - coeff_3 * denoised + (1. / r_2) * (coeff_3 / h_eta + 1) * (denoised_3 - denoised)
+            if inject_noise:
+                x = x + sigmas[i + 1] * (noise_coeff_3 * noise_1 + noise_coeff_2 * noise_2 + noise_coeff_1 * noise_3) * s_noise
     return x

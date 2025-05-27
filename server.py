@@ -30,15 +30,17 @@ import comfy.model_management
 import node_helpers
 from comfyui_version import __version__
 from app.frontend_management import FrontendManager
+
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
-from typing import Optional
+from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
     UNENCODED_PREVIEW_IMAGE = 2
+    TEXT = 3
 
 async def send_socket_catch_exception(function, message):
     try:
@@ -49,9 +51,23 @@ async def send_socket_catch_exception(function, message):
 @web.middleware
 async def cache_control(request: web.Request, handler):
     response: web.Response = await handler(request)
-    if request.path.endswith('.js') or request.path.endswith('.css'):
+    if request.path.endswith('.js') or request.path.endswith('.css') or request.path.endswith('index.json'):
         response.headers.setdefault('Cache-Control', 'no-cache')
     return response
+
+
+@web.middleware
+async def compress_body(request: web.Request, handler):
+    accept_encoding = request.headers.get("Accept-Encoding", "")
+    response: web.Response = await handler(request)
+    if not isinstance(response, web.Response):
+        return response
+    if response.content_type not in ["application/json", "text/plain"]:
+        return response
+    if response.body and "gzip" in accept_encoding:
+        response.enable_compression()
+    return response
+
 
 def create_cors_middleware(allowed_origin: str):
     @web.middleware
@@ -137,20 +153,24 @@ class PromptServer():
         PromptServer.instance = self
 
         mimetypes.init()
-        mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
+        mimetypes.add_type('application/javascript; charset=utf-8', '.js')
+        mimetypes.add_type('image/webp', '.webp')
 
         self.user_manager = UserManager()
         self.model_file_manager = ModelFileManager()
         self.custom_node_manager = CustomNodeManager()
         self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
-        self.prompt_queue = None
+        self.prompt_queue = execution.PromptQueue(self)
         self.loop = loop
         self.messages = asyncio.Queue()
         self.client_session:Optional[aiohttp.ClientSession] = None
         self.number = 0
 
         middlewares = [cache_control]
+        if args.enable_compress_response_body:
+            middlewares.append(compress_body)
+
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
         else:
@@ -208,7 +228,7 @@ class PromptServer():
             return response
 
         @routes.get("/embeddings")
-        def get_embeddings(self):
+        def get_embeddings(request):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
 
@@ -264,7 +284,6 @@ class PromptServer():
                     a.update(f.read())
                     b.update(image.file.read())
                     image.file.seek(0)
-                    f.close()
                 return a.hexdigest() == b.hexdigest()
             return False
 
@@ -364,6 +383,9 @@ class PromptServer():
                 original_ref = json.loads(post.get("original_ref"))
                 filename, output_dir = folder_paths.annotated_filepath(original_ref['filename'])
 
+                if not filename:
+                    return web.Response(status=400)
+
                 # validation for security: prevent accessing arbitrary path
                 if filename[0] == '/' or '..' in filename:
                     return web.Response(status=400)
@@ -404,6 +426,9 @@ class PromptServer():
             if "filename" in request.rel_url.query:
                 filename = request.rel_url.query["filename"]
                 filename,output_dir = folder_paths.annotated_filepath(filename)
+
+                if not filename:
+                    return web.Response(status=400)
 
                 # validation for security: prevent accessing arbitrary path
                 if filename[0] == '/' or '..' in filename:
@@ -591,6 +616,9 @@ class PromptServer():
                 info['deprecated'] = True
             if getattr(obj_class, "EXPERIMENTAL", False):
                 info['experimental'] = True
+
+            if hasattr(obj_class, 'API_NODE'):
+                info['api_node'] = obj_class.API_NODE
             return info
 
         @routes.get("/object_info")
@@ -628,7 +656,7 @@ class PromptServer():
         @routes.get("/queue")
         async def get_queue(request):
             queue_info = {}
-            current_queue = self.prompt_queue.get_current_queue()
+            current_queue = self.prompt_queue.get_current_queue_volatile()
             queue_info['queue_running'] = current_queue[0]
             queue_info['queue_pending'] = current_queue[1]
             return web.json_response(queue_info)
@@ -668,7 +696,13 @@ class PromptServer():
                     logging.warning("invalid prompt: {}".format(valid[1]))
                     return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)
             else:
-                return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
+                error = {
+                    "type": "no_prompt",
+                    "message": "No prompt provided",
+                    "details": "No prompt provided",
+                    "extra_info": {}
+                }
+                return web.json_response({"error": error, "node_errors": {}}, status=400)
 
         @routes.post("/queue")
         async def post_queue(request):
@@ -740,6 +774,12 @@ class PromptServer():
         # Add routes from web extensions.
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([web.static('/extensions/' + name, dir)])
+
+        workflow_templates_path = FrontendManager.templates_path()
+        if workflow_templates_path:
+            self.app.add_routes([
+                web.static('/templates', workflow_templates_path)
+            ])
 
         self.app.add_routes([
             web.static('/', self.web_root),
@@ -874,3 +914,15 @@ class PromptServer():
                 logging.warning(traceback.format_exc())
 
         return json_data
+
+    def send_progress_text(
+        self, text: Union[bytes, bytearray, str], node_id: str, sid=None
+    ):
+        if isinstance(text, str):
+            text = text.encode("utf-8")
+        node_id_bytes = str(node_id).encode("utf-8")
+
+        # Pack the node_id length as a 4-byte unsigned integer, followed by the node_id bytes
+        message = struct.pack(">I", len(node_id_bytes)) + node_id_bytes + text
+
+        self.send_sync(BinaryEventTypes.TEXT, message, sid)

@@ -1,3 +1,4 @@
+import math
 import comfy.samplers
 import comfy.sample
 from comfy.k_diffusion import sampling as k_diffusion_sampling
@@ -231,6 +232,73 @@ class FlipSigmas:
             sigmas[0] = 0.0001
         return (sigmas,)
 
+class SetFirstSigma:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"sigmas": ("SIGMAS", ),
+                     "sigma": ("FLOAT", {"default": 136.0, "min": 0.0, "max": 20000.0, "step": 0.001, "round": False}),
+                    }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "sampling/custom_sampling/sigmas"
+
+    FUNCTION = "set_first_sigma"
+
+    def set_first_sigma(self, sigmas, sigma):
+        sigmas = sigmas.clone()
+        sigmas[0] = sigma
+        return (sigmas, )
+
+class ExtendIntermediateSigmas:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"sigmas": ("SIGMAS", ),
+                     "steps": ("INT", {"default": 2, "min": 1, "max": 100}),
+                     "start_at_sigma": ("FLOAT", {"default": -1.0, "min": -1.0, "max": 20000.0, "step": 0.01, "round": False}),
+                     "end_at_sigma": ("FLOAT", {"default": 12.0, "min":  0.0, "max": 20000.0, "step": 0.01, "round": False}),
+                     "spacing": (['linear', 'cosine', 'sine'],),
+                    }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "sampling/custom_sampling/sigmas"
+
+    FUNCTION = "extend"
+
+    def extend(self, sigmas: torch.Tensor, steps: int, start_at_sigma: float, end_at_sigma: float, spacing: str):
+        if start_at_sigma < 0:
+            start_at_sigma = float("inf")
+
+        interpolator = {
+            'linear': lambda x: x,
+            'cosine': lambda x: torch.sin(x*math.pi/2),
+            'sine':   lambda x: 1 - torch.cos(x*math.pi/2)
+        }[spacing]
+
+        # linear space for our interpolation function
+        x = torch.linspace(0, 1, steps + 1, device=sigmas.device)[1:-1]
+        computed_spacing = interpolator(x)
+
+        extended_sigmas = []
+        for i in range(len(sigmas) - 1):
+            sigma_current = sigmas[i]
+            sigma_next = sigmas[i+1]
+
+            extended_sigmas.append(sigma_current)
+
+            if end_at_sigma <= sigma_current <= start_at_sigma:
+                interpolated_steps = computed_spacing * (sigma_next - sigma_current) + sigma_current
+                extended_sigmas.extend(interpolated_steps.tolist())
+
+        # Add the last sigma value
+        if len(sigmas) > 0:
+            extended_sigmas.append(sigmas[-1])
+
+        extended_sigmas = torch.FloatTensor(extended_sigmas)
+
+        return (extended_sigmas,)
+
 class KSamplerSelect:
     @classmethod
     def INPUT_TYPES(s):
@@ -436,7 +504,7 @@ class SamplerCustom:
         return {"required":
                     {"model": ("MODEL",),
                     "add_noise": ("BOOLEAN", {"default": True}),
-                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
                     "positive": ("CONDITIONING", ),
                     "negative": ("CONDITIONING", ),
@@ -587,10 +655,16 @@ class DisableNoise:
 class RandomNoise(DisableNoise):
     @classmethod
     def INPUT_TYPES(s):
-        return {"required":{
-                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                     }
-                }
+        return {
+            "required": {
+                "noise_seed": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 0xffffffffffffffff,
+                    "control_after_generate": True,
+                }),
+            }
+        }
 
     def get_noise(self, noise_seed):
         return (Noise_RandomNoise(noise_seed),)
@@ -710,6 +784,8 @@ NODE_CLASS_MAPPINGS = {
     "SplitSigmas": SplitSigmas,
     "SplitSigmasDenoise": SplitSigmasDenoise,
     "FlipSigmas": FlipSigmas,
+    "SetFirstSigma": SetFirstSigma,
+    "ExtendIntermediateSigmas": ExtendIntermediateSigmas,
 
     "CFGGuider": CFGGuider,
     "DualCFGGuider": DualCFGGuider,

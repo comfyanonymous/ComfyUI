@@ -38,7 +38,26 @@ class FluxGuidance:
         return (c, )
 
 
+class FluxDisableGuidance:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "conditioning": ("CONDITIONING", ),
+            }}
+
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "advanced/conditioning/flux"
+    DESCRIPTION = "This node completely disables the guidance embed on Flux and Flux like models"
+
+    def append(self, conditioning):
+        c = node_helpers.conditioning_set_values(conditioning, {"guidance": None})
+        return (c, )
+
+
 NODE_CLASS_MAPPINGS = {
     "CLIPTextEncodeFlux": CLIPTextEncodeFlux,
     "FluxGuidance": FluxGuidance,
+    "FluxDisableGuidance": FluxDisableGuidance,
 }

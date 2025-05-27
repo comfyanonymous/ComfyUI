@@ -17,7 +17,7 @@
 from typing import Any
 
 import torch
-from einops import pack, rearrange, unpack
+from einops import rearrange
 
 
 import comfy.ops
@@ -96,14 +96,6 @@ def default(*args):
         if exists(arg):
             return arg
     return None
-
-
-def pack_one(t, pattern):
-    return pack([t], pattern)
-
-
-def unpack_one(t, ps, pattern):
-    return unpack(t, ps, pattern)[0]
 
 
 def round_ste(z: torch.Tensor) -> torch.Tensor:

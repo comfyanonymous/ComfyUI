@@ -114,7 +114,7 @@ def test_load_extra_model_paths_expands_userpath(
     mock_yaml_safe_load.assert_called_once()
 
     # Check if open was called with the correct file path
-    mock_file.assert_called_once_with(dummy_yaml_file_name, 'r')
+    mock_file.assert_called_once_with(dummy_yaml_file_name, 'r', encoding='utf-8')
 
 
 @patch('builtins.open', new_callable=mock_open)
@@ -145,7 +145,7 @@ def test_load_extra_model_paths_expands_appdata(
     else:
         expected_base_path = '/Users/TestUser/AppData/Roaming/ComfyUI'
     expected_calls = [
-        ('checkpoints', os.path.join(expected_base_path, 'models/checkpoints'), False),
+        ('checkpoints', os.path.normpath(os.path.join(expected_base_path, 'models/checkpoints')), False),
     ]
 
     assert mock_add_model_folder_path.call_count == len(expected_calls)
@@ -197,8 +197,8 @@ def test_load_extra_path_config_relative_base_path(
 
     load_extra_path_config(dummy_yaml_name)
 
-    expected_checkpoints = os.path.abspath(os.path.join(str(tmp_path), sub_folder, "checkpoints"))
-    expected_some_value = os.path.abspath(os.path.join(str(tmp_path), sub_folder, "some_value"))
+    expected_checkpoints = os.path.abspath(os.path.join(str(tmp_path), "my_rel_base", "checkpoints"))
+    expected_some_value = os.path.abspath(os.path.join(str(tmp_path), "my_rel_base", "some_value"))
 
     actual_paths = folder_paths.folder_names_and_paths["checkpoints"][0]
     assert len(actual_paths) == 1, "Should have one path added for 'checkpoints'."
