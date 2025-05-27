@@ -108,9 +108,6 @@ from comfy.cli_args import args
 from comfy import utils
 from . import request_logger
 
-from comfy.cli_args import args
-from comfy import utils
-
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R", bound=BaseModel)
 P = TypeVar("P", bound=BaseModel)  # For poll response
@@ -193,48 +190,6 @@ class ApiClient:
     def _generate_operation_id(self, path: str) -> str:
         """Generates a unique operation ID for logging."""
         return f"{path.strip('/').replace('/', '_')}_{uuid.uuid4().hex[:8]}"
-
-    def _create_json_payload_args(
-        self,
-        data: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
-        return {
-            "json": data,
-            "headers": headers,
-        }
-
-    def _create_form_data_args(
-        self,
-        data: Dict[str, Any],
-        files: Dict[str, Any],
-        headers: Optional[Dict[str, str]] = None,
-        multipart_parser = None,
-    ) -> Dict[str, Any]:
-        if headers and "Content-Type" in headers:
-            del headers["Content-Type"]
-
-        if multipart_parser:
-            data = multipart_parser(data)
-
-        return {
-            "data": data,
-            "files": files,
-            "headers": headers,
-        }
-
-    def _create_urlencoded_form_data_args(
-        self,
-        data: Dict[str, Any],
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
-        headers = headers or {}
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-
-        return {
-            "data": data,
-            "headers": headers,
-        }
 
     def _create_json_payload_args(
         self,
@@ -659,129 +614,6 @@ class ApiClient:
         max_retries: int = 3,
         retry_delay: float = 1.0,
         retry_backoff_factor: float = 2.0,
-    ):
-        """Upload a file to the API with retry logic.
-
-        Args:
-            upload_url: The URL to upload to
-            file: Either a file path string, BytesIO object, or tuple of (file_path, filename)
-            content_type: Optional mime type to set for the upload
-            max_retries: Maximum number of retry attempts
-            retry_delay: Initial delay between retries in seconds
-            retry_backoff_factor: Multiplier for the delay after each retry
-        """
-        headers = {}
-        if content_type:
-            headers["Content-Type"] = content_type
-
-        # Prepare the file data
-        if isinstance(file, io.BytesIO):
-            file.seek(0)  # Ensure we're at the start of the file
-            data = file.read()
-        elif isinstance(file, str):
-            with open(file, "rb") as f:
-                data = f.read()
-        else:
-            raise ValueError("File must be either a BytesIO object or a file path string")
-
-        # Try the upload with retries
-        last_exception = None
-        operation_id = f"upload_{upload_url.split('/')[-1]}_{uuid.uuid4().hex[:8]}" # Simplified ID for uploads
-
-        # Log initial attempt (without full file data for brevity)
-        request_logger.log_request_response(
-            operation_id=operation_id,
-            request_method="PUT",
-            request_url=upload_url,
-            request_headers=headers,
-            request_data=f"[File data of type {content_type or 'unknown'}, size {len(data)} bytes]"
-        )
-
-        for retry_attempt in range(max_retries + 1):
-            try:
-                response = requests.put(upload_url, data=data, headers=headers)
-                response.raise_for_status()
-                request_logger.log_request_response(
-                    operation_id=operation_id,
-                    request_method="PUT", request_url=upload_url, # For context
-                    response_status_code=response.status_code,
-                    response_headers=dict(response.headers),
-                    response_content="File uploaded successfully." # Or response.text if available
-                )
-                return response
-
-            except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
-                last_exception = e
-                error_message_for_log = f"{type(e).__name__}: {str(e)}"
-                response_content_for_log = None
-                status_code_for_log = None
-                headers_for_log = None
-
-                if hasattr(e, 'response') and e.response is not None:
-                    status_code_for_log = e.response.status_code
-                    headers_for_log = dict(e.response.headers)
-                    try:
-                        response_content_for_log = e.response.json()
-                    except json.JSONDecodeError:
-                        response_content_for_log = e.response.content
-
-
-                request_logger.log_request_response(
-                    operation_id=operation_id,
-                    request_method="PUT", request_url=upload_url,
-                    response_status_code=status_code_for_log,
-                    response_headers=headers_for_log,
-                    response_content=response_content_for_log,
-                    error_message=error_message_for_log
-                )
-
-                if retry_attempt < max_retries:
-                    delay = retry_delay * (retry_backoff_factor ** retry_attempt)
-                    logging.warning(
-                        f"File upload failed: {str(e)}. "
-                        f"Retrying in {delay:.2f}s ({retry_attempt + 1}/{max_retries})"
-                    )
-                    time.sleep(delay)
-                else:
-                    break # Max retries reached
-
-        # If we've exhausted all retries, determine the final error type and raise
-        final_error_message = f"Failed to upload file after {max_retries + 1} attempts. Error: {str(last_exception)}"
-        try:
-            # Check basic internet connectivity
-            check_response = requests.get("https://www.google.com", timeout=5.0, verify=True) # Assuming verify=True is desired
-            if check_response.status_code >= 500: # Google itself has an issue (rare)
-                 final_error_message = (f"Failed to upload file. Internet connectivity check to Google failed "
-                                       f"(status {check_response.status_code}). Original error: {str(last_exception)}")
-                 # Not raising LocalNetworkError here as Google itself might be down.
-            # If Google is reachable, the issue is likely with the upload server or a more specific local problem
-            # not caught by a simple Google ping (e.g., DNS for the specific upload URL, firewall).
-            # The original last_exception is probably most relevant.
-
-        except (requests.RequestException, socket.error) as conn_check_exc:
-            # Could not reach Google, likely a local network issue
-            final_error_message = (f"Failed to upload file due to network connectivity issues "
-                                   f"(cannot reach Google: {str(conn_check_exc)}). "
-                                   f"Original upload error: {str(last_exception)}")
-            request_logger.log_request_response( # Log final failure reason
-                operation_id=operation_id,
-                request_method="PUT", request_url=upload_url,
-                error_message=final_error_message
-            )
-            raise LocalNetworkError(final_error_message) from last_exception
-
-        request_logger.log_request_response( # Log final failure reason if not LocalNetworkError
-            operation_id=operation_id,
-            request_method="PUT", request_url=upload_url,
-            error_message=final_error_message
-        )
-        raise Exception(final_error_message) from last_exception
-
-    @staticmethod
-    def upload_file(
-        upload_url: str,
-        file: io.BytesIO | str,
-        content_type: str | None = None,
     ):
         """Upload a file to the API with retry logic.
 
