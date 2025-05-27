@@ -685,7 +685,14 @@ class PromptServer():
 
         @routes.post("/interrupt")
         async def post_interrupt(request):
-            nodes.interrupt_processing()
+            json_data = await request.json()
+            if "id" in json_data:
+                current_queue = self.prompt_queue.get_current_queue_volatile()
+                queue_running = current_queue[0]
+                if len(queue_running) > 0 and queue_running[0][1] == json_data["id"]:
+                    nodes.interrupt_processing()
+            else:
+                nodes.interrupt_processing()
             return web.Response(status=200)
 
         @routes.post("/free")
