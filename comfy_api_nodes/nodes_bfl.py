@@ -329,6 +329,15 @@ class FluxKontextProImageNode(ComfyNodeABC):
                         "tooltip": "The random seed used for creating the noise.",
                     },
                 ),
+                "safety_tolerance": (
+                    IO.INT,
+                    {
+                        "default": 2,
+                        "min": 0,
+                        "max": 2,
+                        "tooltip": "Safety tolerance for the image generation process",
+                    },
+                ),
                 "prompt_upsampling": (
                     IO.BOOLEAN,
                     {
@@ -375,6 +384,7 @@ class FluxKontextProImageNode(ComfyNodeABC):
         input_image: torch.Tensor=None,
         seed=0,
         prompt_upsampling=False,
+        safety_tolerance=2,
         unique_id: Union[str, None] = None,
         **kwargs,
     ):
@@ -382,7 +392,7 @@ class FluxKontextProImageNode(ComfyNodeABC):
             validate_string(prompt, strip_whitespace=False)
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
-                path="/proxy/bfl/flux-kontext-pro",
+                path="/proxy/bfl/flux-kontext-pro/generate",
                 method=HttpMethod.POST,
                 request_model=BFLFluxKontextProGenerateRequest,
                 response_model=BFLFluxProGenerateResponse,
@@ -405,6 +415,7 @@ class FluxKontextProImageNode(ComfyNodeABC):
                     if input_image is None
                     else convert_image_to_base64(input_image)
                 ),
+                safety_tolerance=safety_tolerance,
             ),
             auth_kwargs=kwargs,
         )
