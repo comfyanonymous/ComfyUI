@@ -435,6 +435,20 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
 
     return (ExecutionResult.SUCCESS, None, None)
 
+def clean_inputs(prompt):
+    for unique_id, node in prompt.items():
+        inputs = node['inputs']
+        class_type = node['class_type']
+        obj_class = nodes.NODE_CLASS_MAPPINGS[class_type]
+
+        class_inputs = obj_class.INPUT_TYPES()
+        valid_inputs = set(class_inputs.get('required',{})).union(set(class_inputs.get('optional',{})))
+        for k in list(inputs.keys()):
+            if k not in valid_inputs:
+                inputs.pop(k)
+    return prompt
+
+
 class PromptExecutor:
     def __init__(self, server, cache_type=False, cache_size=None):
         self.cache_size = cache_size
@@ -486,6 +500,7 @@ class PromptExecutor:
 
     def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
         nodes.interrupt_processing(False)
+        prompt = clean_inputs(prompt)
 
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]
