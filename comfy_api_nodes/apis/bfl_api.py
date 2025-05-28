@@ -114,8 +114,8 @@ class BFLFluxKontextProGenerateRequest(BaseModel):
     seed: Optional[int] = Field(None, description='The seed value for reproducibility.')
     guidance: confloat(ge=0.1, le=99.0) = Field(..., description='Guidance strength for the image generation process')
     steps: conint(ge=1, le=150) = Field(..., description='Number of steps for the image generation process')
-    safety_tolerance: Optional[conint(ge=0, le=6)] = Field(
-        6, description='Tolerance level for input and output moderation. Between 0 and 6, 0 being most strict, 6 being least strict. Defaults to 2.'
+    safety_tolerance: Optional[conint(ge=0, le=2)] = Field(
+        2, description='Tolerance level for input and output moderation. Between 0 and 2, 0 being most strict, 6 being least strict. Defaults to 2.'
     )
     output_format: Optional[BFLOutputFormat] = Field(
         BFLOutputFormat.png, description="Output format for the generated image. Can be 'jpeg' or 'png'.", examples=['png']

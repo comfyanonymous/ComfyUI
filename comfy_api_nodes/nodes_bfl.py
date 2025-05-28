@@ -284,7 +284,6 @@ class FluxKontextProImageNode(ComfyNodeABC):
     def INPUT_TYPES(s):
         return {
             "required": {
-                "input_image": (IO.IMAGE,),
                 "prompt": (
                     IO.STRING,
                     {
@@ -329,15 +328,6 @@ class FluxKontextProImageNode(ComfyNodeABC):
                         "tooltip": "The random seed used for creating the noise.",
                     },
                 ),
-                "safety_tolerance": (
-                    IO.INT,
-                    {
-                        "default": 2,
-                        "min": 0,
-                        "max": 2,
-                        "tooltip": "Safety tolerance for the image generation process",
-                    },
-                ),
                 "prompt_upsampling": (
                     IO.BOOLEAN,
                     {
@@ -347,6 +337,7 @@ class FluxKontextProImageNode(ComfyNodeABC):
                 ),
             },
             "optional": {
+                "input_image": (IO.IMAGE,),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
@@ -384,7 +375,6 @@ class FluxKontextProImageNode(ComfyNodeABC):
         input_image: torch.Tensor=None,
         seed=0,
         prompt_upsampling=False,
-        safety_tolerance=2,
         unique_id: Union[str, None] = None,
         **kwargs,
     ):
@@ -414,8 +404,7 @@ class FluxKontextProImageNode(ComfyNodeABC):
                     input_image
                     if input_image is None
                     else convert_image_to_base64(input_image)
-                ),
-                safety_tolerance=safety_tolerance,
+                )
             ),
             auth_kwargs=kwargs,
         )
