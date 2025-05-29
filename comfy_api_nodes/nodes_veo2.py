@@ -54,10 +54,6 @@ class VeoVideoGenerationNode(ComfyNodeABC):
     """
     Generates videos from text prompts using Google's Veo API.
 
-    Supported models:
-    - veo-2.0-generate-001
-    - veo-3.0-generate-preview
-
     This node can create videos from text descriptions and optional image inputs,
     with control over parameters like aspect ratio, duration, and more.
     """
@@ -134,14 +130,6 @@ class VeoVideoGenerationNode(ComfyNodeABC):
                     "default": None,
                     "tooltip": "Optional reference image to guide video generation",
                 }),
-                "model": (
-                    IO.COMBO,
-                    {
-                        "options": ["veo-2.0-generate-001", "veo-3.0-generate-preview"],
-                        "default": "veo-2.0-generate-001",
-                        "tooltip": "Model to use for video generation. Defaults to veo 2.0",
-                    },
-                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
@@ -166,7 +154,6 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         person_generation="ALLOW",
         seed=0,
         image=None,
-        model="veo-2.0-generate-001",
         unique_id: Optional[str] = None,
         **kwargs,
     ):
@@ -205,7 +192,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         # Initial request to start video generation
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
-                path=f"/proxy/veo/{model}/generate",
+                path="/proxy/veo/generate",
                 method=HttpMethod.POST,
                 request_model=Veo2GenVidRequest,
                 response_model=Veo2GenVidResponse
@@ -236,7 +223,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         # Define the polling operation
         poll_operation = PollingOperation(
             poll_endpoint=ApiEndpoint(
-                path=f"/proxy/veo/{model}/poll",
+                path="/proxy/veo/poll",
                 method=HttpMethod.POST,
                 request_model=Veo2GenVidPollRequest,
                 response_model=Veo2GenVidPollResponse
@@ -317,5 +304,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "VeoVideoGenerationNode": "Google Veo Video Generation",
+    "VeoVideoGenerationNode": "Google Veo2 Video Generation",
 }
