@@ -1057,6 +1057,11 @@ class WAN21(BaseModel):
         clip_vision_output = kwargs.get("clip_vision_output", None)
         if clip_vision_output is not None:
             out['clip_fea'] = comfy.conds.CONDRegular(clip_vision_output.penultimate_hidden_states)
+
+        time_dim_concat = kwargs.get("time_dim_concat", None)
+        if time_dim_concat is not None:
+            out['time_dim_concat'] = comfy.conds.CONDRegular(self.process_latent_in(time_dim_concat))
+
         return out
 
 
