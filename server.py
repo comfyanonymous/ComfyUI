@@ -29,6 +29,7 @@ import comfy.model_management
 import node_helpers
 from comfyui_version import __version__
 from app.frontend_management import FrontendManager
+from comfy_api.v3.io import ComfyNodeV3
 
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
@@ -555,6 +556,8 @@ class PromptServer():
 
         def node_info(node_class):
             obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
+            if isinstance(obj_class, ComfyNodeV3):
+                return obj_class.GET_NODE_INFO_V1()
             info = {}
             info['input'] = obj_class.INPUT_TYPES()
             info['input_order'] = {key: list(value.keys()) for (key, value) in obj_class.INPUT_TYPES().items()}
