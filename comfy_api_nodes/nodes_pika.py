@@ -6,40 +6,42 @@ Pika API docs: https://pika-827374fb.mintlify.app/api-reference
 from __future__ import annotations
 
 import io
-from typing import Optional, TypeVar
 import logging
-import torch
+from typing import Optional, TypeVar
+
 import numpy as np
+import torch
+
+from comfy.comfy_types.node_typing import IO, ComfyNodeABC, InputTypeOptions
+from comfy_api.input_impl import VideoFromFile
+from comfy_api.input_impl.video_types import VideoCodec, VideoContainer, VideoInput
+from comfy_api_nodes.apinode_utils import (
+    download_url_to_video_output,
+    tensor_to_bytesio,
+)
 from comfy_api_nodes.apis import (
-    PikaBodyGenerate22T2vGenerate22T2vPost,
-    PikaGenerateResponse,
-    PikaBodyGenerate22I2vGenerate22I2vPost,
-    PikaVideoResponse,
-    PikaBodyGenerate22C2vGenerate22PikascenesPost,
     IngredientsMode,
-    PikaDurationEnum,
-    PikaResolutionEnum,
-    PikaBodyGeneratePikaffectsGeneratePikaffectsPost,
-    PikaBodyGeneratePikadditionsGeneratePikadditionsPost,
-    PikaBodyGeneratePikaswapsGeneratePikaswapsPost,
+    PikaBodyGenerate22C2vGenerate22PikascenesPost,
+    PikaBodyGenerate22I2vGenerate22I2vPost,
     PikaBodyGenerate22KeyframeGenerate22PikaframesPost,
+    PikaBodyGenerate22T2vGenerate22T2vPost,
+    PikaBodyGeneratePikadditionsGeneratePikadditionsPost,
+    PikaBodyGeneratePikaffectsGeneratePikaffectsPost,
+    PikaBodyGeneratePikaswapsGeneratePikaswapsPost,
+    PikaDurationEnum,
     Pikaffect,
+    PikaGenerateResponse,
+    PikaResolutionEnum,
+    PikaVideoResponse,
 )
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
-    HttpMethod,
-    SynchronousOperation,
-    PollingOperation,
     EmptyRequest,
-)
-from comfy_api_nodes.apinode_utils import (
-    tensor_to_bytesio,
-    download_url_to_video_output,
+    HttpMethod,
+    PollingOperation,
+    SynchronousOperation,
 )
 from comfy_api_nodes.mapper_utils import model_field_to_node_input
-from comfy_api.input_impl.video_types import VideoInput, VideoContainer, VideoCodec
-from comfy_api.input_impl import VideoFromFile
-from comfy.comfy_types.node_typing import IO, ComfyNodeABC, InputTypeOptions
 
 R = TypeVar("R")
 
@@ -204,6 +206,7 @@ class PikaImageToVideoV2_2(PikaNodeBase):
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
                 "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
             },
         }
 
@@ -457,7 +460,7 @@ class PikAdditionsNode(PikaNodeBase):
             },
         }
 
-    DESCRIPTION = "Add any object or image into your video. Upload a video and specify what you’d like to add to create a seamlessly integrated result."
+    DESCRIPTION = "Add any object or image into your video. Upload a video and specify what you'd like to add to create a seamlessly integrated result."
 
     def api_call(
         self,
