@@ -30,7 +30,7 @@ def set_process_integrity_level_to_low():
 
     logging.info("Sandbox enabled: Process now running with low integrity token")
 
-    win32security.CloseHandle(token)
+    win32api.CloseHandle(token)
 
 
 def does_permit_low_integrity_write(icacls_output):
