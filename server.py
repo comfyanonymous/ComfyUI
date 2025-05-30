@@ -692,6 +692,8 @@ class PromptServer():
                     queue_running = current_queue[0]
                     if len(queue_running) > 0 and queue_running[0][1] == json_data["id"]:
                         nodes.interrupt_processing()
+                else:
+                    nodes.interrupt_processing()
             else:
                 nodes.interrupt_processing()
             return web.Response(status=200)
