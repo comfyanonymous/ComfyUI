@@ -298,7 +298,7 @@ class RegexExtract():
 
 
 class RegexReplace():
-  DESCRIPTION = "Find and replace text using regex patterns."
+    DESCRIPTION = "Find and replace text using regex patterns."
     @classmethod
     def INPUT_TYPES(s):
         return {
