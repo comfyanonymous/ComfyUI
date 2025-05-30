@@ -298,6 +298,7 @@ class RegexExtract():
 
 
 class RegexReplace():
+  DESCRIPTION = "Find and replace text using regex patterns."
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -309,8 +310,8 @@ class RegexReplace():
             "optional": {
                 "case_insensitive": (IO.BOOLEAN, {"default": True}),
                 "multiline": (IO.BOOLEAN, {"default": False}),
-                "dotall": (IO.BOOLEAN, {"default": False}),
-                "count": (IO.INT, {"default": 0, "min": 0, "max": 100}),
+                "dotall": (IO.BOOLEAN, {"default": False, "tooltip": "When enabled, the dot (.) character will match any character including newline characters. When disabled, dots won't match newlines."}),
+                "count": (IO.INT, {"default": 0, "min": 0, "max": 100, "tooltip": "Maximum number of replacements to make. Set to 0 to replace all occurrences (default). Set to 1 to replace only the first match, 2 for the first two matches, etc."}),
             }
         }
 
