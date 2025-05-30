@@ -10,12 +10,15 @@ from app.logger import setup_logger
 import itertools
 import utils.extra_config
 import logging
+from sandbox import windows_sandbox
 import sys
+import subprocess
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
+    
 
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
@@ -52,6 +55,31 @@ def apply_custom_paths():
         user_dir = os.path.abspath(args.user_directory)
         logging.info(f"Setting user directory to: {user_dir}")
         folder_paths.set_user_directory(user_dir)
+
+
+def try_enable_sandbox():
+    if not args.enable_sandbox: return
+
+    # Sandbox is only supported on Windows
+    if os.name != 'nt': return
+
+    if any([
+        args.output_directory,
+        args.user_directory,
+        args.base_directory,
+        args.temp_directory
+    ]):
+        # Note: If we ever support custom directories, we should warn users if
+        # the directories are in a senstive location (e.g. a high level
+        # directory like C:\ or the user's home directory).
+        raise Exception("Sandbox mode is not supported when using --output-directory, "
+                        "--user-directory, --base-directory, or --temp-directory.")
+
+    success = windows_sandbox.try_enable_sandbox()
+
+    if not success:
+        raise Exception("Unable to run ComfyUI with sandbox enabled. "
+                        "You can rerun without --enable-sandbox.")
 
 
 def execute_prestartup_script():
@@ -95,6 +123,7 @@ def execute_prestartup_script():
         logging.info("")
 
 apply_custom_paths()
+try_enable_sandbox()  # Must run before executing custom node prestartup scripts
 execute_prestartup_script()
 
 
@@ -256,6 +285,8 @@ def start_comfyui(asyncio_loop=None):
         logging.info(f"Setting temp directory to: {temp_dir}")
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
+
+    os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
 
     if args.windows_standalone_build:
         try:

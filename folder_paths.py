@@ -47,9 +47,14 @@ folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")]
 folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
 
 output_directory = os.path.join(base_path, "output")
-temp_directory = os.path.join(base_path, "temp")
 input_directory = os.path.join(base_path, "input")
 user_directory = os.path.join(base_path, "user")
+
+write_permitted_base_dir = os.path.join(base_path, "write-permitted")
+# Temp is a subdirectory of write-permitted so the entire directory can be
+# deleted and recreated as needed.
+temp_directory = os.path.join(write_permitted_base_dir, "temp")
+
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
@@ -130,6 +135,8 @@ def set_user_directory(user_dir: str) -> None:
     global user_directory
     user_directory = user_dir
 
+def get_write_permitted_base_directory() -> str:
+    return write_permitted_base_dir
 
 #NOTE: used in http server so don't put folders that should not be accessed remotely
 def get_directory_by_type(type_name: str) -> str | None:
