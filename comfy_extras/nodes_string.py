@@ -296,6 +296,40 @@ class RegexExtract():
 
         return result,
 
+
+class RegexReplace():
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "string": (IO.STRING, {"multiline": True}),
+                "regex_pattern": (IO.STRING, {"multiline": True}),
+                "replace": (IO.STRING, {"multiline": True}),
+            },
+            "optional": {
+                "case_insensitive": (IO.BOOLEAN, {"default": True}),
+                "multiline": (IO.BOOLEAN, {"default": False}),
+                "dotall": (IO.BOOLEAN, {"default": False}),
+                "count": (IO.INT, {"default": 0, "min": 0, "max": 100}),
+            }
+        }
+
+    RETURN_TYPES = (IO.STRING,)
+    FUNCTION = "execute"
+    CATEGORY = "utils/string"
+
+    def execute(self, string, regex_pattern, replace, case_insensitive=True, multiline=False, dotall=False, count=0, **kwargs):
+        flags = 0
+
+        if case_insensitive:
+            flags |= re.IGNORECASE
+        if multiline:
+            flags |= re.MULTILINE
+        if dotall:
+            flags |= re.DOTALL
+        result = re.sub(regex_pattern, replace, string, count=count, flags=flags)
+        return result,
+
 NODE_CLASS_MAPPINGS = {
     "StringConcatenate": StringConcatenate,
     "StringSubstring": StringSubstring,
@@ -306,7 +340,8 @@ NODE_CLASS_MAPPINGS = {
     "StringContains": StringContains,
     "StringCompare": StringCompare,
     "RegexMatch": RegexMatch,
-    "RegexExtract": RegexExtract
+    "RegexExtract": RegexExtract,
+    "RegexReplace": RegexReplace,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -319,5 +354,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "StringContains": "Contains",
     "StringCompare": "Compare",
     "RegexMatch": "Regex Match",
-    "RegexExtract": "Regex Extract"
+    "RegexExtract": "Regex Extract",
+    "RegexReplace": "Regex Replace",
 }
