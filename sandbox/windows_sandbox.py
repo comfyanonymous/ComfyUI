@@ -144,6 +144,7 @@ def try_enable_sandbox():
         folder_paths.get_output_directory(),
         folder_paths.get_user_directory(),
     ]
+    write_permitted_dirs.extend(folder_paths.get_folder_paths("custom_nodes"))
 
     ensure_directories_exist(write_permitted_dirs)
 
