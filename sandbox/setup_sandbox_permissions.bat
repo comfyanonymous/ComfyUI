@@ -25,5 +25,7 @@ exit /b 0
 
 :errorexit
 echo Sandbox permission setup script failed
+rem Wait for a key to be pressed if unsuccessful so user can read the error
+rem before the command window closes.
 pause
 exit /b 1

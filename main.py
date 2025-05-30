@@ -12,13 +12,11 @@ import utils.extra_config
 import logging
 from sandbox import windows_sandbox
 import sys
-import subprocess
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
-    
 
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
@@ -285,8 +283,6 @@ def start_comfyui(asyncio_loop=None):
         logging.info(f"Setting temp directory to: {temp_dir}")
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
-
-    os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
 
     if args.windows_standalone_build:
         try:

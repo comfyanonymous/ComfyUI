@@ -212,7 +212,7 @@ parser.add_argument(
     "--enable-sandbox",
     default=False,
     action="store_true",
-    help="Enable sandbox mode. (default: False)",
+    help="Enable sandbox mode.",
 )
 
 if comfy.options.args_parsing:

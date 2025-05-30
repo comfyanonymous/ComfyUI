@@ -17,26 +17,32 @@ ICACLS_PATH = r"C:\Windows\System32\icacls.exe"
 
 
 def set_process_integrity_level_to_low():
-    # Get current process handle
     current_process = win32process.GetCurrentProcess()
-
-    # Open process token
     token = win32security.OpenProcessToken(
         current_process,
         win32con.TOKEN_ALL_ACCESS,
     )
 
     low_integrity_sid = win32security.ConvertStringSidToSid(LOW_INTEGRITY_SID_STRING)
-
-    # Set the integrity level of the token
     win32security.SetTokenInformation(
         token, win32security.TokenIntegrityLevel, (low_integrity_sid, 0)
     )
 
     logging.info("Sandbox enabled: Process now running with low integrity token")
 
+    win32security.CloseHandle(token)
 
-def permits_low_integrity_write(icacls_output):
+
+def does_permit_low_integrity_write(icacls_output):
+    """
+    Checks if an icacls output indicates that the path is writable by low
+    integrity processes.
+
+    Note that currently it is a bit of a crude check - it is possible for
+    a low integrity process to have write access to a directory without
+    having these exact ACLs reported by icacls. Implement a more robust
+    check if this situation ever occurs.
+    """
     permissions = [l.strip() for l in icacls_output.split("\n")]
     LOW_INTEGRITY_LABEL = r"Mandatory Label\Low Mandatory Level"
 
@@ -47,11 +53,6 @@ def permits_low_integrity_write(icacls_output):
         # Check the Low integrity label line - it should be something like
         # Mandatory Label\Low Mandatory Level:(OI)(CI)(NW) or
         # Mandatory Label\Low Mandatory Level:(I)(OI)(CI)(NW)
-
-        # Note: This is a bit of a crude check with icacls - it is possible for
-        # a low integrity process to have write access to a directory without
-        # having these exact ACLs reported by icacls. Implement a more robust
-        # check if this situation ever occurs.
         return all(
             [
                 # OI: Object Inheritance - all files in the directory with have low
@@ -68,7 +69,7 @@ def permits_low_integrity_write(icacls_output):
 
 
 def path_is_low_integrity_writable(path):
-    """Check if the directory has a writable ACL by low integrity process"""
+    """Check if the path has a writable ACL by low integrity process"""
     result = subprocess.run([ICACLS_PATH, path], capture_output=True, text=True)
 
     if result.returncode != 0:
@@ -76,7 +77,7 @@ def path_is_low_integrity_writable(path):
         # or we're not allowed to access acl information of the path.
         return False
 
-    return permits_low_integrity_write(result.stdout)
+    return does_permit_low_integrity_write(result.stdout)
 
 
 def ensure_directories_exist(dirs):
@@ -98,6 +99,13 @@ def check_directory_acls(dirs):
 
 
 def setup_permissions(dirs):
+    """
+    Sets the correct low integrity write permissions for the given directories
+    using an UAC elevation prompt. We need admin elevation because if the Comfy
+    directory is not under the user's profile directory (e.g. any location in a
+    non-C: drive), the regular user does not have permission to set the
+    integrity level ACLs.
+    """
     script_dir = os.path.dirname(os.path.abspath(__file__))
     bat_path = os.path.join(script_dir, "setup_sandbox_permissions.bat")
 
@@ -115,7 +123,7 @@ def setup_permissions(dirs):
     proc_info = shell.ShellExecuteEx(**execute_info)
     hProcess = proc_info["hProcess"]
 
-    # Setup script should take a few milliseconds. Time out at 10 seconds.
+    # Setup script should less than a second. Time out at 10 seconds.
     win32event.WaitForSingleObject(hProcess, 10 * 1000)
     exit_code = win32process.GetExitCodeProcess(hProcess)
 
