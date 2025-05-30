@@ -10,7 +10,6 @@ from app.logger import setup_logger
 import itertools
 import utils.extra_config
 import logging
-from sandbox import windows_sandbox
 import sys
 
 if __name__ == "__main__":
@@ -56,11 +55,6 @@ def apply_custom_paths():
 
 
 def try_enable_sandbox():
-    if not args.enable_sandbox: return
-
-    # Sandbox is only supported on Windows
-    if os.name != 'nt': return
-
     if any([
         args.output_directory,
         args.user_directory,
@@ -121,7 +115,14 @@ def execute_prestartup_script():
         logging.info("")
 
 apply_custom_paths()
-try_enable_sandbox()  # Must run before executing custom node prestartup scripts
+
+if os.name == "nt" and args.enable_sandbox:
+    # We do not have pywin32 on non-windows platforms, so this import needs to
+    # be guarded.
+    from sandbox import windows_sandbox
+    # Must run before executing custom node prestartup scripts.
+    try_enable_sandbox()
+
 execute_prestartup_script()
 
 
