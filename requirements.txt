@@ -24,3 +24,6 @@ spandrel
 soundfile
 av>=14.2.0
 pydantic~=2.0
+
+# Windows only dependencies:
+pywin32 ; sys_platform == "win32"

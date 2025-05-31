@@ -203,6 +203,13 @@ parser.add_argument(
     help="Set the base URL for the ComfyUI API.  (default: https://api.comfy.org)",
 )
 
+parser.add_argument(
+    "--enable-sandbox",
+    default=False,
+    action="store_true",
+    help="Enable sandbox mode.",
+)
+
 if comfy.options.args_parsing:
     args = parser.parse_args()
 else:
