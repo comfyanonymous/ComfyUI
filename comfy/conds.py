@@ -88,7 +88,7 @@ class CONDConstant(CONDRegular):
         return [1]
 
 
-class CONDArray(CONDRegular):
+class CONDList(CONDRegular):
     def __init__(self, cond):
         self.cond = cond
 
