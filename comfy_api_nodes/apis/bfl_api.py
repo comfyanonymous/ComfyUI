@@ -108,6 +108,24 @@ class BFLFluxProGenerateRequest(BaseModel):
     # )
 
 
+class BFLFluxKontextProGenerateRequest(BaseModel):
+    prompt: str = Field(..., description='The text prompt for what you wannt to edit.')
+    input_image: Optional[str] = Field(None, description='Image to edit in base64 format')
+    seed: Optional[int] = Field(None, description='The seed value for reproducibility.')
+    guidance: confloat(ge=0.1, le=99.0) = Field(..., description='Guidance strength for the image generation process')
+    steps: conint(ge=1, le=150) = Field(..., description='Number of steps for the image generation process')
+    safety_tolerance: Optional[conint(ge=0, le=2)] = Field(
+        2, description='Tolerance level for input and output moderation. Between 0 and 2, 0 being most strict, 6 being least strict. Defaults to 2.'
+    )
+    output_format: Optional[BFLOutputFormat] = Field(
+        BFLOutputFormat.png, description="Output format for the generated image. Can be 'jpeg' or 'png'.", examples=['png']
+    )
+    aspect_ratio: Optional[str] = Field(None, description='Aspect ratio of the image between 21:9 and 9:21.')
+    prompt_upsampling: Optional[bool] = Field(
+        None, description='Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation.'
+    )
+
+
 class BFLFluxProUltraGenerateRequest(BaseModel):
     prompt: str = Field(..., description='The text prompt for image generation.')
     prompt_upsampling: Optional[bool] = Field(
