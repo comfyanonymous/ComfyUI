@@ -143,7 +143,7 @@ class IntegerInput(WidgetInputV3, io_type="INT"):
             "max": self.max,
             "step": self.step,
             "control_after_generate": self.control_after_generate,
-            "display_mode": self.display_mode,
+            "display": self.display_mode, # NOTE: in frontend, the parameter is called "display"
         })
 
 class FloatInput(WidgetInputV3, io_type="FLOAT"):
@@ -168,7 +168,7 @@ class FloatInput(WidgetInputV3, io_type="FLOAT"):
             "max": self.max,
             "step": self.step,
             "round": self.round,
-            "display_mode": self.display_mode,
+            "display": self.display_mode, # NOTE: in frontend, the parameter is called "display"
         })
 
 class StringInput(WidgetInputV3, io_type="STRING"):
@@ -717,7 +717,10 @@ class TestNode(ComfyNodeV3):
         node_id="TestNode_v3",
         display_name="Test Node (V3)",
         category="v3_test",
-        inputs=[IntegerInput("my_int")],
+        inputs=[IntegerInput("my_int"),
+                #AutoGrowDynamicInput("growing", ImageInput),
+                MaskInput("thing"),
+                ],
         outputs=[ImageOutput("image_output")],
         hidden=[Hidden.api_key_comfy_org, Hidden.auth_token_comfy_org, Hidden.unique_id]
     )
