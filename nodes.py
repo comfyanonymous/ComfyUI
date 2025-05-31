@@ -2129,8 +2129,18 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
             if os.path.isdir(web_dir):
                 EXTENSION_WEB_DIRS[module_name] = web_dir
 
-        if getattr(module, "NODES_LIST", None) is not None:
-            for node_cls in module.NODES:
+        # V1 node definition
+        if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
+            for name, node_cls in module.NODE_CLASS_MAPPINGS.items():
+                if name not in ignore:
+                    NODE_CLASS_MAPPINGS[name] = node_cls
+                    node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
+            if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
+                NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
+            return True
+        # V3 node definition
+        elif getattr(module, "NODES_LIST", None) is not None:
+            for node_cls in module.NODES_LIST:
                 node_cls: ComfyNodeV3
                 schema = node_cls.GET_SCHEMA()
                 if schema.node_id not in ignore:
@@ -2138,14 +2148,6 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
                     node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
                 if schema.display_name is not None:
                     NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name
-            return True
-        elif hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
-            for name, node_cls in module.NODE_CLASS_MAPPINGS.items():
-                if name not in ignore:
-                    NODE_CLASS_MAPPINGS[name] = node_cls
-                    node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
-            if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
-                NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
             return True
         else:
             logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS or NODES_LIST (need one).")

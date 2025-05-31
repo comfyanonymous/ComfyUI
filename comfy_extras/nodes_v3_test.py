@@ -20,7 +20,7 @@ class V3TestNode(ComfyNodeV3):
             description="This is a funky V3 node test.",
             category="v3 nodes",
             inputs=[
-                IntegerInput("some_int", display_name="new_name", min=0, tooltip="My tooltip 😎"),
+                IntegerInput("some_int", display_name="new_name", min=0, tooltip="My tooltip 😎", display_mode=NumberDisplay.slider),
                 MaskInput("mask", behavior=InputBehavior.optional),
                 ImageInput("image", display_name="new_image"),
                 # IntegerInput("some_int", display_name="new_name", min=0, tooltip="My tooltip 😎", display=NumberDisplay.slider, ),
