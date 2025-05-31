@@ -357,6 +357,9 @@ class Wildcard():
         else:
             wildcard = text.split(separator_if_not_newline)
 
+        if not wildcard:
+            return (""),
+
         random.seed(seed)
         i = random.randint(0, (len(wildcard)-1))
         return (wildcard[i]),
