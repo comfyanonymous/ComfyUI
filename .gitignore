@@ -13,9 +13,6 @@ extra_model_paths.yaml
 .idea/
 venv/
 .venv/
-memory_bank/
-mcp_server_o/
-custom_modes/
 .cursor/
 /web/extensions/*
 !/web/extensions/logging.js.example
@@ -28,5 +25,4 @@ web_custom_versions/
 openapi.yaml
 filtered-openapi.yaml
 uv.lock
-.gitignore
-lab/
+

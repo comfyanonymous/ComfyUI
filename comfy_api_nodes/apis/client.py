@@ -139,7 +139,7 @@ class EmptyRequest(BaseModel):
 
 class UploadRequest(BaseModel):
     file_name: str = Field(..., description="Filename to upload")
-    content_type: str | None = Field(
+    content_type: Optional[str] = Field(
         None,
         description="Mime type of the file. For example: image/png, image/jpeg, video/mp4, etc.",
     )
@@ -327,7 +327,9 @@ class ApiClient:
             ApiServerError: If the API server is unreachable but internet is working
             Exception: For other request failures
         """
-        url = urljoin(self.base_url, path)
+        # Use urljoin but ensure path is relative to avoid absolute path behavior
+        relative_path = path.lstrip('/')
+        url = urljoin(self.base_url, relative_path)
         self.check_auth(self.auth_token, self.comfy_api_key)
         # Combine default headers with any provided headers
         request_headers = self.get_headers()

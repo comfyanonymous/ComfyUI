@@ -29,6 +29,7 @@ import comfy.model_management
 import node_helpers
 from comfyui_version import __version__
 from app.frontend_management import FrontendManager
+
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
@@ -159,7 +160,7 @@ class PromptServer():
         self.custom_node_manager = CustomNodeManager()
         self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
-        self.prompt_queue = None
+        self.prompt_queue = execution.PromptQueue(self)
         self.loop = loop
         self.messages = asyncio.Queue()
         self.client_session:Optional[aiohttp.ClientSession] = None
@@ -226,7 +227,7 @@ class PromptServer():
             return response
 
         @routes.get("/embeddings")
-        def get_embeddings(self):
+        def get_embeddings(request):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
 
@@ -282,7 +283,6 @@ class PromptServer():
                     a.update(f.read())
                     b.update(image.file.read())
                     image.file.seek(0)
-                    f.close()
                 return a.hexdigest() == b.hexdigest()
             return False
 
@@ -621,7 +621,7 @@ class PromptServer():
         @routes.get("/queue")
         async def get_queue(request):
             queue_info = {}
-            current_queue = self.prompt_queue.get_current_queue()
+            current_queue = self.prompt_queue.get_current_queue_volatile()
             queue_info['queue_running'] = current_queue[0]
             queue_info['queue_pending'] = current_queue[1]
             return web.json_response(queue_info)

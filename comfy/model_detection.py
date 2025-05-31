@@ -620,6 +620,9 @@ def convert_config(unet_config):
 
 
 def unet_config_from_diffusers_unet(state_dict, dtype=None):
+    if "conv_in.weight" not in state_dict:
+        return None
+
     match = {}
     transformer_depth = []
 

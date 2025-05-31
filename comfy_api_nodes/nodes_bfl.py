@@ -1,6 +1,6 @@
 import io
 from inspect import cleandoc
-from typing import Union
+from typing import Union, Optional
 from comfy.comfy_types.node_typing import IO, ComfyNodeABC
 from comfy_api_nodes.apis.bfl_api import (
     BFLStatus,
@@ -9,6 +9,7 @@ from comfy_api_nodes.apis.bfl_api import (
     BFLFluxCannyImageRequest,
     BFLFluxDepthImageRequest,
     BFLFluxProGenerateRequest,
+    BFLFluxKontextProGenerateRequest,
     BFLFluxProUltraGenerateRequest,
     BFLFluxProGenerateResponse,
 )
@@ -268,6 +269,158 @@ class FluxProUltraImageNode(ComfyNodeABC):
         output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
+
+class FluxKontextProImageNode(ComfyNodeABC):
+    """
+    Edits images using Flux.1 Kontext [pro] via api based on prompt and aspect ratio.
+    """
+
+    MINIMUM_RATIO = 1 / 4
+    MAXIMUM_RATIO = 4 / 1
+    MINIMUM_RATIO_STR = "1:4"
+    MAXIMUM_RATIO_STR = "4:1"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "prompt": (
+                    IO.STRING,
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Prompt for the image generation - specify what and how to edit.",
+                    },
+                ),
+                "aspect_ratio": (
+                    IO.STRING,
+                    {
+                        "default": "16:9",
+                        "tooltip": "Aspect ratio of image; must be between 1:4 and 4:1.",
+                    },
+                ),
+                "guidance": (
+                    IO.FLOAT,
+                    {
+                        "default": 3.0,
+                        "min": 0.1,
+                        "max": 99.0,
+                        "step": 0.1,
+                        "tooltip": "Guidance strength for the image generation process"
+                    },
+                ),
+                "steps": (
+                    IO.INT,
+                    {
+                        "default": 50,
+                        "min": 1,
+                        "max": 150,
+                        "tooltip": "Number of steps for the image generation process"
+                    },
+                ),
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 1234,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+                "prompt_upsampling": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
+                    },
+                ),
+            },
+            "optional": {
+                "input_image": (IO.IMAGE,),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
+            },
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, aspect_ratio: str):
+        try:
+            validate_aspect_ratio(
+                aspect_ratio,
+                minimum_ratio=cls.MINIMUM_RATIO,
+                maximum_ratio=cls.MAXIMUM_RATIO,
+                minimum_ratio_str=cls.MINIMUM_RATIO_STR,
+                maximum_ratio_str=cls.MAXIMUM_RATIO_STR,
+            )
+        except Exception as e:
+            return str(e)
+        return True
+
+    RETURN_TYPES = (IO.IMAGE,)
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "api_call"
+    API_NODE = True
+    CATEGORY = "api node/image/BFL"
+
+    BFL_PATH = "/proxy/bfl/flux-kontext-pro/generate"
+
+    def api_call(
+        self,
+        prompt: str,
+        aspect_ratio: str,
+        guidance: float,
+        steps: int,
+        input_image: Optional[torch.Tensor]=None,
+        seed=0,
+        prompt_upsampling=False,
+        unique_id: Union[str, None] = None,
+        **kwargs,
+    ):
+        if input_image is None:
+            validate_string(prompt, strip_whitespace=False)
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path=self.BFL_PATH,
+                method=HttpMethod.POST,
+                request_model=BFLFluxKontextProGenerateRequest,
+                response_model=BFLFluxProGenerateResponse,
+            ),
+            request=BFLFluxKontextProGenerateRequest(
+                prompt=prompt,
+                prompt_upsampling=prompt_upsampling,
+                guidance=round(guidance, 1),
+                steps=steps,
+                seed=seed,
+                aspect_ratio=validate_aspect_ratio(
+                    aspect_ratio,
+                    minimum_ratio=self.MINIMUM_RATIO,
+                    maximum_ratio=self.MAXIMUM_RATIO,
+                    minimum_ratio_str=self.MINIMUM_RATIO_STR,
+                    maximum_ratio_str=self.MAXIMUM_RATIO_STR,
+                ),
+                input_image=(
+                    input_image
+                    if input_image is None
+                    else convert_image_to_base64(input_image)
+                )
+            ),
+            auth_kwargs=kwargs,
+        )
+        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
+        return (output_image,)
+
+
+class FluxKontextMaxImageNode(FluxKontextProImageNode):
+    """
+    Edits images using Flux.1 Kontext [max] via api based on prompt and aspect ratio.
+    """
+
+    DESCRIPTION = cleandoc(__doc__ or "")
+    BFL_PATH = "/proxy/bfl/flux-kontext-max/generate"
 
 
 class FluxProImageNode(ComfyNodeABC):
@@ -914,6 +1067,8 @@ class FluxProDepthNode(ComfyNodeABC):
 NODE_CLASS_MAPPINGS = {
     "FluxProUltraImageNode": FluxProUltraImageNode,
     # "FluxProImageNode": FluxProImageNode,
+    "FluxKontextProImageNode": FluxKontextProImageNode,
+    "FluxKontextMaxImageNode": FluxKontextMaxImageNode,
     "FluxProExpandNode": FluxProExpandNode,
     "FluxProFillNode": FluxProFillNode,
     "FluxProCannyNode": FluxProCannyNode,
@@ -924,6 +1079,8 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "FluxProUltraImageNode": "Flux 1.1 [pro] Ultra Image",
     # "FluxProImageNode": "Flux 1.1 [pro] Image",
+    "FluxKontextProImageNode": "Flux.1 Kontext [pro] Image",
+    "FluxKontextMaxImageNode": "Flux.1 Kontext [max] Image",
     "FluxProExpandNode": "Flux.1 Expand Image",
     "FluxProFillNode": "Flux.1 Fill Image",
     "FluxProCannyNode": "Flux.1 Canny Control Image",

@@ -163,7 +163,7 @@ class Chroma(nn.Module):
         distil_guidance = timestep_embedding(guidance.detach().clone(), 16).to(img.device, img.dtype)
 
         # get all modulation index
-        modulation_index = timestep_embedding(torch.arange(mod_index_length), 32).to(img.device, img.dtype)
+        modulation_index = timestep_embedding(torch.arange(mod_index_length, device=img.device), 32).to(img.device, img.dtype)
         # we need to broadcast the modulation index here so each batch has all of the index
         modulation_index = modulation_index.unsqueeze(0).repeat(img.shape[0], 1, 1).to(img.device, img.dtype)
         # and we need to broadcast timestep and guidance along too
