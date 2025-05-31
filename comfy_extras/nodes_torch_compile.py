@@ -1,4 +1,5 @@
-import torch
+from comfy_api.torch_helpers import set_torch_compile_wrapper
+
 
 class TorchCompileModel:
     @classmethod
@@ -14,7 +15,7 @@ class TorchCompileModel:
 
     def patch(self, model, backend):
         m = model.clone()
-        m.add_object_patch("diffusion_model", torch.compile(model=m.get_model_object("diffusion_model"), backend=backend))
+        set_torch_compile_wrapper(model=m, backend=backend)
         return (m, )
 
 NODE_CLASS_MAPPINGS = {

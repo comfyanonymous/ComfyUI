@@ -1,5 +1,7 @@
 from __future__ import annotations
 import uuid
+import math
+import collections
 import comfy.model_management
 import comfy.conds
 import comfy.utils
@@ -104,6 +106,21 @@ def cleanup_additional_models(models):
         if hasattr(m, 'cleanup'):
             m.cleanup()
 
+def estimate_memory(model, noise_shape, conds):
+    cond_shapes = collections.defaultdict(list)
+    cond_shapes_min = {}
+    for _, cs in conds.items():
+        for cond in cs:
+            for k, v in model.model.extra_conds_shapes(**cond).items():
+                cond_shapes[k].append(v)
+                if cond_shapes_min.get(k, None) is None:
+                    cond_shapes_min[k] = [v]
+                elif math.prod(v) > math.prod(cond_shapes_min[k][0]):
+                    cond_shapes_min[k] = [v]
+
+    memory_required = model.model.memory_required([noise_shape[0] * 2] + list(noise_shape[1:]), cond_shapes=cond_shapes)
+    minimum_memory_required = model.model.memory_required([noise_shape[0]] + list(noise_shape[1:]), cond_shapes=cond_shapes_min)
+    return memory_required, minimum_memory_required
 
 def prepare_sampling(model: ModelPatcher, noise_shape, conds, model_options=None):
     executor = comfy.patcher_extension.WrapperExecutor.new_executor(
@@ -117,9 +134,8 @@ def _prepare_sampling(model: ModelPatcher, noise_shape, conds, model_options=Non
     models, inference_memory = get_additional_models(conds, model.model_dtype())
     models += get_additional_models_from_model_options(model_options)
     models += model.get_nested_additional_models()  # TODO: does this require inference_memory update?
-    memory_required = model.memory_required([noise_shape[0] * 2] + list(noise_shape[1:])) + inference_memory
-    minimum_memory_required = model.memory_required([noise_shape[0]] + list(noise_shape[1:])) + inference_memory
-    comfy.model_management.load_models_gpu([model] + models, memory_required=memory_required, minimum_memory_required=minimum_memory_required)
+    memory_required, minimum_memory_required = estimate_memory(model, noise_shape, conds)
+    comfy.model_management.load_models_gpu([model] + models, memory_required=memory_required + inference_memory, minimum_memory_required=minimum_memory_required + inference_memory)
     real_model = model.model
 
     return real_model, conds, models
