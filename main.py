@@ -12,6 +12,9 @@ import utils.extra_config
 import logging
 import sys
 
+if not args.disable_manager:
+    import comfyui_manager
+
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
@@ -77,6 +80,11 @@ def execute_prestartup_script():
 
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
+
+            if not args.disable_manager:
+                if comfyui_manager.should_be_disabled(module_path):
+                    continue
+
             if os.path.isfile(module_path) or module_path.endswith(".disabled") or module_path == "__pycache__":
                 continue
 
@@ -96,6 +104,10 @@ def execute_prestartup_script():
         logging.info("")
 
 apply_custom_paths()
+
+if not args.disable_manager:
+    comfyui_manager.prestartup()
+
 execute_prestartup_script()
 
 
@@ -260,6 +272,9 @@ def start_comfyui(asyncio_loop=None):
         asyncio_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(asyncio_loop)
     prompt_server = server.PromptServer(asyncio_loop)
+
+    if not args.disable_manager and not args.disable_manager_ui:
+        comfyui_manager.start()
 
     hook_breaker_ac10a0.save_functions()
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes, init_api_nodes=not args.disable_api_nodes)
