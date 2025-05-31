@@ -17,12 +17,12 @@ from comfy_config.types import (
 
 """
 Original implementation comes from https://github.com/Comfy-Org/comfy-cli/blob/2e36f33dd39ef43b5acf7d1fc5acc5e01be92360/comfy_cli/registry/config_parser.py#L146
- 
+
 Extract configuration from a custom node directory's pyproject.toml file.
 
 This function reads and parses the pyproject.toml file in the specified directory
-to extract project and ComfyUI-specific configuration information. If no 
-pyproject.toml file is found, it creates a minimal configuration using the 
+to extract project and ComfyUI-specific configuration information. If no
+pyproject.toml file is found, it creates a minimal configuration using the
 folder name as the project name.
 
 Args:
