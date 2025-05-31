@@ -256,7 +256,13 @@ def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Te
             for i in range(1, len(to_batch_temp) + 1):
                 batch_amount = to_batch_temp[:len(to_batch_temp)//i]
                 input_shape = [len(batch_amount) * first_shape[0]] + list(first_shape)[1:]
-                if model.memory_required(input_shape) * 1.5 < free_memory:
+                cond_shapes = collections.defaultdict(list)
+                for tt in batch_amount:
+                    cond = {k: v.size() for k, v in to_run[tt][0].conditioning.items()}
+                    for k, v in to_run[tt][0].conditioning.items():
+                        cond_shapes[k].append(v.size())
+
+                if model.memory_required(input_shape, cond_shapes=cond_shapes) * 1.5 < free_memory:
                     to_batch = batch_amount
                     break
 
@@ -710,7 +716,7 @@ KSAMPLER_NAMES = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_c
                   "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_2s_ancestral_cfg_pp", "dpmpp_sde", "dpmpp_sde_gpu",
                   "dpmpp_2m", "dpmpp_2m_cfg_pp", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm",
                   "ipndm", "ipndm_v", "deis", "res_multistep", "res_multistep_cfg_pp", "res_multistep_ancestral", "res_multistep_ancestral_cfg_pp",
-                  "gradient_estimation", "er_sde", "seeds_2", "seeds_3"]
+                  "gradient_estimation", "gradient_estimation_cfg_pp", "er_sde", "seeds_2", "seeds_3"]
 
 class KSAMPLER(Sampler):
     def __init__(self, sampler_function, extra_options={}, inpaint_options={}):

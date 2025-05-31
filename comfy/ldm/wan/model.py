@@ -9,7 +9,6 @@ from einops import repeat
 from comfy.ldm.modules.attention import optimized_attention
 from comfy.ldm.flux.layers import EmbedND
 from comfy.ldm.flux.math import apply_rope
-from comfy.ldm.modules.diffusionmodules.mmdit import RMSNorm
 import comfy.ldm.common_dit
 import comfy.model_management
 
@@ -49,8 +48,8 @@ class WanSelfAttention(nn.Module):
         self.k = operation_settings.get("operations").Linear(dim, dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
         self.v = operation_settings.get("operations").Linear(dim, dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
         self.o = operation_settings.get("operations").Linear(dim, dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
-        self.norm_q = RMSNorm(dim, eps=eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")) if qk_norm else nn.Identity()
-        self.norm_k = RMSNorm(dim, eps=eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")) if qk_norm else nn.Identity()
+        self.norm_q = operation_settings.get("operations").RMSNorm(dim, eps=eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")) if qk_norm else nn.Identity()
+        self.norm_k = operation_settings.get("operations").RMSNorm(dim, eps=eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")) if qk_norm else nn.Identity()
 
     def forward(self, x, freqs):
         r"""
@@ -114,7 +113,7 @@ class WanI2VCrossAttention(WanSelfAttention):
         self.k_img = operation_settings.get("operations").Linear(dim, dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
         self.v_img = operation_settings.get("operations").Linear(dim, dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
         # self.alpha = nn.Parameter(torch.zeros((1, )))
-        self.norm_k_img = RMSNorm(dim, eps=eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")) if qk_norm else nn.Identity()
+        self.norm_k_img = operation_settings.get("operations").RMSNorm(dim, eps=eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")) if qk_norm else nn.Identity()
 
     def forward(self, x, context, context_img_len):
         r"""
@@ -246,6 +245,60 @@ class VaceWanAttentionBlock(WanAttentionBlock):
         c = super().forward(c, **kwargs)
         c_skip = self.after_proj(c)
         return c_skip, c
+
+
+class WanCamAdapter(nn.Module):
+    def __init__(self, in_dim, out_dim, kernel_size, stride, num_residual_blocks=1, operation_settings={}):
+        super(WanCamAdapter, self).__init__()
+
+        # Pixel Unshuffle: reduce spatial dimensions by a factor of 8
+        self.pixel_unshuffle = nn.PixelUnshuffle(downscale_factor=8)
+
+        # Convolution: reduce spatial dimensions by a factor
+        #  of 2 (without overlap)
+        self.conv = operation_settings.get("operations").Conv2d(in_dim * 64, out_dim, kernel_size=kernel_size, stride=stride, padding=0, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
+
+        # Residual blocks for feature extraction
+        self.residual_blocks = nn.Sequential(
+            *[WanCamResidualBlock(out_dim, operation_settings = operation_settings) for _ in range(num_residual_blocks)]
+        )
+
+    def forward(self, x):
+        # Reshape to merge the frame dimension into batch
+        bs, c, f, h, w = x.size()
+        x = x.permute(0, 2, 1, 3, 4).contiguous().view(bs * f, c, h, w)
+
+        # Pixel Unshuffle operation
+        x_unshuffled = self.pixel_unshuffle(x)
+
+        # Convolution operation
+        x_conv = self.conv(x_unshuffled)
+
+        # Feature extraction with residual blocks
+        out = self.residual_blocks(x_conv)
+
+        # Reshape to restore original bf dimension
+        out = out.view(bs, f, out.size(1), out.size(2), out.size(3))
+
+        # Permute dimensions to reorder (if needed), e.g., swap channels and feature frames
+        out = out.permute(0, 2, 1, 3, 4)
+
+        return out
+
+
+class WanCamResidualBlock(nn.Module):
+    def __init__(self, dim, operation_settings={}):
+        super(WanCamResidualBlock, self).__init__()
+        self.conv1 = operation_settings.get("operations").Conv2d(dim, dim, kernel_size=3, padding=1, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = operation_settings.get("operations").Conv2d(dim, dim, kernel_size=3, padding=1, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
+
+    def forward(self, x):
+        residual = x
+        out = self.relu(self.conv1(x))
+        out = self.conv2(out)
+        out += residual
+        return out
 
 
 class Head(nn.Module):
@@ -486,13 +539,20 @@ class WanModel(torch.nn.Module):
         x = self.unpatchify(x, grid_sizes)
         return x
 
-    def forward(self, x, timestep, context, clip_fea=None, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, clip_fea=None, time_dim_concat=None, transformer_options={}, **kwargs):
         bs, c, t, h, w = x.shape
         x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
+
         patch_size = self.patch_size
         t_len = ((t + (patch_size[0] // 2)) // patch_size[0])
         h_len = ((h + (patch_size[1] // 2)) // patch_size[1])
         w_len = ((w + (patch_size[2] // 2)) // patch_size[2])
+
+        if time_dim_concat is not None:
+            time_dim_concat = comfy.ldm.common_dit.pad_to_patch_size(time_dim_concat, self.patch_size)
+            x = torch.cat([x, time_dim_concat], dim=2)
+            t_len = ((x.shape[2] + (patch_size[0] // 2)) // patch_size[0])
+
         img_ids = torch.zeros((t_len, h_len, w_len, 3), device=x.device, dtype=x.dtype)
         img_ids[:, :, :, 0] = img_ids[:, :, :, 0] + torch.linspace(0, t_len - 1, steps=t_len, device=x.device, dtype=x.dtype).reshape(-1, 1, 1)
         img_ids[:, :, :, 1] = img_ids[:, :, :, 1] + torch.linspace(0, h_len - 1, steps=h_len, device=x.device, dtype=x.dtype).reshape(1, -1, 1)
@@ -582,7 +642,7 @@ class VaceWanModel(WanModel):
         t,
         context,
         vace_context,
-        vace_strength=1.0,
+        vace_strength,
         clip_fea=None,
         freqs=None,
         transformer_options={},
@@ -608,8 +668,11 @@ class VaceWanModel(WanModel):
                 context = torch.concat([context_clip, context], dim=1)
             context_img_len = clip_fea.shape[-2]
 
+        orig_shape = list(vace_context.shape)
+        vace_context = vace_context.movedim(0, 1).reshape([-1] + orig_shape[2:])
         c = self.vace_patch_embedding(vace_context.float()).to(vace_context.dtype)
         c = c.flatten(2).transpose(1, 2)
+        c = list(c.split(orig_shape[0], dim=0))
 
         # arguments
         x_orig = x
@@ -629,8 +692,99 @@ class VaceWanModel(WanModel):
 
             ii = self.vace_layers_mapping.get(i, None)
             if ii is not None:
-                c_skip, c = self.vace_blocks[ii](c, x=x_orig, e=e0, freqs=freqs, context=context, context_img_len=context_img_len)
-                x += c_skip * vace_strength
+                for iii in range(len(c)):
+                    c_skip, c[iii] = self.vace_blocks[ii](c[iii], x=x_orig, e=e0, freqs=freqs, context=context, context_img_len=context_img_len)
+                    x += c_skip * vace_strength[iii]
+                del c_skip
+        # head
+        x = self.head(x, e)
+
+        # unpatchify
+        x = self.unpatchify(x, grid_sizes)
+        return x
+
+class CameraWanModel(WanModel):
+    r"""
+    Wan diffusion backbone supporting both text-to-video and image-to-video.
+    """
+
+    def __init__(self,
+                 model_type='camera',
+                 patch_size=(1, 2, 2),
+                 text_len=512,
+                 in_dim=16,
+                 dim=2048,
+                 ffn_dim=8192,
+                 freq_dim=256,
+                 text_dim=4096,
+                 out_dim=16,
+                 num_heads=16,
+                 num_layers=32,
+                 window_size=(-1, -1),
+                 qk_norm=True,
+                 cross_attn_norm=True,
+                 eps=1e-6,
+                 flf_pos_embed_token_number=None,
+                 image_model=None,
+                 in_dim_control_adapter=24,
+                 device=None,
+                 dtype=None,
+                 operations=None,
+                 ):
+
+        super().__init__(model_type='i2v', patch_size=patch_size, text_len=text_len, in_dim=in_dim, dim=dim, ffn_dim=ffn_dim, freq_dim=freq_dim, text_dim=text_dim, out_dim=out_dim, num_heads=num_heads, num_layers=num_layers, window_size=window_size, qk_norm=qk_norm, cross_attn_norm=cross_attn_norm, eps=eps, flf_pos_embed_token_number=flf_pos_embed_token_number, image_model=image_model, device=device, dtype=dtype, operations=operations)
+        operation_settings = {"operations": operations, "device": device, "dtype": dtype}
+
+        self.control_adapter = WanCamAdapter(in_dim_control_adapter, dim, kernel_size=patch_size[1:], stride=patch_size[1:], operation_settings=operation_settings)
+
+
+    def forward_orig(
+        self,
+        x,
+        t,
+        context,
+        clip_fea=None,
+        freqs=None,
+        camera_conditions = None,
+        transformer_options={},
+        **kwargs,
+    ):
+        # embeddings
+        x = self.patch_embedding(x.float()).to(x.dtype)
+        if self.control_adapter is not None and camera_conditions is not None:
+            x_camera = self.control_adapter(camera_conditions).to(x.dtype)
+            x = x + x_camera
+        grid_sizes = x.shape[2:]
+        x = x.flatten(2).transpose(1, 2)
+
+        # time embeddings
+        e = self.time_embedding(
+            sinusoidal_embedding_1d(self.freq_dim, t).to(dtype=x[0].dtype))
+        e0 = self.time_projection(e).unflatten(1, (6, self.dim))
+
+        # context
+        context = self.text_embedding(context)
+
+        context_img_len = None
+        if clip_fea is not None:
+            if self.img_emb is not None:
+                context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
+                context = torch.concat([context_clip, context], dim=1)
+            context_img_len = clip_fea.shape[-2]
+
+        patches_replace = transformer_options.get("patches_replace", {})
+        blocks_replace = patches_replace.get("dit", {})
+        for i, block in enumerate(self.blocks):
+            if ("double_block", i) in blocks_replace:
+                def block_wrap(args):
+                    out = {}
+                    out["img"] = block(args["img"], context=args["txt"], e=args["vec"], freqs=args["pe"], context_img_len=context_img_len)
+                    return out
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": e0, "pe": freqs}, {"original_block": block_wrap})
+                x = out["img"]
+            else:
+                x = block(x, e=e0, freqs=freqs, context=context, context_img_len=context_img_len)
+
         # head
         x = self.head(x, e)
 

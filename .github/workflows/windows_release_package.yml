@@ -7,7 +7,7 @@ on:
         description: 'cuda version'
         required: true
         type: string
-        default: "126"
+        default: "128"
 
       python_minor:
         description: 'python minor version'
@@ -19,7 +19,7 @@ on:
         description: 'python patch version'
         required: true
         type: string
-        default: "9"
+        default: "10"
 #  push:
 #    branches:
 #      - master
@@ -50,7 +50,7 @@ jobs:
 
         - uses: actions/checkout@v4
           with:
-            fetch-depth: 0
+            fetch-depth: 150
             persist-credentials: false
         - shell: bash
           run: |
@@ -67,7 +67,7 @@ jobs:
             cd ..
 
             git clone --depth 1 https://github.com/comfyanonymous/taesd
-            cp taesd/*.pth ./ComfyUI_copy/models/vae_approx/
+            cp taesd/*.safetensors ./ComfyUI_copy/models/vae_approx/
 
             mkdir ComfyUI_windows_portable
             mv python_embeded ComfyUI_windows_portable
@@ -82,11 +82,13 @@ jobs:
 
             cd ..
 
-            "C:\Program Files\7-Zip\7z.exe" a -t7z -m0=lzma2 -mx=8 -mfb=64 -md=32m -ms=on -mf=BCJ2 ComfyUI_windows_portable.7z ComfyUI_windows_portable
+            "C:\Program Files\7-Zip\7z.exe" a -t7z -m0=lzma2 -mx=9 -mfb=128 -md=512m -ms=on -mf=BCJ2 ComfyUI_windows_portable.7z ComfyUI_windows_portable
             mv ComfyUI_windows_portable.7z ComfyUI/new_ComfyUI_windows_portable_nvidia_cu${{ inputs.cu }}_or_cpu.7z
 
             cd ComfyUI_windows_portable
             python_embeded/python.exe -s ComfyUI/main.py --quick-test-for-ci --cpu
+
+            python_embeded/python.exe -s ./update/update.py ComfyUI/
 
             ls
 

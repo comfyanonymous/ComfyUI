@@ -49,7 +49,6 @@ Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon,
 ## [Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
 See what ComfyUI can do with the [example workflows](https://comfyanonymous.github.io/ComfyUI_examples/).
 
-
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
 - Image Models
@@ -70,9 +69,11 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [Hunyuan Video](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_video/)
    - [Nvidia Cosmos](https://comfyanonymous.github.io/ComfyUI_examples/cosmos/)
    - [Wan 2.1](https://comfyanonymous.github.io/ComfyUI_examples/wan/)
+- Audio Models
+   - [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
+   - [ACE Step](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
 - 3D Models
    - [Hunyuan3D 2.0](https://docs.comfy.org/tutorials/3d/hunyuan3D-2)
-- [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Smart memory management: can automatically run models on GPUs with as low as 1GB vram.
@@ -98,6 +99,22 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
+
+## Release Process
+
+ComfyUI follows a weekly release cycle every Friday, with three interconnected repositories:
+
+1. **[ComfyUI Core](https://github.com/comfyanonymous/ComfyUI)**
+   - Releases a new stable version (e.g., v0.7.0)
+   - Serves as the foundation for the desktop release
+
+2. **[ComfyUI Desktop](https://github.com/Comfy-Org/desktop)**
+   - Builds a new release using the latest stable core version
+
+3. **[ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend)**
+   - Weekly frontend updates are merged into the core repository
+   - Features are frozen for the upcoming core release
+   - Development continues for the next release cycle
 
 ## Shortcuts
 
@@ -149,8 +166,6 @@ Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you 
 
 If you have trouble extracting it, right click the file -> properties -> unblock
 
-If you have a 50 series Blackwell card like a 5090 or 5080 see [this discussion thread](https://github.com/comfyanonymous/ComfyUI/discussions/6643)
-
 #### How do I share models between another UI and ComfyUI?
 
 See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
@@ -182,11 +197,11 @@ Put your VAE in: models/vae
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2.4```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.3```
 
-This is the command to install the nightly with ROCm 6.3 which might have some performance improvements:
+This is the command to install the nightly with ROCm 6.4 which might have some performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.3```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.4```
 
 ### Intel GPUs (Windows and Linux)
 
@@ -216,9 +231,9 @@ Additional discussion and help can be found [here](https://github.com/comfyanony
 
 Nvidia users should install stable pytorch using this command:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu126```
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128```
 
-This is the command to install pytorch nightly instead which supports the new blackwell 50xx series GPUs and might have performance improvements.
+This is the command to install pytorch nightly instead which might have performance improvements.
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128```
 
@@ -286,7 +301,7 @@ For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 pyt
 
 ### AMD ROCm Tips
 
-You can enable experimental memory efficient attention on pytorch 2.5 in ComfyUI on RDNA3 and potentially other AMD GPUs using this command:
+You can enable experimental memory efficient attention on recent pytorch in ComfyUI on some AMD GPUs using this command, it should already be enabled by default on RDNA3. If this improves speed for you on latest pytorch on your GPU please report it so that I can enable it by default.
 
 ```TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention```
 

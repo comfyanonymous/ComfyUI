@@ -1,0 +1,10 @@
+# This file is used to filter the Comfy Org OpenAPI spec for schemas related to API Nodes.
+# This is used for development purposes to generate stubs for unreleased API endpoints.
+apis:
+  filter:
+    root: openapi.yaml
+    decorators:
+      filter-in:
+        property: tags
+        value: ['API Nodes']
+        matchStrategy: all

@@ -279,6 +279,20 @@ def model_lora_keys_unet(model, key_map={}):
                 key_map["transformer.{}".format(key_lora)] = k
                 key_map["diffusion_model.{}".format(key_lora)] = k  # Old loras
 
+    if isinstance(model, comfy.model_base.HiDream):
+        for k in sdk:
+            if k.startswith("diffusion_model."):
+                if k.endswith(".weight"):
+                    key_lora = k[len("diffusion_model."):-len(".weight")]
+                    key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = k #SimpleTuner lycoris format
+                    key_map["transformer.{}".format(key_lora)] = k #SimpleTuner regular format
+
+    if isinstance(model, comfy.model_base.ACEStep):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"): #Official ACE step lora format
+                key_lora = k[len("diffusion_model."):-len(".weight")]
+                key_map["{}".format(key_lora)] = k
+
     return key_map
 
 

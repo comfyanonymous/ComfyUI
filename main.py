@@ -13,7 +13,7 @@ import logging
 import sys
 
 if __name__ == "__main__":
-    #NOTE: These do not do anything on core ComfyUI which should already have no communication with the internet, they are for custom nodes.
+    #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
@@ -125,13 +125,6 @@ if __name__ == "__main__":
 
     import cuda_malloc
 
-if args.windows_standalone_build:
-    try:
-        from fix_torch import fix_pytorch_libomp
-        fix_pytorch_libomp()
-    except:
-        pass
-
 import comfy.utils
 
 import execution
@@ -141,7 +134,7 @@ import nodes
 import comfy.model_management
 import comfyui_version
 import app.logger
-
+import hook_breaker_ac10a0
 
 def cuda_malloc_warning():
     device = comfy.model_management.get_torch_device()
@@ -215,6 +208,7 @@ def prompt_worker(q, server_instance):
                 comfy.model_management.soft_empty_cache()
                 last_gc_collect = current_time
                 need_gc = False
+                hook_breaker_ac10a0.restore_functions()
 
 
 async def run(server_instance, address='', port=8188, verbose=True, call_on_start=None):
@@ -266,16 +260,17 @@ def start_comfyui(asyncio_loop=None):
         asyncio_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(asyncio_loop)
     prompt_server = server.PromptServer(asyncio_loop)
-    q = execution.PromptQueue(prompt_server)
 
-    nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
+    hook_breaker_ac10a0.save_functions()
+    nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes, init_api_nodes=not args.disable_api_nodes)
+    hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()
 
     prompt_server.add_routes()
     hijack_progress(prompt_server)
 
-    threading.Thread(target=prompt_worker, daemon=True, args=(q, prompt_server,)).start()
+    threading.Thread(target=prompt_worker, daemon=True, args=(prompt_server.prompt_queue, prompt_server,)).start()
 
     if args.quick_test_for_ci:
         exit(0)

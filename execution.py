@@ -158,6 +158,8 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
                 input_data_all[x] = [unique_id]
             if h[x] == "AUTH_TOKEN_COMFY_ORG":
                 input_data_all[x] = [extra_data.get("auth_token_comfy_org", None)]
+            if h[x] == "API_KEY_COMFY_ORG":
+                input_data_all[x] = [extra_data.get("api_key_comfy_org", None)]
     return input_data_all, missing_keys
 
 map_node_over_list = None #Don't hook this please
@@ -919,7 +921,6 @@ class PromptQueue:
         self.currently_running = {}
         self.history = {}
         self.flags = {}
-        server.prompt_queue = self
 
     def put(self, item):
         with self.mutex:
@@ -964,12 +965,20 @@ class PromptQueue:
             self.history[prompt[1]].update(history_result)
             self.server.queue_updated()
 
+    # Note: slow
     def get_current_queue(self):
         with self.mutex:
             out = []
             for x in self.currently_running.values():
                 out += [x]
             return (out, copy.deepcopy(self.queue))
+
+    # read-safe as long as queue items are immutable
+    def get_current_queue_volatile(self):
+        with self.mutex:
+            running = [x for x in self.currently_running.values()]
+            queued = copy.copy(self.queue)
+            return (running, queued)
 
     def get_tasks_remaining(self):
         with self.mutex:
