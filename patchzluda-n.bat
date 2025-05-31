@@ -5,7 +5,7 @@ echo Custom ZLUDA Patcher (Specifically for HIP 6.2.4 with MIOPEN - Triton)
 echo ======================================================================
 echo.
 echo :: Make sure (1) you have HIP 6.2.4 installed, 
-echo :: (2) HIP Addon (https://drive.google.com/file/d/1JSVDV9yKCJ_vldXb5hS7NEHUeDJGoG6M/view?usp=sharing) downloaded and extracted into "C:\Program Files\AMD\ROCm\6.2"
+echo :: (2) HIP Addon (https://www.mediafire.com/file/qhct48vamgmn0tv/HIP-SDK-extension-full.zip/file) or (https://gofile.io/d/kUXwYu) downloaded and extracted into "C:\Program Files\AMD\ROCm\6.2"
 echo :: (3) Change the zluda.py inside comfy\ folder with the one under comfy\customzluda\. (it is done automatically with this batch file now)
 echo :: * Don't forget if you want to update comfy,and if there is a change in the zluda.py, just delete the file for update to work, and after it completes copy it back from the comfy\customzluda\ folder.
 echo.
