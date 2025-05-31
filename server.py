@@ -746,6 +746,13 @@ class PromptServer():
                 web.static('/templates', workflow_templates_path)
             ])
 
+        # Serve embedded documentation from the package
+        embedded_docs_path = FrontendManager.embedded_docs_path()
+        if embedded_docs_path:
+            self.app.add_routes([
+                web.static('/docs', embedded_docs_path)
+            ])
+
         self.app.add_routes([
             web.static('/', self.web_root),
         ])
