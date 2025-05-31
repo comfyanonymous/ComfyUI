@@ -168,6 +168,11 @@ class BaseModel(torch.nn.Module):
             if hasattr(extra, "dtype"):
                 if extra.dtype != torch.int and extra.dtype != torch.long:
                     extra = extra.to(dtype)
+            if isinstance(extra, list):
+                ex = []
+                for ext in extra:
+                    ex.append(ext.to(dtype))
+                extra = ex
             extra_conds[o] = extra
 
         t = self.process_timestep(t, x=x, **extra_conds)
