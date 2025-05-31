@@ -17,7 +17,7 @@ class StringConcatenate():
     RETURN_TYPES = (IO.STRING,)
     FUNCTION = "execute"
     CATEGORY = "utils/string"
-    
+
     def execute(self, string_a, string_b, delimiter, **kwargs):
         all_strings = [value for key, value in locals().items() if key.startswith("string_")]
         non_empty = [s for s in all_strings if s]
