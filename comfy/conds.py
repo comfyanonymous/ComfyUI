@@ -24,6 +24,10 @@ class CONDRegular:
             conds.append(x.cond)
         return torch.cat(conds)
 
+    def size(self):
+        return list(self.cond.size())
+
+
 class CONDNoiseShape(CONDRegular):
     def process_cond(self, batch_size, device, area, **kwargs):
         data = self.cond
@@ -64,6 +68,7 @@ class CONDCrossAttn(CONDRegular):
             out.append(c)
         return torch.cat(out)
 
+
 class CONDConstant(CONDRegular):
     def __init__(self, cond):
         self.cond = cond
@@ -78,3 +83,6 @@ class CONDConstant(CONDRegular):
 
     def concat(self, others):
         return self.cond
+
+    def size(self):
+        return [1]

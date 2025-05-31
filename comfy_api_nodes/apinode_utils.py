@@ -1,6 +1,7 @@
 from __future__ import annotations
 import io
 import logging
+import mimetypes
 from typing import Optional, Union
 from comfy.utils import common_upscale
 from comfy_api.input_impl import VideoFromFile
@@ -214,6 +215,7 @@ def download_url_to_image_tensor(url: str, timeout: int = None) -> torch.Tensor:
     image_bytesio = download_url_to_bytesio(url, timeout)
     return bytesio_to_image_tensor(image_bytesio)
 
+
 def process_image_response(response: requests.Response) -> torch.Tensor:
     """Uses content from a Response object and converts it to a torch.Tensor"""
     return bytesio_to_image_tensor(BytesIO(response.content))
@@ -318,11 +320,27 @@ def tensor_to_data_uri(
     return f"data:{mime_type};base64,{base64_string}"
 
 
+def text_filepath_to_base64_string(filepath: str) -> str:
+    """Converts a text file to a base64 string."""
+    with open(filepath, "rb") as f:
+        file_content = f.read()
+    return base64.b64encode(file_content).decode("utf-8")
+
+
+def text_filepath_to_data_uri(filepath: str) -> str:
+    """Converts a text file to a data URI."""
+    base64_string = text_filepath_to_base64_string(filepath)
+    mime_type, _ = mimetypes.guess_type(filepath)
+    if mime_type is None:
+        mime_type = "application/octet-stream"
+    return f"data:{mime_type};base64,{base64_string}"
+
+
 def upload_file_to_comfyapi(
     file_bytes_io: BytesIO,
     filename: str,
     upload_mime_type: str,
-    auth_kwargs: Optional[dict[str,str]] = None,
+    auth_kwargs: Optional[dict[str, str]] = None,
 ) -> str:
     """
     Uploads a single file to ComfyUI API and returns its download URL.
@@ -357,9 +375,33 @@ def upload_file_to_comfyapi(
     return response.download_url
 
 
+def video_to_base64_string(
+    video: VideoInput,
+    container_format: VideoContainer = None,
+    codec: VideoCodec = None
+) -> str:
+    """
+    Converts a video input to a base64 string.
+
+    Args:
+        video: The video input to convert
+        container_format: Optional container format to use (defaults to video.container if available)
+        codec: Optional codec to use (defaults to video.codec if available)
+    """
+    video_bytes_io = io.BytesIO()
+
+    # Use provided format/codec if specified, otherwise use video's own if available
+    format_to_use = container_format if container_format is not None else getattr(video, 'container', VideoContainer.MP4)
+    codec_to_use = codec if codec is not None else getattr(video, 'codec', VideoCodec.H264)
+
+    video.save_to(video_bytes_io, format=format_to_use, codec=codec_to_use)
+    video_bytes_io.seek(0)
+    return base64.b64encode(video_bytes_io.getvalue()).decode("utf-8")
+
+
 def upload_video_to_comfyapi(
     video: VideoInput,
-    auth_kwargs: Optional[dict[str,str]] = None,
+    auth_kwargs: Optional[dict[str, str]] = None,
     container: VideoContainer = VideoContainer.MP4,
     codec: VideoCodec = VideoCodec.H264,
     max_duration: Optional[int] = None,
@@ -461,7 +503,7 @@ def audio_ndarray_to_bytesio(
 
 def upload_audio_to_comfyapi(
     audio: AudioInput,
-    auth_kwargs: Optional[dict[str,str]] = None,
+    auth_kwargs: Optional[dict[str, str]] = None,
     container_format: str = "mp4",
     codec_name: str = "aac",
     mime_type: str = "audio/mp4",
@@ -488,8 +530,25 @@ def upload_audio_to_comfyapi(
     return upload_file_to_comfyapi(audio_bytes_io, filename, mime_type, auth_kwargs)
 
 
+def audio_to_base64_string(
+    audio: AudioInput, container_format: str = "mp4", codec_name: str = "aac"
+) -> str:
+    """Converts an audio input to a base64 string."""
+    sample_rate: int = audio["sample_rate"]
+    waveform: torch.Tensor = audio["waveform"]
+    audio_data_np = audio_tensor_to_contiguous_ndarray(waveform)
+    audio_bytes_io = audio_ndarray_to_bytesio(
+        audio_data_np, sample_rate, container_format, codec_name
+    )
+    audio_bytes = audio_bytes_io.getvalue()
+    return base64.b64encode(audio_bytes).decode("utf-8")
+
+
 def upload_images_to_comfyapi(
-    image: torch.Tensor, max_images=8, auth_kwargs: Optional[dict[str,str]] = None, mime_type: Optional[str] = None
+    image: torch.Tensor,
+    max_images=8,
+    auth_kwargs: Optional[dict[str, str]] = None,
+    mime_type: Optional[str] = None,
 ) -> list[str]:
     """
     Uploads images to ComfyUI API and returns download URLs.
@@ -554,17 +613,24 @@ def upload_images_to_comfyapi(
     return download_urls
 
 
-def resize_mask_to_image(mask: torch.Tensor, image: torch.Tensor,
-                         upscale_method="nearest-exact", crop="disabled",
-                         allow_gradient=True, add_channel_dim=False):
+def resize_mask_to_image(
+    mask: torch.Tensor,
+    image: torch.Tensor,
+    upscale_method="nearest-exact",
+    crop="disabled",
+    allow_gradient=True,
+    add_channel_dim=False,
+):
     """
     Resize mask to be the same dimensions as an image, while maintaining proper format for API calls.
     """
     _, H, W, _ = image.shape
     mask = mask.unsqueeze(-1)
-    mask = mask.movedim(-1,1)
-    mask = common_upscale(mask, width=W, height=H, upscale_method=upscale_method, crop=crop)
-    mask = mask.movedim(1,-1)
+    mask = mask.movedim(-1, 1)
+    mask = common_upscale(
+        mask, width=W, height=H, upscale_method=upscale_method, crop=crop
+    )
+    mask = mask.movedim(1, -1)
     if not add_channel_dim:
         mask = mask.squeeze(-1)
     if not allow_gradient:
@@ -572,12 +638,41 @@ def resize_mask_to_image(mask: torch.Tensor, image: torch.Tensor,
     return mask
 
 
-def validate_string(string: str, strip_whitespace=True, field_name="prompt", min_length=None, max_length=None):
+def validate_string(
+    string: str,
+    strip_whitespace=True,
+    field_name="prompt",
+    min_length=None,
+    max_length=None,
+):
+    if string is None:
+        raise Exception(f"Field '{field_name}' cannot be empty.")
     if strip_whitespace:
         string = string.strip()
     if min_length and len(string) < min_length:
-        raise Exception(f"Field '{field_name}' cannot be shorter than {min_length} characters; was {len(string)} characters long.")
+        raise Exception(
+            f"Field '{field_name}' cannot be shorter than {min_length} characters; was {len(string)} characters long."
+        )
     if max_length and len(string) > max_length:
-        raise Exception(f" Field '{field_name} cannot be longer than {max_length} characters; was {len(string)} characters long.")
-    if not string:
-        raise Exception(f"Field '{field_name}' cannot be empty.")
+        raise Exception(
+            f" Field '{field_name} cannot be longer than {max_length} characters; was {len(string)} characters long."
+        )
+
+
+def image_tensor_pair_to_batch(
+    image1: torch.Tensor, image2: torch.Tensor
+) -> torch.Tensor:
+    """
+    Converts a pair of image tensors to a batch tensor.
+    If the images are not the same size, the smaller image is resized to
+    match the larger image.
+    """
+    if image1.shape[1:] != image2.shape[1:]:
+        image2 = common_upscale(
+            image2.movedim(-1, 1),
+            image1.shape[2],
+            image1.shape[1],
+            "bilinear",
+            "center",
+        ).movedim(1, -1)
+    return torch.cat((image1, image2), dim=0)
