@@ -501,6 +501,7 @@ class classproperty(object):
 class ComfyNodeV3(ABC):
     """Common base class for all V3 nodes."""
 
+    RELATIVE_PYTHON_MODULE = None
     #############################################
     # V1 Backwards Compatibility code
     #--------------------------------------------

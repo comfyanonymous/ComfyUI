@@ -46,15 +46,15 @@ class V3TestNode(ComfyNodeV3):
 
 
 
-NODES: list[ComfyNodeV3] = [
+NODES_LIST: list[ComfyNodeV3] = [
     V3TestNode,
 ]
 
 
-NODE_CLASS_MAPPINGS = {}
-NODE_DISPLAY_NAME_MAPPINGS = {}
-for node in NODES:
-    schema = node.GET_SCHEMA()
-    NODE_CLASS_MAPPINGS[schema.node_id] = node
-    if schema.display_name:
-        NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name
+# NODE_CLASS_MAPPINGS = {}
+# NODE_DISPLAY_NAME_MAPPINGS = {}
+# for node in NODES_LIST:
+#     schema = node.GET_SCHEMA()
+#     NODE_CLASS_MAPPINGS[schema.node_id] = node
+#     if schema.display_name:
+#         NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name
