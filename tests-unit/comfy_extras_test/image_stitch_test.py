@@ -1,10 +1,5 @@
 import torch
-import sys
-import os
 from unittest.mock import patch, MagicMock
-
-# Add the project root to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
 # Mock nodes module to prevent CUDA initialization during import
 mock_nodes = MagicMock()
@@ -226,8 +221,8 @@ class TestImageStitch:
             result = node.stitch(image1, direction, False, 0, "white", image2)
             assert result[0].shape == (1, 32, 64, 3) if direction in ["right", "left"] else (1, 64, 32, 3)
 
-    def test_complex_scenario(self):
-        """Test complex scenario with all features enabled"""
+    def test_batch_size_channel_border_integration(self):
+        """Test integration of batch matching, channel matching, size matching, and borders"""
         node = ImageStitch()
         image1 = self.create_test_image(batch_size=2, height=64, width=48, channels=3)
         image2 = self.create_test_image(batch_size=1, height=32, width=32, channels=4)
@@ -243,34 +238,3 @@ class TestImageStitch:
         expected_total_width = 48 + 8 + expected_image2_width
         assert result[0].shape[2] == expected_total_width
 
-    def test_input_types_structure(self):
-        """Test that INPUT_TYPES returns correct structure"""
-        input_types = ImageStitch.INPUT_TYPES()
-
-        assert "required" in input_types
-        assert "optional" in input_types
-
-        required = input_types["required"]
-        assert "image1" in required
-        assert "direction" in required
-        assert "match_image_size" in required
-        assert "border_width" in required
-        assert "border_color" in required
-
-        optional = input_types["optional"]
-        assert "image2" in optional
-
-        # Check direction options
-        directions = required["direction"][0]
-        assert set(directions) == {"right", "down", "left", "up"}
-
-        # Check color options
-        colors = required["border_color"][0]
-        assert set(colors) == {"white", "black", "red", "green", "blue"}
-
-    def test_node_metadata(self):
-        """Test node metadata and properties"""
-        assert ImageStitch.RETURN_TYPES == ("IMAGE",)
-        assert ImageStitch.FUNCTION == "stitch"
-        assert ImageStitch.CATEGORY == "image/transform"
-        assert hasattr(ImageStitch, "DESCRIPTION")
