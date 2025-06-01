@@ -17,6 +17,7 @@ from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, 
 from comfy_execution.graph_utils import is_link, GraphBuilder
 from comfy_execution.caching import HierarchicalCache, LRUCache, DependencyAwareCache, CacheKeySetInputSignature, CacheKeySetID
 from comfy_execution.validation import validate_node_input
+from comfy_api.v3.io import NodeOutput
 
 class ExecutionResult(Enum):
     SUCCESS = 0
@@ -240,6 +241,22 @@ def get_output_data(obj, input_data_all, execution_block_cb=None, pre_execute_cb
                 result = r.get("result", None)
                 if isinstance(result, ExecutionBlocker):
                     result = tuple([result] * len(obj.RETURN_TYPES))
+                results.append(result)
+                subgraph_results.append((None, result))
+        elif isinstance(r, NodeOutput):
+            if r.ui is not None:
+                uis.append(r.ui.as_dict())
+            if r.expand is not None:
+                has_subgraph = True
+                new_graph = r.expand
+                result = r.result
+                if r.block_execution is not None:
+                    result = tuple([ExecutionBlocker(r.block_execution)] * len(obj.RETURN_TYPES))
+                subgraph_results.append((new_graph, result))
+            elif r.result is not None:
+                result = r.result
+                if r.block_execution is not None:
+                    result = tuple([ExecutionBlocker(r.block_execution)] * len(obj.RETURN_TYPES))
                 results.append(result)
                 subgraph_results.append((None, result))
         else:

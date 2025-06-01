@@ -2,7 +2,7 @@ import torch
 
 from comfy_api.v3.io import (
     ComfyNodeV3, SchemaV3, CustomType, CustomInput, CustomOutput, InputBehavior, NumberDisplay,
-    IntegerInput, MaskInput, ImageInput, ComboDynamicInput,
+    IntegerInput, MaskInput, ImageInput, ComboDynamicInput, NodeOutput,
 )
 
 
@@ -14,7 +14,7 @@ class V3TestNode(ComfyNodeV3):
 
     @classmethod
     def DEFINE_SCHEMA(cls):
-        schema = SchemaV3(
+        return SchemaV3(
             node_id="V3TestNode1",
             display_name="V3 Test Node (1djekjd)",
             description="This is a funky V3 node test.",
@@ -36,10 +36,17 @@ class V3TestNode(ComfyNodeV3):
             ],
             is_output_node=True,
         )
-        return schema
 
     def execute(self, some_int: int, image: torch.Tensor, mask: torch.Tensor=None, **kwargs):
-        return (None,)
+        a  = NodeOutput(1)
+        aa = NodeOutput(1, "hellothere")
+        ab = NodeOutput(1, "hellothere", ui={"lol": "jk"})
+        b  = NodeOutput()
+        c  = NodeOutput(ui={"lol": "jk"})
+        return NodeOutput()
+        return NodeOutput(1)
+        return NodeOutput(1, block_execution="Kill yourself")
+        return ()
 
 
 
