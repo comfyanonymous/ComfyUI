@@ -64,7 +64,7 @@ class ModelProcessor:
             .filter(Model.path == model_relative_path)
             .first()
         )
-    
+
     def _ensure_source_url(self, session, model, source_url):
         if model.source_url is None:
             model.source_url = source_url
@@ -171,9 +171,9 @@ class ModelProcessor:
         try:
             if not can_create_session():
                 return
-            
+
             dispose_session = False
-            
+
             if session is None:
                 session = create_session()
                 dispose_session = True

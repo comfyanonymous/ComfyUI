@@ -303,23 +303,23 @@ def get_full_path_or_raise(folder_name: str, filename: str) -> str:
 
 def get_relative_path(full_path: str) -> tuple[str, str] | None:
     """Convert a full path back to a type-relative path.
-    
+
     Args:
         full_path: The full path to the file
-        
+
     Returns:
         tuple[str, str] | None: A tuple of (model_type, relative_path) if found, None otherwise
     """
     global folder_names_and_paths
     full_path = os.path.normpath(full_path)
-    
+
     for model_type, (paths, _) in folder_names_and_paths.items():
         for base_path in paths:
             base_path = os.path.normpath(base_path)
             if full_path.startswith(base_path):
                 relative_path = os.path.relpath(full_path, base_path)
                 return model_type, relative_path
-                
+
     return None
 
 def get_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], float]:

@@ -195,7 +195,7 @@ def test_ensure_downloaded_hash_mismatch(model_processor, db_session):
 def test_process_file_without_hash(model_processor, db_session):
     # Test processing file without provided hash
     model_processor.file_exists[TEST_DESTINATION_PATH] = True
-    
+
     with patch.object(model_processor, "_hash_file", return_value=TEST_EXPECTED_HASH):
         result = model_processor.process_file(TEST_DESTINATION_PATH)
         assert result is not None
@@ -241,13 +241,13 @@ def test_validate_file_extension_valid_extensions(model_processor):
 def test_process_file_existing_without_source_url(model_processor, db_session):
     # Test processing an existing file that needs its source URL updated
     model_processor.file_exists[TEST_DESTINATION_PATH] = True
-    
+
     create_test_model(db_session, TEST_FILE_NAME, TEST_MODEL_TYPE, TEST_EXPECTED_HASH)
     result = model_processor.process_file(TEST_DESTINATION_PATH, source_url=TEST_URL)
-    
+
     assert result is not None
     assert result.hash == TEST_EXPECTED_HASH
     assert result.source_url == TEST_URL
-    
+
     db_model = db_session.query(Model).filter_by(path=TEST_FILE_NAME).first()
     assert db_model.source_url == TEST_URL
