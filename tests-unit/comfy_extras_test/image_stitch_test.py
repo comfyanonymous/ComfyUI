@@ -1,15 +1,17 @@
 import torch
 import sys
 import os
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 # Add the project root to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
-# Mock CUDA-dependent modules to avoid CI failures
-with patch('comfy.model_management.get_torch_device', return_value=torch.device('cpu')):
-    with patch('comfy.model_management.get_total_memory', return_value=8192):
-        from comfy_extras.nodes_images import ImageStitch
+# Mock nodes module to prevent CUDA initialization during import
+mock_nodes = MagicMock()
+mock_nodes.MAX_RESOLUTION = 16384
+
+with patch.dict('sys.modules', {'nodes': mock_nodes}):
+    from comfy_extras.nodes_images import ImageStitch
 
 
 class TestImageStitch:
