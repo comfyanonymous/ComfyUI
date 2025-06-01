@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Optional
 
 # IMPORTANT: The type definitions specified in pyproject.toml for custom nodes
@@ -69,3 +70,11 @@ class ProjectConfig(BaseModel):
 class PyProjectConfig(BaseModel):
     project: ProjectConfig = Field(default_factory=ProjectConfig)
     tool_comfy: ComfyConfig = Field(default_factory=ComfyConfig)
+
+
+class PyProjectSettings(BaseSettings):
+    project: dict = Field(default_factory=dict)
+
+    tool: dict = Field(default_factory=dict)
+
+    model_config = SettingsConfigDict()

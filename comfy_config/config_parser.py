@@ -1,14 +1,16 @@
 import os
+from pathlib import Path
 from typing import Optional
 
-import tomllib
-
 from pydantic import ValidationError
+from pydantic_settings import PydanticBaseSettingsSource, TomlConfigSettingsSource
 import logging
 
 from comfy_config.types import (
+    ComfyConfig,
     ProjectConfig,
     PyProjectConfig,
+    PyProjectSettings
 )
 
 """
@@ -40,42 +42,46 @@ Example:
     >>> print(project_config.project.name)  # "my_custom_node" or name from pyproject.toml
     >>> nodes.EXTENSION_WEB_DIRS[project_config.project.name] = js_dir
 """
-
-
 def extract_node_configuration(path) -> Optional[PyProjectConfig]:
     folder_name = os.path.basename(path)
-    toml_path = os.path.join(path, "pyproject.toml")
+    toml_path = Path(path) / "pyproject.toml"
 
-    if not os.path.isfile(toml_path):
-        logging.warning(
-            "No pyproject.toml file found in the current directory, will use custom node folder name as project name as default.")
+    if not toml_path.exists():
+        logging.warning("No pyproject.toml file found, using folder name as project name")
 
         try:
             project = ProjectConfig(name=folder_name)
-            return PyProjectConfig(project=project)
+            comfy = ComfyConfig()
+            return PyProjectConfig(project=project, tool_comfy=comfy)
         except ValidationError as e:
             logging.error(f"Failed to create default configuration: {e}")
             return None
 
     try:
-        with open(toml_path, "rb") as f:
-            data = tomllib.load(f)
+        raw_settings = load_pyproject_settings(toml_path)
+
+        project_data = raw_settings.project
+
+        tool_data = raw_settings.tool
+        comfy_data = tool_data.get("comfy", {}) if tool_data else {}
+
+        return PyProjectConfig(project=project_data, tool_comfy=comfy_data)
     except Exception as e:
-        logging.error(f"Failed to read pyproject.toml: {e}")
+        logging.error(f"Failed to load configuration from {toml_path}: {e}")
         return None
 
-    try:
-        config_data = {
-            "project": data.get("project", {}),
-            "tool_comfy": data.get("tool", {}).get("comfy", {})
-        }
 
-        return PyProjectConfig(**config_data)
+def load_pyproject_settings(toml_path: Path) -> PyProjectSettings:
+    class PyProjectLoader(PyProjectSettings):
+        @classmethod
+        def settings_customise_sources(
+            cls,
+            settings_cls,
+            init_settings: PydanticBaseSettingsSource,
+            env_settings: PydanticBaseSettingsSource,
+            dotenv_settings: PydanticBaseSettingsSource,
+            file_secret_settings: PydanticBaseSettingsSource,
+        ):
+            return (TomlConfigSettingsSource(settings_cls, toml_path),)
 
-    except ValidationError as e:
-        logging.error(f"Validation error while parsing configuration: {e}")
-        logging.error(f"Validation details: {e.errors()}")
-        return None
-    except Exception as e:
-        logging.error(f"Unexpected error while parsing configuration: {e}")
-        return None
+    return PyProjectLoader()
