@@ -135,6 +135,7 @@ class BaseModel(torch.nn.Module):
         logging.info("model_type {}".format(model_type.name))
         logging.debug("adm {}".format(self.adm_channels))
         self.memory_usage_factor = model_config.memory_usage_factor
+        self.memory_usage_factor_conds = ()
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
@@ -167,6 +168,11 @@ class BaseModel(torch.nn.Module):
             if hasattr(extra, "dtype"):
                 if extra.dtype != torch.int and extra.dtype != torch.long:
                     extra = extra.to(dtype)
+            if isinstance(extra, list):
+                ex = []
+                for ext in extra:
+                    ex.append(ext.to(dtype))
+                extra = ex
             extra_conds[o] = extra
 
         t = self.process_timestep(t, x=x, **extra_conds)
@@ -325,18 +331,27 @@ class BaseModel(torch.nn.Module):
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return self.model_sampling.noise_scaling(sigma.reshape([sigma.shape[0]] + [1] * (len(noise.shape) - 1)), noise, latent_image)
 
-    def memory_required(self, input_shape):
+    def memory_required(self, input_shape, cond_shapes={}):
+        input_shapes = [input_shape]
+        for c in self.memory_usage_factor_conds:
+            shape = cond_shapes.get(c, None)
+            if shape is not None and len(shape) > 0:
+                input_shapes += shape
+
         if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention():
             dtype = self.get_dtype()
             if self.manual_cast_dtype is not None:
                 dtype = self.manual_cast_dtype
             #TODO: this needs to be tweaked
-            area = input_shape[0] * math.prod(input_shape[2:])
+            area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
             return (area * comfy.model_management.dtype_size(dtype) * 0.01 * self.memory_usage_factor) * (1024 * 1024)
         else:
             #TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
-            area = input_shape[0] * math.prod(input_shape[2:])
+            area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
             return (area * 0.15 * self.memory_usage_factor) * (1024 * 1024)
+
+    def extra_conds_shapes(self, **kwargs):
+        return {}
 
 
 def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0, seed=None):
@@ -1047,6 +1062,11 @@ class WAN21(BaseModel):
         clip_vision_output = kwargs.get("clip_vision_output", None)
         if clip_vision_output is not None:
             out['clip_fea'] = comfy.conds.CONDRegular(clip_vision_output.penultimate_hidden_states)
+
+        time_dim_concat = kwargs.get("time_dim_concat", None)
+        if time_dim_concat is not None:
+            out['time_dim_concat'] = comfy.conds.CONDRegular(self.process_latent_in(time_dim_concat))
+
         return out
 
 
@@ -1062,20 +1082,25 @@ class WAN21_Vace(WAN21):
         vace_frames = kwargs.get("vace_frames", None)
         if vace_frames is None:
             noise_shape[1] = 32
-            vace_frames = torch.zeros(noise_shape, device=noise.device, dtype=noise.dtype)
-
-        for i in range(0, vace_frames.shape[1], 16):
-            vace_frames = vace_frames.clone()
-            vace_frames[:, i:i + 16] = self.process_latent_in(vace_frames[:, i:i + 16])
+            vace_frames = [torch.zeros(noise_shape, device=noise.device, dtype=noise.dtype)]
 
         mask = kwargs.get("vace_mask", None)
         if mask is None:
             noise_shape[1] = 64
-            mask = torch.ones(noise_shape, device=noise.device, dtype=noise.dtype)
+            mask = [torch.ones(noise_shape, device=noise.device, dtype=noise.dtype)] * len(vace_frames)
 
-        out['vace_context'] = comfy.conds.CONDRegular(torch.cat([vace_frames.to(noise), mask.to(noise)], dim=1))
+        vace_frames_out = []
+        for j in range(len(vace_frames)):
+            vf = vace_frames[j].clone()
+            for i in range(0, vf.shape[1], 16):
+                vf[:, i:i + 16] = self.process_latent_in(vf[:, i:i + 16])
+            vf = torch.cat([vf, mask[j]], dim=1)
+            vace_frames_out.append(vf)
 
-        vace_strength = kwargs.get("vace_strength", 1.0)
+        vace_frames = torch.stack(vace_frames_out, dim=1)
+        out['vace_context'] = comfy.conds.CONDRegular(vace_frames)
+
+        vace_strength = kwargs.get("vace_strength", [1.0] * len(vace_frames_out))
         out['vace_strength'] = comfy.conds.CONDConstant(vace_strength)
         return out
 
