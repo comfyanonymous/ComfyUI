@@ -241,11 +241,11 @@ class ImageStitch:
                 "image1": ("IMAGE",),
                 "direction": (["right", "down", "left", "up"], {"default": "right"}),
                 "match_image_size": ("BOOLEAN", {"default": True}),
-                "border_width": (
+                "spacing_width": (
                     "INT",
-                    {"default": 8, "min": 0, "max": 1024, "step": 2},
+                    {"default": 0, "min": 0, "max": 1024, "step": 2},
                 ),
-                "border_color": (
+                "spacing_color": (
                     ["white", "black", "red", "green", "blue"],
                     {"default": "white"},
                 ),
@@ -261,6 +261,7 @@ class ImageStitch:
     DESCRIPTION = """
 Stitches image2 to image1 in the specified direction.
 If image2 is not provided, returns image1 unchanged.
+Optional spacing can be added between images.
 """
 
     def stitch(
@@ -268,8 +269,8 @@ If image2 is not provided, returns image1 unchanged.
         image1,
         direction,
         match_image_size,
-        border_width,
-        border_color,
+        spacing_width,
+        spacing_color,
         image2=None,
     ):
         if image2 is None:
@@ -360,9 +361,9 @@ If image2 is not provided, returns image1 unchanged.
                     dim=-1,
                 )
 
-        # Add border if specified
-        if border_width > 0:
-            border_width = border_width + (border_width % 2)  # Ensure even
+        # Add spacing if specified
+        if spacing_width > 0:
+            spacing_width = spacing_width + (spacing_width % 2)  # Ensure even
 
             color_map = {
                 "white": 1.0,
@@ -371,39 +372,39 @@ If image2 is not provided, returns image1 unchanged.
                 "green": (0.0, 1.0, 0.0),
                 "blue": (0.0, 0.0, 1.0),
             }
-            color_val = color_map[border_color]
+            color_val = color_map[spacing_color]
 
             if direction in ["left", "right"]:
-                border_shape = (
+                spacing_shape = (
                     image1.shape[0],
                     max(image1.shape[1], image2.shape[1]),
-                    border_width,
+                    spacing_width,
                     image1.shape[-1],
                 )
             else:
-                border_shape = (
+                spacing_shape = (
                     image1.shape[0],
-                    border_width,
+                    spacing_width,
                     max(image1.shape[2], image2.shape[2]),
                     image1.shape[-1],
                 )
 
-            border = torch.full(border_shape, 0.0, device=image1.device)
+            spacing = torch.full(spacing_shape, 0.0, device=image1.device)
             if isinstance(color_val, tuple):
                 for i, c in enumerate(color_val):
-                    if i < border.shape[-1]:
-                        border[..., i] = c
-                if border.shape[-1] == 4:  # Add alpha
-                    border[..., 3] = 1.0
+                    if i < spacing.shape[-1]:
+                        spacing[..., i] = c
+                if spacing.shape[-1] == 4:  # Add alpha
+                    spacing[..., 3] = 1.0
             else:
-                border[..., : min(3, border.shape[-1])] = color_val
-                if border.shape[-1] == 4:
-                    border[..., 3] = 1.0
+                spacing[..., : min(3, spacing.shape[-1])] = color_val
+                if spacing.shape[-1] == 4:
+                    spacing[..., 3] = 1.0
 
         # Concatenate images
         images = [image2, image1] if direction in ["left", "up"] else [image1, image2]
-        if border_width > 0:
-            images.insert(1, border)
+        if spacing_width > 0:
+            images.insert(1, spacing)
 
         concat_dim = 2 if direction in ["left", "right"] else 1
         return (torch.cat(images, dim=concat_dim),)

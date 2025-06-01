@@ -111,54 +111,54 @@ class TestImageStitch:
         # Both images should be padded to width 64
         assert result[0].shape == (1, 56, 64, 3)  # 32 + 24 height, max(64,48) width
 
-    def test_border_horizontal(self):
-        """Test border addition in horizontal concatenation"""
+    def test_spacing_horizontal(self):
+        """Test spacing addition in horizontal concatenation"""
         node = ImageStitch()
         image1 = self.create_test_image(height=32, width=32)
         image2 = self.create_test_image(height=32, width=24)
-        border_width = 16
+        spacing_width = 16
 
-        result = node.stitch(image1, "right", False, border_width, "white", image2)
+        result = node.stitch(image1, "right", False, spacing_width, "white", image2)
 
-        # Expected width: 32 + 16 (border) + 24 = 72
+        # Expected width: 32 + 16 (spacing) + 24 = 72
         assert result[0].shape == (1, 32, 72, 3)
 
-    def test_border_vertical(self):
-        """Test border addition in vertical concatenation"""
+    def test_spacing_vertical(self):
+        """Test spacing addition in vertical concatenation"""
         node = ImageStitch()
         image1 = self.create_test_image(height=32, width=32)
         image2 = self.create_test_image(height=24, width=32)
-        border_width = 16
+        spacing_width = 16
 
-        result = node.stitch(image1, "down", False, border_width, "white", image2)
+        result = node.stitch(image1, "down", False, spacing_width, "white", image2)
 
-        # Expected height: 32 + 16 (border) + 24 = 72
+        # Expected height: 32 + 16 (spacing) + 24 = 72
         assert result[0].shape == (1, 72, 32, 3)
 
-    def test_border_color_values(self):
-        """Test that border colors are applied correctly"""
+    def test_spacing_color_values(self):
+        """Test that spacing colors are applied correctly"""
         node = ImageStitch()
         image1 = self.create_test_image(height=32, width=32)
         image2 = self.create_test_image(height=32, width=32)
 
-        # Test white border
+        # Test white spacing
         result_white = node.stitch(image1, "right", False, 16, "white", image2)
-        # Check that border region contains white values (close to 1.0)
-        border_region = result_white[0][:, :, 32:48, :]  # Middle 16 pixels
-        assert torch.all(border_region >= 0.9)  # Should be close to white
+        # Check that spacing region contains white values (close to 1.0)
+        spacing_region = result_white[0][:, :, 32:48, :]  # Middle 16 pixels
+        assert torch.all(spacing_region >= 0.9)  # Should be close to white
 
-        # Test black border
+        # Test black spacing
         result_black = node.stitch(image1, "right", False, 16, "black", image2)
-        border_region = result_black[0][:, :, 32:48, :]
-        assert torch.all(border_region <= 0.1)  # Should be close to black
+        spacing_region = result_black[0][:, :, 32:48, :]
+        assert torch.all(spacing_region <= 0.1)  # Should be close to black
 
-    def test_odd_border_width_made_even(self):
-        """Test that odd border widths are made even"""
+    def test_odd_spacing_width_made_even(self):
+        """Test that odd spacing widths are made even"""
         node = ImageStitch()
         image1 = self.create_test_image(height=32, width=32)
         image2 = self.create_test_image(height=32, width=32)
 
-        # Use odd border width
+        # Use odd spacing width
         result = node.stitch(image1, "right", False, 15, "white", image2)
 
         # Should be made even (16), so total width = 32 + 16 + 32 = 80
@@ -221,19 +221,19 @@ class TestImageStitch:
             result = node.stitch(image1, direction, False, 0, "white", image2)
             assert result[0].shape == (1, 32, 64, 3) if direction in ["right", "left"] else (1, 64, 32, 3)
 
-    def test_batch_size_channel_border_integration(self):
-        """Test integration of batch matching, channel matching, size matching, and borders"""
+    def test_batch_size_channel_spacing_integration(self):
+        """Test integration of batch matching, channel matching, size matching, and spacings"""
         node = ImageStitch()
         image1 = self.create_test_image(batch_size=2, height=64, width=48, channels=3)
         image2 = self.create_test_image(batch_size=1, height=32, width=32, channels=4)
 
         result = node.stitch(image1, "right", True, 8, "red", image2)
 
-        # Should handle: batch matching, size matching, channel matching, border
+        # Should handle: batch matching, size matching, channel matching, spacing
         assert result[0].shape[0] == 2  # Batch size matched
         assert result[0].shape[-1] == 4  # Channels matched to max
         assert result[0].shape[1] == 64  # Height from image1 (size matching)
-        # Width should be: 48 + 8 (border) + resized_image2_width
+        # Width should be: 48 + 8 (spacing) + resized_image2_width
         expected_image2_width = int(64 * (32/32))  # Resized to height 64
         expected_total_width = 48 + 8 + expected_image2_width
         assert result[0].shape[2] == expected_total_width
