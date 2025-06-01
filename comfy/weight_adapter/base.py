@@ -12,13 +12,14 @@ class WeightAdapterBase:
     weights: list[torch.Tensor]
 
     @classmethod
-    def load(cls, x: str, lora: dict[str, torch.Tensor]) -> Optional["WeightAdapterBase"]:
+    def load(cls, x: str, lora: dict[str, torch.Tensor], alpha: float, dora_scale: torch.Tensor) -> Optional["WeightAdapterBase"]:
         raise NotImplementedError
 
     def to_train(self) -> "WeightAdapterTrainBase":
         raise NotImplementedError
 
-    def create_train(self, weight, *args) -> "WeightAdapterTrainBase":
+    @classmethod
+    def create_train(cls, weight, *args) -> "WeightAdapterTrainBase":
         """
         weight: The original weight tensor to be modified.
         *args: Additional arguments for configuration, such as rank, alpha etc.
