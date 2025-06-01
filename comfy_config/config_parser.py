@@ -1,23 +1,17 @@
 import os
 from typing import Optional
 
-import tomlkit
-import tomlkit.exceptions
+import tomllib
 
+from pydantic import ValidationError
 import logging
 
 from comfy_config.types import (
-    ComfyConfig,
-    License,
-    Model,
     ProjectConfig,
     PyProjectConfig,
-    URLs,
 )
 
 """
-Original implementation comes from https://github.com/Comfy-Org/comfy-cli/blob/2e36f33dd39ef43b5acf7d1fc5acc5e01be92360/comfy_cli/registry/config_parser.py#L146
-
 Extract configuration from a custom node directory's pyproject.toml file.
 
 This function reads and parses the pyproject.toml file in the specified directory
@@ -46,70 +40,42 @@ Example:
     >>> print(project_config.project.name)  # "my_custom_node" or name from pyproject.toml
     >>> nodes.EXTENSION_WEB_DIRS[project_config.project.name] = js_dir
 """
-def extract_node_configuration(
-    path,
-) -> Optional[PyProjectConfig]:
+
+
+def extract_node_configuration(path) -> Optional[PyProjectConfig]:
     folder_name = os.path.basename(path)
+    toml_path = os.path.join(path, "pyproject.toml")
 
-    path = os.path.join(path, "pyproject.toml")
-
-    if not os.path.isfile(path):
-        logging.warning("No pyproject.toml file found in the current directory, will use custom node folder name as project name as default.")
-
-        project = ProjectConfig(
-            name=folder_name,
-        )
-
-        return PyProjectConfig(project=project)
-
-    with open(path, "r") as file:
-        data = tomlkit.load(file)
-
-    project_data = data.get("project", {})
-    urls_data = project_data.get("urls", {})
-    comfy_data = data.get("tool", {}).get("comfy", {})
-
-    license_data = project_data.get("license", {})
-    if isinstance(license_data, str):
-        license = License(text=license_data)
+    if not os.path.isfile(toml_path):
         logging.warning(
-            'Warning: License should be in one of these two formats: license = {file = "LICENSE"} OR license = {text = "MIT License"}. Please check the documentation: https://docs.comfy.org/registry/specifications.'
-        )
-    elif isinstance(license_data, dict):
-        if "file" in license_data or "text" in license_data:
-            license = License(file=license_data.get("file", ""), text=license_data.get("text", ""))
-        else:
-            logging.warning(
-                'Warning: License should be in one of these two formats: license = {file = "LICENSE"} OR license = {text = "MIT License"}. Please check the documentation: https://docs.comfy.org/registry/specifications.'
-            )
-            license = License()
-    else:
-        license = License()
-        logging.warning(
-            'Warning: License should be in one of these two formats: license = {file = "LICENSE"} OR license = {text = "MIT License"}. Please check the documentation: https://docs.comfy.org/registry/specifications.'
-        )
+            "No pyproject.toml file found in the current directory, will use custom node folder name as project name as default.")
 
-    project = ProjectConfig(
-        name=project_data.get("name", ""),
-        description=project_data.get("description", ""),
-        version=project_data.get("version", ""),
-        requires_python=project_data.get("requires-python", ""),
-        dependencies=project_data.get("dependencies", []),
-        license=license,
-        urls=URLs(
-            homepage=urls_data.get("Homepage", ""),
-            documentation=urls_data.get("Documentation", ""),
-            repository=urls_data.get("Repository", ""),
-            issues=urls_data.get("Issues", ""),
-        ),
-    )
+        try:
+            project = ProjectConfig(name=folder_name)
+            return PyProjectConfig(project=project)
+        except ValidationError as e:
+            logging.error(f"Failed to create default configuration: {e}")
+            return None
 
-    comfy = ComfyConfig(
-        publisher_id=comfy_data.get("PublisherId", ""),
-        display_name=comfy_data.get("DisplayName", ""),
-        icon=comfy_data.get("Icon", ""),
-        models=[Model(location=m["location"], model_url=m["model_url"]) for m in comfy_data.get("Models", [])],
-        includes=comfy_data.get("includes", []),
-    )
+    try:
+        with open(toml_path, "rb") as f:
+            data = tomllib.load(f)
+    except Exception as e:
+        logging.error(f"Failed to read pyproject.toml: {e}")
+        return None
 
-    return PyProjectConfig(project=project, tool_comfy=comfy)
+    try:
+        config_data = {
+            "project": data.get("project", {}),
+            "tool_comfy": data.get("tool", {}).get("comfy", {})
+        }
+
+        return PyProjectConfig(**config_data)
+
+    except ValidationError as e:
+        logging.error(f"Validation error while parsing configuration: {e}")
+        logging.error(f"Validation details: {e.errors()}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error while parsing configuration: {e}")
+        return None
