@@ -153,11 +153,11 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 class FrontendManager:
     """
     A class to manage ComfyUI frontend versions and installations.
-    
+
     This class handles the initialization and management of different frontend versions,
     including the default frontend from the pip package and custom frontend versions
     from GitHub repositories.
-    
+
     Attributes:
         CUSTOM_FRONTENDS_ROOT (str): The root directory where custom frontend versions are stored.
     """
@@ -168,10 +168,10 @@ class FrontendManager:
     def default_frontend_path(cls) -> str:
         """
         Get the path to the default frontend installation from the pip package.
-        
+
         Returns:
             str: The path to the default frontend static files.
-            
+
         Raises:
             SystemExit: If the comfyui-frontend-package is not installed.
         """
@@ -197,10 +197,10 @@ comfyui-frontend-package is not installed.
     def templates_path(cls) -> str:
         """
         Get the path to the workflow templates.
-        
+
         Returns:
             str: The path to the workflow templates directory.
-            
+
         Raises:
             SystemExit: If the comfyui-workflow-templates package is not installed.
         """
@@ -240,16 +240,16 @@ comfyui-workflow-templates is not installed.
     def parse_version_string(cls, value: str) -> tuple[str, str, str]:
         """
         Parse a version string into its components.
-        
+
         The version string should be in the format: 'owner/repo@version'
         where version can be either a semantic version (v1.2.3) or 'latest'.
-        
+
         Args:
             value (str): The version string to parse.
-            
+
         Returns:
             tuple[str, str, str]: A tuple containing (owner, repo, version).
-            
+
         Raises:
             argparse.ArgumentTypeError: If the version string is invalid.
         """
@@ -266,18 +266,18 @@ comfyui-workflow-templates is not installed.
     ) -> str:
         """
         Initialize a frontend version without error handling.
-        
+
         This method attempts to initialize a specific frontend version, either from
         the default pip package or from a custom GitHub repository. It will download
         and extract the frontend files if necessary.
-        
+
         Args:
             version_string (str): The version string specifying which frontend to use.
             provider (FrontEndProvider, optional): The provider to use for custom frontends.
-            
+
         Returns:
             str: The path to the initialized frontend.
-            
+
         Raises:
             Exception: If there is an error during initialization (e.g., network timeout,
                       invalid URL, or missing assets).
@@ -333,13 +333,13 @@ comfyui-workflow-templates is not installed.
     def init_frontend(cls, version_string: str) -> str:
         """
         Initialize a frontend version with error handling.
-        
+
         This is the main method to initialize a frontend version. It wraps init_frontend_unsafe
         with error handling, falling back to the default frontend if initialization fails.
-        
+
         Args:
             version_string (str): The version string specifying which frontend to use.
-            
+
         Returns:
             str: The path to the initialized frontend. If initialization fails,
                  returns the path to the default frontend.
