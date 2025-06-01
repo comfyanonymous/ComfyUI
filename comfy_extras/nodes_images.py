@@ -306,7 +306,7 @@ If image2 is not provided, returns image1 unchanged.
         if not match_image_size:
             h1, w1 = image1.shape[1:3]
             h2, w2 = image2.shape[1:3]
-            
+
             if direction in ["left", "right"]:
                 # For horizontal concat, pad heights to match
                 if h1 != h2:
