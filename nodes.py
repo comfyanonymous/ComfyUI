@@ -2062,6 +2062,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImagePadForOutpaint": "Pad Image for Outpainting",
     "ImageBatch": "Batch Images",
     "ImageCrop": "Image Crop",
+    "ImageStitch": "Image Stitch",
     "ImageBlend": "Image Blend",
     "ImageBlur": "Image Blur",
     "ImageQuantize": "Image Quantize",
