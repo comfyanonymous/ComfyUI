@@ -275,7 +275,7 @@ def filter_files_extensions(files: Collection[str], extensions: Collection[str])
 
 
 
-def get_full_path(folder_name: str, filename: str) -> str | None:
+def get_full_path(folder_name: str, filename: str, allow_missing: bool = False) -> str | None:
     global folder_names_and_paths
     folder_name = map_legacy(folder_name)
     if folder_name not in folder_names_and_paths:
@@ -288,6 +288,8 @@ def get_full_path(folder_name: str, filename: str) -> str | None:
             return full_path
         elif os.path.islink(full_path):
             logging.warning("WARNING path {} exists but doesn't link anywhere, skipping.".format(full_path))
+        elif allow_missing:
+            return full_path
 
     return None
 

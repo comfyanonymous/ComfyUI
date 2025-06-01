@@ -1,29 +1,50 @@
 import logging
 import os
 import shutil
+from app.logger import log_startup_warning
 from utils.install_util import get_missing_requirements_message
 from comfy.cli_args import args
 
+_DB_AVAILABLE = False
 Session = None
 
 
-def can_create_session():
-    return Session is not None
-
-
 try:
-    import alembic
-    import sqlalchemy
-except ImportError as e:
-    logging.error(get_missing_requirements_message())
-    raise e
+    from alembic import command
+    from alembic.config import Config
+    from alembic.runtime.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
 
-from alembic import command
-from alembic.config import Config
-from alembic.runtime.migration import MigrationContext
-from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+    _DB_AVAILABLE = True
+except ImportError as e:
+    log_startup_warning(
+        f"""
+------------------------------------------------------------------------
+Error importing dependencies: {e}
+
+{get_missing_requirements_message()}
+
+This error is happening because ComfyUI now uses a local sqlite database.
+------------------------------------------------------------------------
+""".strip()
+    )
+
+
+def dependencies_available():
+    """
+    Temporary function to check if the dependencies are available
+    """
+    return _DB_AVAILABLE
+
+
+def can_create_session():
+    """
+    Temporary function to check if the database is available to create a session
+    During initial release there may be environmental issues (or missing dependencies) that prevent the database from being created
+    """
+    return dependencies_available() and Session is not None
 
 
 def get_alembic_config():
@@ -49,6 +70,8 @@ def get_db_path():
 def init_db():
     db_url = args.database_url
     logging.debug(f"Database URL: {db_url}")
+    db_path = get_db_path()
+    db_exists = os.path.exists(db_path)
 
     config = get_alembic_config()
 
@@ -64,9 +87,8 @@ def init_db():
 
     if current_rev != target_rev:
         # Backup the database pre upgrade
-        db_path = get_db_path()
         backup_path = db_path + ".bkp"
-        if os.path.exists(db_path):
+        if db_exists:
             shutil.copy(db_path, backup_path)
         else:
             backup_path = None

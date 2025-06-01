@@ -238,10 +238,11 @@ def cleanup_temp():
 
 def setup_database():
     try:
-        from app.database.db import init_db
-        init_db()
+        from app.database.db import init_db, dependencies_available
+        if dependencies_available():
+            init_db()
     except Exception as e:
-        logging.error(f"Failed to initialize database. Please report this error as in future the database will be required: {e}")
+        logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
 
 def start_comfyui(asyncio_loop=None):
     """
