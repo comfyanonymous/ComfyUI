@@ -20,6 +20,7 @@
 import torch
 import math
 import struct
+from app.model_processor import model_processor
 import comfy.checkpoint_pickle
 import safetensors.torch
 import numpy as np
@@ -53,6 +54,9 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
         device = torch.device("cpu")
     metadata = None
+
+    model_processor.process_file(ckpt)
+
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
             with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:

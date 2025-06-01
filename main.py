@@ -147,7 +147,6 @@ def cuda_malloc_warning():
         if cuda_malloc_warning:
             logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
-
 def prompt_worker(q, server_instance):
     current_time: float = 0.0
     cache_type = execution.CacheType.CLASSIC
@@ -237,6 +236,12 @@ def cleanup_temp():
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+def setup_database():
+    try:
+        from app.database.db import init_db
+        init_db()
+    except Exception as e:
+        logging.error(f"Failed to initialize database. Please report this error as in future the database will be required: {e}")
 
 def start_comfyui(asyncio_loop=None):
     """
@@ -266,6 +271,7 @@ def start_comfyui(asyncio_loop=None):
     hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()
+    setup_database()
 
     prompt_server.add_routes()
     hijack_progress(prompt_server)

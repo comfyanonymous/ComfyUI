@@ -16,26 +16,15 @@ from importlib.metadata import version
 import requests
 from typing_extensions import NotRequired
 
+from utils.install_util import get_missing_requirements_message, requirements_path
 from comfy.cli_args import DEFAULT_VERSION_STRING
 import app.logger
 
-# The path to the requirements.txt file
-req_path = Path(__file__).parents[1] / "requirements.txt"
-
-
 def frontend_install_warning_message():
-    """The warning message to display when the frontend version is not up to date."""
-
-    extra = ""
-    if sys.flags.no_user_site:
-        extra = "-s "
     return f"""
-Please install the updated requirements.txt file by running:
-{sys.executable} {extra}-m pip install -r {req_path}
+{get_missing_requirements_message()}
 
 This error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.
-
-If you are on the portable package you can run: update\\update_comfyui.bat to solve this problem
 """.strip()
 
 
@@ -48,7 +37,7 @@ def check_frontend_version():
     try:
         frontend_version_str = version("comfyui-frontend-package")
         frontend_version = parse_version(frontend_version_str)
-        with open(req_path, "r", encoding="utf-8") as f:
+        with open(requirements_path, "r", encoding="utf-8") as f:
             required_frontend = parse_version(f.readline().split("=")[-1])
         if frontend_version < required_frontend:
             app.logger.log_startup_warning(
@@ -162,10 +151,30 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 
 class FrontendManager:
+    """
+    A class to manage ComfyUI frontend versions and installations.
+    
+    This class handles the initialization and management of different frontend versions,
+    including the default frontend from the pip package and custom frontend versions
+    from GitHub repositories.
+    
+    Attributes:
+        CUSTOM_FRONTENDS_ROOT (str): The root directory where custom frontend versions are stored.
+    """
+
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
 
     @classmethod
     def default_frontend_path(cls) -> str:
+        """
+        Get the path to the default frontend installation from the pip package.
+        
+        Returns:
+            str: The path to the default frontend static files.
+            
+        Raises:
+            SystemExit: If the comfyui-frontend-package is not installed.
+        """
         try:
             import comfyui_frontend_package
 
@@ -186,6 +195,15 @@ comfyui-frontend-package is not installed.
 
     @classmethod
     def templates_path(cls) -> str:
+        """
+        Get the path to the workflow templates.
+        
+        Returns:
+            str: The path to the workflow templates directory.
+            
+        Raises:
+            SystemExit: If the comfyui-workflow-templates package is not installed.
+        """
         try:
             import comfyui_workflow_templates
 
@@ -221,12 +239,17 @@ comfyui-workflow-templates is not installed.
     @classmethod
     def parse_version_string(cls, value: str) -> tuple[str, str, str]:
         """
+        Parse a version string into its components.
+        
+        The version string should be in the format: 'owner/repo@version'
+        where version can be either a semantic version (v1.2.3) or 'latest'.
+        
         Args:
             value (str): The version string to parse.
-
+            
         Returns:
-            tuple[str, str]: A tuple containing provider name and version.
-
+            tuple[str, str, str]: A tuple containing (owner, repo, version).
+            
         Raises:
             argparse.ArgumentTypeError: If the version string is invalid.
         """
@@ -242,18 +265,22 @@ comfyui-workflow-templates is not installed.
         cls, version_string: str, provider: Optional[FrontEndProvider] = None
     ) -> str:
         """
-        Initializes the frontend for the specified version.
-
+        Initialize a frontend version without error handling.
+        
+        This method attempts to initialize a specific frontend version, either from
+        the default pip package or from a custom GitHub repository. It will download
+        and extract the frontend files if necessary.
+        
         Args:
-            version_string (str): The version string.
-            provider (FrontEndProvider, optional): The provider to use. Defaults to None.
-
+            version_string (str): The version string specifying which frontend to use.
+            provider (FrontEndProvider, optional): The provider to use for custom frontends.
+            
         Returns:
             str: The path to the initialized frontend.
-
+            
         Raises:
-            Exception: If there is an error during the initialization process.
-            main error source might be request timeout or invalid URL.
+            Exception: If there is an error during initialization (e.g., network timeout,
+                      invalid URL, or missing assets).
         """
         if version_string == DEFAULT_VERSION_STRING:
             check_frontend_version()
@@ -305,13 +332,17 @@ comfyui-workflow-templates is not installed.
     @classmethod
     def init_frontend(cls, version_string: str) -> str:
         """
-        Initializes the frontend with the specified version string.
-
+        Initialize a frontend version with error handling.
+        
+        This is the main method to initialize a frontend version. It wraps init_frontend_unsafe
+        with error handling, falling back to the default frontend if initialization fails.
+        
         Args:
-            version_string (str): The version string to initialize the frontend with.
-
+            version_string (str): The version string specifying which frontend to use.
+            
         Returns:
-            str: The path of the initialized frontend.
+            str: The path to the initialized frontend. If initialization fails,
+                 returns the path to the default frontend.
         """
         try:
             return cls.init_frontend_unsafe(version_string)
