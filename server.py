@@ -476,9 +476,8 @@ class PromptServer():
                         # Get content type from mimetype, defaulting to 'application/octet-stream'
                         content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
 
-                        # For security, force certain extensions to download instead of display
-                        file_extension = os.path.splitext(filename)[1].lower()
-                        if file_extension in {'.html', '.htm', '.js', '.css'}:
+                        # For security, force certain mimetypes to download instead of display
+                        if content_type in {'text/html', 'text/html-sandboxed', 'application/xhtml+xml', 'text/javascript', 'text/css'}:
                             content_type = 'application/octet-stream'  # Forces download
 
                         return web.FileResponse(
