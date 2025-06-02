@@ -1831,6 +1831,7 @@ class ImageInvert:
         s = 1.0 - image
         return (s,)
 
+
 class ImageBatch:
 
     @classmethod

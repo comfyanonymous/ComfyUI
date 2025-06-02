@@ -16,7 +16,8 @@ from inspect import cleandoc
 import torch
 import comfy.utils
 
-from comfy.comfy_types import FileLocator
+from comfy.comfy_types import FileLocator, IO
+from server import PromptServer
 
 MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
@@ -491,6 +492,36 @@ class SaveSVGNode:
             counter += 1
         return { "ui": { "images": results } }
 
+class GetImageSize:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": (IO.IMAGE,),
+            },
+            "hidden": {
+                "unique_id": "UNIQUE_ID",
+            }
+        }
+
+    RETURN_TYPES = (IO.INT, IO.INT)
+    RETURN_NAMES = ("width", "height")
+    FUNCTION = "get_size"
+
+    CATEGORY = "image"
+    DESCRIPTION = """Returns width and height of the image, and passes it through unchanged."""
+
+    def get_size(self, image, unique_id=None) -> tuple[int, int]:
+        height = image.shape[1]
+        width = image.shape[2]
+
+        # Send progress text to display size on the node
+        if unique_id:
+            PromptServer.instance.send_progress_text(f"width: {width}, height: {height}", unique_id)
+
+        return width, height
+
 NODE_CLASS_MAPPINGS = {
     "ImageCrop": ImageCrop,
     "RepeatImageBatch": RepeatImageBatch,
@@ -500,4 +531,5 @@ NODE_CLASS_MAPPINGS = {
     "SaveAnimatedPNG": SaveAnimatedPNG,
     "SaveSVGNode": SaveSVGNode,
     "ImageStitch": ImageStitch,
+    "GetImageSize": GetImageSize,
 }
