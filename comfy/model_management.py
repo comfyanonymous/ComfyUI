@@ -169,7 +169,7 @@ def get_torch_device():
         elif is_mlu():
             return torch.device("mlu", torch.mlu.current_device())
         else:
-            return torch.device(torch.cuda.current_device())
+            return torch.device("cuda")
 
 def get_total_memory(dev=None, torch_total_too=False):
     global directml_enabled
@@ -202,7 +202,7 @@ def get_total_memory(dev=None, torch_total_too=False):
             mem_total = mem_total_mlu
         else:
             stats = torch.cuda.memory_stats(dev)
-            mem_reserved = stats['reserved_bytes.all.current']
+            mem_reserved = torch.cuda.memory_reserved(dev)
             _, mem_total_cuda = torch.cuda.mem_get_info(dev)
             mem_total_torch = mem_reserved
             mem_total = mem_total_cuda
