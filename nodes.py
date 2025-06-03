@@ -2067,6 +2067,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageQuantize": "Image Quantize",
     "ImageSharpen": "Image Sharpen",
     "ImageScaleToTotalPixels": "Scale Image to Total Pixels",
+    "GetImageSize": "Get Image Size",
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
