@@ -2,7 +2,7 @@ import torch
 
 from comfy_api.v3.io import (
     ComfyNodeV3, SchemaV3, CustomType, CustomInput, CustomOutput, InputBehavior, NumberDisplay,
-    IntegerInput, MaskInput, ImageInput, ComboDynamicInput, NodeOutput,
+    IntegerInput, MaskInput, ImageInput, ComboInput, NodeOutput, FolderType, RemoteOptions
 )
 
 
@@ -23,6 +23,13 @@ class V3TestNode(ComfyNodeV3):
                 IntegerInput("some_int", display_name="new_name", min=0, tooltip="My tooltip 😎", display_mode=NumberDisplay.slider),
                 MaskInput("mask", behavior=InputBehavior.optional),
                 ImageInput("image", display_name="new_image"),
+                ComboInput("combo", image_upload=True, image_folder=FolderType.output,
+                            remote=RemoteOptions(
+                                route="/internal/files/output",
+                                refresh_button=True,
+                            ),
+                            tooltip="This is a combo input"),
+                # ComboInput("combo", options=["a", "b", "c"], tooltip="This is a combo input"),
                 # IntegerInput("some_int", display_name="new_name", min=0, tooltip="My tooltip 😎", display=NumberDisplay.slider, ),
                 # ComboDynamicInput("mask", behavior=InputBehavior.optional),
                 # IntegerInput("some_int", display_name="new_name", min=0, tooltip="My tooltip 😎", display=NumberDisplay.slider,
@@ -56,12 +63,3 @@ class V3TestNode(ComfyNodeV3):
 NODES_LIST: list[ComfyNodeV3] = [
     V3TestNode,
 ]
-
-
-# NODE_CLASS_MAPPINGS = {}
-# NODE_DISPLAY_NAME_MAPPINGS = {}
-# for node in NODES_LIST:
-#     schema = node.GET_SCHEMA()
-#     NODE_CLASS_MAPPINGS[schema.node_id] = node
-#     if schema.display_name:
-#         NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name

@@ -11,6 +11,38 @@ class InputBehavior(str, Enum):
     optional = "optional"
 
 
+class FolderType(str, Enum):
+    input = "input"
+    output = "output"
+    temp = "temp"
+
+class RemoteOptions:
+    def __init__(self, route: str, refresh_button: bool, control_after_refresh: Literal["first", "last"]=None,
+                 timeout: int=None, max_retries: int=None, refresh: int=None):
+        self.route = route
+        """The route to the remote source."""
+        self.refresh_button = refresh_button
+        """Specifies whether to show a refresh button in the UI below the widget."""
+        self.control_after_refresh = control_after_refresh
+        """Specifies the control after the refresh button is clicked. If "first", the first item will be automatically selected, and so on."""
+        self.timeout = timeout
+        """The maximum amount of time to wait for a response from the remote source in milliseconds."""
+        self.max_retries = max_retries
+        """The maximum number of retries before aborting the request."""
+        self.refresh = refresh
+        """The TTL of the remote input's value in milliseconds. Specifies the interval at which the remote input's value is refreshed."""
+
+    def as_dict(self):
+        return prune_dict({
+            "route": self.route,
+            "refresh_button": self.refresh_button,
+            "control_after_refresh": self.control_after_refresh,
+            "timeout": self.timeout,
+            "max_retries": self.max_retries,
+            "refresh": self.refresh,
+        })
+
+
 def is_class(obj):
     '''
     Returns True if is a class type.
@@ -192,13 +224,18 @@ class StringInput(WidgetInputV3, io_type=IO.STRING):
 
 class ComboInput(WidgetInputV3, io_type=IO.COMBO):
     '''Combo input (dropdown).'''
-    def __init__(self, id: str, options: list[str], display_name: str=None, behavior=InputBehavior.required, tooltip: str=None, lazy: bool=None,
+    def __init__(self, id: str, options: list[str]=None, display_name: str=None, behavior=InputBehavior.required, tooltip: str=None, lazy: bool=None,
                  default: str=None, control_after_generate: bool=None,
+                 image_upload: bool=None, image_folder: FolderType=None,
+                 remote: RemoteOptions=None,
                  socketless: bool=None, widgetType: str=None):
         super().__init__(id, display_name, behavior, tooltip, lazy, default, socketless, widgetType)
         self.multiselect = False
         self.options = options
         self.control_after_generate = control_after_generate
+        self.image_upload = image_upload
+        self.image_folder = image_folder
+        self.remote = remote
         self.default: str
     
     def as_dict_V1(self):
@@ -206,6 +243,9 @@ class ComboInput(WidgetInputV3, io_type=IO.COMBO):
             "multiselect": self.multiselect,
             "options": self.options,
             "control_after_generate": self.control_after_generate,
+            "image_upload": self.image_upload,
+            "image_folder": self.image_folder.value if self.image_folder else None,
+            "remote": self.remote.as_dict() if self.remote else None,
         })
 
 class MultiselectComboWidget(ComboInput, io_type=IO.COMBO):
@@ -726,7 +766,7 @@ class NodeOutput:
 
 
 class SavedResult:
-    def __init__(self, filename: str, subfolder: str, type: Literal["input", "output", "temp"]):
+    def __init__(self, filename: str, subfolder: str, type: FolderType):
         self.filename = filename
         self.subfolder = subfolder
         self.type = type
@@ -735,7 +775,7 @@ class SavedResult:
         return {
             "filename": self.filename,
             "subfolder": self.subfolder,
-            "type": self.type
+            "type": self.type.value
         }
 
 class UIOutput(ABC):
