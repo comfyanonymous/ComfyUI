@@ -2,9 +2,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from pydantic import ValidationError
 from pydantic_settings import PydanticBaseSettingsSource, TomlConfigSettingsSource
-import logging
 
 from comfy_config.types import (
     ComfyConfig,
@@ -47,7 +45,7 @@ Example:
     >>> custom_node_dir = os.path.dirname(os.path.realpath(__file__))
     >>> project_config = config_parser.extract_node_configuration(custom_node_dir)
     >>> print(project_config.project.name)  # "my_custom_node" or name from pyproject.toml
-    >>> 
+    >>>
     >>> # For single-file Python node file
     >>> py_file_path = os.path.realpath(__file__) # "/path/to/my_node.py"
     >>> project_config = config_parser.extract_node_configuration(py_file_path)
