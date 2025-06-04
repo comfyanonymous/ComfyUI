@@ -10,7 +10,7 @@ echo :: (3) Change the zluda.py inside comfy\ folder with the one under comfy\cu
 echo :: * Don't forget if you want to update comfy,and if there is a change in the zluda.py, just delete the file for update to work, and after it completes copy it back from the comfy\customzluda\ folder.
 echo.
 echo :: Activating virtual environment
-venv\Scripts\activate
+Call "venv\Scripts\activate.bat"
 echo :: Uninstalling previous torch packages
 pip uninstall torch torchvision torchaudio -y --quiet
 rmdir /S /Q "venv\Lib\site-packages\torch" 2>nul
