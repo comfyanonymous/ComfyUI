@@ -505,8 +505,8 @@ class GetImageSize:
             }
         }
 
-    RETURN_TYPES = (IO.INT, IO.INT)
-    RETURN_NAMES = ("width", "height")
+    RETURN_TYPES = (IO.INT, IO.INT, IO.INT)
+    RETURN_NAMES = ("width", "height", "batch_size")
     FUNCTION = "get_size"
 
     CATEGORY = "image"
@@ -515,12 +515,13 @@ class GetImageSize:
     def get_size(self, image, unique_id=None) -> tuple[int, int]:
         height = image.shape[1]
         width = image.shape[2]
+        batch_size = image.shape[0]
 
         # Send progress text to display size on the node
         if unique_id:
-            PromptServer.instance.send_progress_text(f"width: {width}, height: {height}", unique_id)
+            PromptServer.instance.send_progress_text(f"width: {width}, height: {height}\n batch size: {batch_size}", unique_id)
 
-        return width, height
+        return width, height, batch_size
 
 NODE_CLASS_MAPPINGS = {
     "ImageCrop": ImageCrop,
