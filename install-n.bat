@@ -64,6 +64,7 @@ pip install flash_attn-2.7.4.post1-py3-none-any.whl --quiet
 del fa.zip
 del flash_attn-2.7.4.post1-py3-none-any.whl
 
+pip install sageattention --quiet
 echo  ::  %time:~0,8%  ::  - Patching sage-attention
 copy comfy\customzluda\sa\quant_per_block.py %VIRTUAL_ENV%\Lib\site-packages\sageattention\quant_per_block.py /y >NUL
 copy comfy\customzluda\sa\attn_qk_int8_per_block_causal.py %VIRTUAL_ENV%\Lib\site-packages\sageattention\attn_qk_int8_per_block_causal.py /y >NUL
@@ -72,6 +73,9 @@ copy comfy\customzluda\sa\attn_qk_int8_per_block.py %VIRTUAL_ENV%\Lib\site-packa
 echo.
 echo  ::  %time:~0,8%  ::  Custom node(s) installation ...
 echo. 
+echo :: %time:~0,8%  ::  - Installing CFZ Nodes (description in readme on github) 
+copy cfz\cfz_patcher.py custom_nodes\cfz_patcher.py /y >NUL
+copy cfz\cfz_cudnn.toggle.py custom_nodes\cfz_cudnn.toggle.py /y >NUL
 echo  ::  %time:~0,8%  ::  - Installing Comfyui Manager
 cd custom_nodes
 git clone https://github.com/ltdrdata/ComfyUI-Manager.git --quiet
@@ -80,16 +84,14 @@ git clone https://github.com/styler00dollar/ComfyUI-deepcache.git --quiet
 cd ..
 echo. 
 echo  ::  %time:~0,8%  ::  - Patching ZLUDA
-
-:: Download matching ZLUDA version
+:: Download ZLUDA version 3.9.5 nightly
 rmdir /S /Q zluda 2>nul
 mkdir zluda
 cd zluda
-%SystemRoot%\system32\curl.exe -sL --ssl-no-revoke https://github.com/lshqqytiger/ZLUDA/releases/download/rel.0d1513a017397bf9ebbac0b3c846160c8d4fc700/ZLUDA-nightly-windows-rocm6-amd64.zip > zluda.zip
+%SystemRoot%\system32\curl.exe -sL --ssl-no-revoke https://github.com/lshqqytiger/ZLUDA/releases/download/rel.5e717459179dc272b7d7d23391f0fad66c7459cf/ZLUDA-nightly-windows-rocm6-amd64.zip > zluda.zip
 %SystemRoot%\system32\tar.exe -xf zluda.zip
 del zluda.zip
 cd ..
-
 :: Patch DLLs
 copy zluda\cublas.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\cublas64_11.dll /y >NUL
 copy zluda\cusparse.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\cusparse64_11.dll /y >NUL
@@ -100,7 +102,7 @@ copy zluda\cufft.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\cufft64_10.dll /y
 copy zluda\cufftw.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\cufftw64_10.dll /y >NUL
 copy comfy\customzluda\zluda.py comfy\zluda.py /y >NUL
 
-echo  ::  %time:~0,8%  ::  - ZLUDA patched for HIP SDK 6.2.4 with miopen and triton-flash attention.
+echo  ::  %time:~0,8%  ::  - ZLUDA 3.9.5 nightly patched for HIP SDK 6.2.4 with miopen and triton-flash attention.
 echo. 
 set "endTime=%time: =0%"
 set "end=!endTime:%time:~8,1%=%%100)*100+1!"  &  set "start=!startTime:%time:~8,1%=%%100)*100+1!"
