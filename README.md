@@ -17,8 +17,8 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 
 ## What's New?
 
-* Updated included zluda version for the new install method to 3.9.5 nightly aka latest version available. You can use latest amd gpu drivers, """ WIPE THE CACHES , READ BELOW """ I recommend using "patchzluda-n.bat" to install it , it uninstalls torch's and reinstalls and patches them with new zluda.
-* There are three caches to delete if you want to start anew -it is recommended if you want a painless zluda experience : 1-) "C:\Users\yourusername\AppData\Local\ZLUDA\ComputeCache" 2-) "C:\ Users \ yourusername \ .miopen" 3-) "C:\ Users \ yourusername \ .triton" , delete everything in these three directories, zluda and miopen and triton will do everything from the start again but it would be less painful for the future.
+* Updated included zluda version for the new install method to 3.9.5 nightly aka latest version available. You can use latest amd gpu drivers, """ WIPE THE CACHES , READ BELOW """ I recommend using "patchzluda-n.bat" to install it , it uninstalls torch's and reinstalls and patches them with new zluda.ALSO you need to uninstall hip 6.2.4 completely, delete the folder , and reinstall it and OVER it download and unzip the new Hip addon for this 3.9.5 version (hopefully this won't happen that much) new hip addon for zluda 3.9.5 : (https://drive.google.com/file/d/1Gvg3hxNEj2Vsd2nQgwadrUEY6dYXy0H9/view?usp=sharing)
+* WIPING CACHES FOR A CLEAN REINSTALL :: There are three caches to delete if you want to start anew -it is recommended if you want a painless zluda experience : 1-) "C:\Users\yourusername\AppData\Local\ZLUDA\ComputeCache" 2-) "C:\ Users \ yourusername \ .miopen" 3-) "C:\ Users \ yourusername \ .triton" , delete everything in these three directories, zluda and miopen and triton will do everything from the start again but it would be less painful for the future.
 * Added "CFZ Cudnn Toggle" node, it is for some of the audio models, not working with cudnn -which is enabled by default on new install method- to use it just connect it before ksampler -latent_image input or any latent input- disable cudnn, THEN after the vae decoding -which most of these problems occur- to re-enable cudnn , add it after vae-decoding, select audio_output and connect it save audio node of course enable cudnn now.This way within that workflow you are disabling cudnn when working with models that are not compatible with it, so instead of completely disabling it in comfy we can do it locally like this.
 *  "CFZ Checkpoint Loader"was broken, it might corrupt the models if you load with it and quit halfway, I completely redone it and it now works outside the checkpoint loading so doesn't touch the file and when it does quantize the model, it makes a copy and quantizes it. Please delete the "cfz_checkpoint_loader.py" and use the newly added "cfz_patcher.py" it got three seperate nodes and much safer and better.
 * BOTH of these nodes are inside "cfz" folder, to use them copy them into custom_nodes, they would appear next time you open comfy, to find them searh for "cfz" you will see both nodes.
@@ -95,8 +95,8 @@ If coming from the very start, you need :
    5.1  *** YOU MUST DO THIS ADDITIONAL STEP : if you want to try miopen-triton with high end gpu : ***
    
     * Install **HIP SDK 6.2.4** from [HERE](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html) the correct version, "Windows 10 & 11 6.2.4 HIP SDK"
-    * Then download hip sdk addon from one of these urls and extract that into `C:\Program Files\AMD\ROCm\6.2` .
-    *  [Link-1](https://www.mediafire.com/file/qhct48vamgmn0tv/HIP-SDK-extension-full.zip/file)      [Link-2](https://gofile.io/d/kUXwYu)
+    * Then download hip sdk addon from this url and extract that into `C:\Program Files\AMD\ROCm\6.2` . (updated for zluda 3.9.5)
+    *  (new hip addon for zluda 3.9.5 : (https://drive.google.com/file/d/1Gvg3hxNEj2Vsd2nQgwadrUEY6dYXy0H9/view?usp=sharing))
 
 7. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
 
