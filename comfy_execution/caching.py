@@ -93,11 +93,18 @@ class CacheKeySetInputSignature(CacheKeySet):
             self.subcache_keys[node_id] = (node_id, node["class_type"])
 
     def get_node_signature(self, dynprompt, node_id):
+        node = dynprompt.get_node(node_id)
+        class_type = node["class_type"]
+        class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+
         signature = []
-        ancestors, order_mapping = self.get_ordered_ancestry(dynprompt, node_id)
-        signature.append(self.get_immediate_node_signature(dynprompt, node_id, order_mapping))
-        for ancestor_id in ancestors:
-            signature.append(self.get_immediate_node_signature(dynprompt, ancestor_id, order_mapping))
+        if hasattr(class_def, "IS_CHANGED"):
+            signature.append(self.get_immediate_node_signature(dynprompt, node_id, {}))
+        else:
+            ancestors, order_mapping = self.get_ordered_ancestry(dynprompt, node_id)
+            signature.append(self.get_immediate_node_signature(dynprompt, node_id, order_mapping))
+            for ancestor_id in ancestors:
+                signature.append(self.get_immediate_node_signature(dynprompt, ancestor_id, order_mapping))
         return to_hashable(signature)
 
     def get_immediate_node_signature(self, dynprompt, node_id, ancestor_order_mapping):
@@ -108,8 +115,13 @@ class CacheKeySetInputSignature(CacheKeySet):
         class_type = node["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         signature = [class_type, self.is_changed_cache.get(node_id)]
+
         if self.include_node_id_in_input() or (hasattr(class_def, "NOT_IDEMPOTENT") and class_def.NOT_IDEMPOTENT) or include_unique_id_in_input(class_type):
             signature.append(node_id)
+
+        if hasattr(class_def, "IS_CHANGED"):
+            return signature
+
         inputs = node["inputs"]
         for key in sorted(inputs.keys()):
             if is_link(inputs[key]):

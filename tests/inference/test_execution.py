@@ -497,6 +497,36 @@ class TestExecution:
         assert numpy.array(images[0]).min() == 63 and numpy.array(images[0]).max() == 63, "Image should have value 0.25"
         assert not result.did_run(test_node), "The execution should have been cached"
 
+    # This tests that a node does not re-execute when IS_CHANGED returs the same value (even if
+    # inputs change)
+    def test_is_changed_overrides_default_checks(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        changing_input = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        test_node = g.node("TestCustomIsChanged", should_change=False, image=changing_input.out(0))
+        g.node("SaveImage", images=test_node.out(0))
+
+        result1 = client.run(g)
+        assert result1.did_run(test_node), "Node should run on first execution"
+        assert result1.did_run(changing_input), "Input should run on first execution"
+
+        changing_input.set_input('content', "WHITE")  # Change input content
+
+        result2 = client.run(g)
+        assert result2.did_run(changing_input), "Input should re-execute due to content change"
+        assert not result2.did_run(test_node), "Node with IS_CHANGED should NOT re-execute when IS_CHANGED is consistent"
+
+        #  verify the behavior when IS_CHANGED actually changes
+        test_node.set_input('should_change', True)  # This should cause IS_CHANGED to return different value
+
+        result3 = client.run(g)
+        assert result3.did_run(test_node), "Node should re-execute when IS_CHANGED value actually changes"
+
+        changing_input.set_input('content', "BLACK")  # Change input back
+
+        result4 = client.run(g)
+        assert result4.did_run(changing_input), "Input should re-execute due to content change"
+        assert result4.did_run(test_node), "Node should re-execute because IS_CHANGED returns changing value (NaN)"
+
     # This tests that nodes with OUTPUT_IS_LIST function correctly when they receive an ExecutionBlocker
     # as input. We also test that when that list (containing an ExecutionBlocker) is passed to a node,
     # only that one entry in the list is blocked.
