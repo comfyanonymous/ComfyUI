@@ -17,7 +17,7 @@ class FolderType(str, Enum):
     temp = "temp"
 
 class RemoteOptions:
-    def __init__(self, route: str, refresh_button: bool, control_after_refresh: Literal["first", "last"]=None,
+    def __init__(self, route: str, refresh_button: bool, control_after_refresh: Literal["first", "last"]="first",
                  timeout: int=None, max_retries: int=None, refresh: int=None):
         self.route = route
         """The route to the remote source."""
