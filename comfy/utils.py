@@ -710,6 +710,8 @@ def safetensors_header(safetensors_path, max_size=100*1024*1024):
 def set_attr(obj, attr, value):
     attrs = attr.split(".")
     for name in attrs[:-1]:
+        if name.startswith("__") and name.endswith("__"):
+            raise ValueError("Cannot set attribute across dunder attributes")
         obj = getattr(obj, name)
     prev = getattr(obj, attrs[-1])
     setattr(obj, attrs[-1], value)
@@ -722,6 +724,8 @@ def copy_to_param(obj, attr, value):
     # inplace update tensor instead of replacing it
     attrs = attr.split(".")
     for name in attrs[:-1]:
+        if name.startswith("__") and name.endswith("__"):
+            raise ValueError("Cannot set attribute across dunder attributes")
         obj = getattr(obj, name)
     prev = getattr(obj, attrs[-1])
     prev.data.copy_(value)
