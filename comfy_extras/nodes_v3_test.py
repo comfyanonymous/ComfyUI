@@ -46,7 +46,7 @@ class V3TestNode(ComfyNodeV3):
             is_output_node=True,
         )
 
-    def execute(image: torch.Tensor, xyz, some_int: int, combo: str, mask: torch.Tensor=None):
+    def execute(self, image: torch.Tensor, xyz, some_int: int, combo: str, mask: torch.Tensor=None):
         return NodeOutput(some_int, image)
 
 
