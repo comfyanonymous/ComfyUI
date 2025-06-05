@@ -187,7 +187,7 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
             if isinstance(obj, ComfyNodeV3):
                 type(obj).VALIDATE_CLASS()
                 class_clone = prepare_class_clone(obj)
-                results.append(type(obj).EXECUTE.__func__(class_clone, **inputs))
+                results.append(type(obj).execute.__func__(class_clone, **inputs))
             # V1
             else:
                 results.append(getattr(obj, func)(**inputs))

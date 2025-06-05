@@ -586,9 +586,9 @@ class ComfyNodeV3(ABC):
 
     @classmethod
     @abstractmethod
-    def EXECUTE(cls, **kwargs) -> NodeOutput:
+    def execute(cls, **kwargs) -> NodeOutput:
         pass
-    EXECUTE = None
+    execute = None
 
     @classmethod
     def GET_SERIALIZERS(cls) -> list[Serializer]:
@@ -601,7 +601,7 @@ class ComfyNodeV3(ABC):
     def VALIDATE_CLASS(cls):
         if not callable(cls.DEFINE_SCHEMA):
             raise Exception(f"No DEFINE_SCHEMA function was defined for node class {cls.__name__}.")
-        if not callable(cls.EXECUTE):
+        if not callable(cls.execute):
             raise Exception(f"No execute function was defined for node class {cls.__name__}.")
 
     #############################################
@@ -894,7 +894,7 @@ class TestNode(ComfyNodeV3):
     def DEFINE_SCHEMA(cls):
         return cls.SCHEMA
 
-    def EXECUTE(**kwargs):
+    def execute(**kwargs):
         pass
 
 

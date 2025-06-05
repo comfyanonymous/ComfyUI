@@ -55,7 +55,7 @@ class V3TestNode(ComfyNodeV3):
         )
 
     @classmethod
-    def EXECUTE(cls, image: torch.Tensor, some_int: int, combo: str, xyz=None, mask: torch.Tensor=None):
+    def execute(cls, image: torch.Tensor, some_int: int, combo: str, xyz=None, mask: torch.Tensor=None):
         if hasattr(cls, "hahajkunless"):
             raise Exception("The 'cls' variable leaked instance state between runs!")
         if hasattr(cls, "doohickey"):
