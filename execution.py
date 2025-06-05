@@ -17,7 +17,7 @@ from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, 
 from comfy_execution.graph_utils import is_link, GraphBuilder
 from comfy_execution.caching import HierarchicalCache, LRUCache, DependencyAwareCache, CacheKeySetInputSignature, CacheKeySetID
 from comfy_execution.validation import validate_node_input
-from comfy_api.v3.io import NodeOutput
+from comfy_api.v3.io import NodeOutput, ComfyNodeV3, prepare_class_clone
 
 class ExecutionResult(Enum):
     SUCCESS = 0
@@ -183,7 +183,14 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
         if execution_block is None:
             if pre_execute_cb is not None and index is not None:
                 pre_execute_cb(index)
-            results.append(getattr(obj, func)(**inputs))
+            # V3
+            if isinstance(obj, ComfyNodeV3):
+                type(obj).VALIDATE_CLASS()
+                class_clone = prepare_class_clone(obj)
+                results.append(type(obj).EXECUTE.__func__(class_clone, **inputs))
+            # V1
+            else:
+                results.append(getattr(obj, func)(**inputs))
         else:
             results.append(execution_block)
 
