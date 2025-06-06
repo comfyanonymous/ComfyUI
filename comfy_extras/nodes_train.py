@@ -486,6 +486,36 @@ class TrainLoraNode:
             return (mp, lora_sd, loss_map, steps + existing_steps)
 
 
+class LoraModelLoader:
+    def __init__(self):
+        self.loaded_lora = None
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL", {"tooltip": "The diffusion model the LoRA will be applied to."}),
+                "lora": (IO.LORA_MODEL, {"tooltip": "The LoRA model to apply to the diffusion model."}),
+                "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the diffusion model. This value can be negative."}),
+            }
+        }
+
+    RETURN_TYPES = ("MODEL",)
+    OUTPUT_TOOLTIPS = ("The modified diffusion model.",)
+    FUNCTION = "load_lora_model"
+
+    CATEGORY = "loaders"
+    DESCRIPTION = "Load Trained LoRA weights from Train LoRA node."
+    EXPERIMENTAL = True
+
+    def load_lora_model(self, model, lora, strength_model):
+        if strength_model == 0:
+            return (model, )
+
+        model_lora, _ = comfy.sd.load_lora_for_models(model, None, lora, strength_model, 0)
+        return (model_lora, )
+
+
 class SaveLoRA:
     @classmethod
     def INPUT_TYPES(s):
@@ -626,6 +656,7 @@ class LossGraphNode:
 NODE_CLASS_MAPPINGS = {
     "TrainLoraNode": TrainLoraNode,
     "SaveLoRANode": SaveLoRA,
+    "LoraModelLoader": LoraModelLoader,
     "LoadImageSetFromFolderNode": LoadImageSetFromFolderNode,
     "LossGraphNode": LossGraphNode,
 }
@@ -633,6 +664,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "TrainLoraNode": "Train LoRA",
     "SaveLoRANode": "Save LoRA Weights",
+    "LoraModelLoader": "Load LoRA Model",
     "LoadImageSetFromFolderNode": "Load Image Dataset from Folder",
     "LossGraphNode": "Plot Loss Graph",
 }
