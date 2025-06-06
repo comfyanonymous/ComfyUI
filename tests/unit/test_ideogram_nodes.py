@@ -3,10 +3,12 @@ import os
 import pytest
 import torch
 
+from comfy.component_model.tensor_types import RGBImageBatch
 from comfy_extras.nodes.nodes_ideogram import (
     IdeogramGenerate,
     IdeogramEdit,
-    IdeogramRemix
+    IdeogramRemix,
+    IdeogramDescribe,
 )
 
 
@@ -23,13 +25,44 @@ def sample_image():
     return torch.ones((1, 1024, 1024, 3)) * 0.8  # Light gray image
 
 
-def test_ideogram_generate(api_key):
+@pytest.fixture
+def black_square_image() -> RGBImageBatch:
+    # A black square image (1 batch, 1024x1024 pixels, 3 channels)
+    return torch.zeros((1, 1024, 1024, 3), dtype=torch.float32)
+
+
+def test_ideogram_describe(api_key, black_square_image):
+    """
+    Tests the IdeogramDescribe node by passing it a black square image and
+    asserting that the returned description contains "black" and "square".
+    """
+    node = IdeogramDescribe()
+
+    # The node's method returns a tuple containing a list of descriptions
+    descriptions_list, = node.describe(
+        images=black_square_image,
+        api_key=api_key
+    )
+
+    # We passed one image, so we expect one description in the list
+    assert isinstance(descriptions_list, list)
+    assert len(descriptions_list) == 1
+
+    description = descriptions_list[0]
+
+    assert isinstance(description, str)
+    assert "black" in description.lower()
+    assert "square" in description.lower()
+
+
+@pytest.mark.parametrize("model", ["V_2_TURBO", "V_3"])
+def test_ideogram_generate(api_key, model):
     node = IdeogramGenerate()
 
     image, = node.generate(
         prompt="a serene mountain landscape at sunset with snow-capped peaks",
         resolution="RESOLUTION_1024_1024",
-        model="V_2_TURBO",
+        model=model,
         magic_prompt_option="AUTO",
         api_key=api_key,
         num_images=1
@@ -41,8 +74,8 @@ def test_ideogram_generate(api_key):
     assert image.dtype == torch.float32
     assert torch.all((image >= 0) & (image <= 1))
 
-
-def test_ideogram_edit(api_key, sample_image):
+@pytest.mark.parametrize("model", ["V_2_TURBO", "V_3"])
+def test_ideogram_edit(api_key, sample_image, model):
     node = IdeogramEdit()
 
     # white is areas to keep, black is areas to repaint
@@ -56,7 +89,7 @@ def test_ideogram_edit(api_key, sample_image):
         masks=mask,
         magic_prompt_option="OFF",
         prompt="a solid black rectangle",
-        model="V_2_TURBO",
+        model=model,
         api_key=api_key,
         num_images=1,
     )
@@ -77,15 +110,15 @@ def test_ideogram_edit(api_key, sample_image):
     assert center_mean < outer_mean, f"Center region ({center_mean:.3f}) should be darker than outer region ({outer_mean:.3f})"
     assert center_mean < 0.6, f"Center region ({center_mean:.3f}) should be dark"
 
-
-def test_ideogram_remix(api_key, sample_image):
+@pytest.mark.parametrize("model", ["V_2_TURBO", "V_3"])
+def test_ideogram_remix(api_key, sample_image, model):
     node = IdeogramRemix()
 
     image, = node.remix(
         images=sample_image,
         prompt="transform into a vibrant blue ocean scene with waves",
         resolution="RESOLUTION_1024_1024",
-        model="V_2_TURBO",
+        model=model,
         api_key=api_key,
         num_images=1
     )
