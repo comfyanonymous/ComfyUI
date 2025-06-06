@@ -306,7 +306,7 @@ try:
         logging.info("ROCm version: {}".format(rocm_version))
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             if torch_version_numeric[0] >= 2 and torch_version_numeric[1] >= 7:  # works on 2.6 but doesn't actually seem to improve much
-                if any((a in arch) for a in ["gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches
+                if any((a in arch) for a in ["gfx1100", "gfx1101", "gfx1151", "gfx1200", "gfx1201"]):  # TODO: more arches
                     ENABLE_PYTORCH_ATTENTION = True
 except:
     pass
@@ -870,8 +870,7 @@ def vae_dtype(device=None, allowed_dtypes=[]):
         if d == torch.float16 and should_use_fp16(device):
             return d
 
-        # NOTE: bfloat16 seems to work on AMD for the VAE but is extremely slow in some cases compared to fp32
-        if d == torch.bfloat16 and (not is_amd()) and should_use_bf16(device):
+        if d == torch.bfloat16 and should_use_bf16(device):
             return d
 
     return torch.float32
@@ -1037,11 +1036,6 @@ def xformers_enabled_vae():
 def pytorch_attention_enabled():
     global ENABLE_PYTORCH_ATTENTION
     return ENABLE_PYTORCH_ATTENTION
-
-def pytorch_attention_enabled_vae():
-    if is_amd():
-        return False  # enabling pytorch attention on AMD currently causes crash when doing high res
-    return pytorch_attention_enabled()
 
 def pytorch_attention_flash_attention():
     global ENABLE_PYTORCH_ATTENTION
