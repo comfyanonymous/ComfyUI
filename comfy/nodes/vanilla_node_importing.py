@@ -16,6 +16,26 @@ from ..component_model.plugins import prompt_server_instance_routes
 
 logger = logging.getLogger(__name__)
 
+class StreamToLogger:
+    """
+    File-like stream object that redirects writes to a logger instance.
+    This is used to capture print() statements from modules during import.
+    """
+    def __init__(self, logger: logging.Logger, log_level=logging.INFO):
+        self.logger = logger
+        self.log_level = log_level
+
+    def write(self, buf):
+        # Process each line from the buffer. Print statements usually end with a newline.
+        for line in buf.rstrip().splitlines():
+            # Log the line, removing any trailing whitespace
+            self.logger.log(self.log_level, line.rstrip())
+
+    def flush(self):
+        # The logger handles its own flushing, so this can be a no-op.
+        pass
+
+
 class _PromptServerStub():
     def __init__(self):
         self.routes = prompt_server_instance_routes
@@ -79,7 +99,15 @@ def _exec_mitigations(module: types.ModuleType, module_path: str) -> ExportedNod
             # todo: mitigate "/manager/reboot"
             # todo: mitigate process_wrap
     else:
-        yield ExportedNodes()
+        # redirect stdout to the module's logger during import
+        original_stdout = sys.stdout
+        module_logger = logging.getLogger(module.__name__)
+        sys.stdout = StreamToLogger(module_logger, logging.INFO)
+        try:
+            yield ExportedNodes()
+        finally:
+            # Restore original stdout to ensure this change is temporary
+            sys.stdout = original_stdout
 
 
 def _vanilla_load_custom_nodes_1(module_path, ignore=set()) -> ExportedNodes:

@@ -14,6 +14,7 @@ os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
 os.environ["TORCHINDUCTOR_AUTOGRAD_CACHE"] = "1"
 os.environ["BITSANDBYTES_NOWELCOME"] = "1"
+os.environ["NO_ALBUMENTATIONS_UPDATE"] = "1"
 
 import ctypes
 import importlib.util
@@ -51,6 +52,7 @@ warnings.filterwarnings("ignore", message="Importing from timm.models.layers is 
 warnings.filterwarnings("ignore", message="Inheritance class _InstrumentedApplication from web.Application is discouraged", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message="Please import `gaussian_filter` from the `scipy.ndimage` namespace; the `scipy.ndimage.filters` namespace is deprecated", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message="The installed version of bitsandbytes was compiled without GPU support")
+warnings.filterwarnings("ignore", category=UserWarning, message="Unsupported Windows version .* ONNX Runtime supports Windows 10 and above, only.")
 
 from ..cli_args import args
 
