@@ -223,6 +223,39 @@ def draw_loss_graph(loss_map, steps):
     return img
 
 
+def find_all_highest_child_module_with_forward(model: torch.nn.Module, result = None, name = None):
+    if result is None:
+        result = []
+    elif hasattr(model, "forward") and not isinstance(model, (torch.nn.ModuleList, torch.nn.Sequential, torch.nn.ModuleDict)):
+        result.append(model)
+        logging.debug(f"Found module with forward: {name} ({model.__class__.__name__})")
+        return result
+    name = name or "root"
+    for next_name, child in model.named_children():
+        find_all_highest_child_module_with_forward(child, result, f"{name}.{next_name}")
+    return result
+
+
+def patch(m):
+    if not hasattr(m, "forward"):
+        return
+    org_forward = m.forward
+    def fwd(args, kwargs):
+        return org_forward(*args, **kwargs)
+    def checkpointing_fwd(*args, **kwargs):
+        return torch.utils.checkpoint.checkpoint(
+            fwd, args, kwargs, use_reentrant=False
+        )
+    m.org_forward = org_forward
+    m.forward = checkpointing_fwd
+
+
+def unpatch(m):
+    if hasattr(m, "org_forward"):
+        m.forward = m.org_forward
+        del m.org_forward
+
+
 class TrainLoraNode:
     @classmethod
     def INPUT_TYPES(s):
@@ -458,22 +491,28 @@ class TrainLoraNode:
             # yoland: this currently resize to the first image in the dataset
 
             # setup before training
+            for m in find_all_highest_child_module_with_forward(mp.model.diffusion_model):
+                patch(m)
             comfy.model_management.load_models_gpu([mp], memory_required=1e20, force_full_load=True)
 
             # Training loop
             torch.cuda.empty_cache()
-            for step in range(steps):
-                # Generate random sigma
-                sigma = mp.model.model_sampling.percent_to_sigma(
-                    torch.rand((1,)).item()
-                )
-                sigma = torch.tensor([sigma])
+            try:
+                for step in range(steps):
+                    # Generate random sigma
+                    sigma = mp.model.model_sampling.percent_to_sigma(
+                        torch.rand((1,)).item()
+                    )
+                    sigma = torch.tensor([sigma])
 
-                noise = comfy_extras.nodes_custom_sampler.Noise_RandomNoise(step * 1000 + seed)
+                    noise = comfy_extras.nodes_custom_sampler.Noise_RandomNoise(step * 1000 + seed)
 
-                ss.sample(
-                    noise, guider, train_sampler, sigma, {"samples": encoded.clone()}
-                )
+                    ss.sample(
+                        noise, guider, train_sampler, sigma, {"samples": encoded.clone()}
+                    )
+            finally:
+                for m in mp.model.modules():
+                    unpatch(m)
             del ss, train_sampler, optimizer
             torch.cuda.empty_cache()
 
