@@ -500,7 +500,7 @@ class TrainLoraNode:
             # Training loop
             torch.cuda.empty_cache()
             try:
-                for step in (pbar:=tqdm.trange(steps, desc="Training LoRA", smoothing=0.01)):
+                for step in (pbar:=tqdm.trange(steps, desc="Training LoRA", smoothing=0.01, disable=not comfy.utils.PROGRESS_BAR_ENABLED)):
                     # Generate random sigma
                     sigma = mp.model.model_sampling.percent_to_sigma(
                         torch.rand((1,)).item()
