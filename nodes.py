@@ -2259,6 +2259,8 @@ def init_builtin_extra_nodes():
         "nodes_ace.py",
         "nodes_string.py",
         "nodes_camera_trajectory.py",
+        "nodes_logic.py",
+        "nodes_math.py",
     ]
 
     import_failed = []
