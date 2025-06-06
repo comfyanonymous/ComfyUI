@@ -9,6 +9,7 @@ import torch
 from PIL import Image, ImageDraw, ImageFont
 from PIL.PngImagePlugin import PngInfo
 import torch.utils.checkpoint
+import tqdm
 
 import comfy.samplers
 import comfy.sd
@@ -48,7 +49,6 @@ class TrainSampler(comfy.samplers.Sampler):
             if "does not require grad and does not have a grad_fn" in str(e):
                 logging.info("WARNING: This is likely due to the model is loaded in inference mode.")
         loss.backward()
-        logging.info(f"Current Training Loss: {loss.item():.6f}")
         if self.loss_callback:
             self.loss_callback(loss.item())
 
@@ -478,9 +478,16 @@ class TrainLoraNode:
             elif loss_function == "SmoothL1":
                 criterion = torch.nn.SmoothL1Loss()
 
+            # setup models
+            for m in find_all_highest_child_module_with_forward(mp.model.diffusion_model):
+                patch(m)
+            comfy.model_management.load_models_gpu([mp], memory_required=1e20, force_full_load=True)
+
             # Setup sampler and guider like in test script
             loss_map = {"loss": []}
-            loss_callback = lambda loss: loss_map["loss"].append(loss)
+            def loss_callback(loss):
+                loss_map["loss"].append(loss)
+                pbar.set_postfix({"loss": f"{loss:.4f}"})
             train_sampler = TrainSampler(
                 criterion, optimizer, loss_callback=loss_callback
             )
@@ -490,15 +497,10 @@ class TrainLoraNode:
 
             # yoland: this currently resize to the first image in the dataset
 
-            # setup before training
-            for m in find_all_highest_child_module_with_forward(mp.model.diffusion_model):
-                patch(m)
-            comfy.model_management.load_models_gpu([mp], memory_required=1e20, force_full_load=True)
-
             # Training loop
             torch.cuda.empty_cache()
             try:
-                for step in range(steps):
+                for step in (pbar:=tqdm.trange(steps, desc="Training LoRA", smoothing=0.01)):
                     # Generate random sigma
                     sigma = mp.model.model_sampling.percent_to_sigma(
                         torch.rand((1,)).item()
