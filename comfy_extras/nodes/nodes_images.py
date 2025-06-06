@@ -16,7 +16,7 @@ from comfy.nodes.common import MAX_RESOLUTION
 from comfy.nodes.package_typing import CustomNode
 from comfy_extras.constants.resolutions import SDXL_SD3_FLUX_RESOLUTIONS, LTVX_RESOLUTIONS, SD_RESOLUTIONS, \
     IDEOGRAM_RESOLUTIONS, COSMOS_RESOLUTIONS, HUNYUAN_VIDEO_RESOLUTIONS, WAN_VIDEO_14B_RESOLUTIONS, \
-    WAN_VIDEO_1_3B_RESOLUTIONS, WAN_VIDEO_14B_EXTENDED_RESOLUTIONS
+    WAN_VIDEO_1_3B_RESOLUTIONS, WAN_VIDEO_14B_EXTENDED_RESOLUTIONS, RESOLUTION_NAMES
 
 
 def levels_adjustment(image: ImageBatch, black_level: float = 0.0, mid_level: float = 0.5, white_level: float = 1.0, clip: bool = True) -> ImageBatch:
@@ -274,7 +274,7 @@ class ImageResize:
             "required": {
                 "image": ("IMAGE",),
                 "resize_mode": (["cover", "contain", "auto"], {"default": "cover"}),
-                "resolutions": (["SDXL/SD3/Flux", "SD1.5", "LTXV", "Ideogram", "Cosmos", "HunyuanVideo", "WAN 14b", "WAN 1.3b", "WAN 14b with extras"], {"default": "SDXL/SD3/Flux"}),
+                "resolutions": (RESOLUTION_NAMES, {"default": RESOLUTION_NAMES[0]}),
                 "interpolation": (ImageScale.upscale_methods, {"default": "lanczos"}),
             },
             "optional": {
@@ -312,7 +312,6 @@ class ImageResize:
         for img in image:
             h, w = img.shape[:2]
             current_aspect_ratio = w / h
-
 
             aspect_ratio_diffs = [(abs(res[0] / res[1] - current_aspect_ratio), res) for res in supported_resolutions]
             min_diff = min(aspect_ratio_diffs, key=lambda x: x[0])[0]

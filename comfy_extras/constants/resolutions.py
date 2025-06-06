@@ -89,3 +89,5 @@ WAN_VIDEO_14B_EXTENDED_RESOLUTIONS = [
     (704, 544),
     (544, 704)
 ]
+
+RESOLUTION_NAMES = ["SDXL/SD3/Flux", "SD1.5", "LTXV", "Ideogram", "Cosmos", "HunyuanVideo", "WAN 14b", "WAN 1.3b", "WAN 14b with extras"]
