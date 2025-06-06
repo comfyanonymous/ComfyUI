@@ -101,7 +101,7 @@ def init_db():
                 # Restore the database from backup if upgrade fails
                 shutil.copy(backup_path, db_path)
                 os.remove(backup_path)
-            logging.exception(f"Error upgrading database: ")
+            logging.exception("Error upgrading database: ")
             raise e
 
     global Session
