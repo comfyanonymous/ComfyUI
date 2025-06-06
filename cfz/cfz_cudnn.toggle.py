@@ -1,36 +1,48 @@
 import torch
 
-class AutoCUDNNToggle:
+class CUDNNToggleAutoPassthrough:
     @classmethod
     def INPUT_TYPES(cls):
         return {
+            "optional": {
+                "model": ("MODEL",),
+                "conditioning": ("CONDITIONING",),
+                "latent": ("LATENT",),
+                "audio": ("AUDIO",),
+                "image": ("IMAGE",),
+            },
             "required": {
                 "enable_cudnn": ("BOOLEAN", {"default": True}),
             },
-            "optional": {
-                "latent": ("LATENT",),
-                "audio": ("AUDIO",),
-            }
         }
 
-    RETURN_TYPES = ("LATENT", "AUDIO")
-    RETURN_NAMES = ("latent_out", "audio_out")
+    RETURN_TYPES = ("MODEL", "CONDITIONING", "LATENT", "AUDIO", "IMAGE")
+    RETURN_NAMES = ("model", "conditioning", "latent", "audio", "image")
     FUNCTION = "toggle"
-    CATEGORY = "advanced/utils"
+    CATEGORY = "utils"
 
-    def toggle(self, enable_cudnn, latent=None, audio=None):
-        # Set CuDNN state
+    def toggle(self, enable_cudnn, model=None, conditioning=None, latent=None, audio=None, image=None):
         torch.backends.cudnn.enabled = enable_cudnn
-        
-        # Auto-detect active path
-        if latent is not None:
-            print(f"[CuDNN] Latent mode | Enabled: {enable_cudnn}")
-            return (latent, None)
-        elif audio is not None:
-            print(f"[CuDNN] Audio mode | Enabled: {enable_cudnn}")
-            return (None, audio)
-        else:
-            raise ValueError("No valid input connected - must connect either latent OR audio")
+        print(f"[CUDNN_TOGGLE] torch.backends.cudnn.enabled set to {enable_cudnn}")
 
-NODE_CLASS_MAPPINGS = {"CFZ-CUDNNToggle": AutoCUDNNToggle}
-NODE_DISPLAY_NAME_MAPPINGS = {"CFZ-CUDNNToggle": "CFZ CuDNN Toggle"}
+        return_tuple = (None, None, None, None, None)
+        if model is not None:
+            return_tuple = (model, None, None, None, None)
+        elif conditioning is not None:
+            return_tuple = (None, conditioning, None, None, None)
+        elif latent is not None:
+            return_tuple = (None, None, latent, None, None)
+        elif audio is not None:
+            return_tuple = (None, None, None, audio, None)
+        elif image is not None:
+            return_tuple = (None, None, None, None, image)
+
+        return return_tuple
+
+NODE_CLASS_MAPPINGS = {
+    "CUDNNToggleAutoPassthrough": CUDNNToggleAutoPassthrough
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "CUDNNToggleAutoPassthrough": "CFZ CUDNN Toggle"
+}
