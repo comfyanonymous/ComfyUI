@@ -18,6 +18,9 @@ Pillow
 scipy
 tqdm
 psutil
+alembic
+SQLAlchemy
+blake3
 
 #non essential dependencies:
 kornia>=0.7.1
