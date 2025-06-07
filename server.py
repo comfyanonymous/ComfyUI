@@ -711,6 +711,27 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
+        
+        @routes.get("/templates_version")
+        async def get_workflow_templates_version(request):
+            """Reads the version number of comfyui-workflow-templates from the requirements.txt file."""
+            try:
+                current_dir = os.path.dirname(__file__)
+                requirements_path = os.path.join(current_dir, 'requirements.txt')
+
+                version = "not_found"
+                with open(requirements_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.startswith('comfyui-workflow-templates=='):
+                            version = line.strip().split('==')[1]
+                            break
+            except FileNotFoundError:
+                version = "requirements.txt not found"
+            except Exception as e:
+                print(f"Error reading version in get_workflow_templates_version: {e}")
+                version = "unknown"
+
+            return web.json_response({"version": version})
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
