@@ -16,26 +16,17 @@ from importlib.metadata import version
 import requests
 from typing_extensions import NotRequired
 
+from utils.install_util import get_missing_requirements_message, requirements_path
+
 from comfy.cli_args import DEFAULT_VERSION_STRING
 import app.logger
 
-# The path to the requirements.txt file
-req_path = Path(__file__).parents[1] / "requirements.txt"
-
 
 def frontend_install_warning_message():
-    """The warning message to display when the frontend version is not up to date."""
-
-    extra = ""
-    if sys.flags.no_user_site:
-        extra = "-s "
     return f"""
-Please install the updated requirements.txt file by running:
-{sys.executable} {extra}-m pip install -r {req_path}
+{get_missing_requirements_message()}
 
 This error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.
-
-If you are on the portable package you can run: update\\update_comfyui.bat to solve this problem
 """.strip()
 
 
@@ -48,7 +39,7 @@ def check_frontend_version():
     try:
         frontend_version_str = version("comfyui-frontend-package")
         frontend_version = parse_version(frontend_version_str)
-        with open(req_path, "r", encoding="utf-8") as f:
+        with open(requirements_path, "r", encoding="utf-8") as f:
             required_frontend = parse_version(f.readline().split("=")[-1])
         if frontend_version < required_frontend:
             app.logger.log_startup_warning(
