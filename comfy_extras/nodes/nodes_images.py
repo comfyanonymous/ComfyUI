@@ -10,7 +10,7 @@ from PIL.PngImagePlugin import PngInfo
 from comfy import utils
 from comfy.cli_args import args
 from comfy.cmd import folder_paths
-from comfy.component_model.tensor_types import ImageBatch, RGBImageBatch
+from comfy.component_model.tensor_types import ImageBatch, RGBImageBatch, RGBAImageBatch
 from comfy.nodes.base_nodes import ImageScale
 from comfy.nodes.common import MAX_RESOLUTION
 from comfy.nodes.package_typing import CustomNode
@@ -286,7 +286,7 @@ class ImageResize:
     FUNCTION = "resize_image"
     CATEGORY = "image/transform"
 
-    def resize_image(self, image: RGBImageBatch, resize_mode: Literal["cover", "contain", "auto"], resolutions: Literal["SDXL/SD3/Flux", "SD1.5"], interpolation: str, aspect_ratio_tolerance=0.05) -> tuple[RGBImageBatch]:
+    def resize_image(self, image: ImageBatch, resize_mode: Literal["cover", "contain", "auto"], resolutions: Literal["SDXL/SD3/Flux", "SD1.5"], interpolation: str, aspect_ratio_tolerance=0.05) -> tuple[RGBImageBatch]:
         if resolutions == "SDXL/SD3/Flux":
             supported_resolutions = SDXL_SD3_FLUX_RESOLUTIONS
         elif resolutions == "LTXV":
@@ -307,7 +307,7 @@ class ImageResize:
             supported_resolutions = SD_RESOLUTIONS
         return self.resize_image_with_supported_resolutions(image, resize_mode, supported_resolutions, interpolation, aspect_ratio_tolerance=aspect_ratio_tolerance)
 
-    def resize_image_with_supported_resolutions(self, image: RGBImageBatch, resize_mode: Literal["cover", "contain", "auto"], supported_resolutions: list[tuple[int, int]], interpolation: str, aspect_ratio_tolerance=0.05) -> tuple[RGBImageBatch]:
+    def resize_image_with_supported_resolutions(self, image: ImageBatch, resize_mode: Literal["cover", "contain", "auto"], supported_resolutions: list[tuple[int, int]], interpolation: str, aspect_ratio_tolerance=0.05) -> tuple[RGBImageBatch]:
         resized_images = []
         for img in image:
             h, w = img.shape[:2]
