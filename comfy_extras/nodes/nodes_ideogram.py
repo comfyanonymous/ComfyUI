@@ -163,7 +163,7 @@ class IdeogramEdit(CustomNode):
         headers = {"Api-Key": api_key}
         image_responses = []
         for mask_tensor, image_tensor in zip(torch.unbind(masks), torch.unbind(images)):
-            mask_tensor, = MaskToImage().mask_to_image(mask=mask_tensor)
+            mask_tensor, = MaskToImage().mask_to_image(mask=1. - mask_tensor)
 
             image_pil, mask_pil = tensor2pil(image_tensor), tensor2pil(mask_tensor)
             image_bytes, mask_bytes = BytesIO(), BytesIO()

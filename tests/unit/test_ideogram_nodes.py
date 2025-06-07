@@ -100,8 +100,6 @@ def test_ideogram_edit(api_key, sample_image, model, use_style_ref, red_style_im
     mask = torch.zeros((1, 1024, 1024), dtype=torch.float32)
     # Create a black square in the middle to be repainted
     mask[:, 256:768, 256:768] = 1.0
-    # Invert mask: black regions are edited
-    mask = 1.0 - mask
 
     image, = node.edit(
         images=sample_image, masks=mask,

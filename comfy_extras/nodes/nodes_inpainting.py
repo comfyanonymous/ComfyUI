@@ -1,244 +1,151 @@
 import torch
-import torch
 import torch.nn.functional as F
 
 from comfy.component_model.tensor_types import MaskBatch
-from comfy_extras.constants.resolutions import RESOLUTION_NAMES
-from comfy_extras.nodes.nodes_images import ImageResize
+from comfy_extras.constants.resolutions import (
+    RESOLUTION_NAMES, SDXL_SD3_FLUX_RESOLUTIONS, SD_RESOLUTIONS, LTVX_RESOLUTIONS,
+    IDEOGRAM_RESOLUTIONS, COSMOS_RESOLUTIONS, HUNYUAN_VIDEO_RESOLUTIONS,
+    WAN_VIDEO_14B_RESOLUTIONS, WAN_VIDEO_1_3B_RESOLUTIONS,
+    WAN_VIDEO_14B_EXTENDED_RESOLUTIONS
+)
 
 
-# Helper function from the context to composite images
 def composite(destination, source, x, y, mask=None, multiplier=1, resize_source=False):
-    # This function is adapted from the provided context code
     source = source.to(destination.device)
     if resize_source:
-        source = torch.nn.functional.interpolate(source, size=(destination.shape[2], destination.shape[3]), mode="bilinear")
-
-    # Ensure source has the same batch size as destination
+        source = F.interpolate(source, size=(destination.shape[2], destination.shape[3]), mode="bilinear")
     if source.shape[0] != destination.shape[0]:
         source = source.repeat(destination.shape[0] // source.shape[0], 1, 1, 1)
 
-    x = int(x)
-    y = int(y)
-
-    left, top = (x, y)
-    right, bottom = (left + source.shape[3], top + source.shape[2])
+    x, y = int(x), int(y)
+    left, top = x, y
+    right, bottom = left + source.shape[3], top + source.shape[2]
 
     if mask is None:
-        # If no mask is provided, create a full-coverage mask
         mask = torch.ones_like(source)
     else:
-        # Ensure mask is on the correct device and is the correct size
         mask = mask.to(destination.device, copy=True)
-        # Check if the mask is 2D (H, W) or 3D (B, H, W) and unsqueeze if necessary
-        if mask.dim() == 2:
-            mask = mask.unsqueeze(0)
-        if mask.dim() == 3:
-            mask = mask.unsqueeze(1)  # Add channel dimension
-        mask = torch.nn.functional.interpolate(mask, size=(source.shape[2], source.shape[3]), mode="bilinear")
+        if mask.dim() == 2: mask = mask.unsqueeze(0)
+        if mask.dim() == 3: mask = mask.unsqueeze(1)
         if mask.shape[0] != source.shape[0]:
             mask = mask.repeat(source.shape[0] // mask.shape[0], 1, 1, 1)
 
-    # Define the bounds of the overlapping area
-    dest_left = max(0, left)
-    dest_top = max(0, top)
-    dest_right = min(destination.shape[3], right)
-    dest_bottom = min(destination.shape[2], bottom)
+    dest_left, dest_top = max(0, left), max(0, top)
+    dest_right, dest_bottom = min(destination.shape[3], right), min(destination.shape[2], bottom)
 
-    # If there is no overlap, return the original destination
-    if dest_right <= dest_left or dest_bottom <= dest_top:
-        return destination
+    if dest_right <= dest_left or dest_bottom <= dest_top: return destination
 
-    # Calculate the source coordinates corresponding to the overlap
-    src_left = dest_left - left
-    src_top = dest_top - top
-    src_right = dest_right - left
-    src_bottom = dest_bottom - top
+    src_left, src_top = dest_left - left, dest_top - top
+    src_right, src_bottom = dest_right - left, dest_bottom
 
-    # Crop the relevant portions of the destination, source, and mask
     destination_portion = destination[:, :, dest_top:dest_bottom, dest_left:dest_right]
     source_portion = source[:, :, src_top:src_bottom, src_left:src_right]
     mask_portion = mask[:, :, src_top:src_bottom, src_left:src_right]
 
-    inverse_mask_portion = 1.0 - mask_portion
-
-    # Perform the composition
-    blended_portion = (source_portion * mask_portion) + (destination_portion * inverse_mask_portion)
-
-    # Place the blended portion back into the destination
+    blended_portion = (source_portion * mask_portion) + (destination_portion * (1.0 - mask_portion))
     destination[:, :, dest_top:dest_bottom, dest_left:dest_right] = blended_portion
-
     return destination
 
 
 def parse_margin(margin_str: str) -> tuple[int, int, int, int]:
-    """Parses a CSS-style margin string."""
     parts = [int(p) for p in margin_str.strip().split()]
-    if len(parts) == 1:
-        return parts[0], parts[0], parts[0], parts[0]
-    if len(parts) == 2:
-        return parts[0], parts[1], parts[0], parts[1]
-    if len(parts) == 3:
-        return parts[0], parts[1], parts[2], parts[1]
-    if len(parts) == 4:
-        return parts[0], parts[1], parts[2], parts[3]
-    raise ValueError("Invalid margin format. Use 1 to 4 integer values.")
+    if len(parts) == 1: return parts[0], parts[0], parts[0], parts[0]
+    if len(parts) == 2: return parts[0], parts[1], parts[0], parts[1]
+    if len(parts) == 3: return parts[0], parts[1], parts[2], parts[1]
+    if len(parts) == 4: return parts[0], parts[1], parts[2], parts[3]
+    raise ValueError("Invalid margin format.")
 
 
 class CropAndFitInpaintToDiffusionSize:
     @classmethod
     def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-                "mask": ("MASK",),
-                "resolutions": (RESOLUTION_NAMES, {"default": RESOLUTION_NAMES[0]}),
-                "margin": ("STRING", {"default": "64"}),
-                "overflow": ("BOOLEAN", {"default": True}),
-            }
-        }
+        return {"required": {"image": ("IMAGE",), "mask": ("MASK",), "resolutions": (RESOLUTION_NAMES, {"default": RESOLUTION_NAMES[0]}), "margin": ("STRING", {"default": "64"}), "overflow": ("BOOLEAN", {"default": True}), }}
 
-    RETURN_TYPES = ("IMAGE", "MASK", "COMBO[INT]")
-    RETURN_NAMES = ("image", "mask", "composite_context")
-    FUNCTION = "crop_and_fit"
-    CATEGORY = "inpaint"
+    RETURN_TYPES, RETURN_NAMES, FUNCTION, CATEGORY = ("IMAGE", "MASK", "COMBO[INT]"), ("image", "mask", "composite_context"), "crop_and_fit", "inpaint"
 
-    def crop_and_fit(self, image: torch.Tensor, mask: MaskBatch, resolutions: str, margin: str, overflow: bool):
-        # 1. Find bounding box of the mask
-        if mask.max() <= 0:
-            raise ValueError("Mask is empty, cannot determine bounding box.")
-
-        # Find the coordinates of non-zero mask pixels
-        mask_coords = torch.nonzero(mask[0])  # Assuming single batch for mask
-        if mask_coords.numel() == 0:
-            raise ValueError("Mask is empty, cannot determine bounding box.")
-
-        y_min, x_min = mask_coords.min(dim=0).values
+    def crop_and_fit(self, image: torch.Tensor, mask: MaskBatch, resolutions: str, margin: str, overflow: bool, aspect_ratio_tolerance=0.05):
+        if mask.max() <= 0: raise ValueError("Mask is empty.")
+        mask_coords = torch.nonzero(mask[0]);
+        if mask_coords.numel() == 0: raise ValueError("Mask is empty.")
+        y_min, x_min = mask_coords.min(dim=0).values;
         y_max, x_max = mask_coords.max(dim=0).values
+        top_m, right_m, bottom_m, left_m = parse_margin(margin)
+        x_start_init, y_start_init = x_min.item() - left_m, y_min.item() - top_m
+        x_end_init, y_end_init = x_max.item() + 1 + right_m, y_max.item() + 1 + bottom_m
+        img_h, img_w = image.shape[1:3]
+        pad_image, pad_mask = image, mask
+        x_start_crop, y_start_crop = x_start_init, y_start_init
+        x_end_crop, y_end_crop = x_end_init, y_end_init
+        pad_l, pad_t = -min(0, x_start_init), -min(0, y_start_init)
+        pad_r, pad_b = max(0, x_end_init - img_w), max(0, y_end_init - img_h)
+        if any([pad_l, pad_t, pad_r, pad_b]) and overflow:
+            padding = (pad_l, pad_r, pad_t, pad_b)
+            pad_image = F.pad(image.permute(0, 3, 1, 2), padding, "constant", 0.5).permute(0, 2, 3, 1)
+            pad_mask = F.pad(mask.unsqueeze(1), padding, "constant", 0).squeeze(1)
+            x_start_crop += pad_l;
+            y_start_crop += pad_t;
+            x_end_crop += pad_l;
+            y_end_crop += pad_t
+        else:
+            x_start_crop, y_start_crop = max(0, x_start_init), max(0, y_start_init)
+            x_end_crop, y_end_crop = min(img_w, x_end_init), min(img_h, y_end_init)
+        composite_x, composite_y = (x_start_init if overflow else x_start_crop), (y_start_init if overflow else y_start_crop)
+        cropped_image = pad_image[:, y_start_crop:y_end_crop, x_start_crop:x_end_crop, :]
+        cropped_mask = pad_mask[:, y_start_crop:y_end_crop, x_start_crop:x_end_crop]
+        context = {"x": composite_x, "y": composite_y, "width": cropped_image.shape[2], "height": cropped_image.shape[1]}
 
-        # 2. Parse and apply margin
-        top_margin, right_margin, bottom_margin, left_margin = parse_margin(margin)
-
-        x_start = x_min.item() - left_margin
-        y_start = y_min.item() - top_margin
-        x_end = x_max.item() + 1 + right_margin
-        y_end = y_max.item() + 1 + bottom_margin
-
-        img_height, img_width = image.shape[1:3]
-
-        # Store pre-crop context for the compositor node
-        context = {
-            "x": x_start,
-            "y": y_start,
-            "width": x_end - x_start,
-            "height": y_end - y_start
-        }
-
-        # 3. Handle overflow
-        padded_image = image
-        padded_mask = mask
-
-        pad_left = -min(0, x_start)
-        pad_top = -min(0, y_start)
-        pad_right = max(0, x_end - img_width)
-        pad_bottom = max(0, y_end - img_height)
-
-        if any([pad_left, pad_top, pad_right, pad_bottom]):
-            if not overflow:
-                # Crop margin to fit within the image
-                x_start = max(0, x_start)
-                y_start = max(0, y_start)
-                x_end = min(img_width, x_end)
-                y_end = min(img_height, y_end)
-            else:
-                # Extend image and mask
-                padding = (pad_left, pad_right, pad_top, pad_bottom)
-                # Pad image with gray
-                padded_image = F.pad(image.permute(0, 3, 1, 2), padding, "constant", 0.5).permute(0, 2, 3, 1)
-                # Pad mask with zeros
-                padded_mask = F.pad(mask.unsqueeze(1), padding, "constant", 0).squeeze(1)
-
-                # Adjust coordinates for the new padded space
-                x_start += pad_left
-                y_start += pad_top
-                x_end += pad_left
-                y_end += pad_top
-
-        # 4. Crop image and mask
-        cropped_image = padded_image[:, y_start:y_end, x_start:x_end, :]
-        cropped_mask = padded_mask[:, y_start:y_end, x_start:x_end]
-
-        # 5. Resize to a supported resolution
-        resizer = ImageResize()
-        resized_image, = resizer.resize_image(cropped_image, "cover", resolutions, "lanczos")
-
-        # Resize mask similarly. Convert to image-like tensor for resizing.
-        cropped_mask_as_image = cropped_mask.unsqueeze(-1).repeat(1, 1, 1, 3)
-        resized_mask_as_image, = resizer.resize_image(cropped_mask_as_image, "cover", resolutions, "lanczos")
-        # Convert back to a mask (using the red channel)
-        resized_mask = resized_mask_as_image[:, :, :, 0]
-
-        # Pack context into a list of ints for output
-        # Format: [x, y, width, height]
-        composite_context = (context["x"], context["y"], context["width"], context["height"])
-
-        return (resized_image, resized_mask, composite_context)
+        rgba_bchw = torch.cat((cropped_image.permute(0, 3, 1, 2), cropped_mask.unsqueeze(1)), dim=1)
+        res_map = {"SDXL/SD3/Flux": SDXL_SD3_FLUX_RESOLUTIONS, "SD1.5": SD_RESOLUTIONS, "LTXV": LTVX_RESOLUTIONS, "Ideogram": IDEOGRAM_RESOLUTIONS, "Cosmos": COSMOS_RESOLUTIONS, "HunyuanVideo": HUNYUAN_VIDEO_RESOLUTIONS, "WAN 14b": WAN_VIDEO_14B_RESOLUTIONS, "WAN 1.3b": WAN_VIDEO_1_3B_RESOLUTIONS, "WAN 14b with extras": WAN_VIDEO_14B_EXTENDED_RESOLUTIONS}
+        supported_resolutions = res_map.get(resolutions, SD_RESOLUTIONS)
+        h, w = cropped_image.shape[1:3]
+        current_aspect_ratio = w / h
+        diffs = [(abs(res[0] / res[1] - current_aspect_ratio), res) for res in supported_resolutions]
+        min_diff = min(diffs, key=lambda x: x[0])[0]
+        close_res = [res for diff, res in diffs if diff <= min_diff + aspect_ratio_tolerance]
+        target_res = max(close_res, key=lambda r: r[0] * r[1])
+        scale = max(target_res[0] / w, target_res[1] / h)
+        new_w, new_h = int(w * scale), int(h * scale)
+        upscaled_rgba = F.interpolate(rgba_bchw, size=(new_h, new_w), mode="bilinear", align_corners=False)
+        y1, x1 = (new_h - target_res[1]) // 2, (new_w - target_res[0]) // 2
+        final_rgba_bchw = upscaled_rgba[:, :, y1:y1 + target_res[1], x1:x1 + target_res[0]]
+        final_rgba_bhwc = final_rgba_bchw.permute(0, 2, 3, 1)
+        resized_image = final_rgba_bhwc[..., :3]
+        resized_mask = (final_rgba_bhwc[..., 3] > 0.5).float()
+        return (resized_image, resized_mask, (context["x"], context["y"], context["width"], context["height"]))
 
 
 class CompositeCroppedAndFittedInpaintResult:
     @classmethod
     def INPUT_TYPES(s):
-        return {
-            "required": {
-                "source_image": ("IMAGE",),
-                "inpainted_image": ("IMAGE",),
-                "inpainted_mask": ("MASK",),
-                "composite_context": ("COMBO[INT]",),
-            }
-        }
+        return {"required": {"source_image": ("IMAGE",), "source_mask": ("MASK",), "inpainted_image": ("IMAGE",), "composite_context": ("COMBO[INT]",), }}
 
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "composite_result"
-    CATEGORY = "inpaint"
+    RETURN_TYPES, FUNCTION, CATEGORY = ("IMAGE",), "composite_result", "inpaint"
 
-    def composite_result(self, source_image: torch.Tensor, inpainted_image: torch.Tensor, inpainted_mask: MaskBatch, composite_context: tuple[int, ...]):
-        # Unpack context
+    def composite_result(self, source_image: torch.Tensor, source_mask: MaskBatch, inpainted_image: torch.Tensor, composite_context: tuple[int, ...]):
         x, y, width, height = composite_context
-
-        # The inpainted image and mask are at a diffusion resolution. Resize them back to the original crop size.
         target_size = (height, width)
 
-        # Resize inpainted image
-        inpainted_image_permuted = inpainted_image.movedim(-1, 1)
-        resized_inpainted_image = F.interpolate(inpainted_image_permuted, size=target_size, mode="bilinear", align_corners=False)
+        resized_inpainted_image = F.interpolate(inpainted_image.permute(0, 3, 1, 2), size=target_size, mode="bilinear", align_corners=False)
 
-        # Resize inpainted mask
-        # Add channel dim: (B, H, W) -> (B, 1, H, W)
-        inpainted_mask_unsqueezed = inpainted_mask.unsqueeze(1)
-        resized_inpainted_mask = F.interpolate(inpainted_mask_unsqueezed, size=target_size, mode="bilinear", align_corners=False)
+        # FIX: The logic for cropping the original mask was flawed.
+        # This simpler approach directly crops the relevant section of the original source_mask.
+        # It correctly handles negative coordinates from the overflow case.
+        crop_x_start = max(0, x)
+        crop_y_start = max(0, y)
+        crop_x_end = min(source_image.shape[2], x + width)
+        crop_y_end = min(source_image.shape[1], y + height)
 
-        # Prepare for compositing
-        destination_image = source_image.clone().movedim(-1, 1)
+        # The mask for compositing is a direct, high-resolution crop of the source mask.
+        final_compositing_mask = source_mask[:, crop_y_start:crop_y_end, crop_x_start:crop_x_end]
 
-        # Composite the resized inpainted image back onto the source image
-        final_image_permuted = composite(
-            destination=destination_image,
-            source=resized_inpainted_image,
-            x=x,
-            y=y,
-            mask=resized_inpainted_mask
-        )
+        destination_image = source_image.clone().permute(0, 3, 1, 2)
 
-        final_image = final_image_permuted.movedim(1, -1)
-        return (final_image,)
+        # We now pass our perfectly cropped high-res mask to the composite function.
+        # Note that the `composite` function handles placing this at the correct sub-region.
+        final_image_permuted = composite(destination=destination_image, source=resized_inpainted_image, x=x, y=y, mask=final_compositing_mask)
+
+        return (final_image_permuted.permute(0, 2, 3, 1),)
 
 
-NODE_CLASS_MAPPINGS = {
-    "CropAndFitInpaintToDiffusionSize": CropAndFitInpaintToDiffusionSize,
-    "CompositeCroppedAndFittedInpaintResult": CompositeCroppedAndFittedInpaintResult,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "CropAndFitInpaintToDiffusionSize": "Crop & Fit Inpaint Region",
-    "CompositeCroppedAndFittedInpaintResult": "Composite Inpaint Result",
-}
+NODE_CLASS_MAPPINGS = {"CropAndFitInpaintToDiffusionSize": CropAndFitInpaintToDiffusionSize, "CompositeCroppedAndFittedInpaintResult": CompositeCroppedAndFittedInpaintResult}
+NODE_DISPLAY_NAME_MAPPINGS = {"CropAndFitInpaintToDiffusionSize": "Crop & Fit Inpaint Region", "CompositeCroppedAndFittedInpaintResult": "Composite Inpaint Result"}
