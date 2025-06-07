@@ -728,7 +728,7 @@ class PromptServer():
             except FileNotFoundError:
                 version = "requirements.txt not found"
             except Exception as e:
-                print(f"Error reading version in get_workflow_templates_version: {e}")
+                logging.info(f"Error reading version in get_workflow_templates_version: {e}")
                 version = "unknown"
 
             return web.json_response({"version": version})
