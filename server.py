@@ -530,6 +530,7 @@ class PromptServer():
                     "ram_total": ram_total,
                     "ram_free": ram_free,
                     "comfyui_version": __version__,
+                    "workflows_templates_version": get_workflow_templates_version(),
                     "python_version": sys.version,
                     "pytorch_version": comfy.model_management.torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
@@ -548,6 +549,46 @@ class PromptServer():
                 ]
             }
             return web.json_response(system_stats)
+
+        def get_workflow_templates_version():
+            """Reads the version number of comfyui-workflow-templates from the requirements.txt file."""
+            try:
+                current_dir = os.path.dirname(__file__)
+                requirements_path = os.path.join(current_dir, 'requirements.txt')
+
+                version = "not_found"
+                with open(requirements_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.startswith('comfyui-workflow-templates=='):
+                            version = line.strip().split('==')[1]
+                            break
+            except FileNotFoundError:
+                version = "requirements.txt not found"
+            except Exception as e:
+                logging.info(f"Error reading version in get_workflow_templates_version: {e}")
+                version = "unknown"
+
+            return version
+
+        def get_workflow_templates_version():
+            """Reads the version number of comfyui-workflow-templates from the requirements.txt file."""
+            try:
+                current_dir = os.path.dirname(__file__)
+                requirements_path = os.path.join(current_dir, 'requirements.txt')
+
+                version = "not_found"
+                with open(requirements_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.startswith('comfyui-workflow-templates=='):
+                            version = line.strip().split('==')[1]
+                            break
+            except FileNotFoundError:
+                version = "requirements.txt not found"
+            except Exception as e:
+                logging.info(f"Error reading version in get_workflow_templates_version: {e}")
+                version = "unknown"
+
+            return version
 
         @routes.get("/prompt")
         async def get_prompt(request):
@@ -712,26 +753,6 @@ class PromptServer():
 
             return web.Response(status=200)
         
-        @routes.get("/templates_version")
-        async def get_workflow_templates_version(request):
-            """Reads the version number of comfyui-workflow-templates from the requirements.txt file."""
-            try:
-                current_dir = os.path.dirname(__file__)
-                requirements_path = os.path.join(current_dir, 'requirements.txt')
-
-                version = "not_found"
-                with open(requirements_path, 'r', encoding='utf-8') as f:
-                    for line in f:
-                        if line.startswith('comfyui-workflow-templates=='):
-                            version = line.strip().split('==')[1]
-                            break
-            except FileNotFoundError:
-                version = "requirements.txt not found"
-            except Exception as e:
-                logging.info(f"Error reading version in get_workflow_templates_version: {e}")
-                version = "unknown"
-
-            return web.json_response({"version": version})
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
