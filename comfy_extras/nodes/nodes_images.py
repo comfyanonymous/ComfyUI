@@ -16,7 +16,7 @@ from comfy.nodes.common import MAX_RESOLUTION
 from comfy.nodes.package_typing import CustomNode
 from comfy_extras.constants.resolutions import SDXL_SD3_FLUX_RESOLUTIONS, LTVX_RESOLUTIONS, SD_RESOLUTIONS, \
     IDEOGRAM_RESOLUTIONS, COSMOS_RESOLUTIONS, HUNYUAN_VIDEO_RESOLUTIONS, WAN_VIDEO_14B_RESOLUTIONS, \
-    WAN_VIDEO_1_3B_RESOLUTIONS, WAN_VIDEO_14B_EXTENDED_RESOLUTIONS, RESOLUTION_NAMES
+    WAN_VIDEO_1_3B_RESOLUTIONS, WAN_VIDEO_14B_EXTENDED_RESOLUTIONS, RESOLUTION_NAMES, RESOLUTION_MAP
 
 
 def levels_adjustment(image: ImageBatch, black_level: float = 0.0, mid_level: float = 0.5, white_level: float = 1.0, clip: bool = True) -> ImageBatch:
@@ -287,24 +287,7 @@ class ImageResize:
     CATEGORY = "image/transform"
 
     def resize_image(self, image: ImageBatch, resize_mode: Literal["cover", "contain", "auto"], resolutions: Literal["SDXL/SD3/Flux", "SD1.5"], interpolation: str, aspect_ratio_tolerance=0.05) -> tuple[RGBImageBatch]:
-        if resolutions == "SDXL/SD3/Flux":
-            supported_resolutions = SDXL_SD3_FLUX_RESOLUTIONS
-        elif resolutions == "LTXV":
-            supported_resolutions = LTVX_RESOLUTIONS
-        elif resolutions == "Ideogram":
-            supported_resolutions = IDEOGRAM_RESOLUTIONS
-        elif resolutions == "Cosmos":
-            supported_resolutions = COSMOS_RESOLUTIONS
-        elif resolutions == "HunyuanVideo":
-            supported_resolutions = HUNYUAN_VIDEO_RESOLUTIONS
-        elif resolutions == "WAN 14b":
-            supported_resolutions = WAN_VIDEO_14B_RESOLUTIONS
-        elif resolutions == "WAN 1.3b":
-            supported_resolutions = WAN_VIDEO_1_3B_RESOLUTIONS
-        elif resolutions == "WAN 14b with extras":
-            supported_resolutions = WAN_VIDEO_14B_EXTENDED_RESOLUTIONS
-        else:
-            supported_resolutions = SD_RESOLUTIONS
+        supported_resolutions = RESOLUTION_MAP.get(resolutions, SD_RESOLUTIONS)
         return self.resize_image_with_supported_resolutions(image, resize_mode, supported_resolutions, interpolation, aspect_ratio_tolerance=aspect_ratio_tolerance)
 
     def resize_image_with_supported_resolutions(self, image: ImageBatch, resize_mode: Literal["cover", "contain", "auto"], supported_resolutions: list[tuple[int, int]], interpolation: str, aspect_ratio_tolerance=0.05) -> tuple[RGBImageBatch]:
