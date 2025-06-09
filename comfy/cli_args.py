@@ -204,9 +204,9 @@ parser.add_argument(
 )
 
 if comfy.options.args_parsing:
-    args = parser.parse_args()
+    args, unknown_args = parser.parse_known_args()
 else:
-    args = parser.parse_args([])
+    args, unknown_args = parser.parse_known_args([])
 
 if args.windows_standalone_build:
     args.auto_launch = True
