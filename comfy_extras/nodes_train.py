@@ -429,13 +429,13 @@ class TrainLoraNode:
 
                             if existing_adapter is not None:
                                 train_adapter = existing_adapter.to_train().to(lora_dtype)
-                                for name, parameter in train_adapter.named_parameters():
-                                    lora_sd[f"{n}.{name}"] = parameter
                             else:
                                 # Use LoRA with alpha=1.0 by default
                                 train_adapter = adapter_cls.create_train(
                                     m.weight, rank=rank, alpha=1.0
                                 ).to(lora_dtype)
+                            for name, parameter in train_adapter.named_parameters():
+                                lora_sd[f"{n}.{name}"] = parameter
 
                             mp.add_weight_wrapper(key, train_adapter)
                             all_weight_adapters.append(train_adapter)
