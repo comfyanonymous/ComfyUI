@@ -74,6 +74,9 @@ class LoRAAdapter(WeightAdapterBase):
             (mat1, mat2, alpha, None, None, None)
         )
 
+    def to_train(self):
+        return LoraDiff(self.weights)
+
     @classmethod
     def load(
         cls,
