@@ -102,6 +102,13 @@ def model_sampling(model_config, model_type):
     return ModelSampling(model_config)
 
 
+def convert_tensor(extra, dtype):
+    if hasattr(extra, "dtype"):
+        if extra.dtype != torch.int and extra.dtype != torch.long:
+            extra = extra.to(dtype)
+    return extra
+
+
 class BaseModel(torch.nn.Module):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None, unet_model=UNetModel):
         super().__init__()
@@ -165,9 +172,14 @@ class BaseModel(torch.nn.Module):
         extra_conds = {}
         for o in kwargs:
             extra = kwargs[o]
+
             if hasattr(extra, "dtype"):
-                if extra.dtype != torch.int and extra.dtype != torch.long:
-                    extra = extra.to(dtype)
+                extra = convert_tensor(extra, dtype)
+            elif isinstance(extra, list):
+                ex = []
+                for ext in extra:
+                    ex.append(convert_tensor(ext, dtype))
+                extra = ex
             extra_conds[o] = extra
 
         t = self.process_timestep(t, x=x, **extra_conds)
