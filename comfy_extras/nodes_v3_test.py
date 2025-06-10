@@ -2,10 +2,17 @@ import torch
 from comfy_api.v3.io import (
     ComfyNodeV3, SchemaV3, InputBehavior, NumberDisplay,
     IntegerInput, MaskInput, ImageInput, ComboInput, CustomInput, StringInput, CustomType,
-    IntegerOutput, ImageOutput, MultitypedInput,
+    IntegerOutput, ImageOutput, MultitypedInput, InputV3, OutputV3,
     NodeOutput, Hidden
 )
 import logging
+
+
+class XYZInput(InputV3, io_type="XYZ"):
+    Type = tuple[int,str]
+
+class XYZOutput(OutputV3, io_type="XYZ"):
+    ...
 
 
 class V3TestNode(ComfyNodeV3):
@@ -22,7 +29,8 @@ class V3TestNode(ComfyNodeV3):
             category="v3 nodes",
             inputs=[
                 ImageInput("image", display_name="new_image"),
-                CustomInput("xyz", "XYZ", behavior=InputBehavior.optional),
+                XYZInput("xyz", behavior=InputBehavior.optional),
+                #CustomInput("xyz", "XYZ", behavior=InputBehavior.optional),
                 MaskInput("mask", behavior=InputBehavior.optional),
                 IntegerInput("some_int", display_name="new_name", min=0, max=127, default=42,
                              tooltip="My tooltip 😎", display_mode=NumberDisplay.slider),
@@ -55,7 +63,7 @@ class V3TestNode(ComfyNodeV3):
         )
 
     @classmethod
-    def execute(cls, image: torch.Tensor, some_int: int, combo: str, xyz=None, mask: torch.Tensor=None):
+    def execute(cls, image: ImageInput.Type, some_int: IntegerInput.Type, combo: ComboInput.Type, xyz: XYZInput.Type=None, mask: MaskInput.Type=None):
         if hasattr(cls, "hahajkunless"):
             raise Exception("The 'cls' variable leaked instance state between runs!")
         if hasattr(cls, "doohickey"):
