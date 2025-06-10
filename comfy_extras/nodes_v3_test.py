@@ -1,6 +1,6 @@
 import torch
 from comfy_api.v3.io import (
-    ComfyNodeV3, SchemaV3, InputBehavior, NumberDisplay,
+    ComfyNodeV3, SchemaV3, NumberDisplay,
     IntegerInput, MaskInput, ImageInput, ComboInput, CustomInput, StringInput, CustomType,
     IntegerOutput, ImageOutput, MultitypedInput, InputV3, OutputV3,
     NodeOutput, Hidden
@@ -29,9 +29,9 @@ class V3TestNode(ComfyNodeV3):
             category="v3 nodes",
             inputs=[
                 ImageInput("image", display_name="new_image"),
-                XYZInput("xyz", behavior=InputBehavior.optional),
-                #CustomInput("xyz", "XYZ", behavior=InputBehavior.optional),
-                MaskInput("mask", behavior=InputBehavior.optional),
+                XYZInput("xyz", optional=True),
+                #CustomInput("xyz", "XYZ", optional=True),
+                MaskInput("mask", optional=True),
                 IntegerInput("some_int", display_name="new_name", min=0, max=127, default=42,
                              tooltip="My tooltip 😎", display_mode=NumberDisplay.slider),
                 ComboInput("combo", options=["a", "b", "c"], tooltip="This is a combo input"),

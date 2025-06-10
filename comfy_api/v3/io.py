@@ -10,6 +10,7 @@ import torch
 
 
 class InputBehavior(str, Enum):
+    '''Likely deprecated; required/optional can be a bool, unlikely to be more categories that fit.'''
     required = "required"
     optional = "optional"
 
@@ -68,20 +69,20 @@ class IO_V3:
     def __init__(self):
         pass
 
-    def __init_subclass__(cls, io_type: IO | str, Type=Any, **kwargs):
+    def __init_subclass__(cls, io_type: IO | str, **kwargs):
+        # TODO: do we need __ne__ trick for io_type? (see IO.__ne__ for details)
         cls.io_type = io_type
-        cls.Type = Type
         super().__init_subclass__(**kwargs)
 
 class InputV3(IO_V3, io_type=None):
     '''
     Base class for a V3 Input.
     '''
-    def __init__(self, id: str, display_name: str=None, behavior=InputBehavior.required, tooltip: str=None, lazy: bool=None):
+    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None):
         super().__init__()
         self.id = id
         self.display_name = display_name
-        self.behavior = behavior
+        self.optional = optional
         self.tooltip = tooltip
         self.lazy = lazy
     
@@ -99,10 +100,10 @@ class WidgetInputV3(InputV3, io_type=None):
     '''
     Base class for a V3 Input with widget.
     '''
-    def __init__(self, id: str, display_name: str=None, behavior=InputBehavior.required, tooltip: str=None, lazy: bool=None,
+    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: Any=None,
                  socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, behavior, tooltip, lazy)
+        super().__init__(id, display_name, optional, tooltip, lazy)
         self.default = default
         self.socketless = socketless
         self.widgetType = widgetType
@@ -118,14 +119,14 @@ def CustomType(io_type: IO | str) -> type[IO_V3]:
     name = f"{io_type}_IO_V3"
     return type(name, (IO_V3,), {}, io_type=io_type)
 
-def CustomInput(id: str, io_type: IO | str, display_name: str=None, behavior=InputBehavior.required, tooltip: str=None, lazy: bool=None) -> InputV3:
+def CustomInput(id: str, io_type: IO | str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None) -> InputV3:
     '''
     Defines input for 'io_type'. Can be used to stand in for non-core types.
     '''
     input_kwargs = {
         "id": id,
         "display_name": display_name,
-        "behavior": behavior,
+        "optional": optional,
         "tooltip": tooltip,
         "lazy": lazy,
     }
@@ -148,10 +149,10 @@ class BooleanInput(WidgetInputV3, io_type=IO.BOOLEAN):
     Boolean input.
     '''
     Type = bool
-    def __init__(self, id: str, display_name: str=None, behavior=InputBehavior.required, tooltip: str=None, lazy: bool=None,
+    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: bool=None, label_on: str=None, label_off: str=None,
                  socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, behavior, tooltip, lazy, default, socketless, widgetType)
+        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
         self.label_on = label_on
         self.label_off = label_off
         self.default: bool
@@ -167,10 +168,10 @@ class IntegerInput(WidgetInputV3, io_type=IO.INT):
     Integer input.
     '''
     Type = int
-    def __init__(self, id: str, display_name: str=None, behavior=InputBehavior.required, tooltip: str=None, lazy: bool=None,
+    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: int=None, min: int=None, max: int=None, step: int=None, control_after_generate: bool=None,
                  display_mode: NumberDisplay=None, socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, behavior, tooltip, lazy, default, socketless, widgetType)
+        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
         self.min = min
         self.max = max
         self.step = step
@@ -192,10 +193,10 @@ class FloatInput(WidgetInputV3, io_type=IO.FLOAT):
     Float input.
     '''
     Type = float
-    def __init__(self, id: str, display_name: str=None, behavior=InputBehavior.required, tooltip: str=None, lazy: bool=None,
+    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
                  display_mode: NumberDisplay=None, socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, behavior, tooltip, lazy, default, socketless, widgetType)
+        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
         self.default = default
         self.min = min
         self.max = max
@@ -218,10 +219,10 @@ class StringInput(WidgetInputV3, io_type=IO.STRING):
     String input.
     '''
     Type = str
-    def __init__(self, id: str, display_name: str=None, behavior=InputBehavior.required, tooltip: str=None, lazy: bool=None,
+    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  multiline=False, placeholder: str=None, default: int=None,
                  socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, behavior, tooltip, lazy, default, socketless, widgetType)
+        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
         self.multiline = multiline
         self.placeholder = placeholder
         self.default: str
@@ -235,12 +236,12 @@ class StringInput(WidgetInputV3, io_type=IO.STRING):
 class ComboInput(WidgetInputV3, io_type=IO.COMBO):
     '''Combo input (dropdown).'''
     Type = str
-    def __init__(self, id: str, options: list[str]=None, display_name: str=None, behavior=InputBehavior.required, tooltip: str=None, lazy: bool=None,
+    def __init__(self, id: str, options: list[str]=None, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: str=None, control_after_generate: bool=None,
                  image_upload: bool=None, image_folder: FolderType=None,
                  remote: RemoteOptions=None,
                  socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, behavior, tooltip, lazy, default, socketless, widgetType)
+        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
         self.multiselect = False
         self.options = options
         self.control_after_generate = control_after_generate
@@ -261,10 +262,10 @@ class ComboInput(WidgetInputV3, io_type=IO.COMBO):
 
 class MultiselectComboWidget(ComboInput, io_type=IO.COMBO):
     '''Multiselect Combo input (dropdown for selecting potentially more than one value).'''
-    def __init__(self, id: str, options: list[str], display_name: str=None, behavior=InputBehavior.required, tooltip: str=None, lazy: bool=None,
+    def __init__(self, id: str, options: list[str], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: list[str]=None, placeholder: str=None, chip: bool=None, control_after_generate: bool=None,
                  socketless: bool=None, widgetType: str=None):
-        super().__init__(id, options, display_name, behavior, tooltip, lazy, default, control_after_generate, socketless, widgetType)
+        super().__init__(id, options, display_name, optional, tooltip, lazy, default, control_after_generate, socketless, widgetType)
         self.multiselect = True
         self.placeholder = placeholder
         self.chip = chip
@@ -282,30 +283,30 @@ class ImageInput(InputV3, io_type=IO.IMAGE):
     Image input.
     '''
     Type = torch.Tensor
-    def __init__(self, id: str, display_name: str=None, behavior=InputBehavior.required, tooltip: str=None):
-        super().__init__(id, display_name, behavior, tooltip)
+    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None):
+        super().__init__(id, display_name, optional, tooltip)
 
 class MaskInput(InputV3, io_type=IO.MASK):
     '''
     Mask input.
     '''
     Type = torch.Tensor
-    def __init__(self, id: str, display_name: str=None, behavior=InputBehavior.required, tooltip: str=None):
-        super().__init__(id, display_name, behavior, tooltip)
+    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None):
+        super().__init__(id, display_name, optional, tooltip)
 
 class LatentInput(InputV3, io_type=IO.LATENT):
     '''
     Latent input.
     '''
-    def __init__(self, id: str, display_name: str=None, behavior=InputBehavior.required, tooltip: str=None):
-        super().__init__(id, display_name, behavior, tooltip)
+    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None):
+        super().__init__(id, display_name, optional, tooltip)
 
 class MultitypedInput(InputV3, io_type="COMFY_MULTITYPED_V3"):
     '''
     Input that permits more than one input type.
     '''
-    def __init__(self, id: str, io_types: list[type[IO_V3] | InputV3 | IO |str], display_name: str=None, behavior=InputBehavior.required, tooltip: str=None,):
-        super().__init__(id, display_name, behavior, tooltip)
+    def __init__(self, id: str, io_types: list[type[IO_V3] | InputV3 | IO |str], display_name: str=None, optional=False, tooltip: str=None,):
+        super().__init__(id, display_name, optional, tooltip)
         self._io_types = io_types
     
     @property
@@ -708,7 +709,8 @@ class ComfyNodeV3(ABC):
         }
         if schema.inputs:
             for i in schema.inputs:
-                input.setdefault(i.behavior.value, {})[i.id] = (i.get_io_type_V1(), i.as_dict_V1())
+                key = "optional" if i.optional else "required"
+                input.setdefault(key, {})[i.id] = (i.get_io_type_V1(), i.as_dict_V1())
         if schema.hidden:
             for hidden in schema.hidden:
                 input.setdefault("hidden", {})[hidden.name] = (hidden.value,)
