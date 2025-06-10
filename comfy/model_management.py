@@ -1068,7 +1068,7 @@ def force_upcast_attention_dtype():
     upcast = args.force_upcast_attention
 
     macos_version = mac_version()
-    if macos_version is not None and ((14, 5) <= macos_version:  # black image bug on recent versions of macOS, I don't think it's ever getting fixed
+    if macos_version is not None and ((14, 5) <= macos_version):  # black image bug on recent versions of macOS, I don't think it's ever getting fixed
         upcast = True
 
     if upcast:
