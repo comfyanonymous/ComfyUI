@@ -5,11 +5,11 @@ import os
 import shutil
 import filecmp
 
-def pull(repo, remote_name='dproy', branch='in-process-sandbox'):
+def pull(repo, remote_name='origin', branch='master'):
     for remote in repo.remotes:
         if remote.name == remote_name:
             remote.fetch()
-            remote_master_id = repo.lookup_reference('refs/remotes/dproy/%s' % (branch)).target
+            remote_master_id = repo.lookup_reference('refs/remotes/origin/%s' % (branch)).target
             merge_result, _ = repo.merge_analysis(remote_master_id)
             # Up to date, do nothing
             if merge_result & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
@@ -60,8 +60,8 @@ try:
 except:
     pass
 
-print("checking out in-process-sandbox branch")  # noqa: T201
-branch = repo.lookup_branch('in-process-sandbox')
+print("checking out master branch")  # noqa: T201
+branch = repo.lookup_branch('master')
 if branch is None:
     try:
         ref = repo.lookup_reference('refs/remotes/origin/master')
@@ -72,8 +72,6 @@ if branch is None:
     repo.checkout(ref)
     branch = repo.lookup_branch('master')
     if branch is None:
-        print("AAAAAAAAAAAAAAAAA")
-
         repo.create_branch('master', repo.get(ref.target))
 else:
     ref = repo.lookup_reference(branch.name)
@@ -159,20 +157,13 @@ stable_update_script_to = os.path.join(cur_path, "update_comfyui_stable.bat")
 try:
     if not file_size(stable_update_script_to) > 10:
         shutil.copy(stable_update_script, stable_update_script_to)
-    pass
 except:
     pass
 
-# Write this in python
-# cp -r $repo_path/.ci/windows_base_files/* ../
 
-# Get the parent directory of cur_path
+print("Copying windows base files")
 base_dir = os.path.dirname(cur_path)
-
-# Source directory containing windows base files
 repo_base_dir = os.path.join(repo_path, ".ci/windows_base_files")
-
-# Copy all files from source to parent directory
 if os.path.exists(repo_base_dir):
     for item in os.listdir(repo_base_dir):
         if item.startswith("README"): continue
