@@ -5,11 +5,11 @@ import os
 import shutil
 import filecmp
 
-def pull(repo, remote_name='origin', branch='master'):
+def pull(repo, remote_name='dproy', branch='in-process-sandbox'):
     for remote in repo.remotes:
         if remote.name == remote_name:
             remote.fetch()
-            remote_master_id = repo.lookup_reference('refs/remotes/origin/%s' % (branch)).target
+            remote_master_id = repo.lookup_reference('refs/remotes/dproy/%s' % (branch)).target
             merge_result, _ = repo.merge_analysis(remote_master_id)
             # Up to date, do nothing
             if merge_result & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
@@ -60,8 +60,8 @@ try:
 except:
     pass
 
-print("checking out master branch")  # noqa: T201
-branch = repo.lookup_branch('master')
+print("checking out in-process-sandbox branch")  # noqa: T201
+branch = repo.lookup_branch('in-process-sandbox')
 if branch is None:
     try:
         ref = repo.lookup_reference('refs/remotes/origin/master')
@@ -72,6 +72,8 @@ if branch is None:
     repo.checkout(ref)
     branch = repo.lookup_branch('master')
     if branch is None:
+        print("AAAAAAAAAAAAAAAAA")
+
         repo.create_branch('master', repo.get(ref.target))
 else:
     ref = repo.lookup_reference(branch.name)
@@ -113,8 +115,7 @@ cur_path = os.path.dirname(update_py_path)
 
 req_path = os.path.join(cur_path, "current_requirements.txt")
 repo_req_path = os.path.join(repo_path, "requirements.txt")
-win_only_req_path = os.path.join(cur_path, "current_win_only_requirements.txt")
-win_only_repo_req_path = os.path.join(repo_path, "win_only_requirements.txt")
+
 
 def files_equal(file1, file2):
     try:
@@ -141,14 +142,6 @@ if not os.path.exists(req_path) or not files_equal(repo_req_path, req_path):
     except:
         pass
 
-# TODO: Delete this once ComfyUI manager fully supports '; sys_platform == "win32"' syntax
-if not os.path.exists(win_only_req_path) or not files_equal(win_only_repo_req_path, win_only_req_path):
-    import subprocess
-    try:
-        subprocess.check_call([sys.executable, '-s', '-m', 'pip', 'install', '-r', win_only_repo_req_path])
-        shutil.copy(win_only_repo_req_path, win_only_req_path)
-    except:
-        pass
 
 stable_update_script = os.path.join(repo_path, ".ci/update_windows/update_comfyui_stable.bat")
 stable_update_script_to = os.path.join(cur_path, "update_comfyui_stable.bat")
@@ -156,5 +149,6 @@ stable_update_script_to = os.path.join(cur_path, "update_comfyui_stable.bat")
 try:
     if not file_size(stable_update_script_to) > 10:
         shutil.copy(stable_update_script, stable_update_script_to)
+    pass
 except:
     pass
