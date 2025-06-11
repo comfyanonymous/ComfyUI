@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Optional
 
@@ -50,7 +50,6 @@ class ComfyConfig(BaseModel):
     icon: str = Field(default="", alias="Icon")
     models: List[Model] = Field(default_factory=list, alias="Models")
     includes: List[str] = Field(default_factory=list)
-    web: Optional[str] = None
 
 
 class License(BaseModel):
@@ -66,18 +65,6 @@ class ProjectConfig(BaseModel):
     dependencies: List[str] = Field(default_factory=list)
     license: License = Field(default_factory=License)
     urls: URLs = Field(default_factory=URLs)
-
-    @field_validator('license', mode='before')
-    @classmethod
-    def validate_license(cls, v):
-        if isinstance(v, str):
-            return License(text=v)
-        elif isinstance(v, dict):
-            return License(**v)
-        elif isinstance(v, License):
-            return v
-        else:
-            return License()
 
 
 class PyProjectConfig(BaseModel):
