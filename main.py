@@ -116,12 +116,15 @@ def execute_prestartup_script():
 
 apply_custom_paths()
 
-if os.name == "nt" and args.enable_sandbox:
-    # We do not have pywin32 on non-windows platforms, so this import needs to
-    # be guarded.
-    from sandbox import windows_sandbox
-    # Must run before executing custom node prestartup scripts.
-    try_enable_sandbox()
+if args.enable_sandbox:
+    if os.name == "nt":
+        # windows_sandbox imports the pywin32 module, which is not available on
+        # non-windows platforms, so this import needs to be guarded.
+        from sandbox import windows_sandbox
+        try_enable_sandbox()
+    else:
+        logging.warning("Sandbox mode is not supported on non-windows platforms."
+                        "ComfyUI will run without sandbox.")
 
 execute_prestartup_script()
 
