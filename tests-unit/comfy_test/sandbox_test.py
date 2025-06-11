@@ -1,4 +1,3 @@
-import pytest
 from sandbox import windows_sandbox
 
 def test_icacl_no_low_integrity_label():
