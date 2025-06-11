@@ -142,6 +142,16 @@ if not os.path.exists(req_path) or not files_equal(repo_req_path, req_path):
     except:
         pass
 
+# TODO: Delete this once ComfyUI manager fully supports '; sys_platform == "win32"' syntax
+win_only_req_path = os.path.join(cur_path, "current_win_only_requirements.txt")
+win_only_repo_req_path = os.path.join(repo_path, "win_only_requirements.txt")
+if not os.path.exists(win_only_req_path) or not files_equal(win_only_repo_req_path, win_only_req_path):
+    import subprocess
+    try:
+        subprocess.check_call([sys.executable, '-s', '-m', 'pip', 'install', '-r', win_only_repo_req_path])
+        shutil.copy(win_only_repo_req_path, win_only_req_path)
+    except:
+        pass
 
 stable_update_script = os.path.join(repo_path, ".ci/update_windows/update_comfyui_stable.bat")
 stable_update_script_to = os.path.join(cur_path, "update_comfyui_stable.bat")
@@ -152,3 +162,23 @@ try:
     pass
 except:
     pass
+
+# Write this in python
+# cp -r $repo_path/.ci/windows_base_files/* ../
+
+# Get the parent directory of cur_path
+base_dir = os.path.dirname(cur_path)
+
+# Source directory containing windows base files
+repo_base_dir = os.path.join(repo_path, ".ci/windows_base_files")
+
+# Copy all files from source to parent directory
+if os.path.exists(repo_base_dir):
+    for item in os.listdir(repo_base_dir):
+        if item.startswith("README"): continue
+        source_item = os.path.join(repo_base_dir, item)
+        dest_item = os.path.join(base_dir, item)
+        if os.path.isdir(source_item):
+            shutil.copytree(source_item, dest_item, dirs_exist_ok=True)
+        else:
+            shutil.copy2(source_item, dest_item)
