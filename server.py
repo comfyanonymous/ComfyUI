@@ -290,7 +290,6 @@ class PromptServer():
             image = post.get("image")
             overwrite = post.get("overwrite")
             image_is_duplicate = False
-
             image_upload_type = post.get("type")
             upload_dir, image_upload_type = get_dir_by_type(image_upload_type)
 
