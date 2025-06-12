@@ -729,7 +729,6 @@ class PromptServer():
                 to_delete = json_data['delete']
                 for id_to_delete in to_delete:
                     self.prompt_queue.delete_history_item(id_to_delete)
-
             return web.Response(status=200)
 
     async def setup(self):
