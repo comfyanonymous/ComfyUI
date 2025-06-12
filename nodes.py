@@ -38,8 +38,6 @@ import folder_paths
 import latent_preview
 import node_helpers
 
-from comfy_config import config_parser
-
 def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
 
@@ -2127,19 +2125,24 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
 
         LOADED_MODULE_DIRS[module_name] = os.path.abspath(module_dir)
 
-        project_config = config_parser.extract_node_configuration(module_path)
+        try:
+            from comfy_config import config_parser
 
-        web_dir_name = project_config.tool_comfy.web
+            project_config = config_parser.extract_node_configuration(module_path)
 
-        if web_dir_name:
-            web_dir_path = os.path.join(module_path, web_dir_name)
+            web_dir_name = project_config.tool_comfy.web
 
-            if os.path.isdir(web_dir_path):
-                project_name = project_config.project.name
+            if web_dir_name:
+                web_dir_path = os.path.join(module_path, web_dir_name)
 
-                EXTENSION_WEB_DIRS[project_name] = web_dir_path
+                if os.path.isdir(web_dir_path):
+                    project_name = project_config.project.name
 
-                logging.info("Automatically register web folder {} for {}".format(web_dir_name, project_name))
+                    EXTENSION_WEB_DIRS[project_name] = web_dir_path
+
+                    logging.info("Automatically register web folder {} for {}".format(web_dir_name, project_name))
+        except Exception as e:
+            logging.debug("Unable to parse pyproject.toml due to lack dependency pydantic-settings, please run 'pip install -r requirements.txt'")
 
         if hasattr(module, "WEB_DIRECTORY") and getattr(module, "WEB_DIRECTORY") is not None:
             web_dir = os.path.abspath(os.path.join(module_dir, getattr(module, "WEB_DIRECTORY")))
