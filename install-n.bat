@@ -76,6 +76,7 @@ echo.
 echo :: %time:~0,8%  ::  - Installing CFZ Nodes (description in readme on github) 
 copy cfz\cfz_patcher.py custom_nodes\cfz_patcher.py /y >NUL
 copy cfz\cfz_cudnn.toggle.py custom_nodes\cfz_cudnn.toggle.py /y >NUL
+copy cfz\cfz_vae_loader.py custom_nodes\cfz_vae_loader.py /y >NUL
 echo  ::  %time:~0,8%  ::  - Installing Comfyui Manager
 cd custom_nodes
 git clone https://github.com/ltdrdata/ComfyUI-Manager.git --quiet
