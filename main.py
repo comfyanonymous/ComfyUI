@@ -238,6 +238,15 @@ def cleanup_temp():
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def setup_database():
+    try:
+        from app.database.db import init_db, dependencies_available
+        if dependencies_available():
+            init_db()
+    except Exception as e:
+        logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
+
+
 def start_comfyui(asyncio_loop=None):
     """
     Starts the ComfyUI server using the provided asyncio event loop or creates a new one.
@@ -266,6 +275,7 @@ def start_comfyui(asyncio_loop=None):
     hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()
+    setup_database()
 
     prompt_server.add_routes()
     hijack_progress(prompt_server)

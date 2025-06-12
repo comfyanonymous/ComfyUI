@@ -5,7 +5,10 @@ from unittest.mock import patch, MagicMock
 mock_nodes = MagicMock()
 mock_nodes.MAX_RESOLUTION = 16384
 
-with patch.dict('sys.modules', {'nodes': mock_nodes}):
+# Mock server module for PromptServer
+mock_server = MagicMock()
+
+with patch.dict('sys.modules', {'nodes': mock_nodes, 'server': mock_server}):
     from comfy_extras.nodes_images import ImageStitch
 
 
