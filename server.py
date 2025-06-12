@@ -732,7 +732,6 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
-        
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
