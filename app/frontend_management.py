@@ -116,10 +116,10 @@ class FrontEndProvider:
     def latest_prerelease(self) -> Release:
         """Get the latest pre-release version - even if it's older than the latest release"""
         release = [release for release in self.all_releases if release["prerelease"]]
-        
+
         if not release:
             raise ValueError("No pre-releases found")
-        
+
         # GitHub returns releases in reverse chronological order, so first is latest
         return release[0]
 
