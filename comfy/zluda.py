@@ -74,6 +74,7 @@ packages_to_monitor = [
     "comfyui-frontend-package",
     "comfyui-workflow-templates",
     "av"
+    "comfyui-embedded-docs"
 ]
 
 for package_name in packages_to_monitor:
