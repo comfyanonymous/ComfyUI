@@ -75,6 +75,8 @@ packages_to_monitor = [
     "comfyui-workflow-templates",
     "av",
     "comfyui-embedded-docs",
+    "pydantic",
+    "pydantic-settings",
 ]
 
 for package_name in packages_to_monitor:
