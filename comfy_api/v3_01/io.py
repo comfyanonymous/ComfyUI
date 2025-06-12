@@ -60,6 +60,8 @@ class NumberDisplay(str, Enum):
     slider = "slider"
 
 
+
+
 class IO_V3:
     '''
     Base class for V3 Inputs and Outputs.
@@ -152,106 +154,106 @@ def CustomOutput(id: str, io_type: IO | str, display_name: str=None, tooltip: st
     return type(f"{io_type}Output", (OutputV3,), {}, io_type=io_type)(**input_kwargs)
 
 
-class BooleanInput(WidgetInputV3, io_type=IO.BOOLEAN):
-    '''
-    Boolean input.
-    '''
+class Boolean:
     Type = bool
-    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                 default: bool=None, label_on: str=None, label_off: str=None,
-                 socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
-        self.label_on = label_on
-        self.label_off = label_off
-        self.default: bool
     
-    def as_dict_V1(self):
-        return super().as_dict_V1() | prune_dict({
-            "label_on": self.label_on,
-            "label_off": self.label_off,
-        })
+    class Input(WidgetInputV3, io_type=IO.BOOLEAN):
+        '''Boolean input.'''
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
+                    default: bool=None, label_on: str=None, label_off: str=None,
+                    socketless: bool=None, widgetType: str=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+            self.label_on = label_on
+            self.label_off = label_off
+            self.default: bool
+        
+        def as_dict_V1(self):
+            return super().as_dict_V1() | prune_dict({
+                "label_on": self.label_on,
+                "label_off": self.label_off,
+            })
 
-class BooleanOutput(OutputV3, io_type=IO.BOOLEAN):
-    ...
+    class Output(OutputV3, io_type=IO.BOOLEAN):
+        ...
 
-class IntegerInput(WidgetInputV3, io_type=IO.INT):
-    '''
-    Integer input.
-    '''
+class Integer:
     Type = int
-    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                 default: int=None, min: int=None, max: int=None, step: int=None, control_after_generate: bool=None,
-                 display_mode: NumberDisplay=None, socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
-        self.min = min
-        self.max = max
-        self.step = step
-        self.control_after_generate = control_after_generate
-        self.display_mode = display_mode
-        self.default: int
     
-    def as_dict_V1(self):
-        return super().as_dict_V1() | prune_dict({
-            "min": self.min,
-            "max": self.max,
-            "step": self.step,
-            "control_after_generate": self.control_after_generate,
-            "display": self.display_mode, # NOTE: in frontend, the parameter is called "display"
-        })
+    class Input(WidgetInputV3, io_type=IO.INT):
+        '''Integer input.'''
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
+                    default: int=None, min: int=None, max: int=None, step: int=None, control_after_generate: bool=None,
+                    display_mode: NumberDisplay=None, socketless: bool=None, widgetType: str=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+            self.min = min
+            self.max = max
+            self.step = step
+            self.control_after_generate = control_after_generate
+            self.display_mode = display_mode
+            self.default: int
+        
+        def as_dict_V1(self):
+            return super().as_dict_V1() | prune_dict({
+                "min": self.min,
+                "max": self.max,
+                "step": self.step,
+                "control_after_generate": self.control_after_generate,
+                "display": self.display_mode,
+            })
 
-class IntegerOutput(OutputV3, io_type=IO.INT):
-    ...
+    class Output(OutputV3, io_type=IO.INT):
+        ...
 
-class FloatInput(WidgetInputV3, io_type=IO.FLOAT):
-    '''
-    Float input.
-    '''
+class Float:
     Type = float
-    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                 default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
-                 display_mode: NumberDisplay=None, socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
-        self.default = default
-        self.min = min
-        self.max = max
-        self.step = step
-        self.round = round
-        self.display_mode = display_mode
-        self.default: float
     
-    def as_dict_V1(self):
-        return super().as_dict_V1() | prune_dict({
-            "min": self.min,
-            "max": self.max,
-            "step": self.step,
-            "round": self.round,
-            "display": self.display_mode, # NOTE: in frontend, the parameter is called "display"
-        })
+    class Input(WidgetInputV3, io_type=IO.FLOAT):
+        '''Float input.'''
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
+                    default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
+                    display_mode: NumberDisplay=None, socketless: bool=None, widgetType: str=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+            self.default = default
+            self.min = min
+            self.max = max
+            self.step = step
+            self.round = round
+            self.display_mode = display_mode
+            self.default: float
+        
+        def as_dict_V1(self):
+            return super().as_dict_V1() | prune_dict({
+                "min": self.min,
+                "max": self.max,
+                "step": self.step,
+                "round": self.round,
+                "display": self.display_mode,
+            })
     
-class FloatOutput(OutputV3, io_type=IO.FLOAT):
-    ...
+    class Output(OutputV3, io_type=IO.FLOAT):
+        ...
 
-class StringInput(WidgetInputV3, io_type=IO.STRING):
-    '''
-    String input.
-    '''
+class String:
     Type = str
-    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                 multiline=False, placeholder: str=None, default: int=None,
-                 socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
-        self.multiline = multiline
-        self.placeholder = placeholder
-        self.default: str
     
-    def as_dict_V1(self):
-        return super().as_dict_V1() | prune_dict({
-            "multiline": self.multiline,
-            "placeholder": self.placeholder,
-        })
+    class Input(WidgetInputV3, io_type=IO.STRING):
+        '''String input.'''
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
+                    multiline=False, placeholder: str=None, default: int=None,
+                    socketless: bool=None, widgetType: str=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+            self.multiline = multiline
+            self.placeholder = placeholder
+            self.default: str
+        
+        def as_dict_V1(self):
+            return super().as_dict_V1() | prune_dict({
+                "multiline": self.multiline,
+                "placeholder": self.placeholder,
+            })
 
-class StringOutput(OutputV3, io_type=IO.STRING):
-    ...
+    class Output(OutputV3, io_type=IO.STRING):
+        ...
 
 class ComboInput(WidgetInputV3, io_type=IO.COMBO):
     '''Combo input (dropdown).'''
@@ -298,193 +300,212 @@ class MultiselectComboWidget(ComboInput, io_type=IO.COMBO):
             "chip": self.chip,
         })
 
-class ImageInput(InputV3, io_type=IO.IMAGE):
-    '''Image input.'''
+class Image:
     Type = torch.Tensor
 
-class ImageOutput(OutputV3, io_type=IO.IMAGE):
-    '''Image output.'''
+    class Input(InputV3, io_type=IO.IMAGE):
+        '''Image input.'''
+
+    class Output(OutputV3, io_type=IO.IMAGE):
+        ...
+
+class Mask:
     Type = torch.Tensor
+    
+    class Input(InputV3, io_type=IO.MASK):
+        '''Mask input.'''
 
-class MaskInput(InputV3, io_type=IO.MASK):
-    '''Mask input.'''
-    Type = torch.Tensor
+    class Output(OutputV3, io_type=IO.MASK):
+        ...
 
-class MaskOutput(OutputV3, io_type=IO.MASK):
-    '''Mask output.'''
-    Type = torch.Tensor
+class Latent:
+    Type = Any # TODO: make Type a TypedDict
+    
+    class Input(InputV3, io_type=IO.LATENT):
+        '''Latent input.'''
 
-class LatentInput(InputV3, io_type=IO.LATENT):
-    '''Latent input.'''
-    # TODO: make Type a TypedDict
-    ...
+    class Output(OutputV3, io_type=IO.LATENT):
+        ...
 
-class LatentOutput(OutputV3, io_type=IO.LATENT):
-    '''Latent output.'''
-    # TODO: make Type a TypedDict
-    ...
+class Conditioning:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.CONDITIONING):
+        '''Conditioning input.'''
 
-class ConditioningInput(InputV3, io_type=IO.CONDITIONING):
-    '''Conditioning input.'''
-    # TODO: make Type a TypedDict
-    ...
+    class Output(OutputV3, io_type=IO.CONDITIONING):
+        ...
 
-class ConditioningOutput(OutputV3, io_type=IO.CONDITIONING):
-    '''Conditioning output.'''
-    # TODO: make Type a TypedDict
-    ...
+class Sampler:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.SAMPLER):
+        '''Sampler input.'''
 
-class SamplerInput(InputV3, io_type=IO.SAMPLER):
-    '''Sampler input.'''
-    ...
+    class Output(OutputV3, io_type=IO.SAMPLER):
+        ...
 
-class SamplerOutput(OutputV3, io_type=IO.SAMPLER):
-    '''Sampler output.'''
-    ...
+class Sigmas:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.SIGMAS):
+        '''Sigmas input.'''
 
-class SigmasInput(InputV3, io_type=IO.SIGMAS):
-    '''Sigmas input.'''
-    ...
+    class Output(OutputV3, io_type=IO.SIGMAS):
+        ...
 
-class SigmasOutput(OutputV3, io_type=IO.SIGMAS):
-    '''Sigmas output.'''
-    ...
+class Noise:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.NOISE):
+        '''Noise input.'''
 
-class GuiderInput(InputV3, io_type=IO.GUIDER):
-    '''Guider input.'''
-    ...
+    class Output(OutputV3, io_type=IO.NOISE):
+        ...
 
-class GuiderOutput(OutputV3, io_type=IO.GUIDER):
-    '''Guider output.'''
-    ...
+class Guider:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.GUIDER):
+        '''Guider input.'''
 
-class NoiseInput(InputV3, io_type=IO.NOISE):
-    '''Noise input.'''
-    ...
+    class Output(OutputV3, io_type=IO.GUIDER):
+        ...
 
-class NoiseOutput(OutputV3, io_type=IO.NOISE):
-    '''Noise output.'''
-    ...
+class Clip:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.CLIP):
+        '''Clip input.'''
 
-class ClipInput(InputV3, io_type=IO.CLIP):
-    '''Clip input.'''
-    ...
+    class Output(OutputV3, io_type=IO.CLIP):
+        ...
 
-class ClipOutput(OutputV3, io_type=IO.CLIP):
-    '''Clip output.'''
-    ...
+class ControlNet:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.CONTROL_NET):
+        '''ControlNet input.'''
 
-class ControlNetInput(InputV3, io_type=IO.CONTROL_NET):
-    '''ControlNet input.'''
-    ...
+    class Output(OutputV3, io_type=IO.CONTROL_NET):
+        ...
 
-class ControlNetOutput(OutputV3, io_type=IO.CONTROL_NET):
-    '''ControlNet output.'''
-    ...
+class Vae:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.VAE):
+        '''Vae input.'''
 
-class VaeInput(InputV3, io_type=IO.VAE):
-    '''Vae input.'''
-    ...
+    class Output(OutputV3, io_type=IO.VAE):
+        ...
 
-class VaeOutput(OutputV3, io_type=IO.VAE):
-    '''Vae output.'''
-    ...
+class Model:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.MODEL):
+        '''Model input.'''
 
-class ModelInput(InputV3, io_type=IO.MODEL):
-    '''Model input.'''
-    ...
+    class Output(OutputV3, io_type=IO.MODEL):
+        ...
 
-class ModelOutput(OutputV3, io_type=IO.MODEL):
-    '''Model output.'''
-    ...
+class ClipVision:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.CLIP_VISION):
+        '''ClipVision input.'''
 
-class ClipVisionInput(InputV3, io_type=IO.CLIP_VISION):
-    '''ClipVision input.'''
-    ...
+    class Output(OutputV3, io_type=IO.CLIP_VISION):
+        ...
 
-class ClipVisionOutput(OutputV3, io_type=IO.CLIP_VISION):
-    '''ClipVision output.'''
-    ...
+class ClipVisionOutput:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.CLIP_VISION_OUTPUT):
+        '''CLipVisionOutput input.'''
 
-class ClipVisionOutputInput(InputV3, io_type=IO.CLIP_VISION_OUTPUT):
-    '''CLipVisionOutput input.'''
-    ...
+    class Output(OutputV3, io_type=IO.CLIP_VISION_OUTPUT):
+        ...
 
-class ClipVisionOutputOutput(OutputV3, io_type=IO.CLIP_VISION_OUTPUT):
-    '''CLipVisionOutput output.'''
-    ...
+class StyleModel:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.STYLE_MODEL):
+        '''StyleModel input.'''
 
-class StyleModelInput(InputV3, io_type=IO.STYLE_MODEL):
-    '''StyleModel input.'''
-    ...
+    class Output(OutputV3, io_type=IO.STYLE_MODEL):
+        ...
 
-class StyleModelOutput(OutputV3, io_type=IO.STYLE_MODEL):
-    '''StyleModel output.'''
-    ...
+class Gligen:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.GLIGEN):
+        '''Gligen input.'''
 
-class GligenInput(InputV3, io_type=IO.GLIGEN):
-    '''Gligen input.'''
-    ...
+    class Output(OutputV3, io_type=IO.GLIGEN):
+        ...
 
-class GligenOutput(OutputV3, io_type=IO.GLIGEN):
-    '''Gligen output.'''
-    ...
+class UpscaleModel:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.UPSCALE_MODEL):
+        '''UpscaleModel input.'''
 
-class UpscaleModelInput(InputV3, io_type=IO.UPSCALE_MODEL):
-    '''UpscaleModel input.'''
-    ...
+    class Output(OutputV3, io_type=IO.UPSCALE_MODEL):
+        ...
 
-class UpscaleModelOutput(OutputV3, io_type=IO.UPSCALE_MODEL):
-    '''UpscaleModel output.'''
-    ...
+class Audio:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.AUDIO):
+        '''Audio input.'''
 
-class AudioInput(InputV3, io_type=IO.AUDIO):
-    '''Audio input.'''
-    ...
+    class Output(OutputV3, io_type=IO.AUDIO):
+        ...
 
-class AudioOutput(OutputV3, io_type=IO.AUDIO):
-    '''Audio output.'''
-    ...
+class Point:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.POINT):
+        '''Point input.'''
 
-class PointInput(InputV3, io_type=IO.POINT):
-    '''Point input.'''
-    ...
+    class Output(OutputV3, io_type=IO.POINT):
+        ...
 
-class PointOutput(OutputV3, io_type=IO.POINT):
-    '''Point output.'''
-    ...
+class FaceAnalysis:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.FACE_ANALYSIS):
+        '''FaceAnalysis input.'''
 
-class FaceAnalysisInput(InputV3, io_type=IO.FACE_ANALYSIS):
-    '''FaceAnalysis input.'''
-    ...
+    class Output(OutputV3, io_type=IO.FACE_ANALYSIS):
+        ...
 
-class FaceAnalysisOutput(OutputV3, io_type=IO.FACE_ANALYSIS):
-    '''FaceAnalysis output.'''
-    ...
+class BBOX:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.BBOX):
+        '''Bbox input.'''
 
-class BBOXInput(InputV3, io_type=IO.BBOX):
-    '''Bbox input.'''
-    ...
+    class Output(OutputV3, io_type=IO.BBOX):
+        ...
 
-class BBOXOutput(OutputV3, io_type=IO.BBOX):
-    '''Bbox output.'''
-    ...
+class SEGS:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.SEGS):
+        '''SEGS input.'''
 
-class SEGSInput(InputV3, io_type=IO.SEGS):
-    '''SEGS input.'''
-    ...
+    class Output(OutputV3, io_type=IO.SEGS):
+        ...
 
-class SEGSOutput(OutputV3, io_type=IO.SEGS):
-    '''SEGS output.'''
-    ...
+class Video:
+    Type = Any
+    
+    class Input(InputV3, io_type=IO.VIDEO):
+        '''Video input.'''
 
-class VideoInput(InputV3, io_type=IO.VIDEO):
-    '''Video input.'''
-    ...
-
-class VideoOutput(OutputV3, io_type=IO.VIDEO):
-    '''Video output.'''
-    ...
+    class Output(OutputV3, io_type=IO.VIDEO):
+        ...
 
 
 class MultitypedInput(InputV3, io_type="COMFY_MULTITYPED_V3"):
@@ -546,7 +567,7 @@ class ComboDynamicInput(DynamicInput, io_type="COMFY_COMBODYNAMIC_V3"):
     def __init__(self, id: str):
         pass
 
-AutoGrowDynamicInput(id="dynamic", template_input=ImageInput(id="image"))
+AutoGrowDynamicInput(id="dynamic", template_input=Image.Input(id="image"))
 
 
 class Hidden(str, Enum):
@@ -1046,11 +1067,11 @@ class TestNode(ComfyNodeV3):
         node_id="TestNode_v3",
         display_name="Test Node (V3)",
         category="v3_test",
-        inputs=[IntegerInput("my_int"),
-                #AutoGrowDynamicInput("growing", ImageInput),
-                MaskInput("thing"),
+        inputs=[Integer.Input("my_int"),
+                #AutoGrowDynamicInput("growing", Image.Input),
+                Mask.Input("thing"),
                 ],
-        outputs=[ImageOutput("image_output")],
+        outputs=[Image.Output("image_output")],
         hidden=[Hidden.api_key_comfy_org, Hidden.auth_token_comfy_org, Hidden.unique_id]
     )
 
@@ -1069,17 +1090,17 @@ class TestNode(ComfyNodeV3):
 if __name__ == "__main__":
     print("hello there")
     inputs: list[InputV3] = [
-        IntegerInput("tessfes", widgetType=IO.STRING),
-        IntegerInput("my_int"),
+        Integer.Input("tessfes", widgetType=IO.STRING),
+        Integer.Input("my_int"),
         CustomInput("xyz", "XYZ"),
         CustomInput("model1", "MODEL_M"),
-        ImageInput("my_image"),
-        FloatInput("my_float"),
-        MultitypedInput("my_inputs", [StringInput, CustomType("MODEL_M"), CustomType("XYZ")]),
+        Image.Input("my_image"),
+        Float.Input("my_float"),
+        MultitypedInput("my_inputs", [String.Input, CustomType("MODEL_M"), CustomType("XYZ")]),
     ]
 
     outputs: list[OutputV3] = [
-        ImageOutput("image"),
+        Image.Output("image"),
         CustomOutput("xyz", "XYZ")
     ]
 
