@@ -9,13 +9,13 @@ class TestNode(ComfyNodeABC):
         return {
             "required": {
                 "image": (IO.IMAGE,),
-                "xyz": ("XYZ",),
                 "some_int": (IO.INT, {"display_name": "new_name",
                                       "min": 0, "max": 127, "default": 42,
                                       "tooltip": "My tooltip 😎", "display": "slider"}),
                 "combo": (IO.COMBO, {"options": ["a", "b", "c"], "tooltip": "This is a combo input"}),
             },
             "optional": {
+                "xyz": ("XYZ",),
                 "mask": (IO.MASK,),
             }
         }
@@ -29,7 +29,7 @@ class TestNode(ComfyNodeABC):
 
     CATEGORY = "v3 nodes"
 
-    def do_thing(self, image: torch.Tensor, xyz, some_int: int, combo: str, mask: torch.Tensor=None):
+    def do_thing(self, image: torch.Tensor, some_int: int, combo: str, xyz=None, mask: torch.Tensor=None):
         return (some_int, image)
 
 

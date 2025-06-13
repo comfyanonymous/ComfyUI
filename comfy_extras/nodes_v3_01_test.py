@@ -3,13 +3,13 @@ from comfy_api.v3_01 import io
 import logging
 
 
+@io.comfytype(io_type="XYZ")
 class XYZ:
     Type = tuple[int,str]
-    class Input(io.InputV3, io_type="XYZ"):
+    class Input(io.InputV3):
         ...
-    class Output(io.OutputV3, io_type="XYZ"):
+    class Output(io.OutputV3):
         ...
-
 
 class V3TestNode(io.ComfyNodeV3):
 
@@ -28,9 +28,10 @@ class V3TestNode(io.ComfyNodeV3):
                 XYZ.Input("xyz", optional=True),
                 #CustomInput("xyz", "XYZ", optional=True),
                 io.Mask.Input("mask", optional=True),
-                io.Integer.Input("some_int", display_name="new_name", min=0, max=127, default=42,
+                io.Int.Input("some_int", display_name="new_name", min=0, max=127, default=42,
                              tooltip="My tooltip 😎", display_mode=io.NumberDisplay.slider),
-                io.ComboInput("combo", options=["a", "b", "c"], tooltip="This is a combo input"),
+                io.Combo.Input("combo", options=["a", "b", "c"], tooltip="This is a combo input"),
+                io.MultiCombo.Input("combo2", options=["a","b","c"]),
                 # ComboInput("combo", image_upload=True, image_folder=FolderType.output,
                 #             remote=RemoteOptions(
                 #                 route="/internal/files/output",
@@ -49,7 +50,7 @@ class V3TestNode(io.ComfyNodeV3):
                 #                                                   ]]
             ],
             outputs=[
-                io.Integer.Output("int_output"),
+                io.Int.Output("int_output"),
                 io.Image.Output("img_output", display_name="img🖼️", tooltip="This is an image"),
             ],
             hidden=[
@@ -59,8 +60,8 @@ class V3TestNode(io.ComfyNodeV3):
         )
 
     @classmethod
-    def execute(cls, image: io.Image.Type, some_int: int, combo: io.ComboInput.Type, xyz: XYZ.Type=None, mask: io.Mask.Type=None):
-        some_int
+    def execute(cls, image: io.Image.Type, some_int: int, combo: io.Combo.Type, combo2: io.MultiCombo.Type, xyz: XYZ.Type=None, mask: io.Mask.Type=None):
+        #some_int
         if hasattr(cls, "hahajkunless"):
             raise Exception("The 'cls' variable leaked instance state between runs!")
         if hasattr(cls, "doohickey"):
