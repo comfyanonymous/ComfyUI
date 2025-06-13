@@ -923,9 +923,13 @@ class CosmosT2IPredict2(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.Wan21
 
-    memory_usage_factor = 1.6 #TODO
+    memory_usage_factor = 1.0
 
-    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32] #TODO
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        self.memory_usage_factor = (unet_config.get("model_channels", 2048) / 2048) * 0.9
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.CosmosPredict2(self, device=device)
