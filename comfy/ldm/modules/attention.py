@@ -753,7 +753,7 @@ class BasicTransformerBlock(nn.Module):
             for p in patch:
                 n = p(n, extra_options)
 
-        x += n
+        x = n + x
         if "middle_patch" in transformer_patches:
             patch = transformer_patches["middle_patch"]
             for p in patch:
@@ -793,12 +793,12 @@ class BasicTransformerBlock(nn.Module):
             for p in patch:
                 n = p(n, extra_options)
 
-        x += n
+        x = n + x
         if self.is_res:
             x_skip = x
         x = self.ff(self.norm3(x))
         if self.is_res:
-            x += x_skip
+            x = x_skip + x
 
         return x
 
