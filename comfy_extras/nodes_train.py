@@ -343,7 +343,7 @@ class TrainLoraNode:
                 ),
                 "lora_dtype": (
                     ["bf16", "fp32"],
-                    {"default": "bf32", "tooltip": "The dtype to use for lora."},
+                    {"default": "bf16", "tooltip": "The dtype to use for lora."},
                 ),
                 "existing_lora": (
                     folder_paths.get_filename_list("loras") + ["[None]"],
