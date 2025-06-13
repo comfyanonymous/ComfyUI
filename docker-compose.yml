@@ -1,0 +1,36 @@
+services:
+  comfyui:
+    build: .
+    image: comfyui:local
+    container_name: comfyui
+
+    user: root
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - CLI_ARGS=
+
+    ports:
+      - "8188:8188"
+
+    volumes:
+      - ./models:/opt/ComfyUI/models:ro
+      - ./input:/opt/ComfyUI/input
+      - ./output:/opt/ComfyUI/output
+      - ./custom_nodes:/opt/ComfyUI/custom_nodes
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8188 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+    restart: unless-stopped
