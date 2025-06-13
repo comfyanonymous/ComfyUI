@@ -4,6 +4,7 @@ import sys
 import os
 import shutil
 import filecmp
+import subprocess
 
 def pull(repo, remote_name='origin', branch='master'):
     for remote in repo.remotes:
@@ -133,7 +134,6 @@ if self_update and not files_equal(update_py_path, repo_update_py_path) and file
     exit()
 
 if not os.path.exists(req_path) or not files_equal(repo_req_path, req_path):
-    import subprocess
     try:
         subprocess.check_call([sys.executable, '-s', '-m', 'pip', 'install', '-r', repo_req_path])
         shutil.copy(repo_req_path, req_path)
@@ -144,7 +144,6 @@ if not os.path.exists(req_path) or not files_equal(repo_req_path, req_path):
 win_only_req_path = os.path.join(cur_path, "current_win_only_requirements.txt")
 win_only_repo_req_path = os.path.join(repo_path, "win_only_requirements.txt")
 if not os.path.exists(win_only_req_path) or not files_equal(win_only_repo_req_path, win_only_req_path):
-    import subprocess
     try:
         subprocess.check_call([sys.executable, '-s', '-m', 'pip', 'install', '-r', win_only_repo_req_path])
         shutil.copy(win_only_repo_req_path, win_only_req_path)
@@ -159,17 +158,3 @@ try:
         shutil.copy(stable_update_script, stable_update_script_to)
 except:
     pass
-
-
-print("Copying windows base files")
-base_dir = os.path.dirname(cur_path)
-repo_base_dir = os.path.join(repo_path, ".ci/windows_base_files")
-if os.path.exists(repo_base_dir):
-    for item in os.listdir(repo_base_dir):
-        if item.startswith("README"): continue
-        source_item = os.path.join(repo_base_dir, item)
-        dest_item = os.path.join(base_dir, item)
-        if os.path.isdir(source_item):
-            shutil.copytree(source_item, dest_item, dirs_exist_ok=True)
-        else:
-            shutil.copy2(source_item, dest_item)
