@@ -5,9 +5,8 @@ from torch import nn
 from einops import rearrange
 from einops.layers.torch import Rearrange
 import logging
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Callable, Optional, Tuple
 import math
-import numpy as np
 
 from .position_embedding import VideoRopePosition3DEmb, LearnablePosEmbAxis
 from torchvision import transforms
