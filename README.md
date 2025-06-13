@@ -91,7 +91,7 @@ If coming from the very start, you need :
    5.1  *** YOU MUST DO THIS ADDITIONAL STEPS : if you want to try miopen-triton with high end gpu : aka plan to use install-n.bat ***
    
     * You MUST use latest amd gpu drivers with this setup otherwise there would be problems later. (drivers >= 25.5.1)
-    * You must install "https://visualstudio.microsoft.com/". Only "Build Tools" need to be selected and installed, we don't need the others.
+    * You must install "https://visualstudio.microsoft.com/". Only "Build Tools" (aka Desktop Development with C++)  need to be selected and installed, we don't need the others.
     * Install **HIP SDK 6.2.4** from [HERE](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html) the correct version, "Windows 10 & 11 6.2.4 HIP SDK".
     * Then download hip sdk addon from this url and extract that into `C:\Program Files\AMD\ROCm\6.2` . (updated for zluda 3.9.5)
     *  (new hip addon for zluda 3.9.5 : (https://drive.google.com/file/d/1Gvg3hxNEj2Vsd2nQgwadrUEY6dYXy0H9/view?usp=sharing))
