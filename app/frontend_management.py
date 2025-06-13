@@ -112,9 +112,22 @@ class FrontEndProvider:
         response.raise_for_status()  # Raises an HTTPError if the response was an error
         return response.json()
 
+    @cached_property
+    def latest_prerelease(self) -> Release:
+        """Get the latest pre-release version - even if it's older than the latest release"""
+        release = [release for release in self.all_releases if release["prerelease"]]
+
+        if not release:
+            raise ValueError("No pre-releases found")
+
+        # GitHub returns releases in reverse chronological order, so first is latest
+        return release[0]
+
     def get_release(self, version: str) -> Release:
         if version == "latest":
             return self.latest_release
+        elif version == "prerelease":
+            return self.latest_prerelease
         else:
             for release in self.all_releases:
                 if release["tag_name"] in [version, f"v{version}"]:
@@ -221,7 +234,7 @@ comfyui-workflow-templates is not installed.
         Raises:
             argparse.ArgumentTypeError: If the version string is invalid.
         """
-        VERSION_PATTERN = r"^([a-zA-Z0-9][a-zA-Z0-9-]{0,38})/([a-zA-Z0-9_.-]+)@(v?\d+\.\d+\.\d+[-._a-zA-Z0-9]*|latest)$"
+        VERSION_PATTERN = r"^([a-zA-Z0-9][a-zA-Z0-9-]{0,38})/([a-zA-Z0-9_.-]+)@(v?\d+\.\d+\.\d+[-._a-zA-Z0-9]*|latest|prerelease)$"
         match_result = re.match(VERSION_PATTERN, value)
         if match_result is None:
             raise argparse.ArgumentTypeError(f"Invalid version string: {value}")
