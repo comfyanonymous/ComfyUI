@@ -262,19 +262,15 @@ class TrainLoraNode:
         return {
             "required": {
                 "model": (IO.MODEL, {"tooltip": "The model to train the LoRA on."}),
-                "vae": (
-                    IO.VAE,
+                "latents": (
+                    "LATENT",
                     {
-                        "tooltip": "The VAE model to use for encoding images for training."
+                        "tooltip": "The Latents to use for training, serve as dataset/input of the model."
                     },
                 ),
                 "positive": (
                     IO.CONDITIONING,
                     {"tooltip": "The positive conditioning to use for training."},
-                ),
-                "image": (
-                    IO.IMAGE,
-                    {"tooltip": "The image or image batch to train the LoRA on."},
                 ),
                 "batch_size": (
                     IO.INT,
@@ -364,9 +360,8 @@ class TrainLoraNode:
     def train(
         self,
         model,
-        vae,
+        latents,
         positive,
-        image,
         batch_size,
         steps,
         learning_rate,
@@ -378,16 +373,13 @@ class TrainLoraNode:
         lora_dtype,
         existing_lora,
     ):
-        num_images = image.shape[0]
-        indices = torch.randperm(num_images)[:batch_size]
-        batch_tensor = image[indices]
-
-        # Ensure we're not in inference mode when encoding
-        encoded = vae.encode(batch_tensor)
         mp = model.clone()
         dtype = node_helpers.string_to_torch_dtype(training_dtype)
         lora_dtype = node_helpers.string_to_torch_dtype(lora_dtype)
         mp.set_model_compute_dtype(dtype)
+
+        latents = latents["samples"].to(dtype)
+        num_images = latents.shape[0]
 
         with torch.inference_mode(False):
             lora_sd = {}
@@ -509,8 +501,9 @@ class TrainLoraNode:
 
                     noise = comfy_extras.nodes_custom_sampler.Noise_RandomNoise(step * 1000 + seed)
 
+                    indices = torch.randperm(num_images)[:batch_size]
                     ss.sample(
-                        noise, guider, train_sampler, sigma, {"samples": encoded.clone()}
+                        noise, guider, train_sampler, sigma, {"samples": latents[indices].clone()}
                     )
             finally:
                 for m in mp.model.modules():
