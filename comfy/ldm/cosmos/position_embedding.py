@@ -66,6 +66,7 @@ class VideoRopePosition3DEmb(VideoPositionEmb):
         h_extrapolation_ratio: float = 1.0,
         w_extrapolation_ratio: float = 1.0,
         t_extrapolation_ratio: float = 1.0,
+        enable_fps_modulation: bool = True,
         device=None,
         **kwargs,  # used for compatibility with other positional embeddings; unused in this class
     ):
@@ -75,6 +76,7 @@ class VideoRopePosition3DEmb(VideoPositionEmb):
         self.base_fps = base_fps
         self.max_h = len_h
         self.max_w = len_w
+        self.enable_fps_modulation = enable_fps_modulation
 
         dim = head_dim
         dim_h = dim // 6 * 2
@@ -143,7 +145,7 @@ class VideoRopePosition3DEmb(VideoPositionEmb):
         half_emb_w = torch.outer(self.seq[:W].to(device=device), w_spatial_freqs)
 
         # apply sequence scaling in temporal dimension
-        if fps is None:  # image case
+        if fps is None or self.enable_fps_modulation is False:  # image case
             half_emb_t = torch.outer(self.seq[:T].to(device=device), temporal_freqs)
         else:
             half_emb_t = torch.outer(self.seq[:T].to(device=device) / fps * self.base_fps, temporal_freqs)
