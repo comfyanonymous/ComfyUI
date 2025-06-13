@@ -55,7 +55,6 @@ write_permitted_base_dir = os.path.join(base_path, "write-permitted")
 # deleted and recreated as needed.
 temp_directory = os.path.join(write_permitted_base_dir, "temp")
 
-
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
 class CacheHelper:
