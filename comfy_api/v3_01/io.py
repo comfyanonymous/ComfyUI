@@ -4,6 +4,8 @@ from enum import Enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from comfy.comfy_types.node_typing import IO
+from comfy_api.v3.io import ComfyNodeV3 as BASE_CV3
+from comfy_api.v3.io import NodeOutput as BASE_NO
 
 # if TYPE_CHECKING:
 import torch
@@ -751,7 +753,7 @@ class classproperty(object):
         return self.f(owner)
 
 
-class ComfyNodeV3(ABC):
+class ComfyNodeV3(BASE_CV3):
     """Common base class for all V3 nodes."""
 
     RELATIVE_PYTHON_MODULE = None
@@ -791,6 +793,16 @@ class ComfyNodeV3(ABC):
             raise Exception(f"No DEFINE_SCHEMA function was defined for node class {cls.__name__}.")
         if not callable(cls.execute):
             raise Exception(f"No execute function was defined for node class {cls.__name__}.")
+
+    @classmethod
+    def prepare_class_clone(cls) -> type[ComfyNodeV3]:
+        """Creates clone of real node class to prevent monkey-patching."""
+        c_type: type[ComfyNodeV3] = cls if is_class(cls) else type(cls)
+        type_clone: type[ComfyNodeV3] = type(f"CLEAN_{c_type.__name__}", c_type.__bases__, {})
+        # TODO: what parameters should be carried over?
+        type_clone.SCHEMA = c_type.SCHEMA
+        # TODO: add anything we would want to expose inside node's execute function
+        return type_clone
 
     #############################################
     # V1 Backwards Compatibility code
@@ -976,7 +988,7 @@ class ComfyNodeV3(ABC):
 #         pass
 
 
-class NodeOutput:
+class NodeOutput(BASE_NO):
     '''
     Standardized output of a node; can pass in any number of args and/or a UIOutput into 'ui' kwarg.
     '''
@@ -1063,7 +1075,9 @@ class UIText(UIOutput):
 
 
 class TestNode(ComfyNodeV3):
-    SCHEMA = SchemaV3(
+    @classmethod
+    def DEFINE_SCHEMA(cls):
+        return SchemaV3(
         node_id="TestNode_v3",
         display_name="Test Node (V3)",
         category="v3_test",
@@ -1075,17 +1089,9 @@ class TestNode(ComfyNodeV3):
         hidden=[Hidden.api_key_comfy_org, Hidden.auth_token_comfy_org, Hidden.unique_id]
     )
 
-    # @classmethod
-    # def GET_SCHEMA(cls):
-    #     return cls.SCHEMA
-
     @classmethod
-    def DEFINE_SCHEMA(cls):
-        return cls.SCHEMA
-
-    def execute(**kwargs):
+    def execute(cls, **kwargs):
         pass
-
 
 if __name__ == "__main__":
     print("hello there")

@@ -771,6 +771,16 @@ class ComfyNodeV3(ABC):
         if not callable(cls.execute):
             raise Exception(f"No execute function was defined for node class {cls.__name__}.")
 
+    @classmethod
+    def prepare_class_clone(cls) -> type[ComfyNodeV3]:
+        """Creates clone of real node class to prevent monkey-patching."""
+        c_type: type[ComfyNodeV3] = cls if is_class(cls) else type(cls)
+        type_clone: type[ComfyNodeV3] = type(f"CLEAN_{c_type.__name__}", c_type.__bases__, {})
+        # TODO: what parameters should be carried over?
+        type_clone.SCHEMA = c_type.SCHEMA
+        # TODO: add anything we would want to expose inside node's execute function
+        return type_clone
+
     #############################################
     # V1 Backwards Compatibility code
     #--------------------------------------------
@@ -1042,7 +1052,9 @@ class UIText(UIOutput):
 
 
 class TestNode(ComfyNodeV3):
-    SCHEMA = SchemaV3(
+    @classmethod
+    def DEFINE_SCHEMA(cls):
+        return SchemaV3(
         node_id="TestNode_v3",
         display_name="Test Node (V3)",
         category="v3_test",
@@ -1054,15 +1066,8 @@ class TestNode(ComfyNodeV3):
         hidden=[Hidden.api_key_comfy_org, Hidden.auth_token_comfy_org, Hidden.unique_id]
     )
 
-    # @classmethod
-    # def GET_SCHEMA(cls):
-    #     return cls.SCHEMA
-
     @classmethod
-    def DEFINE_SCHEMA(cls):
-        return cls.SCHEMA
-
-    def execute(**kwargs):
+    def execute(cls, **kwargs):
         pass
 
 
