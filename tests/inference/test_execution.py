@@ -500,59 +500,59 @@ class TestExecution:
     def test_parallel_sleep_nodes(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         image = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
-        
+
         # Create sleep nodes for each duration
         sleep_node1 = g.node("TestSleep", value=image.out(0), seconds=2.8)
         sleep_node2 = g.node("TestSleep", value=image.out(0), seconds=2.9)
         sleep_node3 = g.node("TestSleep", value=image.out(0), seconds=3.0)
-        
+
         # Add outputs to verify the execution
-        output1 = g.node("PreviewImage", images=sleep_node1.out(0))
-        output2 = g.node("PreviewImage", images=sleep_node2.out(0))
-        output3 = g.node("PreviewImage", images=sleep_node3.out(0))
-        
+        _output1 = g.node("PreviewImage", images=sleep_node1.out(0))
+        _output2 = g.node("PreviewImage", images=sleep_node2.out(0))
+        _output3 = g.node("PreviewImage", images=sleep_node3.out(0))
+
         start_time = time.time()
         result = client.run(g)
         elapsed_time = time.time() - start_time
-        
+
         # The test should take around 0.4 seconds (the longest sleep duration)
         # plus some overhead, but definitely less than the sum of all sleeps (0.9s)
         # We'll allow for up to 0.8s total to account for overhead
         assert elapsed_time < 4.0, f"Parallel execution took {elapsed_time}s, expected less than 0.8s"
-        
+
         # Verify that all nodes executed
         assert result.did_run(sleep_node1), "Sleep node 1 should have run"
         assert result.did_run(sleep_node2), "Sleep node 2 should have run"
         assert result.did_run(sleep_node3), "Sleep node 3 should have run"
-    
+
     def test_parallel_sleep_expansion(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         # Create input images with different values
         image1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         image2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
         image3 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
-        
+
         # Create a TestParallelSleep node that expands into multiple TestSleep nodes
-        parallel_sleep = g.node("TestParallelSleep", 
+        parallel_sleep = g.node("TestParallelSleep",
                                 image1=image1.out(0),
                                 image2=image2.out(0),
                                 image3=image3.out(0),
-                                sleep1=0.4, 
-                                sleep2=0.5, 
+                                sleep1=0.4,
+                                sleep2=0.5,
                                 sleep3=0.6)
         output = g.node("SaveImage", images=parallel_sleep.out(0))
-        
+
         start_time = time.time()
         result = client.run(g)
         elapsed_time = time.time() - start_time
-        
+
         # Similar to the previous test, expect parallel execution of the sleep nodes
         # which should complete in less than the sum of all sleeps
         assert elapsed_time < 0.8, f"Expansion execution took {elapsed_time}s, expected less than 0.8s"
-        
+
         # Verify the parallel sleep node executed
         assert result.did_run(parallel_sleep), "ParallelSleep node should have run"
-        
+
         # Verify we get an image as output (blend of the three input images)
         result_images = result.get_images(output)
         assert len(result_images) == 1, "Should have 1 image"
