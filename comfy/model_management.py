@@ -25,7 +25,7 @@ import sys
 import platform
 import weakref
 import gc
-import zluda
+import comfy.zluda
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
