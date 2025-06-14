@@ -361,19 +361,19 @@ class TestSamplingInExpansion:
 
     def sampling_in_expansion(self, model, clip, vae, seed, steps, cfg, prompt, negative_prompt):
         g = GraphBuilder()
-        
+
         # Create a basic image generation workflow using the input model, clip and vae
         # 1. Setup text prompts using the provided CLIP model
-        positive_prompt = g.node("CLIPTextEncode", 
+        positive_prompt = g.node("CLIPTextEncode",
                                text=prompt,
                                clip=clip)
-        negative_prompt = g.node("CLIPTextEncode", 
+        negative_prompt = g.node("CLIPTextEncode",
                                 text=negative_prompt,
                                 clip=clip)
-        
+
         # 2. Create empty latent with specified size
         empty_latent = g.node("EmptyLatentImage", width=512, height=512, batch_size=1)
-        
+
         # 3. Setup sampler and generate image latent
         sampler = g.node("KSampler",
                         model=model,
@@ -385,10 +385,10 @@ class TestSamplingInExpansion:
                         cfg=cfg,
                         sampler_name="euler_ancestral",
                         scheduler="normal")
-        
+
         # 4. Decode latent to image using VAE
         output = g.node("VAEDecode", samples=sampler.out(0), vae=vae)
-        
+
         return {
             "result": (output.out(0),),
             "expand": g.finalize(),
@@ -446,18 +446,18 @@ class TestParallelSleep(ComfyNodeABC):
     def parallel_sleep(self, image1, image2, image3, sleep1, sleep2, sleep3, unique_id):
         # Create a graph dynamically with three TestSleep nodes
         g = GraphBuilder()
-        
+
         # Create sleep nodes for each duration and image
         sleep_node1 = g.node("TestSleep", value=image1, seconds=sleep1)
         sleep_node2 = g.node("TestSleep", value=image2, seconds=sleep2)
         sleep_node3 = g.node("TestSleep", value=image3, seconds=sleep3)
-        
+
         # Blend the results using TestVariadicAverage
-        blend = g.node("TestVariadicAverage", 
-                       input1=sleep_node1.out(0), 
-                       input2=sleep_node2.out(0), 
+        blend = g.node("TestVariadicAverage",
+                       input1=sleep_node1.out(0),
+                       input2=sleep_node2.out(0),
                        input3=sleep_node3.out(0))
-        
+
         return {
             "result": (blend.out(0),),
             "expand": g.finalize(),
