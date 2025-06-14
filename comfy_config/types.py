@@ -90,4 +90,4 @@ class PyProjectSettings(BaseSettings):
 
     tool: dict = Field(default_factory=dict)
 
-    model_config = SettingsConfigDict()
+    model_config = SettingsConfigDict(extra='allow')
