@@ -441,11 +441,16 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["rope_h_extrapolation_ratio"] = 4.0
             dit_config["rope_w_extrapolation_ratio"] = 4.0
             dit_config["rope_t_extrapolation_ratio"] = 1.0
-        elif dit_config["in_channels"] == 17:
-            dit_config["extra_per_block_abs_pos_emb"] = False
-            dit_config["rope_h_extrapolation_ratio"] = 3.0
-            dit_config["rope_w_extrapolation_ratio"] = 3.0
-            dit_config["rope_t_extrapolation_ratio"] = 1.0
+        elif dit_config["in_channels"] == 17: # img to video
+            if dit_config["model_channels"] == 2048:
+                dit_config["extra_per_block_abs_pos_emb"] = False
+                dit_config["rope_h_extrapolation_ratio"] = 3.0
+                dit_config["rope_w_extrapolation_ratio"] = 3.0
+                dit_config["rope_t_extrapolation_ratio"] = 1.0
+            elif dit_config["model_channels"] == 5120:
+                dit_config["rope_h_extrapolation_ratio"] = 2.0
+                dit_config["rope_w_extrapolation_ratio"] = 2.0
+                dit_config["rope_t_extrapolation_ratio"] = 0.8333333333333334
 
         dit_config["extra_h_extrapolation_ratio"] = 1.0
         dit_config["extra_w_extrapolation_ratio"] = 1.0
