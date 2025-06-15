@@ -1035,8 +1035,6 @@ class CosmosPredict2(BaseModel):
         if sigma_noise_augmentation != 0:
             latent_image = latent_image + noise
         latent_image = self.model_sampling.calculate_input(torch.tensor([sigma_noise_augmentation], device=latent_image.device, dtype=latent_image.dtype), latent_image)
-        # print(latent_image.shape, latent_image)
-        # return latent_image
         sigma = (sigma / (sigma + 1))
         return latent_image / (1.0 - sigma)
 
