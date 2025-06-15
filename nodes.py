@@ -38,6 +38,9 @@ import folder_paths
 import latent_preview
 import node_helpers
 
+if not args.disable_manager:
+    import comfyui_manager
+
 def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
 
@@ -2187,6 +2190,12 @@ def init_external_custom_nodes():
             module_path = os.path.join(custom_node_path, possible_module)
             if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
             if module_path.endswith(".disabled"): continue
+
+            if not args.disable_manager:
+                if comfyui_manager.should_be_disabled(module_path):
+                    logging.info(f"Blocked by policy: {module_path}")
+                    continue
+
             time_before = time.perf_counter()
             success = load_custom_node(module_path, base_node_names, module_parent="custom_nodes")
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
