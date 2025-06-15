@@ -552,6 +552,9 @@ class LoraModelLoader:
 
 
 class SaveLoRA:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -565,7 +568,7 @@ class SaveLoRA:
                 "prefix": (
                     "STRING",
                     {
-                        "default": "trained_lora",
+                        "default": "loras/ComfyUI_trained_lora",
                         "tooltip": "The prefix to use for the saved LoRA file.",
                     },
                 ),
@@ -588,12 +591,13 @@ class SaveLoRA:
     OUTPUT_NODE = True
 
     def save(self, lora, prefix, steps=None):
-        date = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(prefix, self.output_dir)
         if steps is None:
-            output_file = f"models/loras/{prefix}_{date}_lora.safetensors"
+            output_checkpoint = f"{filename}_{counter:05}_.safetensors"
         else:
-            output_file = f"models/loras/{prefix}_{steps}_steps_{date}_lora.safetensors"
-        safetensors.torch.save_file(lora, output_file)
+            output_checkpoint = f"{filename}_{steps}_steps_{counter:05}_.safetensors"
+        output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
+        safetensors.torch.save_file(lora, output_checkpoint)
         return {}
 
 
