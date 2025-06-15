@@ -26,7 +26,6 @@ import platform
 import weakref
 import gc
 from pathlib import Path
-from functools import lru_cache
 
 
 class VRAMState(Enum):
@@ -180,7 +179,7 @@ def get_total_memory(dev=None, torch_total_too=False):
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_total = _cgroup_limit_bytes() or psutil.virtual_memory().total
+        mem_total = _CGROUP_LIMIT_BYTES or psutil.virtual_memory().total
         mem_total_torch = mem_total
     else:
         if directml_enabled:
@@ -230,17 +229,7 @@ else:                                                       # cgroup v1
     _LIMIT_F = _CG / "memory/memory.limit_in_bytes"
     _USED_F  = _CG / "memory/memory.usage_in_bytes"
 
-
-@lru_cache(maxsize=None)  # the hard limit never changes
-def _cgroup_limit_bytes():
-    return _read_int(_LIMIT_F)
-
-
-def _cgroup_used_bytes():
-    return _read_int(_USED_F)
-
-
-def _read_int(p: Path):
+def _get_cgroup_value(p: Path):
     try:
         v = int(p.read_text().strip())
         if v == 0 or v >= (1 << 60):
@@ -249,6 +238,7 @@ def _read_int(p: Path):
     except (FileNotFoundError, PermissionError, ValueError):
         return None
 
+_CGROUP_LIMIT_BYTES = _get_cgroup_value(_LIMIT_F)
 
 total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
 total_ram = psutil.virtual_memory().total / (1024 * 1024)
@@ -1114,10 +1104,9 @@ def get_free_memory(dev=None, torch_free_too=False):
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and dev.type == 'cpu':
-        limit = _cgroup_limit_bytes()
-        used = _cgroup_used_bytes() if limit is not None else None
-        if limit is not None and used is not None:
-            mem_free_total = max(limit - used, 0)
+        used = _get_cgroup_value(_USED_F) if _CGROUP_LIMIT_BYTES is not None else None
+        if _CGROUP_LIMIT_BYTES is not None and used is not None:
+            mem_free_total = max(_CGROUP_LIMIT_BYTES - used, 0)
         else:
             mem_free_total = psutil.virtual_memory().available
         mem_free_torch = mem_free_total
