@@ -1,4 +1,4 @@
 # Config for testing nodes
 testing:
-    custom_nodes: tests/inference/testing_nodes
+    custom_nodes: testing_nodes
 
