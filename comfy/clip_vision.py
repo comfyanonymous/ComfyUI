@@ -29,7 +29,12 @@ def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], s
         else:
             scale_size = (size, size)
 
-        image = torch.nn.functional.interpolate(image, size=scale_size, mode="bicubic", antialias=True)
+        if image.device.type == 'musa':
+            image = image.cpu()
+            image = torch.nn.functional.interpolate(image, size=scale_size, mode="bicubic", antialias=True)
+            image = image.to('musa')
+        else:
+            image = torch.nn.functional.interpolate(image, size=scale_size, mode="bicubic", antialias=True)
         h = (image.shape[2] - size)//2
         w = (image.shape[3] - size)//2
         image = image[:,:,h:h+size,w:w+size]
