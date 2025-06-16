@@ -159,6 +159,9 @@ class Flux(nn.Module):
                     if add is not None:
                         img += add
 
+        if img.dtype == torch.float16:
+            img = torch.nan_to_num(img, nan=0.0, posinf=65504, neginf=-65504)
+
         img = torch.cat((txt, img), 1)
 
         for i, block in enumerate(self.single_blocks):
