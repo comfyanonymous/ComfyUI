@@ -17,23 +17,26 @@
 """
 
 from __future__ import annotations
-from typing import Optional, Callable
-import torch
+
+import collections
 import copy
 import inspect
 import logging
-import uuid
-import collections
 import math
+import uuid
+from typing import Callable, Optional
 
-import comfy.utils
+import torch
+
 import comfy.float
-import comfy.model_management
-import comfy.lora
 import comfy.hooks
+import comfy.lora
+import comfy.model_management
 import comfy.patcher_extension
-from comfy.patcher_extension import CallbacksMP, WrappersMP, PatcherInjection
+import comfy.utils
 from comfy.comfy_types import UnetWrapperFunction
+from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
+
 
 def string_to_seed(data):
     crc = 0xFFFFFFFF
