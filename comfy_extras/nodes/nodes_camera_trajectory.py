@@ -1,30 +1,26 @@
-import nodes
-import torch
 import numpy as np
+import torch
 from einops import rearrange
+
 import comfy.model_management
-
-
-
-MAX_RESOLUTION = nodes.MAX_RESOLUTION
+from comfy.nodes.common import MAX_RESOLUTION
 
 CAMERA_DICT = {
     "base_T_norm": 1.5,
-    "base_angle": np.pi/3,
-    "Static": {     "angle":[0., 0., 0.],   "T":[0., 0., 0.]},
-    "Pan Up": {     "angle":[0., 0., 0.],   "T":[0., -1., 0.]},
-    "Pan Down": {   "angle":[0., 0., 0.],   "T":[0.,1.,0.]},
-    "Pan Left": {   "angle":[0., 0., 0.],   "T":[-1.,0.,0.]},
-    "Pan Right": {  "angle":[0., 0., 0.],   "T": [1.,0.,0.]},
-    "Zoom In": {    "angle":[0., 0., 0.],   "T": [0.,0.,2.]},
-    "Zoom Out": {   "angle":[0., 0., 0.],   "T": [0.,0.,-2.]},
-    "Anti Clockwise (ACW)": {        "angle": [0., 0., -1.],  "T":[0., 0., 0.]},
-    "ClockWise (CW)": {         "angle": [0., 0., 1.], "T":[0., 0., 0.]},
+    "base_angle": np.pi / 3,
+    "Static": {"angle": [0., 0., 0.], "T": [0., 0., 0.]},
+    "Pan Up": {"angle": [0., 0., 0.], "T": [0., -1., 0.]},
+    "Pan Down": {"angle": [0., 0., 0.], "T": [0., 1., 0.]},
+    "Pan Left": {"angle": [0., 0., 0.], "T": [-1., 0., 0.]},
+    "Pan Right": {"angle": [0., 0., 0.], "T": [1., 0., 0.]},
+    "Zoom In": {"angle": [0., 0., 0.], "T": [0., 0., 2.]},
+    "Zoom Out": {"angle": [0., 0., 0.], "T": [0., 0., -2.]},
+    "Anti Clockwise (ACW)": {"angle": [0., 0., -1.], "T": [0., 0., 0.]},
+    "ClockWise (CW)": {"angle": [0., 0., 1.], "T": [0., 0., 0.]},
 }
 
 
 def process_pose_params(cam_params, width=672, height=384, original_pose_width=1280, original_pose_height=720, device='cpu'):
-
     def get_relative_pose(cam_params):
         """Copied from https://github.com/hehao13/CameraCtrl/blob/main/inference.py
         """
@@ -59,9 +55,9 @@ def process_pose_params(cam_params, width=672, height=384, original_pose_width=1
             cam_param.fy = resized_ori_h * cam_param.fy / height
 
     intrinsic = np.asarray([[cam_param.fx * width,
-                            cam_param.fy * height,
-                            cam_param.cx * width,
-                            cam_param.cy * height]
+                             cam_param.fy * height,
+                             cam_param.cx * width,
+                             cam_param.cy * height]
                             for cam_param in cam_params], dtype=np.float32)
 
     K = torch.as_tensor(intrinsic)[None]  # [1, 1, 4]
@@ -72,9 +68,11 @@ def process_pose_params(cam_params, width=672, height=384, original_pose_width=1
     plucker_embedding = rearrange(plucker_embedding, "b f c h w -> b f h w c")[0]
     return plucker_embedding
 
+
 class Camera(object):
     """Copied from https://github.com/hehao13/CameraCtrl/blob/main/inference.py
     """
+
     def __init__(self, entry):
         fx, fy, cx, cy = entry[1:5]
         self.fx = fx
@@ -84,6 +82,7 @@ class Camera(object):
         c2w_mat = np.array(entry[7:]).reshape(4, 4)
         self.c2w_mat = c2w_mat
         self.w2c_mat = np.linalg.inv(c2w_mat)
+
 
 def ray_condition(K, c2w, H, W, device):
     """Copied from https://github.com/hehao13/CameraCtrl/blob/main/inference.py
@@ -121,59 +120,62 @@ def ray_condition(K, c2w, H, W, device):
     # plucker = plucker.permute(0, 1, 4, 2, 3)
     return plucker
 
+
 def get_camera_motion(angle, T, speed, n=81):
     def compute_R_form_rad_angle(angles):
         theta_x, theta_y, theta_z = angles
         Rx = np.array([[1, 0, 0],
-                    [0, np.cos(theta_x), -np.sin(theta_x)],
-                    [0, np.sin(theta_x), np.cos(theta_x)]])
+                       [0, np.cos(theta_x), -np.sin(theta_x)],
+                       [0, np.sin(theta_x), np.cos(theta_x)]])
 
         Ry = np.array([[np.cos(theta_y), 0, np.sin(theta_y)],
-                    [0, 1, 0],
-                    [-np.sin(theta_y), 0, np.cos(theta_y)]])
+                       [0, 1, 0],
+                       [-np.sin(theta_y), 0, np.cos(theta_y)]])
 
         Rz = np.array([[np.cos(theta_z), -np.sin(theta_z), 0],
-                    [np.sin(theta_z), np.cos(theta_z), 0],
-                    [0, 0, 1]])
+                       [np.sin(theta_z), np.cos(theta_z), 0],
+                       [0, 0, 1]])
 
         R = np.dot(Rz, np.dot(Ry, Rx))
         return R
+
     RT = []
     for i in range(n):
-        _angle = (i/n)*speed*(CAMERA_DICT["base_angle"])*angle
+        _angle = (i / n) * speed * (CAMERA_DICT["base_angle"]) * angle
         R = compute_R_form_rad_angle(_angle)
-        _T=(i/n)*speed*(CAMERA_DICT["base_T_norm"])*(T.reshape(3,1))
-        _RT = np.concatenate([R,_T], axis=1)
+        _T = (i / n) * speed * (CAMERA_DICT["base_T_norm"]) * (T.reshape(3, 1))
+        _RT = np.concatenate([R, _T], axis=1)
         RT.append(_RT)
     RT = np.stack(RT)
     return RT
+
 
 class WanCameraEmbedding:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "camera_pose":(["Static","Pan Up","Pan Down","Pan Left","Pan Right","Zoom In","Zoom Out","Anti Clockwise (ACW)", "ClockWise (CW)"],{"default":"Static"}),
+                "camera_pose": (["Static", "Pan Up", "Pan Down", "Pan Left", "Pan Right", "Zoom In", "Zoom Out", "Anti Clockwise (ACW)", "ClockWise (CW)"], {"default": "Static"}),
                 "width": ("INT", {"default": 832, "min": 16, "max": MAX_RESOLUTION, "step": 16}),
                 "height": ("INT", {"default": 480, "min": 16, "max": MAX_RESOLUTION, "step": 16}),
                 "length": ("INT", {"default": 81, "min": 1, "max": MAX_RESOLUTION, "step": 4}),
             },
-            "optional":{
-                "speed":("FLOAT",{"default":1.0, "min": 0, "max": 10.0, "step": 0.1}),
-                "fx":("FLOAT",{"default":0.5, "min": 0, "max": 1, "step": 0.000000001}),
-                "fy":("FLOAT",{"default":0.5, "min": 0, "max": 1, "step": 0.000000001}),
-                "cx":("FLOAT",{"default":0.5, "min": 0, "max": 1, "step": 0.01}),
-                "cy":("FLOAT",{"default":0.5, "min": 0, "max": 1, "step": 0.01}),
+            "optional": {
+                "speed": ("FLOAT", {"default": 1.0, "min": 0, "max": 10.0, "step": 0.1}),
+                "fx": ("FLOAT", {"default": 0.5, "min": 0, "max": 1, "step": 0.000000001}),
+                "fy": ("FLOAT", {"default": 0.5, "min": 0, "max": 1, "step": 0.000000001}),
+                "cx": ("FLOAT", {"default": 0.5, "min": 0, "max": 1, "step": 0.01}),
+                "cy": ("FLOAT", {"default": 0.5, "min": 0, "max": 1, "step": 0.01}),
             }
 
         }
 
-    RETURN_TYPES = ("WAN_CAMERA_EMBEDDING","INT","INT","INT")
-    RETURN_NAMES = ("camera_embedding","width","height","length")
+    RETURN_TYPES = ("WAN_CAMERA_EMBEDDING", "INT", "INT", "INT")
+    RETURN_NAMES = ("camera_embedding", "width", "height", "length")
     FUNCTION = "run"
     CATEGORY = "camera"
 
-    def run(self, camera_pose, width, height, length, speed=1.0,  fx=0.5, fy=0.5, cx=0.5, cy=0.5):
+    def run(self, camera_pose, width, height, length, speed=1.0, fx=0.5, fy=0.5, cx=0.5, cy=0.5):
         """
         Use Camera trajectory as extrinsic parameters to calculate Plücker embeddings (Sitzmannet al., 2021)
         Adapted from https://github.com/aigc-apps/VideoX-Fun/blob/main/comfyui/comfyui_nodes.py
@@ -184,13 +186,13 @@ class WanCameraEmbedding:
         T = np.array(CAMERA_DICT[motion_list[0]]["T"])
         RT = get_camera_motion(angle, T, speed, length)
 
-        trajs=[]
+        trajs = []
         for cp in RT.tolist():
-            traj=[fx,fy,cx,cy,0,0]
+            traj = [fx, fy, cx, cy, 0, 0]
             traj.extend(cp[0])
             traj.extend(cp[1])
             traj.extend(cp[2])
-            traj.extend([0,0,0,1])
+            traj.extend([0, 0, 0, 1])
             trajs.append(traj)
 
         cam_params = np.array([[float(x) for x in pose] for pose in trajs])

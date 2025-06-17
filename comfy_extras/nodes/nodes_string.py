@@ -2,6 +2,7 @@ import re
 
 from comfy.comfy_types.node_typing import IO
 
+
 class StringConcatenate():
     @classmethod
     def INPUT_TYPES(s):
@@ -19,6 +20,7 @@ class StringConcatenate():
 
     def execute(self, string_a, string_b, delimiter, **kwargs):
         return delimiter.join((string_a, string_b)),
+
 
 class StringSubstring():
     @classmethod
@@ -38,6 +40,7 @@ class StringSubstring():
     def execute(self, string, start, end, **kwargs):
         return string[start:end],
 
+
 class StringLength():
     @classmethod
     def INPUT_TYPES(s):
@@ -56,6 +59,7 @@ class StringLength():
         length = len(string)
 
         return length,
+
 
 class CaseConverter():
     @classmethod
@@ -111,6 +115,7 @@ class StringTrim():
             result = string
 
         return result,
+
 
 class StringReplace():
     @classmethod
@@ -187,6 +192,7 @@ class StringCompare():
             return a.startswith(b),
         elif mode == "Ends With":
             return a.endswith(b),
+
 
 class RegexMatch():
     @classmethod
@@ -299,6 +305,7 @@ class RegexExtract():
 
 class RegexReplace():
     DESCRIPTION = "Find and replace text using regex patterns."
+
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -330,6 +337,7 @@ class RegexReplace():
             flags |= re.DOTALL
         result = re.sub(regex_pattern, replace, string, count=count, flags=flags)
         return result,
+
 
 NODE_CLASS_MAPPINGS = {
     "StringConcatenate": StringConcatenate,
