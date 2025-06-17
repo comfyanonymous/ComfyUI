@@ -260,10 +260,7 @@ def _create_parser() -> EnhancedConfigArgParser:
         help="Set the base URL for the ComfyUI API.  (default: https://api.comfy.org)",
     )
 
-    database_default_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "user", "comfyui.db")
-    )
-    parser.add_argument("--database-url", type=str, default=f"sqlite:///{database_default_path}", help="Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.")
+    parser.add_argument("--database-url", type=str, default=f"sqlite:///:memory:", help="Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.")
 
     parser.add_argument("--workflows", type=str, nargs='+', default=[], help="Execute the API workflow(s) specified in the provided files. For each workflow, its outputs will be printed to a line to standard out. Application logging will be redirected to standard error. Use `-` to signify standard in.")
 
