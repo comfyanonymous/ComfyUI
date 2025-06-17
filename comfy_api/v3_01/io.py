@@ -51,6 +51,28 @@ def is_class(obj):
     return isinstance(obj, type)
 
 
+def copy_class(cls: type) -> type:
+    '''
+    Copy a class and its attributes.
+    '''
+    if cls is None:
+        return None
+    cls_dict = {
+            k: v for k, v in cls.__dict__.items()
+            if k not in ('__dict__', '__weakref__', '__module__', '__doc__')
+        }
+    # new class
+    new_cls = type(
+        cls.__name__,
+        (cls,),
+        cls_dict
+    )
+    # metadata preservation
+    new_cls.__module__ = cls.__module__
+    new_cls.__doc__ = cls.__doc__
+    return new_cls
+
+
 class NumberDisplay(str, Enum):
     number = "number"
     slider = "slider"
@@ -59,8 +81,8 @@ class NumberDisplay(str, Enum):
 class ComfyType:
     Type = Any
     io_type: str = None
-    Input = None
-    Output = None
+    Input: type[InputV3] = None
+    Output: type[OutputV3] = None
 
 # NOTE: this is a workaround to make the decorator return the correct type
 T = TypeVar("T", bound=type)
@@ -74,7 +96,12 @@ def comfytype(io_type: str, **kwargs):
     - class Output(OutputV3): ...
     '''
     def decorator(cls: T) -> T:
-        if not isinstance(cls, ComfyType):
+        if isinstance(cls, ComfyType) or issubclass(cls, ComfyType):
+            # clone Input and Output classes to avoid modifying the original class
+            new_cls = cls
+            new_cls.Input = copy_class(new_cls.Input)
+            new_cls.Output = copy_class(new_cls.Output)
+        else:
             # copy class attributes except for special ones that shouldn't be in type()
             cls_dict = {
                 k: v for k, v in cls.__dict__.items()
@@ -91,8 +118,6 @@ def comfytype(io_type: str, **kwargs):
             new_cls.__doc__ = cls.__doc__
             # assign ComfyType attributes, if needed
             # NOTE: do we need __ne__ trick for io_type? (see IO.__ne__ for details)
-        else:
-            new_cls = cls
         new_cls.io_type = io_type
         if new_cls.Input is not None:
             new_cls.Input.Parent = new_cls
@@ -101,6 +126,12 @@ def comfytype(io_type: str, **kwargs):
         return new_cls
     return decorator
 
+def Custom(io_type: IO | str) -> type[ComfyType]:
+    '''Create a ComfyType for a custom io_type.'''
+    @comfytype(io_type=io_type)
+    class CustomComfyType(ComfyTypeIO):
+        ...
+    return CustomComfyType
 
 class IO_V3:
     '''
@@ -173,33 +204,13 @@ class OutputV3(IO_V3):
         self.tooltip = tooltip
         self.is_output_list = is_output_list
 
-def CustomType(io_type: IO | str) -> type[IO_V3]:
-    name = f"{io_type}_IO_V3"
-    return type(name, (IO_V3,), {}, io_type=io_type)
 
-def CustomInput(id: str, io_type: IO | str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None) -> InputV3:
-    '''
-    Defines input for 'io_type'. Can be used to stand in for non-core types.
-    '''
-    input_kwargs = {
-        "id": id,
-        "display_name": display_name,
-        "optional": optional,
-        "tooltip": tooltip,
-        "lazy": lazy,
-    }
-    return type(f"{io_type}Input", (InputV3,), {}, io_type=io_type)(**input_kwargs)
-
-def CustomOutput(id: str, io_type: IO | str, display_name: str=None, tooltip: str=None) -> OutputV3:
-    '''
-    Defines output for 'io_type'. Can be used to stand in for non-core types.
-    '''
-    input_kwargs = {
-        "id": id,
-        "display_name": display_name,
-        "tooltip": tooltip,
-    }
-    return type(f"{io_type}Output", (OutputV3,), {}, io_type=io_type)(**input_kwargs)
+class ComfyTypeIO(ComfyType):
+    '''ComfyType subclass that has default Input and Output classes; useful for basic Inputs and Outputs.'''
+    class Input(InputV3):
+        ...
+    class Output(OutputV3):
+        ...
 
 
 @comfytype(io_type=IO.BOOLEAN)
@@ -360,188 +371,96 @@ class MultiCombo:
 
 
 @comfytype(io_type=IO.IMAGE)
-class Image:
+class Image(ComfyTypeIO):
     Type = torch.Tensor
-    class Input(InputV3):
-        '''Image input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.MASK)
-class Mask:
+class Mask(ComfyTypeIO):
     Type = torch.Tensor
-    class Input(InputV3):
-        '''Mask input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.LATENT)
-class Latent:
+class Latent(ComfyTypeIO):
     Type = Any # TODO: make Type a TypedDict
-    class Input(InputV3):
-        '''Latent input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.CONDITIONING)
-class Conditioning:
+class Conditioning(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Conditioning input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.SAMPLER)
-class Sampler:
+class Sampler(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Sampler input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.SIGMAS)
-class Sigmas:
+class Sigmas(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Sigmas input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.NOISE)
-class Noise:
+class Noise(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Noise input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.GUIDER)
-class Guider:
+class Guider(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Guider input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.CLIP)
-class Clip:
+class Clip(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Clip input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.CONTROL_NET)
-class ControlNet:
+class ControlNet(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''ControlNet input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.VAE)
-class Vae:
+class Vae(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Vae input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.MODEL)
-class Model:
+class Model(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Model input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.CLIP_VISION)
-class ClipVision:
+class ClipVision(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''ClipVision input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.CLIP_VISION_OUTPUT)
-class ClipVisionOutput:
+class ClipVisionOutput(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''ClipVisionOutput input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.STYLE_MODEL)
-class StyleModel:
+class StyleModel(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''StyleModel input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.GLIGEN)
-class Gligen:
+class Gligen(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Gligen input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.UPSCALE_MODEL)
-class UpscaleModel:
+class UpscaleModel(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''UpscaleModel input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.AUDIO)
-class Audio:
+class Audio(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Audio input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.POINT)
-class Point:
+class Point(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Point input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.FACE_ANALYSIS)
-class FaceAnalysis:
+class FaceAnalysis(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''FaceAnalysis input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.BBOX)
-class BBOX:
+class BBOX(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Bbox input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.SEGS)
-class SEGS:
+class SEGS(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''SEGS input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type=IO.VIDEO)
-class Video:
+class Video(ComfyTypeIO):
     Type = Any
-    class Input(InputV3):
-        '''Video input.'''
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type="COMFY_MULTITYPED_V3")
 class MultiType:
@@ -1025,9 +944,11 @@ class NodeOutput(BASE_NO):
         self.ui = ui
         self.expand = expand
         self.block_execution = block_execution
+        # self.kwargs = kwargs
 
     @property
     def result(self):
+        # TODO: use kwargs to refer to outputs by id + organize in proper order
         return self.args if len(self.args) > 0 else None
 
 
@@ -1131,20 +1052,20 @@ if __name__ == "__main__":
     inputs: list[InputV3] = [
         Int.Input("tessfes", widgetType=IO.STRING),
         Int.Input("my_int"),
-        CustomInput("xyz", "XYZ"),
-        CustomInput("model1", "MODEL_M"),
+        Custom("XYZ").Input("xyz"),
+        Custom("MODEL_M").Input("model1"),
         Image.Input("my_image"),
         Float.Input("my_float"),
-        MultitypedInput("my_inputs", [String.Input, CustomType("MODEL_M"), CustomType("XYZ")]),
+        MultiType.Input("my_inputs", [String, Custom("MODEL_M"), Custom("XYZ")]),
     ]
-
+    Custom("XYZ").Input()
     outputs: list[OutputV3] = [
         Image.Output("image"),
-        CustomOutput("xyz", "XYZ")
+        Custom("XYZ").Output("xyz"),
     ]
 
     for c in inputs:
-        if isinstance(c, MultitypedInput):
+        if isinstance(c, MultiType):
             print(f"{c}, {type(c)}, {type(c).io_type}, {c.id}, {[x.io_type for x in c.io_types]}")
             print(c.get_io_type_V1())
         else:

@@ -11,6 +11,7 @@ class XYZ:
     class Output(io.OutputV3):
         ...
 
+
 class V3TestNode(io.ComfyNodeV3):
 
     def __init__(self):
@@ -26,6 +27,8 @@ class V3TestNode(io.ComfyNodeV3):
             inputs=[
                 io.Image.Input("image", display_name="new_image"),
                 XYZ.Input("xyz", optional=True),
+                io.Custom("JKL").Input("jkl", optional=True),
+                #JKL.Input("jkl", optional=True),
                 #CustomInput("xyz", "XYZ", optional=True),
                 io.Mask.Input("mask", optional=True),
                 io.Int.Input("some_int", display_name="new_name", min=0, max=127, default=42,
@@ -60,7 +63,7 @@ class V3TestNode(io.ComfyNodeV3):
         )
 
     @classmethod
-    def execute(cls, image: io.Image.Type, some_int: int, combo: io.Combo.Type, combo2: io.MultiCombo.Type, xyz: XYZ.Type=None, mask: io.Mask.Type=None):
+    def execute(cls, image: io.Image.Type, some_int: int, combo: io.Combo.Type, combo2: io.MultiCombo.Type, xyz: XYZ.Type=None, mask: io.Mask.Type=None, **kwargs):
         #some_int
         if hasattr(cls, "hahajkunless"):
             raise Exception("The 'cls' variable leaked instance state between runs!")
