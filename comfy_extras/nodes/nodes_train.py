@@ -19,6 +19,7 @@ from comfy.cmd import folder_paths
 from comfy import node_helpers
 from comfy.cli_args import args
 from comfy.comfy_types.node_typing import IO
+from comfy.execution_context import current_execution_context
 from comfy.weight_adapter import adapters
 from . import nodes_custom_sampler
 
@@ -470,6 +471,8 @@ class TrainLoraNode:
                 criterion = torch.nn.HuberLoss()
             elif loss_function == "SmoothL1":
                 criterion = torch.nn.SmoothL1Loss()
+            else:
+                criterion = None
 
             # setup models
             for m in find_all_highest_child_module_with_forward(mp.model.diffusion_model):
@@ -493,7 +496,7 @@ class TrainLoraNode:
             # Training loop
             torch.cuda.empty_cache()
             try:
-                for step in (pbar:=tqdm.trange(steps, desc="Training LoRA", smoothing=0.01, disable=not comfy.utils.PROGRESS_BAR_ENABLED)):
+                for step in (pbar:=tqdm.trange(steps, desc="Training LoRA", smoothing=0.01, disable=not current_execution_context().server.receive_all_progress_notifications)):
                     # Generate random sigma
                     sigma = mp.model.model_sampling.percent_to_sigma(
                         torch.rand((1,)).item()
