@@ -791,7 +791,7 @@ class PromptServer():
             if hasattr(Image, 'Resampling'):
                 resampling = Image.Resampling.BILINEAR
             else:
-                resampling = Image.ANTIALIAS
+                resampling = Image.Resampling.LANCZOS
 
             image = ImageOps.contain(image, (max_size, max_size), resampling)
         type_num = 1
