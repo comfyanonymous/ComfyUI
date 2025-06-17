@@ -1128,6 +1128,27 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
 
 
 def load_diffusion_model_state_dict(sd, model_options: dict = None, ckpt_path: Optional[str] = ""):  # load unet in diffusers or regular format
+    """
+    Loads a UNet diffusion model from a state dictionary, supporting both diffusers and regular formats.
+
+    Args:
+        sd (dict): State dictionary containing model weights and configuration
+        model_options (dict, optional): Additional options for model loading. Supports:
+            - dtype: Override model data type
+            - custom_operations: Custom model operations
+            - fp8_optimizations: Enable FP8 optimizations
+
+    Returns:
+        ModelPatcher: A wrapped model instance that handles device management and weight loading.
+        Returns None if the model configuration cannot be detected.
+
+    The function:
+    1. Detects and handles different model formats (regular, diffusers, mmdit)
+    2. Configures model dtype based on parameters and device capabilities
+    3. Handles weight conversion and device placement
+    4. Manages model optimization settings
+    5. Loads weights and returns a device-managed model instance
+    """
     if model_options is None:
         model_options = {}
     dtype = model_options.get("dtype", None)

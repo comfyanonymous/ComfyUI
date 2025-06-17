@@ -16,25 +16,28 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import logging
 import math
+
+import logging
+import torch
 from enum import Enum
 from typing import TypeVar, Type, Protocol, Any, Optional
-
-import torch
 
 from . import conds
 from . import latent_formats
 from . import model_management
 from . import ops
 from . import utils
+from .conds import CONDRegular, CONDConstant
 from .ldm.ace.model import ACEStepTransformer2DModel
 from .ldm.audio.dit import AudioDiffusionTransformer
 from .ldm.audio.embedders import NumberConditioner
 from .ldm.aura.mmdit import MMDiT as AuraMMDiT
 from .ldm.cascade.stage_b import StageB
 from .ldm.cascade.stage_c import StageC
+from .ldm.chroma import model as chroma_model
 from .ldm.cosmos.model import GeneralDIT
+from .ldm.cosmos.predict2 import MiniTrainDIT
 from .ldm.flux import model as flux_model
 from .ldm.genmo.joint_model.asymm_models_joint import AsymmDiTJoint
 from .ldm.hidream.model import HiDreamImageTransformer2DModel
@@ -49,8 +52,10 @@ from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmenta
 from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
 from .ldm.pixart.pixartms import PixArtMS
 from .ldm.wan.model import WanModel, VaceWanModel, CameraWanModel
-from .ldm.chroma import model as chroma_model
 from .model_management_types import ModelManageable
+from .model_sampling import CONST, ModelSamplingDiscreteFlow, ModelSamplingFlux, IMG_TO_IMG
+from .model_sampling import StableCascadeSampling, COSMOS_RFLOW, ModelSamplingCosmosRFlow, V_PREDICTION, \
+    ModelSamplingContinuousEDM, ModelSamplingDiscrete, EPS, EDM, ModelSamplingContinuousV
 from .ops import Operations
 from .patcher_extension import WrapperExecutor, WrappersMP, get_all_wrappers
 
@@ -65,9 +70,7 @@ class ModelType(Enum):
     V_PREDICTION_CONTINUOUS = 7
     FLUX = 8
     IMG_TO_IMG = 9
-
-
-from .model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling, CONST, ModelSamplingDiscreteFlow, ModelSamplingContinuousV, ModelSamplingFlux, IMG_TO_IMG
+    FLOW_COSMOS = 10
 
 
 def model_sampling(model_config, model_type):
@@ -98,6 +101,9 @@ def model_sampling(model_config, model_type):
         s = ModelSamplingFlux
     elif model_type == ModelType.IMG_TO_IMG:
         c = IMG_TO_IMG
+    elif model_type == ModelType.FLOW_COSMOS:
+        c = COSMOS_RFLOW
+        s = ModelSamplingCosmosRFlow
 
     class ModelSampling(s, c):
         pass
@@ -1038,6 +1044,44 @@ class CosmosVideo(BaseModel):
         return latent_image * ((sigma ** 2 + self.model_sampling.sigma_data ** 2) ** 0.5)
 
 
+class CosmosPredict2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW_COSMOS, image_to_video=False, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=MiniTrainDIT)
+        self.image_to_video = image_to_video
+        if self.image_to_video:
+            self.concat_keys = ("mask_inverted",)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = CONDRegular(cross_attn)
+
+        denoise_mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
+        if denoise_mask is not None:
+            out["denoise_mask"] = CONDRegular(denoise_mask)
+
+        out['fps'] = CONDConstant(kwargs.get("frame_rate", None))
+        return out
+
+    def process_timestep(self, timestep, x, denoise_mask=None, **kwargs):
+        if denoise_mask is None:
+            return timestep
+        condition_video_mask_B_1_T_1_1 = denoise_mask.mean(dim=[1, 3, 4], keepdim=True)
+        c_noise_B_1_T_1_1 = 0.0 * (1.0 - condition_video_mask_B_1_T_1_1) + timestep.reshape(timestep.shape[0], 1, 1, 1, 1) * condition_video_mask_B_1_T_1_1
+        out = c_noise_B_1_T_1_1.squeeze(dim=[1, 3, 4])
+        return out
+
+    def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
+        sigma = sigma.reshape([sigma.shape[0]] + [1] * (len(noise.shape) - 1))
+        sigma_noise_augmentation = 0  # TODO
+        if sigma_noise_augmentation != 0:
+            latent_image = latent_image + noise
+        latent_image = self.model_sampling.calculate_input(torch.tensor([sigma_noise_augmentation], device=latent_image.device, dtype=latent_image.dtype), latent_image)
+        sigma = (sigma / (sigma + 1))
+        return latent_image / (1.0 - sigma)
+
+
 class Lumina2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=NextDiT)
@@ -1151,6 +1195,7 @@ class WAN21_Vace(WAN21):
         out['vace_strength'] = conds.CONDConstant(vace_strength)
         return out
 
+
 class WAN21_Camera(WAN21):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
         super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=CameraWanModel)
@@ -1162,6 +1207,7 @@ class WAN21_Camera(WAN21):
         if camera_conditions is not None:
             out['camera_conditions'] = conds.CONDRegular(camera_conditions)
         return out
+
 
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
@@ -1199,6 +1245,7 @@ class HiDream(BaseModel):
             out['image_cond'] = conds.CONDNoiseShape(self.process_latent_in(image_cond))
         return out
 
+
 class Chroma(Flux):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=chroma_model.Chroma)
@@ -1210,6 +1257,7 @@ class Chroma(Flux):
         if guidance is not None:
             out['guidance'] = conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
+
 
 class ACEStep(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):

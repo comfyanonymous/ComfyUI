@@ -1,6 +1,6 @@
 [project]
 name = "comfyui"
-version = "0.3.40"
+version = "0.3.41"
 description = "An installable version of ComfyUI"
 readme = "README.md"
 authors = [
@@ -104,6 +104,8 @@ dependencies = [
     "scikit-learn>=1.4.1",
     # everything that is a torch extension will need setuptools, so just include it
     "setuptools",
+    "alembic",
+    "SQLAlchemy",
 ]
 
 [build-system]

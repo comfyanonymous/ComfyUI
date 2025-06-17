@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import time
+
 import collections.abc
 import logging
 import mimetypes
 import os
-import time
 from contextlib import nullcontext
 from functools import reduce
 from pathlib import Path, PurePosixPath
@@ -447,6 +448,30 @@ def filter_files_content_types(files: list[str], content_types: list[Literal["im
     return result
 
 
+def get_input_subfolders() -> list[str]:
+    """Returns a list of all subfolder paths in the input directory, recursively.
+
+    Returns:
+        List of folder paths relative to the input directory, excluding the root directory
+    """
+    input_dir = get_input_directory()
+    folders = []
+
+    try:
+        if not os.path.exists(input_dir):
+            return []
+
+        for root, dirs, _ in os.walk(input_dir):
+            rel_path = os.path.relpath(root, input_dir)
+            if rel_path != ".":  # Only include non-root directories
+                # Normalize path separators to forward slashes
+                folders.append(rel_path.replace(os.sep, '/'))
+
+        return sorted(folders)
+    except FileNotFoundError:
+        return []
+
+
 @_module_properties.getter
 def _cache_helper():
     return nullcontext()
@@ -491,5 +516,6 @@ __all__ = [
     "get_save_image_path",
     "create_directories",
     "invalidate_cache",
-    "filter_files_content_types"
+    "filter_files_content_types",
+    "get_input_subfolders",
 ]

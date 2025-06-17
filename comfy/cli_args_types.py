@@ -145,6 +145,7 @@ class Configuration(dict):
         front_end_version (str): Specifies the version of the frontend to be used.
         front_end_root (Optional[str]): The local filesystem path to the directory where the frontend is located. Overrides --front-end-version.
         comfy_api_base (str): Set the base URL for the ComfyUI API. (default: https://api.comfy.org)
+        database_url (str): Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.
     """
 
     def __init__(self, **kwargs):
@@ -258,6 +259,8 @@ class Configuration(dict):
         self.front_end_version: str = "comfyanonymous/ComfyUI@latest"
         self.front_end_root: Optional[str] = None
         self.comfy_api_base: str = "https://api.comfy.org"
+        self.database_url: str = "sqlite:///:memory:"
+
         for key, value in kwargs.items():
             self[key] = value
         # this must always be last
