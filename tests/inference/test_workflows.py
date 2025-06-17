@@ -9,7 +9,6 @@ from comfy.client.embedded_comfy_client import Comfy
 from comfy.model_downloader import add_known_models, KNOWN_LORAS
 from comfy.model_downloader_types import CivitFile, HuggingFile
 from comfy_extras.nodes.nodes_audio import TorchAudioNotFoundError
-from comfy_extras.nodes.nodes_nf4 import BitsAndBytesNotFoundError
 from . import workflows
 
 
@@ -38,8 +37,6 @@ async def test_workflow(workflow_name: str, workflow_file: Traversable, has_gpu:
     # todo: add all the models we want to test a bit m2ore elegantly
     try:
         outputs = await client.queue_prompt(prompt)
-    except BitsAndBytesNotFoundError:
-        pytest.skip("requires bitsandbytes")
     except TorchAudioNotFoundError:
         pytest.skip("requires torchaudio")
 
