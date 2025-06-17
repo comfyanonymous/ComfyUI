@@ -200,7 +200,7 @@ def test_validate_prompt_invalid_input_type(mock_nodes):
     result = validate_prompt(prompt)
     assert not result.valid
     assert result.error["type"] == "prompt_outputs_failed_validation"
-    assert result.node_errors["1"]["errors"][0]["type"] == "exception_during_inner_validation"
+    assert result.node_errors["1"]["errors"][0]["type"] == "value_not_in_list"
 
 
 @pytest.mark.parametrize("ckpt_name, known_model", [

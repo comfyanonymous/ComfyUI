@@ -1,7 +1,7 @@
 import pytest
 import os
 import tempfile
-from folder_paths import get_input_subfolders, set_input_directory
+from comfy.cmd.folder_paths import get_input_subfolders, set_input_directory
 
 @pytest.fixture(scope="module")
 def mock_folder_structure():
