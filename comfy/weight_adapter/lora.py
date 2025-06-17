@@ -2,9 +2,10 @@ import logging
 from typing import Optional
 
 import torch
-import comfy.model_management
+from ..model_management import cast_to_device
 from .base import WeightAdapterBase, weight_decompose, pad_tensor_to_shape
 
+logger = logging.getLogger(__name__)
 
 class LoRAAdapter(WeightAdapterBase):
     name = "lora"
@@ -90,10 +91,10 @@ class LoRAAdapter(WeightAdapterBase):
         original_weight=None,
     ):
         v = self.weights
-        mat1 = comfy.model_management.cast_to_device(
+        mat1 = cast_to_device(
             v[0], weight.device, intermediate_dtype
         )
-        mat2 = comfy.model_management.cast_to_device(
+        mat2 = cast_to_device(
             v[1], weight.device, intermediate_dtype
         )
         dora_scale = v[4]
@@ -109,7 +110,7 @@ class LoRAAdapter(WeightAdapterBase):
 
         if v[3] is not None:
             # locon mid weights, hopefully the math is fine because I didn't properly test it
-            mat3 = comfy.model_management.cast_to_device(
+            mat3 = cast_to_device(
                 v[3], weight.device, intermediate_dtype
             )
             final_shape = [mat2.shape[1], mat2.shape[0], mat3.shape[2], mat3.shape[3]]
@@ -138,5 +139,5 @@ class LoRAAdapter(WeightAdapterBase):
             else:
                 weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
         except Exception as e:
-            logging.error("ERROR {} {} {}".format(self.name, key, e))
+            logger.error("ERROR {} {} {}".format(self.name, key, e))
         return weight

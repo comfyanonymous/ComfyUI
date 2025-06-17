@@ -2,9 +2,10 @@ import logging
 from typing import Optional
 
 import torch
-import comfy.model_management
+from ..model_management import cast_to_device
 from .base import WeightAdapterBase, weight_decompose
 
+logger = logging.getLogger(__name__)
 
 class LoHaAdapter(WeightAdapterBase):
     name = "loha"
@@ -75,19 +76,19 @@ class LoHaAdapter(WeightAdapterBase):
             t1 = v[5]
             t2 = v[6]
             m1 = torch.einsum('i j k l, j r, i p -> p r k l',
-                                comfy.model_management.cast_to_device(t1, weight.device, intermediate_dtype),
-                                comfy.model_management.cast_to_device(w1b, weight.device, intermediate_dtype),
-                                comfy.model_management.cast_to_device(w1a, weight.device, intermediate_dtype))
+                              cast_to_device(t1, weight.device, intermediate_dtype),
+                              cast_to_device(w1b, weight.device, intermediate_dtype),
+                              cast_to_device(w1a, weight.device, intermediate_dtype))
 
             m2 = torch.einsum('i j k l, j r, i p -> p r k l',
-                                comfy.model_management.cast_to_device(t2, weight.device, intermediate_dtype),
-                                comfy.model_management.cast_to_device(w2b, weight.device, intermediate_dtype),
-                                comfy.model_management.cast_to_device(w2a, weight.device, intermediate_dtype))
+                              cast_to_device(t2, weight.device, intermediate_dtype),
+                              cast_to_device(w2b, weight.device, intermediate_dtype),
+                              cast_to_device(w2a, weight.device, intermediate_dtype))
         else:
-            m1 = torch.mm(comfy.model_management.cast_to_device(w1a, weight.device, intermediate_dtype),
-                            comfy.model_management.cast_to_device(w1b, weight.device, intermediate_dtype))
-            m2 = torch.mm(comfy.model_management.cast_to_device(w2a, weight.device, intermediate_dtype),
-                            comfy.model_management.cast_to_device(w2b, weight.device, intermediate_dtype))
+            m1 = torch.mm(cast_to_device(w1a, weight.device, intermediate_dtype),
+                          cast_to_device(w1b, weight.device, intermediate_dtype))
+            m2 = torch.mm(cast_to_device(w2a, weight.device, intermediate_dtype),
+                          cast_to_device(w2b, weight.device, intermediate_dtype))
 
         try:
             lora_diff = (m1 * m2).reshape(weight.shape)
@@ -96,5 +97,5 @@ class LoHaAdapter(WeightAdapterBase):
             else:
                 weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
         except Exception as e:
-            logging.error("ERROR {} {} {}".format(self.name, key, e))
+            logger.error("ERROR {} {} {}".format(self.name, key, e))
         return weight

@@ -4,6 +4,7 @@ import os
 from aiohttp import web
 import logging
 
+logger = logging.getLogger(__name__)
 
 class AppSettings():
     def __init__(self, user_manager):
@@ -16,14 +17,14 @@ class AppSettings():
                 "comfy.settings.json"
             )
         except KeyError as e:
-            logging.error("User settings not found.")
+            loggererror("User settings not found.")
             raise web.HTTPUnauthorized() from e
         if os.path.isfile(file):
             try:
                 with open(file) as f:
                     return json.load(f)
             except:
-                logging.error(f"The user settings file is corrupted: {file}")
+                loggererror(f"The user settings file is corrupted: {file}")
                 return {}
         else:
             return {}

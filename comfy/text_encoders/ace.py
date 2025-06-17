@@ -1,13 +1,16 @@
-from comfy import sd1_clip
-from .spiece_tokenizer import SPieceTokenizer
-import comfy.text_encoders.t5
+from importlib.resources import files
+
+import logging
 import os
 import re
 import torch
-import logging
-
 from tokenizers import Tokenizer
+
 from .ace_text_cleaners import multilingual_cleaners, japanese_to_romaji
+from .spiece_tokenizer import SPieceTokenizer
+from .t5 import T5
+from .. import sd1_clip
+from ..component_model.files import get_path_as_dict
 
 SUPPORT_LANGUAGES = {
     "en": 259, "de": 260, "fr": 262, "es": 284, "it": 285,
@@ -18,11 +21,16 @@ SUPPORT_LANGUAGES = {
 
 structure_pattern = re.compile(r"\[.*?\]")
 
-DEFAULT_VOCAB_FILE = os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "ace_lyrics_tokenizer"), "vocab.json")
+
+def get_vocab_file() -> str:
+    return str(files(f"{__package__}.ace_lyrics_tokenizer") / "vocab.json")
+
+
 
 
 class VoiceBpeTokenizer:
-    def __init__(self, vocab_file=DEFAULT_VOCAB_FILE):
+    def __init__(self, vocab_file=None):
+        vocab_file = vocab_file or get_vocab_file()
         self.tokenizer = None
         if vocab_file is not None:
             self.tokenizer = Tokenizer.from_file(vocab_file)
@@ -92,29 +100,40 @@ class VoiceBpeTokenizer:
 
 
 class UMT5BaseModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, model_options={}):
-        textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "umt5_config_base.json")
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=comfy.text_encoders.t5.T5, enable_attention_masks=True, zero_out_masked=False, model_options=model_options)
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, model_options=None, textmodel_json_config=None):
+        if model_options is None:
+            model_options = {}
+        textmodel_json_config = get_path_as_dict(textmodel_json_config,  "umt5_config_base.json", package=__package__)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5, enable_attention_masks=True, zero_out_masked=False, model_options=model_options)
+
 
 class UMT5BaseTokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = {}
         tokenizer = tokenizer_data.get("spiece_model", None)
         super().__init__(tokenizer, pad_with_end=False, embedding_size=768, embedding_key='umt5base', tokenizer_class=SPieceTokenizer, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, pad_token=0, tokenizer_data=tokenizer_data)
 
     def state_dict(self):
         return {"spiece_model": self.tokenizer.serialize_model()}
 
+
 class LyricsTokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
-        tokenizer = os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "ace_lyrics_tokenizer"), "vocab.json")
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = {}
+        tokenizer = get_vocab_file()
         super().__init__(tokenizer, pad_with_end=False, embedding_size=1024, embedding_key='lyrics', tokenizer_class=VoiceBpeTokenizer, has_start_token=True, pad_to_max_length=False, max_length=99999999, min_length=1, pad_token=2, has_end_token=False, tokenizer_data=tokenizer_data)
 
+
 class AceT5Tokenizer:
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = {}
         self.voicebpe = LyricsTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.umt5base = UMT5BaseTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
 
-    def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
+    def tokenize_with_weights(self, text: str, return_word_ids=False, **kwargs):
         out = {}
         out["lyrics"] = self.voicebpe.tokenize_with_weights(kwargs.get("lyrics", ""), return_word_ids, **kwargs)
         out["umt5base"] = self.umt5base.tokenize_with_weights(text, return_word_ids, **kwargs)
@@ -126,9 +145,12 @@ class AceT5Tokenizer:
     def state_dict(self):
         return self.umt5base.state_dict()
 
+
 class AceT5Model(torch.nn.Module):
-    def __init__(self, device="cpu", dtype=None, model_options={}, **kwargs):
+    def __init__(self, device="cpu", dtype=None, model_options=None, **kwargs):
         super().__init__()
+        if model_options is None:
+            model_options = {}
         self.umt5base = UMT5BaseModel(device=device, dtype=dtype, model_options=model_options)
         self.dtypes = set()
         if dtype is not None:

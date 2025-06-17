@@ -99,6 +99,7 @@ dependencies = [
     "colour",
     "av>=14.2.0",
     "pydantic~=2.0",
+    "pydantic-settings~=2.0",
     "typer",
     "ijson",
     "scikit-learn>=1.4.1",
@@ -249,4 +250,4 @@ exclude = ["*.ipynb"]
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["comfy/", "comfy_extras/"]
+packages = ["comfy/", "comfy_extras/", "comfy_api/", "comfy_api_nodes/", "comfy_config/"]

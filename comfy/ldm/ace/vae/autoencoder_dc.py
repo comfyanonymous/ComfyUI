@@ -4,9 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Tuple, Union
 
-import comfy.model_management
-import comfy.ops
-ops = comfy.ops.disable_weight_init
+from .... import model_management
+from ....ops import disable_weight_init as ops
 
 
 class RMSNorm(ops.RMSNorm):
@@ -19,7 +18,7 @@ class RMSNorm(ops.RMSNorm):
         x = super().forward(x)
         if self.elementwise_affine:
             if self.bias is not None:
-                x = x + comfy.model_management.cast_to(self.bias, dtype=x.dtype, device=x.device)
+                x = x + model_management.cast_to(self.bias, dtype=x.dtype, device=x.device)
         return x
 
 

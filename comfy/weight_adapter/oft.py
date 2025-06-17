@@ -2,9 +2,10 @@ import logging
 from typing import Optional
 
 import torch
-import comfy.model_management
+from ..model_management import cast_to_device
 from .base import WeightAdapterBase, weight_decompose
 
+logger = logging.getLogger(__name__)
 
 class OFTAdapter(WeightAdapterBase):
     name = "oft"
@@ -62,9 +63,9 @@ class OFTAdapter(WeightAdapterBase):
         alpha = v[2]
         dora_scale = v[3]
 
-        blocks = comfy.model_management.cast_to_device(blocks, weight.device, intermediate_dtype)
+        blocks = cast_to_device(blocks, weight.device, intermediate_dtype)
         if rescale is not None:
-            rescale = comfy.model_management.cast_to_device(rescale, weight.device, intermediate_dtype)
+            rescale = cast_to_device(rescale, weight.device, intermediate_dtype)
 
         block_num, block_size, *_ = blocks.shape
 
@@ -92,5 +93,5 @@ class OFTAdapter(WeightAdapterBase):
             else:
                 weight += function((strength * lora_diff).type(weight.dtype))
         except Exception as e:
-            logging.error("ERROR {} {} {}".format(self.name, key, e))
+            logger.error("ERROR {} {} {}".format(self.name, key, e))
         return weight

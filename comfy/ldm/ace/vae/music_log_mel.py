@@ -8,7 +8,7 @@ try:
 except:
     logging.warning("torchaudio missing, ACE model will be broken")
 
-import comfy.model_management
+from .... import model_management
 
 class LinearSpectrogram(nn.Module):
     def __init__(
@@ -47,7 +47,7 @@ class LinearSpectrogram(nn.Module):
             self.n_fft,
             hop_length=self.hop_length,
             win_length=self.win_length,
-            window=comfy.model_management.cast_to(self.window, dtype=torch.float32, device=y.device),
+            window=model_management.cast_to(self.window, dtype=torch.float32, device=y.device),
             center=self.center,
             pad_mode="reflect",
             normalized=False,

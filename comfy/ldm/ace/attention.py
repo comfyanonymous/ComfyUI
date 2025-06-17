@@ -18,8 +18,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-import comfy.model_management
-from comfy.ldm.modules.attention import optimized_attention
+from ... import model_management
+from ..modules.attention import optimized_attention
 
 class Attention(nn.Module):
     def __init__(
@@ -704,7 +704,7 @@ class LinearTransformerBlock(nn.Module):
         # step 1: AdaLN single
         if self.use_adaln_single:
             shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (
-                comfy.model_management.cast_to(self.scale_shift_table[None], dtype=temb.dtype, device=temb.device) + temb.reshape(N, 6, -1)
+                model_management.cast_to(self.scale_shift_table[None], dtype=temb.dtype, device=temb.device) + temb.reshape(N, 6, -1)
             ).chunk(6, dim=1)
 
         norm_hidden_states = self.norm1(hidden_states)

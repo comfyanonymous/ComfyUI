@@ -12,9 +12,8 @@ from torch.nn.utils.parametrize import remove_parametrizations as remove_weight_
 
 from .music_log_mel import LogMelSpectrogram
 
-import comfy.model_management
-import comfy.ops
-ops = comfy.ops.disable_weight_init
+from .... import model_management
+from ....ops import disable_weight_init as ops
 
 
 def drop_path(
@@ -77,13 +76,13 @@ class LayerNorm(nn.Module):
     def forward(self, x):
         if self.data_format == "channels_last":
             return F.layer_norm(
-                x, self.normalized_shape, comfy.model_management.cast_to(self.weight, dtype=x.dtype, device=x.device), comfy.model_management.cast_to(self.bias, dtype=x.dtype, device=x.device), self.eps
+                x, self.normalized_shape, model_management.cast_to(self.weight, dtype=x.dtype, device=x.device), model_management.cast_to(self.bias, dtype=x.dtype, device=x.device), self.eps
             )
         elif self.data_format == "channels_first":
             u = x.mean(1, keepdim=True)
             s = (x - u).pow(2).mean(1, keepdim=True)
             x = (x - u) / torch.sqrt(s + self.eps)
-            x = comfy.model_management.cast_to(self.weight[:, None], dtype=x.dtype, device=x.device) * x + comfy.model_management.cast_to(self.bias[:, None], dtype=x.dtype, device=x.device)
+            x = model_management.cast_to(self.weight[:, None], dtype=x.dtype, device=x.device) * x + model_management.cast_to(self.bias[:, None], dtype=x.dtype, device=x.device)
             return x
 
 
@@ -145,7 +144,7 @@ class ConvNeXtBlock(nn.Module):
         x = self.pwconv2(x)
 
         if self.gamma is not None:
-            x = comfy.model_management.cast_to(self.gamma, dtype=x.dtype, device=x.device) * x
+            x = model_management.cast_to(self.gamma, dtype=x.dtype, device=x.device) * x
 
         x = x.permute(0, 2, 1)  # (N, L, C) -> (N, C, L)
         x = self.drop_path(x)

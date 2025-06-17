@@ -5,12 +5,9 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor, nn
 from einops import rearrange, repeat
-import comfy.ldm.common_dit
+from ..common_dit import pad_to_patch_size
 
-from comfy.ldm.flux.layers import (
-    EmbedND,
-    timestep_embedding,
-)
+from ..flux.layers import EmbedND, timestep_embedding
 
 from .layers import (
     DoubleStreamBlock,
@@ -255,7 +252,7 @@ class Chroma(nn.Module):
     def forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
         bs, c, h, w = x.shape
         patch_size = 2
-        x = comfy.ldm.common_dit.pad_to_patch_size(x, (patch_size, patch_size))
+        x = pad_to_patch_size(x, (patch_size, patch_size))
 
         img = rearrange(x, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=patch_size, pw=patch_size)
 

@@ -4,7 +4,7 @@ import math
 import torch
 from torch import nn
 
-import comfy.model_management
+from ... import model_management
 
 class ConvolutionModule(nn.Module):
     """ConvolutionModule in Conformer model."""
@@ -423,9 +423,9 @@ class RelPositionMultiHeadedAttention(MultiHeadedAttention):
         p = p.transpose(1, 2)  # (batch, head, time1, d_k)
 
         # (batch, head, time1, d_k)
-        q_with_bias_u = (q + comfy.model_management.cast_to(self.pos_bias_u, dtype=q.dtype, device=q.device)).transpose(1, 2)
+        q_with_bias_u = (q + model_management.cast_to(self.pos_bias_u, dtype=q.dtype, device=q.device)).transpose(1, 2)
         # (batch, head, time1, d_k)
-        q_with_bias_v = (q + comfy.model_management.cast_to(self.pos_bias_v, dtype=q.dtype, device=q.device)).transpose(1, 2)
+        q_with_bias_v = (q + model_management.cast_to(self.pos_bias_v, dtype=q.dtype, device=q.device)).transpose(1, 2)
 
         # compute attention score
         # first compute matrix a and matrix c

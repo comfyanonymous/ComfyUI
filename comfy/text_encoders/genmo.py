@@ -1,6 +1,6 @@
 from transformers import T5TokenizerFast
 
-from comfy import sd1_clip
+from .. import sd1_clip
 from . import sd3_clip
 from ..component_model import files
 

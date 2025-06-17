@@ -1,8 +1,6 @@
-import os
-
-import comfy.text_encoders.t5
-from comfy import sd1_clip
 from .spiece_tokenizer import SPieceTokenizer
+from .t5 import T5
+from .. import sd1_clip
 from ..component_model.files import get_path_as_dict
 
 
@@ -11,7 +9,7 @@ class UMT5XXlModel(sd1_clip.SDClipModel):
         if model_options is None:
             model_options = {}
         textmodel_json_config = get_path_as_dict(textmodel_json_config, "umt5_config_xxl.json", package=__package__)
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=comfy.text_encoders.t5.T5, enable_attention_masks=True, zero_out_masked=True, model_options=model_options)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5, enable_attention_masks=True, zero_out_masked=True, model_options=model_options)
 
 
 class UMT5XXlTokenizer(sd1_clip.SDTokenizer):
@@ -19,7 +17,7 @@ class UMT5XXlTokenizer(sd1_clip.SDTokenizer):
         if tokenizer_data is None:
             tokenizer_data = {}
         tokenizer = tokenizer_data.get("spiece_model", None)
-        super().__init__(tokenizer, pad_with_end=False, embedding_size=4096, embedding_key='umt5xxl', tokenizer_class=SPieceTokenizer, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=512, pad_token=0, tokenizer_data=tokenizer_data)
+        super().__init__(tokenizer, pad_with_end=False, embedding_size=4096, embedding_key='umt5xxl', tokenizer_class=SPieceTokenizer, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=512, pad_token=0, tokenizer_data=tokenizer_data, embedding_directory=embedding_directory)
 
     def state_dict(self):
         return {"spiece_model": self.tokenizer.serialize_model()}

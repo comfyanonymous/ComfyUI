@@ -97,7 +97,7 @@ class CONDList(CONDRegular):
     def process_cond(self, batch_size, device, **kwargs):
         out = []
         for c in self.cond:
-            out.append(comfy.utils.repeat_to_batch_size(c, batch_size).to(device))
+            out.append(utils.repeat_to_batch_size(c, batch_size).to(device))
 
         return self._copy_with(out)
 

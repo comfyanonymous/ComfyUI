@@ -6,11 +6,11 @@ import torch
 import torch.nn as nn
 from einops import repeat
 
-from comfy.ldm.modules.attention import optimized_attention
-from comfy.ldm.flux.layers import EmbedND
-from comfy.ldm.flux.math import apply_rope
-import comfy.ldm.common_dit
-import comfy.model_management
+from ..modules.attention import optimized_attention
+from ..flux.layers import EmbedND
+from ..flux.math import apply_rope
+from ..common_dit import pad_to_patch_size
+from ...model_management import cast_to
 
 
 def sinusoidal_embedding_1d(dim, position):
@@ -202,7 +202,7 @@ class WanAttentionBlock(nn.Module):
         """
         # assert e.dtype == torch.float32
 
-        e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device) + e).chunk(6, dim=1)
+        e = (cast_to(self.modulation, dtype=x.dtype, device=x.device) + e).chunk(6, dim=1)
         # assert e[0].dtype == torch.float32
 
         # self-attention
@@ -325,7 +325,7 @@ class Head(nn.Module):
             e(Tensor): Shape [B, C]
         """
         # assert e.dtype == torch.float32
-        e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device) + e.unsqueeze(1)).chunk(2, dim=1)
+        e = (cast_to(self.modulation, dtype=x.dtype, device=x.device) + e.unsqueeze(1)).chunk(2, dim=1)
         x = (self.head(self.norm(x) * (1 + e[1]) + e[0]))
         return x
 
@@ -347,7 +347,7 @@ class MLPProj(torch.nn.Module):
 
     def forward(self, image_embeds):
         if self.emb_pos is not None:
-            image_embeds = image_embeds[:, :self.emb_pos.shape[1]] + comfy.model_management.cast_to(self.emb_pos[:, :image_embeds.shape[1]], dtype=image_embeds.dtype, device=image_embeds.device)
+            image_embeds = image_embeds[:, :self.emb_pos.shape[1]] + cast_to(self.emb_pos[:, :image_embeds.shape[1]], dtype=image_embeds.dtype, device=image_embeds.device)
 
         clip_extra_context_tokens = self.proj(image_embeds)
         return clip_extra_context_tokens
@@ -541,7 +541,7 @@ class WanModel(torch.nn.Module):
 
     def forward(self, x, timestep, context, clip_fea=None, time_dim_concat=None, transformer_options={}, **kwargs):
         bs, c, t, h, w = x.shape
-        x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
+        x = pad_to_patch_size(x, self.patch_size)
 
         patch_size = self.patch_size
         t_len = ((t + (patch_size[0] // 2)) // patch_size[0])
@@ -549,7 +549,7 @@ class WanModel(torch.nn.Module):
         w_len = ((w + (patch_size[2] // 2)) // patch_size[2])
 
         if time_dim_concat is not None:
-            time_dim_concat = comfy.ldm.common_dit.pad_to_patch_size(time_dim_concat, self.patch_size)
+            time_dim_concat = pad_to_patch_size(time_dim_concat, self.patch_size)
             x = torch.cat([x, time_dim_concat], dim=2)
             t_len = ((x.shape[2] + (patch_size[0] // 2)) // patch_size[0])
 

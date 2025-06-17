@@ -22,7 +22,7 @@ default_user = "default"
 class FileInfo(TypedDict):
     path: str
     size: int
-    modified: int
+    modified: float
 
 
 def get_file_info(path: str, relative_to: str) -> FileInfo:

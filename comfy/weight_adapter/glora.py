@@ -2,9 +2,10 @@ import logging
 from typing import Optional
 
 import torch
-import comfy.model_management
+from ..model_management import cast_to_device
 from .base import WeightAdapterBase, weight_decompose
 
+logger = logging.getLogger(__name__)
 
 class GLoRAAdapter(WeightAdapterBase):
     name = "glora"
@@ -64,10 +65,10 @@ class GLoRAAdapter(WeightAdapterBase):
                 old_glora = False
                 rank = v[1].shape[0]
 
-        a1 = comfy.model_management.cast_to_device(v[0].flatten(start_dim=1), weight.device, intermediate_dtype)
-        a2 = comfy.model_management.cast_to_device(v[1].flatten(start_dim=1), weight.device, intermediate_dtype)
-        b1 = comfy.model_management.cast_to_device(v[2].flatten(start_dim=1), weight.device, intermediate_dtype)
-        b2 = comfy.model_management.cast_to_device(v[3].flatten(start_dim=1), weight.device, intermediate_dtype)
+        a1 = cast_to_device(v[0].flatten(start_dim=1), weight.device, intermediate_dtype)
+        a2 = cast_to_device(v[1].flatten(start_dim=1), weight.device, intermediate_dtype)
+        b1 = cast_to_device(v[2].flatten(start_dim=1), weight.device, intermediate_dtype)
+        b2 = cast_to_device(v[3].flatten(start_dim=1), weight.device, intermediate_dtype)
 
         if v[4] is not None:
             alpha = v[4] / rank
@@ -89,5 +90,5 @@ class GLoRAAdapter(WeightAdapterBase):
             else:
                 weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
         except Exception as e:
-            logging.error("ERROR {} {} {}".format(self.name, key, e))
+            logger.error("ERROR {} {} {}".format(self.name, key, e))
         return weight

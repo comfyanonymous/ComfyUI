@@ -16,7 +16,7 @@ class HyditBertModel(sd1_clip.SDClipModel):
             model_options = dict()
         textmodel_json_config = get_path_as_dict(textmodel_json_config, "hydit_clip.json", package=__package__)
         model_options = {**model_options, "model_name": "hydit_clip"}
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"start": 101, "end": 102, "pad": 0}, model_class=BertModel, enable_attention_masks=True, return_attention_masks=True)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"start": 101, "end": 102, "pad": 0}, model_class=BertModel, enable_attention_masks=True, return_attention_masks=True, model_options=model_options)
 
 class HyditBertTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, **kwargs):
@@ -31,7 +31,7 @@ class MT5XLModel(sd1_clip.SDClipModel):
             model_options = dict()
         textmodel_json_config = get_path_as_dict(textmodel_json_config, "mt5_config_xl.json", package=__package__)
         model_options = {**model_options, "model_name": "mt5xl"}
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5, enable_attention_masks=True, return_attention_masks=True)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5, enable_attention_masks=True, return_attention_masks=True, model_options=model_options)
 
 class MT5XLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, tokenizer_data=None, **kwargs):

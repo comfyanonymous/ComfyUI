@@ -1,20 +1,24 @@
+import logging
+import torch
+
 from . import hunyuan_video
 from . import sd3_clip
-from comfy import sd1_clip
-from comfy import sdxl_clip
-import comfy.model_management
-import torch
-import logging
+from .. import sd1_clip
+from .. import sdxl_clip
+from ..model_management import intermediate_device, pick_weight_dtype
 
+logger = logging.getLogger(__name__)
 
 class HiDreamTokenizer:
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = {}
         self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.clip_g = sdxl_clip.SDXLClipGTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.t5xxl = sd3_clip.T5XXLTokenizer(embedding_directory=embedding_directory, min_length=128, max_length=128, tokenizer_data=tokenizer_data)
         self.llama = hunyuan_video.LLAMA3Tokenizer(embedding_directory=embedding_directory, min_length=128, pad_token=128009, tokenizer_data=tokenizer_data)
 
-    def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
+    def tokenize_with_weights(self, text: str, return_word_ids=False, **kwargs):
         out = {}
         out["g"] = self.clip_g.tokenize_with_weights(text, return_word_ids, **kwargs)
         out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids, **kwargs)
@@ -31,8 +35,10 @@ class HiDreamTokenizer:
 
 
 class HiDreamTEModel(torch.nn.Module):
-    def __init__(self, clip_l=True, clip_g=True, t5=True, llama=True, dtype_t5=None, dtype_llama=None, device="cpu", dtype=None, model_options={}):
+    def __init__(self, clip_l=True, clip_g=True, t5=True, llama=True, dtype_t5=None, dtype_llama=None, device="cpu", dtype=None, model_options=None):
         super().__init__()
+        if model_options is None:
+            model_options = {}
         self.dtypes = set()
         if clip_l:
             self.clip_l = sd1_clip.SDClipModel(device=device, dtype=dtype, return_projected_pooled=True, model_options=model_options)
@@ -47,14 +53,14 @@ class HiDreamTEModel(torch.nn.Module):
             self.clip_g = None
 
         if t5:
-            dtype_t5 = comfy.model_management.pick_weight_dtype(dtype_t5, dtype, device)
+            dtype_t5 = pick_weight_dtype(dtype_t5, dtype, device)
             self.t5xxl = sd3_clip.T5XXLModel(device=device, dtype=dtype_t5, model_options=model_options, attention_mask=True)
             self.dtypes.add(dtype_t5)
         else:
             self.t5xxl = None
 
         if llama:
-            dtype_llama = comfy.model_management.pick_weight_dtype(dtype_llama, dtype, device)
+            dtype_llama = pick_weight_dtype(dtype_llama, dtype, device)
             if "vocab_size" not in model_options:
                 model_options["vocab_size"] = 128256
             self.llama = hunyuan_video.LLAMAModel(device=device, dtype=dtype_llama, model_options=model_options, layer="all", layer_idx=None, special_tokens={"start": 128000, "pad": 128009})
@@ -62,7 +68,7 @@ class HiDreamTEModel(torch.nn.Module):
         else:
             self.llama = None
 
-        logging.debug("Created HiDream text encoder with: clip_l {}, clip_g {}, t5xxl {}:{}, llama {}:{}".format(clip_l, clip_g, t5, dtype_t5, llama, dtype_llama))
+        logger.debug("Created HiDream text encoder with: clip_l {}, clip_g {}, t5xxl {}:{}, llama {}:{}".format(clip_l, clip_g, t5, dtype_t5, llama, dtype_llama))
 
     def set_clip_options(self, options):
         if self.clip_l is not None:
@@ -97,12 +103,12 @@ class HiDreamTEModel(torch.nn.Module):
             if self.clip_l is not None:
                 lg_out, l_pooled = self.clip_l.encode_token_weights(token_weight_pairs_l)
             else:
-                l_pooled = torch.zeros((1, 768), device=comfy.model_management.intermediate_device())
+                l_pooled = torch.zeros((1, 768), device=intermediate_device())
 
             if self.clip_g is not None:
                 g_out, g_pooled = self.clip_g.encode_token_weights(token_weight_pairs_g)
             else:
-                g_pooled = torch.zeros((1, 1280), device=comfy.model_management.intermediate_device())
+                g_pooled = torch.zeros((1, 1280), device=intermediate_device())
 
             pooled = torch.cat((l_pooled, g_pooled), dim=-1)
 
@@ -120,13 +126,13 @@ class HiDreamTEModel(torch.nn.Module):
             ll_out = None
 
         if t5_out is None:
-            t5_out = torch.zeros((1, 128, 4096), device=comfy.model_management.intermediate_device())
+            t5_out = torch.zeros((1, 128, 4096), device=intermediate_device())
 
         if ll_out is None:
-            ll_out = torch.zeros((1, 32, 1, 4096), device=comfy.model_management.intermediate_device())
+            ll_out = torch.zeros((1, 32, 1, 4096), device=intermediate_device())
 
         if pooled is None:
-            pooled = torch.zeros((1, 768 + 1280), device=comfy.model_management.intermediate_device())
+            pooled = torch.zeros((1, 768 + 1280), device=intermediate_device())
 
         extra["conditioning_llama3"] = ll_out
         return t5_out, pooled, extra
@@ -144,7 +150,9 @@ class HiDreamTEModel(torch.nn.Module):
 
 def hidream_clip(clip_l=True, clip_g=True, t5=True, llama=True, dtype_t5=None, dtype_llama=None, t5xxl_scaled_fp8=None, llama_scaled_fp8=None):
     class HiDreamTEModel_(HiDreamTEModel):
-        def __init__(self, device="cpu", dtype=None, model_options={}):
+        def __init__(self, device="cpu", dtype=None, model_options=None):
+            if model_options is None:
+                model_options = {}
             if t5xxl_scaled_fp8 is not None and "t5xxl_scaled_fp8" not in model_options:
                 model_options = model_options.copy()
                 model_options["t5xxl_scaled_fp8"] = t5xxl_scaled_fp8
@@ -152,4 +160,5 @@ def hidream_clip(clip_l=True, clip_g=True, t5=True, llama=True, dtype_t5=None, d
                 model_options = model_options.copy()
                 model_options["llama_scaled_fp8"] = llama_scaled_fp8
             super().__init__(clip_l=clip_l, clip_g=clip_g, t5=t5, llama=llama, dtype_t5=dtype_t5, dtype_llama=dtype_llama, device=device, dtype=dtype, model_options=model_options)
+
     return HiDreamTEModel_
