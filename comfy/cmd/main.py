@@ -280,7 +280,7 @@ async def _start_comfyui(from_script_dir: Optional[Path] = None):
         await run(server, address=first_listen_addr, port=args.port, verbose=not args.dont_print_server,
                   call_on_start=call_on_start)
     except (asyncio.CancelledError, KeyboardInterrupt):
-        logger.debug("\nStopped server")
+        logger.debug("Stopped server")
     finally:
         if distributed:
             await q.close()

@@ -67,9 +67,9 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
 
     torch.serialization.add_safe_globals([ModelCheckpoint, scalar, dtype, Float64DType, encode])
     ALWAYS_SAFE_LOAD = True
-    logging.debug("Checkpoint files will always be loaded safely.")
+    logger.debug("Checkpoint files will always be loaded safely.")
 else:
-    logging.debug("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
+    logger.debug("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
 
 
 # deprecate PROGRESS_BAR_ENABLED

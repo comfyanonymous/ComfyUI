@@ -40,6 +40,17 @@ from ..tracing_compatibility import ProgressSpanSampler
 from ..tracing_compatibility import patch_spanbuilder_set_channel
 from ..vendor.aiohttp_server_instrumentation import AioHttpServerInstrumentor
 
+# Manually call the _init_dll_path method to ensure that the system path is searched for FFMPEG.
+# Calling torchaudio._extension.utils._init_dll_path does not work because it is initializing the torchadio module prematurely or something.
+# See: https://github.com/pytorch/audio/issues/3789
+if sys.platform == "win32":
+    for path in os.environ.get("PATH", "").split(os.pathsep):
+        if os.path.exists(path):
+            try:
+                os.add_dll_directory(path)
+            except Exception:
+                pass
+
 this_logger = logging.getLogger(__name__)
 
 options.enable_args_parsing()
