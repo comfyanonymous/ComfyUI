@@ -8,7 +8,7 @@ from alembic import context
 config = context.config
 
 
-from app.database.models import Base
+from comfy.app.database.models import Base
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

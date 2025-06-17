@@ -1,33 +1,19 @@
 import logging
 import os
 import shutil
-from app.logger import log_startup_warning
-from utils.install_util import get_missing_requirements_message
-from comfy.cli_args import args
 
-_DB_AVAILABLE = False
+from ...cli_args import args
+
 Session = None
 
+from alembic import command
+from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-try:
-    from alembic import command
-    from alembic.config import Config
-    from alembic.runtime.migration import MigrationContext
-    from alembic.script import ScriptDirectory
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-
-    _DB_AVAILABLE = True
-except ImportError as e:
-    log_startup_warning(
-        f"""
-------------------------------------------------------------------------
-Error importing dependencies: {e}
-{get_missing_requirements_message()}
-This error is happening because ComfyUI now uses a local sqlite database.
-------------------------------------------------------------------------
-""".strip()
-    )
+_DB_AVAILABLE = True
 
 
 def dependencies_available():
