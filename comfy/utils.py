@@ -17,37 +17,39 @@
 """
 from __future__ import annotations
 
+import itertools
+import math
+import sys
+
 import contextlib
 import contextvars
-import itertools
 import json
 import logging
-import math
+import numpy as np
 import os
 import random
+import safetensors.torch
 import struct
-import sys
+import torch
 import warnings
+from PIL import Image
 from contextlib import contextmanager
+from einops import rearrange
 from pathlib import Path
 from pickle import UnpicklingError
-from typing import Optional, Any
-
-import numpy as np
-import safetensors.torch
-import torch
-from PIL import Image
-from einops import rearrange
 from torch.nn.functional import interpolate
 from tqdm import tqdm
+from typing import Optional, Any
 
 from . import interruption, checkpoint_pickle
+from .cli_args import args
 from .component_model import files
 from .component_model.deprecation import _deprecate_method
 from .component_model.executor_types import ExecutorToClientProgress, ProgressMessage
 from .component_model.queue_types import BinaryEventTypes
 from .execution_context import current_execution_context
 
+MMAP_TORCH_FILES = args.mmap_torch_files
 logger = logging.getLogger(__name__)
 
 ALWAYS_SAFE_LOAD = False
@@ -121,16 +123,14 @@ def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=Fal
             sd.update(safetensors.torch.load_file(str(checkpoint_file), device=device.type))
     else:
         try:
+            torch_args = {}
+            if MMAP_TORCH_FILES:
+                torch_args["mmap"] = True
+
             if safe_load or ALWAYS_SAFE_LOAD:
-                if not 'weights_only' in torch.load.__code__.co_varnames:
-                    logger.warning("Warning torch.load doesn't support weights_only on this pytorch version, loading unsafely.")
-                    safe_load = False
-            if safe_load:
-                pl_sd = torch.load(ckpt, map_location=device, weights_only=True)
+                pl_sd = torch.load(ckpt, map_location=device, weights_only=True, **torch_args)
             else:
                 pl_sd = torch.load(ckpt, map_location=device, pickle_module=checkpoint_pickle)
-            if "global_step" in pl_sd:
-                logger.debug(f"Global Step: {pl_sd['global_step']}")
             if "state_dict" in pl_sd:
                 sd = pl_sd["state_dict"]
             else:

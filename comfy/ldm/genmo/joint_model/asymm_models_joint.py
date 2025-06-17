@@ -10,7 +10,6 @@ from einops import rearrange
 from .layers import (
     FeedForward,
     PatchEmbed,
-    RMSNorm,
     TimestepEmbedder,
 )
 from .rope_mixed import (
@@ -88,10 +87,10 @@ class AsymmetricAttention(nn.Module):
 
         # Query and key normalization for stability.
         assert qk_norm
-        self.q_norm_x = RMSNorm(self.head_dim, device=device, dtype=dtype)
-        self.k_norm_x = RMSNorm(self.head_dim, device=device, dtype=dtype)
-        self.q_norm_y = RMSNorm(self.head_dim, device=device, dtype=dtype)
-        self.k_norm_y = RMSNorm(self.head_dim, device=device, dtype=dtype)
+        self.q_norm_x = operations.RMSNorm(self.head_dim, eps=1e-5, device=device, dtype=dtype)
+        self.k_norm_x = operations.RMSNorm(self.head_dim, eps=1e-5, device=device, dtype=dtype)
+        self.q_norm_y = operations.RMSNorm(self.head_dim, eps=1e-5, device=device, dtype=dtype)
+        self.k_norm_y = operations.RMSNorm(self.head_dim, eps=1e-5, device=device, dtype=dtype)
 
         # Output layers. y features go back down from dim_x -> dim_y.
         self.proj_x = operations.Linear(dim_x, dim_x, bias=out_bias, device=device, dtype=dtype)

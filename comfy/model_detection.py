@@ -168,7 +168,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         if in_key in state_dict_keys:
             dit_config["in_channels"] = state_dict[in_key].shape[1] // (patch_size * patch_size)
         dit_config["out_channels"] = 16
-        dit_config["vec_in_dim"] = 768
+        vec_in_key = '{}vector_in.in_layer.weight'.format(key_prefix)
+        if vec_in_key in state_dict_keys:
+            dit_config["vec_in_dim"] = state_dict[vec_in_key].shape[1]
         dit_config["context_in_dim"] = 4096
         dit_config["hidden_size"] = 3072
         dit_config["mlp_ratio"] = 4.0
@@ -178,7 +180,16 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["axes_dim"] = [16, 56, 56]
         dit_config["theta"] = 10000
         dit_config["qkv_bias"] = True
-        dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
+        if '{}distilled_guidance_layer.0.norms.0.scale'.format(key_prefix) in state_dict_keys or '{}distilled_guidance_layer.norms.0.scale'.format(key_prefix) in state_dict_keys: #Chroma
+            dit_config["image_model"] = "chroma"
+            dit_config["in_channels"] = 64
+            dit_config["out_channels"] = 64
+            dit_config["in_dim"] = 64
+            dit_config["out_dim"] = 3072
+            dit_config["hidden_dim"] = 5120
+            dit_config["n_layers"] = 5
+        else:
+            dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
         return dit_config
 
     if '{}t5_yproj.weight'.format(key_prefix) in state_dict_keys:  # Genmo mochi preview
@@ -215,8 +226,37 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys:  # Lightricks ltxv
         dit_config = {}
         dit_config["image_model"] = "ltxv"
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
+        shape = state_dict['{}transformer_blocks.0.attn2.to_k.weight'.format(key_prefix)].shape
+        dit_config["attention_head_dim"] = shape[0] // 32
+        dit_config["cross_attention_dim"] = shape[1]
         if metadata is not None and "config" in metadata:
             dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
+        return dit_config
+
+    if '{}genre_embedder.weight'.format(key_prefix) in state_dict_keys: #ACE-Step model
+        dit_config = {}
+        dit_config["audio_model"] = "ace"
+        dit_config["attention_head_dim"] = 128
+        dit_config["in_channels"] = 8
+        dit_config["inner_dim"] = 2560
+        dit_config["max_height"] = 16
+        dit_config["max_position"] = 32768
+        dit_config["max_width"] = 32768
+        dit_config["mlp_ratio"] = 2.5
+        dit_config["num_attention_heads"] = 20
+        dit_config["num_layers"] = 24
+        dit_config["out_channels"] = 8
+        dit_config["patch_size"] = [16, 1]
+        dit_config["rope_theta"] = 1000000.0
+        dit_config["speaker_embedding_dim"] = 512
+        dit_config["text_embedding_dim"] = 768
+
+        dit_config["ssl_encoder_depths"] = [8, 8]
+        dit_config["ssl_latent_dims"] = [1024, 768]
+        dit_config["ssl_names"] = ["mert", "m-hubert"]
+        dit_config["lyric_encoder_vocab_size"] = 6693
+        dit_config["lyric_hidden_size"] = 1024
         return dit_config
 
     if '{}t_block.1.weight'.format(key_prefix) in state_dict_keys:  # PixArt
@@ -325,6 +365,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["model_type"] = "vace"
             dit_config["vace_in_dim"] = state_dict['{}vace_patch_embedding.weight'.format(key_prefix)].shape[1]
             dit_config["vace_layers"] = count_blocks(state_dict_keys, '{}vace_blocks.'.format(key_prefix) + '{}.')
+        elif '{}control_adapter.conv.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "camera"
         else:
             if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
                 dit_config["model_type"] = "i2v"
@@ -584,6 +626,9 @@ def convert_config(unet_config):
 
 
 def unet_config_from_diffusers_unet(state_dict, dtype=None):
+    if "conv_in.weight" not in state_dict:
+        return None
+
     match = {}
     transformer_depth = []
 

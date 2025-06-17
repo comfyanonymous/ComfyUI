@@ -17,9 +17,15 @@ if model_management.xformers_enabled():
     import xformers.ops  # pylint: disable=import-error
 
 if model_management.sage_attention_enabled():
-    from sageattention import sageattn  # pylint: disable=import-error
-else:
-    sageattn = torch.nn.functional.scaled_dot_product_attention
+    try:
+        from sageattention import sageattn  # pylint: disable=import-error
+    except ModuleNotFoundError as e:
+        if e.name == "sageattention":
+            logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
+        else:
+            raise e
+        sageattn = torch.nn.functional.scaled_dot_product_attention
+
 
 if model_management.flash_attention_enabled():
     from flash_attn import flash_attn_func  # pylint: disable=import-error

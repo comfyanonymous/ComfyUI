@@ -78,7 +78,7 @@ class Configuration(dict):
         fp8_e5m2_text_enc (bool): Use FP8 precision for the text encoder (e5m2 variant).
         fp16_text_enc (bool): Use FP16 precision for the text encoder.
         fp32_text_enc (bool): Use FP32 precision for the text encoder.
-        openapi_device_selector (Optional[str]): Sets the oneAPI device(s) this instance will use.
+        oneapi_device_selector (Optional[str]): Sets the oneAPI device(s) this instance will use.
         directml (Optional[int]): Use DirectML. -1 for auto-selection.
         disable_ipex_optimize (bool): Disable IPEX optimization for Intel GPUs.
         preview_method (LatentPreviewMethod): Method for generating previews. Defaults to "auto".
@@ -87,7 +87,7 @@ class Configuration(dict):
         use_quad_cross_attention (bool): Use sub-quadratic cross-attention optimization.
         use_pytorch_cross_attention (bool): Use PyTorch's cross-attention function.
         use_sage_attention (bool): Use Sage Attention
-        use_flas_attention (bool): Use FlashAttention
+        use_flash_attention (bool): Use FlashAttention
         disable_xformers (bool): Disable xformers.
         gpu_only (bool): Run everything on the GPU.
         highvram (bool): Keep models in GPU memory.
@@ -132,6 +132,19 @@ class Configuration(dict):
         panic_when (list[str]): List of fully qualified exception class names to panic (sys.exit(1)) when a workflow raises it.
         enable_compress_response_body (bool): Enable compressing response body.
         workflows (list[str]): Execute the API workflow(s) specified in the provided files. For each workflow, its outputs will be printed to a line to standard out. Application logging will be redirected to standard error. Use `-` to signify standard in.
+        fp8_e8m0fnu_unet (bool): Store unet weights in fp8_e8m0fnu.
+        bf16_text_enc (bool): Store text encoder weights in bf16.
+        supports_fp8_compute (bool): ComfyUI will act like if the device supports fp8 compute.
+        cache_classic (bool): WARNING: Unused. Use the old style (aggressive) caching.
+        cache_none (bool): Reduced RAM/VRAM usage at the expense of executing every node for each run.
+        async_offload (bool): Use async weight offloading.
+        default_hashing_function (str): Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.
+        mmap_torch_files (bool): Use mmap when loading ckpt/pt files.
+        dont_print_server (bool): Don't print server output.
+        disable_api_nodes (bool): Disable loading all api nodes.
+        front_end_version (str): Specifies the version of the frontend to be used.
+        front_end_root (Optional[str]): The local filesystem path to the directory where the frontend is located. Overrides --front-end-version.
+        comfy_api_base (str): Set the base URL for the ComfyUI API. (default: https://api.comfy.org)
     """
 
     def __init__(self, **kwargs):
@@ -215,7 +228,7 @@ class Configuration(dict):
         self.force_hf_local_dir_mode = False
         self.preview_size: int = 512
         self.logging_level: str = "INFO"
-        self.openapi_device_selector: Optional[str] = None
+        self.oneapi_device_selector: Optional[str] = None
         self.log_stdout: bool = False
 
         # from guill
@@ -232,6 +245,19 @@ class Configuration(dict):
         self.user_directory: Optional[str] = None
         self.panic_when: list[str] = []
         self.workflows: list[str] = []
+
+        self.fp8_e8m0fnu_unet: bool = False
+        self.bf16_text_enc: bool = False
+        self.supports_fp8_compute: bool = False
+        self.cache_classic: bool = False
+        self.cache_none: bool = False
+        self.async_offload: bool = False
+        self.default_hashing_function: str = 'sha256'
+        self.mmap_torch_files: bool = False
+        self.disable_api_nodes: bool = False
+        self.front_end_version: str = "comfyanonymous/ComfyUI@latest"
+        self.front_end_root: Optional[str] = None
+        self.comfy_api_base: str = "https://api.comfy.org"
         for key, value in kwargs.items():
             self[key] = value
         # this must always be last

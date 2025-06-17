@@ -1,11 +1,10 @@
 from __future__ import annotations  # for Python 3.7-3.9
 
+import PIL.Image
 import concurrent.futures
 import typing
 from enum import Enum
 from typing import Optional, Literal, Protocol, Union, NamedTuple, List
-
-import PIL.Image
 from typing_extensions import NotRequired, TypedDict
 
 from .outputs_types import OutputsDict
@@ -119,6 +118,9 @@ class ExecutorToClientProgress(Protocol):
         :param sid: websocket ID / the client ID to be responding to
         :return:
         """
+        pass
+
+    def send_progress_text(self, text: Union[bytes, bytearray, str], node_id: str, sid=None):
         pass
 
     def queue_updated(self, queue_remaining: Optional[int] = None):

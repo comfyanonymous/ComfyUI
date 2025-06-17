@@ -68,6 +68,10 @@ class DistributedExecutorToClientProgress(ExecutorToClientProgress):
             # these can gracefully expire
             pass
 
+    def send_progress_text(self, text: str, node_id: str = None):
+        # todo: we'll fill this out later
+        pass
+
     def send_sync(self,
                   event: SendSyncEvent,
                   data: SendSyncData,

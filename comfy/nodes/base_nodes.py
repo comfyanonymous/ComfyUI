@@ -247,6 +247,9 @@ class ConditioningZeroOut:
             pooled_output = d.get("pooled_output", None)
             if pooled_output is not None:
                 d["pooled_output"] = torch.zeros_like(pooled_output)
+            conditioning_lyrics = d.get("conditioning_lyrics", None)
+            if conditioning_lyrics is not None:
+                d["conditioning_lyrics"] = torch.zeros_like(conditioning_lyrics)
             n = [torch.zeros_like(t[0]), d]
             c.append(n)
         return (c, )
@@ -949,7 +952,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (get_filename_list_with_downloadable("text_encoders", KNOWN_CLIP_MODELS),),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -1135,16 +1138,7 @@ class unCLIPConditioning:
         if strength == 0:
             return (conditioning, )
 
-        c = []
-        for t in conditioning:
-            o = t[1].copy()
-            x = {"clip_vision_output": clip_vision_output, "strength": strength, "noise_augmentation": noise_augmentation}
-            if "unclip_conditioning" in o:
-                o["unclip_conditioning"] = o["unclip_conditioning"][:] + [x]
-            else:
-                o["unclip_conditioning"] = [x]
-            n = [t[0], o]
-            c.append(n)
+        c = node_helpers.conditioning_set_values(conditioning, {"unclip_conditioning": [{"clip_vision_output": clip_vision_output, "strength": strength, "noise_augmentation": noise_augmentation}]}, append=True)
         return (c, )
 
 class GLIGENLoader:
@@ -1966,6 +1960,7 @@ class ImagePadForOutpaint:
 
         mask[:, top:top + height, left:left + width] = t
 
+        # mask is already in batch shape
         return new_image, mask
 
 
@@ -2098,11 +2093,13 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImagePadForOutpaint": "Pad Image for Outpainting",
     "ImageBatch": "Batch Images",
     "ImageCrop": "Image Crop",
+    "ImageStitch": "Image Stitch",
     "ImageBlend": "Image Blend",
     "ImageBlur": "Image Blur",
     "ImageQuantize": "Image Quantize",
     "ImageSharpen": "Image Sharpen",
     "ImageScaleToTotalPixels": "Scale Image to Total Pixels",
+    "GetImageSize": "Get Image Size",
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",

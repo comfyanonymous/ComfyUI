@@ -1,6 +1,6 @@
 [project]
 name = "comfyui"
-version = "0.3.29"
+version = "0.3.40"
 description = "An installable version of ComfyUI"
 readme = "README.md"
 authors = [
@@ -23,6 +23,7 @@ dependencies = [
     "torchaudio",
     "comfyui-frontend-package",
     "comfyui-workflow-templates",
+    "comfyui-embedded-docs",
     "torchdiffeq>=0.2.3",
     "torchsde>=0.2.6",
     "einops>=0.6.0",
@@ -96,7 +97,8 @@ dependencies = [
     "flax",
     "jax",
     "colour",
-    "av",
+    "av>=14.2.0",
+    "pydantic~=2.0",
     "typer",
     "ijson",
     "scikit-learn>=1.4.1",
@@ -234,6 +236,7 @@ comfyui-frontend-package = [
 
 [tool.ruff]
 lint.select = [
+    "N805", # invalid-first-argument-name-for-method
     "S307", # suspicious-eval-usage
     "S102", # exec
     "T", # print-usage

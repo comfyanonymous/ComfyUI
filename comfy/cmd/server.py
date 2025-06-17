@@ -18,7 +18,7 @@ from asyncio import Future, AbstractEventLoop, Task
 from enum import Enum
 from io import BytesIO
 from posixpath import join as urljoin
-from typing import List, Optional
+from typing import List, Optional, Union
 from urllib.parse import quote, urlencode
 
 import aiofiles
@@ -192,7 +192,7 @@ class PromptServer(ExecutorToClientProgress):
         self.internal_routes = InternalRoutes(self)
         # todo: this is probably read by custom nodes elsewhere
         self.supports: List[str] = ["custom_nodes_from_web"]
-        self.prompt_queue: AbstractPromptQueue | AsyncAbstractPromptQueue | None = None
+        self.prompt_queue: AbstractPromptQueue | AsyncAbstractPromptQueue | None = execution.PromptQueue(self)
         self.loop: AbstractEventLoop = loop
         self.messages: asyncio.Queue = asyncio.Queue()
         self.client_session: Optional[aiohttp.ClientSession] = None
@@ -318,7 +318,6 @@ class PromptServer(ExecutorToClientProgress):
                     a.update(f.read())
                     b.update(image.file.read())
                     image.file.seek(0)
-                    f.close()
                 return a.hexdigest() == b.hexdigest()
             return False
 
@@ -430,6 +429,7 @@ class PromptServer(ExecutorToClientProgress):
         async def view_image(request):
             if "filename" in request.rel_url.query:
                 filename = request.rel_url.query["filename"]
+                # todo: do we ever need annotated filenames support on this?
 
                 if not filename:
                     return web.Response(status=400)
@@ -510,9 +510,8 @@ class PromptServer(ExecutorToClientProgress):
                         # Get content type from mimetype, defaulting to 'application/octet-stream'
                         content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
 
-                        # For security, force certain extensions to download instead of display
-                        file_extension = os.path.splitext(filename)[1].lower()
-                        if file_extension in {'.html', '.htm', '.js', '.css'}:
+                        # For security, force certain mimetypes to download instead of display
+                        if content_type in {'text/html', 'text/html-sandboxed', 'application/xhtml+xml', 'text/javascript', 'text/css'}:
                             content_type = 'application/octet-stream'  # Forces download
 
                         return web.FileResponse(
@@ -615,6 +614,9 @@ class PromptServer(ExecutorToClientProgress):
                 info['deprecated'] = True
             if getattr(obj_class, "EXPERIMENTAL", False):
                 info['experimental'] = True
+
+            if hasattr(obj_class, 'API_NODE'):
+                info['api_node'] = obj_class.API_NODE
             return info
 
         @routes.get("/object_info")
@@ -651,7 +653,7 @@ class PromptServer(ExecutorToClientProgress):
         @routes.get("/queue")
         async def get_queue(request):
             queue_info = {}
-            current_queue = self.prompt_queue.get_current_queue()
+            current_queue = self.prompt_queue.get_current_queue_volatile()
             queue_info['queue_running'] = current_queue[0]
             queue_info['queue_pending'] = current_queue[1]
             return web.json_response(queue_info)
@@ -990,6 +992,13 @@ class PromptServer(ExecutorToClientProgress):
                 web.static('/templates', workflow_templates_path)
             ])
 
+        # Serve embedded documentation from the package
+        embedded_docs_path = FrontendManager.embedded_docs_path()
+        if embedded_docs_path:
+            self.app.add_routes([
+                web.static('/docs', embedded_docs_path)
+            ])
+
         self.app.add_routes([
             web.static('/', self.web_root, follow_symlinks=True),
         ])
@@ -1126,3 +1135,15 @@ class PromptServer(ExecutorToClientProgress):
     @classmethod
     def get_too_busy_queue_size(cls):
         return args.max_queue_size
+
+    def send_progress_text(
+        self, text: Union[bytes, bytearray, str], node_id: str, sid=None
+    ):
+        if isinstance(text, str):
+            text = text.encode("utf-8")
+        node_id_bytes = str(node_id).encode("utf-8")
+
+        # Pack the node_id length as a 4-byte unsigned integer, followed by the node_id bytes
+        message = struct.pack(">I", len(node_id_bytes)) + node_id_bytes + text
+
+        self.send_sync(BinaryEventTypes.TEXT, message, sid)

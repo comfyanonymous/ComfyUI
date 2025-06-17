@@ -64,6 +64,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     fpunet_group.add_argument("--fp16-unet", action="store_true", help="Run the diffusion model in fp16")
     fpunet_group.add_argument("--fp8_e4m3fn-unet", action="store_true", help="Store unet weights in fp8_e4m3fn.")
     fpunet_group.add_argument("--fp8_e5m2-unet", action="store_true", help="Store unet weights in fp8_e5m2.")
+    fpunet_group.add_argument("--fp8_e8m0fnu-unet", action="store_true", help="Store unet weights in fp8_e8m0fnu.")
 
     fpvae_group = parser.add_mutually_exclusive_group()
     fpvae_group.add_argument("--fp16-vae", action="store_true", help="Run the VAE in fp16, might cause black images.")
@@ -87,6 +88,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--oneapi-device-selector", type=str, default=None, metavar="SELECTOR_STRING", help="Sets the oneAPI device(s) this instance will use.")
     parser.add_argument("--disable-ipex-optimize", action="store_true",
                         help="Disables ipex.optimize default when loading models with Intel's Extension for Pytorch.")
+    parser.add_argument("--supports-fp8-compute", action="store_true", help="ComfyUI will act like if the device supports fp8 compute.")
 
     parser.add_argument("--preview-method", type=LatentPreviewMethod, default=LatentPreviewMethod.Auto,
                         help="Default preview method for sampler nodes.", action=EnumAction)
@@ -123,6 +125,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for everything (slow).")
 
     parser.add_argument("--reserve-vram", type=float, default=None, help="Set the amount of vram in GB you want to reserve for use by your OS/other software. By default some amount is reserved depending on your OS.")
+    parser.add_argument("--async-offload", action="store_true", help="Use async weight offloading.")
     parser.add_argument("--default-hashing-function", type=str, choices=['md5', 'sha1', 'sha256', 'sha512'], default='sha256', help="Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.")
     parser.add_argument("--disable-smart-memory", action="store_true",
                         help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
@@ -131,6 +134,7 @@ def _create_parser() -> EnhancedConfigArgParser:
 
     parser.add_argument("--fast", nargs="*", type=PerformanceFeature, help="Enable some untested and potentially quality deteriorating optimizations. Pass a list specific optimizations if you only want to enable specific ones. Current valid optimizations: fp16_accumulation fp8_matrix_mult cublas_ops", default=set())
 
+    parser.add_argument("--mmap-torch-files", action="store_true", help="Use mmap when loading ckpt/pt files.")
     parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
     parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI. Raises an error if nodes cannot be imported,")
     parser.add_argument("--windows-standalone-build", default=hasattr(sys, 'frozen') and getattr(sys, 'frozen'),
@@ -139,6 +143,7 @@ def _create_parser() -> EnhancedConfigArgParser:
 
     parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
     parser.add_argument("--disable-all-custom-nodes", action="store_true", help="Disable loading all custom nodes.")
+    parser.add_argument("--disable-api-nodes", action="store_true", help="Disable loading all api nodes.")
 
     parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
     parser.add_argument("--create-directories", action="store_true",
@@ -247,6 +252,13 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--user-directory", type=is_valid_directory, default=None, help="Set the ComfyUI user directory with an absolute path. Overrides --base-directory.")
 
     parser.add_argument("--enable-compress-response-body", action="store_true", help="Enable compressing response body.")
+
+    parser.add_argument(
+        "--comfy-api-base",
+        type=str,
+        default="https://api.comfy.org",
+        help="Set the base URL for the ComfyUI API.  (default: https://api.comfy.org)",
+    )
 
     parser.add_argument("--workflows", type=str, nargs='+', default=[], help="Execute the API workflow(s) specified in the provided files. For each workflow, its outputs will be printed to a line to standard out. Application logging will be redirected to standard error. Use `-` to signify standard in.")
 

@@ -175,6 +175,8 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
                 input_data_all[x] = [unique_id]
             if h[x] == "AUTH_TOKEN_COMFY_ORG":
                 input_data_all[x] = [extra_data.get("auth_token_comfy_org", None)]
+            if h[x] == "API_KEY_COMFY_ORG":
+                input_data_all[x] = [extra_data.get("api_key_comfy_org", None)]
     return input_data_all, missing_keys
 
 
@@ -1122,12 +1124,20 @@ class PromptQueue(AbstractPromptQueue):
             if queue_item.completed:
                 queue_item.completed.set_result(outputs_)
 
+    # Note: slow
     def get_current_queue(self) -> Tuple[typing.List[QueueTuple], typing.List[QueueTuple]]:
         with self.mutex:
             out: typing.List[QueueTuple] = []
             for x in self.currently_running.values():
                 out += [x.queue_tuple]
             return out, copy.deepcopy([item.queue_tuple for item in self.queue])
+
+    # read-safe as long as queue items are immutable
+    def get_current_queue_volatile(self):
+        with self.mutex:
+            running = [x for x in self.currently_running.values()]
+            queued = copy.copy(self.queue)
+            return (running, queued)
 
     def get_tasks_remaining(self):
         with self.mutex:

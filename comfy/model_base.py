@@ -28,6 +28,7 @@ from . import latent_formats
 from . import model_management
 from . import ops
 from . import utils
+from .ldm.ace.model import ACEStepTransformer2DModel
 from .ldm.audio.dit import AudioDiffusionTransformer
 from .ldm.audio.embedders import NumberConditioner
 from .ldm.aura.mmdit import MMDiT as AuraMMDiT
@@ -47,7 +48,8 @@ from .ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
 from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
 from .ldm.pixart.pixartms import PixArtMS
-from .ldm.wan.model import WanModel, VaceWanModel
+from .ldm.wan.model import WanModel, VaceWanModel, CameraWanModel
+from .ldm.chroma import model as chroma_model
 from .model_management_types import ModelManageable
 from .ops import Operations
 from .patcher_extension import WrapperExecutor, WrappersMP, get_all_wrappers
@@ -111,6 +113,13 @@ class ComfyUIModel(Protocol):
         ...
 
 
+def convert_tensor(extra, dtype):
+    if hasattr(extra, "dtype"):
+        if extra.dtype != torch.int and extra.dtype != torch.long:
+            extra = extra.to(dtype)
+    return extra
+
+
 class BaseModel(torch.nn.Module):
     def __init__(self, model_config, model_type=ModelType.EPS, device: torch.device = None, unet_model: Type[TModule] = UNetModel):
         super().__init__()
@@ -148,6 +157,7 @@ class BaseModel(torch.nn.Module):
         logging.debug("model_type {}".format(model_type.name))
         logging.debug("adm {}".format(self.adm_channels))
         self.memory_usage_factor = model_config.memory_usage_factor
+        self.memory_usage_factor_conds = ()
         self.training = False
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
@@ -178,9 +188,14 @@ class BaseModel(torch.nn.Module):
         extra_conds = {}
         for o in kwargs:
             extra = kwargs[o]
+
             if hasattr(extra, "dtype"):
-                if extra.dtype != torch.int and extra.dtype != torch.long:
-                    extra = extra.to(dtype)
+                extra = convert_tensor(extra, dtype)
+            elif isinstance(extra, list):
+                ex = []
+                for ext in extra:
+                    ex.append(convert_tensor(ext, dtype))
+                extra = ex
             extra_conds[o] = extra
 
         t = self.process_timestep(t, x=x, **extra_conds)
@@ -342,18 +357,27 @@ class BaseModel(torch.nn.Module):
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return self.model_sampling.noise_scaling(sigma.reshape([sigma.shape[0]] + [1] * (len(noise.shape) - 1)), noise, latent_image)
 
-    def memory_required(self, input_shape):
+    def memory_required(self, input_shape, cond_shapes={}):
+        input_shapes = [input_shape]
+        for c in self.memory_usage_factor_conds:
+            shape = cond_shapes.get(c, None)
+            if shape is not None and len(shape) > 0:
+                input_shapes += shape
+
         if model_management.xformers_enabled() or model_management.pytorch_attention_flash_attention():
             dtype = self.get_dtype()
             if self.manual_cast_dtype is not None:
                 dtype = self.manual_cast_dtype
             # TODO: this needs to be tweaked
-            area = input_shape[0] * math.prod(input_shape[2:])
+            area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
             return (area * model_management.dtype_size(dtype) * 0.01 * self.memory_usage_factor) * (1024 * 1024)
         else:
             # TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
-            area = input_shape[0] * math.prod(input_shape[2:])
+            area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
             return (area * 0.15 * self.memory_usage_factor) * (1024 * 1024)
+
+    def extra_conds_shapes(self, **kwargs):
+        return {}
 
 
 def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0, seed=None):
@@ -820,8 +844,8 @@ class PixArt(BaseModel):
 
 
 class Flux(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=flux_model.Flux)
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None, unet_model=flux_model.Flux):
+        super().__init__(model_config, model_type, device=device, unet_model=unet_model)
 
     def concat_cond(self, **kwargs):
         try:
@@ -958,6 +982,10 @@ class HunyuanVideo(BaseModel):
         guiding_frame_index = kwargs.get("guiding_frame_index", None)
         if guiding_frame_index is not None:
             out['guiding_frame_index'] = conds.CONDRegular(torch.FloatTensor([guiding_frame_index]))
+
+        ref_latent = kwargs.get("ref_latent", None)
+        if ref_latent is not None:
+            out['ref_latent'] = conds.CONDRegular(self.process_latent_in(ref_latent))
         return out
 
     def scale_latent_inpaint(self, latent_image, **kwargs):
@@ -1082,6 +1110,10 @@ class WAN21(BaseModel):
         clip_vision_output = kwargs.get("clip_vision_output", None)
         if clip_vision_output is not None:
             out['clip_fea'] = conds.CONDRegular(clip_vision_output.penultimate_hidden_states)
+
+        time_dim_concat = kwargs.get("time_dim_concat", None)
+        if time_dim_concat is not None:
+            out['time_dim_concat'] = conds.CONDRegular(self.process_latent_in(time_dim_concat))
         return out
 
 
@@ -1097,20 +1129,39 @@ class WAN21_Vace(WAN21):
         vace_frames = kwargs.get("vace_frames", None)
         if vace_frames is None:
             noise_shape[1] = 32
-            vace_frames = torch.zeros(noise_shape, device=noise.device, dtype=noise.dtype)
-
-        for i in range(0, vace_frames.shape[1], 16):
-            vace_frames = vace_frames.clone()
-            vace_frames[:, i:i + 16] = self.process_latent_in(vace_frames[:, i:i + 16])
+            vace_frames = [torch.zeros(noise_shape, device=noise.device, dtype=noise.dtype)]
 
         mask = kwargs.get("vace_mask", None)
         if mask is None:
             noise_shape[1] = 64
-            mask = torch.ones(noise_shape, device=noise.device, dtype=noise.dtype)
+            mask = [torch.ones(noise_shape, device=noise.device, dtype=noise.dtype)] * len(vace_frames)
 
-        out['vace_context'] = conds.CONDRegular(torch.cat([vace_frames.to(noise), mask.to(noise)], dim=1))
+        vace_frames_out = []
+        for j in range(len(vace_frames)):
+            vf = vace_frames[j].clone()
+            for i in range(0, vf.shape[1], 16):
+                vf[:, i:i + 16] = self.process_latent_in(vf[:, i:i + 16])
+            vf = torch.cat([vf, mask[j]], dim=1)
+            vace_frames_out.append(vf)
+
+        vace_frames = torch.stack(vace_frames_out, dim=1)
+        out['vace_context'] = conds.CONDRegular(vace_frames)
+
+        vace_strength = kwargs.get("vace_strength", [1.0] * len(vace_frames_out))
+        out['vace_strength'] = conds.CONDConstant(vace_strength)
         return out
 
+class WAN21_Camera(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=CameraWanModel)
+        self.image_to_video = image_to_video
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        camera_conditions = kwargs.get("camera_conditions", None)
+        if camera_conditions is not None:
+            out['camera_conditions'] = conds.CONDRegular(camera_conditions)
+        return out
 
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
@@ -1143,4 +1194,38 @@ class HiDream(BaseModel):
         conditioning_llama3 = kwargs.get("conditioning_llama3", None)
         if conditioning_llama3 is not None:
             out['encoder_hidden_states_llama3'] = conds.CONDRegular(conditioning_llama3)
+        image_cond = kwargs.get("concat_latent_image", None)
+        if image_cond is not None:
+            out['image_cond'] = conds.CONDNoiseShape(self.process_latent_in(image_cond))
+        return out
+
+class Chroma(Flux):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=chroma_model.Chroma)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+
+        guidance = kwargs.get("guidance", 0)
+        if guidance is not None:
+            out['guidance'] = conds.CONDRegular(torch.FloatTensor([guidance]))
+        return out
+
+class ACEStep(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=ACEStepTransformer2DModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        noise = kwargs.get("noise", None)
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = conds.CONDRegular(cross_attn)
+
+        conditioning_lyrics = kwargs.get("conditioning_lyrics", None)
+        if cross_attn is not None:
+            out['lyric_token_idx'] = conds.CONDRegular(conditioning_lyrics)
+        out['speaker_embeds'] = conds.CONDRegular(torch.zeros(noise.shape[0], 512, device=noise.device, dtype=noise.dtype))
+        out['lyrics_strength'] = conds.CONDConstant(kwargs.get("lyrics_strength", 1.0))
         return out

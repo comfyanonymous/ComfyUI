@@ -141,6 +141,7 @@ class Quantize:
 
     CATEGORY = "image/postprocessing"
 
+    @staticmethod
     def bayer(im, pal_im, order):
         def normalized_bayer_matrix(n):
             if n == 0:

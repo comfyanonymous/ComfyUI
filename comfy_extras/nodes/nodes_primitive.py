@@ -1,6 +1,8 @@
 # Primitive nodes that are evaluated at backend.
 from __future__ import annotations
 
+import sys
+
 from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, IO
 
 
@@ -19,11 +21,26 @@ class String(ComfyNodeABC):
         return (value,)
 
 
+class StringMultiline(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypeDict:
+        return {
+            "required": {"value": (IO.STRING, {"multiline": True,},)},
+        }
+
+    RETURN_TYPES = (IO.STRING,)
+    FUNCTION = "execute"
+    CATEGORY = "utils/primitive"
+
+    def execute(self, value: str) -> tuple[str]:
+        return (value,)
+
+
 class Int(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypeDict:
         return {
-            "required": {"value": (IO.INT, {"control_after_generate": True})},
+            "required": {"value": (IO.INT, {"min": -sys.maxsize, "max": sys.maxsize, "control_after_generate": True})},
         }
 
     RETURN_TYPES = (IO.INT,)
@@ -38,7 +55,7 @@ class Float(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypeDict:
         return {
-            "required": {"value": (IO.FLOAT, {})},
+            "required": {"value": (IO.FLOAT, {"min": -sys.maxsize, "max": sys.maxsize})},
         }
 
     RETURN_TYPES = (IO.FLOAT,)
@@ -66,6 +83,7 @@ class Boolean(ComfyNodeABC):
 
 NODE_CLASS_MAPPINGS = {
     "PrimitiveString": String,
+    "PrimitiveStringMultiline": StringMultiline,
     "PrimitiveInt": Int,
     "PrimitiveFloat": Float,
     "PrimitiveBoolean": Boolean,
@@ -73,6 +91,7 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "PrimitiveString": "String",
+    "PrimitiveStringMultiline": "String (Multiline)",
     "PrimitiveInt": "Int",
     "PrimitiveFloat": "Float",
     "PrimitiveBoolean": "Boolean",

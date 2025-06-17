@@ -394,8 +394,9 @@ class ControlLora(ControlNet):
                 pass
 
         for k in self.control_weights:
-            if k not in {"lora_controlnet"}:
-                utils.set_attr_param(self.control_model, k, self.control_weights[k].to(dtype).to(model_management.get_torch_device()))
+            if (k not in {"lora_controlnet"}):
+                if (k.endswith(".up") or k.endswith(".down") or k.endswith(".weight") or k.endswith(".bias")) and ("__" not in k):
+                    utils.set_attr_param(self.control_model, k, self.control_weights[k].to(dtype).to(model_management.get_torch_device()))
 
     def copy(self):
         c = ControlLora(self.control_weights, global_average_pooling=self.global_average_pooling)

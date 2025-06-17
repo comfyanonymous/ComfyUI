@@ -25,6 +25,9 @@ class ServerStub(ExecutorToClientProgress):
     def queue_updated(self, queue_remaining: Optional[int] = None):
         pass
 
+    def send_progress_text(self, text: str, node_id: str = None):
+        pass
+
     @property
     def receive_all_progress_notifications(self) -> bool:
         return False

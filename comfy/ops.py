@@ -15,11 +15,11 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+import contextlib
 import logging
-from typing import Optional, Type, Union
-
 import torch
 from torch import Tensor
+from typing import Optional, Type, Union
 
 from . import model_management, rmsnorm
 from .cli_args import args, PerformanceFeature
@@ -44,20 +44,30 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
         if device is None:
             device = input.device
 
+    offload_stream = model_management.get_offload_stream(device)
+    if offload_stream is not None:
+        wf_context = offload_stream
+    else:
+        wf_context = contextlib.nullcontext()
+
     bias = None
     non_blocking = True if torch.jit.is_tracing() or torch.jit.is_scripting() else model_management.device_supports_non_blocking(device)
     if s.bias is not None:
         has_function = len(s.bias_function) > 0
-        bias = model_management.cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking, copy=has_function)
+        bias = model_management.cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking, copy=has_function, stream=offload_stream)
         if has_function:
-            for f in s.bias_function:
-                bias = f(bias)
+            with wf_context:
+                for f in s.bias_function:
+                    bias = f(bias)
 
     has_function = len(s.weight_function) > 0
-    weight = model_management.cast_to(s.weight, dtype, device, non_blocking=non_blocking, copy=has_function)
+    weight = model_management.cast_to(s.weight, dtype, device, non_blocking=non_blocking, copy=has_function, stream=offload_stream)
     if has_function:
-        for f in s.weight_function:
-            weight = f(weight)
+        with wf_context:
+            for f in s.weight_function:
+                weight = f(weight)
+
+    model_management.sync_stream(device, offload_stream)
     return weight, bias
 
 
@@ -351,10 +361,10 @@ def fp8_linear(self, input):
         if scale_input is None:
             scale_input = torch.ones((), device=input.device, dtype=torch.float32)
             input = torch.clamp(input, min=-448, max=448, out=input)
-            input = input.reshape(-1, input_shape[2]).to(dtype)
+            input = input.reshape(-1, input_shape[2]).to(dtype).contiguous()
         else:
             scale_input = scale_input.to(input.device)
-            input = (input * (1.0 / scale_input).to(input_dtype)).reshape(-1, input_shape[2]).to(dtype)
+            input = (input * (1.0 / scale_input).to(input_dtype)).reshape(-1, input_shape[2]).to(dtype).contiguous()
 
         if bias is not None:
             o = torch._scaled_mm(input, w, out_dtype=input_dtype, bias=bias, scale_a=scale_input, scale_b=scale_weight)

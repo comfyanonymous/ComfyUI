@@ -127,6 +127,7 @@ class QueueItem(NamedQueueTuple):
 class BinaryEventTypes(Enum):
     PREVIEW_IMAGE = 1
     UNENCODED_PREVIEW_IMAGE = 2
+    TEXT = 3
 
 
 class ExecutorToClientMessage(TypedDict, total=False):

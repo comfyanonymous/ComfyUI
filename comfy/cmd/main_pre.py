@@ -15,6 +15,8 @@ os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
 os.environ["TORCHINDUCTOR_AUTOGRAD_CACHE"] = "1"
 os.environ["BITSANDBYTES_NOWELCOME"] = "1"
 os.environ["NO_ALBUMENTATIONS_UPDATE"] = "1"
+os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
+os.environ['DO_NOT_TRACK'] = '1'
 
 import ctypes
 import importlib.util

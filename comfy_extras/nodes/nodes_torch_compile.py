@@ -11,6 +11,7 @@ from comfy import model_management
 from comfy.language.transformers_model_management import TransformersManagedModel
 from comfy.model_patcher import ModelPatcher
 from comfy.nodes.package_typing import CustomNode, InputTypes
+from comfy_api.torch_helpers import set_torch_compile_wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,7 @@ class TorchCompileModel(CustomNode):
                 if move_to_gpu:
                     model_management.unload_all_models()
                     model_management.load_models_gpu([m])
+                set_torch_compile_wrapper(m, object_patch=object_patch, **compile_kwargs)
                 m.add_object_patch(object_patch, torch.compile(model=m.get_model_object(object_patch), **compile_kwargs))
                 # todo: do we want to move something back off the GPU?
                 # if move_to_gpu:

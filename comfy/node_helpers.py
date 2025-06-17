@@ -1,19 +1,24 @@
 import hashlib
-
 from PIL import ImageFile, UnidentifiedImageError
 
 from .cli_args import args
 from .component_model.files import get_package_as_path
 
 
-def conditioning_set_values(conditioning, values: dict = None):
+def conditioning_set_values(conditioning, values: dict = None, append=False):
     if values is None:
         values = {}
     c = []
     for t in conditioning:
         n = [t[0], t[1].copy()]
         for k in values:
-            n[1][k] = values[k]
+            val = values[k]
+            if append:
+                old_val = n[1].get(k, None)
+                if old_val is not None:
+                    val = old_val + val
+
+            n[1][k] = val
         c.append(n)
 
     return c
