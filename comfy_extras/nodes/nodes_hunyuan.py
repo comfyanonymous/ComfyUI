@@ -108,6 +108,8 @@ class HunyuanImageToVideo:
                 out_latent["noise_mask"] = mask
             elif guidance_type == "custom":
                 cond = {"ref_latent": concat_latent_image}
+            else:
+                cond = None
 
             positive = node_helpers.conditioning_set_values(positive, cond)
 

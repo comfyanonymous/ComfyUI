@@ -333,9 +333,9 @@ class ResBlock1(torch.nn.Module):
 
     def remove_weight_norm(self):
         for conv in self.convs1:
-            remove_weight_norm(conv)
+            remove_weight_norm(conv, None)
         for conv in self.convs2:
-            remove_weight_norm(conv)
+            remove_weight_norm(conv, None)
 
 
 class HiFiGANGenerator(nn.Module):
@@ -454,11 +454,11 @@ class HiFiGANGenerator(nn.Module):
 
     def remove_weight_norm(self):
         for up in self.ups:
-            remove_weight_norm(up)
+            remove_weight_norm(up, None)
         for block in self.resblocks:
             block.remove_weight_norm()
-        remove_weight_norm(self.conv_pre)
-        remove_weight_norm(self.conv_post)
+        remove_weight_norm(self.conv_pre, None)
+        remove_weight_norm(self.conv_post, None)
 
 
 class ADaMoSHiFiGANV1(nn.Module):

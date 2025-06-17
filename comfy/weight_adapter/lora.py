@@ -34,6 +34,8 @@ class LoRAAdapter(WeightAdapterBase):
         mochi_lora = "{}.lora_B".format(x)
         transformers_lora = "{}.lora_linear_layer.up.weight".format(x)
         A_name = None
+        B_name = None
+        mid_name = None
 
         if regular_lora in lora.keys():
             A_name = regular_lora

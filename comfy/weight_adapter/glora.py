@@ -54,6 +54,8 @@ class GLoRAAdapter(WeightAdapterBase):
         dora_scale = v[5]
 
         old_glora = False
+        # will correctly through div by zero error if rank was not read
+        rank = 0
         if v[3].shape[1] == v[2].shape[0] == v[0].shape[0] == v[1].shape[1]:
             rank = v[0].shape[0]
             old_glora = True

@@ -68,7 +68,7 @@ ignored-modules=sentencepiece.*,comfy.api,comfy.cmd.folder_paths
 
 # Python code to execute, usually for sys.path manipulation such as
 # pygtk.require().
-#init-hook=
+init-hook='import sys; sys.path.insert(0, ".")'
 
 # Use multiple processes to speed up Pylint. Specifying 0 will auto-detect the
 # number of processors available to use, and will cap the count on Windows to

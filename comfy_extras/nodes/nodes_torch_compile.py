@@ -199,7 +199,7 @@ class QuantizeModel(CustomNode):
             if "autoquant" in strategy:
                 _in_place_fixme = autoquant(unet, error_on_unseen=False)
             else:
-                quantize_(unet, int8_dynamic_activation_int8_weight(), device=model_management.get_torch_device(), set_inductor_config=False)
+                quantize_(unet, int8_dynamic_activation_int8_weight(), device=model_management.get_torch_device())
                 _in_place_fixme = unet
             unwrap_tensor_subclass(_in_place_fixme)
         else:

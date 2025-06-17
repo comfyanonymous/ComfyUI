@@ -220,7 +220,7 @@ class Chroma(nn.Module):
             if i not in self.skip_dit:
                 single_mod = self.get_modulations(mod_vectors, "single", idx=i)
                 if ("single_block", i) in blocks_replace:
-                    def block_wrap(args):
+                    def block_wrap_1(args):
                         out = {}
                         out["img"] = block(args["img"],
                                            vec=args["vec"],
@@ -232,7 +232,7 @@ class Chroma(nn.Module):
                                                                "vec": single_mod,
                                                                "pe": pe,
                                                                "attn_mask": attn_mask},
-                                                              {"original_block": block_wrap})
+                                                              {"original_block": block_wrap_1})
                     img = out["img"]
                 else:
                     img = block(img, vec=single_mod, pe=pe, attn_mask=attn_mask)

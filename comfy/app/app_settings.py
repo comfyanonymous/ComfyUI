@@ -17,14 +17,14 @@ class AppSettings():
                 "comfy.settings.json"
             )
         except KeyError as e:
-            loggererror("User settings not found.")
+            logger.error("User settings not found.")
             raise web.HTTPUnauthorized() from e
         if os.path.isfile(file):
             try:
                 with open(file) as f:
                     return json.load(f)
             except:
-                loggererror(f"The user settings file is corrupted: {file}")
+                logger.error(f"The user settings file is corrupted: {file}")
                 return {}
         else:
             return {}
