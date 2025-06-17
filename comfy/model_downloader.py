@@ -296,12 +296,32 @@ KNOWN_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/Lumina_Image_2.0_Repackaged", "all_in_one/lumina_2.safetensors"),
     HuggingFile("Comfy-Org/flux1-schnell", "flux1-schnell-fp8.safetensors"),
     HuggingFile("Comfy-Org/flux1-dev", "flux1-dev-fp8.safetensors"),
+    HuggingFile("stabilityai/stable-video-diffusion-img2vid", "svd.safetensors"),
+    HuggingFile("stabilityai/stable-video-diffusion-img2vid-xt", "svd_xt.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-2-inpainting", "v2-inpainting-pruned-ema.safetensors"),
+    HuggingFile("runwayml/stable-diffusion-inpainting", "sd-v1-5-inpainting.ckpt", show_in_ui=False),
+    HuggingFile("stabilityai/stable-diffusion-3.5-large", "sd3.5_large.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-3.5-medium", "sd3.5_medium.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-3.5-large-turbo", "sd3.5_large_turbo.safetensors"),
+    HuggingFile("Comfy-Org/stable-diffusion-3.5-fp8", "sd3.5_large_fp8_scaled.safetensors"),
+    HuggingFile("Comfy-Org/stable-diffusion-3.5-fp8", "sd3.5_medium_incl_clips_t5xxlfp8scaled.safetensors"),
+    HuggingFile("fal/AuraFlow-v0.2", "aura_flow_0.2.safetensors"),
+    HuggingFile("lodestones/Chroma", "Chroma_v1.0.safetensors"),
+    HuggingFile("lodestones/Chroma", "chroma-unlocked-v37.safetensors"),
+    HuggingFile("Comfy-Org/mochi_preview_repackaged", "all_in_one/mochi_preview_fp8_scaled.safetensors"),
+    HuggingFile("Lightricks/LTX-Video", "ltx-video-2b-v0.9.5.safetensors"),
+    HuggingFile("Comfy-Org/ACE-Step_ComfyUI_repackaged", "all_in_one/ace_step_v1_3.5b.safetensors"),
+    CivitFile(8714, 13359, filename="AOM2-Hard.safetensors"),
+    CivitFile(4291, 132454, filename="AOM3A3.safetensors"),
+    CivitFile(140737, 357037, filename="albedobaseXL_v21.safetensors"),
 ], folder_name="checkpoints")
 
 KNOWN_UNCLIP_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("stabilityai/stable-cascade", "comfyui_checkpoints/stable_cascade_stage_c.safetensors"),
     HuggingFile("stabilityai/stable-diffusion-2-1-unclip", "sd21-unclip-h.ckpt"),
     HuggingFile("stabilityai/stable-diffusion-2-1-unclip", "sd21-unclip-l.ckpt"),
+    HuggingFile("comfyanonymous/wd-1.5-beta2_unCLIP", "wd-1-5-beta2-aesthetic-unclip-h.safetensors"),
+    HuggingFile("comfyanonymous/illuminatiDiffusionV1_v11_unCLIP", "illuminatiDiffusionV1_v11-unclip-h.safetensors"),
 ], folder_name="checkpoints")
 
 KNOWN_IMAGE_ONLY_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
@@ -333,6 +353,7 @@ KNOWN_LORAS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("ByteDance/Hyper-SD", "Hyper-SD15-12steps-CFG-lora.safetensors"),
     HuggingFile("black-forest-labs/FLUX.1-Canny-dev-lora", "flux1-canny-dev-lora.safetensors"),
     HuggingFile("black-forest-labs/FLUX.1-Depth-dev-lora", "flux1-depth-dev-lora.safetensors"),
+    HuggingFile("latent-consistency/lcm-lora-sdxl", "pytorch_lora_weights.safetensors", save_with_filename="lcm_lora_sdxl.safetensors"),
 ], folder_name="loras")
 
 KNOWN_CONTROLNETS: Final[KnownDownloadables] = KnownDownloadables([
@@ -433,6 +454,10 @@ KNOWN_CONTROLNETS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("XLabs-AI/flux-controlnet-collections", "flux-depth-controlnet-v3.safetensors"),
     HuggingFile("XLabs-AI/flux-controlnet-collections", "flux-hed-controlnet-v3.safetensors"),
     HuggingFile("alimama-creative/FLUX.1-dev-Controlnet-Inpainting-Alpha", "diffusion_pytorch_model.safetensors", save_with_filename="alimama-creative-flux.1-dev-controlnet-inpainting-alpha.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-3.5-controlnets", "sd3.5_large_controlnet_canny.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-3.5-controlnets", "sd3.5_large_controlnet_depth.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-3.5-controlnets", "sd3.5_large_controlnet_blur.safetensors"),
+    HuggingFile("Shakker-Labs/FLUX.1-dev-ControlNet-Depth", "diffusion_pytorch_model.safetensors", save_with_filename="shakker-labs-flux.1-dev-controlnet-depth.safetensors"),
 ], folder_name="controlnet")
 
 KNOWN_DIFF_CONTROLNETS: Final[KnownDownloadables] = KnownDownloadables([
@@ -512,6 +537,15 @@ KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_t2v_14B_bf16.safetensors"),
     HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_t2v_14B_fp16.safetensors", show_in_ui=False),
     HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_t2v_14B_fp8_e4m3fn.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanVideo_repackaged", "split_files/diffusion_models/hunyuan_video_v2_replace_image_to_video_720p_bf16.safetensors"),
+    HuggingFile("Comfy-Org/HiDream-I1_ComfyUI", "split_files/diffusion_models/hidream_i1_dev_bf16.safetensors"),
+    HuggingFile("Comfy-Org/HiDream-I1_ComfyUI", "split_files/diffusion_models/hidream_i1_full_fp16.safetensors"),
+    HuggingFile("Comfy-Org/HiDream-I1_ComfyUI", "split_files/diffusion_models/hidream_e1_full_bf16.safetensors"),
+    HuggingFile("Comfy-Org/Cosmos_Predict2_repackaged", "cosmos_predict2_2B_t2i.safetensors"),
+    HuggingFile("Comfy-Org/Cosmos_Predict2_repackaged", "cosmos_predict2_14B_t2i.safetensors"),
+    HuggingFile("Comfy-Org/Cosmos_Predict2_repackaged", "cosmos_predict2_2B_video2world_480p_16fps.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_vace_14B_fp16.safetensors"),
+    HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/diffusion_models/wan2.1_fun_camera_v1.1_1.3B_bf16.safetensors"),
 ], folder_names=["diffusion_models", "unet"])
 
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
@@ -531,6 +565,9 @@ KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/Lumina_Image_2.0_Repackaged", "split_files/text_encoders/gemma_2_2b_fp16.safetensors"),
     HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/text_encoders/umt5_xxl_fp16.safetensors"),
     HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors"),
+    HuggingFile("Comfy-Org/HiDream-I1_ComfyUI", "split_files/text_encoders/clip_l_hidream.safetensors"),
+    HuggingFile("Comfy-Org/HiDream-I1_ComfyUI", "split_files/text_encoders/clip_g_hidream.safetensors"),
+    HuggingFile("Comfy-Org/HiDream-I1_ComfyUI", "split_files/text_encoders/llama_3.1_8b_instruct_fp8_scaled.safetensors"),
 ], folder_names=["clip", "text_encoders"])
 
 KNOWN_STYLE_MODELS: Final[KnownDownloadables] = KnownDownloadables([
