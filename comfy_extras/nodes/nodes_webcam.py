@@ -23,10 +23,6 @@ class WebcamCapture(LoadImage):
     def load_capture(self, image, **kwargs):
         return super().load_image(folder_paths.get_annotated_filepath(image))
 
-    @classmethod
-    def IS_CHANGED(cls, image, width, height, capture_on_queue):
-        return super().IS_CHANGED(image)
-
 
 NODE_CLASS_MAPPINGS = {
     "WebcamCapture": WebcamCapture,
