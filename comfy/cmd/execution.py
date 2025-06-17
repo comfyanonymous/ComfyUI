@@ -856,7 +856,7 @@ def validate_inputs(prompt, item, validated: typing.Dict[str, ValidateInputsTupl
 
                 if isinstance(input_type, list):
                     combo_options = input_type
-                    if "\\" in val:
+                    if isinstance(val, str) and "\\" in val:
                         # try to normalize paths for comparison purposes
                         val = canonicalize_path(val)
                     if all(isinstance(item, (str, PathLike)) for item in combo_options):
