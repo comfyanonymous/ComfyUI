@@ -1,6 +1,5 @@
 import pytest
 import torch
-from unittest.mock import MagicMock
 
 from comfy_extras.nodes.nodes_images import ImageStitch
 

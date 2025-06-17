@@ -20,7 +20,7 @@ from comfy import node_helpers
 from comfy.cli_args import args
 from comfy.comfy_types.node_typing import IO
 from comfy.weight_adapter import adapters
-from .nodes import nodes_custom_sampler
+from . import nodes_custom_sampler
 
 
 class TrainSampler(comfy.samplers.Sampler):
