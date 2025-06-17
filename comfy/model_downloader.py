@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from itertools import chain
+from os.path import join
+
 import collections
 import logging
 import operator
@@ -7,8 +10,6 @@ import os
 import shutil
 from collections.abc import Sequence, MutableSequence
 from functools import reduce
-from itertools import chain
-from os.path import join
 from pathlib import Path
 from typing import List, Optional, Final, Set
 
@@ -34,6 +35,8 @@ from .utils import ProgressBar, comfy_tqdm
 
 _session = Session()
 _hf_fs = HfFileSystem()
+
+logger = logging.getLogger(__name__)
 
 
 def get_filename_list(folder_name: str) -> list[str]:
@@ -118,7 +121,7 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                                                revision=known_file.revision,
                                                local_files_only=True,
                                                )
-                        logging.info(f"hf_hub_download cache hit for {known_file.repo_id}/{known_file.filename}")
+                        logger.info(f"hf_hub_download cache hit for {known_file.repo_id}/{known_file.filename}")
                         if linked_filename is None:
                             linked_filename = known_file.filename
                         cache_hit = True
@@ -145,7 +148,7 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
 
                         for _, v in tensors.items():
                             del v
-                        logging.info(f"Converted {path} to 16 bit, size is {os.stat(path, follow_symlinks=True).st_size}")
+                        logger.info(f"Converted {path} to 16 bit, size is {os.stat(path, follow_symlinks=True).st_size}")
 
                     link_successful = True
                     if linked_filename is not None:
@@ -154,17 +157,17 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                             os.makedirs(this_model_directory, exist_ok=True)
                             os.symlink(path, destination_link)
                         except Exception as exc_info:
-                            logging.error("error while symbolic linking", exc_info=exc_info)
+                            logger.error("error while symbolic linking", exc_info=exc_info)
                             try:
                                 os.link(path, destination_link)
                             except Exception as hard_link_exc:
-                                logging.error("error while hard linking", exc_info=hard_link_exc)
+                                logger.error("error while hard linking", exc_info=hard_link_exc)
                                 if cache_hit:
                                     shutil.copyfile(path, destination_link)
                                 link_successful = False
 
                     if not link_successful:
-                        logging.error(f"Failed to link file with alternative download save name in a way that is compatible with Hugging Face caching {repr(known_file)}. If cache_hit={cache_hit} is True, the file was copied into the destination.", exc_info=exc_info)
+                        logger.error(f"Failed to link file with alternative download save name in a way that is compatible with Hugging Face caching {repr(known_file)}. If cache_hit={cache_hit} is True, the file was copied into the destination.", exc_info=exc_info)
                 else:
                     url: Optional[str] = None
                     save_filename = known_file.save_with_filename or known_file.filename
@@ -185,7 +188,7 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                         raise RuntimeError("unknown file type")
 
                     if url is None:
-                        logging.warning(f"Could not retrieve file {str(known_file)}")
+                        logger.warning(f"Could not retrieve file {str(known_file)}")
                     else:
                         destination_with_filename = join(this_model_directory, save_filename)
                         os.makedirs(os.path.dirname(destination_with_filename), exist_ok=True)
@@ -584,7 +587,7 @@ def add_known_models(folder_name: str, known_models: Optional[List[Downloadable]
         return known_models
 
     if args.disable_known_models:
-        logging.warning(f"Known models have been disabled in the options (while adding {folder_name}/{','.join(map(str, models))})")
+        logger.warning(f"Known models have been disabled in the options (while adding {folder_name}/{','.join(map(str, models))})")
 
     pre_existing = frozenset(known_models)
     known_models.extend([model for model in models if model not in pre_existing])
@@ -639,7 +642,7 @@ def _get_or_download_huggingface_repo(repo_id: str, cache_dirs: Optional[list] =
 
     local_dirs_cache_hit = len(local_dirs_snapshots) > 0
     cache_dirs_cache_hit = len(cache_dirs_snapshots) > 0
-    logging.debug(f"cache {'hit' if local_dirs_cache_hit or cache_dirs_cache_hit else 'miss'} for repo_id={repo_id} because local_dirs={local_dirs_cache_hit}, cache_dirs={cache_dirs_cache_hit}")
+    logger.debug(f"cache {'hit' if local_dirs_cache_hit or cache_dirs_cache_hit else 'miss'} for repo_id={repo_id} because local_dirs={local_dirs_cache_hit}, cache_dirs={cache_dirs_cache_hit}")
 
     # if we're in forced local directory mode, only use the local dir snapshots, and otherwise, download
     if args.force_hf_local_dir_mode:
@@ -648,14 +651,14 @@ def _get_or_download_huggingface_repo(repo_id: str, cache_dirs: Optional[list] =
             return local_dirs_snapshots[0]
         elif not args.disable_known_models:
             destination = os.path.join(local_dirs[0], repo_id)
-            logging.debug(f"downloading repo_id={repo_id}, local_dir={destination}")
+            logger.debug(f"downloading repo_id={repo_id}, local_dir={destination}")
             return snapshot_download(repo_id, local_dir=destination)
 
     snapshots = local_dirs_snapshots + cache_dirs_snapshots
     if len(snapshots) > 0:
         return snapshots[0]
     elif not args.disable_known_models:
-        logging.debug(f"downloading repo_id={repo_id}")
+        logger.debug(f"downloading repo_id={repo_id}")
         return snapshot_download(repo_id)
 
     # this repo was not found

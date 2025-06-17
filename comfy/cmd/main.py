@@ -294,5 +294,8 @@ def entrypoint():
         logger.info(f"Gracefully shutting down due to KeyboardInterrupt")
 
 
+def main():
+    entrypoint()
+
 if __name__ == "__main__":
     entrypoint()

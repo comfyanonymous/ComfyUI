@@ -34,7 +34,6 @@ dependencies = [
     "peft>=0.10.0",
     "torchinfo",
     "safetensors>=0.4.2",
-    "bitsandbytes; platform_system != 'Darwin'",
     "aiohttp>=3.11.8",
     "yarl>=1.9.4",
     "accelerate>=0.25.0",
