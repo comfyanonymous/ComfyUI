@@ -464,7 +464,7 @@ def beta_scheduler(model_sampling, steps, alpha=0.6, beta=0.6):
     return torch.FloatTensor(sigs)
 
 def linear_scheduler(model_sampling, steps):
-    return torch.linspace(1.0, 0.0, steps + 1)
+    return torch.linspace(model_sampling.sigma_max, 0.0, steps + 1)
 
 # from: https://github.com/genmoai/models/blob/main/src/mochi_preview/infer.py#L41
 def linear_quadratic_schedule(model_sampling, steps, threshold_noise=0.025, linear_steps=None):
