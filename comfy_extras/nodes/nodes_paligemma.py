@@ -238,7 +238,7 @@ class PaligemmaOutputToMask(CustomNode):
     def execute(self, paligemma_output: PostProcessResult) -> tuple[MaskBatch]:
         masks = [torch.from_numpy(p["mask"]) for p in paligemma_output if "mask" in p]
         if len(masks) == 0:
-            return torch.zeroes((0, 0, 0)),
+            return torch.zeros((0, 0, 0)),
         return torch.stack(masks, dim=0),
 
 

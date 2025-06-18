@@ -1,13 +1,15 @@
 import logging
 
 import numpy as np
-import skia
 import torch
 import vtracer
+import logging
 from PIL import Image
 
 from comfy.nodes.package_typing import CustomNode
 from comfy.utils import tensor2pil
+
+logger = logging.getLogger(__name__)
 
 
 def RGB2RGBA(image: Image, mask: Image) -> Image:
@@ -99,6 +101,11 @@ class SVGToImage(CustomNode):
         return svg_string[svg_start:]
 
     def convert_to_image(self, svg, scale):
+        try:
+            import skia
+        except (ImportError, ModuleNotFoundError) as exc_info:
+            logger.error("failed to import skia", exc_info=exc_info)
+            return (torch.zeros((0, 1, 1, 3)),)
         raster_images = []
 
         for i, svg_string in enumerate(svg):
