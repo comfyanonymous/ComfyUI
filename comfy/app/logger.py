@@ -5,9 +5,10 @@ import threading
 from collections import deque
 from datetime import datetime
 
-logs = None
-stdout_interceptor = None
-stderr_interceptor = None
+# initialize with sane defaults
+logs = deque(maxlen=1000)
+stdout_interceptor = sys.stdout
+stderr_interceptor = sys.stderr
 
 
 class LogInterceptor(io.TextIOWrapper):
