@@ -9,7 +9,7 @@ import torch
 from PIL import Image
 
 from comfy.component_model.tensor_types import RGBImageBatch, MaskBatch, ImageBatch
-from comfy.nodes.package_typing import CustomNode, Seed
+from comfy.nodes.package_typing import CustomNode, Seed31
 from comfy.utils import pil2tensor, tensor2pil
 from comfy_extras.constants.resolutions import IDEOGRAM_RESOLUTIONS
 from comfy_extras.nodes.nodes_mask import MaskToImage
@@ -55,7 +55,7 @@ class IdeogramGenerate(CustomNode):
                 "api_key": ("STRING", {"default": ""}),
                 "negative_prompt": ("STRING", {"multiline": True}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 8}),
-                "seed": Seed,
+                "seed": Seed31,
                 "style_type": (STYLES_ENUM, {}),
                 # New v3 optional args
                 "rendering_speed": (RENDERING_SPEED_ENUM, {"default": "DEFAULT"}),
@@ -141,7 +141,7 @@ class IdeogramEdit(CustomNode):
                 "api_key": ("STRING", {"default": ""}),
                 "magic_prompt_option": (AUTO_PROMPT_ENUM, {"default": AUTO_PROMPT_ENUM[0]}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 8}),
-                "seed": Seed,
+                "seed": Seed31,
                 "style_type": (STYLES_ENUM, {}),
                 # New v3 optional args
                 "rendering_speed": (RENDERING_SPEED_ENUM, {"default": "DEFAULT"}),
@@ -217,7 +217,7 @@ class IdeogramRemix(CustomNode):
                 "magic_prompt_option": (AUTO_PROMPT_ENUM, {"default": AUTO_PROMPT_ENUM[0]}),
                 "negative_prompt": ("STRING", {"multiline": True}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 8}),
-                "seed": Seed,
+                "seed": Seed31,
                 "style_type": (STYLES_ENUM, {}),
                 # New v3 optional args
                 "rendering_speed": (RENDERING_SPEED_ENUM, {"default": "DEFAULT"}),

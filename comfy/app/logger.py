@@ -47,9 +47,9 @@ def get_logs():
 
 
 def on_flush(callback):
-    if stdout_interceptor is not None:
+    if stdout_interceptor is not None and hasattr(stdout_interceptor, "on_flush"):
         stdout_interceptor.on_flush(callback)
-    if stderr_interceptor is not None:
+    if stderr_interceptor is not None and hasattr(stderr_interceptor, "on_flush"):
         stderr_interceptor.on_flush(callback)
 
 

@@ -843,13 +843,13 @@ class PromptServer(ExecutorToClientProgress):
                         if result is None:
                             return web.Response(body="the queue is shutting down", status=503)
                     else:
-                        return await self._schedule_background_task_with_web_response(fut, task_id)
+                        return self._schedule_background_task_with_web_response(fut, task_id)
                 else:
                     self.prompt_queue.put(item)
                     if wait:
                         await completed
                     else:
-                        return await self._schedule_background_task_with_web_response(completed, task_id)
+                        return self._schedule_background_task_with_web_response(completed, task_id)
                     task_invocation_or_dict: TaskInvocation | dict = completed.result()
                     if isinstance(task_invocation_or_dict, dict):
                         result = TaskInvocation(item_id=item.prompt_id, outputs=task_invocation_or_dict, status=ExecutionStatus("success", True, []))
@@ -934,7 +934,7 @@ class PromptServer(ExecutorToClientProgress):
             prompt = last_history_item['prompt'][2]
             return web.json_response(prompt, status=200)
 
-    async def _schedule_background_task_with_web_response(self, fut, task_id):
+    def _schedule_background_task_with_web_response(self, fut, task_id):
         task = asyncio.create_task(fut, name=task_id)
         self.background_tasks[task_id] = task
         task.add_done_callback(lambda _: self.background_tasks.pop(task_id))

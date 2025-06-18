@@ -69,6 +69,7 @@ InputTypeSpec = Union[IntSpec, FloatSpec, StringSpec, BooleanSpec, ChoiceSpec, N
 
 # numpy seeds must be between 0 and 2**32 - 1
 Seed = ("INT", {"default": 0, "min": 0, "max": 2 ** 32 - 1})
+Seed31 = ("INT", {"default": 0, "min": 0, "max": 2 ** 31 - 1})
 Seed64 = ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True})
 SeedSpec = tuple[Literal["INT"], TypedDict("SeedSpecOptions", {"default": Literal[0], "min": Literal[0], "max": Literal[4294967295]})]
 
