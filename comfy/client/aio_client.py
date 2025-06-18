@@ -1,13 +1,13 @@
-import asyncio
-import uuid
 from asyncio import AbstractEventLoop
 from collections import defaultdict
+
+import aiohttp
+import asyncio
+import uuid
+from aiohttp import WSMessage, ClientResponse, ClientTimeout
 from pathlib import Path
 from typing import Optional, List
 from urllib.parse import urlparse, urljoin
-
-import aiohttp
-from aiohttp import WSMessage, ClientResponse, ClientTimeout
 
 from .client_types import V1QueuePromptResponse
 from ..api.api_client import JSONEncoder
@@ -33,16 +33,24 @@ class AsyncRemoteComfyClient:
             f"ws://{server_address_url.hostname}:{server_address_url.port}", f"/ws?clientId={client_id}")
         self.loop = loop or asyncio.get_event_loop()
         self._session: aiohttp.ClientSession | None = None
-        try:
-            if asyncio.get_event_loop() is not None:
-                self._ensure_session()
-        except RuntimeError as no_running_event_loop:
-            pass
 
     def _ensure_session(self) -> aiohttp.ClientSession:
-        if self._session is None:
+        if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession(timeout=ClientTimeout(total=10 * 60.0, connect=60.0))
         return self._session
+
+    async def __aenter__(self):
+        """Allows the client to be used in an 'async with' block."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Closes the session when exiting an 'async with' block."""
+        await self.close()
+
+    async def close(self):
+        """Closes the underlying aiohttp.ClientSession."""
+        if self._session and not self._session.closed:
+            await self._session.close()
 
     @property
     def session(self) -> aiohttp.ClientSession:

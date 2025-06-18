@@ -103,21 +103,20 @@ async def test_distributed_prompt_queues_same_process():
 
 @pytest.mark.asyncio
 async def test_frontend_backend_workers(frontend_backend_worker_with_rabbitmq):
-    client = AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq)
-    prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
-    png_image_bytes = await client.queue_prompt(prompt)
-    len_queue_after = await client.len_queue()
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
+        png_image_bytes = await client.queue_prompt(prompt)
+        len_queue_after = await client.len_queue()
     assert len_queue_after == 0
     assert len(png_image_bytes) > 1000, "expected an image, but got nothing"
 
 
 @pytest.mark.asyncio
 async def test_frontend_backend_workers_validation_error_raises(frontend_backend_worker_with_rabbitmq):
-    client = AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq)
-
-    prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1, sdxl_refiner_checkpoint_name="unknown.safetensors")
-    with pytest.raises(Exception):
-        await client.queue_prompt(prompt)
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1, sdxl_refiner_checkpoint_name="unknown.safetensors")
+        with pytest.raises(Exception):
+            await client.queue_prompt(prompt)
 
 
 async def check_health(url: str, max_retries: int = 5, retry_delay: float = 1.0):
@@ -151,48 +150,47 @@ async def test_basic_queue_worker_with_health_check(executor_factory):
 @pytest.mark.asyncio
 async def test_queue_and_forget_prompt_api_integration(frontend_backend_worker_with_rabbitmq):
     # Create the client using the server address from the fixture
-    client = AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq)
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
 
-    # Create a test prompt
-    prompt = sdxl_workflow_with_refiner("test prompt", inference_steps=1, refiner_steps=1)
+        # Create a test prompt
+        prompt = sdxl_workflow_with_refiner("test prompt", inference_steps=1, refiner_steps=1)
 
-    # Queue the prompt
-    task_id = await client.queue_and_forget_prompt_api(prompt)
+        # Queue the prompt
+        task_id = await client.queue_and_forget_prompt_api(prompt)
 
-    assert task_id is not None, "Failed to get a valid task ID"
+        assert task_id is not None, "Failed to get a valid task ID"
 
-    # Poll for the result
-    max_attempts = 60  # Increase max attempts for integration test
-    poll_interval = 1  # Increase poll interval for integration test
-    for _ in range(max_attempts):
-        try:
-            response = await client.session.get(f"{frontend_backend_worker_with_rabbitmq}/api/v1/prompts/{task_id}")
-            if response.status == 200:
-                result = await response.json()
-                assert result is not None, "Received empty result"
+        # Poll for the result
+        max_attempts = 60  # Increase max attempts for integration test
+        poll_interval = 1  # Increase poll interval for integration test
+        for _ in range(max_attempts):
+            try:
+                response = await client.session.get(f"{frontend_backend_worker_with_rabbitmq}/api/v1/prompts/{task_id}")
+                if response.status == 200:
+                    result = await response.json()
+                    assert result is not None, "Received empty result"
 
-                # Find the first output node with images
-                output_node = next((node for node in result.values() if 'images' in node), None)
-                assert output_node is not None, "No output node with images found"
+                    # Find the first output node with images
+                    output_node = next((node for node in result.values() if 'images' in node), None)
+                    assert output_node is not None, "No output node with images found"
 
-                assert len(output_node['images']) > 0, "No images in output node"
-                assert 'filename' in output_node['images'][0], "No filename in image output"
-                assert 'subfolder' in output_node['images'][0], "No subfolder in image output"
-                assert 'type' in output_node['images'][0], "No type in image output"
+                    assert len(output_node['images']) > 0, "No images in output node"
+                    assert 'filename' in output_node['images'][0], "No filename in image output"
+                    assert 'subfolder' in output_node['images'][0], "No subfolder in image output"
+                    assert 'type' in output_node['images'][0], "No type in image output"
 
-                # Check if we can access the image
-                image_url = f"{client.server_address}/view?filename={output_node['images'][0]['filename']}&type={output_node['images'][0]['type']}&subfolder={output_node['images'][0]['subfolder']}"
-                image_response = await client.session.get(image_url)
-                assert image_response.status == 200, f"Failed to retrieve image from {image_url}"
+                    # Check if we can access the image
+                    image_url = f"{client.server_address}/view?filename={output_node['images'][0]['filename']}&type={output_node['images'][0]['type']}&subfolder={output_node['images'][0]['subfolder']}"
+                    image_response = await client.session.get(image_url)
+                    assert image_response.status == 200, f"Failed to retrieve image from {image_url}"
 
-                return  # Test passed
-            elif response.status == 204:
+                    return  # Test passed
+                elif response.status == 204:
+                    await asyncio.sleep(poll_interval)
+                else:
+                    response.raise_for_status()
+            except _:
                 await asyncio.sleep(poll_interval)
-            else:
-                response.raise_for_status()
-        except Exception as e:
-            print(f"Error while polling: {e}")
-            await asyncio.sleep(poll_interval)
 
     pytest.fail("Failed to get a 200 response with valid data within the timeout period")
 

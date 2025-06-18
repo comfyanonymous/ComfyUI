@@ -1,17 +1,24 @@
+import sys
+import time
+
+import logging
 import multiprocessing
 import os
 import pathlib
-import socket
-import subprocess
-import sys
-import time
-import urllib
-from typing import Tuple, List
-
 import pytest
 import requests
+import socket
+import subprocess
+import urllib
+from testcontainers.rabbitmq import RabbitMqContainer
+from typing import Tuple, List
 
 from comfy.cli_args_types import Configuration
+
+logging.getLogger("pika").setLevel(logging.CRITICAL + 1)
+logging.getLogger("aio_pika").setLevel(logging.CRITICAL + 1)
+logging.getLogger("testcontainers.core.container").setLevel(logging.WARNING)
+logging.getLogger("testcontainers.core.waiting_utils").setLevel(logging.WARNING)
 
 # fixes issues with running the testcontainers rabbitmqcontainer on Windows
 os.environ["TC_HOST"] = "localhost"
@@ -95,7 +102,6 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers
     executor_factory = request.param
     processes_to_close: List[subprocess.Popen] = []
 
-    from testcontainers.rabbitmq import RabbitMqContainer
     with RabbitMqContainer("rabbitmq:latest") as rabbitmq:
         params = rabbitmq.get_connection_params()
         connection_uri = f"amqp://guest:guest@127.0.0.1:{params.port}"

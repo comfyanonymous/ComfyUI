@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 from enum import Enum
 from typing import NamedTuple, Optional, List, Literal, Sequence
 from typing import Tuple
-
 from typing_extensions import NotRequired, TypedDict
 
 from .outputs_types import OutputsDict
@@ -71,15 +69,26 @@ class ExtraData(TypedDict):
     token: NotRequired[str]
 
 
-@dataclass
-class NamedQueueTuple:
+class NamedQueueTuple(dict):
     """
     A wrapper class for a queue tuple, the object that is given to executors.
 
     Attributes:
         queue_tuple (QueueTuple): the corresponding queued workflow and other related data
     """
-    queue_tuple: QueueTuple
+    __slots__ = ('queue_tuple',)
+
+    def __init__(self, queue_tuple: QueueTuple):
+        # Initialize the dictionary superclass with the data we want to serialize.
+        super().__init__(
+            priority=queue_tuple[0],
+            prompt_id=queue_tuple[1],
+            prompt=queue_tuple[2],
+            extra_data=queue_tuple[3] if len(queue_tuple) > 3 else None,
+            good_outputs=queue_tuple[4] if len(queue_tuple) > 4 else None
+        )
+        # Store the original tuple in a slot, making it invisible to json.dumps.
+        self.queue_tuple = queue_tuple
 
     @property
     def priority(self) -> float:
@@ -95,20 +104,17 @@ class NamedQueueTuple:
 
     @property
     def extra_data(self) -> Optional[ExtraData]:
-        if len(self.queue_tuple) > 2:
+        if len(self.queue_tuple) > 3:
             return self.queue_tuple[3]
-        else:
-            return None
+        return None
 
     @property
     def good_outputs(self) -> Optional[List[str]]:
-        if len(self.queue_tuple) > 3:
+        if len(self.queue_tuple) > 4:
             return self.queue_tuple[4]
-        else:
-            return None
+        return None
 
 
-@dataclass
 class QueueItem(NamedQueueTuple):
     """
     An item awaiting processing in the queue: a NamedQueueTuple with a future that is completed when the item is done
@@ -118,10 +124,18 @@ class QueueItem(NamedQueueTuple):
         completed (Optional[Future[TaskInvocation | dict]]): A future of a task invocation (the signature of the task_done method)
             or a dictionary of outputs
     """
-    completed: asyncio.Future[TaskInvocation | dict] | None
+    __slots__ = ('completed',)
+
+    def __init__(self, queue_tuple: QueueTuple, completed: asyncio.Future[TaskInvocation | dict] | None):
+        # Initialize the parent, which sets up the dictionary representation.
+        super().__init__(queue_tuple=queue_tuple)
+        # Store the future in a slot so it won't be serialized.
+        self.completed = completed
 
     def __lt__(self, other: QueueItem):
-        return self.queue_tuple[0] < other.queue_tuple[0]
+        if not isinstance(other, QueueItem):
+            return NotImplemented
+        return self.priority < other.priority
 
 
 class BinaryEventTypes(Enum):

@@ -40,17 +40,6 @@ from ..tracing_compatibility import ProgressSpanSampler
 from ..tracing_compatibility import patch_spanbuilder_set_channel
 from ..vendor.aiohttp_server_instrumentation import AioHttpServerInstrumentor
 
-# Manually call the _init_dll_path method to ensure that the system path is searched for FFMPEG.
-# Calling torchaudio._extension.utils._init_dll_path does not work because it is initializing the torchadio module prematurely or something.
-# See: https://github.com/pytorch/audio/issues/3789
-if sys.platform == "win32":
-    for path in os.environ.get("PATH", "").split(os.pathsep):
-        if os.path.exists(path):
-            try:
-                os.add_dll_directory(path)
-            except Exception:
-                pass
-
 this_logger = logging.getLogger(__name__)
 
 options.enable_args_parsing()
@@ -66,6 +55,10 @@ warnings.filterwarnings("ignore", message="Inheritance class _InstrumentedApplic
 warnings.filterwarnings("ignore", message="Please import `gaussian_filter` from the `scipy.ndimage` namespace; the `scipy.ndimage.filters` namespace is deprecated", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message="The installed version of bitsandbytes was compiled without GPU support")
 warnings.filterwarnings("ignore", category=UserWarning, message="Unsupported Windows version .* ONNX Runtime supports Windows 10 and above, only.")
+log_msg_to_filter = "NOTE: Redirects are currently not supported in Windows or MacOs."
+logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").addFilter(
+    lambda record: log_msg_to_filter not in record.getMessage()
+)
 
 from ..cli_args import args
 

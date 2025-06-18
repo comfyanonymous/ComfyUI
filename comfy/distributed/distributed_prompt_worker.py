@@ -18,6 +18,7 @@ from ..client.embedded_comfy_client import Comfy
 from ..cmd.main_pre import tracer
 from ..component_model.queue_types import ExecutionStatus
 
+logger = logging.getLogger(__name__)
 
 class DistributedPromptWorker:
     """
@@ -62,12 +63,12 @@ class DistributedPromptWorker:
             site = web.TCPSite(runner, port=self._health_check_port)
             await site.start()
             self._health_check_site = site
-            logging.info(f"health check server started on port {self._health_check_port}")
+            logger.info(f"health check server started on port {self._health_check_port}")
         except OSError as e:
             if e.errno == 98:
-                logging.warning(f"port {self._health_check_port} is already in use, health check disabled but starting anyway")
+                logger.warning(f"port {self._health_check_port} is already in use, health check disabled but starting anyway")
             else:
-                logging.error(f"failed to start health check server with error {str(e)}, starting anyway")
+                logger.error(f"failed to start health check server with error {str(e)}, starting anyway")
 
     @tracer.start_as_current_span("Do Work Item")
     async def _do_work_item(self, request: dict) -> dict:
@@ -117,7 +118,7 @@ class DistributedPromptWorker:
         try:
             self._connection = await connect_robust(self._connection_uri, loop=self._loop)
         except AMQPConnectionError as connection_error:
-            logging.error(f"failed to connect to self._connection_uri={self._connection_uri}", connection_error)
+            logger.error(f"failed to connect to self._connection_uri={self._connection_uri}", connection_error)
             raise connection_error
         self._channel = await self._connection.channel()
         await self._channel.set_qos(prefetch_count=1)
