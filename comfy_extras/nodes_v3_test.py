@@ -3,7 +3,7 @@ from comfy_api.v3.io import (
     ComfyNodeV3, SchemaV3, NumberDisplay,
     IntegerInput, MaskInput, ImageInput, ComboInput, CustomInput, StringInput, CustomType,
     IntegerOutput, ImageOutput, MultitypedInput, InputV3, OutputV3,
-    NodeOutput, Hidden
+    NodeOutput
 )
 import logging
 

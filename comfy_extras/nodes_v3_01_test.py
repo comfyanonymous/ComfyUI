@@ -11,10 +11,17 @@ class XYZ:
     class Output(io.OutputV3):
         ...
 
+class MyState(io.NodeState):
+    my_str: str
+    my_int: int
+
 
 class V3TestNode(io.ComfyNodeV3):
 
+    state: MyState
+
     def __init__(self):
+        super().__init__()
         self.hahajkunless = ";)"
 
     @classmethod
@@ -64,6 +71,15 @@ class V3TestNode(io.ComfyNodeV3):
 
     @classmethod
     def execute(cls, image: io.Image.Type, some_int: int, combo: io.Combo.Type, combo2: io.MultiCombo.Type, xyz: XYZ.Type=None, mask: io.Mask.Type=None, **kwargs):
+        zzz = cls.hidden.prompt
+        cls.state.my_str = "LOLJK"
+        expected_int = 123
+        cls.state.my_int = expected_int
+        if cls.state.my_int is None:
+            cls.state.my_int = expected_int
+        else:
+            if cls.state.my_int != expected_int:
+                raise Exception(f"Explicit state object did not maintain expected value: {cls.state.my_int} != {expected_int}")
         #some_int
         if hasattr(cls, "hahajkunless"):
             raise Exception("The 'cls' variable leaked instance state between runs!")
