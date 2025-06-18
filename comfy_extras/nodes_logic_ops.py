@@ -54,8 +54,7 @@ class BooleanSwitch:
             "optional": {"on_true": (any,), "on_false": (any,)}
         }
 
-    RETURN_TYPES = ("ANY",)
-    RETURN_NAMES = ("*",)
+    RETURN_TYPES = (any,)
     CATEGORY = "utils/logic"
     FUNCTION = "switch"
 
