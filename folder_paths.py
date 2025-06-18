@@ -276,6 +276,9 @@ def filter_files_extensions(files: Collection[str], extensions: Collection[str])
 
 
 def get_full_path(folder_name: str, filename: str) -> str | None:
+    """
+    Get the full path of a file in a folder, has to be a file
+    """
     global folder_names_and_paths
     folder_name = map_legacy(folder_name)
     if folder_name not in folder_names_and_paths:
@@ -293,6 +296,9 @@ def get_full_path(folder_name: str, filename: str) -> str | None:
 
 
 def get_full_path_or_raise(folder_name: str, filename: str) -> str:
+    """
+    Get the full path of a file in a folder, has to be a file
+    """
     full_path = get_full_path(folder_name, filename)
     if full_path is None:
         raise FileNotFoundError(f"Model in folder '{folder_name}' with filename '{filename}' not found.")
@@ -394,3 +400,26 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         os.makedirs(full_output_folder, exist_ok=True)
         counter = 1
     return full_output_folder, filename, counter, subfolder, filename_prefix
+
+def get_input_subfolders() -> list[str]:
+    """Returns a list of all subfolder paths in the input directory, recursively.
+
+    Returns:
+        List of folder paths relative to the input directory, excluding the root directory
+    """
+    input_dir = get_input_directory()
+    folders = []
+
+    try:
+        if not os.path.exists(input_dir):
+            return []
+
+        for root, dirs, _ in os.walk(input_dir):
+            rel_path = os.path.relpath(root, input_dir)
+            if rel_path != ".":  # Only include non-root directories
+                # Normalize path separators to forward slashes
+                folders.append(rel_path.replace(os.sep, '/'))
+
+        return sorted(folders)
+    except FileNotFoundError:
+        return []

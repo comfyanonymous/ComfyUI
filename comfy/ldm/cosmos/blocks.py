@@ -26,16 +26,6 @@ from torch import nn
 from comfy.ldm.modules.attention import optimized_attention
 
 
-def apply_rotary_pos_emb(
-    t: torch.Tensor,
-    freqs: torch.Tensor,
-) -> torch.Tensor:
-    t_ = t.reshape(*t.shape[:-1], 2, -1).movedim(-2, -1).unsqueeze(-2).float()
-    t_out = freqs[..., 0] * t_[..., 0] + freqs[..., 1] * t_[..., 1]
-    t_out = t_out.movedim(-1, -2).reshape(*t.shape).type_as(t)
-    return t_out
-
-
 def get_normalization(name: str, channels: int, weight_args={}, operations=None):
     if name == "I":
         return nn.Identity()

@@ -6,6 +6,7 @@
 
 [![Website][website-shield]][website-url]
 [![Dynamic JSON Badge][discord-shield]][discord-url]
+[![Twitter][twitter-shield]][twitter-url]
 [![Matrix][matrix-shield]][matrix-url]
 <br>
 [![][github-release-shield]][github-release-link]
@@ -20,6 +21,8 @@
 <!-- Workaround to display total user from https://github.com/badges/shields/issues/4500#issuecomment-2060079995 -->
 [discord-shield]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2Fcomfyorg%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&logo=discord&logoColor=white&label=Discord&color=green&suffix=%20total
 [discord-url]: https://www.comfy.org/discord
+[twitter-shield]: https://img.shields.io/twitter/follow/ComfyUI
+[twitter-url]: https://x.com/ComfyUI
 
 [github-release-shield]: https://img.shields.io/github/v/release/comfyanonymous/ComfyUI?style=flat&sort=semver
 [github-release-link]: https://github.com/comfyanonymous/ComfyUI/releases
@@ -62,12 +65,13 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
    - [Lumina Image 2.0](https://comfyanonymous.github.io/ComfyUI_examples/lumina2/)
    - [HiDream](https://comfyanonymous.github.io/ComfyUI_examples/hidream/)
+   - [Cosmos Predict2](https://comfyanonymous.github.io/ComfyUI_examples/cosmos_predict2/)
 - Video Models
    - [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
    - [Mochi](https://comfyanonymous.github.io/ComfyUI_examples/mochi/)
    - [LTX-Video](https://comfyanonymous.github.io/ComfyUI_examples/ltxv/)
    - [Hunyuan Video](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_video/)
-   - [Nvidia Cosmos](https://comfyanonymous.github.io/ComfyUI_examples/cosmos/)
+   - [Nvidia Cosmos](https://comfyanonymous.github.io/ComfyUI_examples/cosmos/) and [Cosmos Predict2](https://comfyanonymous.github.io/ComfyUI_examples/cosmos_predict2/)
    - [Wan 2.1](https://comfyanonymous.github.io/ComfyUI_examples/wan/)
 - Audio Models
    - [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
@@ -95,7 +99,8 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
 - [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
 - Latent previews with [TAESD](#how-to-show-high-quality-previews)
 - Starts up very fast.
-- Works fully offline: will never download anything.
+- Works fully offline: core will never download anything unless you want to.
+- Optional API nodes to use paid models from external providers through the online [Comfy API](https://docs.comfy.org/tutorials/api-nodes/overview).
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)

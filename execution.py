@@ -1,22 +1,34 @@
-import sys
 import copy
-import logging
-import threading
 import heapq
+import inspect
+import logging
+import sys
+import threading
 import time
 import traceback
 from enum import Enum
-import inspect
 from typing import List, Literal, NamedTuple, Optional
 
 import torch
-import nodes
 
 import comfy.model_management
-from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
-from comfy_execution.graph_utils import is_link, GraphBuilder
-from comfy_execution.caching import HierarchicalCache, LRUCache, DependencyAwareCache, CacheKeySetInputSignature, CacheKeySetID
+import nodes
+from comfy_execution.caching import (
+    CacheKeySetID,
+    CacheKeySetInputSignature,
+    DependencyAwareCache,
+    HierarchicalCache,
+    LRUCache,
+)
+from comfy_execution.graph import (
+    DynamicPrompt,
+    ExecutionBlocker,
+    ExecutionList,
+    get_input_info,
+)
+from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
+
 
 class ExecutionResult(Enum):
     SUCCESS = 0
@@ -417,17 +429,20 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
 
         logging.error(f"!!! Exception during processing !!! {ex}")
         logging.error(traceback.format_exc())
+        tips = ""
+
+        if isinstance(ex, comfy.model_management.OOM_EXCEPTION):
+            tips = "This error means you ran out of memory on your GPU.\n\nTIPS: If the workflow worked before you might have accidentally set the batch_size to a large number."
+            logging.error("Got an OOM, unloading all loaded models.")
+            comfy.model_management.unload_all_models()
 
         error_details = {
             "node_id": real_node_id,
-            "exception_message": str(ex),
+            "exception_message": "{}\n{}".format(ex, tips),
             "exception_type": exception_type,
             "traceback": traceback.format_tb(tb),
             "current_inputs": input_data_formatted
         }
-        if isinstance(ex, comfy.model_management.OOM_EXCEPTION):
-            logging.error("Got an OOM, unloading all loaded models.")
-            comfy.model_management.unload_all_models()
 
         return (ExecutionResult.FAILURE, error_details, ex)
 

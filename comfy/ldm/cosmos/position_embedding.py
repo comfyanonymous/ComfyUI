@@ -66,15 +66,16 @@ class VideoRopePosition3DEmb(VideoPositionEmb):
         h_extrapolation_ratio: float = 1.0,
         w_extrapolation_ratio: float = 1.0,
         t_extrapolation_ratio: float = 1.0,
+        enable_fps_modulation: bool = True,
         device=None,
         **kwargs,  # used for compatibility with other positional embeddings; unused in this class
     ):
         del kwargs
         super().__init__()
-        self.register_buffer("seq", torch.arange(max(len_h, len_w, len_t), dtype=torch.float, device=device))
         self.base_fps = base_fps
         self.max_h = len_h
         self.max_w = len_w
+        self.enable_fps_modulation = enable_fps_modulation
 
         dim = head_dim
         dim_h = dim // 6 * 2
@@ -132,21 +133,19 @@ class VideoRopePosition3DEmb(VideoPositionEmb):
         temporal_freqs = 1.0 / (t_theta**self.dim_temporal_range.to(device=device))
 
         B, T, H, W, _ = B_T_H_W_C
+        seq = torch.arange(max(H, W, T), dtype=torch.float, device=device)
         uniform_fps = (fps is None) or isinstance(fps, (int, float)) or (fps.min() == fps.max())
         assert (
             uniform_fps or B == 1 or T == 1
         ), "For video batch, batch size should be 1 for non-uniform fps. For image batch, T should be 1"
-        assert (
-            H <= self.max_h and W <= self.max_w
-        ), f"Input dimensions (H={H}, W={W}) exceed the maximum dimensions (max_h={self.max_h}, max_w={self.max_w})"
-        half_emb_h = torch.outer(self.seq[:H].to(device=device), h_spatial_freqs)
-        half_emb_w = torch.outer(self.seq[:W].to(device=device), w_spatial_freqs)
+        half_emb_h = torch.outer(seq[:H].to(device=device), h_spatial_freqs)
+        half_emb_w = torch.outer(seq[:W].to(device=device), w_spatial_freqs)
 
         # apply sequence scaling in temporal dimension
-        if fps is None:  # image case
-            half_emb_t = torch.outer(self.seq[:T].to(device=device), temporal_freqs)
+        if fps is None or self.enable_fps_modulation is False:  # image case
+            half_emb_t = torch.outer(seq[:T].to(device=device), temporal_freqs)
         else:
-            half_emb_t = torch.outer(self.seq[:T].to(device=device) / fps * self.base_fps, temporal_freqs)
+            half_emb_t = torch.outer(seq[:T].to(device=device) / fps * self.base_fps, temporal_freqs)
 
         half_emb_h = torch.stack([torch.cos(half_emb_h), -torch.sin(half_emb_h), torch.sin(half_emb_h), torch.cos(half_emb_h)], dim=-1)
         half_emb_w = torch.stack([torch.cos(half_emb_w), -torch.sin(half_emb_w), torch.sin(half_emb_w), torch.cos(half_emb_w)], dim=-1)
