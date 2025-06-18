@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 from abc import ABCMeta, abstractmethod
 
-from .queue_types import QueueTuple, HistoryEntry, QueueItem, Flags, ExecutionStatus, TaskInvocation
+from .queue_types import QueueTuple, HistoryEntry, QueueItem, Flags, ExecutionStatus, TaskInvocation, AbstractPromptQueueGetCurrentQueueItems
 
 
 class AbstractPromptQueue(metaclass=ABCMeta):
@@ -54,7 +54,7 @@ class AbstractPromptQueue(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_current_queue(self) -> typing.Tuple[typing.List[QueueTuple], typing.List[QueueTuple]]:
+    def get_current_queue(self) -> AbstractPromptQueueGetCurrentQueueItems:
         """
         Gets the current state of the queue
         :return: A tuple containing (the currently running items, the items awaiting execution)
@@ -118,6 +118,13 @@ class AbstractPromptQueue(metaclass=ABCMeta):
         :return:
         """
         pass
+
+    def get_current_queue_volatile(self) -> AbstractPromptQueueGetCurrentQueueItems:
+        """
+        A workaround to "improve performance with large number of queued prompts",
+        :return: A tuple containing (the currently running items, the items awaiting execution)
+        """
+        return self.get_current_queue()
 
 
 class AsyncAbstractPromptQueue(metaclass=ABCMeta):

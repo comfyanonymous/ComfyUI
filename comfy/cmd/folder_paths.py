@@ -50,7 +50,11 @@ def _resolve_path_with_compatibility(path: Path | str) -> PurePosixPath | Path:
     if isinstance(path, PurePosixPath) and path.is_absolute():
         return path
     if not path.is_absolute():
-        return Path.resolve(_base_path() / path)
+        base_path_to_path = _base_path() / path
+        if base_path_to_path.is_absolute():
+            return base_path_to_path
+        else:
+            return Path.resolve(_base_path() / path)
     return Path(path).resolve()
 
 

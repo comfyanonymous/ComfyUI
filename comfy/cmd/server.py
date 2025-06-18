@@ -44,6 +44,7 @@ from ..client.client_types import FileOutput
 from ..cmd import execution
 from ..cmd import folder_paths
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue, AsyncAbstractPromptQueue
+from ..component_model.encode_text_for_progress import encode_text_for_progress
 from ..component_model.executor_types import ExecutorToClientProgress, StatusMessage, QueueInfo, ExecInfo
 from ..component_model.file_output_path import file_output_path
 from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation, ExecutionError, \
@@ -1139,11 +1140,6 @@ class PromptServer(ExecutorToClientProgress):
     def send_progress_text(
         self, text: Union[bytes, bytearray, str], node_id: str, sid=None
     ):
-        if isinstance(text, str):
-            text = text.encode("utf-8")
-        node_id_bytes = str(node_id).encode("utf-8")
-
-        # Pack the node_id length as a 4-byte unsigned integer, followed by the node_id bytes
-        message = struct.pack(">I", len(node_id_bytes)) + node_id_bytes + text
+        message = encode_text_for_progress(node_id, text)
 
         self.send_sync(BinaryEventTypes.TEXT, message, sid)

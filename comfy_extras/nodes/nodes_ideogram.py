@@ -31,9 +31,6 @@ RESOLUTION_ENUM = [f"RESOLUTION_{w}_{h}" for w, h in IDEOGRAM_RESOLUTIONS]
 # New enum for v3 rendering speed
 RENDERING_SPEED_ENUM = ["DEFAULT", "TURBO", "QUALITY"]
 
-
-# --- Helper Functions ---
-
 def to_v3_resolution(resolution: str) -> str:
     return resolution[len("RESOLUTION_"):].replace("_", "x")
 
@@ -43,9 +40,6 @@ def api_key_in_env_or_workflow(api_key_from_workflow: str):
     if api_key_from_workflow is not None and "" != api_key_from_workflow.strip():
         return api_key_from_workflow
     return os.environ.get("IDEOGRAM_API_KEY", args.ideogram_api_key)
-
-
-# --- Custom Nodes ---
 
 class IdeogramGenerate(CustomNode):
     @classmethod
@@ -138,13 +132,16 @@ class IdeogramEdit(CustomNode):
     def INPUT_TYPES(cls) -> Dict[str, Any]:
         return {
             "required": {
-                "images": ("IMAGE",), "masks": ("MASK",), "prompt": ("STRING", {"multiline": True}),
+                "images": ("IMAGE",),
+                "masks": ("MASK",),
+                "prompt": ("STRING", {"multiline": True}),
                 "model": (MODELS_ENUM, {"default": MODELS_ENUM[-1]}),
             },
             "optional": {
                 "api_key": ("STRING", {"default": ""}),
                 "magic_prompt_option": (AUTO_PROMPT_ENUM, {"default": AUTO_PROMPT_ENUM[0]}),
-                "num_images": ("INT", {"default": 1, "min": 1, "max": 8}), "seed": ("INT", {"default": 0}),
+                "num_images": ("INT", {"default": 1, "min": 1, "max": 8}),
+                "seed": Seed,
                 "style_type": (STYLES_ENUM, {}),
                 # New v3 optional args
                 "rendering_speed": (RENDERING_SPEED_ENUM, {"default": "DEFAULT"}),
@@ -220,7 +217,8 @@ class IdeogramRemix(CustomNode):
                 "magic_prompt_option": (AUTO_PROMPT_ENUM, {"default": AUTO_PROMPT_ENUM[0]}),
                 "negative_prompt": ("STRING", {"multiline": True}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 8}),
-                "seed": ("INT", {"default": 0}), "style_type": (STYLES_ENUM, {}),
+                "seed": Seed,
+                "style_type": (STYLES_ENUM, {}),
                 # New v3 optional args
                 "rendering_speed": (RENDERING_SPEED_ENUM, {"default": "DEFAULT"}),
                 "aspect_ratio": (ASPECT_RATIO_V3_ENUM, {"default": "disabled"}),

@@ -148,3 +148,6 @@ class ExecutorToClientMessage(TypedDict, total=False):
     node: str
     prompt_id: str
     output: NotRequired[str]
+
+
+AbstractPromptQueueGetCurrentQueueItems = tuple[list[QueueTuple], list[QueueTuple]]

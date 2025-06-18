@@ -5,7 +5,7 @@ import base64
 from asyncio import AbstractEventLoop
 from enum import Enum
 from functools import partial
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 
 from aio_pika.patterns import RPC
 
@@ -67,10 +67,6 @@ class DistributedExecutorToClientProgress(ExecutorToClientProgress):
         except asyncio.TimeoutError:
             # these can gracefully expire
             pass
-
-    def send_progress_text(self, text: str, node_id: str = None):
-        # todo: we'll fill this out later
-        pass
 
     def send_sync(self,
                   event: SendSyncEvent,

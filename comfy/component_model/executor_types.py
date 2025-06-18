@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Optional, Literal, Protocol, Union, NamedTuple, List
 from typing_extensions import NotRequired, TypedDict
 
+from .encode_text_for_progress import encode_text_for_progress
 from .outputs_types import OutputsDict
 from .queue_types import BinaryEventTypes
 from ..cli_args_types import Configuration
@@ -121,7 +122,9 @@ class ExecutorToClientProgress(Protocol):
         pass
 
     def send_progress_text(self, text: Union[bytes, bytearray, str], node_id: str, sid=None):
-        pass
+        message = encode_text_for_progress(node_id, text)
+
+        self.send_sync(BinaryEventTypes.TEXT, message, sid)
 
     def queue_updated(self, queue_remaining: Optional[int] = None):
         """
