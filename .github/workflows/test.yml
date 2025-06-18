@@ -19,13 +19,13 @@ jobs:
       matrix:
         runner:
           - labels: [self-hosted, Linux, X64, cuda-3060-12gb]
-            container: "nvcr.io/nvidia/pytorch:24.12-py3"
+            container: "nvcr.io/nvidia/pytorch:25.03-py3"
     steps:
       - run: |
           apt update || true
           apt install -y curl nodejs python3 python3-pip git build-essential ffmpeg libsm6 libxext6 || true
           pip uninstall -y $(pip list --format=freeze | grep opencv) || true
-          rm -rf /usr/local/lib/python3.10/dist-packages/cv2/ || rm -rf /usr/local/lib/python3.11/dist-packages/cv2/ || rm -rf /usr/local/lib/python3.12/dist-packages/cv2/ || true
+          rm -rf /usr/local/lib/python3.12/dist-packages/cv2/ || true
           ln -s `which python3` /usr/bin/python || true
           ln -s `which pip3` /usr/bin/pip || true
         name: Prepare Python
@@ -38,12 +38,10 @@ jobs:
         run: |
           export UV_BREAK_SYSTEM_PACKAGES=true
           export UV_SYSTEM_PYTHON=true
-          UV_TORCH_BACKEND=auto uv sync --inexact
+          uv sync --extra cu128 --inexact --frozen
       - name: Run tests
         run: |
-          export HSA_OVERRIDE_GFX_VERSION=11.0.0
-          export HIP_VISIBLE_DEVICES=0
-          nvidia-smi || rocminfo || true
+          nvidia-smi
           uv run pytest -v tests/unit
       - name: Lint for errors
         run: |
