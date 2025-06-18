@@ -23,6 +23,7 @@ class CUDNNToggleAutoPassthrough:
 
     def toggle(self, enable_cudnn, model=None, conditioning=None, latent=None, audio=None, image=None):
         torch.backends.cudnn.enabled = enable_cudnn
+        torch.backends.cudnn.benchmark = enable_cudnn
         print(f"[CUDNN_TOGGLE] torch.backends.cudnn.enabled set to {enable_cudnn}")
 
         return_tuple = (None, None, None, None, None)
