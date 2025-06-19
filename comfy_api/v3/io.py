@@ -114,7 +114,7 @@ def comfytype(io_type: str, **kwargs):
             new_cls.__module__ = cls.__module__
             new_cls.__doc__ = cls.__doc__
             # assign ComfyType attributes, if needed
-            # NOTE: do we need __ne__ trick for io_type? (see IO.__ne__ for details)
+        # NOTE: do we need __ne__ trick for io_type? (see node_typing.IO.__ne__ for details)
         new_cls.io_type = io_type
         if new_cls.Input is not None:
             new_cls.Input.Parent = new_cls
@@ -139,11 +139,6 @@ class IO_V3:
     def __init__(self):
         pass
 
-    # def __init_subclass__(cls, io_type: IO | str, **kwargs):
-    #     # TODO: do we need __ne__ trick for io_type? (see IO.__ne__ for details)
-    #     cls.io_type = io_type
-    #     super().__init_subclass__(**kwargs)
-    
     @property
     def io_type(self):
         return self.Parent.io_type
@@ -163,14 +158,14 @@ class InputV3(IO_V3):
         self.optional = optional
         self.tooltip = tooltip
         self.lazy = lazy
-    
+
     def as_dict_V1(self):
         return prune_dict({
             "display_name": self.display_name,
             "tooltip": self.tooltip,
             "lazy": self.lazy
         })
-    
+
     def get_io_type_V1(self):
         return self.io_type
 
@@ -219,7 +214,7 @@ class NodeStateLocal(NodeState):
     def __init__(self, node_id: str):
         super().__init__(node_id)
         self.local_state = {}
-    
+
     def __getattr__(self, key: str):
         local_state = type(self).__getattribute__(self, "local_state")
         if key in local_state:
@@ -259,7 +254,7 @@ class Boolean:
 @comfytype(io_type=IO.INT)
 class Int:
     Type = int
-    
+
     class Input(WidgetInputV3):
         '''Integer input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
@@ -272,7 +267,7 @@ class Int:
             self.control_after_generate = control_after_generate
             self.display_mode = display_mode
             self.default: int
-        
+
         def as_dict_V1(self):
             return super().as_dict_V1() | prune_dict({
                 "min": self.min,
@@ -288,7 +283,7 @@ class Int:
 @comfytype(io_type=IO.FLOAT)
 class Float:
     Type = float
-    
+
     class Input(WidgetInputV3):
         '''Float input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
@@ -302,7 +297,7 @@ class Float:
             self.round = round
             self.display_mode = display_mode
             self.default: float
-        
+
         def as_dict_V1(self):
             return super().as_dict_V1() | prune_dict({
                 "min": self.min,
@@ -311,14 +306,14 @@ class Float:
                 "round": self.round,
                 "display": self.display_mode,
             })
-    
+
     class Output(OutputV3):
         ...
 
 @comfytype(io_type=IO.STRING)
 class String:
     Type = str
-    
+
     class Input(WidgetInputV3):
         '''String input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
@@ -357,7 +352,7 @@ class Combo:
             self.image_folder = image_folder
             self.remote = remote
             self.default: str
-        
+
         def as_dict_V1(self):
             return super().as_dict_V1() | prune_dict({
                 "multiselect": self.multiselect,
@@ -381,7 +376,7 @@ class MultiCombo:
             self.placeholder = placeholder
             self.chip = chip
             self.default: list[str]
-        
+
         def as_dict_V1(self):
             return super().as_dict_V1() | prune_dict({
                 "multiselect": self.multiselect,
@@ -548,7 +543,7 @@ class ComboDynamicInput(DynamicInput):
 AutoGrowDynamicInput(id="dynamic", template_input=Image.Input(id="image"))
 
 
-class Hidden:
+class HiddenHolder:
     def __init__(self, unique_id: str, prompt: Any,
                  extra_pnginfo: Any, dynprompt: Any,
                  auth_token_comfy_org: str, api_key_comfy_org: str, **kwargs):
@@ -572,15 +567,15 @@ class Hidden:
     @classmethod
     def from_dict(cls, d: dict):
         return cls(
-            unique_id=d.get(HiddenEnum.unique_id),
-            prompt=d.get(HiddenEnum.prompt),
-            extra_pnginfo=d.get(HiddenEnum.extra_pnginfo),
-            dynprompt=d.get(HiddenEnum.dynprompt),
-            auth_token_comfy_org=d.get(HiddenEnum.auth_token_comfy_org),
-            api_key_comfy_org=d.get(HiddenEnum.api_key_comfy_org),
+            unique_id=d.get(Hidden.unique_id, None),
+            prompt=d.get(Hidden.prompt, None),
+            extra_pnginfo=d.get(Hidden.extra_pnginfo, None),
+            dynprompt=d.get(Hidden.dynprompt, None),
+            auth_token_comfy_org=d.get(Hidden.auth_token_comfy_org, None),
+            api_key_comfy_org=d.get(Hidden.api_key_comfy_org, None),
         )
 
-class HiddenEnum(str, Enum):
+class Hidden(str, Enum):
     '''
     Enumerator for requesting hidden variables in nodes.
     '''
@@ -637,7 +632,7 @@ class SchemaV3:
     """The category of the node, as per the "Add Node" menu."""
     inputs: list[InputV3]=None
     outputs: list[OutputV3]=None
-    hidden: list[HiddenEnum]=None
+    hidden: list[Hidden]=None
     description: str=""
     """Node description, shown as a tooltip when hovering over the node."""
     is_input_list: bool = False
@@ -758,7 +753,7 @@ class ComfyNodeV3:
     
     # filled in during execution
     state: NodeState = None
-    hidden: Hidden = None
+    hidden: HiddenHolder = None
 
     @classmethod
     def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
@@ -803,7 +798,7 @@ class ComfyNodeV3:
         type_clone: type[ComfyNodeV3] = type(f"CLEAN_{c_type.__name__}", c_type.__bases__, {})
         # TODO: what parameters should be carried over?
         type_clone.SCHEMA = c_type.SCHEMA
-        type_clone.hidden = Hidden.from_dict(hidden_inputs)
+        type_clone.hidden = HiddenHolder.from_dict(hidden_inputs)
         # TODO: add anything we would want to expose inside node's execute function
         return type_clone
 
@@ -890,7 +885,7 @@ class ComfyNodeV3:
     FUNCTION = "execute"
 
     @classmethod
-    def INPUT_TYPES(cls) -> dict[str, dict]:
+    def INPUT_TYPES(cls, include_hidden=True, return_schema=False) -> dict[str, dict] | tuple[dict[str, dict], SchemaV3]:
         schema = cls.DEFINE_SCHEMA()
         # for V1, make inputs be a dict with potential keys {required, optional, hidden}
         input = {
@@ -900,9 +895,11 @@ class ComfyNodeV3:
             for i in schema.inputs:
                 key = "optional" if i.optional else "required"
                 input.setdefault(key, {})[i.id] = (i.get_io_type_V1(), i.as_dict_V1())
-        if schema.hidden:
+        if schema.hidden and include_hidden:
             for hidden in schema.hidden:
                 input.setdefault("hidden", {})[hidden.name] = (hidden.value,)
+        if return_schema:
+            return input, schema
         return input
 
     @classmethod
@@ -1088,7 +1085,7 @@ class TestNode(ComfyNodeV3):
                 Mask.Input("thing"),
                 ],
         outputs=[Image.Output("image_output")],
-        hidden=[HiddenEnum.api_key_comfy_org, HiddenEnum.auth_token_comfy_org, HiddenEnum.unique_id]
+        hidden=[Hidden.api_key_comfy_org, Hidden.auth_token_comfy_org, Hidden.unique_id]
     )
 
     @classmethod

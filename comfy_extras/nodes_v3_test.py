@@ -64,7 +64,9 @@ class V3TestNode(io.ComfyNodeV3):
                 io.Image.Output("img_output", display_name="img🖼️", tooltip="This is an image"),
             ],
             hidden=[
-                
+                io.Hidden.prompt,
+                io.Hidden.auth_token_comfy_org,
+                io.Hidden.unique_id,
             ],
             is_output_node=True,
         )

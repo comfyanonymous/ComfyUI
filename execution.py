@@ -28,7 +28,7 @@ from comfy_execution.graph import (
 )
 from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
-from comfy_api.v3.io import NodeOutput, ComfyNodeV3, HiddenEnum, NodeStateLocal
+from comfy_api.v3.io import NodeOutput, ComfyNodeV3, Hidden, NodeStateLocal
 
 
 class ExecutionResult(Enum):
@@ -119,7 +119,11 @@ class CacheSet:
         return result
 
 def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, extra_data={}):
-    valid_inputs = class_def.INPUT_TYPES()
+    is_v3 = issubclass(class_def, ComfyNodeV3)
+    if is_v3:
+        valid_inputs, schema = class_def.INPUT_TYPES(include_hidden=False, return_schema=True)
+    else:
+        valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
     missing_keys = {}
     hidden_inputs_v3 = {}
@@ -147,15 +151,20 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
         elif input_category is not None:
             input_data_all[x] = [input_data]
 
-    # V3
-    if isinstance(class_def, type(ComfyNodeV3)):
-        hidden_inputs_v3[HiddenEnum.prompt] = dynprompt.get_original_prompt() if dynprompt is not None else {}
-        hidden_inputs_v3[HiddenEnum.dynprompt] = dynprompt
-        hidden_inputs_v3[HiddenEnum.extra_pnginfo] = extra_data.get('extra_pnginfo', None)
-        hidden_inputs_v3[HiddenEnum.unique_id] = unique_id
-        hidden_inputs_v3[HiddenEnum.auth_token_comfy_org] = extra_data.get("auth_token_comfy_org", None)
-        hidden_inputs_v3[HiddenEnum.api_key_comfy_org] = extra_data.get("api_key_comfy_org", None)
-    # V1
+    if is_v3:
+        if schema.hidden:
+            if Hidden.prompt in schema.hidden:
+                hidden_inputs_v3[Hidden.prompt] = dynprompt.get_original_prompt() if dynprompt is not None else {}
+            if Hidden.dynprompt in schema.hidden:
+                hidden_inputs_v3[Hidden.dynprompt] = dynprompt
+            if Hidden.extra_pnginfo in schema.hidden:
+                hidden_inputs_v3[Hidden.extra_pnginfo] = extra_data.get('extra_pnginfo', None)
+            if Hidden.unique_id in schema.hidden:
+                hidden_inputs_v3[Hidden.unique_id] = unique_id
+            if Hidden.auth_token_comfy_org in schema.hidden:
+                hidden_inputs_v3[Hidden.auth_token_comfy_org] = extra_data.get("auth_token_comfy_org", None)
+            if Hidden.api_key_comfy_org in schema.hidden:
+                hidden_inputs_v3[Hidden.api_key_comfy_org] = extra_data.get("api_key_comfy_org", None)
     else:
         if "hidden" in valid_inputs:
             h = valid_inputs["hidden"]
