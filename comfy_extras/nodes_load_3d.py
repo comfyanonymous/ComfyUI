@@ -5,6 +5,8 @@ import os
 from comfy.comfy_types import IO
 from comfy_api.input_impl import VideoFromFile
 
+from pathlib import Path
+
 
 def normalize_path(path):
     return path.replace('\\', '/')
@@ -16,7 +18,14 @@ class Load3D():
 
         os.makedirs(input_dir, exist_ok=True)
 
-        files = [normalize_path(os.path.join("3d", f)) for f in os.listdir(input_dir) if f.endswith(('.gltf', '.glb', '.obj', '.fbx', '.stl'))]
+        input_path = Path(input_dir)
+        base_path = Path(folder_paths.get_input_directory())
+
+        files = [
+            normalize_path(str(file_path.relative_to(base_path)))
+            for file_path in input_path.rglob("*")
+            if file_path.suffix.lower() in {'.gltf', '.glb', '.obj', '.fbx', '.stl'}
+        ]
 
         return {"required": {
             "model_file": (sorted(files), {"file_upload": True}),
@@ -61,7 +70,14 @@ class Load3DAnimation():
 
         os.makedirs(input_dir, exist_ok=True)
 
-        files = [normalize_path(os.path.join("3d", f)) for f in os.listdir(input_dir) if f.endswith(('.gltf', '.glb', '.fbx'))]
+        input_path = Path(input_dir)
+        base_path = Path(folder_paths.get_input_directory())
+
+        files = [
+            normalize_path(str(file_path.relative_to(base_path)))
+            for file_path in input_path.rglob("*")
+            if file_path.suffix.lower() in {'.gltf', '.glb', '.fbx'}
+        ]
 
         return {"required": {
             "model_file": (sorted(files), {"file_upload": True}),
