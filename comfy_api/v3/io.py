@@ -1,18 +1,11 @@
 from __future__ import annotations
-from typing import Any, Literal, TYPE_CHECKING, TypeVar
+from typing import Any, Literal, TYPE_CHECKING, TypeVar, Callable, Optional, cast
 from enum import Enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from comfy.comfy_types.node_typing import IO
 
-# if TYPE_CHECKING:
 import torch
-
-
-class InputBehavior(str, Enum):
-    '''Likely deprecated; required/optional can be a bool, unlikely to be more categories that fit.'''
-    required = "required"
-    optional = "optional"
 
 
 class FolderType(str, Enum):
@@ -55,26 +48,111 @@ def is_class(obj):
     return isinstance(obj, type)
 
 
+def copy_class(cls: type) -> type:
+    '''
+    Copy a class and its attributes.
+    '''
+    if cls is None:
+        return None
+    cls_dict = {
+            k: v for k, v in cls.__dict__.items()
+            if k not in ('__dict__', '__weakref__', '__module__', '__doc__')
+        }
+    # new class
+    new_cls = type(
+        cls.__name__,
+        (cls,),
+        cls_dict
+    )
+    # metadata preservation
+    new_cls.__module__ = cls.__module__
+    new_cls.__doc__ = cls.__doc__
+    return new_cls
+
+
 class NumberDisplay(str, Enum):
     number = "number"
     slider = "slider"
 
 
+class ComfyType:
+    Type = Any
+    io_type: str = None
+    Input: type[InputV3] = None
+    Output: type[OutputV3] = None
+
+# NOTE: this is a workaround to make the decorator return the correct type
+T = TypeVar("T", bound=type)
+def comfytype(io_type: str, **kwargs):
+    '''
+    Decorator to mark nested classes as ComfyType; io_type will be bound to the class.
+    
+    A ComfyType may have the following attributes:
+    - Type = <type hint here>
+    - class Input(InputV3): ...
+    - class Output(OutputV3): ...
+    '''
+    def decorator(cls: T) -> T:
+        if isinstance(cls, ComfyType) or issubclass(cls, ComfyType):
+            # clone Input and Output classes to avoid modifying the original class
+            new_cls = cls
+            new_cls.Input = copy_class(new_cls.Input)
+            new_cls.Output = copy_class(new_cls.Output)
+        else:
+            # copy class attributes except for special ones that shouldn't be in type()
+            cls_dict = {
+                k: v for k, v in cls.__dict__.items()
+                if k not in ('__dict__', '__weakref__', '__module__', '__doc__')
+            }
+            # new class
+            new_cls: ComfyType = type(
+                cls.__name__,
+                (cls, ComfyType),
+                cls_dict
+            )
+            # metadata preservation
+            new_cls.__module__ = cls.__module__
+            new_cls.__doc__ = cls.__doc__
+            # assign ComfyType attributes, if needed
+            # NOTE: do we need __ne__ trick for io_type? (see IO.__ne__ for details)
+        new_cls.io_type = io_type
+        if new_cls.Input is not None:
+            new_cls.Input.Parent = new_cls
+        if new_cls.Output is not None:
+            new_cls.Output.Parent = new_cls
+        return new_cls
+    return decorator
+
+def Custom(io_type: IO | str) -> type[ComfyType]:
+    '''Create a ComfyType for a custom io_type.'''
+    @comfytype(io_type=io_type)
+    class CustomComfyType(ComfyTypeIO):
+        ...
+    return CustomComfyType
+
 class IO_V3:
     '''
     Base class for V3 Inputs and Outputs.
     '''
-    Type = Any
+    Parent: ComfyType = None
 
     def __init__(self):
         pass
 
-    def __init_subclass__(cls, io_type: IO | str, **kwargs):
-        # TODO: do we need __ne__ trick for io_type? (see IO.__ne__ for details)
-        cls.io_type = io_type
-        super().__init_subclass__(**kwargs)
+    # def __init_subclass__(cls, io_type: IO | str, **kwargs):
+    #     # TODO: do we need __ne__ trick for io_type? (see IO.__ne__ for details)
+    #     cls.io_type = io_type
+    #     super().__init_subclass__(**kwargs)
+    
+    @property
+    def io_type(self):
+        return self.Parent.io_type
 
-class InputV3(IO_V3, io_type=None):
+    @property
+    def Type(self):
+        return self.Parent.Type
+
+class InputV3(IO_V3):
     '''
     Base class for a V3 Input.
     '''
@@ -96,7 +174,7 @@ class InputV3(IO_V3, io_type=None):
     def get_io_type_V1(self):
         return self.io_type
 
-class WidgetInputV3(InputV3, io_type=None):
+class WidgetInputV3(InputV3):
     '''
     Base class for a V3 Input with widget.
     '''
@@ -115,7 +193,7 @@ class WidgetInputV3(InputV3, io_type=None):
             "widgetType": self.widgetType,
         })
 
-class OutputV3(IO_V3, io_type=None):
+class OutputV3(IO_V3):
     def __init__(self, id: str, display_name: str=None, tooltip: str=None,
                  is_output_list=False):
         self.id = id
@@ -123,414 +201,334 @@ class OutputV3(IO_V3, io_type=None):
         self.tooltip = tooltip
         self.is_output_list = is_output_list
 
-def CustomType(io_type: IO | str) -> type[IO_V3]:
-    name = f"{io_type}_IO_V3"
-    return type(name, (IO_V3,), {}, io_type=io_type)
 
-def CustomInput(id: str, io_type: IO | str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None) -> InputV3:
-    '''
-    Defines input for 'io_type'. Can be used to stand in for non-core types.
-    '''
-    input_kwargs = {
-        "id": id,
-        "display_name": display_name,
-        "optional": optional,
-        "tooltip": tooltip,
-        "lazy": lazy,
-    }
-    return type(f"{io_type}Input", (InputV3,), {}, io_type=io_type)(**input_kwargs)
-
-def CustomOutput(id: str, io_type: IO | str, display_name: str=None, tooltip: str=None) -> OutputV3:
-    '''
-    Defines output for 'io_type'. Can be used to stand in for non-core types.
-    '''
-    input_kwargs = {
-        "id": id,
-        "display_name": display_name,
-        "tooltip": tooltip,
-    }
-    return type(f"{io_type}Output", (OutputV3,), {}, io_type=io_type)(**input_kwargs)
+class ComfyTypeIO(ComfyType):
+    '''ComfyType subclass that has default Input and Output classes; useful for basic Inputs and Outputs.'''
+    class Input(InputV3):
+        ...
+    class Output(OutputV3):
+        ...
 
 
-class BooleanInput(WidgetInputV3, io_type=IO.BOOLEAN):
-    '''
-    Boolean input.
-    '''
+class NodeState:
+    def __init__(self, node_id: str):
+        self.node_id = node_id
+
+
+class NodeStateLocal(NodeState):
+    def __init__(self, node_id: str):
+        super().__init__(node_id)
+        self.local_state = {}
+    
+    def __getattr__(self, key: str):
+        local_state = type(self).__getattribute__(self, "local_state")
+        if key in local_state:
+            return local_state[key]
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{key}'")
+
+    def __setattr__(self, key: str, value: Any):
+        if key in ['node_id', 'local_state']:
+            super().__setattr__(key, value)
+        else:
+            self.local_state[key] = value
+
+
+@comfytype(io_type=IO.BOOLEAN)
+class Boolean:
     Type = bool
-    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                 default: bool=None, label_on: str=None, label_off: str=None,
-                 socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
-        self.label_on = label_on
-        self.label_off = label_off
-        self.default: bool
     
-    def as_dict_V1(self):
-        return super().as_dict_V1() | prune_dict({
-            "label_on": self.label_on,
-            "label_off": self.label_off,
-        })
+    class Input(WidgetInputV3):
+        '''Boolean input.'''
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
+                    default: bool=None, label_on: str=None, label_off: str=None,
+                    socketless: bool=None, widgetType: str=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+            self.label_on = label_on
+            self.label_off = label_off
+            self.default: bool
+        
+        def as_dict_V1(self):
+            return super().as_dict_V1() | prune_dict({
+                "label_on": self.label_on,
+                "label_off": self.label_off,
+            })
 
-class BooleanOutput(OutputV3, io_type=IO.BOOLEAN):
-    ...
+    class Output(OutputV3):
+        ...
 
-class IntegerInput(WidgetInputV3, io_type=IO.INT):
-    '''
-    Integer input.
-    '''
+@comfytype(io_type=IO.INT)
+class Int:
     Type = int
-    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                 default: int=None, min: int=None, max: int=None, step: int=None, control_after_generate: bool=None,
-                 display_mode: NumberDisplay=None, socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
-        self.min = min
-        self.max = max
-        self.step = step
-        self.control_after_generate = control_after_generate
-        self.display_mode = display_mode
-        self.default: int
     
-    def as_dict_V1(self):
-        return super().as_dict_V1() | prune_dict({
-            "min": self.min,
-            "max": self.max,
-            "step": self.step,
-            "control_after_generate": self.control_after_generate,
-            "display": self.display_mode, # NOTE: in frontend, the parameter is called "display"
-        })
+    class Input(WidgetInputV3):
+        '''Integer input.'''
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
+                    default: int=None, min: int=None, max: int=None, step: int=None, control_after_generate: bool=None,
+                    display_mode: NumberDisplay=None, socketless: bool=None, widgetType: str=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+            self.min = min
+            self.max = max
+            self.step = step
+            self.control_after_generate = control_after_generate
+            self.display_mode = display_mode
+            self.default: int
+        
+        def as_dict_V1(self):
+            return super().as_dict_V1() | prune_dict({
+                "min": self.min,
+                "max": self.max,
+                "step": self.step,
+                "control_after_generate": self.control_after_generate,
+                "display": self.display_mode,
+            })
 
-class IntegerOutput(OutputV3, io_type=IO.INT):
-    ...
+    class Output(OutputV3):
+        ...
 
-class FloatInput(WidgetInputV3, io_type=IO.FLOAT):
-    '''
-    Float input.
-    '''
+@comfytype(io_type=IO.FLOAT)
+class Float:
     Type = float
-    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                 default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
-                 display_mode: NumberDisplay=None, socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
-        self.default = default
-        self.min = min
-        self.max = max
-        self.step = step
-        self.round = round
-        self.display_mode = display_mode
-        self.default: float
     
-    def as_dict_V1(self):
-        return super().as_dict_V1() | prune_dict({
-            "min": self.min,
-            "max": self.max,
-            "step": self.step,
-            "round": self.round,
-            "display": self.display_mode, # NOTE: in frontend, the parameter is called "display"
-        })
+    class Input(WidgetInputV3):
+        '''Float input.'''
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
+                    default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
+                    display_mode: NumberDisplay=None, socketless: bool=None, widgetType: str=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+            self.default = default
+            self.min = min
+            self.max = max
+            self.step = step
+            self.round = round
+            self.display_mode = display_mode
+            self.default: float
+        
+        def as_dict_V1(self):
+            return super().as_dict_V1() | prune_dict({
+                "min": self.min,
+                "max": self.max,
+                "step": self.step,
+                "round": self.round,
+                "display": self.display_mode,
+            })
     
-class FloatOutput(OutputV3, io_type=IO.FLOAT):
-    ...
+    class Output(OutputV3):
+        ...
 
-class StringInput(WidgetInputV3, io_type=IO.STRING):
-    '''
-    String input.
-    '''
+@comfytype(io_type=IO.STRING)
+class String:
     Type = str
-    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                 multiline=False, placeholder: str=None, default: int=None,
-                 socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
-        self.multiline = multiline
-        self.placeholder = placeholder
-        self.default: str
     
-    def as_dict_V1(self):
-        return super().as_dict_V1() | prune_dict({
-            "multiline": self.multiline,
-            "placeholder": self.placeholder,
-        })
+    class Input(WidgetInputV3):
+        '''String input.'''
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
+                    multiline=False, placeholder: str=None, default: int=None,
+                    socketless: bool=None, widgetType: str=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+            self.multiline = multiline
+            self.placeholder = placeholder
+            self.default: str
+        
+        def as_dict_V1(self):
+            return super().as_dict_V1() | prune_dict({
+                "multiline": self.multiline,
+                "placeholder": self.placeholder,
+            })
 
-class StringOutput(OutputV3, io_type=IO.STRING):
-    ...
+    class Output(OutputV3):
+        ...
 
-class ComboInput(WidgetInputV3, io_type=IO.COMBO):
-    '''Combo input (dropdown).'''
+@comfytype(io_type=IO.COMBO)
+class Combo:
     Type = str
-    def __init__(self, id: str, options: list[str]=None, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                 default: str=None, control_after_generate: bool=None,
-                 image_upload: bool=None, image_folder: FolderType=None,
-                 remote: RemoteOptions=None,
-                 socketless: bool=None, widgetType: str=None):
-        super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
-        self.multiselect = False
-        self.options = options
-        self.control_after_generate = control_after_generate
-        self.image_upload = image_upload
-        self.image_folder = image_folder
-        self.remote = remote
-        self.default: str
-    
-    def as_dict_V1(self):
-        return super().as_dict_V1() | prune_dict({
-            "multiselect": self.multiselect,
-            "options": self.options,
-            "control_after_generate": self.control_after_generate,
-            "image_upload": self.image_upload,
-            "image_folder": self.image_folder.value if self.image_folder else None,
-            "remote": self.remote.as_dict() if self.remote else None,
-        })
+    class Input(WidgetInputV3):
+        '''Combo input (dropdown).'''
+        Type = str
+        def __init__(self, id: str, options: list[str]=None, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
+                    default: str=None, control_after_generate: bool=None,
+                    image_upload: bool=None, image_folder: FolderType=None,
+                    remote: RemoteOptions=None,
+                    socketless: bool=None, widgetType: str=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+            self.multiselect = False
+            self.options = options
+            self.control_after_generate = control_after_generate
+            self.image_upload = image_upload
+            self.image_folder = image_folder
+            self.remote = remote
+            self.default: str
+        
+        def as_dict_V1(self):
+            return super().as_dict_V1() | prune_dict({
+                "multiselect": self.multiselect,
+                "options": self.options,
+                "control_after_generate": self.control_after_generate,
+                "image_upload": self.image_upload,
+                "image_folder": self.image_folder.value if self.image_folder else None,
+                "remote": self.remote.as_dict() if self.remote else None,
+            })
 
-class MultiselectComboWidget(ComboInput, io_type=IO.COMBO):
+@comfytype(io_type=IO.COMBO)
+class MultiCombo:
     '''Multiselect Combo input (dropdown for selecting potentially more than one value).'''
-    def __init__(self, id: str, options: list[str], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                 default: list[str]=None, placeholder: str=None, chip: bool=None, control_after_generate: bool=None,
-                 socketless: bool=None, widgetType: str=None):
-        super().__init__(id, options, display_name, optional, tooltip, lazy, default, control_after_generate, socketless, widgetType)
-        self.multiselect = True
-        self.placeholder = placeholder
-        self.chip = chip
-        self.default: list[str]
-    
-    def as_dict_V1(self):
-        return super().as_dict_V1() | prune_dict({
-            "multiselect": self.multiselect,
-            "placeholder": self.placeholder,
-            "chip": self.chip,
-        })
+    Type = list[str]
+    class Input(Combo.Input):
+        def __init__(self, id: str, options: list[str], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
+                    default: list[str]=None, placeholder: str=None, chip: bool=None, control_after_generate: bool=None,
+                    socketless: bool=None, widgetType: str=None):
+            super().__init__(id, options, display_name, optional, tooltip, lazy, default, control_after_generate, socketless, widgetType)
+            self.multiselect = True
+            self.placeholder = placeholder
+            self.chip = chip
+            self.default: list[str]
+        
+        def as_dict_V1(self):
+            return super().as_dict_V1() | prune_dict({
+                "multiselect": self.multiselect,
+                "placeholder": self.placeholder,
+                "chip": self.chip,
+            })
 
-class ImageInput(InputV3, io_type=IO.IMAGE):
-    '''Image input.'''
+
+@comfytype(io_type=IO.IMAGE)
+class Image(ComfyTypeIO):
     Type = torch.Tensor
 
-class ImageOutput(OutputV3, io_type=IO.IMAGE):
-    '''Image output.'''
+@comfytype(io_type=IO.MASK)
+class Mask(ComfyTypeIO):
     Type = torch.Tensor
 
-class MaskInput(InputV3, io_type=IO.MASK):
-    '''Mask input.'''
-    Type = torch.Tensor
+@comfytype(io_type=IO.LATENT)
+class Latent(ComfyTypeIO):
+    Type = Any # TODO: make Type a TypedDict
 
-class MaskOutput(OutputV3, io_type=IO.MASK):
-    '''Mask output.'''
-    Type = torch.Tensor
+@comfytype(io_type=IO.CONDITIONING)
+class Conditioning(ComfyTypeIO):
+    Type = Any
 
-class LatentInput(InputV3, io_type=IO.LATENT):
-    '''Latent input.'''
-    # TODO: make Type a TypedDict
-    ...
+@comfytype(io_type=IO.SAMPLER)
+class Sampler(ComfyTypeIO):
+    Type = Any
 
-class LatentOutput(OutputV3, io_type=IO.LATENT):
-    '''Latent output.'''
-    # TODO: make Type a TypedDict
-    ...
+@comfytype(io_type=IO.SIGMAS)
+class Sigmas(ComfyTypeIO):
+    Type = Any
 
-class ConditioningInput(InputV3, io_type=IO.CONDITIONING):
-    '''Conditioning input.'''
-    # TODO: make Type a TypedDict
-    ...
+@comfytype(io_type=IO.NOISE)
+class Noise(ComfyTypeIO):
+    Type = Any
 
-class ConditioningOutput(OutputV3, io_type=IO.CONDITIONING):
-    '''Conditioning output.'''
-    # TODO: make Type a TypedDict
-    ...
+@comfytype(io_type=IO.GUIDER)
+class Guider(ComfyTypeIO):
+    Type = Any
 
-class SamplerInput(InputV3, io_type=IO.SAMPLER):
-    '''Sampler input.'''
-    ...
+@comfytype(io_type=IO.CLIP)
+class Clip(ComfyTypeIO):
+    Type = Any
 
-class SamplerOutput(OutputV3, io_type=IO.SAMPLER):
-    '''Sampler output.'''
-    ...
+@comfytype(io_type=IO.CONTROL_NET)
+class ControlNet(ComfyTypeIO):
+    Type = Any
 
-class SigmasInput(InputV3, io_type=IO.SIGMAS):
-    '''Sigmas input.'''
-    ...
+@comfytype(io_type=IO.VAE)
+class Vae(ComfyTypeIO):
+    Type = Any
 
-class SigmasOutput(OutputV3, io_type=IO.SIGMAS):
-    '''Sigmas output.'''
-    ...
+@comfytype(io_type=IO.MODEL)
+class Model(ComfyTypeIO):
+    Type = Any
 
-class GuiderInput(InputV3, io_type=IO.GUIDER):
-    '''Guider input.'''
-    ...
+@comfytype(io_type=IO.CLIP_VISION)
+class ClipVision(ComfyTypeIO):
+    Type = Any
 
-class GuiderOutput(OutputV3, io_type=IO.GUIDER):
-    '''Guider output.'''
-    ...
+@comfytype(io_type=IO.CLIP_VISION_OUTPUT)
+class ClipVisionOutput(ComfyTypeIO):
+    Type = Any
 
-class NoiseInput(InputV3, io_type=IO.NOISE):
-    '''Noise input.'''
-    ...
+@comfytype(io_type=IO.STYLE_MODEL)
+class StyleModel(ComfyTypeIO):
+    Type = Any
 
-class NoiseOutput(OutputV3, io_type=IO.NOISE):
-    '''Noise output.'''
-    ...
+@comfytype(io_type=IO.GLIGEN)
+class Gligen(ComfyTypeIO):
+    Type = Any
 
-class ClipInput(InputV3, io_type=IO.CLIP):
-    '''Clip input.'''
-    ...
+@comfytype(io_type=IO.UPSCALE_MODEL)
+class UpscaleModel(ComfyTypeIO):
+    Type = Any
 
-class ClipOutput(OutputV3, io_type=IO.CLIP):
-    '''Clip output.'''
-    ...
+@comfytype(io_type=IO.AUDIO)
+class Audio(ComfyTypeIO):
+    Type = Any
 
-class ControlNetInput(InputV3, io_type=IO.CONTROL_NET):
-    '''ControlNet input.'''
-    ...
+@comfytype(io_type=IO.POINT)
+class Point(ComfyTypeIO):
+    Type = Any
 
-class ControlNetOutput(OutputV3, io_type=IO.CONTROL_NET):
-    '''ControlNet output.'''
-    ...
+@comfytype(io_type=IO.FACE_ANALYSIS)
+class FaceAnalysis(ComfyTypeIO):
+    Type = Any
 
-class VaeInput(InputV3, io_type=IO.VAE):
-    '''Vae input.'''
-    ...
+@comfytype(io_type=IO.BBOX)
+class BBOX(ComfyTypeIO):
+    Type = Any
 
-class VaeOutput(OutputV3, io_type=IO.VAE):
-    '''Vae output.'''
-    ...
+@comfytype(io_type=IO.SEGS)
+class SEGS(ComfyTypeIO):
+    Type = Any
 
-class ModelInput(InputV3, io_type=IO.MODEL):
-    '''Model input.'''
-    ...
+@comfytype(io_type=IO.VIDEO)
+class Video(ComfyTypeIO):
+    Type = Any
 
-class ModelOutput(OutputV3, io_type=IO.MODEL):
-    '''Model output.'''
-    ...
-
-class ClipVisionInput(InputV3, io_type=IO.CLIP_VISION):
-    '''ClipVision input.'''
-    ...
-
-class ClipVisionOutput(OutputV3, io_type=IO.CLIP_VISION):
-    '''ClipVision output.'''
-    ...
-
-class ClipVisionOutputInput(InputV3, io_type=IO.CLIP_VISION_OUTPUT):
-    '''CLipVisionOutput input.'''
-    ...
-
-class ClipVisionOutputOutput(OutputV3, io_type=IO.CLIP_VISION_OUTPUT):
-    '''CLipVisionOutput output.'''
-    ...
-
-class StyleModelInput(InputV3, io_type=IO.STYLE_MODEL):
-    '''StyleModel input.'''
-    ...
-
-class StyleModelOutput(OutputV3, io_type=IO.STYLE_MODEL):
-    '''StyleModel output.'''
-    ...
-
-class GligenInput(InputV3, io_type=IO.GLIGEN):
-    '''Gligen input.'''
-    ...
-
-class GligenOutput(OutputV3, io_type=IO.GLIGEN):
-    '''Gligen output.'''
-    ...
-
-class UpscaleModelInput(InputV3, io_type=IO.UPSCALE_MODEL):
-    '''UpscaleModel input.'''
-    ...
-
-class UpscaleModelOutput(OutputV3, io_type=IO.UPSCALE_MODEL):
-    '''UpscaleModel output.'''
-    ...
-
-class AudioInput(InputV3, io_type=IO.AUDIO):
-    '''Audio input.'''
-    ...
-
-class AudioOutput(OutputV3, io_type=IO.AUDIO):
-    '''Audio output.'''
-    ...
-
-class PointInput(InputV3, io_type=IO.POINT):
-    '''Point input.'''
-    ...
-
-class PointOutput(OutputV3, io_type=IO.POINT):
-    '''Point output.'''
-    ...
-
-class FaceAnalysisInput(InputV3, io_type=IO.FACE_ANALYSIS):
-    '''FaceAnalysis input.'''
-    ...
-
-class FaceAnalysisOutput(OutputV3, io_type=IO.FACE_ANALYSIS):
-    '''FaceAnalysis output.'''
-    ...
-
-class BBOXInput(InputV3, io_type=IO.BBOX):
-    '''Bbox input.'''
-    ...
-
-class BBOXOutput(OutputV3, io_type=IO.BBOX):
-    '''Bbox output.'''
-    ...
-
-class SEGSInput(InputV3, io_type=IO.SEGS):
-    '''SEGS input.'''
-    ...
-
-class SEGSOutput(OutputV3, io_type=IO.SEGS):
-    '''SEGS output.'''
-    ...
-
-class VideoInput(InputV3, io_type=IO.VIDEO):
-    '''Video input.'''
-    ...
-
-class VideoOutput(OutputV3, io_type=IO.VIDEO):
-    '''Video output.'''
-    ...
-
-
-class MultitypedInput(InputV3, io_type="COMFY_MULTITYPED_V3"):
-    '''
-    Input that permits more than one input type.
-    '''
-    def __init__(self, id: str, io_types: list[type[IO_V3] | InputV3 | IO |str], display_name: str=None, optional=False, tooltip: str=None,):
-        super().__init__(id, display_name, optional, tooltip)
-        self._io_types = io_types
-    
-    @property
-    def io_types(self) -> list[type[InputV3]]:
+@comfytype(io_type="COMFY_MULTITYPED_V3")
+class MultiType:
+    Type = Any
+    class Input(InputV3):
         '''
-        Returns list of InputV3 class types permitted.
+        Input that permits more than one input type.
         '''
-        io_types = []
-        for x in self._io_types:
-            if not is_class(x):
-                io_types.append(type(x))
-            else:
-                io_types.append(x)
-        return io_types
-    
-    def get_io_type_V1(self):
-        return ",".join(x.io_type for x in self.io_types)
+        def __init__(self, id: str, io_types: list[type[ComfyType] | ComfyType | IO |str], display_name: str=None, optional=False, tooltip: str=None,):
+            super().__init__(id, display_name, optional, tooltip)
+            self._io_types = io_types
+        
+        @property
+        def io_types(self) -> list[type[InputV3]]:
+            '''
+            Returns list of InputV3 class types permitted.
+            '''
+            io_types = []
+            for x in self._io_types:
+                if not is_class(x):
+                    io_types.append(type(x))
+                else:
+                    io_types.append(x)
+            return io_types
+        
+        def get_io_type_V1(self):
+            return ",".join(x.io_type for x in self.io_types)
 
-
-class DynamicInput(InputV3, io_type=None):
+class DynamicInput(InputV3):
     '''
     Abstract class for dynamic input registration.
     '''
     def __init__(self, io_type: str, id: str, display_name: str=None):
         super().__init__(io_type, id, display_name)
 
-class DynamicOutput(OutputV3, io_type=None):
+class DynamicOutput(OutputV3):
     '''
     Abstract class for dynamic output registration.
     '''
     def __init__(self, io_type: str, id: str, display_name: str=None):
         super().__init__(io_type, id, display_name)
 
-class AutoGrowDynamicInput(DynamicInput, io_type="COMFY_MULTIGROW_V3"):
+# io_type="COMFY_MULTIGROW_V3"
+class AutoGrowDynamicInput(DynamicInput):
     '''
     Dynamic Input that adds another template_input each time one is provided.
 
-    Additional inputs are forced to have 'InputBehavior.optional'.
+    Additional inputs are forced to have 'optional=True'.
     '''
     def __init__(self, id: str, template_input: InputV3, min: int=1, max: int=None):
         super().__init__("AutoGrowDynamicInput", id)
@@ -542,11 +540,12 @@ class AutoGrowDynamicInput(DynamicInput, io_type="COMFY_MULTIGROW_V3"):
         self.min = min
         self.max = max
 
-class ComboDynamicInput(DynamicInput, io_type="COMFY_COMBODYNAMIC_V3"):
+# io_type="COMFY_COMBODYNAMIC_V3"
+class ComboDynamicInput(DynamicInput):
     def __init__(self, id: str):
         pass
 
-AutoGrowDynamicInput(id="dynamic", template_input=ImageInput(id="image"))
+AutoGrowDynamicInput(id="dynamic", template_input=Image.Input(id="image"))
 
 
 class Hidden:
@@ -581,12 +580,10 @@ class Hidden:
             api_key_comfy_org=d.get(HiddenEnum.api_key_comfy_org),
         )
 
-
 class HiddenEnum(str, Enum):
     '''
     Enumerator for requesting hidden variables in nodes.
     '''
-    
     unique_id = "UNIQUE_ID"
     """UNIQUE_ID is the unique identifier of the node, and matches the id property of the node on the client side. It is commonly used in client-server communications (see messages)."""
     prompt = "PROMPT"
@@ -746,16 +743,6 @@ class Serializer:
         pass
 
 
-def prepare_class_clone(c: ComfyNodeV3 | type[ComfyNodeV3]) -> type[ComfyNodeV3]:
-    """Creates clone of real node class to prevent monkey-patching."""
-    c_type: type[ComfyNodeV3] = c if is_class(c) else type(c)
-    type_clone: type[ComfyNodeV3] = type(f"CLEAN_{c_type.__name__}", c_type.__bases__, {})
-    # TODO: what parameters should be carried over?
-    type_clone.SCHEMA = c_type.SCHEMA
-    # TODO: add anything we would want to expose inside node's execute function
-    return type_clone
-
-
 class classproperty(object):
     def __init__(self, f):
         self.f = f
@@ -763,11 +750,15 @@ class classproperty(object):
         return self.f(owner)
 
 
-class ComfyNodeV3(ABC):
+class ComfyNodeV3:
     """Common base class for all V3 nodes."""
 
     RELATIVE_PYTHON_MODULE = None
     SCHEMA = None
+    
+    # filled in during execution
+    state: NodeState = None
+    hidden: Hidden = None
 
     @classmethod
     def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
@@ -795,6 +786,7 @@ class ComfyNodeV3(ABC):
         return []
 
     def __init__(self):
+        self.local_state: NodeStateLocal = None
         self.__class__.VALIDATE_CLASS()
 
     @classmethod
@@ -811,6 +803,7 @@ class ComfyNodeV3(ABC):
         type_clone: type[ComfyNodeV3] = type(f"CLEAN_{c_type.__name__}", c_type.__bases__, {})
         # TODO: what parameters should be carried over?
         type_clone.SCHEMA = c_type.SCHEMA
+        type_clone.hidden = Hidden.from_dict(hidden_inputs)
         # TODO: add anything we would want to expose inside node's execute function
         return type_clone
 
@@ -989,14 +982,6 @@ class ComfyNodeV3(ABC):
     #--------------------------------------------
     #############################################
 
-# class ReturnedInputs:
-#     def __init__(self):
-#         pass
-
-# class ReturnedOutputs:
-#     def __init__(self):
-#         pass
-
 
 class NodeOutput:
     '''
@@ -1007,9 +992,11 @@ class NodeOutput:
         self.ui = ui
         self.expand = expand
         self.block_execution = block_execution
+        # self.kwargs = kwargs
 
     @property
     def result(self):
+        # TODO: use kwargs to refer to outputs by id + organize in proper order
         return self.args if len(self.args) > 0 else None
 
 
@@ -1084,6 +1071,11 @@ class UIText(UIOutput):
         return {"text": (self.value,)}
 
 
+def create_image_preview(image: Image.Type) -> UIImages:
+    # TODO: finish, right now is just Cursor's hallucination
+    return UIImages([SavedResult("preview.png", "comfy_org", FolderType.output)])
+
+
 class TestNode(ComfyNodeV3):
     @classmethod
     def DEFINE_SCHEMA(cls):
@@ -1091,11 +1083,11 @@ class TestNode(ComfyNodeV3):
         node_id="TestNode_v3",
         display_name="Test Node (V3)",
         category="v3_test",
-        inputs=[IntegerInput("my_int"),
-                #AutoGrowDynamicInput("growing", ImageInput),
-                MaskInput("thing"),
+        inputs=[Int.Input("my_int"),
+                #AutoGrowDynamicInput("growing", Image.Input),
+                Mask.Input("thing"),
                 ],
-        outputs=[ImageOutput("image_output")],
+        outputs=[Image.Output("image_output")],
         hidden=[HiddenEnum.api_key_comfy_org, HiddenEnum.auth_token_comfy_org, HiddenEnum.unique_id]
     )
 
@@ -1103,26 +1095,25 @@ class TestNode(ComfyNodeV3):
     def execute(cls, **kwargs):
         pass
 
-
 if __name__ == "__main__":
     print("hello there")
     inputs: list[InputV3] = [
-        IntegerInput("tessfes", widgetType=IO.STRING),
-        IntegerInput("my_int"),
-        CustomInput("xyz", "XYZ"),
-        CustomInput("model1", "MODEL_M"),
-        ImageInput("my_image"),
-        FloatInput("my_float"),
-        MultitypedInput("my_inputs", [StringInput, CustomType("MODEL_M"), CustomType("XYZ")]),
+        Int.Input("tessfes", widgetType=IO.STRING),
+        Int.Input("my_int"),
+        Custom("XYZ").Input("xyz"),
+        Custom("MODEL_M").Input("model1"),
+        Image.Input("my_image"),
+        Float.Input("my_float"),
+        MultiType.Input("my_inputs", [String, Custom("MODEL_M"), Custom("XYZ")]),
     ]
-
+    Custom("XYZ").Input()
     outputs: list[OutputV3] = [
-        ImageOutput("image"),
-        CustomOutput("xyz", "XYZ")
+        Image.Output("image"),
+        Custom("XYZ").Output("xyz"),
     ]
 
     for c in inputs:
-        if isinstance(c, MultitypedInput):
+        if isinstance(c, MultiType):
             print(f"{c}, {type(c)}, {type(c).io_type}, {c.id}, {[x.io_type for x in c.io_types]}")
             print(c.get_io_type_V1())
         else:

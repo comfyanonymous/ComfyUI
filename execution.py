@@ -28,8 +28,7 @@ from comfy_execution.graph import (
 )
 from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
-from comfy_api.v3.io import NodeOutput, ComfyNodeV3, HiddenEnum
-from comfy_api.v3_01.io import NodeStateLocal
+from comfy_api.v3.io import NodeOutput, ComfyNodeV3, HiddenEnum, NodeStateLocal
 
 
 class ExecutionResult(Enum):
