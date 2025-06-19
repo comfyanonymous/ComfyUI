@@ -14,14 +14,12 @@ class XYZ:
     class Output(io.OutputV3):
         ...
 
-class MyState(io.NodeState):
-    my_str: str
-    my_int: int
-
 
 class V3TestNode(io.ComfyNodeV3):
-
-    state: MyState
+    class State(io.NodeState):
+        my_str: str
+        my_int: int
+    state: State
 
     def __init__(self):
         super().__init__()
