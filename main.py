@@ -66,7 +66,7 @@ def execute_prestartup_script():
             logging.error(f"Failed to execute startup-script: {script_path} / {e}")
         return False
 
-    if args.disable_all_custom_nodes:
+    if args.disable_all_custom_nodes and not args.whitelist_custom_nodes:
         return
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
@@ -81,6 +81,9 @@ def execute_prestartup_script():
 
             script_path = os.path.join(module_path, "prestartup_script.py")
             if os.path.exists(script_path):
+                if args.disable_all_custom_nodes and possible_module not in args.whitelist_custom_nodes:
+                    logging.info(f"Prestartup Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
+                    continue
                 time_before = time.perf_counter()
                 success = execute_script(script_path)
                 node_prestartup_times.append((time.perf_counter() - time_before, module_path, success))
@@ -270,7 +273,10 @@ def start_comfyui(asyncio_loop=None):
     prompt_server = server.PromptServer(asyncio_loop)
 
     hook_breaker_ac10a0.save_functions()
-    nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes, init_api_nodes=not args.disable_api_nodes)
+    nodes.init_extra_nodes(
+        init_custom_nodes=(not args.disable_all_custom_nodes) or bool(args.whitelist_custom_nodes),
+        init_api_nodes=not args.disable_api_nodes
+    )
     hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()
