@@ -152,20 +152,21 @@ class InputV3(IO_V3):
     '''
     Base class for a V3 Input.
     '''
-    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None):
+    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
         super().__init__()
         self.id = id
         self.display_name = display_name
         self.optional = optional
         self.tooltip = tooltip
         self.lazy = lazy
+        self.extra_dict = extra_dict if extra_dict is not None else {}
 
     def as_dict_V1(self):
         return prune_dict({
             "display_name": self.display_name,
             "tooltip": self.tooltip,
-            "lazy": self.lazy
-        })
+            "lazy": self.lazy,
+        }) | prune_dict(self.extra_dict)
 
     def get_io_type_V1(self):
         return self.io_type
@@ -176,8 +177,8 @@ class WidgetInputV3(InputV3):
     '''
     def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: Any=None,
-                 socketless: bool=None, widgetType: str=None, types: list[type[ComfyType] | ComfyType]=None):
-        super().__init__(id, display_name, optional, tooltip, lazy)
+                 socketless: bool=None, widgetType: str=None, types: list[type[ComfyType] | ComfyType]=None, extra_dict=None):
+        super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
         self.default = default
         self.socketless = socketless
         self.widgetType = widgetType
