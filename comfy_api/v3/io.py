@@ -695,6 +695,8 @@ class SchemaV3:
     """Flags a node as experimental, informing users that it may change or not work as expected."""
     is_api_node: bool=False
     """Flags a node as an API node. See: https://docs.comfy.org/tutorials/api-nodes/overview."""
+    not_idempotent: bool=False
+    """Flags a node as not idempotent; when True, the node will run and not reuse the cached outputs when identical inputs are provided on a different node in the graph."""
 
 
 class Serializer:
@@ -855,6 +857,13 @@ class ComfyNodeV3:
             cls.GET_SCHEMA()
         return cls._OUTPUT_TOOLTIPS
 
+    _NOT_IDEMPOTENT = None
+    @classproperty
+    def NOT_IDEMPOTENT(cls):
+        if cls._NOT_IDEMPOTENT is None:
+            cls.GET_SCHEMA()
+        return cls._NOT_IDEMPOTENT
+
     FUNCTION = "execute"
 
     @classmethod
@@ -893,7 +902,9 @@ class ComfyNodeV3:
             cls._OUTPUT_NODE = schema.is_output_node
         if cls._INPUT_IS_LIST is None:
             cls._INPUT_IS_LIST = schema.is_input_list
-        
+        if cls._NOT_IDEMPOTENT is None:
+            cls._NOT_IDEMPOTENT = schema.not_idempotent
+
         if cls._RETURN_TYPES is None:
             output = []
             output_name = []
@@ -905,7 +916,7 @@ class ComfyNodeV3:
                     output_name.append(o.display_name if o.display_name else o.io_type)
                     output_is_list.append(o.is_output_list)
                     output_tooltips.append(o.tooltip if o.tooltip else None)
-            
+
             cls._RETURN_TYPES = output
             cls._RETURN_NAMES = output_name
             cls._OUTPUT_IS_LIST = output_is_list
