@@ -4,8 +4,9 @@ from enum import Enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from comfy.comfy_types.node_typing import IO
-
+# used for type hinting
 import torch
+from comfy.model_patcher import ModelPatcher
 
 
 class FolderType(str, Enum):
@@ -213,10 +214,13 @@ class ComfyTypeIO(ComfyType):
         ...
 
 
-class NodeState:
+class NodeState(ABC):
     def __init__(self, node_id: str):
         self.node_id = node_id
 
+    @abstractmethod
+    def pop(self, key: str):
+        pass
 
 class NodeStateLocal(NodeState):
     def __init__(self, node_id: str):
@@ -227,14 +231,29 @@ class NodeStateLocal(NodeState):
         local_state = type(self).__getattribute__(self, "local_state")
         if key in local_state:
             return local_state[key]
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{key}'")
+        return None
+        # raise AttributeError(f"'{type(self).__name__}' object has no attribute '{key}'")
 
     def __setattr__(self, key: str, value: Any):
         if key in ['node_id', 'local_state']:
             super().__setattr__(key, value)
         else:
             self.local_state[key] = value
+    
+    def __setitem__(self, key: str, value: Any):
+        self.local_state[key] = value
+    
+    def __getitem__(self, key: str):
+        return self.local_state[key]
+    
+    def __contains__(self, key: str):
+        return key in self.local_state
+    
+    def __delitem__(self, key: str):
+        del self.local_state[key]
 
+    def pop(self, key: str):
+        return self.local_state.pop(key)
 
 @comfytype(io_type=IO.BOOLEAN)
 class Boolean:
@@ -441,7 +460,7 @@ class Vae(ComfyTypeIO):
 
 @comfytype(io_type=IO.MODEL)
 class Model(ComfyTypeIO):
-    Type = Any
+    Type = ModelPatcher
 
 @comfytype(io_type=IO.CLIP_VISION)
 class ClipVision(ComfyTypeIO):
@@ -676,63 +695,6 @@ class SchemaV3:
     """Flags a node as experimental, informing users that it may change or not work as expected."""
     is_api_node: bool=False
     """Flags a node as an API node. See: https://docs.comfy.org/tutorials/api-nodes/overview."""
-
-# class SchemaV3Class:
-#     def __init__(self,
-#             node_id: str,
-#             node_name: str,
-#             category: str,
-#             inputs: list[InputV3],
-#             outputs: list[OutputV3]=None,
-#             hidden: list[Hidden]=None,
-#             description: str="",
-#             is_input_list: bool = False,
-#             is_output_node: bool=False,
-#             is_deprecated: bool=False,
-#             is_experimental: bool=False,
-#             is_api_node: bool=False,
-#     ):
-#         self.node_id = node_id
-#         """ID of node - should be globally unique. If this is a custom node, add a prefix or postfix to avoid name clashes."""
-#         self.node_name = node_name
-#         """Display name of node."""
-#         self.category = category
-#         """The category of the node, as per the "Add Node" menu."""
-#         self.inputs = inputs
-#         self.outputs = outputs
-#         self.hidden = hidden
-#         self.description = description
-#         """Node description, shown as a tooltip when hovering over the node."""
-#         self.is_input_list = is_input_list
-#         """A flag indicating if this node implements the additional code necessary to deal with OUTPUT_IS_LIST nodes.
-
-#     All inputs of ``type`` will become ``list[type]``, regardless of how many items are passed in.  This also affects ``check_lazy_status``.
-
-#     From the docs:
-
-#     A node can also override the default input behaviour and receive the whole list in a single call. This is done by setting a class attribute `INPUT_IS_LIST` to ``True``.
-
-#     Comfy Docs: https://docs.comfy.org/custom-nodes/backend/lists#list-processing
-#     """
-#         self.is_output_node = is_output_node
-#         """Flags this node as an output node, causing any inputs it requires to be executed.
-
-#     If a node is not connected to any output nodes, that node will not be executed.  Usage::
-
-#         OUTPUT_NODE = True
-
-#     From the docs:
-
-#     By default, a node is not considered an output. Set ``OUTPUT_NODE = True`` to specify that it is.
-
-#     Comfy Docs: https://docs.comfy.org/custom-nodes/backend/server_overview#output-node
-#     """
-#         self.is_deprecated = is_deprecated
-#         """Flags a node as deprecated, indicating to users that they should find alternatives to this node."""
-#         self.is_experimental = is_experimental
-#         """Flags a node as experimental, informing users that it may change or not work as expected."""
-#         self.is_api_node = is_api_node
-#         """Flags a node as an API node. See: https://docs.comfy.org/tutorials/api-nodes/overview."""
 
 
 class Serializer:

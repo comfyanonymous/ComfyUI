@@ -1,7 +1,10 @@
 import torch
 from comfy_api.v3 import io
 import logging
-
+import folder_paths
+import comfy.utils
+import comfy.sd
+from typing import Any
 
 @io.comfytype(io_type="XYZ")
 class XYZ:
@@ -29,8 +32,8 @@ class V3TestNode(io.ComfyNodeV3):
         return io.SchemaV3(
             node_id="V3_01_TestNode1",
             display_name="V3 Test Node",
-            description="This is a funky V3 node test.",
             category="v3 nodes",
+            description="This is a funky V3 node test.",
             inputs=[
                 io.Image.Input("image", display_name="new_image"),
                 XYZ.Input("xyz", optional=True),
@@ -75,7 +78,10 @@ class V3TestNode(io.ComfyNodeV3):
         zzz = cls.hidden.prompt
         cls.state.my_str = "LOLJK"
         expected_int = 123
-        cls.state.my_int = expected_int
+        if "thing" not in cls.state:
+            cls.state["thing"] = "hahaha"
+            yyy = cls.state["thing"]
+            del cls.state["thing"]
         if cls.state.my_int is None:
             cls.state.my_int = expected_int
         else:
@@ -90,6 +96,71 @@ class V3TestNode(io.ComfyNodeV3):
         return io.NodeOutput(some_int, image)
 
 
+class V3LoraLoader(io.ComfyNodeV3):
+    class State(io.NodeState):
+        loaded_lora: tuple[str, Any] | None = None
+    state: State
+
+    @classmethod
+    def DEFINE_SCHEMA(cls):
+        return io.SchemaV3(
+            node_id="V3_LoraLoader",
+            display_name="V3 LoRA Loader",
+            category="v3 nodes",
+            description="LoRAs are used to modify diffusion and CLIP models, altering the way in which latents are denoised such as applying styles. Multiple LoRA nodes can be linked together.",
+            inputs=[
+                io.Model.Input("model", tooltip="The diffusion model the LoRA will be applied to."),
+                io.Clip.Input("clip", tooltip="The CLIP model the LoRA will be applied to."),
+                io.Combo.Input(
+                    "lora_name",
+                    options=folder_paths.get_filename_list("loras"),
+                    tooltip="The name of the LoRA."
+                ),
+                io.Float.Input(
+                    "strength_model",
+                    default=1.0,
+                    min=-100.0,
+                    max=100.0,
+                    step=0.01,
+                    tooltip="How strongly to modify the diffusion model. This value can be negative."
+                ),
+                io.Float.Input(
+                    "strength_clip",
+                    default=1.0,
+                    min=-100.0,
+                    max=100.0,
+                    step=0.01,
+                    tooltip="How strongly to modify the CLIP model. This value can be negative."
+                ),
+            ],
+            outputs=[
+                io.Model.Output("model_out"),
+                io.Clip.Output("clip_out"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model: io.Model.Type, clip: io.Clip.Type, lora_name: str, strength_model: float, strength_clip: float, **kwargs):
+        if strength_model == 0 and strength_clip == 0:
+            return io.NodeOutput(model, clip)
+
+        lora_path = folder_paths.get_full_path_or_raise("loras", lora_name)
+        lora = None
+        if cls.state.loaded_lora is not None:
+            if cls.state.loaded_lora[0] == lora_path:
+                lora = cls.state.loaded_lora[1]
+            else:
+                cls.state.loaded_lora = None
+
+        if lora is None:
+            lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
+            cls.state.loaded_lora = (lora_path, lora)
+
+        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+        return io.NodeOutput(model_lora, clip_lora)
+
+
 NODES_LIST: list[io.ComfyNodeV3] = [
     V3TestNode,
+    V3LoraLoader,
 ]
