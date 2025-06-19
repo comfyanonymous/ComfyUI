@@ -175,11 +175,12 @@ class WidgetInputV3(InputV3):
     '''
     def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: Any=None,
-                 socketless: bool=None, widgetType: str=None):
+                 socketless: bool=None, widgetType: str=None, types: list[type[ComfyType] | ComfyType]=None):
         super().__init__(id, display_name, optional, tooltip, lazy)
         self.default = default
         self.socketless = socketless
         self.widgetType = widgetType
+        self.types = types if types is not None else []
     
     def as_dict_V1(self):
         return super().as_dict_V1() | prune_dict({
@@ -187,6 +188,13 @@ class WidgetInputV3(InputV3):
             "socketless": self.socketless,
             "widgetType": self.widgetType,
         })
+    
+    def get_io_type_V1(self):
+        # combine passed-in types and expected widgetType
+        str_types = [x.io_type for x in self.types]
+        str_types.insert(0, self.widgetType)
+        # ensure types are unique and order is preserved
+        return ','.join(list(dict.fromkeys(str_types)))
 
 class OutputV3(IO_V3):
     def __init__(self, id: str, display_name: str=None, tooltip: str=None,
@@ -236,8 +244,8 @@ class Boolean:
         '''Boolean input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: bool=None, label_on: str=None, label_off: str=None,
-                    socketless: bool=None, widgetType: str=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+                    socketless: bool=None, types: list[type[ComfyType] | ComfyType]=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, types)
             self.label_on = label_on
             self.label_off = label_off
             self.default: bool
@@ -259,8 +267,8 @@ class Int:
         '''Integer input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: int=None, min: int=None, max: int=None, step: int=None, control_after_generate: bool=None,
-                    display_mode: NumberDisplay=None, socketless: bool=None, widgetType: str=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+                    display_mode: NumberDisplay=None, socketless: bool=None, types: list[type[ComfyType] | ComfyType]=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, types)
             self.min = min
             self.max = max
             self.step = step
@@ -288,8 +296,8 @@ class Float:
         '''Float input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
-                    display_mode: NumberDisplay=None, socketless: bool=None, widgetType: str=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+                    display_mode: NumberDisplay=None, socketless: bool=None, types: list[type[ComfyType] | ComfyType]=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, types)
             self.default = default
             self.min = min
             self.max = max
@@ -318,8 +326,8 @@ class String:
         '''String input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     multiline=False, placeholder: str=None, default: int=None,
-                    socketless: bool=None, widgetType: str=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+                    socketless: bool=None, types: list[type[ComfyType] | ComfyType]=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, types)
             self.multiline = multiline
             self.placeholder = placeholder
             self.default: str
@@ -343,8 +351,8 @@ class Combo:
                     default: str=None, control_after_generate: bool=None,
                     image_upload: bool=None, image_folder: FolderType=None,
                     remote: RemoteOptions=None,
-                    socketless: bool=None, widgetType: str=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, widgetType)
+                    socketless: bool=None, types: list[type[ComfyType] | ComfyType]=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, types)
             self.multiselect = False
             self.options = options
             self.control_after_generate = control_after_generate
@@ -366,6 +374,7 @@ class Combo:
 @comfytype(io_type=IO.COMBO)
 class MultiCombo:
     '''Multiselect Combo input (dropdown for selecting potentially more than one value).'''
+    # TODO: something is wrong with the serialization, frontend does not recognize it as multiselect
     Type = list[str]
     class Input(Combo.Input):
         def __init__(self, id: str, options: list[str], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
@@ -378,11 +387,12 @@ class MultiCombo:
             self.default: list[str]
 
         def as_dict_V1(self):
-            return super().as_dict_V1() | prune_dict({
+            to_return = super().as_dict_V1() | prune_dict({
                 "multiselect": self.multiselect,
                 "placeholder": self.placeholder,
                 "chip": self.chip,
             })
+            return to_return
 
 
 @comfytype(io_type=IO.IMAGE)
@@ -484,9 +494,9 @@ class MultiType:
         '''
         Input that permits more than one input type.
         '''
-        def __init__(self, id: str, io_types: list[type[ComfyType] | ComfyType | IO |str], display_name: str=None, optional=False, tooltip: str=None,):
+        def __init__(self, id: str, types: list[type[ComfyType] | ComfyType], display_name: str=None, optional=False, tooltip: str=None,):
             super().__init__(id, display_name, optional, tooltip)
-            self._io_types = io_types
+            self._io_types = types
         
         @property
         def io_types(self) -> list[type[InputV3]]:
@@ -502,7 +512,8 @@ class MultiType:
             return io_types
         
         def get_io_type_V1(self):
-            return ",".join(x.io_type for x in self.io_types)
+            # ensure types are unique and order is preserved
+            return ",".join(list(dict.fromkeys([x.io_type for x in self.io_types])))
 
 class DynamicInput(InputV3):
     '''
