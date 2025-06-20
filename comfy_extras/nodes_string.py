@@ -1,6 +1,5 @@
 import re
 import os
-import torch
 import folder_paths
 from comfy.comfy_types.node_typing import IO
 
@@ -367,35 +366,6 @@ class LoadText():
 
         return True
 
-class GetRandomLine():
-    DESCRIPTION = "Obtain a random line from a multiline string."
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "text": (IO.STRING, {"multiline": True, "default": ""}),
-                "seed": (IO.INT, {"default": 0,
-                        "min": 0,
-                        "max": 2147483647,
-                        "step": 1,
-                        "control_after_generate": True,
-                        "display": "number"},)
-            }
-        }
-
-    RETURN_TYPES = (IO.STRING,)
-    FUNCTION = "execute"
-    CATEGORY = "utils/string"
-
-    def execute(self, text, seed=0):
-        generator = torch.Generator()
-        generator.manual_seed(seed)
-        lines = text.splitlines()
-        max_lines = len(lines)
-        idx = torch.randint(0, max_lines, (1,), generator=generator).item()
-        return (lines[idx],)
-
-
 NODE_CLASS_MAPPINGS = {
     "StringConcatenate": StringConcatenate,
     "StringSubstring": StringSubstring,
@@ -408,8 +378,7 @@ NODE_CLASS_MAPPINGS = {
     "RegexMatch": RegexMatch,
     "RegexExtract": RegexExtract,
     "RegexReplace": RegexReplace,
-    "LoadText": LoadText,
-    "GetRandomLine": GetRandomLine
+    "LoadText": LoadText
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -424,6 +393,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RegexMatch": "Regex Match",
     "RegexExtract": "Regex Extract",
     "RegexReplace": "Regex Replace",
-    "LoadText": "Load Text",
-    "GetRandomLine": "Get Random Line"
+    "LoadText": "Load Text"
 }
