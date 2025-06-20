@@ -61,7 +61,7 @@ We generated the images using ComfyUI with a customized workflow and converted t
   
 ---
 
-🚀 How to Start
+## 🚀 How to Start
 1. Launch ComfyUI
 git clone https://github.com/weiyangfoh/ComfyUI
 cd ComfyUI
