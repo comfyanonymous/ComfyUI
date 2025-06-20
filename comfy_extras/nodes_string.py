@@ -377,8 +377,8 @@ class GetRandomLine():
                 "seed": (IO.INT, {"default": 0,
                         "min": 0,
                         "max": 2147483647,
-                        "step": 1, 
-                        "control_after_generate": True, 
+                        "step": 1,
+                        "control_after_generate": True,
                         "display": "number"},)
             }
         }
