@@ -1,5 +1,7 @@
 import re
-
+import os
+import torch
+import folder_paths
 from comfy.comfy_types.node_typing import IO
 
 class StringConcatenate():
@@ -331,6 +333,69 @@ class RegexReplace():
         result = re.sub(regex_pattern, replace, string, count=count, flags=flags)
         return result,
 
+class LoadText():
+    DESCRIPTION = "Load a string from a file."
+    @classmethod
+    def INPUT_TYPES(s):
+        input_dir = folder_paths.get_input_directory()
+        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        files = folder_paths.filter_files_content_types(files, ["text"])
+        return {
+            "required": {"file": (sorted(files), {"text_upload": True})},
+        }
+
+    RETURN_TYPES = (IO.STRING,)
+    FUNCTION = "execute"
+    CATEGORY = "utils/string"
+
+    def execute(self, file):
+        text_path = folder_paths.get_annotated_filepath(file)
+        string = open(text_path, 'r', encoding='utf-8').read() #enforcing utf-8 is odd, good enough
+        return (string,)
+
+    @classmethod
+    def IS_CHANGED(cls, file):
+        text_path = folder_paths.get_annotated_filepath(file)
+        mod_time = os.path.getmtime(text_path)
+        # use mod time (inspired by video nodes)
+        return mod_time
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, file):
+        if not folder_paths.exists_annotated_filepath(file):
+            return "Invalid text file: {}".format(file)
+
+        return True
+
+class GetRandomLine():
+    DESCRIPTION = "Obtain a random line from a multiline string."
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "text": (IO.STRING, {"multiline": True, "default": ""}),
+                "seed": (IO.INT, {"default": 0,
+                        "min": 0,
+                        "max": 2147483647,
+                        "step": 1, 
+                        "control_after_generate": True, 
+                        "display": "number"},)
+            }
+        }
+
+    RETURN_TYPES = (IO.STRING,)
+    FUNCTION = "execute"
+    CATEGORY = "utils/string"
+
+    def execute(self, text, seed=0):
+        generator = torch.Generator()
+        generator.manual_seed(seed)
+        lines = text.splitlines()
+        max_lines = len(lines)
+        idx = torch.randint(0, max_lines, (1,), generator=generator).item()
+        return (lines[idx],)
+
+
 NODE_CLASS_MAPPINGS = {
     "StringConcatenate": StringConcatenate,
     "StringSubstring": StringSubstring,
@@ -343,6 +408,8 @@ NODE_CLASS_MAPPINGS = {
     "RegexMatch": RegexMatch,
     "RegexExtract": RegexExtract,
     "RegexReplace": RegexReplace,
+    "LoadText": LoadText,
+    "GetRandomLine": GetRandomLine
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -357,4 +424,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RegexMatch": "Regex Match",
     "RegexExtract": "Regex Extract",
     "RegexReplace": "Regex Replace",
+    "LoadText": "Load Text",
+    "GetRandomLine": "Get Random Line"
 }
