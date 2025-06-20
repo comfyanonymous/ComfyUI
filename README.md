@@ -65,8 +65,10 @@ We generated the images using ComfyUI with a customized workflow and converted t
 1. Launch ComfyUI
  ```bash
 git clone https://github.com/weiyangfoh/ComfyUI
+
  ```bash
 cd ComfyUI
+
  ```bash
 python main.py
 - Make sure the Illustrious XL model is placed in your models/checkpoints folder.
@@ -74,8 +76,10 @@ python main.py
 3. Run Our Script
  ```bash
 cd Group-Hello-Kitty
+
 - In the Group-Hello-Kitty folder:
  ```bash
 python main.py
+
 - It will automatically call ComfyUI to generate 7 images with the correct filename prefix.
 - Images will be saved to your ComfyUI /output/ folder.
