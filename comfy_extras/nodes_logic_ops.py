@@ -5,19 +5,6 @@ class AnyType(str):
 
 any = AnyType("*")
 
-class BooleanNOT:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {"value": ("BOOLEAN", {"default": True})}}
-
-    RETURN_TYPES = ("BOOLEAN",)
-    RETURN_NAMES = ("NOT",)
-    CATEGORY = "utils/logic"
-    FUNCTION = "get_not"
-
-    def get_not(self, value: bool) -> tuple[bool]:
-        return (not value,)
-
 class BooleanLogicGate:
     @classmethod
     def INPUT_TYPES(cls):
@@ -25,7 +12,7 @@ class BooleanLogicGate:
             "required": {
                 "value1": ("BOOLEAN", {"default": True}),
                 "value2": ("BOOLEAN", {"default": True}),
-                "mode": (["AND", "OR", "NAND", "NOR", "XOR", "XNOR"],)
+                "mode": (["NOT", "AND", "OR", "NAND", "NOR", "XOR", "XNOR"],)
             }
         }
 
@@ -35,6 +22,7 @@ class BooleanLogicGate:
     FUNCTION = "apply_operation"
 
     _OPS = {
+        "NOT":  lambda a, b: not a,
         "AND":  lambda a, b: a and b,
         "OR":   lambda a, b: a or b,
         "NAND": lambda a, b: not (a and b),
@@ -74,14 +62,12 @@ class OutputExists:
         return (variable is not None,)
 
 NODE_CLASS_MAPPINGS = {
-    "BooleanNOT": BooleanNOT,
     "BooleanLogicGate": BooleanLogicGate,
     "BooleanSwitch": BooleanSwitch,
     "OutputExists": OutputExists,
     }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "BooleanNOT": "Boolean NOT",
     "BooleanLogicGate": "Boolean Logic Gate",
     "BooleanSwitch": "Boolean Switch",
     "OutputExists": "Output Exists",
