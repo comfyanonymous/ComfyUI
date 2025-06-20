@@ -121,4 +121,4 @@ echo.
 set FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
 set MIOPEN_FIND_MODE=2
 set MIOPEN_LOG_LEVEL=3
-.\zluda\zluda.exe -- python main.py --auto-launch --use-pytorch-cross-attention
+.\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
