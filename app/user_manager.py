@@ -14,6 +14,7 @@ from .app_settings import AppSettings
 from typing import TypedDict
 
 default_user = "default"
+GALLERY_SUFFIX = ".gallery"
 
 
 class FileInfo(TypedDict):
@@ -267,6 +268,62 @@ class UserManager():
                 resp = os.path.relpath(path, user_path)
 
             return web.json_response(resp)
+
+    async def toggle_gallery_status(self, request):
+        file = request.match_info.get("file", None)
+        if not file:
+            return web.Response(status=400, text="File not specified")
+
+        filepath = self.get_request_user_filepath(request, file)
+        if not filepath or not os.path.exists(filepath):
+            return web.Response(status=404, text="File not found")
+
+        filename_no_ext, ext = os.path.splitext(filepath)
+
+        if filename_no_ext.endswith(GALLERY_SUFFIX):
+            # Remove gallery status by removing suffix from filename part
+            new_filename_no_ext = filename_no_ext[:-len(GALLERY_SUFFIX)]
+            new_filepath = new_filename_no_ext + ext
+        else:
+            # Add gallery status by adding suffix to filename part
+            new_filepath = filename_no_ext + GALLERY_SUFFIX + ext
+
+        os.rename(filepath, new_filepath)
+        new_filename = os.path.basename(new_filepath)
+        return web.json_response({"filename": new_filename}, status=200)
+
+        @routes.post("/userdata/{file}/gallery")
+        async def post_toggle_gallery_status(request):
+            return await self.toggle_gallery_status(request)
+
+    async def list_gallery_files(self, request):
+        user_root_dir = self.get_request_user_filepath(request, None)
+        if not user_root_dir or not os.path.isdir(user_root_dir):
+            return web.json_response({"error": "User directory not found"}, status=404)
+
+        gallery_files_info = []
+        # Search for files like *.gallery.png, *.gallery.jpg etc. in all subdirectories
+        pattern = os.path.join(glob.escape(user_root_dir), '**', '*' + GALLERY_SUFFIX + '.*')
+
+        for filepath in glob.glob(pattern, recursive=True):
+            if os.path.isfile(filepath):
+                original_filename_with_ext = os.path.basename(filepath)
+                # Remove .gallery suffix to get original filename
+                original_filename = original_filename_with_ext.replace(GALLERY_SUFFIX, "")
+
+                file_info = {
+                    "filename": original_filename,
+                    "path": os.path.relpath(filepath, user_root_dir).replace(os.sep, '/'),
+                    "size": os.path.getsize(filepath),
+                    "modified": os.path.getmtime(filepath)
+                }
+                gallery_files_info.append(file_info)
+
+        return web.json_response(gallery_files_info)
+
+        @routes.get("/gallery")
+        async def get_gallery_files(request):
+            return await self.list_gallery_files(request)
 
         @routes.delete("/userdata/{file}")
         async def delete_userdata(request):

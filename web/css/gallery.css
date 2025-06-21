@@ -1,0 +1,37 @@
+#gallery-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px; /* spacing between items */
+    padding: 10px;
+}
+
+.gallery-item {
+    margin: 10px;
+    border: 1px solid #ccc;
+    padding: 5px;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: calc(200px + 10px); /* width of thumbnail + padding */
+}
+
+.gallery-thumbnail {
+    width: 200px;
+    height: 200px;
+    object-fit: cover; /* scales the image to cover the container while maintaining aspect ratio */
+    margin-bottom: 5px;
+}
+
+.gallery-item button {
+    padding: 8px 12px;
+    background-color: #f44336; /* Red */
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.gallery-item button:hover {
+    background-color: #d32f2f; /* Darker red */
+}
