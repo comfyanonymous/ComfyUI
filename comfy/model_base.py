@@ -1024,6 +1024,8 @@ class CosmosPredict2(BaseModel):
     def process_timestep(self, timestep, x, denoise_mask=None, **kwargs):
         if denoise_mask is None:
             return timestep
+        if denoise_mask.ndim <= 4:
+            return timestep
         condition_video_mask_B_1_T_1_1 = denoise_mask.mean(dim=[1, 3, 4], keepdim=True)
         c_noise_B_1_T_1_1 = 0.0 * (1.0 - condition_video_mask_B_1_T_1_1) + timestep.reshape(timestep.shape[0], 1, 1, 1, 1) * condition_video_mask_B_1_T_1_1
         out = c_noise_B_1_T_1_1.squeeze(dim=[1, 3, 4])
