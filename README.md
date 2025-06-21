@@ -34,6 +34,24 @@
 This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
 ### [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
 
+## Running a Default Pipeline
+
+A script to execute a default pipeline is available in `script_examples/execute_default_pipeline.py`.
+
+To run this script:
+
+1.  **Ensure ComfyUI Server is Running:**
+    Start the ComfyUI server by running `python main.py` in your terminal from the root directory of this project. By default, the server runs at `http://127.0.0.1:8188`.
+2.  **Execute the Script:**
+    Open another terminal, navigate to the `script_examples/` directory, and run the script:
+    ```bash
+    python execute_default_pipeline.py
+    ```
+3.  **Find the Output:**
+    If the execution is successful, the script will print "Prompt queued successfully!". The generated image will be saved in the `output/` directory with a filename starting with `ComfyUI` (e.g., `ComfyUI_00001_.png`).
+
+**Note:** The default pipeline uses the `v1-5-pruned-emaonly.safetensors` checkpoint. Make sure this checkpoint is available in your `models/checkpoints/` directory. If not, you can either download it or modify the `ckpt_name` in the `execute_default_pipeline.py` script to use a checkpoint you have.
+
 ### [Installing ComfyUI](#installing)
 
 ## Features
