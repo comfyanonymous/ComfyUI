@@ -235,6 +235,14 @@ try:
 except:
     OOM_EXCEPTION = Exception
 
+
+def is_oom_exception(ex):
+    if isinstance(ex, OOM_EXCEPTION):
+        return True
+    # handle also other kinds of oom, e.g. "HIP error: out of memory"
+    msg = str(ex)
+    return "out of memory" in msg
+
 XFORMERS_VERSION = ""
 XFORMERS_ENABLED_VAE = True
 if args.disable_xformers:
