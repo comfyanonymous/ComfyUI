@@ -185,7 +185,7 @@ def prompt_worker(q, server_instance):
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
-            
+
             # Log Time in a more readable way after 10 minutes
             if execution_time > 600:
                 execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
