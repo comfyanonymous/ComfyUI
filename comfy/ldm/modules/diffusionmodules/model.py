@@ -232,7 +232,9 @@ def slice_attention(q, k, v):
                 r1[:, :, i:end] = torch.bmm(v, s2)
                 del s2
             break
-        except model_management.OOM_EXCEPTION as e:
+        except Exception as e:
+            if not model_management.is_oom_exception(e):
+                raise
             model_management.soft_empty_cache(True)
             steps *= 2
             if steps > 128:
@@ -287,7 +289,9 @@ def pytorch_attention(q, k, v):
     try:
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
         out = out.transpose(2, 3).reshape(orig_shape)
-    except model_management.OOM_EXCEPTION:
+    except Exception as ex:
+        if not model_management.is_oom_exception(ex):
+            raise
         logging.warning("scaled_dot_product_attention OOMed: switched to slice attention")
         out = slice_attention(q.view(B, -1, C), k.view(B, -1, C).transpose(1, 2), v.view(B, -1, C).transpose(1, 2)).reshape(orig_shape)
     return out
