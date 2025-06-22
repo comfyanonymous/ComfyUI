@@ -414,6 +414,62 @@ Optional spacing can be added between images.
         concat_dim = 2 if direction in ["left", "right"] else 1
         return (torch.cat(images, dim=concat_dim),)
 
+class ResizeAndPadImage:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "target_width": ("INT", {
+                    "default": 512,
+                    "min": 1,
+                    "max": MAX_RESOLUTION,
+                    "step": 1
+                }),
+                "target_height": ("INT", {
+                    "default": 512,
+                    "min": 1,
+                    "max": MAX_RESOLUTION,
+                    "step": 1
+                }),
+                "padding_color": (["white", "black"],),
+                "interpolation": (["area", "bicubic", "nearest-exact", "bilinear", "lanczos"],),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "resize_and_pad"
+    CATEGORY = "image/transform"
+
+    def resize_and_pad(self, image, target_width, target_height, padding_color, interpolation):
+        batch_size, orig_height, orig_width, channels = image.shape
+
+        scale_w = target_width / orig_width
+        scale_h = target_height / orig_height
+        scale = min(scale_w, scale_h)
+
+        new_width = int(orig_width * scale)
+        new_height = int(orig_height * scale)
+
+        image_permuted = image.permute(0, 3, 1, 2)
+
+        resized = comfy.utils.common_upscale(image_permuted, new_width, new_height, interpolation, "disabled")
+
+        pad_value = 0.0 if padding_color == "black" else 1.0
+        padded = torch.full(
+            (batch_size, channels, target_height, target_width),
+            pad_value,
+            dtype=image.dtype,
+            device=image.device
+        )
+
+        y_offset = (target_height - new_height) // 2
+        x_offset = (target_width - new_width) // 2
+
+        padded[:, :, y_offset:y_offset + new_height, x_offset:x_offset + new_width] = resized
+
+        output = padded.permute(0, 2, 3, 1)
+        return (output,)
 
 class SaveSVGNode:
     """
@@ -536,5 +592,6 @@ NODE_CLASS_MAPPINGS = {
     "SaveAnimatedPNG": SaveAnimatedPNG,
     "SaveSVGNode": SaveSVGNode,
     "ImageStitch": ImageStitch,
+    "ResizeAndPadImage": ResizeAndPadImage,
     "GetImageSize": GetImageSize,
 }
