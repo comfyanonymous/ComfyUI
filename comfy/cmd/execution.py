@@ -500,18 +500,20 @@ def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra_data,
 
         logging.error("An error occurred while executing a workflow", exc_info=ex)
         logging.error(traceback.format_exc())
+        tips = ""
+
+        if isinstance(ex, model_management.OOM_EXCEPTION):
+            tips = "This error means you ran out of memory on your GPU.\n\nTIPS: If the workflow worked before you might have accidentally set the batch_size to a large number."
+            logging.error("Got an OOM, unloading all loaded models.")
+            model_management.unload_all_models()
 
         error_details: RecursiveExecutionErrorDetails = {
             "node_id": real_node_id,
-            "exception_message": str(ex),
+            "exception_message": "{}\n{}".format(ex, tips),
             "exception_type": exception_type,
             "traceback": traceback.format_tb(tb),
             "current_inputs": input_data_formatted
         }
-
-        if isinstance(ex, model_management.OOM_EXCEPTION):
-            logging.error("Got an OOM, unloading all loaded models.")
-            model_management.unload_all_models()
 
         if should_panic_on_exception(ex, args.panic_when):
             logging.error(f"The exception {ex} was configured as unrecoverable, scheduling an exit")
