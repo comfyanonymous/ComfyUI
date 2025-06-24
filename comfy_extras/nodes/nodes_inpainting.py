@@ -1,7 +1,6 @@
-from typing import NamedTuple, Optional
-
 import torch
 import torch.nn.functional as F
+from typing import NamedTuple, Optional
 
 from comfy.component_model.tensor_types import MaskBatch, ImageBatch
 from comfy.nodes.package_typing import CustomNode
@@ -84,11 +83,12 @@ class CropAndFitInpaintToDiffusionSize(CustomNode):
     CATEGORY = "inpaint"
 
     def crop_and_fit(self, image: torch.Tensor, mask: MaskBatch, resolutions: str, margin: str):
-        if mask.max() <= 0:
-            raise ValueError("Mask is empty.")
+        if mask.max() == 0.0:
+            raise ValueError("Mask is empty (all black).")
+
         mask_coords = torch.nonzero(mask)
         if mask_coords.numel() == 0:
-            raise ValueError("Mask is empty.")
+            raise ValueError("Mask is empty (all black).")
 
         y_coords, x_coords = mask_coords[:, 1], mask_coords[:, 2]
         y_min, x_min = y_coords.min().item(), x_coords.min().item()
@@ -99,8 +99,11 @@ class CropAndFitInpaintToDiffusionSize(CustomNode):
         x_end_expanded, y_end_expanded = x_max + 1 + right_m, y_max + 1 + bottom_m
 
         img_h, img_w = image.shape[1:3]
-        clamped_x_start, clamped_y_start = max(0, x_start_expanded), max(0, y_start_expanded)
-        clamped_x_end, clamped_y_end = min(img_w, x_end_expanded), min(img_h, y_end_expanded)
+
+        clamped_x_start = max(0, x_start_expanded)
+        clamped_y_start = max(0, y_start_expanded)
+        clamped_x_end = min(img_w, x_end_expanded)
+        clamped_y_end = min(img_h, y_end_expanded)
 
         initial_w, initial_h = clamped_x_end - clamped_x_start, clamped_y_end - clamped_y_start
         if initial_w <= 0 or initial_h <= 0:
@@ -112,15 +115,30 @@ class CropAndFitInpaintToDiffusionSize(CustomNode):
         target_ar = target_res[0] / target_res[1]
 
         current_ar = initial_w / initial_h
-        final_x, final_y = float(clamped_x_start), float(clamped_y_start)
-        final_w, final_h = float(initial_w), float(initial_h)
-
         if current_ar > target_ar:
-            final_w = initial_h * target_ar
-            final_x += (initial_w - final_w) / 2
+            cover_w, cover_h = float(initial_w), float(initial_w) / target_ar
         else:
-            final_h = initial_w / target_ar
-            final_y += (initial_h - final_h) / 2
+            cover_h, cover_w = float(initial_h), float(initial_h) * target_ar
+
+        if cover_w > img_w or cover_h > img_h:
+            final_x, final_y, final_w, final_h = 0, 0, img_w, img_h
+            full_img_ar = img_w / img_h
+            diffs_full = [(abs(res[0] / res[1] - full_img_ar), res) for res in supported_resolutions]
+            target_res = min(diffs_full, key=lambda x: x[0])[1]
+        else:
+            center_x = clamped_x_start + initial_w / 2
+            center_y = clamped_y_start + initial_h / 2
+            final_x, final_y = center_x - cover_w / 2, center_y - cover_h / 2
+            final_w, final_h = cover_w, cover_h
+
+            if final_x < 0:
+                final_x = 0
+            if final_y < 0:
+                final_y = 0
+            if final_x + final_w > img_w:
+                final_x = img_w - final_w
+            if final_y + final_h > img_h:
+                final_y = img_h - final_h
 
         final_x, final_y, final_w, final_h = int(final_x), int(final_y), int(final_w), int(final_h)
 
