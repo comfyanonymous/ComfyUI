@@ -273,6 +273,8 @@ You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS ve
 
 #### DirectML (AMD Cards on Windows)
 
+This is very badly supported and is not recommended. There are some unofficial builds of pytorch ROCm on windows that exist that will give you a much better experience than this. This readme will be updated once official pytorch ROCm builds for windows come out.
+
 ```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
 
 #### Ascend NPUs
