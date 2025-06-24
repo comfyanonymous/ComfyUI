@@ -24,6 +24,10 @@ class CONDRegular:
             conds.append(x.cond)
         return torch.cat(conds)
 
+    def size(self):
+        return list(self.cond.size())
+
+
 class CONDNoiseShape(CONDRegular):
     def process_cond(self, batch_size, device, area, **kwargs):
         data = self.cond
@@ -64,6 +68,7 @@ class CONDCrossAttn(CONDRegular):
             out.append(c)
         return torch.cat(out)
 
+
 class CONDConstant(CONDRegular):
     def __init__(self, cond):
         self.cond = cond
@@ -78,3 +83,48 @@ class CONDConstant(CONDRegular):
 
     def concat(self, others):
         return self.cond
+
+    def size(self):
+        return [1]
+
+
+class CONDList(CONDRegular):
+    def __init__(self, cond):
+        self.cond = cond
+
+    def process_cond(self, batch_size, device, **kwargs):
+        out = []
+        for c in self.cond:
+            out.append(comfy.utils.repeat_to_batch_size(c, batch_size).to(device))
+
+        return self._copy_with(out)
+
+    def can_concat(self, other):
+        if len(self.cond) != len(other.cond):
+            return False
+        for i in range(len(self.cond)):
+            if self.cond[i].shape != other.cond[i].shape:
+                return False
+
+        return True
+
+    def concat(self, others):
+        out = []
+        for i in range(len(self.cond)):
+            o = [self.cond[i]]
+            for x in others:
+                o.append(x.cond[i])
+            out.append(torch.cat(o))
+
+        return out
+
+    def size(self):  # hackish implementation to make the mem estimation work
+        o = 0
+        c = 1
+        for c in self.cond:
+            size = c.size()
+            o += math.prod(size)
+            if len(size) > 1:
+                c = size[1]
+
+        return [1, c, o // c]

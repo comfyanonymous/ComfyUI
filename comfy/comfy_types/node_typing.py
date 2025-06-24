@@ -37,6 +37,8 @@ class IO(StrEnum):
     CONTROL_NET = "CONTROL_NET"
     VAE = "VAE"
     MODEL = "MODEL"
+    LORA_MODEL = "LORA_MODEL"
+    LOSS_MAP = "LOSS_MAP"
     CLIP_VISION = "CLIP_VISION"
     CLIP_VISION_OUTPUT = "CLIP_VISION_OUTPUT"
     STYLE_MODEL = "STYLE_MODEL"
@@ -235,7 +237,7 @@ class ComfyNodeABC(ABC):
     DEPRECATED: bool
     """Flags a node as deprecated, indicating to users that they should find alternatives to this node."""
     API_NODE: Optional[bool]
-    """Flags a node as an API node."""
+    """Flags a node as an API node. See: https://docs.comfy.org/tutorials/api-nodes/overview."""
 
     @classmethod
     @abstractmethod

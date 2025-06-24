@@ -34,6 +34,7 @@ import comfy.ldm.flux.model
 import comfy.ldm.lightricks.model
 import comfy.ldm.hunyuan_video.model
 import comfy.ldm.cosmos.model
+import comfy.ldm.cosmos.predict2
 import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
 import comfy.ldm.hunyuan3d.model
@@ -48,6 +49,7 @@ import comfy.ops
 from enum import Enum
 from . import utils
 import comfy.latent_formats
+import comfy.model_sampling
 import math
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -63,43 +65,51 @@ class ModelType(Enum):
     V_PREDICTION_CONTINUOUS = 7
     FLUX = 8
     IMG_TO_IMG = 9
-
-
-from comfy.model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling, ModelSamplingContinuousV
+    FLOW_COSMOS = 10
 
 
 def model_sampling(model_config, model_type):
-    s = ModelSamplingDiscrete
+    s = comfy.model_sampling.ModelSamplingDiscrete
 
     if model_type == ModelType.EPS:
-        c = EPS
+        c = comfy.model_sampling.EPS
     elif model_type == ModelType.V_PREDICTION:
-        c = V_PREDICTION
+        c = comfy.model_sampling.V_PREDICTION
     elif model_type == ModelType.V_PREDICTION_EDM:
-        c = V_PREDICTION
-        s = ModelSamplingContinuousEDM
+        c = comfy.model_sampling.V_PREDICTION
+        s = comfy.model_sampling.ModelSamplingContinuousEDM
     elif model_type == ModelType.FLOW:
         c = comfy.model_sampling.CONST
         s = comfy.model_sampling.ModelSamplingDiscreteFlow
     elif model_type == ModelType.STABLE_CASCADE:
-        c = EPS
-        s = StableCascadeSampling
+        c = comfy.model_sampling.EPS
+        s = comfy.model_sampling.StableCascadeSampling
     elif model_type == ModelType.EDM:
-        c = EDM
-        s = ModelSamplingContinuousEDM
+        c = comfy.model_sampling.EDM
+        s = comfy.model_sampling.ModelSamplingContinuousEDM
     elif model_type == ModelType.V_PREDICTION_CONTINUOUS:
-        c = V_PREDICTION
-        s = ModelSamplingContinuousV
+        c = comfy.model_sampling.V_PREDICTION
+        s = comfy.model_sampling.ModelSamplingContinuousV
     elif model_type == ModelType.FLUX:
         c = comfy.model_sampling.CONST
         s = comfy.model_sampling.ModelSamplingFlux
     elif model_type == ModelType.IMG_TO_IMG:
         c = comfy.model_sampling.IMG_TO_IMG
+    elif model_type == ModelType.FLOW_COSMOS:
+        c = comfy.model_sampling.COSMOS_RFLOW
+        s = comfy.model_sampling.ModelSamplingCosmosRFlow
 
     class ModelSampling(s, c):
         pass
 
     return ModelSampling(model_config)
+
+
+def convert_tensor(extra, dtype):
+    if hasattr(extra, "dtype"):
+        if extra.dtype != torch.int and extra.dtype != torch.long:
+            extra = extra.to(dtype)
+    return extra
 
 
 class BaseModel(torch.nn.Module):
@@ -135,6 +145,7 @@ class BaseModel(torch.nn.Module):
         logging.info("model_type {}".format(model_type.name))
         logging.debug("adm {}".format(self.adm_channels))
         self.memory_usage_factor = model_config.memory_usage_factor
+        self.memory_usage_factor_conds = ()
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
@@ -164,9 +175,14 @@ class BaseModel(torch.nn.Module):
         extra_conds = {}
         for o in kwargs:
             extra = kwargs[o]
+
             if hasattr(extra, "dtype"):
-                if extra.dtype != torch.int and extra.dtype != torch.long:
-                    extra = extra.to(dtype)
+                extra = convert_tensor(extra, dtype)
+            elif isinstance(extra, list):
+                ex = []
+                for ext in extra:
+                    ex.append(convert_tensor(ext, dtype))
+                extra = ex
             extra_conds[o] = extra
 
         t = self.process_timestep(t, x=x, **extra_conds)
@@ -325,18 +341,27 @@ class BaseModel(torch.nn.Module):
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return self.model_sampling.noise_scaling(sigma.reshape([sigma.shape[0]] + [1] * (len(noise.shape) - 1)), noise, latent_image)
 
-    def memory_required(self, input_shape):
+    def memory_required(self, input_shape, cond_shapes={}):
+        input_shapes = [input_shape]
+        for c in self.memory_usage_factor_conds:
+            shape = cond_shapes.get(c, None)
+            if shape is not None and len(shape) > 0:
+                input_shapes += shape
+
         if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention():
             dtype = self.get_dtype()
             if self.manual_cast_dtype is not None:
                 dtype = self.manual_cast_dtype
             #TODO: this needs to be tweaked
-            area = input_shape[0] * math.prod(input_shape[2:])
+            area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
             return (area * comfy.model_management.dtype_size(dtype) * 0.01 * self.memory_usage_factor) * (1024 * 1024)
         else:
             #TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
-            area = input_shape[0] * math.prod(input_shape[2:])
+            area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
             return (area * 0.15 * self.memory_usage_factor) * (1024 * 1024)
+
+    def extra_conds_shapes(self, **kwargs):
+        return {}
 
 
 def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0, seed=None):
@@ -924,6 +949,10 @@ class HunyuanVideo(BaseModel):
         if guiding_frame_index is not None:
             out['guiding_frame_index'] = comfy.conds.CONDRegular(torch.FloatTensor([guiding_frame_index]))
 
+        ref_latent = kwargs.get("ref_latent", None)
+        if ref_latent is not None:
+            out['ref_latent'] = comfy.conds.CONDRegular(self.process_latent_in(ref_latent))
+
         return out
 
     def scale_latent_inpaint(self, latent_image, **kwargs):
@@ -971,6 +1000,43 @@ class CosmosVideo(BaseModel):
             latent_image = latent_image + noise
         latent_image = self.model_sampling.calculate_input(torch.tensor([sigma_noise_augmentation], device=latent_image.device, dtype=latent_image.dtype), latent_image)
         return latent_image * ((sigma ** 2 + self.model_sampling.sigma_data ** 2) ** 0.5)
+
+class CosmosPredict2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW_COSMOS, image_to_video=False, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.cosmos.predict2.MiniTrainDIT)
+        self.image_to_video = image_to_video
+        if self.image_to_video:
+            self.concat_keys = ("mask_inverted",)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        denoise_mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
+        if denoise_mask is not None:
+            out["denoise_mask"] = comfy.conds.CONDRegular(denoise_mask)
+
+        out['fps'] = comfy.conds.CONDConstant(kwargs.get("frame_rate", None))
+        return out
+
+    def process_timestep(self, timestep, x, denoise_mask=None, **kwargs):
+        if denoise_mask is None:
+            return timestep
+        condition_video_mask_B_1_T_1_1 = denoise_mask.mean(dim=[1, 3, 4], keepdim=True)
+        c_noise_B_1_T_1_1 = 0.0 * (1.0 - condition_video_mask_B_1_T_1_1) + timestep.reshape(timestep.shape[0], 1, 1, 1, 1) * condition_video_mask_B_1_T_1_1
+        out = c_noise_B_1_T_1_1.squeeze(dim=[1, 3, 4])
+        return out
+
+    def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
+        sigma = sigma.reshape([sigma.shape[0]] + [1] * (len(noise.shape) - 1))
+        sigma_noise_augmentation = 0 #TODO
+        if sigma_noise_augmentation != 0:
+            latent_image = latent_image + noise
+        latent_image = self.model_sampling.calculate_input(torch.tensor([sigma_noise_augmentation], device=latent_image.device, dtype=latent_image.dtype), latent_image)
+        sigma = (sigma / (sigma + 1))
+        return latent_image / (1.0 - sigma)
 
 class Lumina2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
@@ -1043,6 +1109,11 @@ class WAN21(BaseModel):
         clip_vision_output = kwargs.get("clip_vision_output", None)
         if clip_vision_output is not None:
             out['clip_fea'] = comfy.conds.CONDRegular(clip_vision_output.penultimate_hidden_states)
+
+        time_dim_concat = kwargs.get("time_dim_concat", None)
+        if time_dim_concat is not None:
+            out['time_dim_concat'] = comfy.conds.CONDRegular(self.process_latent_in(time_dim_concat))
+
         return out
 
 
@@ -1058,23 +1129,39 @@ class WAN21_Vace(WAN21):
         vace_frames = kwargs.get("vace_frames", None)
         if vace_frames is None:
             noise_shape[1] = 32
-            vace_frames = torch.zeros(noise_shape, device=noise.device, dtype=noise.dtype)
-
-        for i in range(0, vace_frames.shape[1], 16):
-            vace_frames = vace_frames.clone()
-            vace_frames[:, i:i + 16] = self.process_latent_in(vace_frames[:, i:i + 16])
+            vace_frames = [torch.zeros(noise_shape, device=noise.device, dtype=noise.dtype)]
 
         mask = kwargs.get("vace_mask", None)
         if mask is None:
             noise_shape[1] = 64
-            mask = torch.ones(noise_shape, device=noise.device, dtype=noise.dtype)
+            mask = [torch.ones(noise_shape, device=noise.device, dtype=noise.dtype)] * len(vace_frames)
 
-        out['vace_context'] = comfy.conds.CONDRegular(torch.cat([vace_frames.to(noise), mask.to(noise)], dim=1))
+        vace_frames_out = []
+        for j in range(len(vace_frames)):
+            vf = vace_frames[j].clone()
+            for i in range(0, vf.shape[1], 16):
+                vf[:, i:i + 16] = self.process_latent_in(vf[:, i:i + 16])
+            vf = torch.cat([vf, mask[j]], dim=1)
+            vace_frames_out.append(vf)
 
-        vace_strength = kwargs.get("vace_strength", 1.0)
+        vace_frames = torch.stack(vace_frames_out, dim=1)
+        out['vace_context'] = comfy.conds.CONDRegular(vace_frames)
+
+        vace_strength = kwargs.get("vace_strength", [1.0] * len(vace_frames_out))
         out['vace_strength'] = comfy.conds.CONDConstant(vace_strength)
         return out
 
+class WAN21_Camera(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.CameraWanModel)
+        self.image_to_video = image_to_video
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        camera_conditions = kwargs.get("camera_conditions", None)
+        if camera_conditions is not None:
+            out['camera_conditions'] = comfy.conds.CONDRegular(camera_conditions)
+        return out
 
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):

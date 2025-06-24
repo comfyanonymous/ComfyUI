@@ -361,6 +361,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["model_type"] = "vace"
             dit_config["vace_in_dim"] = state_dict['{}vace_patch_embedding.weight'.format(key_prefix)].shape[1]
             dit_config["vace_layers"] = count_blocks(state_dict_keys, '{}vace_blocks.'.format(key_prefix) + '{}.')
+        elif '{}control_adapter.conv.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "camera"
         else:
             if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
                 dit_config["model_type"] = "i2v"
@@ -403,6 +405,58 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["out_channels"] = 16
         dit_config["patch_size"] = 2
         dit_config["text_emb_dim"] = 2048
+        return dit_config
+
+    if '{}blocks.0.mlp.layer1.weight'.format(key_prefix) in state_dict_keys:  # Cosmos predict2
+        dit_config = {}
+        dit_config["image_model"] = "cosmos_predict2"
+        dit_config["max_img_h"] = 240
+        dit_config["max_img_w"] = 240
+        dit_config["max_frames"] = 128
+        concat_padding_mask = True
+        dit_config["in_channels"] = (state_dict['{}x_embedder.proj.1.weight'.format(key_prefix)].shape[1] // 4) - int(concat_padding_mask)
+        dit_config["out_channels"] = 16
+        dit_config["patch_spatial"] = 2
+        dit_config["patch_temporal"] = 1
+        dit_config["model_channels"] = state_dict['{}x_embedder.proj.1.weight'.format(key_prefix)].shape[0]
+        dit_config["concat_padding_mask"] = concat_padding_mask
+        dit_config["crossattn_emb_channels"] = 1024
+        dit_config["pos_emb_cls"] = "rope3d"
+        dit_config["pos_emb_learnable"] = True
+        dit_config["pos_emb_interpolation"] = "crop"
+        dit_config["min_fps"] = 1
+        dit_config["max_fps"] = 30
+
+        dit_config["use_adaln_lora"] = True
+        dit_config["adaln_lora_dim"] = 256
+        if dit_config["model_channels"] == 2048:
+            dit_config["num_blocks"] = 28
+            dit_config["num_heads"] = 16
+        elif dit_config["model_channels"] == 5120:
+            dit_config["num_blocks"] = 36
+            dit_config["num_heads"] = 40
+
+        if dit_config["in_channels"] == 16:
+            dit_config["extra_per_block_abs_pos_emb"] = False
+            dit_config["rope_h_extrapolation_ratio"] = 4.0
+            dit_config["rope_w_extrapolation_ratio"] = 4.0
+            dit_config["rope_t_extrapolation_ratio"] = 1.0
+        elif dit_config["in_channels"] == 17: # img to video
+            if dit_config["model_channels"] == 2048:
+                dit_config["extra_per_block_abs_pos_emb"] = False
+                dit_config["rope_h_extrapolation_ratio"] = 3.0
+                dit_config["rope_w_extrapolation_ratio"] = 3.0
+                dit_config["rope_t_extrapolation_ratio"] = 1.0
+            elif dit_config["model_channels"] == 5120:
+                dit_config["rope_h_extrapolation_ratio"] = 2.0
+                dit_config["rope_w_extrapolation_ratio"] = 2.0
+                dit_config["rope_t_extrapolation_ratio"] = 0.8333333333333334
+
+        dit_config["extra_h_extrapolation_ratio"] = 1.0
+        dit_config["extra_w_extrapolation_ratio"] = 1.0
+        dit_config["extra_t_extrapolation_ratio"] = 1.0
+        dit_config["rope_enable_fps_modulation"] = False
+
         return dit_config
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
@@ -618,6 +672,9 @@ def convert_config(unet_config):
 
 
 def unet_config_from_diffusers_unet(state_dict, dtype=None):
+    if "conv_in.weight" not in state_dict:
+        return None
+
     match = {}
     transformer_depth = []
 

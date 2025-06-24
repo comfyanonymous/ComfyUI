@@ -29,6 +29,7 @@ import comfy.model_management
 import node_helpers
 from comfyui_version import __version__
 from app.frontend_management import FrontendManager
+
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
@@ -159,7 +160,7 @@ class PromptServer():
         self.custom_node_manager = CustomNodeManager()
         self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
-        self.prompt_queue = None
+        self.prompt_queue = execution.PromptQueue(self)
         self.loop = loop
         self.messages = asyncio.Queue()
         self.client_session:Optional[aiohttp.ClientSession] = None
@@ -226,7 +227,7 @@ class PromptServer():
             return response
 
         @routes.get("/embeddings")
-        def get_embeddings(self):
+        def get_embeddings(request):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
 
@@ -282,7 +283,6 @@ class PromptServer():
                     a.update(f.read())
                     b.update(image.file.read())
                     image.file.seek(0)
-                    f.close()
                 return a.hexdigest() == b.hexdigest()
             return False
 
@@ -390,7 +390,7 @@ class PromptServer():
         async def view_image(request):
             if "filename" in request.rel_url.query:
                 filename = request.rel_url.query["filename"]
-                filename,output_dir = folder_paths.annotated_filepath(filename)
+                filename, output_dir = folder_paths.annotated_filepath(filename)
 
                 if not filename:
                     return web.Response(status=400)
@@ -476,9 +476,8 @@ class PromptServer():
                         # Get content type from mimetype, defaulting to 'application/octet-stream'
                         content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
 
-                        # For security, force certain extensions to download instead of display
-                        file_extension = os.path.splitext(filename)[1].lower()
-                        if file_extension in {'.html', '.htm', '.js', '.css'}:
+                        # For security, force certain mimetypes to download instead of display
+                        if content_type in {'text/html', 'text/html-sandboxed', 'application/xhtml+xml', 'text/javascript', 'text/css'}:
                             content_type = 'application/octet-stream'  # Forces download
 
                         return web.FileResponse(
@@ -621,7 +620,7 @@ class PromptServer():
         @routes.get("/queue")
         async def get_queue(request):
             queue_info = {}
-            current_queue = self.prompt_queue.get_current_queue()
+            current_queue = self.prompt_queue.get_current_queue_volatile()
             queue_info['queue_running'] = current_queue[0]
             queue_info['queue_pending'] = current_queue[1]
             return web.json_response(queue_info)
@@ -746,6 +745,13 @@ class PromptServer():
                 web.static('/templates', workflow_templates_path)
             ])
 
+        # Serve embedded documentation from the package
+        embedded_docs_path = FrontendManager.embedded_docs_path()
+        if embedded_docs_path:
+            self.app.add_routes([
+                web.static('/docs', embedded_docs_path)
+            ])
+
         self.app.add_routes([
             web.static('/', self.web_root),
         ])
@@ -782,7 +788,7 @@ class PromptServer():
             if hasattr(Image, 'Resampling'):
                 resampling = Image.Resampling.BILINEAR
             else:
-                resampling = Image.ANTIALIAS
+                resampling = Image.Resampling.LANCZOS
 
             image = ImageOps.contain(image, (max_size, max_size), resampling)
         type_num = 1

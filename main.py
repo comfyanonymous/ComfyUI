@@ -17,7 +17,6 @@ if __name__ == "__main__":
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
-
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
 def apply_custom_paths():
@@ -124,13 +123,6 @@ if __name__ == "__main__":
             os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
 
     import cuda_malloc
-
-if args.windows_standalone_build:
-    try:
-        from fix_torch import fix_pytorch_libomp
-        fix_pytorch_libomp()
-    except:
-        pass
 
 import comfy.utils
 
@@ -245,6 +237,15 @@ def cleanup_temp():
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def setup_database():
+    try:
+        from app.database.db import init_db, dependencies_available
+        if dependencies_available():
+            init_db()
+    except Exception as e:
+        logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
+
+
 def start_comfyui(asyncio_loop=None):
     """
     Starts the ComfyUI server using the provided asyncio event loop or creates a new one.
@@ -267,18 +268,18 @@ def start_comfyui(asyncio_loop=None):
         asyncio_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(asyncio_loop)
     prompt_server = server.PromptServer(asyncio_loop)
-    q = execution.PromptQueue(prompt_server)
 
     hook_breaker_ac10a0.save_functions()
     nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes, init_api_nodes=not args.disable_api_nodes)
     hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()
+    setup_database()
 
     prompt_server.add_routes()
     hijack_progress(prompt_server)
 
-    threading.Thread(target=prompt_worker, daemon=True, args=(q, prompt_server,)).start()
+    threading.Thread(target=prompt_worker, daemon=True, args=(prompt_server.prompt_queue, prompt_server,)).start()
 
     if args.quick_test_for_ci:
         exit(0)
@@ -307,6 +308,9 @@ if __name__ == "__main__":
     # Running directly, just start ComfyUI.
     logging.info("Python version: {}".format(sys.version))
     logging.info("ComfyUI version: {}".format(comfyui_version.__version__))
+
+    if sys.version_info.major == 3 and sys.version_info.minor < 10:
+        logging.warning("WARNING: You are using a python version older than 3.10, please upgrade to a newer one. 3.12 and above is recommended.")
 
     event_loop, _, start_all_func = start_comfyui()
     try:

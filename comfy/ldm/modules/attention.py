@@ -20,8 +20,11 @@ if model_management.xformers_enabled():
 if model_management.sage_attention_enabled():
     try:
         from sageattention import sageattn
-    except ModuleNotFoundError:
-        logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
+    except ModuleNotFoundError as e:
+        if e.name == "sageattention":
+            logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
+        else:
+            raise e
         exit(-1)
 
 if model_management.flash_attention_enabled():
@@ -750,7 +753,7 @@ class BasicTransformerBlock(nn.Module):
             for p in patch:
                 n = p(n, extra_options)
 
-        x += n
+        x = n + x
         if "middle_patch" in transformer_patches:
             patch = transformer_patches["middle_patch"]
             for p in patch:
@@ -790,12 +793,12 @@ class BasicTransformerBlock(nn.Module):
             for p in patch:
                 n = p(n, extra_options)
 
-        x += n
+        x = n + x
         if self.is_res:
             x_skip = x
         x = self.ff(self.norm3(x))
         if self.is_res:
-            x += x_skip
+            x = x_skip + x
 
         return x
 

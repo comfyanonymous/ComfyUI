@@ -319,14 +319,24 @@ except:
     pass
 
 
+SUPPORT_FP8_OPS = args.supports_fp8_compute
 try:
     if is_amd():
+        try:
+            rocm_version = tuple(map(int, str(torch.version.hip).split(".")[:2]))
+        except:
+            rocm_version = (6, -1)
         arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
         logging.info("AMD arch: {}".format(arch))
+        logging.info("ROCm version: {}".format(rocm_version))
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
-            if torch_version_numeric[0] >= 2 and torch_version_numeric[1] >= 7:  # works on 2.6 but doesn't actually seem to improve much
-                if any((a in arch) for a in ["gfx1100", "gfx1101"]):  # TODO: more arches
+            if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
+                if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx1201 and gfx950
                     ENABLE_PYTORCH_ATTENTION = True
+        if torch_version_numeric >= (2, 7) and rocm_version >= (6, 4):
+            if any((a in arch) for a in ["gfx1201", "gfx942", "gfx950"]):  # TODO: more arches
+                SUPPORT_FP8_OPS = True
+
 except:
     pass
 
@@ -347,7 +357,7 @@ except:
     pass
 
 try:
-    if torch_version_numeric[0] == 2 and torch_version_numeric[1] >= 5:
+    if torch_version_numeric >= (2, 5):
         torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
 except:
     logging.warning("Warning, could not set allow_fp16_bf16_reduction_math_sdp")
@@ -723,7 +733,7 @@ def unet_inital_load_device(parameters, dtype):
         return torch_dev
 
     cpu_dev = torch.device("cpu")
-    if DISABLE_SMART_MEMORY:
+    if DISABLE_SMART_MEMORY or vram_state == VRAMState.NO_VRAM:
         return cpu_dev
 
     model_size = dtype_size(dtype) * parameters
@@ -1070,7 +1080,7 @@ def pytorch_attention_flash_attention():
     global ENABLE_PYTORCH_ATTENTION
     if ENABLE_PYTORCH_ATTENTION:
         #TODO: more reliable way of checking for flash attention?
-        if is_nvidia(): #pytorch flash attention only works on Nvidia
+        if is_nvidia():
             return True
         if is_intel_xpu():
             return True
@@ -1086,7 +1096,7 @@ def force_upcast_attention_dtype():
     upcast = args.force_upcast_attention
 
     macos_version = mac_version()
-    if macos_version is not None and ((14, 5) <= macos_version < (16,)):  # black image bug on recent versions of macOS
+    if macos_version is not None and ((14, 5) <= macos_version):  # black image bug on recent versions of macOS, I don't think it's ever getting fixed
         upcast = True
 
     if upcast:
@@ -1285,6 +1295,9 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
     return False
 
 def supports_fp8_compute(device=None):
+    if SUPPORT_FP8_OPS:
+        return True
+
     if not is_nvidia():
         return False
 
@@ -1296,11 +1309,11 @@ def supports_fp8_compute(device=None):
     if props.minor < 9:
         return False
 
-    if torch_version_numeric[0] < 2 or (torch_version_numeric[0] == 2 and torch_version_numeric[1] < 3):
+    if torch_version_numeric < (2, 3):
         return False
 
     if WINDOWS:
-        if (torch_version_numeric[0] == 2 and torch_version_numeric[1] < 4):
+        if torch_version_numeric < (2, 4):
             return False
 
     return True

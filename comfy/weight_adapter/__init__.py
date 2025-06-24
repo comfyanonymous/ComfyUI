@@ -1,4 +1,4 @@
-from .base import WeightAdapterBase
+from .base import WeightAdapterBase, WeightAdapterTrainBase
 from .lora import LoRAAdapter
 from .loha import LoHaAdapter
 from .lokr import LoKrAdapter
@@ -15,3 +15,9 @@ adapters: list[type[WeightAdapterBase]] = [
     OFTAdapter,
     BOFTAdapter,
 ]
+
+__all__ = [
+    "WeightAdapterBase",
+    "WeightAdapterTrainBase",
+    "adapters"
+] + [a.__name__ for a in adapters]

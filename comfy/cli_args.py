@@ -88,6 +88,7 @@ parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE"
 
 parser.add_argument("--oneapi-device-selector", type=str, default=None, metavar="SELECTOR_STRING", help="Sets the oneAPI device(s) this instance will use.")
 parser.add_argument("--disable-ipex-optimize", action="store_true", help="Disables ipex.optimize default when loading models with Intel's Extension for Pytorch.")
+parser.add_argument("--supports-fp8-compute", action="store_true", help="ComfyUI will act like if the device supports fp8 compute.")
 
 class LatentPreviewMethod(enum.Enum):
     NoPreviews = "none"
@@ -201,6 +202,11 @@ parser.add_argument(
     default="https://api.comfy.org",
     help="Set the base URL for the ComfyUI API.  (default: https://api.comfy.org)",
 )
+
+database_default_path = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "user", "comfyui.db")
+)
+parser.add_argument("--database-url", type=str, default=f"sqlite:///{database_default_path}", help="Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.")
 
 if comfy.options.args_parsing:
     args = parser.parse_args()
