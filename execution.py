@@ -429,17 +429,20 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
 
         logging.error(f"!!! Exception during processing !!! {ex}")
         logging.error(traceback.format_exc())
+        tips = ""
+
+        if isinstance(ex, comfy.model_management.OOM_EXCEPTION):
+            tips = "This error means you ran out of memory on your GPU.\n\nTIPS: If the workflow worked before you might have accidentally set the batch_size to a large number."
+            logging.error("Got an OOM, unloading all loaded models.")
+            comfy.model_management.unload_all_models()
 
         error_details = {
             "node_id": real_node_id,
-            "exception_message": str(ex),
+            "exception_message": "{}\n{}".format(ex, tips),
             "exception_type": exception_type,
             "traceback": traceback.format_tb(tb),
             "current_inputs": input_data_formatted
         }
-        if isinstance(ex, comfy.model_management.OOM_EXCEPTION):
-            logging.error("Got an OOM, unloading all loaded models.")
-            comfy.model_management.unload_all_models()
 
         return (ExecutionResult.FAILURE, error_details, ex)
 

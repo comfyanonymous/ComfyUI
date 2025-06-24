@@ -11,6 +11,43 @@ from comfy_config.types import (
     PyProjectSettings
 )
 
+def validate_and_extract_os_classifiers(classifiers: list) -> list:
+    os_classifiers = [c for c in classifiers if c.startswith("Operating System :: ")]
+    if not os_classifiers:
+        return []
+
+    os_values = [c[len("Operating System :: ") :] for c in os_classifiers]
+    valid_os_prefixes = {"Microsoft", "POSIX", "MacOS", "OS Independent"}
+
+    for os_value in os_values:
+        if not any(os_value.startswith(prefix) for prefix in valid_os_prefixes):
+            return []
+
+    return os_values
+
+
+def validate_and_extract_accelerator_classifiers(classifiers: list) -> list:
+    accelerator_classifiers = [c for c in classifiers if c.startswith("Environment ::")]
+    if not accelerator_classifiers:
+        return []
+
+    accelerator_values = [c[len("Environment :: ") :] for c in accelerator_classifiers]
+
+    valid_accelerators = {
+        "GPU :: NVIDIA CUDA",
+        "GPU :: AMD ROCm",
+        "GPU :: Intel Arc",
+        "NPU :: Huawei Ascend",
+        "GPU :: Apple Metal",
+    }
+
+    for accelerator_value in accelerator_values:
+        if accelerator_value not in valid_accelerators:
+            return []
+
+    return accelerator_values
+
+
 """
 Extract configuration from a custom node directory's pyproject.toml file or a Python file.
 
@@ -77,6 +114,24 @@ def extract_node_configuration(path) -> Optional[PyProjectConfig]:
 
     tool_data = raw_settings.tool
     comfy_data = tool_data.get("comfy", {}) if tool_data else {}
+
+    dependencies = project_data.get("dependencies", [])
+    supported_comfyui_frontend_version = ""
+    for dep in dependencies:
+        if isinstance(dep, str) and dep.startswith("comfyui-frontend-package"):
+            supported_comfyui_frontend_version = dep.removeprefix("comfyui-frontend-package")
+            break
+
+    supported_comfyui_version = comfy_data.get("requires-comfyui", "")
+
+    classifiers = project_data.get('classifiers', [])
+    supported_os = validate_and_extract_os_classifiers(classifiers)
+    supported_accelerators = validate_and_extract_accelerator_classifiers(classifiers)
+
+    project_data['supported_os'] = supported_os
+    project_data['supported_accelerators'] = supported_accelerators
+    project_data['supported_comfyui_frontend_version'] = supported_comfyui_frontend_version
+    project_data['supported_comfyui_version'] = supported_comfyui_version
 
     return PyProjectConfig(project=project_data, tool_comfy=comfy_data)
 
