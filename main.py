@@ -66,9 +66,6 @@ def execute_prestartup_script():
             logging.error(f"Failed to execute startup-script: {script_path} / {e}")
         return False
 
-    if args.disable_all_custom_nodes and not args.whitelist_custom_nodes:
-        return
-
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     for custom_node_path in node_paths:
         possible_modules = os.listdir(custom_node_path)
@@ -274,7 +271,7 @@ def start_comfyui(asyncio_loop=None):
 
     hook_breaker_ac10a0.save_functions()
     nodes.init_extra_nodes(
-        init_custom_nodes=(not args.disable_all_custom_nodes) or bool(args.whitelist_custom_nodes),
+        init_custom_nodes=True,
         init_api_nodes=not args.disable_api_nodes
     )
     hook_breaker_ac10a0.restore_functions()
