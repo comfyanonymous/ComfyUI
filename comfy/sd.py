@@ -1160,7 +1160,7 @@ def load_diffusion_model_state_dict(sd, model_options={}):
     model.load_model_weights(new_sd, "")
     left_over = sd.keys()
     if len(left_over) > 0:
-        logging.info("left over keys in unet: {}".format(left_over))
+        logging.info("left over keys in diffusion model: {}".format(left_over))
     return comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device)
 
 
@@ -1168,7 +1168,7 @@ def load_diffusion_model(unet_path, model_options={}):
     sd = comfy.utils.load_torch_file(unet_path)
     model = load_diffusion_model_state_dict(sd, model_options=model_options)
     if model is None:
-        logging.error("ERROR UNSUPPORTED UNET {}".format(unet_path))
+        logging.error("ERROR UNSUPPORTED DIFFUSION MODEL {}".format(unet_path))
         raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
     return model
 
