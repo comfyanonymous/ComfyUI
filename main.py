@@ -17,7 +17,6 @@ if __name__ == "__main__":
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
-
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
 def apply_custom_paths():
@@ -186,7 +185,13 @@ def prompt_worker(q, server_instance):
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
-            logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
+
+            # Log Time in a more readable way after 10 minutes
+            if execution_time > 600:
+                execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
+                logging.info(f"Prompt executed in {execution_time}")
+            else:
+                logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
 
         flags = q.get_flags()
         free_memory = flags.get("free_memory", False)
@@ -309,6 +314,9 @@ if __name__ == "__main__":
     # Running directly, just start ComfyUI.
     logging.info("Python version: {}".format(sys.version))
     logging.info("ComfyUI version: {}".format(comfyui_version.__version__))
+
+    if sys.version_info.major == 3 and sys.version_info.minor < 10:
+        logging.warning("WARNING: You are using a python version older than 3.10, please upgrade to a newer one. 3.12 and above is recommended.")
 
     event_loop, _, start_all_func = start_comfyui()
     try:
