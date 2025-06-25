@@ -12,17 +12,15 @@ class BooleanLogicGate:
             "required": {
                 "value1": ("BOOLEAN", {"default": True}),
                 "value2": ("BOOLEAN", {"default": True}),
-                "mode": (["NOT", "AND", "OR", "NAND", "NOR", "XOR", "XNOR"],)
+                "mode": (["AND", "OR", "NAND", "NOR", "XOR", "XNOR"],)
             }
         }
 
     RETURN_TYPES = ("BOOLEAN",)
-    RETURN_NAMES = ("output",)
     CATEGORY = "utils/logic"
     FUNCTION = "apply_operation"
 
     _OPS = {
-        "NOT":  lambda a, b: not a,
         "AND":  lambda a, b: a and b,
         "OR":   lambda a, b: a or b,
         "NAND": lambda a, b: not (a and b),
@@ -46,7 +44,6 @@ class CompareValues:
             }
 
     RETURN_TYPES = ("BOOLEAN",)
-    RETURN_NAMES = ("output",)
     CATEGORY = "utils/logic"
     FUNCTION = "compare"
 
@@ -69,21 +66,6 @@ class CompareValues:
 
         return (self._OPS[mode](valueA, valueB),)
 
-class BooleanSwitch:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {"switch": ("BOOLEAN", {"default": True})},
-            "optional": {"on_true": (any,), "on_false": (any,)}
-        }
-
-    RETURN_TYPES = (any,)
-    CATEGORY = "utils/logic"
-    FUNCTION = "switch"
-
-    def switch(self, switch: bool, on_true=None, on_false=None) -> tuple:
-        return ((on_true if switch else on_false),)
-
 class OutputExists:
     @classmethod
     def INPUT_TYPES(cls):
@@ -99,13 +81,11 @@ class OutputExists:
 NODE_CLASS_MAPPINGS = {
     "BooleanLogicGate": BooleanLogicGate,
     "CompareValues": CompareValues,
-    "BooleanSwitch": BooleanSwitch,
     "OutputExists": OutputExists,
     }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "BooleanLogicGate": "Boolean Logic Gate",
     "CompareValues": "Compare Values",
-    "BooleanSwitch": "Boolean Switch",
     "OutputExists": "Output Exists",
     }
