@@ -2175,6 +2175,13 @@ def init_external_custom_nodes():
     Returns:
         None
     """
+    # Get the environment variable and convert it to a list (if not empty)
+    included_custom_nodes = os.environ.get("INCLUDED_CUSTOM_NODES", "").strip()
+    included_custom_nodes = (
+        [name.strip() for name in included_custom_nodes.split(",")]
+        if included_custom_nodes else None
+    )
+
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
@@ -2184,6 +2191,10 @@ def init_external_custom_nodes():
             possible_modules.remove("__pycache__")
 
         for possible_module in possible_modules:
+            # Skip modules that are not in INCLUDED_CUSTOM_NODES
+            if included_custom_nodes and possible_module not in included_custom_nodes:
+                continue
+
             module_path = os.path.join(custom_node_path, possible_module)
             if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
             if module_path.endswith(".disabled"): continue
