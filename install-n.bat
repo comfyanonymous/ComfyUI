@@ -63,6 +63,7 @@ echo  ::  %time:~0,8%  ::  - Installing flash-attention
 pip install flash_attn-2.7.4.post1-py3-none-any.whl --quiet
 del fa.zip
 del flash_attn-2.7.4.post1-py3-none-any.whl
+copy comfy\customzluda\fa\distributed.py %VIRTUAL_ENV%\Lib\site-packages\flash_attn\utils\distributed.py /y >NUL
 
 pip install sageattention --quiet
 echo  ::  %time:~0,8%  ::  - Patching sage-attention
