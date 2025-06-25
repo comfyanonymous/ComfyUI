@@ -44,6 +44,7 @@ import comfy.text_encoders.lumina2
 import comfy.text_encoders.wan
 import comfy.text_encoders.hidream
 import comfy.text_encoders.ace
+import comfy.text_encoders.omnigen2
 
 import comfy.model_patcher
 import comfy.lora
@@ -754,6 +755,7 @@ class CLIPType(Enum):
     HIDREAM = 14
     CHROMA = 15
     ACE = 16
+    OMNIGEN2 = 17
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -773,6 +775,7 @@ class TEModel(Enum):
     LLAMA3_8 = 7
     T5_XXL_OLD = 8
     GEMMA_2_2B = 9
+    QWEN25_3B = 10
 
 def detect_te_model(sd):
     if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
@@ -793,6 +796,8 @@ def detect_te_model(sd):
         return TEModel.T5_BASE
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
         return TEModel.GEMMA_2_2B
+    if 'model.layers.0.self_attn.k_proj.bias' in sd:
+        return TEModel.QWEN25_3B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
         return TEModel.LLAMA3_8
     return None
@@ -894,6 +899,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**llama_detect(clip_data),
                                                                         clip_l=False, clip_g=False, t5=False, llama=True, dtype_t5=None, t5xxl_scaled_fp8=None)
             clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
+        elif te_model == TEModel.QWEN25_3B:
+            clip_target.clip = comfy.text_encoders.omnigen2.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.omnigen2.Omnigen2Tokenizer
         else:
             # clip_l
             if clip_type == CLIPType.SD3:
