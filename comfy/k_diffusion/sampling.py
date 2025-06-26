@@ -78,7 +78,9 @@ def default_noise_sampler(x, seed=None):
     else:
         generator = None
 
-    return lambda sigma, sigma_next: torch.randn(x.size(), dtype=x.dtype, layout=x.layout, device=x.device, generator=generator)
+    # To ensure reproducible generations regardless of batch order, use the same
+    # noise sample for every latent in the batch.
+    return lambda sigma, sigma_next: torch.randn(x.shape[1:], dtype=x.dtype, layout=x.layout, device=x.device, generator=generator).expand(x.shape)
 
 
 class BatchedBrownianTree:
