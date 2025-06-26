@@ -24,6 +24,24 @@ class Llama2Config:
     head_dim = 128
     rms_norm_add = False
     mlp_activation = "silu"
+    qkv_bias = False
+
+@dataclass
+class Qwen25_3BConfig:
+    vocab_size: int = 151936
+    hidden_size: int = 2048
+    intermediate_size: int = 11008
+    num_hidden_layers: int = 36
+    num_attention_heads: int = 16
+    num_key_value_heads: int = 2
+    max_position_embeddings: int = 128000
+    rms_norm_eps: float = 1e-6
+    rope_theta: float = 1000000.0
+    transformer_type: str = "llama"
+    head_dim = 128
+    rms_norm_add = False
+    mlp_activation = "silu"
+    qkv_bias = True
 
 @dataclass
 class Gemma2_2B_Config:
@@ -40,6 +58,7 @@ class Gemma2_2B_Config:
     head_dim = 256
     rms_norm_add = True
     mlp_activation = "gelu_pytorch_tanh"
+    qkv_bias = False
 
 class RMSNorm(nn.Module):
     def __init__(self, dim: int, eps: float = 1e-5, add=False, device=None, dtype=None):
@@ -98,9 +117,9 @@ class Attention(nn.Module):
         self.inner_size = self.num_heads * self.head_dim
 
         ops = ops or nn
-        self.q_proj = ops.Linear(config.hidden_size, self.inner_size, bias=False, device=device, dtype=dtype)
-        self.k_proj = ops.Linear(config.hidden_size, self.num_kv_heads * self.head_dim, bias=False, device=device, dtype=dtype)
-        self.v_proj = ops.Linear(config.hidden_size, self.num_kv_heads * self.head_dim, bias=False, device=device, dtype=dtype)
+        self.q_proj = ops.Linear(config.hidden_size, self.inner_size, bias=config.qkv_bias, device=device, dtype=dtype)
+        self.k_proj = ops.Linear(config.hidden_size, self.num_kv_heads * self.head_dim, bias=config.qkv_bias, device=device, dtype=dtype)
+        self.v_proj = ops.Linear(config.hidden_size, self.num_kv_heads * self.head_dim, bias=config.qkv_bias, device=device, dtype=dtype)
         self.o_proj = ops.Linear(self.inner_size, config.hidden_size, bias=False, device=device, dtype=dtype)
 
     def forward(
@@ -320,6 +339,14 @@ class Llama2(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
+class Qwen25_3B(BaseLlama, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Qwen25_3BConfig(**config_dict)
+        self.num_layers = config.num_hidden_layers
+
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
 
 class Gemma2_2B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
