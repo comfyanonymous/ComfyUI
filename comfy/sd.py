@@ -54,6 +54,7 @@ from .text_encoders import sd2_clip
 from .text_encoders import sd3_clip
 from .text_encoders import wan
 from .text_encoders import ace
+from .text_encoders import omnigen2
 from .utils import ProgressBar
 
 logger = logging.getLogger(__name__)
@@ -773,6 +774,7 @@ class CLIPType(Enum):
     HIDREAM = 14
     CHROMA = 15
     ACE = 16
+    OMNIGEN2 = 17
 
 
 @dataclasses.dataclass
@@ -802,6 +804,7 @@ class TEModel(Enum):
     LLAMA3_8 = 7
     T5_XXL_OLD = 8
     GEMMA_2_2B = 9
+    QWEN25_3B = 10
 
 
 def detect_te_model(sd):
@@ -823,6 +826,8 @@ def detect_te_model(sd):
         return TEModel.T5_BASE
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
         return TEModel.GEMMA_2_2B
+    if 'model.layers.0.self_attn.k_proj.bias' in sd:
+        return TEModel.QWEN25_3B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
         return TEModel.LLAMA3_8
     return None
@@ -926,6 +931,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = hidream.hidream_clip(**llama_detect(clip_data),
                                                                         clip_l=False, clip_g=False, t5=False, llama=True, dtype_t5=None, t5xxl_scaled_fp8=None)
             clip_target.tokenizer = hidream.HiDreamTokenizer
+        elif te_model == TEModel.QWEN25_3B:
+            clip_target.clip = omnigen2.te(**llama_detect(clip_data))
+            clip_target.tokenizer = omnigen2.Omnigen2Tokenizer
         else:
             # clip_l
             if clip_type == CLIPType.SD3:
@@ -1207,7 +1215,7 @@ def load_diffusion_model_state_dict(sd, model_options: dict = None, ckpt_path: O
     model.load_model_weights(new_sd, "")
     left_over = sd.keys()
     if len(left_over) > 0:
-        logger.info("left over keys in unet: {}".format(left_over))
+        logger.info("left over keys in diffusion model: {}".format(left_over))
     return model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device, ckpt_name=os.path.basename(ckpt_path))
 
 
@@ -1217,7 +1225,7 @@ def load_diffusion_model(unet_path, model_options: dict = None):
     sd = utils.load_torch_file(unet_path)
     model = load_diffusion_model_state_dict(sd, model_options=model_options, ckpt_path=unet_path)
     if model is None:
-        logger.error("ERROR UNSUPPORTED UNET {}".format(unet_path))
+        logger.error("ERROR UNSUPPORTED DIFFUSION MODEL {}".format(unet_path))
         raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
     return model
 

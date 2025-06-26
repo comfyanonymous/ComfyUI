@@ -340,7 +340,6 @@ try:
 except:
     pass
 
-
 SUPPORT_FP8_OPS = args.supports_fp8_compute
 try:
     if is_amd():
@@ -1075,6 +1074,8 @@ if args.async_offload:
     logging.info("Using async weight offloading with {} streams".format(NUM_STREAMS))
 
 stream_counters = {}
+
+
 def get_offload_stream(device):
     stream_counter = stream_counters.get(device, 0)
     if NUM_STREAMS <= 1:
@@ -1099,11 +1100,13 @@ def get_offload_stream(device):
         return s
     return None
 
+
 def sync_stream(device, stream):
     if stream is None:
         return
     if is_device_cuda(device):
         torch.cuda.current_stream().wait_stream(stream)
+
 
 def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, stream=None):
     if device is None or weight.device == device:
@@ -1462,6 +1465,14 @@ def supports_fp8_compute(device=None):
     if WINDOWS:
         if torch_version_numeric < (2, 4):
             return False
+
+    return True
+
+
+def extended_fp16_support():
+    # TODO: check why some models work with fp16 on newer torch versions but not on older
+    if torch_version_numeric < (2, 7):
+        return False
 
     return True
 

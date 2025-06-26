@@ -21,6 +21,7 @@ from .text_encoders import sa_t5
 from .text_encoders import sd2_clip
 from .text_encoders import sd3_clip
 from .text_encoders import wan
+from .text_encoders import omnigen2
 
 
 class SD15(supported_models_base.BASE):
@@ -1276,6 +1277,41 @@ class ACEStep(supported_models_base.BASE):
         return supported_models_base.ClipTarget(ace.AceT5Tokenizer, ace.AceT5Model)
 
 
-models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, Lumina2, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, Hunyuan3Dv2mini, Hunyuan3Dv2, HiDream, Chroma, ACEStep]
+class Omnigen2(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "omnigen2",
+    }
+
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 2.6,
+    }
+
+    memory_usage_factor = 1.65  # TODO
+
+    unet_extra_config = {}
+    latent_format = latent_formats.Flux
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        if model_management.extended_fp16_support():
+            self.supported_inference_dtypes = [torch.float16] + self.supported_inference_dtypes
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.Omnigen2(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        hunyuan_detect = hunyuan_video.llama_detect(state_dict, "{}qwen25_3b.transformer.".format(pref))
+        return supported_models_base.ClipTarget(omnigen2.LuminaTokenizer, omnigen2.te(**hunyuan_detect))
+
+
+models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, Lumina2, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, Hunyuan3Dv2mini, Hunyuan3Dv2, HiDream, Chroma, ACEStep, Omnigen2]
 
 models += [SVD_img2vid]
