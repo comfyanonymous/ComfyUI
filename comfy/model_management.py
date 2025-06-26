@@ -1290,6 +1290,13 @@ def supports_fp8_compute(device=None):
 
     return True
 
+def extended_fp16_support():
+    # TODO: check why some models work with fp16 on newer torch versions but not on older
+    if torch_version_numeric < (2, 7):
+        return False
+
+    return True
+
 def soft_empty_cache(force=False):
     global cpu_state
     if cpu_state == CPUState.MPS:
