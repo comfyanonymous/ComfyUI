@@ -38,9 +38,10 @@ class V3TestNode(io.ComfyNodeV3):
                 io.Custom("JKL").Input("jkl", optional=True),
                 io.Mask.Input("mask", optional=True),
                 io.Int.Input("some_int", display_name="new_name", min=0, max=127, default=42,
-                             tooltip="My tooltip 😎", display_mode=io.NumberDisplay.slider, types=[io.Float]),
-                io.Combo.Input("combo", options=["a", "b", "c"], tooltip="This is a combo input", types=[io.Mask]),
+                             tooltip="My tooltip 😎", display_mode=io.NumberDisplay.slider),
+                io.Combo.Input("combo", options=["a", "b", "c"], tooltip="This is a combo input"),
                 io.MultiCombo.Input("combo2", options=["a","b","c"]),
+                io.MultiType.Input(io.Int.Input("int_multitype", display_name="haha"), types=[io.Float]),
                 io.MultiType.Input("multitype", types=[io.Mask, io.Float, io.Int], optional=True),
                 # ComboInput("combo", image_upload=True, image_folder=FolderType.output,
                 #             remote=RemoteOptions(
