@@ -80,11 +80,15 @@ class V3TestNode(io.ComfyNodeV3):
             cls.state["thing"] = "hahaha"
             yyy = cls.state["thing"]
             del cls.state["thing"]
+        if cls.state.get_value("int2") is None:
+            cls.state.set_value("int2", 123)
+            zzz = cls.state.get_value("int2")
+            cls.state.pop("int2")
         if cls.state.my_int is None:
             cls.state.my_int = expected_int
         else:
             if cls.state.my_int != expected_int:
-                raise Exception(f"Explicit state object did not maintain expected value: {cls.state.my_int} != {expected_int}")
+                raise Exception(f"Explicit state object did not maintain expected value (__getattr__/__setattr__): {cls.state.my_int} != {expected_int}")
         #some_int
         if hasattr(cls, "hahajkunless"):
             raise Exception("The 'cls' variable leaked instance state between runs!")
@@ -158,7 +162,7 @@ class V3LoraLoader(io.ComfyNodeV3):
         return io.NodeOutput(model_lora, clip_lora)
 
 
-NODES_LIST: list[io.ComfyNodeV3] = [
+NODES_LIST: list[type[io.ComfyNodeV3]] = [
     V3TestNode,
     V3LoraLoader,
 ]

@@ -221,13 +221,38 @@ class NodeState(ABC):
         self.node_id = node_id
 
     @abstractmethod
+    def get_value(self, key: str):
+        pass
+
+    @abstractmethod
+    def set_value(self, key: str, value: Any):
+        pass
+
+    @abstractmethod
     def pop(self, key: str):
         pass
+
+    @abstractmethod
+    def __contains__(self, key: str):
+        pass
+
 
 class NodeStateLocal(NodeState):
     def __init__(self, node_id: str):
         super().__init__(node_id)
         self.local_state = {}
+
+    def get_value(self, key: str):
+        return self.local_state.get(key)
+
+    def set_value(self, key: str, value: Any):
+        self.local_state[key] = value
+
+    def pop(self, key: str):
+        return self.local_state.pop(key, None)
+
+    def __contains__(self, key: str):
+        return key in self.local_state
 
     def __getattr__(self, key: str):
         local_state = type(self).__getattribute__(self, "local_state")
@@ -248,14 +273,8 @@ class NodeStateLocal(NodeState):
     def __getitem__(self, key: str):
         return self.local_state[key]
     
-    def __contains__(self, key: str):
-        return key in self.local_state
-    
     def __delitem__(self, key: str):
         del self.local_state[key]
-
-    def pop(self, key: str):
-        return self.local_state.pop(key)
 
 @comfytype(io_type=IO.BOOLEAN)
 class Boolean:
@@ -319,7 +338,6 @@ class Float:
                     default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
                     display_mode: NumberDisplay=None, socketless: bool=None, types: list[type[ComfyType] | ComfyType]=None):
             super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, types)
-            self.default = default
             self.min = min
             self.max = max
             self.step = step
