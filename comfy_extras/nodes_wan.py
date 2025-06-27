@@ -669,7 +669,15 @@ class WanTrackToVideo:
                 )[0]
                 y = torch.concat([msk, y])
 
-                motion_patched = patch_motion(processed_tracks, y, temperature, (4, 16), topk)
+                motion_patched = patch_motion(processed_tracks, y, temperature, (4, 16), topk)[None]
+                mask, video = motion_patched[:, 0:4], motion_patched[:, 4:]
+                # Add motion features to conditioning
+                positive = node_helpers.conditioning_set_values(positive, 
+                                                                {"concat_mask": mask,
+                                                                "concat_latent_image": video})
+                negative = node_helpers.conditioning_set_values(negative, 
+                                                                {"concat_mask": mask,
+                                                                "concat_latent_image": video})
                 
                 # Add motion features to conditioning
                 positive = node_helpers.conditioning_set_values(positive, 
