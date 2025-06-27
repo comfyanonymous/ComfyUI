@@ -11,7 +11,7 @@ from comfy.ldm.modules.ema import LitEma
 import comfy.ops
 
 class DiagonalGaussianRegularizer(torch.nn.Module):
-    def __init__(self, sample: bool = True):
+    def __init__(self, sample: bool = False):
         super().__init__()
         self.sample = sample
 
@@ -19,16 +19,12 @@ class DiagonalGaussianRegularizer(torch.nn.Module):
         yield from ()
 
     def forward(self, z: torch.Tensor) -> Tuple[torch.Tensor, dict]:
-        log = dict()
         posterior = DiagonalGaussianDistribution(z)
         if self.sample:
             z = posterior.sample()
         else:
             z = posterior.mode()
-        kl_loss = posterior.kl()
-        kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
-        log["kl_loss"] = kl_loss
-        return z, log
+        return z, None
 
 
 class AbstractAutoencoder(torch.nn.Module):
