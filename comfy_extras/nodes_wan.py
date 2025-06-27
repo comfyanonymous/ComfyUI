@@ -679,11 +679,6 @@ class WanTrackToVideo:
                                                                 {"concat_mask": mask,
                                                                 "concat_latent_image": video})
                 
-                # Add motion features to conditioning
-                positive = node_helpers.conditioning_set_values(positive, 
-                                                                {"concat_latent_image": motion_patched})
-                negative = node_helpers.conditioning_set_values(negative, 
-                                                                {"concat_latent_image": motion_patched})
 
         # Handle clip vision output if provided
         if clip_vision_output is not None:
