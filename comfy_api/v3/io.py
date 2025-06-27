@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Literal, TYPE_CHECKING, TypeVar, Callable, Optional, cast, override
+from typing import Any, Literal, TYPE_CHECKING, TypeVar, Callable, Optional, cast
 from enum import Enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
@@ -561,7 +561,6 @@ class MultiType:
                 str_types.insert(0, self.input_override.get_io_type_V1())
             return ",".join(list(dict.fromkeys(str_types)))
         
-        @override
         def as_dict_V1(self):
             if self.input_override is not None:
                 return self.input_override.as_dict_V1() | super().as_dict_V1()
