@@ -7,7 +7,16 @@ from collections import Counter
 from comfy.comfy_types.node_typing import IO
 # used for type hinting
 import torch
+from spandrel import ImageModelDescriptor
 from comfy.model_patcher import ModelPatcher
+from comfy.samplers import Sampler, CFGGuider
+from comfy.sd import CLIP
+from comfy.controlnet import ControlNet
+from comfy.sd import VAE
+from comfy.sd import StyleModel as StyleModel_
+from comfy.clip_vision import ClipVisionModel
+from comfy.clip_vision import Output as ClipVisionOutput_
+from comfy_api.input import VideoInput
 
 
 class FolderType(str, Enum):
@@ -443,35 +452,35 @@ class Latent(ComfyTypeIO):
 
 @comfytype(io_type=IO.CONDITIONING)
 class Conditioning(ComfyTypeIO):
-    Type = Any
+    Type = Any # TODO: make Type a TypedDict
 
 @comfytype(io_type=IO.SAMPLER)
 class Sampler(ComfyTypeIO):
-    Type = Any
+    Type = Sampler
 
 @comfytype(io_type=IO.SIGMAS)
 class Sigmas(ComfyTypeIO):
-    Type = Any
+    Type = torch.Tensor
 
 @comfytype(io_type=IO.NOISE)
 class Noise(ComfyTypeIO):
-    Type = Any
+    Type = torch.Tensor
 
 @comfytype(io_type=IO.GUIDER)
 class Guider(ComfyTypeIO):
-    Type = Any
+    Type = CFGGuider
 
 @comfytype(io_type=IO.CLIP)
 class Clip(ComfyTypeIO):
-    Type = Any
+    Type = CLIP
 
 @comfytype(io_type=IO.CONTROL_NET)
 class ControlNet(ComfyTypeIO):
-    Type = Any
+    Type = ControlNet
 
 @comfytype(io_type=IO.VAE)
 class Vae(ComfyTypeIO):
-    Type = Any
+    Type = VAE
 
 @comfytype(io_type=IO.MODEL)
 class Model(ComfyTypeIO):
@@ -479,47 +488,48 @@ class Model(ComfyTypeIO):
 
 @comfytype(io_type=IO.CLIP_VISION)
 class ClipVision(ComfyTypeIO):
-    Type = Any
+    Type = ClipVisionModel
 
 @comfytype(io_type=IO.CLIP_VISION_OUTPUT)
 class ClipVisionOutput(ComfyTypeIO):
-    Type = Any
+    Type = ClipVisionOutput_
 
 @comfytype(io_type=IO.STYLE_MODEL)
 class StyleModel(ComfyTypeIO):
-    Type = Any
+    Type = StyleModel_
 
 @comfytype(io_type=IO.GLIGEN)
 class Gligen(ComfyTypeIO):
-    Type = Any
+    '''ModelPatcher that wraps around a 'Gligen' model.'''
+    Type = ModelPatcher
 
 @comfytype(io_type=IO.UPSCALE_MODEL)
 class UpscaleModel(ComfyTypeIO):
-    Type = Any
+    Type = ImageModelDescriptor
 
 @comfytype(io_type=IO.AUDIO)
 class Audio(ComfyTypeIO):
-    Type = Any
+    Type = Any # TODO: make Type a TypedDict
 
 @comfytype(io_type=IO.POINT)
 class Point(ComfyTypeIO):
-    Type = Any
+    Type = Any # NOTE: I couldn't find any references in core code to POINT io_type. Does this exist?
 
 @comfytype(io_type=IO.FACE_ANALYSIS)
 class FaceAnalysis(ComfyTypeIO):
-    Type = Any
+    Type = Any # NOTE: I couldn't find any references in core code to POINT io_type. Does this exist?
 
 @comfytype(io_type=IO.BBOX)
 class BBOX(ComfyTypeIO):
-    Type = Any
+    Type = Any # NOTE: I couldn't find any references in core code to POINT io_type. Does this exist?
 
 @comfytype(io_type=IO.SEGS)
 class SEGS(ComfyTypeIO):
-    Type = Any
+    Type = Any # NOTE: I couldn't find any references in core code to POINT io_type. Does this exist?
 
 @comfytype(io_type=IO.VIDEO)
 class Video(ComfyTypeIO):
-    Type = Any
+    Type = VideoInput
 
 @comfytype(io_type="COMFY_MULTITYPED_V3")
 class MultiType:
@@ -528,7 +538,7 @@ class MultiType:
         '''
         Input that permits more than one input type; if `id` is an instance of `ComfyType.Input`, then that input will be used to create a widget (if applicable) with overridden values.
         '''
-        def __init__(self, id: str | ComfyType.Input, types: list[type[ComfyType] | ComfyType], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+        def __init__(self, id: str | InputV3, types: list[type[ComfyType] | ComfyType], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
             # if id is an Input, then use that Input with overridden values
             self.input_override = None
             if isinstance(id, InputV3):
