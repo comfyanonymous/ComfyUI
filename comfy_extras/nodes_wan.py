@@ -671,12 +671,13 @@ class WanTrackToVideo:
                 motion_patched = patch_motion(processed_tracks, y, temperature, (4, 16), topk)[None]
                 mask, video = motion_patched[:, 0:4], motion_patched[:, 4:]
                 # Add motion features to conditioning
+                concat_latent_image = vae.encode(image[:, :, :, :3])
                 positive = node_helpers.conditioning_set_values(positive, 
                                                                 {"concat_mask": motion_patched,
-                                                                "concat_latent_image": image})
+                                                                "concat_latent_image": concat_latent_image})
                 negative = node_helpers.conditioning_set_values(negative, 
                                                                 {"concat_mask": motion_patched,
-                                                                "concat_latent_image": image})
+                                                                "concat_latent_image": concat_latent_image})
                 
 
         # Handle clip vision output if provided
