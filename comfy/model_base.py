@@ -1064,6 +1064,7 @@ class WAN21(BaseModel):
     def concat_cond(self, **kwargs):
         noise = kwargs.get("noise", None)
         extra_channels = self.diffusion_model.patch_embedding.weight.shape[1] - noise.shape[1]
+        print(f"extra channels: {extra_channels}, noise shape: {noise.shape}, patch embedding weight shape: {self.diffusion_model.patch_embedding.weight.shape}")
         if extra_channels == 0:
             return None
 
@@ -1080,6 +1081,7 @@ class WAN21(BaseModel):
                 image[:, i: i + 16] = self.process_latent_in(image[:, i: i + 16])
             image = utils.resize_to_batch_size(image, noise.shape[0])
 
+        print(f"image shape: {image.shape}")
         if not self.image_to_video or extra_channels == image.shape[1]:
             return image
 
@@ -1098,8 +1100,10 @@ class WAN21(BaseModel):
                 mask = torch.nn.functional.pad(mask, (0, 0, 0, 0, 0, noise.shape[-3] - mask.shape[-3]), mode='constant', value=0)
             if mask.shape[1] == 1:
                 mask = mask.repeat(1, 4, 1, 1, 1)
+            
+            print(f"Mask shape: {mask.shape}, noise shape: {noise.shape}")
             mask = utils.resize_to_batch_size(mask, noise.shape[0])
-
+        print(f"image shape: {image.shape}, mask shape: {mask.shape}")
         return torch.cat((mask, image), dim=1)
 
     def extra_conds(self, **kwargs):
