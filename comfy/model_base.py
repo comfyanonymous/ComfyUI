@@ -1088,7 +1088,7 @@ class WAN21(BaseModel):
         if image.shape[1] > (extra_channels - 4):
             image = image[:, :(extra_channels - 4)]
 
-        mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
+        mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None)).to(device) if "concat_mask" in kwargs or "denoise_mask" in kwargs else None
         # if mask is None:
         #     mask = torch.zeros_like(noise)[:, :4]
         # else:
