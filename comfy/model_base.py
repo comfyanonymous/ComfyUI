@@ -816,7 +816,7 @@ class PixArt(BaseModel):
 class Flux(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None, unet_model=comfy.ldm.flux.model.Flux):
         super().__init__(model_config, model_type, device=device, unet_model=unet_model)
-        self.memory_usage_factor_conds = ("kontext",)
+        self.memory_usage_factor_conds = ("ref_latents",)
 
     def concat_cond(self, **kwargs):
         try:
