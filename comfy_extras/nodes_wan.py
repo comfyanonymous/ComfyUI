@@ -656,7 +656,7 @@ class WanTrackToVideo:
 
                 zero_frames = torch.zeros(3, 81 - 1, height, width)
                 
-                start_image = start_image.permute(3,0,1,2)  # C, T, H, W
+                start_image = start_image.permute(3,0,1,2) * 2 - 1  # C, T, H, W
                 res = torch.concat([
                         start_image.to(start_image.device),
                         zero_frames
