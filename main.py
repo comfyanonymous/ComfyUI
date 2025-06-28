@@ -55,6 +55,9 @@ def apply_custom_paths():
 
 
 def execute_prestartup_script():
+    if args.disable_all_custom_nodes and len(args.whitelist_custom_nodes) == 0:
+        return
+
     def execute_script(script_path):
         module_name = os.path.splitext(script_path)[0]
         try:
@@ -277,7 +280,7 @@ def start_comfyui(asyncio_loop=None):
 
     hook_breaker_ac10a0.save_functions()
     nodes.init_extra_nodes(
-        init_custom_nodes=True,
+        init_custom_nodes=(not args.disable_all_custom_nodes) or len(args.whitelist_custom_nodes) > 0,
         init_api_nodes=not args.disable_api_nodes
     )
     hook_breaker_ac10a0.restore_functions()
