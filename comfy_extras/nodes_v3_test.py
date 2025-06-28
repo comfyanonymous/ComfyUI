@@ -1,5 +1,5 @@
 import torch
-from comfy_api.v3 import io
+from comfy_api.v3 import io, ui
 import logging
 import folder_paths
 import comfy.utils
@@ -96,7 +96,7 @@ class V3TestNode(io.ComfyNodeV3):
         if hasattr(cls, "doohickey"):
             raise Exception("The 'cls' variable leaked state on class properties between runs!")
         cls.doohickey = "LOLJK"
-        return io.NodeOutput(some_int, image)
+        return io.NodeOutput(some_int, image, ui=ui.PreviewImage(image))
 
 
 class V3LoraLoader(io.ComfyNodeV3):
