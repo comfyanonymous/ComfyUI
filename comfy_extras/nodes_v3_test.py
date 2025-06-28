@@ -36,7 +36,7 @@ class V3TestNode(io.ComfyNodeV3):
                 io.Image.Input("image", display_name="new_image"),
                 XYZ.Input("xyz", optional=True),
                 io.Custom("JKL").Input("jkl", optional=True),
-                io.Mask.Input("mask", optional=True),
+                io.Mask.Input("mask", display_name="mask haha", optional=True),
                 io.Int.Input("some_int", display_name="new_name", min=0, max=127, default=42,
                              tooltip="My tooltip 😎", display_mode=io.NumberDisplay.slider),
                 io.Combo.Input("combo", options=["a", "b", "c"], tooltip="This is a combo input"),
