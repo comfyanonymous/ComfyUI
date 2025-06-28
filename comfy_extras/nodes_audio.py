@@ -324,8 +324,6 @@ class LoadAudio:
 class RecordAudio:
     @classmethod
     def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
-        files = folder_paths.filter_files_content_types(os.listdir(input_dir), ["audio", "video"])
         return {"required": {"audio": ("AUDIO_RECORD", {})}}
 
     CATEGORY = "audio"
