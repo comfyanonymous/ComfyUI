@@ -659,18 +659,19 @@ class WanTrackToVideo:
 
                 zero_frames = torch.zeros(3, 81 - 1, height, width)
                 
+                
                 start_image = start_image.permute(3,0,1,2) * 2 - 1  # C, T, H, W
                 res = torch.concat([
                         start_image.to(start_image.device),
                         zero_frames
                     ],
                         dim=1).to(start_image.device)
-            
+
+                print("start vid:", res.permute(1,2,3,0)[:, :, :, :3])
                 y = vae.encode(
                     res.permute(1,2,3,0)[:, :, :, :3]  # T, H, W, C
                 )[0]
                 y = torch.concat([msk, y])
-                print('?')
                 motion_patched = patch_motion(processed_tracks, y, temperature, (4, 16), topk)[None]
                 mask, video = motion_patched[:, 0:4], motion_patched[:, 4:]
                 # Add motion features to conditioning
