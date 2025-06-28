@@ -1039,13 +1039,13 @@ class SchedulerHandler(NamedTuple):
     use_ms: bool = True
 
 SCHEDULER_HANDLERS = {
-    "normal": SchedulerHandler(normal_scheduler),
+    "simple": SchedulerHandler(simple_scheduler),
+    "sgm_uniform": SchedulerHandler(partial(normal_scheduler, sgm=True)),
     "karras": SchedulerHandler(k_diffusion_sampling.get_sigmas_karras, use_ms=False),
     "exponential": SchedulerHandler(k_diffusion_sampling.get_sigmas_exponential, use_ms=False),
-    "sgm_uniform": SchedulerHandler(partial(normal_scheduler, sgm=True)),
-    "simple": SchedulerHandler(simple_scheduler),
     "ddim_uniform": SchedulerHandler(ddim_scheduler),
     "beta": SchedulerHandler(beta_scheduler),
+    "normal": SchedulerHandler(normal_scheduler),
     "linear_quadratic": SchedulerHandler(linear_quadratic_schedule),
     "kl_optimal": SchedulerHandler(kl_optimal_scheduler, use_ms=False),
 }
