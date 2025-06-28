@@ -28,7 +28,7 @@ from comfy_execution.graph import (
 )
 from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
-from comfy_api.v3.io import NodeOutput, ComfyNodeV3, Hidden, NodeStateLocal
+from comfy_api.v3.io import NodeOutput, ComfyNodeV3, Hidden, NodeStateLocal, ResourcesLocal
 
 
 class ExecutionResult(Enum):
@@ -224,6 +224,11 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
                     if obj.local_state is None:
                         obj.local_state = NodeStateLocal(class_clone.hidden.unique_id)
                     class_clone.state = obj.local_state
+                # NOTE: this is a mock of resource management; for local, just stores ResourcesLocal on node instance
+                if hasattr(obj, "local_resources"):
+                    if obj.local_resources is None:
+                        obj.local_resources = ResourcesLocal()
+                    class_clone.resources = obj.local_resources
                 results.append(getattr(type(obj), func).__func__(class_clone, **inputs))
             # V1
             else:

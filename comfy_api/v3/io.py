@@ -4,6 +4,9 @@ from enum import Enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from collections import Counter
+import comfy.utils
+import folder_paths
+import logging
 # used for type hinting
 import torch
 from spandrel import ImageModelDescriptor
@@ -280,6 +283,56 @@ class NodeStateLocal(NodeState):
     
     def __delitem__(self, key: str):
         del self.local_state[key]
+
+
+class ResourceKey(ABC):
+    def __init__(self):
+        ...
+
+class ResourceKeyFolderFilename(ResourceKey):
+    def __init__(self, folder_name: str, file_name: str):
+        self.folder_name = folder_name
+        self.file_name = file_name
+    
+    def __hash__(self):
+        return hash((self.folder_name, self.file_name))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ResourceKeyFolderFilename):
+            return False
+        return self.folder_name == other.folder_name and self.file_name == other.file_name
+    
+    def __str__(self):
+        return f"{self.folder_name} -> {self.file_name}"
+
+class Resources(ABC):
+    def __init__(self):
+        ...
+    
+    @abstractmethod
+    def get_torch_dict(self, key: ResourceKey) -> dict[str, torch.Tensor]:
+        pass
+
+class ResourcesLocal(Resources):
+    def __init__(self):
+        super().__init__()
+        self.local_resources: dict[ResourceKey, dict[str, torch.Tensor]] = {}
+    
+    def get_torch_dict(self, key: ResourceKey) -> dict[str, torch.Tensor]:
+        cached = self.local_resources.get(key, None)
+        if cached is not None:
+            logging.info(f"Using cached resource '{key}'")
+            return cached
+        logging.info(f"Loading resource '{key}'")
+        to_return = None
+        if isinstance(key, ResourceKeyFolderFilename):
+            to_return = comfy.utils.load_torch_file(folder_paths.get_full_path_or_raise(key.folder_name, key.file_name), safe_load=True)
+
+        if to_return is not None:
+            self.local_resources[key] = to_return
+            return to_return
+        raise Exception(f"Unsupported resource key type: {type(key)}")
+
 
 @comfytype(io_type="BOOLEAN")
 class Boolean:
@@ -966,6 +1019,7 @@ class ComfyNodeV3:
     
     # filled in during execution
     state: NodeState = None
+    resources: Resources = None
     hidden: HiddenHolder = None
 
     @classmethod
@@ -995,6 +1049,7 @@ class ComfyNodeV3:
 
     def __init__(self):
         self.local_state: NodeStateLocal = None
+        self.local_resources: ResourcesLocal = None
         self.__class__.VALIDATE_CLASS()
 
     @classmethod
