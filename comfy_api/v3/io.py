@@ -4,6 +4,7 @@ from enum import Enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from collections import Counter
+from comfy_api.v3.resources import Resources, ResourcesLocal
 # used for type hinting
 import torch
 from spandrel import ImageModelDescriptor
@@ -280,6 +281,7 @@ class NodeStateLocal(NodeState):
     
     def __delitem__(self, key: str):
         del self.local_state[key]
+
 
 @comfytype(io_type="BOOLEAN")
 class Boolean:
@@ -966,6 +968,7 @@ class ComfyNodeV3:
     
     # filled in during execution
     state: NodeState = None
+    resources: Resources = None
     hidden: HiddenHolder = None
 
     @classmethod
@@ -995,6 +998,7 @@ class ComfyNodeV3:
 
     def __init__(self):
         self.local_state: NodeStateLocal = None
+        self.local_resources: ResourcesLocal = None
         self.__class__.VALIDATE_CLASS()
 
     @classmethod
@@ -1207,7 +1211,7 @@ class NodeOutput:
     '''
     Standardized output of a node; can pass in any number of args and/or a UIOutput into 'ui' kwarg.
     '''
-    def __init__(self, *args: Any, ui: UIOutput | dict=None, expand: dict=None, block_execution: str=None, **kwargs):
+    def __init__(self, *args: Any, ui: _UIOutput | dict=None, expand: dict=None, block_execution: str=None, **kwargs):
         self.args = args
         self.ui = ui
         self.expand = expand
@@ -1219,82 +1223,13 @@ class NodeOutput:
         # TODO: use kwargs to refer to outputs by id + organize in proper order
         return self.args if len(self.args) > 0 else None
 
-
-class SavedResult:
-    def __init__(self, filename: str, subfolder: str, type: FolderType):
-        self.filename = filename
-        self.subfolder = subfolder
-        self.type = type
-    
-    def as_dict(self):
-        return {
-            "filename": self.filename,
-            "subfolder": self.subfolder,
-            "type": self.type.value
-        }
-
-class UIOutput(ABC):
+class _UIOutput(ABC):
     def __init__(self):
         pass
 
     @abstractmethod
     def as_dict(self) -> dict:
         ... # TODO: finish
-
-class UIImages(UIOutput):
-    def __init__(self, values: list[SavedResult | dict], animated=False, **kwargs):
-        self.values = values
-        self.animated = animated
-    
-    def as_dict(self):
-        values = [x.as_dict() if isinstance(x, SavedResult) else x for x in self.values]
-        return {
-            "images": values,
-            "animated": (self.animated,)
-        }
-
-class UILatents(UIOutput):
-    def __init__(self, values: list[SavedResult | dict], **kwargs):
-        self.values = values
-    
-    def as_dict(self):
-        values = [x.as_dict() if isinstance(x, SavedResult) else x for x in self.values]
-        return {
-            "latents": values,
-        }
-
-class UIAudio(UIOutput):
-    def __init__(self, values: list[SavedResult | dict], **kwargs):
-        self.values = values
-    
-    def as_dict(self):
-        values = [x.as_dict() if isinstance(x, SavedResult) else x for x in self.values]
-        return {
-            "audio": values,
-        }
-
-class UI3D(UIOutput):
-    def __init__(self, values: list[SavedResult | dict], **kwargs):
-        self.values = values
-    
-    def as_dict(self):
-        values = [x.as_dict() if isinstance(x, SavedResult) else x for x in self.values]
-        return {
-            "3d": values,
-        }
-
-class UIText(UIOutput):
-    def __init__(self, value: str, **kwargs):
-        self.value = value
-    
-    def as_dict(self):
-        return {"text": (self.value,)}
-
-
-def create_image_preview(image: Image.Type) -> UIImages:
-    # TODO: finish, right now is just Cursor's hallucination
-    return UIImages([SavedResult("preview.png", "comfy_org", FolderType.output)])
-
 
 class TestNode(ComfyNodeV3):
     @classmethod

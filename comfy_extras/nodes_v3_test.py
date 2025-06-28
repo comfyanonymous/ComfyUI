@@ -1,5 +1,5 @@
 import torch
-from comfy_api.v3 import io
+from comfy_api.v3 import io, ui, resources
 import logging
 import folder_paths
 import comfy.utils
@@ -96,14 +96,10 @@ class V3TestNode(io.ComfyNodeV3):
         if hasattr(cls, "doohickey"):
             raise Exception("The 'cls' variable leaked state on class properties between runs!")
         cls.doohickey = "LOLJK"
-        return io.NodeOutput(some_int, image)
+        return io.NodeOutput(some_int, image, ui=ui.PreviewImage(image))
 
 
 class V3LoraLoader(io.ComfyNodeV3):
-    class State(io.NodeState):
-        loaded_lora: tuple[str, Any] | None = None
-    state: State
-
     @classmethod
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
@@ -147,17 +143,7 @@ class V3LoraLoader(io.ComfyNodeV3):
         if strength_model == 0 and strength_clip == 0:
             return io.NodeOutput(model, clip)
 
-        lora_path = folder_paths.get_full_path_or_raise("loras", lora_name)
-        lora = None
-        if cls.state.loaded_lora is not None:
-            if cls.state.loaded_lora[0] == lora_path:
-                lora = cls.state.loaded_lora[1]
-            else:
-                cls.state.loaded_lora = None
-
-        if lora is None:
-            lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
-            cls.state.loaded_lora = (lora_path, lora)
+        lora = cls.resources.get(resources.TorchDictFolderFilename("loras", lora_name))
 
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
         return io.NodeOutput(model_lora, clip_lora)
