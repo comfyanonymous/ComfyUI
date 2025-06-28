@@ -597,7 +597,7 @@ class TrainLoraNode:
             finally:
                 for m in mp.model.modules():
                     unpatch(m)
-            del ss, train_sampler, optimizer
+            del train_sampler, optimizer
             torch.cuda.empty_cache()
 
             for adapter in all_weight_adapters:
