@@ -17,7 +17,8 @@ from comfy.sd import StyleModel as StyleModel_
 from comfy.clip_vision import ClipVisionModel
 from comfy.clip_vision import Output as ClipVisionOutput_
 from comfy_api.input import VideoInput
-from comfy.hooks import HookGroup
+from comfy.hooks import HookGroup, HookKeyframeGroup
+# from comfy_extras.nodes_images import SVG as SVG_ # NOTE: needs to be moved before can be imported due to circular reference
 
 
 class FolderType(str, Enum):
@@ -636,6 +637,65 @@ class Audio(ComfyTypeIO):
         sampler_rate: int
     Type = AudioDict
 
+@comfytype(io_type=IO.VIDEO)
+class Video(ComfyTypeIO):
+    Type = VideoInput
+
+@comfytype(io_type="SVG")
+class SVG(ComfyTypeIO):
+    Type = Any # TODO: SVG class is defined in comfy_extras/nodes_images.py, causing circular reference; should be moved to somewhere else before referenced directly in v3
+
+@comfytype(io_type=IO.LORA_MODEL)
+class LoraModel(ComfyTypeIO):
+    Type = dict[str, torch.Tensor]
+
+@comfytype(io_type=IO.LOSS_MAP)
+class LossMap(ComfyTypeIO):
+    class LossMapDict(TypedDict):
+        loss: list[torch.Tensor]
+    Type = LossMapDict
+
+@comfytype(io_type="VOXEL")
+class Voxel(ComfyTypeIO):
+    Type = Any # TODO: VOXEL class is defined in comfy_extras/nodes_hunyuan3d.py; should be moved to somewhere else before referenced directly in v3
+
+@comfytype(io_type="MESH")
+class Mesh(ComfyTypeIO):
+    Type = Any # TODO: MESH class is defined in comfy_extras/nodes_hunyuan3d.py; should be moved to somewhere else before referenced directly in v3
+
+@comfytype(io_type="HOOKS")
+class Hooks(ComfyTypeIO):
+    Type = HookGroup
+
+@comfytype(io_type="HOOK_KEYFRAMES")
+class HookKeyframes(ComfyTypeIO):
+    Type = HookKeyframeGroup
+
+@comfytype(io_type="TIMESTEPS_RANGE")
+class TimestepsRange(ComfyTypeIO):
+    '''Range defined by start and endpoint, between 0.0 and 1.0.'''
+    Type = tuple[int, int]
+
+@comfytype(io_type="LATENT_OPERATION")
+class LatentOperation(ComfyTypeIO):
+    Type = Callable[[torch.Tensor], torch.Tensor]
+
+@comfytype(io_type="FLOW_CONTROL")
+class FlowControl(ComfyTypeIO):
+    # NOTE: only used in testing_nodes right now
+    Type = tuple[str, Any]
+
+@comfytype(io_type="ACCUMULATION")
+class Accumulation(ComfyTypeIO):
+    # NOTE: only used in testing_nodes right now
+    class AccumulationDict(TypedDict):
+        accum: list[Any]
+    Type = AccumulationDict
+
+@comfytype(io_type="LOAD3D_CAMERA")
+class Load3DCamera(ComfyTypeIO):
+    Type = Any # TODO: figure out type for this; in code, only described as image['camera_info'], gotten from a LOAD_3D or LOAD_3D_ANIMATION type
+
 @comfytype(io_type=IO.POINT)
 class Point(ComfyTypeIO):
     Type = Any # NOTE: I couldn't find any references in core code to POINT io_type. Does this exist?
@@ -651,10 +711,6 @@ class BBOX(ComfyTypeIO):
 @comfytype(io_type=IO.SEGS)
 class SEGS(ComfyTypeIO):
     Type = Any # NOTE: I couldn't find any references in core code to POINT io_type. Does this exist?
-
-@comfytype(io_type=IO.VIDEO)
-class Video(ComfyTypeIO):
-    Type = VideoInput
 
 @comfytype(io_type="COMFY_MULTITYPED_V3")
 class MultiType:
