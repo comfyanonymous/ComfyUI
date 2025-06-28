@@ -621,7 +621,7 @@ class WanTrackToVideo:
                
         # Parse tracks from JSON
         tracks_data = parse_json_tracks(tracks)
-        
+        print(f"parsed tracks: {tracks}")
         if tracks_data:
             # Convert tracks to tensor format
             arrs = []
@@ -631,6 +631,7 @@ class WanTrackToVideo:
 
             tracks_np = np.stack(arrs, axis=0)
             processed_tracks = process_tracks(tracks_np, (width, height)).unsqueeze(0)
+            print(f"Processed tracks: {processed_tracks}")  # Debugging line
             
             if start_image is not None:
                 start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
