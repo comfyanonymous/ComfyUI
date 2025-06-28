@@ -2187,6 +2187,9 @@ def init_external_custom_nodes():
             module_path = os.path.join(custom_node_path, possible_module)
             if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
             if module_path.endswith(".disabled"): continue
+            if args.disable_all_custom_nodes and possible_module not in args.whitelist_custom_nodes:
+                logging.info(f"Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
+                continue
             time_before = time.perf_counter()
             success = load_custom_node(module_path, base_node_names, module_parent="custom_nodes")
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
