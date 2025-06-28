@@ -1,5 +1,5 @@
 import torch
-from comfy_api.v3 import io, ui
+from comfy_api.v3 import io, ui, resources
 import logging
 import folder_paths
 import comfy.utils
@@ -143,7 +143,7 @@ class V3LoraLoader(io.ComfyNodeV3):
         if strength_model == 0 and strength_clip == 0:
             return io.NodeOutput(model, clip)
 
-        lora = cls.resources.get_torch_dict(io.ResourceKeyFolderFilename("loras", lora_name))
+        lora = cls.resources.get(resources.TorchDictFolderFilename("loras", lora_name))
 
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
         return io.NodeOutput(model_lora, clip_lora)
