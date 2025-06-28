@@ -504,12 +504,13 @@ class Conditioning(ComfyTypeIO):
         clip_end_percent: NotRequired[float]
         '''Internal variable for conditioning scheduling - end of application, expressed as a float between 0.0 and 1.0.'''
         attention_mask: NotRequired[torch.Tensor]
-        '''Used by StyleModel.'''
+        '''Masks text conditioning; used by StyleModel among others.'''
         attention_mask_img_shape: NotRequired[tuple[int, ...]]
-        '''Used by StyleModel.'''
+        '''Masks text conditioning; used by StyleModel among others.'''
         unclip_conditioning: NotRequired[list[dict]]
         '''Used by unCLIP.'''
         conditioning_lyrics: NotRequired[torch.Tensor]
+        '''Used by AceT5Model.'''
         seconds_start: NotRequired[float]
         '''Used by StableAudio.'''
         seconds_total: NotRequired[float]
