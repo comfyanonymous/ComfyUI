@@ -638,7 +638,6 @@ class WanTrackToVideo:
             
             if start_image is not None:
                 start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-                start_image = start_image * 2 - 1
                 lat_h = height // 8
                 lat_w = width // 8
 
