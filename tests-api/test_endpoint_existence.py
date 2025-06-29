@@ -116,7 +116,8 @@ def test_websocket_endpoint_exists(require_server, base_url: str):
         require_server: Fixture that skips if server is not available
         base_url: Base server URL
     """
-    ws_url = urljoin(base_url, "/ws")
+    # WebSocket endpoint uses /api prefix
+    ws_url = urljoin(base_url, "/api/ws")
 
     # For WebSocket, we can't use a normal GET request
     # Instead, we make a HEAD request to check if the endpoint exists
@@ -209,13 +210,14 @@ def test_api_object_info_node_endpoint(require_server, api_client):
         pytest.fail(f"Failed to process response: {str(e)}")
 
 
-def test_internal_endpoints_exist(require_server, api_client):
+def test_internal_endpoints_exist(require_server, api_client, base_url: str):
     """
     Test that internal endpoints exist
 
     Args:
         require_server: Fixture that skips if server is not available
         api_client: API client fixture
+        base_url: Base server URL
     """
     internal_endpoints = [
         "/internal/logs",
@@ -225,10 +227,11 @@ def test_internal_endpoints_exist(require_server, api_client):
     ]
 
     for endpoint in internal_endpoints:
-        url = api_client.get_url(endpoint)  # type: ignore
+        # Internal endpoints don't use the /api/ prefix
+        url = urljoin(base_url, endpoint)
 
         try:
-            response = api_client.get(url)
+            response = requests.get(url)
 
             # We're just checking that the endpoint exists
             assert response.status_code != 404, f"Endpoint {endpoint} does not exist"

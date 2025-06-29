@@ -69,7 +69,7 @@ def get_endpoint_schema(
 
 def resolve_schema_refs(schema: Dict[str, Any], spec: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Resolve $ref references in a schema
+    Resolve $ref references in a schema and convert OpenAPI nullable to JSON Schema
 
     Args:
         schema: Schema that may contain references
@@ -83,29 +83,52 @@ def resolve_schema_refs(schema: Dict[str, Any], spec: Dict[str, Any]) -> Dict[st
 
     result = {}
 
-    for key, value in schema.items():
-        if key == '$ref' and isinstance(value, str) and value.startswith('#/'):
-            # Handle reference
-            ref_path = value[2:].split('/')
-            ref_value = spec
-            for path_part in ref_path:
-                ref_value = ref_value.get(path_part, {})
+    # Check if this schema has nullable: true with a type
+    if schema.get('nullable') is True and 'type' in schema:
+        # Convert OpenAPI nullable syntax to JSON Schema oneOf
+        original_type = schema['type']
+        result['oneOf'] = [
+            {'type': original_type},
+            {'type': 'null'}
+        ]
+        # Copy other properties except nullable and type
+        for key, value in schema.items():
+            if key not in ['nullable', 'type']:
+                if isinstance(value, dict):
+                    result[key] = resolve_schema_refs(value, spec)
+                elif isinstance(value, list):
+                    result[key] = [
+                        resolve_schema_refs(item, spec) if isinstance(item, dict) else item
+                        for item in value
+                    ]
+                else:
+                    result[key] = value
+    else:
+        # Normal processing
+        for key, value in schema.items():
+            if key == '$ref' and isinstance(value, str) and value.startswith('#/'):
+                # Handle reference
+                ref_path = value[2:].split('/')
+                ref_value = spec
+                for path_part in ref_path:
+                    ref_value = ref_value.get(path_part, {})
 
-            # Recursively resolve any refs in the referenced schema
-            ref_value = resolve_schema_refs(ref_value, spec)
-            result.update(ref_value)
-        elif isinstance(value, dict):
-            # Recursively resolve refs in nested dictionaries
-            result[key] = resolve_schema_refs(value, spec)
-        elif isinstance(value, list):
-            # Recursively resolve refs in list items
-            result[key] = [
-                resolve_schema_refs(item, spec) if isinstance(item, dict) else item
-                for item in value
-            ]
-        else:
-            # Pass through other values
-            result[key] = value
+                # Recursively resolve any refs in the referenced schema
+                ref_value = resolve_schema_refs(ref_value, spec)
+                result.update(ref_value)
+            elif isinstance(value, dict):
+                # Recursively resolve refs in nested dictionaries
+                result[key] = resolve_schema_refs(value, spec)
+            elif isinstance(value, list):
+                # Recursively resolve refs in list items
+                result[key] = [
+                    resolve_schema_refs(item, spec) if isinstance(item, dict) else item
+                    for item in value
+                ]
+            else:
+                # Pass through other values (skip nullable as it's OpenAPI specific)
+                if key != 'nullable':
+                    result[key] = value
 
     return result
 
