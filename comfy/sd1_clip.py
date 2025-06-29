@@ -482,7 +482,8 @@ class SDTokenizer:
             if end_token is not None:
                 self.end_token = end_token
             else:
-                self.end_token = empty[0]
+                if has_end_token:
+                    self.end_token = empty[0]
 
         if pad_token is not None:
             self.pad_token = pad_token
