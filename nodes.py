@@ -290,6 +290,8 @@ class VAEDecode:
         images = vae.decode(samples["samples"])
         if len(images.shape) == 5: #Combine batches
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
+        
+        print('decoded images', images[0])
         return (images, )
 
 class VAEDecodeTiled:
