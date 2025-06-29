@@ -500,7 +500,8 @@ def patch_motion(
 ):
     """Apply motion patching based on tracks"""
     with torch.no_grad():
-        print("vid shape:", vid)
+        print("vid shape:", vid[0,0])
+        print("vid shape:", vid[0,10])
         _, T, H, W = vid.shape
         N = tracks.shape[2]
         _, tracks_xy, visible = torch.split(
