@@ -1218,10 +1218,10 @@ class WAN21(BaseModel):
         print(f"image shape: {image.shape}, mask shape: {mask.shape}")
         res = torch.cat((mask, image), dim=1)
         tracks = kwargs.get("tracks", None)
-        if tracks is not None:
-            res = patch_motion(tracks.to(device), res[0], 220.0, (4, 16), 2)[None]
+        # if tracks is not None:
+        #     res = patch_motion(tracks.to(device), res[0], 220.0, (4, 16), 2)[None]
         
-        return res
+        return res[None]
 
 
     def extra_conds(self, **kwargs):
