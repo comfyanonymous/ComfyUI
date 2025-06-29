@@ -667,9 +667,10 @@ class WanTrackToVideo:
                     ],
                         dim=1).to(start_image.device)
 
-                print("start vid:", res.permute(1,2,3,0)[:, :, :, :3])
+                res = res.permute(1,2,3,0)[:, :, :, :3]  # T, H, W, C
+                print("start vid:", res.shape, res)
                 y = vae.encode(
-                    res.permute(1,2,3,0)[:, :, :, :3]  # T, H, W, C
+                    res
                 )[0]
                 y = torch.concat([msk, y])
                 motion_patched = patch_motion(processed_tracks, y, temperature, (4, 16), topk)[None]
