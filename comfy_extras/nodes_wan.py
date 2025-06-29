@@ -667,23 +667,27 @@ class WanTrackToVideo:
                     ],
                         dim=1).to(start_image.device)
 
-                res = res.permute(1,2,3,0)[:, :, :, :3]  # T, H, W, C
                 print("start vid:", res.shape, res)
+                res = res.permute(1,2,3,0)[:, :, :, :3]  # T, H, W, C
+                
                 y = vae.encode(
                     res
                 )[0]
+                
                 print("mask shape:", msk.shape, "y shape:", y.shape)
-                y = torch.concat([msk, y])
-                motion_patched = patch_motion(processed_tracks, y, temperature, (4, 16), topk)[None]
-                mask, video = motion_patched[:, 0:4], motion_patched[:, 4:]
+                # y = torch.concat([msk, y])
+                
+                # mask, video = motion_patched[:, 0:4], motion_patched[:, 4:]
                 # Add motion features to conditioning
                 concat_latent_image = vae.encode(image[:, :, :, :3])
-                positive = node_helpers.conditioning_set_values(positive, 
-                                                                {"concat_mask": mask,
-                                                                "concat_latent_image": video})
+                positive = node_helpers.conditioning_set_values(positive,
+                                                                {"tracks": processed_tracks,
+                                                                 "concat_mask": msk,
+                                                                "concat_latent_image": y})
                 negative = node_helpers.conditioning_set_values(negative, 
-                                                                {"concat_mask": mask,
-                                                                "concat_latent_image": video})
+                                                                {"tracks": processed_tracks,
+                                                                 "concat_mask": msk,
+                                                                "concat_latent_image": y})
                 
 
         # Handle clip vision output if provided
