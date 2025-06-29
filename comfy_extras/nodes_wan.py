@@ -672,6 +672,7 @@ class WanTrackToVideo:
                 y = vae.encode(
                     res
                 )[0]
+                print("mask shape:", msk.shape, "y shape:", y.shape)
                 y = torch.concat([msk, y])
                 motion_patched = patch_motion(processed_tracks, y, temperature, (4, 16), topk)[None]
                 mask, video = motion_patched[:, 0:4], motion_patched[:, 4:]
