@@ -26,6 +26,7 @@ import comfy.sd
 import comfy.utils
 import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
+from comfy_api.v3.io import ComfyNodeV3
 
 import comfy.clip_vision
 
@@ -2149,6 +2150,7 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
             if os.path.isdir(web_dir):
                 EXTENSION_WEB_DIRS[module_name] = web_dir
 
+        # V1 node definition
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
             for name, node_cls in module.NODE_CLASS_MAPPINGS.items():
                 if name not in ignore:
@@ -2157,8 +2159,19 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
             return True
+        # V3 node definition
+        elif getattr(module, "NODES_LIST", None) is not None:
+            for node_cls in module.NODES_LIST:
+                node_cls: ComfyNodeV3
+                schema = node_cls.GET_SCHEMA()
+                if schema.node_id not in ignore:
+                    NODE_CLASS_MAPPINGS[schema.node_id] = node_cls
+                    node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
+                if schema.display_name is not None:
+                    NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name
+            return True
         else:
-            logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
+            logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS or NODES_LIST (need one).")
             return False
     except Exception as e:
         logging.warning(traceback.format_exc())
@@ -2283,6 +2296,8 @@ def init_builtin_extra_nodes():
         "nodes_string.py",
         "nodes_camera_trajectory.py",
         "nodes_edit_model.py",
+        "nodes_v3_test.py",
+        "nodes_v1_test.py",
     ]
 
     import_failed = []
