@@ -636,10 +636,8 @@ class WanTrackToVideo:
             print(f"Processed tracks: {processed_tracks}")  # Debugging line
             
             if start_image is not None:
-                start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-                image = torch.ones((length, height, width, start_image.shape[-1]), device=start_image.device, dtype=start_image.dtype) * 0.5
-                image[:start_image.shape[0]] = start_image
-
+                start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "lanczos", "disabled").movedim(1, -1)
+                start_image = start_image * 2 - 1
                 lat_h = height // 8
                 lat_w = width // 8
 
@@ -660,7 +658,7 @@ class WanTrackToVideo:
                 zero_frames = torch.zeros(3, 81 - 1, height, width)
                 
                 
-                start_image = start_image.permute(3,0,1,2) * 2 - 1  # C, T, H, W
+                start_image = start_image.permute(3,0,1,2) # C, T, H, W
                 res = torch.concat([
                         start_image.to(start_image.device),
                         zero_frames
