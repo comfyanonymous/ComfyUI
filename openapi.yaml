@@ -16,7 +16,7 @@ info:
     url: https://github.com/comfyanonymous/ComfyUI/blob/master/LICENSE
 
 servers:
-  - url: /
+  - url: /api
     description: Default ComfyUI server
 
 tags:
@@ -889,6 +889,7 @@ components:
                 description: Device type
               index:
                 type: integer
+                nullable: true
                 description: Device index
               vram_total:
                 type: number
