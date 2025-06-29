@@ -1,4 +1,5 @@
 import re
+import random
 
 from comfy.comfy_types.node_typing import IO
 
@@ -18,7 +19,10 @@ class StringConcatenate():
     CATEGORY = "utils/string"
 
     def execute(self, string_a, string_b, delimiter, **kwargs):
-        return delimiter.join((string_a, string_b)),
+        all_strings = [value for key, value in locals().items() if key.startswith("string_")]
+        non_empty = [s for s in all_strings if s]
+        result = delimiter.join(non_empty)
+        return result,
 
 class StringSubstring():
     @classmethod
@@ -331,6 +335,35 @@ class RegexReplace():
         result = re.sub(regex_pattern, replace, string, count=count, flags=flags)
         return result,
 
+class Wildcard():
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "text": (IO.STRING, {"multiline": True}),
+                "seed": (IO.INT, {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "use_newline_as_separator": (IO.BOOLEAN, {"default": True}),
+                "separator_if_not_newline": (IO.STRING, {"multiline": False, "default": " "})
+                }
+            }
+
+    RETURN_TYPES = (IO.STRING,)
+    FUNCTION = "execute"
+    CATEGORY = "utils/string"
+
+    def execute(self, text, seed, use_newline_as_separator, separator_if_not_newline, **kwargs):
+        if use_newline_as_separator:
+            wildcard = text.splitlines()
+        else:
+            wildcard = text.split(separator_if_not_newline)
+
+        if not wildcard:
+            return (""),
+
+        random.seed(seed)
+        i = random.randint(0, (len(wildcard)-1))
+        return (wildcard[i]),
+
 NODE_CLASS_MAPPINGS = {
     "StringConcatenate": StringConcatenate,
     "StringSubstring": StringSubstring,
@@ -343,6 +376,7 @@ NODE_CLASS_MAPPINGS = {
     "RegexMatch": RegexMatch,
     "RegexExtract": RegexExtract,
     "RegexReplace": RegexReplace,
+    "Wildcard": Wildcard,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -357,4 +391,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RegexMatch": "Regex Match",
     "RegexExtract": "Regex Extract",
     "RegexReplace": "Regex Replace",
+    "Wildcard": "Wildcard",
 }
