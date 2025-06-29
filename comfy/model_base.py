@@ -1219,7 +1219,7 @@ class WAN21(BaseModel):
         if tracks is not None:
             res = patch_motion(tracks.to(device), res[0], 220.0, (4, 16), 2)[None]
         
-        return res[None]
+        return res
 
 
     def extra_conds(self, **kwargs):
