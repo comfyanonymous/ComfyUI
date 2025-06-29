@@ -146,7 +146,7 @@ class T5Attention(torch.nn.Module):
         )
         values = self.relative_attention_bias(relative_position_bucket, out_dtype=dtype)  # shape (query_length, key_length, num_heads)
         values = values.permute([2, 0, 1]).unsqueeze(0)  # shape (1, num_heads, query_length, key_length)
-        return values
+        return values.contiguous()
 
     def forward(self, x, mask=None, past_bias=None, optimized_attention=None):
         q = self.q(x)
