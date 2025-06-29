@@ -152,6 +152,8 @@ class MoEBlock(nn.Module):
 
         y = y + self.shared_experts(identity)
 
+        return y
+
     @torch.no_grad()
     def moe_infer(self, x, flat_expert_indices, flat_expert_weights):
         
