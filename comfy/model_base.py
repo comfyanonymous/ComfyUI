@@ -1154,6 +1154,7 @@ def patch_motion(
     )
     point_feature = point_feature.squeeze(0).squeeze(1).permute(1, 0) # N, C=16
 
+    print("point_feature shape:", point_feature.shape)
     out_feature = merge_final(point_feature, vert_weight, vert_index).permute(3, 0, 1, 2) # T - 1, H, W, C => C, T - 1, H, W
     out_weight = vert_weight.sum(-1) # T - 1, H, W
 
