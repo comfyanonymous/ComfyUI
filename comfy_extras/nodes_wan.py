@@ -655,7 +655,7 @@ class WanTrackToVideo:
                 msk = msk.view(1, msk.shape[1] // 4, 4, lat_h, lat_w)
 
                 # first batch
-                msk = msk.transpose(1, 2)[0]
+                msk = msk.transpose(1, 2)
 
                 zero_frames = torch.zeros(3, 81 - 1, height, width)
                 
@@ -672,7 +672,7 @@ class WanTrackToVideo:
                 
                 y = vae.encode(
                     res
-                )[0]
+                )
                 
                 print("mask shape:", msk.shape, "y shape:", y.shape)
                 # y = torch.concat([msk, y])
