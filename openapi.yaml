@@ -889,8 +889,7 @@ components:
                 description: Device type
               index:
                 type: integer
-                nullable: true
-                description: Device index
+                description: Device index (may be omitted for CPU devices)
               vram_total:
                 type: number
                 description: Total VRAM in bytes
