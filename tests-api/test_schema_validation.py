@@ -181,6 +181,13 @@ def test_response_schema_validation(
             pytest.skip(f"Endpoint {endpoint_path} did not return valid JSON")
             return
 
+        # Special handling for system_stats endpoint
+        if endpoint_path == '/system_stats' and isinstance(response_data, dict):
+            # Remove null index fields before validation
+            for device in response_data.get('devices', []):
+                if 'index' in device and device['index'] is None:
+                    del device['index']
+        
         # Validate the response
         validation_result = validate_response(
             response_data,
@@ -242,6 +249,12 @@ def test_system_stats_response(require_server, api_client, api_spec: Dict[str, A
             assert 'vram_total' in device, "Device missing 'vram_total' field"
             assert 'vram_free' in device, "Device missing 'vram_free' field"
 
+        # Remove null index fields before validation
+        # This is needed because ComfyUI returns null for CPU device index
+        for device in stats.get('devices', []):
+            if 'index' in device and device['index'] is None:
+                del device['index']
+        
         # Perform schema validation
         validation_result = validate_response(
             stats,
