@@ -1157,7 +1157,8 @@ def patch_motion(
     print("point_feature shape:", point_feature.shape)
     out_feature = merge_final(point_feature, vert_weight, vert_index).permute(3, 0, 1, 2) # T - 1, H, W, C => C, T - 1, H, W
     out_weight = vert_weight.sum(-1) # T - 1, H, W
-
+    
+    print("out_weight shape:", out_weight)
     # out feature -> already soft weighted
     mix_feature = out_feature + vid[vae_divide[0]:, 1:] * (1 - out_weight.clamp(0, 1))
 
