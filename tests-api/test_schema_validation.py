@@ -187,7 +187,7 @@ def test_response_schema_validation(
             for device in response_data.get('devices', []):
                 if 'index' in device and device['index'] is None:
                     del device['index']
-        
+
         # Validate the response
         validation_result = validate_response(
             response_data,
@@ -254,7 +254,7 @@ def test_system_stats_response(require_server, api_client, api_spec: Dict[str, A
         for device in stats.get('devices', []):
             if 'index' in device and device['index'] is None:
                 del device['index']
-        
+
         # Perform schema validation
         validation_result = validate_response(
             stats,
