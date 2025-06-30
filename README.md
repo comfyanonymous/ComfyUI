@@ -95,6 +95,7 @@ If coming from the very start, you need :
     * Install **HIP SDK 6.2.4** from [HERE](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html) the correct version, "Windows 10 & 11 6.2.4 HIP SDK".
     * Then download hip sdk addon from this url and extract that into `C:\Program Files\AMD\ROCm\6.2` . (updated for zluda 3.9.5)
     *  (new hip addon for zluda 3.9.5 : (https://drive.google.com/file/d/1Gvg3hxNEj2Vsd2nQgwadrUEY6dYXy0H9/view?usp=sharing))
+    *  (Alternative source for hip addon for zluda 3.9.5 : (https://www.mediafire.com/file/ooawc9s34sazerr/HIP-SDK-extension(zluda395).zip/file))
      
 6. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
 
