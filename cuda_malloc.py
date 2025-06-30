@@ -50,7 +50,33 @@ blacklist = {"GeForce GTX TITAN X", "GeForce GTX 980", "GeForce GTX 970", "GeFor
                 "GeForce GTX 1650", "GeForce GTX 1630", "Tesla M4", "Tesla M6", "Tesla M10", "Tesla M40", "Tesla M60"
                 }
 
+def _load_torch_submodule(filename):
+    """Helper to load and check a submodule from torch's installation"""
+    try:
+        torch_spec = importlib.util.find_spec("torch")
+        if torch_spec and torch_spec.submodule_search_locations:
+            for folder in torch_spec.submodule_search_locations:
+                file_path = os.path.join(folder, filename)
+                if os.path.isfile(file_path):
+                    spec = importlib.util.spec_from_file_location("torch_submodule_check", file_path)
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                    return module
+        return None
+    except:
+        return None
+
+def is_ixuca():
+    ixuca_module = _load_torch_submodule("corex.py")
+    if ixuca_module and hasattr(ixuca_module, "corex"):
+        return bool(ixuca_module.corex)
+    else:
+        return False
+
 def cuda_malloc_supported():
+    if is_ixuca():
+        return False
+        
     try:
         names = get_gpu_names()
     except:
@@ -64,20 +90,11 @@ def cuda_malloc_supported():
 
 
 if not args.cuda_malloc:
-    try:
-        version = ""
-        torch_spec = importlib.util.find_spec("torch")
-        for folder in torch_spec.submodule_search_locations:
-            ver_file = os.path.join(folder, "version.py")
-            if os.path.isfile(ver_file):
-                spec = importlib.util.spec_from_file_location("torch_version_import", ver_file)
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-                version = module.__version__
-        if int(version[0]) >= 2: #enable by default for torch version 2.0 and up
+    version_module = _load_torch_submodule("version.py")
+    if version_module and hasattr(version_module, "__version__"):
+        version = version_module.__version__
+        if version and int(version[0]) >= 2: #enable by default for torch version 2.0 and up
             args.cuda_malloc = cuda_malloc_supported()
-    except:
-        pass
 
 
 if args.cuda_malloc and not args.disable_cuda_malloc:
