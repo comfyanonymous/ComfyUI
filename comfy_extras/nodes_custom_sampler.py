@@ -609,8 +609,14 @@ class Guider_DualCFG(comfy.samplers.CFGGuider):
     def predict_noise(self, x, timestep, model_options={}, seed=None):
         negative_cond = self.conds.get("negative", None)
         middle_cond = self.conds.get("middle", None)
+        positive_cond = self.conds.get("positive", None)
+        if model_options.get("disable_cfg1_optimization", False) == False:
+            if math.isclose(self.cfg2, 1.0):
+                negative_cond = None
+                if math.isclose(self.cfg1, 1.0):
+                    middle_cond = None
 
-        out = comfy.samplers.calc_cond_batch(self.inner_model, [negative_cond, middle_cond, self.conds.get("positive", None)], x, timestep, model_options)
+        out = comfy.samplers.calc_cond_batch(self.inner_model, [negative_cond, middle_cond, positive_cond], x, timestep, model_options)
         return comfy.samplers.cfg_function(self.inner_model, out[1], out[0], self.cfg2, x, timestep, model_options=model_options, cond=middle_cond, uncond=negative_cond) + (out[2] - out[1]) * self.cfg1
 
 class DualCFGGuider:
