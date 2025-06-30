@@ -93,8 +93,8 @@ def api_client(base_url: str) -> Generator[Optional[requests.Session], None, Non
 
     # Helper function to construct URLs
     def get_url(path: str) -> str:
-        # All API endpoints use the /api prefix
-        return urljoin(base_url, '/api' + path)
+        # Paths in the OpenAPI spec already include /api prefix where needed
+        return urljoin(base_url, path)
 
     # Add url helper to the session
     session.get_url = get_url  # type: ignore

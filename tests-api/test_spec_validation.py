@@ -61,9 +61,9 @@ def test_workflow_endpoints_exist(api_spec: Dict[str, Any]):
     Args:
         api_spec: Loaded OpenAPI spec
     """
-    assert '/prompt' in api_spec['paths'], "Spec must define /prompt endpoint"
-    assert 'post' in api_spec['paths']['/prompt'], "Spec must define POST /prompt"
-    assert 'get' in api_spec['paths']['/prompt'], "Spec must define GET /prompt"
+    assert '/api/prompt' in api_spec['paths'], "Spec must define /api/prompt endpoint"
+    assert 'post' in api_spec['paths']['/api/prompt'], "Spec must define POST /api/prompt"
+    assert 'get' in api_spec['paths']['/api/prompt'], "Spec must define GET /api/prompt"
 
 
 def test_image_endpoints_exist(api_spec: Dict[str, Any]):
@@ -73,8 +73,8 @@ def test_image_endpoints_exist(api_spec: Dict[str, Any]):
     Args:
         api_spec: Loaded OpenAPI spec
     """
-    assert '/upload/image' in api_spec['paths'], "Spec must define /upload/image endpoint"
-    assert '/view' in api_spec['paths'], "Spec must define /view endpoint"
+    assert '/api/upload/image' in api_spec['paths'], "Spec must define /api/upload/image endpoint"
+    assert '/api/view' in api_spec['paths'], "Spec must define /api/view endpoint"
 
 
 def test_model_endpoints_exist(api_spec: Dict[str, Any]):
@@ -84,8 +84,8 @@ def test_model_endpoints_exist(api_spec: Dict[str, Any]):
     Args:
         api_spec: Loaded OpenAPI spec
     """
-    assert '/models' in api_spec['paths'], "Spec must define /models endpoint"
-    assert '/models/{folder}' in api_spec['paths'], "Spec must define /models/{folder} endpoint"
+    assert '/api/models' in api_spec['paths'], "Spec must define /api/models endpoint"
+    assert '/api/models/{folder}' in api_spec['paths'], "Spec must define /api/models/{folder} endpoint"
 
 
 def test_operation_ids_are_unique(api_spec: Dict[str, Any]):

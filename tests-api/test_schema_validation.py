@@ -132,11 +132,11 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.parametrize("endpoint_path,method", [
-    ("/system_stats", "get"),
-    ("/prompt", "get"),
-    ("/queue", "get"),
-    ("/models", "get"),
-    ("/embeddings", "get")
+    ("/api/system_stats", "get"),
+    ("/api/prompt", "get"),
+    ("/api/queue", "get"),
+    ("/api/models", "get"),
+    ("/api/embeddings", "get")
 ])
 def test_response_schema_validation(
     require_server,
@@ -182,7 +182,7 @@ def test_response_schema_validation(
             return
 
         # Special handling for system_stats endpoint
-        if endpoint_path == '/system_stats' and isinstance(response_data, dict):
+        if endpoint_path == '/api/system_stats' and isinstance(response_data, dict):
             # Remove null index fields before validation
             for device in response_data.get('devices', []):
                 if 'index' in device and device['index'] is None:
@@ -217,7 +217,7 @@ def test_system_stats_response(require_server, api_client, api_spec: Dict[str, A
         api_client: API client fixture
         api_spec: Loaded OpenAPI spec
     """
-    url = api_client.get_url("/system_stats")  # type: ignore
+    url = api_client.get_url("/api/system_stats")  # type: ignore
 
     try:
         response = api_client.get(url)
@@ -259,7 +259,7 @@ def test_system_stats_response(require_server, api_client, api_spec: Dict[str, A
         validation_result = validate_response(
             stats,
             api_spec,
-            "/system_stats",
+            "/api/system_stats",
             "get"
         )
 
@@ -279,7 +279,7 @@ def test_system_stats_response(require_server, api_client, api_spec: Dict[str, A
         assert validation_result['valid'], "System stats response does not match schema"
 
     except requests.RequestException as e:
-        pytest.fail(f"Request to /system_stats failed: {str(e)}")
+        pytest.fail(f"Request to /api/system_stats failed: {str(e)}")
 
 
 def test_models_listing_response(require_server, api_client, api_spec: Dict[str, Any]):
@@ -291,7 +291,7 @@ def test_models_listing_response(require_server, api_client, api_spec: Dict[str,
         api_client: API client fixture
         api_spec: Loaded OpenAPI spec
     """
-    url = api_client.get_url("/models")  # type: ignore
+    url = api_client.get_url("/api/models")  # type: ignore
 
     try:
         response = api_client.get(url)
@@ -312,7 +312,7 @@ def test_models_listing_response(require_server, api_client, api_spec: Dict[str,
         validation_result = validate_response(
             models,
             api_spec,
-            "/models",
+            "/api/models",
             "get"
         )
 
@@ -333,7 +333,7 @@ def test_models_listing_response(require_server, api_client, api_spec: Dict[str,
         assert validation_result['valid'], "Models response does not match schema"
 
     except requests.RequestException as e:
-        pytest.fail(f"Request to /models failed: {str(e)}")
+        pytest.fail(f"Request to /api/models failed: {str(e)}")
 
 
 def test_object_info_response(require_server, api_client, api_spec: Dict[str, Any]):
@@ -345,7 +345,7 @@ def test_object_info_response(require_server, api_client, api_spec: Dict[str, An
         api_client: API client fixture
         api_spec: Loaded OpenAPI spec
     """
-    url = api_client.get_url("/object_info")  # type: ignore
+    url = api_client.get_url("/api/object_info")  # type: ignore
 
     try:
         response = api_client.get(url)
@@ -373,7 +373,7 @@ def test_object_info_response(require_server, api_client, api_spec: Dict[str, An
         validation_result = validate_response(
             objects,
             api_spec,
-            "/object_info",
+            "/api/object_info",
             "get"
         )
 
@@ -394,7 +394,7 @@ def test_object_info_response(require_server, api_client, api_spec: Dict[str, An
         assert validation_result['valid'], "Object info response does not match schema"
 
     except requests.RequestException as e:
-        pytest.fail(f"Request to /object_info failed: {str(e)}")
+        pytest.fail(f"Request to /api/object_info failed: {str(e)}")
     except (KeyError, StopIteration) as e:
         pytest.fail(f"Failed to process response: {str(e)}")
 
@@ -408,7 +408,7 @@ def test_queue_response(require_server, api_client, api_spec: Dict[str, Any]):
         api_client: API client fixture
         api_spec: Loaded OpenAPI spec
     """
-    url = api_client.get_url("/queue")  # type: ignore
+    url = api_client.get_url("/api/queue")  # type: ignore
 
     try:
         response = api_client.get(url)
@@ -430,7 +430,7 @@ def test_queue_response(require_server, api_client, api_spec: Dict[str, Any]):
         validation_result = validate_response(
             queue,
             api_spec,
-            "/queue",
+            "/api/queue",
             "get"
         )
 

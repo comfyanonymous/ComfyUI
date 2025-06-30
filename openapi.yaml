@@ -1,45 +1,49 @@
 openapi: 3.0.3
 info:
   title: ComfyUI API
-  description: |
-    API for ComfyUI - A powerful and modular UI for Stable Diffusion.
-    
+  description: 'API for ComfyUI - A powerful and modular UI for Stable Diffusion.
+
+
     This API allows you to interact with ComfyUI programmatically, including:
+
     - Submitting workflows for execution
+
     - Managing the execution queue
+
     - Retrieving generated images
+
     - Managing models
+
     - Retrieving node information
+
+    '
   version: 1.0.0
   license:
     name: GNU General Public License v3.0
     url: https://github.com/comfyanonymous/ComfyUI/blob/master/LICENSE
-
 servers:
-  - url: /api
-    description: Default ComfyUI server
-
+- url: /
+  description: Default ComfyUI server
 tags:
-  - name: workflow
-    description: Workflow execution and management
-  - name: queue
-    description: Queue management
-  - name: image
-    description: Image handling
-  - name: node
-    description: Node information
-  - name: model
-    description: Model management
-  - name: system
-    description: System information
-  - name: internal
-    description: Internal API routes
-
+- name: workflow
+  description: Workflow execution and management
+- name: queue
+  description: Queue management
+- name: image
+  description: Image handling
+- name: node
+  description: Node information
+- name: model
+  description: Model management
+- name: system
+  description: System information
+- name: internal
+  description: Internal API routes
 paths:
-  /prompt:
+  /api/prompt:
     get:
       tags:
-        - workflow
+      - workflow
       summary: Get information about current prompt execution
       description: Returns information about the current prompt in the execution queue
       operationId: getPromptInfo
@@ -52,11 +56,13 @@ paths:
                 $ref: '#/components/schemas/PromptInfo'
     post:
       tags:
-        - workflow
+      - workflow
       summary: Submit a workflow for execution
-      description: |
-        Submit a workflow to be executed by the backend.
+      description: 'Submit a workflow to be executed by the backend.
+
         The workflow is a JSON object describing the nodes and their connections.
+
+        '
       operationId: executePrompt
       requestBody:
         required: true
@@ -77,11 +83,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
-  /queue:
+  /api/queue:
     get:
       tags:
-        - queue
+      - queue
       summary: Get queue information
       description: Returns information about running and pending items in the queue
       operationId: getQueueInfo
@@ -94,7 +99,7 @@ paths:
                 $ref: '#/components/schemas/QueueInfo'
     post:
       tags:
-        - queue
+      - queue
       summary: Manage queue
       description: Clear the queue or delete specific items
       operationId: manageQueue
@@ -117,22 +122,20 @@ paths:
       responses:
         '200':
           description: Success
-          
-  /interrupt:
+  /api/interrupt:
     post:
       tags:
-        - workflow
+      - workflow
       summary: Interrupt the current execution
       description: Interrupts the currently running workflow execution
       operationId: interruptExecution
       responses:
         '200':
           description: Success
-          
-  /free:
+  /api/free:
     post:
       tags:
-        - system
+      - system
       summary: Free resources
       description: Unload models and/or free memory
       operationId: freeResources
@@ -152,22 +155,21 @@ paths:
       responses:
         '200':
           description: Success
-          
-  /history:
+  /api/history:
     get:
       tags:
-        - workflow
+      - workflow
       summary: Get execution history
       description: Returns the history of executed workflows
       operationId: getHistory
       parameters:
-        - name: max_items
-          in: query
-          description: Maximum number of history items to return
-          required: false
-          schema:
-            type: integer
-            format: int32
+      - name: max_items
+        in: query
+        description: Maximum number of history items to return
+        required: false
+        schema:
+          type: integer
+          format: int32
       responses:
         '200':
           description: Success
@@ -179,7 +181,7 @@ paths:
                   $ref: '#/components/schemas/HistoryItem'
     post:
       tags:
-        - workflow
+      - workflow
       summary: Manage history
       description: Clear history or delete specific items
       operationId: manageHistory
@@ -202,22 +204,21 @@ paths:
       responses:
         '200':
           description: Success
-          
-  /history/{prompt_id}:
+  /api/history/{prompt_id}:
     get:
       tags:
-        - workflow
+      - workflow
       summary: Get specific history item
       description: Returns a specific history item by ID
       operationId: getHistoryItem
       parameters:
-        - name: prompt_id
-          in: path
-          description: ID of the prompt to retrieve
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: prompt_id
+        in: path
+        description: ID of the prompt to retrieve
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         '200':
           description: Success
@@ -225,11 +226,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HistoryItem'
-                
-  /object_info:
+  /api/object_info:
     get:
       tags:
-        - node
+      - node
       summary: Get all node information
       description: Returns information about all available nodes
       operationId: getNodeInfo
@@ -242,21 +242,20 @@ paths:
                 type: object
                 additionalProperties:
                   $ref: '#/components/schemas/NodeInfo'
-                
-  /object_info/{node_class}:
+  /api/object_info/{node_class}:
     get:
       tags:
-        - node
+      - node
       summary: Get specific node information
       description: Returns information about a specific node class
       operationId: getNodeClassInfo
       parameters:
-        - name: node_class
-          in: path
-          description: Name of the node class
-          required: true
-          schema:
-            type: string
+      - name: node_class
+        in: path
+        description: Name of the node class
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: Success
@@ -266,11 +265,10 @@ paths:
                 type: object
                 additionalProperties:
                   $ref: '#/components/schemas/NodeInfo'
-                  
-  /upload/image:
+  /api/upload/image:
     post:
       tags:
-        - image
+      - image
       summary: Upload an image
       description: Uploads an image to the server
       operationId: uploadImage
@@ -290,7 +288,10 @@ paths:
                   description: Whether to overwrite if file exists (true/false)
                 type:
                   type: string
-                  enum: [input, temp, output]
+                  enum:
+                  - input
+                  - temp
+                  - output
                   description: Type of directory to store the image in
                 subfolder:
                   type: string
@@ -314,11 +315,10 @@ paths:
                     description: Type of directory the image was stored in
         '400':
           description: Bad request
-          
-  /upload/mask:
+  /api/upload/mask:
     post:
       tags:
-        - image
+      - image
       summary: Upload a mask for an image
       description: Uploads a mask image and applies it to a referenced original image
       operationId: uploadMask
@@ -355,49 +355,54 @@ paths:
                     description: Type of directory the mask was stored in
         '400':
           description: Bad request
-          
-  /view:
+  /api/view:
     get:
       tags:
-        - image
+      - image
       summary: View an image
       description: Retrieves an image from the server
       operationId: viewImage
       parameters:
-        - name: filename
-          in: query
-          description: Name of the file to retrieve
-          required: true
-          schema:
-            type: string
-        - name: type
-          in: query
-          description: Type of directory to retrieve from
-          required: false
-          schema:
-            type: string
-            enum: [input, temp, output]
-            default: output
-        - name: subfolder
-          in: query
-          description: Subfolder to retrieve from
-          required: false
-          schema:
-            type: string
-        - name: preview
-          in: query
-          description: Preview options (format;quality)
-          required: false
-          schema:
-            type: string
-        - name: channel
-          in: query
-          description: Channel to retrieve (rgb, a, rgba)
-          required: false
-          schema:
-            type: string
-            enum: [rgb, a, rgba]
-            default: rgba
+      - name: filename
+        in: query
+        description: Name of the file to retrieve
+        required: true
+        schema:
+          type: string
+      - name: type
+        in: query
+        description: Type of directory to retrieve from
+        required: false
+        schema:
+          type: string
+          enum:
+          - input
+          - temp
+          - output
+          default: output
+      - name: subfolder
+        in: query
+        description: Subfolder to retrieve from
+        required: false
+        schema:
+          type: string
+      - name: preview
+        in: query
+        description: Preview options (format;quality)
+        required: false
+        schema:
+          type: string
+      - name: channel
+        in: query
+        description: Channel to retrieve (rgb, a, rgba)
+        required: false
+        schema:
+          type: string
+          enum:
+          - rgb
+          - a
+          - rgba
+          default: rgba
       responses:
         '200':
           description: Success
@@ -410,27 +415,26 @@ paths:
           description: Bad request
         '404':
           description: File not found
-          
-  /view_metadata/{folder_name}:
+  /api/view_metadata/{folder_name}:
     get:
       tags:
-        - model
+      - model
       summary: View model metadata
       description: Retrieves metadata from a safetensors file
       operationId: viewModelMetadata
       parameters:
-        - name: folder_name
-          in: path
-          description: Name of the model folder
-          required: true
-          schema:
-            type: string
-        - name: filename
-          in: query
-          description: Name of the safetensors file
-          required: true
-          schema:
-            type: string
+      - name: folder_name
+        in: path
+        description: Name of the model folder
+        required: true
+        schema:
+          type: string
+      - name: filename
+        in: query
+        description: Name of the safetensors file
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: Success
@@ -440,11 +444,10 @@ paths:
                 type: object
         '404':
           description: File not found
-          
-  /models:
+  /api/models:
     get:
       tags:
-        - model
+      - model
       summary: Get model types
       description: Returns a list of available model types
       operationId: getModelTypes
@@ -457,21 +460,20 @@ paths:
                 type: array
                 items:
                   type: string
-                  
-  /models/{folder}:
+  /api/models/{folder}:
     get:
       tags:
-        - model
+      - model
       summary: Get models of a specific type
       description: Returns a list of available models of a specific type
       operationId: getModels
       parameters:
-        - name: folder
-          in: path
-          description: Model type folder
-          required: true
-          schema:
-            type: string
+      - name: folder
+        in: path
+        description: Model type folder
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: Success
@@ -483,11 +485,10 @@ paths:
                   type: string
         '404':
           description: Folder not found
-          
-  /embeddings:
+  /api/embeddings:
     get:
       tags:
-        - model
+      - model
       summary: Get embeddings
       description: Returns a list of available embeddings
       operationId: getEmbeddings
@@ -500,11 +501,10 @@ paths:
                 type: array
                 items:
                   type: string
-                  
-  /extensions:
+  /api/extensions:
     get:
       tags:
-        - system
+      - system
       summary: Get extensions
       description: Returns a list of available extensions
       operationId: getExtensions
@@ -517,11 +517,10 @@ paths:
                 type: array
                 items:
                   type: string
-                  
-  /system_stats:
+  /api/system_stats:
     get:
       tags:
-        - system
+      - system
       summary: Get system statistics
       description: Returns system information including RAM, VRAM, and ComfyUI version
       operationId: getSystemStats
@@ -532,31 +531,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SystemStats'
-                
-  /ws:
+  /api/ws:
     get:
       tags:
-        - workflow
+      - workflow
       summary: WebSocket connection
-      description: |
-        Establishes a WebSocket connection for real-time communication.
-        This endpoint is used for receiving progress updates, status changes, and results from workflow executions.
+      description: 'Establishes a WebSocket connection for real-time communication.
+
+        This endpoint is used for receiving progress updates, status changes, and
+        results from workflow executions.
+
+        '
       operationId: webSocketConnect
       parameters:
-        - name: clientId
-          in: query
-          description: Optional client ID for reconnection
-          required: false
-          schema:
-            type: string
+      - name: clientId
+        in: query
+        description: Optional client ID for reconnection
+        required: false
+        schema:
+          type: string
       responses:
         '101':
           description: Switching Protocols to WebSocket
-          
   /internal/logs:
     get:
       tags:
-        - internal
+      - internal
       summary: Get logs
       description: Returns system logs as a single string
       operationId: getLogs
@@ -567,11 +567,10 @@ paths:
             application/json:
               schema:
                 type: string
-                
   /internal/logs/raw:
     get:
       tags:
-        - internal
+      - internal
       summary: Get raw logs
       description: Returns raw system logs with terminal size information
       operationId: getRawLogs
@@ -603,11 +602,10 @@ paths:
                       rows:
                         type: integer
                         description: Terminal rows
-                        
   /internal/logs/subscribe:
     patch:
       tags:
-        - internal
+      - internal
       summary: Subscribe to logs
       description: Subscribe or unsubscribe to log updates
       operationId: subscribeToLogs
@@ -627,11 +625,10 @@ paths:
       responses:
         '200':
           description: Success
-          
   /internal/folder_paths:
     get:
       tags:
-        - internal
+      - internal
       summary: Get folder paths
       description: Returns a map of folder names to their paths
       operationId: getFolderPaths
@@ -644,22 +641,24 @@ paths:
                 type: object
                 additionalProperties:
                   type: string
-                  
   /internal/files/{directory_type}:
     get:
       tags:
-        - internal
+      - internal
       summary: Get files
       description: Returns a list of files in a specific directory type
       operationId: getFiles
       parameters:
-        - name: directory_type
-          in: path
-          description: Type of directory (output, input, temp)
-          required: true
-          schema:
-            type: string
-            enum: [output, input, temp]
+      - name: directory_type
+        in: path
+        description: Type of directory (output, input, temp)
+        required: true
+        schema:
+          type: string
+          enum:
+          - output
+          - input
+          - temp
       responses:
         '200':
           description: Success
@@ -671,13 +670,12 @@ paths:
                   type: string
         '400':
           description: Invalid directory type
-
 components:
   schemas:
     PromptRequest:
       type: object
       required:
-        - prompt
+      - prompt
       properties:
         prompt:
           type: object
@@ -696,7 +694,6 @@ components:
         client_id:
           type: string
           description: Client ID for attribution of the prompt
-          
     PromptResponse:
       type: object
       properties:
@@ -711,7 +708,6 @@ components:
           type: object
           description: Any errors in the nodes of the prompt
           additionalProperties: true
-          
     ErrorResponse:
       type: object
       properties:
@@ -735,7 +731,6 @@ components:
           type: object
           description: Node-specific errors
           additionalProperties: true
-          
     PromptInfo:
       type: object
       properties:
@@ -745,7 +740,6 @@ components:
             queue_remaining:
               type: integer
               description: Number of items remaining in the queue
-              
     QueueInfo:
       type: object
       properties:
@@ -761,7 +755,6 @@ components:
             type: object
             description: Pending items in the queue
             additionalProperties: true
-            
     HistoryItem:
       type: object
       properties:
@@ -781,7 +774,6 @@ components:
           type: object
           description: Output data from the execution
           additionalProperties: true
-        
     NodeInfo:
       type: object
       properties:
@@ -843,7 +835,6 @@ components:
         api_node:
           type: boolean
           description: Whether this is an API node
-          
     SystemStats:
       type: object
       properties:

@@ -77,12 +77,12 @@ def test_endpoints_exist(all_endpoints: List[Dict[str, Any]]):
 
 
 @pytest.mark.parametrize("endpoint_path", [
-    "/",                # Root path
-    "/prompt",          # Get prompt info
-    "/queue",           # Get queue
-    "/models",          # Get model types
-    "/object_info",     # Get node info
-    "/system_stats"     # Get system stats
+    "/",                  # Root path (doesn't have /api prefix)
+    "/api/prompt",        # Get prompt info
+    "/api/queue",         # Get queue
+    "/api/models",        # Get model types
+    "/api/object_info",   # Get node info
+    "/api/system_stats"   # Get system stats
 ])
 def test_basic_get_endpoints(require_server, api_client, endpoint_path: str):
     """
@@ -116,7 +116,7 @@ def test_websocket_endpoint_exists(require_server, base_url: str):
         require_server: Fixture that skips if server is not available
         base_url: Base server URL
     """
-    # WebSocket endpoint uses /api prefix
+    # WebSocket endpoint path from OpenAPI spec
     ws_url = urljoin(base_url, "/api/ws")
 
     # For WebSocket, we can't use a normal GET request
@@ -143,7 +143,7 @@ def test_api_models_folder_endpoint(require_server, api_client):
         api_client: API client fixture
     """
     # First get available model types
-    models_url = api_client.get_url("/models")  # type: ignore
+    models_url = api_client.get_url("/api/models")  # type: ignore
 
     try:
         models_response = api_client.get(models_url)
@@ -157,14 +157,14 @@ def test_api_models_folder_endpoint(require_server, api_client):
 
         # Test with the first model type
         model_type = model_types[0]
-        models_folder_url = api_client.get_url(f"/models/{model_type}")  # type: ignore
+        models_folder_url = api_client.get_url(f"/api/models/{model_type}")  # type: ignore
 
         folder_response = api_client.get(models_folder_url)
 
         # We're just checking that the endpoint exists
-        assert folder_response.status_code != 404, f"Endpoint /models/{model_type} does not exist"
+        assert folder_response.status_code != 404, f"Endpoint /api/models/{model_type} does not exist"
 
-        logger.info(f"Endpoint /models/{model_type} exists with status code {folder_response.status_code}")
+        logger.info(f"Endpoint /api/models/{model_type} exists with status code {folder_response.status_code}")
 
     except requests.RequestException as e:
         pytest.fail(f"Request failed: {str(e)}")
@@ -181,7 +181,7 @@ def test_api_object_info_node_endpoint(require_server, api_client):
         api_client: API client fixture
     """
     # First get available node classes
-    objects_url = api_client.get_url("/object_info")  # type: ignore
+    objects_url = api_client.get_url("/api/object_info")  # type: ignore
 
     try:
         objects_response = api_client.get(objects_url)
@@ -195,14 +195,14 @@ def test_api_object_info_node_endpoint(require_server, api_client):
 
         # Test with the first node class
         node_class = next(iter(node_classes.keys()))
-        node_url = api_client.get_url(f"/object_info/{node_class}")  # type: ignore
+        node_url = api_client.get_url(f"/api/object_info/{node_class}")  # type: ignore
 
         node_response = api_client.get(node_url)
 
         # We're just checking that the endpoint exists
-        assert node_response.status_code != 404, f"Endpoint /object_info/{node_class} does not exist"
+        assert node_response.status_code != 404, f"Endpoint /api/object_info/{node_class} does not exist"
 
-        logger.info(f"Endpoint /object_info/{node_class} exists with status code {node_response.status_code}")
+        logger.info(f"Endpoint /api/object_info/{node_class} exists with status code {node_response.status_code}")
 
     except requests.RequestException as e:
         pytest.fail(f"Request failed: {str(e)}")
