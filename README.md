@@ -97,7 +97,7 @@ If coming from the very start, you need :
     *  (new hip addon for zluda 3.9.5 : (https://drive.google.com/file/d/1Gvg3hxNEj2Vsd2nQgwadrUEY6dYXy0H9/view?usp=sharing))
     *  (Alternative source for hip addon for zluda 3.9.5 : (https://www.mediafire.com/file/ooawc9s34sazerr/HIP-SDK-extension(zluda395).zip/file))
      
-6. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
+6. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu (NOTE : Besides those older gpu's the newest gfx1200 and gfx1201 aka 9070 - 9070xt STILL requires libraries because amd didn't add support for them in the 6.2.4 . In the future they %100 would but using 6.2.4 those gpu's also need libraries - from likelovewant libs)
 
 - from [Brknsoul Repository](https://github.com/brknsoul/ROCmLibs) (for hip 5.7.1)
 
