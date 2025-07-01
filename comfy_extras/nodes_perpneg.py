@@ -4,6 +4,7 @@ import comfy.sampler_helpers
 import comfy.samplers
 import comfy.utils
 import node_helpers
+import math
 
 def perp_neg(x, noise_pred_pos, noise_pred_neg, noise_pred_nocond, neg_scale, cond_scale):
     pos = noise_pred_pos - noise_pred_nocond
@@ -68,6 +69,12 @@ class Guider_PerpNeg(comfy.samplers.CFGGuider):
         positive_cond = self.conds.get("positive", None)
         negative_cond = self.conds.get("negative", None)
         empty_cond = self.conds.get("empty_negative_prompt", None)
+
+        if model_options.get("disable_cfg1_optimization", False) == False:
+            if math.isclose(self.neg_scale, 0.0):
+                negative_cond = None
+                if math.isclose(self.cfg, 1.0):
+                    empty_cond = None
 
         conds = [positive_cond, negative_cond, empty_cond]
 
