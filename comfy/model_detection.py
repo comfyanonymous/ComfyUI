@@ -459,6 +459,26 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         return dit_config
 
+    if '{}time_caption_embed.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys:  # Omnigen2
+        dit_config = {}
+        dit_config["image_model"] = "omnigen2"
+        dit_config["axes_dim_rope"] = [40, 40, 40]
+        dit_config["axes_lens"] = [1024, 1664, 1664]
+        dit_config["ffn_dim_multiplier"] = None
+        dit_config["hidden_size"] = 2520
+        dit_config["in_channels"] = 16
+        dit_config["multiple_of"] = 256
+        dit_config["norm_eps"] = 1e-05
+        dit_config["num_attention_heads"] = 21
+        dit_config["num_kv_heads"] = 7
+        dit_config["num_layers"] = 32
+        dit_config["num_refiner_layers"] = 2
+        dit_config["out_channels"] = None
+        dit_config["patch_size"] = 2
+        dit_config["text_feat_dim"] = 2048
+        dit_config["timestep_scale"] = 1000.0
+        return dit_config
+
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
 
