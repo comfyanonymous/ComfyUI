@@ -5,6 +5,7 @@ import os
 import importlib.util
 import folder_paths
 import time
+import datetime
 from comfy.cli_args import args
 from app.logger import setup_logger
 import itertools
@@ -185,6 +186,7 @@ def prompt_worker(q, server_instance):
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
+            print(datetime.datetime.now(), "execution_time", execution_time)
 
             # Log Time in a more readable way after 10 minutes
             if execution_time > 600:

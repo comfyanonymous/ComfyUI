@@ -2,6 +2,7 @@ import os
 import sys
 import asyncio
 import traceback
+import datetime
 
 import nodes
 import folder_paths
@@ -764,6 +765,8 @@ class PromptServer():
         return prompt_info
 
     async def send(self, event, data, sid=None):
+        if event == "executed":
+            print(datetime.datetime.now(), "server send ", event, data, sid)
         if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
             await self.send_image(data, sid=sid)
         elif isinstance(data, (bytes, bytearray)):
@@ -825,6 +828,8 @@ class PromptServer():
             await send_socket_catch_exception(self.sockets[sid].send_json, message)
 
     def send_sync(self, event, data, sid=None):
+        if event == "executed":
+            print(datetime.datetime.now(), "send_sync", event, data, sid)
         self.loop.call_soon_threadsafe(
             self.messages.put_nowait, (event, data, sid))
 
@@ -834,6 +839,8 @@ class PromptServer():
     async def publish_loop(self):
         while True:
             msg = await self.messages.get()
+            if msg[0] == "executed":
+                print(datetime.datetime.now(), "publish_loop send ", msg)
             await self.send(*msg)
 
     async def start(self, address, port, verbose=True, call_on_start=None):

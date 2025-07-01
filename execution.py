@@ -5,6 +5,7 @@ import logging
 import sys
 import threading
 import time
+import datetime
 import traceback
 from enum import Enum
 from typing import List, Literal, NamedTuple, Optional
@@ -290,6 +291,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
     if caches.outputs.get(unique_id) is not None:
         if server.client_id is not None:
             cached_output = caches.ui.get(unique_id) or {}
+            print(datetime.datetime.now(), "send cached executed", prompt_id, unique_id, display_node_id, cached_output.get("output",None))
             server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": cached_output.get("output",None), "prompt_id": prompt_id }, server.client_id)
         return (ExecutionResult.SUCCESS, None, None)
 
@@ -370,6 +372,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                 "output": output_ui
             })
             if server.client_id is not None:
+                print(datetime.datetime.now(), "send executed", prompt_id, unique_id, display_node_id)
                 server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
         if has_subgraph:
             cached_outputs = []
