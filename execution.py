@@ -343,7 +343,17 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     input_data_all = None
     try:
         if unique_id in pending_async_nodes:
-            results = [r.result() if isinstance(r, asyncio.Task) else r for r in pending_async_nodes[unique_id]]
+            results = []
+            for r in pending_async_nodes[unique_id]:
+                if isinstance(r, asyncio.Task):
+                    try:
+                        results.append(r.result())
+                    except Exception as ex:
+                        # An async task failed - propagate the exception up
+                        del pending_async_nodes[unique_id]
+                        raise ex
+                else:
+                    results.append(r)
             del pending_async_nodes[unique_id]
             output_data, output_ui, has_subgraph = get_output_from_returns(results, class_def)
         elif unique_id in pending_subgraph_results:
@@ -418,7 +428,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 unblock = execution_list.add_external_block(unique_id)
                 async def await_completion():
                     tasks = [x for x in output_data if isinstance(x, asyncio.Task)]
-                    await asyncio.gather(*tasks)
+                    await asyncio.gather(*tasks, return_exceptions=True)
                     unblock()
                 asyncio.create_task(await_completion())
                 return (ExecutionResult.PENDING, None, None)
