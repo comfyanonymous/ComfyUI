@@ -152,7 +152,7 @@ class ImageColorToMask:
     def image_to_mask(self, image, color):
         temp = (torch.clamp(image, 0, 1.0) * 255.0).round().to(torch.int)
         temp = torch.bitwise_left_shift(temp[:,:,:,0], 16) + torch.bitwise_left_shift(temp[:,:,:,1], 8) + temp[:,:,:,2]
-        mask = torch.where(temp == color, 255, 0).float()
+        mask = torch.where(temp == color, 1.0, 0).float()
         return (mask,)
 
 class SolidMask:
