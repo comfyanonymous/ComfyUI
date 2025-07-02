@@ -2,6 +2,7 @@ import math
 import comfy.samplers
 import comfy.sample
 from comfy.k_diffusion import sampling as k_diffusion_sampling
+from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict
 import latent_preview
 import torch
 import comfy.utils
@@ -480,6 +481,46 @@ class SamplerDPMAdaptative:
                                                               "s_noise":s_noise })
         return (sampler, )
 
+
+class SamplerER_SDE(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypeDict:
+        return {
+            "required": {
+                "solver_type": (IO.COMBO, {"options": ["ER-SDE", "Reverse-time SDE", "ODE"]}),
+                "max_stage": (IO.INT, {"default": 3, "min": 1, "max": 3}),
+                "eta": (
+                    IO.FLOAT,
+                    {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.01, "round": False, "tooltip": "Stochastic strength of reverse-time SDE.\nWhen eta=0, it reduces to deterministic ODE. This setting doesn't apply to ER-SDE solver type."},
+                ),
+                "s_noise": (IO.FLOAT, {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.01, "round": False}),
+            }
+        }
+
+    RETURN_TYPES = (IO.SAMPLER,)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, solver_type, max_stage, eta, s_noise):
+        if solver_type == "ODE" or (solver_type == "Reverse-time SDE" and eta == 0):
+            eta = 0
+            s_noise = 0
+
+        def reverse_time_sde_noise_scaler(x):
+            return x ** (eta + 1)
+
+        if solver_type == "ER-SDE":
+            # Use the default one in sample_er_sde()
+            noise_scaler = None
+        else:
+            noise_scaler = reverse_time_sde_noise_scaler
+
+        sampler_name = "er_sde"
+        sampler = comfy.samplers.ksampler(sampler_name, {"s_noise": s_noise, "noise_scaler": noise_scaler, "max_stage": max_stage})
+        return (sampler,)
+
+
 class Noise_EmptyNoise:
     def __init__(self):
         self.seed = 0
@@ -787,6 +828,7 @@ NODE_CLASS_MAPPINGS = {
     "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
     "SamplerDPMPP_2S_Ancestral": SamplerDPMPP_2S_Ancestral,
     "SamplerDPMAdaptative": SamplerDPMAdaptative,
+    "SamplerER_SDE": SamplerER_SDE,
     "SplitSigmas": SplitSigmas,
     "SplitSigmasDenoise": SplitSigmasDenoise,
     "FlipSigmas": FlipSigmas,
