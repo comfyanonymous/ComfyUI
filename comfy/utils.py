@@ -965,7 +965,6 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
         positions = [range(0, s.shape[d + 2] - overlap[d], tile[d] - overlap[d])
                      if s.shape[d + 2] > tile[d] else [0] for d in range(dims)]
         all_positions = list(itertools.product(*positions))
-        total_positions = len(all_positions)
 
         if is_data_parallel:
             target_tile_size = (tile[0], tile[1])  # H, W
