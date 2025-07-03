@@ -1197,10 +1197,15 @@ class Omnigen2(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.Flux
 
-    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
     vae_key_prefix = ["vae."]
     text_encoder_key_prefix = ["text_encoders."]
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        if comfy.model_management.extended_fp16_support():
+            self.supported_inference_dtypes = [torch.float16] + self.supported_inference_dtypes
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Omnigen2(self, device=device)

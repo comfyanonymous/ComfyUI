@@ -373,7 +373,11 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
         uncond_ = uncond
 
     conds = [cond, uncond_]
-    out = calc_cond_batch(model, conds, x, timestep, model_options)
+    if "sampler_calc_cond_batch_function" in model_options:
+        args = {"conds": conds, "input": x, "sigma": timestep, "model": model, "model_options": model_options}
+        out = model_options["sampler_calc_cond_batch_function"](args)
+    else:
+        out = calc_cond_batch(model, conds, x, timestep, model_options)
 
     for fn in model_options.get("sampler_pre_cfg_function", []):
         args = {"conds":conds, "conds_out": out, "cond_scale": cond_scale, "timestep": timestep,
@@ -1039,13 +1043,13 @@ class SchedulerHandler(NamedTuple):
     use_ms: bool = True
 
 SCHEDULER_HANDLERS = {
-    "normal": SchedulerHandler(normal_scheduler),
+    "simple": SchedulerHandler(simple_scheduler),
+    "sgm_uniform": SchedulerHandler(partial(normal_scheduler, sgm=True)),
     "karras": SchedulerHandler(k_diffusion_sampling.get_sigmas_karras, use_ms=False),
     "exponential": SchedulerHandler(k_diffusion_sampling.get_sigmas_exponential, use_ms=False),
-    "sgm_uniform": SchedulerHandler(partial(normal_scheduler, sgm=True)),
-    "simple": SchedulerHandler(simple_scheduler),
     "ddim_uniform": SchedulerHandler(ddim_scheduler),
     "beta": SchedulerHandler(beta_scheduler),
+    "normal": SchedulerHandler(normal_scheduler),
     "linear_quadratic": SchedulerHandler(linear_quadratic_schedule),
     "kl_optimal": SchedulerHandler(kl_optimal_scheduler, use_ms=False),
 }

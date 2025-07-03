@@ -816,6 +816,7 @@ class PixArt(BaseModel):
 class Flux(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None, unet_model=comfy.ldm.flux.model.Flux):
         super().__init__(model_config, model_type, device=device, unet_model=unet_model)
+        self.memory_usage_factor_conds = ("ref_latents",)
 
     def concat_cond(self, **kwargs):
         try:
@@ -876,7 +877,22 @@ class Flux(BaseModel):
         guidance = kwargs.get("guidance", 3.5)
         if guidance is not None:
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
+
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            latents = []
+            for lat in ref_latents:
+                latents.append(self.process_latent_in(lat))
+            out['ref_latents'] = comfy.conds.CONDList(latents)
         return out
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+        return out
+
 
 class GenmoMochi(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
