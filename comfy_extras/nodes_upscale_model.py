@@ -87,14 +87,18 @@ class ImageUpscaleWithModel:
                 pbar = comfy.utils.ProgressBar(steps)
                 s = comfy.utils.tiled_scale(in_img, parallel_model, tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar, output_device=device)
                 oom = False
+            except torch.OutOfMemoryError as e:
+                tile //= 2
+                if tile < 128:
+                    raise e
             except model_management.OOM_EXCEPTION as e:
                 tile //= 2
                 if tile < 128:
                     raise e
 
         upscale_model.to("cpu")
-        s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0)
         s.to("cpu")
+        s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0)
         return (s,)
 
 NODE_CLASS_MAPPINGS = {
