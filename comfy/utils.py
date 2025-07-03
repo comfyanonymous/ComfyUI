@@ -873,7 +873,6 @@ def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
     cols = 1 if width <= tile_x else math.ceil((width - overlap) / (tile_x - overlap))
     return rows * cols
 
-
 @torch.inference_mode()
 def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_amount=4,
                          out_channels=3, output_device="cpu", downscale=False,
@@ -889,18 +888,15 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
         index_formulas = [index_formulas] * dims
 
     def pad_to_size(tensor, target_size):
-        """
-        Pad tensor to target_size (C, H, W) with zeros
-        """
         c, h, w = tensor.shape[-3:]
         pad_h = max(target_size[0] - h, 0)
         pad_w = max(target_size[1] - w, 0)
         if pad_h == 0 and pad_w == 0:
-            return tensor, (0, 0, 0, 0)
+            return tensor, (0, 0, 0, 0)  # (left, right, top, bottom)
 
-        padding = [0, pad_w, 0, pad_h]  # left, right, top, bottom
+        padding = [0, pad_w, 0, pad_h]  # [left, right, top, bottom]
         padded = torch.nn.functional.pad(tensor, padding, mode='constant', value=0)
-        return padded, (0, 0, pad_h, pad_w)
+        return padded, (0, pad_w, 0, pad_h)  # 明确返回 (left, right, top, bottom)
 
     def get_upscale(dim, val):
         up = upscale_amount[dim]
@@ -949,7 +945,6 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
 
     for b in range(samples.shape[0]):
         s = samples[b:b + 1]
-        # handle entire input fitting in a single tile
         if all(s.shape[d + 2] <= tile[d] for d in range(dims)):
             with torch.no_grad():
                 output[b:b + 1] = function(s).to(output_device)
@@ -992,11 +987,13 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
                 batched_output = function(batched_input).to(output_device)
 
             for idx, upscaled in enumerate(positions_list):
-                ps = batched_output[idx:idx + 1]
+                ps = batched_output[idx:idx+1]
+                left_pad, right_pad, top_pad, bottom_pad = pad_info_list[idx]
 
-                pad_t, pad_b, pad_l, pad_r = pad_info_list[idx]
-                if pad_t > 0 or pad_b > 0 or pad_l > 0 or pad_r > 0:
-                    ps = ps[..., pad_t:ps.shape[-2] - pad_b, pad_l:ps.shape[-1] - pad_r]
+                if any(x > 0 for x in (left_pad, right_pad, top_pad, bottom_pad)):
+                    ps = ps[...,
+                          top_pad:ps.shape[-2] - bottom_pad,
+                          left_pad:ps.shape[-1] - right_pad]
 
                 mask = torch.ones_like(ps)
 
@@ -1074,7 +1071,6 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
             output[b:b + 1] = out / out_div
 
     return output
-
 
 def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
     return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=output_device, pbar=pbar)
