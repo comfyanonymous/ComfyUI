@@ -27,6 +27,7 @@ from PIL import Image
 import logging
 import itertools
 from torch.nn.functional import interpolate
+from torch.nn import DataParallel
 from einops import rearrange
 from comfy.cli_args import args
 
