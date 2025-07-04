@@ -1,10 +1,12 @@
 from __future__ import annotations
-from typing import Any, Literal, TYPE_CHECKING, TypeVar, Callable, Optional, cast, TypedDict, NotRequired
+from typing import Any, Literal, TYPE_CHECKING, TypeVar, Callable, Optional, cast, TypedDict
+from typing_extensions import NotRequired
 from enum import Enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from collections import Counter
 from comfy_api.v3.resources import Resources, ResourcesLocal
+import copy
 # used for type hinting
 import torch
 from spandrel import ImageModelDescriptor
@@ -189,17 +191,19 @@ class WidgetInputV3(InputV3):
     '''
     def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: Any=None,
-                 socketless: bool=None, widgetType: str=None, extra_dict=None):
+                 socketless: bool=None, widgetType: str=None, extra_dict=None, force_input: bool=None):
         super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
         self.default = default
         self.socketless = socketless
         self.widgetType = widgetType
+        self.force_input = force_input
     
     def as_dict_V1(self):
         return super().as_dict_V1() | prune_dict({
             "default": self.default,
             "socketless": self.socketless,
             "widgetType": self.widgetType,
+            "forceInput": self.force_input,
         })
     
     def get_io_type_V1(self):
@@ -754,43 +758,68 @@ class MultiType:
             else:
                 return super().as_dict_V1()
 
-class DynamicInput(InputV3):
+class DynamicInput(InputV3, ABC):
     '''
     Abstract class for dynamic input registration.
     '''
-    def __init__(self, io_type: str, id: str, display_name: str=None):
-        super().__init__(io_type, id, display_name)
+    @abstractmethod
+    def get_dynamic(self) -> list[InputV3]:
+        ...
 
-class DynamicOutput(OutputV3):
+class DynamicOutput(OutputV3, ABC):
     '''
     Abstract class for dynamic output registration.
     '''
-    def __init__(self, io_type: str, id: str, display_name: str=None):
-        super().__init__(io_type, id, display_name)
+    @abstractmethod
+    def get_dynamic(self) -> list[OutputV3]:
+        ...
 
-# io_type="COMFY_MULTIGROW_V3"
-class AutoGrowDynamicInput(DynamicInput):
-    '''
-    Dynamic Input that adds another template_input each time one is provided.
 
-    Additional inputs are forced to have 'optional=True'.
-    '''
-    def __init__(self, id: str, template_input: InputV3, min: int=1, max: int=None):
-        super().__init__("AutoGrowDynamicInput", id)
-        self.template_input = template_input
-        if min is not None:
-            assert(min >= 1)
-        if max is not None:
-            assert(max >= 1)
-        self.min = min
-        self.max = max
+@comfytype(io_type="COMFY_AUTOGROW_V3")
+class AutogrowDynamic:
+    Type = list[Any]
+    class Input(DynamicInput):
+        def __init__(self, id: str, template_input: InputV3, min: int=1, max: int=None,
+                     display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
+            self.template_input = template_input
+            if min is not None:
+                assert(min >= 1)
+            if max is not None:
+                assert(max >= 1)
+            self.min = min
+            self.max = max
+
+        def get_dynamic(self) -> list[InputV3]:
+            curr_count = 1
+            new_inputs = []
+            for i in range(self.min):
+                new_input = copy.copy(self.template_input)
+                new_input.id = f"{new_input.id}{curr_count}_${self.id}_ag$"
+                if new_input.display_name is not None:
+                    new_input.display_name = f"{new_input.display_name}{curr_count}"
+                new_input.optional = self.optional or new_input.optional
+                if isinstance(self.template_input, WidgetInputV3):
+                    new_input.force_input = True
+                new_inputs.append(new_input)
+                curr_count += 1
+            # pretend to expand up to max
+            for i in range(curr_count-1, self.max):
+                new_input = copy.copy(self.template_input)
+                new_input.id = f"{new_input.id}{curr_count}_${self.id}_ag$"
+                if new_input.display_name is not None:
+                    new_input.display_name = f"{new_input.display_name}{curr_count}"
+                new_input.optional = True
+                if isinstance(self.template_input, WidgetInputV3):
+                    new_input.force_input = True
+                new_inputs.append(new_input)
+                curr_count += 1
+            return new_inputs
 
 # io_type="COMFY_COMBODYNAMIC_V3"
 class ComboDynamicInput(DynamicInput):
     def __init__(self, id: str):
         pass
-
-AutoGrowDynamicInput(id="dynamic", template_input=Image.Input(id="image"))
 
 
 class HiddenHolder:
@@ -960,6 +989,11 @@ class classproperty(object):
         return self.f(owner)
 
 
+def add_to_dict_v1(i: InputV3, input: dict):
+    key = "optional" if i.optional else "required"
+    input.setdefault(key, {})[i.id] = (i.get_io_type_V1(), i.as_dict_V1())
+
+
 class ComfyNodeV3:
     """Common base class for all V3 nodes."""
 
@@ -1117,8 +1151,12 @@ class ComfyNodeV3:
         }
         if schema.inputs:
             for i in schema.inputs:
-                key = "optional" if i.optional else "required"
-                input.setdefault(key, {})[i.id] = (i.get_io_type_V1(), i.as_dict_V1())
+                if isinstance(i, DynamicInput):
+                    dynamic_inputs = i.get_dynamic()
+                    for d in dynamic_inputs:
+                        add_to_dict_v1(d, input)
+                else:
+                    add_to_dict_v1(i, input)
         if schema.hidden and include_hidden:
             for hidden in schema.hidden:
                 input.setdefault("hidden", {})[hidden.name] = (hidden.value,)

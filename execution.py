@@ -28,7 +28,7 @@ from comfy_execution.graph import (
 )
 from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
-from comfy_api.v3.io import NodeOutput, ComfyNodeV3, Hidden, NodeStateLocal, ResourcesLocal
+from comfy_api.v3.io import NodeOutput, ComfyNodeV3, Hidden, NodeStateLocal, ResourcesLocal, AutogrowDynamic
 
 
 class ExecutionResult(Enum):
@@ -229,6 +229,16 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
                     if obj.local_resources is None:
                         obj.local_resources = ResourcesLocal()
                     class_clone.resources = obj.local_resources
+                # TODO: delete this when done testing mocking dynamic inputs
+                for si in obj.SCHEMA.inputs:
+                    if isinstance(si, AutogrowDynamic.Input):
+                        add_key = si.id
+                        dynamic_list = []
+                        real_inputs = {k: v for k, v in inputs.items()}
+                        for d in si.get_dynamic():
+                            dynamic_list.append(real_inputs.pop(d.id, None))
+                        dynamic_list = [x for x in dynamic_list if x is not None]
+                        inputs = {**real_inputs, add_key: dynamic_list}
                 results.append(getattr(type(obj), func).__func__(class_clone, **inputs))
             # V1
             else:
