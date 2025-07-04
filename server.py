@@ -35,11 +35,7 @@ from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
-
-class BinaryEventTypes:
-    PREVIEW_IMAGE = 1
-    UNENCODED_PREVIEW_IMAGE = 2
-    TEXT = 3
+from protocol import BinaryEventTypes
 
 async def send_socket_catch_exception(function, message):
     try:
@@ -643,7 +639,8 @@ class PromptServer():
 
             if "prompt" in json_data:
                 prompt = json_data["prompt"]
-                valid = execution.validate_prompt(prompt)
+                prompt_id = str(uuid.uuid4())
+                valid = await execution.validate_prompt(prompt_id, prompt)
                 extra_data = {}
                 if "extra_data" in json_data:
                     extra_data = json_data["extra_data"]
@@ -651,7 +648,6 @@ class PromptServer():
                 if "client_id" in json_data:
                     extra_data["client_id"] = json_data["client_id"]
                 if valid[0]:
-                    prompt_id = str(uuid.uuid4())
                     outputs_to_execute = valid[2]
                     self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
@@ -766,6 +762,10 @@ class PromptServer():
     async def send(self, event, data, sid=None):
         if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
             await self.send_image(data, sid=sid)
+        elif event == BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA:
+            # data is (preview_image, metadata)
+            preview_image, metadata = data
+            await self.send_image_with_metadata(preview_image, metadata, sid=sid)
         elif isinstance(data, (bytes, bytearray)):
             await self.send_bytes(event, data, sid)
         else:
@@ -803,6 +803,43 @@ class PromptServer():
         image.save(bytesIO, format=image_type, quality=95, compress_level=1)
         preview_bytes = bytesIO.getvalue()
         await self.send_bytes(BinaryEventTypes.PREVIEW_IMAGE, preview_bytes, sid=sid)
+
+    async def send_image_with_metadata(self, image_data, metadata=None, sid=None):
+        image_type = image_data[0]
+        image = image_data[1]
+        max_size = image_data[2]
+        if max_size is not None:
+            if hasattr(Image, 'Resampling'):
+                resampling = Image.Resampling.BILINEAR
+            else:
+                resampling = Image.Resampling.LANCZOS
+
+            image = ImageOps.contain(image, (max_size, max_size), resampling)
+
+        mimetype = "image/png" if image_type == "PNG" else "image/jpeg"
+
+        # Prepare metadata
+        if metadata is None:
+            metadata = {}
+        metadata["image_type"] = mimetype
+
+        # Serialize metadata as JSON
+        import json
+        metadata_json = json.dumps(metadata).encode('utf-8')
+        metadata_length = len(metadata_json)
+
+        # Prepare image data
+        bytesIO = BytesIO()
+        image.save(bytesIO, format=image_type, quality=95, compress_level=1)
+        image_bytes = bytesIO.getvalue()
+
+        # Combine metadata and image
+        combined_data = bytearray()
+        combined_data.extend(struct.pack(">I", metadata_length))
+        combined_data.extend(metadata_json)
+        combined_data.extend(image_bytes)
+
+        await self.send_bytes(BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA, combined_data, sid=sid)
 
     async def send_bytes(self, event, data, sid=None):
         message = self.encode_bytes(event, data)
