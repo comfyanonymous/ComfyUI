@@ -132,17 +132,17 @@ class ModelFileManager:
                 try:
                     full_path = os.path.join(dirpath, file_name)
                     relative_path = os.path.relpath(full_path, directory)
-                    
+
                     # Get file metadata
                     file_info = {
                         "name": relative_path,
                         "pathIndex": pathIndex,
                         "modified": os.path.getmtime(full_path),  # Add modification time
-                        "created": os.path.getctime(full_path),   # Add creation time  
+                        "created": os.path.getctime(full_path),   # Add creation time
                         "size": os.path.getsize(full_path)        # Add file size
                     }
                     result.append(file_info)
-                    
+
                 except Exception as e:
                     logging.warning(f"Warning: Unable to access {file_name}. Error: {e}. Skipping this file.")
                     continue
