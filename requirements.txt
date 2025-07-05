@@ -18,6 +18,7 @@ Pillow
 scipy
 tqdm
 psutil
+py-cpuinfo
 alembic
 SQLAlchemy
 
