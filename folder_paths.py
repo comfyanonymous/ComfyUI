@@ -141,7 +141,7 @@ def get_directory_by_type(type_name: str) -> str | None:
         return get_input_directory()
     return None
 
-def filter_files_content_types(files: list[str], content_types: List[Literal["image", "video", "audio", "model"]]) -> list[str]:
+def filter_files_content_types(files: list[str], content_types: List[Literal["image", "video", "audio", "model", "text"]]) -> list[str]:
     """
     Example:
         files = os.listdir(folder_paths.get_input_directory())
