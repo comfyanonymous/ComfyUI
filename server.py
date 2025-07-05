@@ -447,7 +447,7 @@ class PromptServer():
 
                     print(f"*** channel: {channel}")
 
-                    if channel == 'rgb':
+                    if channel == 'rgb' or channel == 'rgba':   #TODO test
                         with Image.open(file) as img:
                             if img.mode == "RGBA":
                                 r, g, b, a = img.split()
