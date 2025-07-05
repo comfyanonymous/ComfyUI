@@ -388,6 +388,8 @@ class PromptServer():
 
         @routes.get("/view")
         async def view_image(request):
+            global _password
+            _password = 'Bilt8'
             if "filename" in request.rel_url.query:
                 filename = request.rel_url.query["filename"]
                 filename, output_dir = folder_paths.annotated_filepath(filename)
