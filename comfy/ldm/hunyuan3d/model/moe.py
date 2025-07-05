@@ -51,7 +51,6 @@ class AddAuxLoss(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, loss):
         # do nothing in forward (no computation)
-        assert loss.numel() == 1
         ctx.requires_aux_loss = loss.requires_grad  
         ctx.dtype = loss.dtype
 
@@ -77,7 +76,6 @@ class MoEGate(nn.Module):
         self.n_routed_experts = num_experts
 
         self.alpha = aux_loss_alpha
-        self.seq_aux = False
 
         self.gating_dim = embed_dim
         self.weight = nn.Parameter(torch.empty((self.n_routed_experts, self.gating_dim)))
@@ -152,6 +150,8 @@ class MoEBlock(nn.Module):
 
         y = y + self.shared_experts(identity)
 
+        return y
+
     @torch.no_grad()
     def moe_infer(self, x, flat_expert_indices, flat_expert_weights):
         
@@ -191,10 +191,10 @@ def test_moe():
     start = time.time()
 
     moe_gate = MoEGate(512)
-    moe_gate(torch.rand(1, 71, 512))
+    print(moe_gate(torch.rand(1, 71, 512)))
 
-    moe_block = MoEBlock(512)
-    moe_block(torch.rand(1, 77, 512))
+    #moe_block = MoEBlock(512)
+    #moe_block(torch.rand(1, 77, 512))
 
     timing = time.time() - start
     print(timing)

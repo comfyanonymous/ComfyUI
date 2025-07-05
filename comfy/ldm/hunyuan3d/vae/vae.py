@@ -61,10 +61,14 @@ class VAE(nn.Module):
         qkv_bias: bool = False,
         qk_norm: bool = True,
         drop_path_rate: float = 0.0,
-        include_pi: bool = False
+        include_pi: bool = False,
+        scale_factor: float = 1.0039506158752403
         ):
 
         super().__init__()
+
+        self.latent_shape = (num_latents, embed_dim)
+        self.scale = scale_factor
 
         self.fourier_embedder = FourierEmbedder(num_freq = num_frequencies, include_pi = include_pi)
 
