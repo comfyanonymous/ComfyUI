@@ -439,9 +439,13 @@ class PromptServer():
                                                 headers={"Content-Disposition": f"filename=\"{filename}\""})
 
                     if 'channel' not in request.rel_url.query:
+                        print("*** no channel, rgba")
                         channel = 'rgba'
                     else:
+                        print("*** channel")
                         channel = request.rel_url.query["channel"]
+
+                    print(f"*** channel: {channel}")
 
                     if channel == 'rgb':
                         with Image.open(file) as img:
