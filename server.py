@@ -388,8 +388,6 @@ class PromptServer():
 
         @routes.get("/view")
         async def view_image(request):
-            global _password
-            _password = 'Bilt8'
             if "filename" in request.rel_url.query:
                 filename = request.rel_url.query["filename"]
                 filename, output_dir = folder_paths.annotated_filepath(filename)
@@ -439,15 +437,15 @@ class PromptServer():
                                                 headers={"Content-Disposition": f"filename=\"{filename}\""})
 
                     if 'channel' not in request.rel_url.query:
-                        print("*** no channel, rgba")
+                        # print("*** no channel, rgba")
                         channel = 'rgba'
                     else:
-                        print("*** channel")
+                        # print("*** channel")
                         channel = request.rel_url.query["channel"]
 
-                    print(f"*** channel: {channel}")
-
-                    if channel == 'rgb' or channel == 'rgba':   #TODO test
+                    # print(f"*** channel: {channel}")
+                    #Fixed 2025/7/6, rgba 也使用Image.open..方式，将被自定义解密逻辑handled.
+                    if channel == 'rgb' or channel == 'rgba':
                         with Image.open(file) as img:
                             if img.mode == "RGBA":
                                 r, g, b, a = img.split()
