@@ -21,6 +21,7 @@ class IO(StrEnum):
     """
 
     STRING = "STRING"
+    DICT = "DICT"
     IMAGE = "IMAGE"
     MASK = "MASK"
     LATENT = "LATENT"
