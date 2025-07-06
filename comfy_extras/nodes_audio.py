@@ -321,6 +321,24 @@ class LoadAudio:
             return "Invalid audio file: {}".format(audio)
         return True
 
+class RecordAudio:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"audio": ("AUDIO_RECORD", {})}}
+
+    CATEGORY = "audio"
+
+    RETURN_TYPES = ("AUDIO", )
+    FUNCTION = "load"
+
+    def load(self, audio):
+        audio_path = folder_paths.get_annotated_filepath(audio)
+
+        waveform, sample_rate = torchaudio.load(audio_path)
+        audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
+        return (audio, )
+
+
 NODE_CLASS_MAPPINGS = {
     "EmptyLatentAudio": EmptyLatentAudio,
     "VAEEncodeAudio": VAEEncodeAudio,
@@ -331,6 +349,7 @@ NODE_CLASS_MAPPINGS = {
     "LoadAudio": LoadAudio,
     "PreviewAudio": PreviewAudio,
     "ConditioningStableAudio": ConditioningStableAudio,
+    "RecordAudio": RecordAudio,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -342,4 +361,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveAudio": "Save Audio (FLAC)",
     "SaveAudioMP3": "Save Audio (MP3)",
     "SaveAudioOpus": "Save Audio (Opus)",
+    "RecordAudio": "Record Audio",
 }
