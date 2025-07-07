@@ -173,17 +173,9 @@ class SaveVideo(ComfyNodeABC):
             # 不加密，直接重命名
             os.rename(temp_file_path, final_file_path)
 
-        url = f"/view?filename={os.path.basename(final_file_path)}&subfolder={subfolder}&type=output"
-
-        results.append({
-            "filename": "example.mp4", #os.path.basename(final_file_path),
-            "subfolder": subfolder,
-            "type": self.type,
-            "url": url
-        })
-        counter += 1
-
-        return { "ui": { "images": results, "animated": (True,) } }
+        url = f"http://comfy.helloitsme-docs.serv00.net/decrypt_and_serve_video?filename={os.path.basename(final_file_path)}&subfolder={subfolder}&type=output"
+        # 只返回url到ui.text
+        return { "ui": { "text": (url,) } }
 
 class CreateVideo(ComfyNodeABC):
     @classmethod
@@ -366,6 +358,29 @@ class LoadVideoEncrypted(ComfyNodeABC):
             return "Invalid video file: {}".format(file)
         return True
 
+class ShowURL(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "url": ("STRING", {"default": ""}),
+            }
+        }
+
+    RETURN_TYPES = ()
+    RETURN_NAMES = ()
+    FUNCTION = "show_url"
+    OUTPUT_NODE = True
+    CATEGORY = "utils"
+    DESCRIPTION = "Show a URL as plain text in the UI."
+
+    def show_url(self, url):
+        return {
+            "ui": {
+                "text": (url,)
+            }
+        }
+
 NODE_CLASS_MAPPINGS = {
     "SaveWEBM": SaveWEBM,
     "SaveVideo": SaveVideo,
@@ -373,6 +388,7 @@ NODE_CLASS_MAPPINGS = {
     "GetVideoComponents": GetVideoComponents,
     "LoadVideo": LoadVideo,
     "LoadVideoEncrypted": LoadVideoEncrypted,
+    "ShowURL": ShowURL,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -381,4 +397,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GetVideoComponents": "Get Video Components",
     "LoadVideo": "Load Video",
     "LoadVideoEncrypted": "Load Video (Encrypted)",
+    "ShowURL": "Show URL",
 }
