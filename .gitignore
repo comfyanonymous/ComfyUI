@@ -1,6 +1,5 @@
 __pycache__/
 *.py[cod]
-/output/
 /input/
 !/input/example.png
 /models/
