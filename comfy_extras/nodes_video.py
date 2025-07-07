@@ -173,10 +173,13 @@ class SaveVideo(ComfyNodeABC):
             # 不加密，直接重命名
             os.rename(temp_file_path, final_file_path)
 
+        url = f"/view?filename={os.path.basename(final_file_path)}&subfolder={subfolder}&type=output"
+
         results.append({
             "filename": os.path.basename(final_file_path),
             "subfolder": subfolder,
-            "type": self.type
+            "type": self.type,
+            "url": url
         })
         counter += 1
 
