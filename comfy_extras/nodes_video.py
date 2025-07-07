@@ -371,7 +371,7 @@ class ShowURL(ComfyNodeABC):
     RETURN_NAMES = ()
     FUNCTION = "show_url"
     OUTPUT_NODE = True
-    CATEGORY = "utils"
+    CATEGORY = "image/video"
     DESCRIPTION = "Show a URL as plain text in the UI."
 
     def show_url(self, url):
