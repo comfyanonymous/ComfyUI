@@ -176,7 +176,7 @@ class SaveVideo(ComfyNodeABC):
         url = f"/view?filename={os.path.basename(final_file_path)}&subfolder={subfolder}&type=output"
 
         results.append({
-            "filename": os.path.basename(final_file_path),
+            "filename": "example.mp4", #os.path.basename(final_file_path),
             "subfolder": subfolder,
             "type": self.type,
             "url": url
