@@ -443,7 +443,7 @@ class PromptServer():
                         # print("*** channel")
                         channel = request.rel_url.query["channel"]
 
-                    # print(f"*** channel: {channel}")
+                    print(f"*** channel: {channel}")
                     #Fixed 2025/7/6, rgba 也使用Image.open..方式，将被自定义解密逻辑handled.
                     if channel == 'rgb' or channel == 'rgba':
                         with Image.open(file) as img:
