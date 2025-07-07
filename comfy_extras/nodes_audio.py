@@ -168,6 +168,7 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
 
         frame = av.AudioFrame.from_ndarray(waveform.movedim(0, 1).reshape(1, -1).float().numpy(), format='flt', layout='mono' if waveform.shape[0] == 1 else 'stereo')
         frame.sample_rate = sample_rate
+        frame.pts = 0
         output_container.mux(out_stream.encode(frame))
 
         # Flush encoder
