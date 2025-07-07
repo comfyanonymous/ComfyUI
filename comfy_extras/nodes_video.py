@@ -175,7 +175,7 @@ class SaveVideo(ComfyNodeABC):
 
         url = f'<a href="http://comfy.helloitsme-docs.serv00.net/decrypt_and_serve_video?{final_file_path}" target="_blank">Click to open Video: {final_file_path}</a>'
         # 只返回url到ui.text
-        return (url)
+        return (url,)
 
 class CreateVideo(ComfyNodeABC):
     @classmethod
