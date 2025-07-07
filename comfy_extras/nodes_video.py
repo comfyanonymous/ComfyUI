@@ -395,9 +395,34 @@ class TestURL(ComfyNodeABC):
     CATEGORY = "image/video"
     DESCRIPTION = "Show a URL as plain text in the UI."
 
-    def show_url(self, url):
+    def show_url(self):
         return ("http://aaatesat.com",)
 
+
+class DisplayLinkNode:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "url_string": ("STRING", {"multiline": False, "default": "https://www.example.com"}),
+            },
+            "optional": {
+                "link_text": ("STRING", {"multiline": False, "default": "Click Here"}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "display_link"
+    CATEGORY = "image/video"
+
+    def display_link(self, url_string, link_text):
+        # Create the HTML anchor tag
+        # The target="_blank" attribute opens the link in a new tab
+        html_link = f'<a href="{url_string}" target="_blank">{link_text}</a>'
+        return (html_link,)
 
 NODE_CLASS_MAPPINGS = {
     "SaveWEBM": SaveWEBM,
@@ -408,6 +433,7 @@ NODE_CLASS_MAPPINGS = {
     "LoadVideoEncrypted": LoadVideoEncrypted,
     "ShowURL": ShowURL,
     "TestURL": TestURL,
+    "DisplayLink": DisplayLinkNode
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -418,4 +444,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadVideoEncrypted": "Load Video (Encrypted)",
     "ShowURL": "Show URL",
     "TestURL": "Test URL",
+    "DisplayLink": "Display Link (Custom)"
 }
