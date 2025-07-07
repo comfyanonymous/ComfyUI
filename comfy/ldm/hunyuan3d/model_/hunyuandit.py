@@ -31,7 +31,7 @@ class Timesteps(nn.Module):
 
     def forward(self, timesteps: torch.Tensor):
 
-        x = timesteps.float().unsqueeze(1) * self.inv_freq.unsqueeze(0)
+        x = timesteps.float().unsqueeze(1) * self.inv_freq.to(timesteps.device).unsqueeze(0)
         
         # scale factor
         if self.scale != 1.0:
@@ -73,7 +73,7 @@ class TimestepEmbedder(nn.Module):
             cond_embed = self.cond_proj(condition)
             timestep_embed = timestep_embed + cond_embed
 
-        time_conditioned = self.mlp(timestep_embed)
+        time_conditioned = self.mlp(timestep_embed.to(self.mlp[0].weight.device))
 
         # for broadcasting with image tokens
         return time_conditioned.unsqueeze(1) 

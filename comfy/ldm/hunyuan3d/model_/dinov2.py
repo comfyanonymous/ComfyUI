@@ -21,6 +21,8 @@ class DinoConfig():
     qkv_bias: bool = True
     layerscale_value: float =  1.0
     drop_path_rate: float =  0.0
+    device: str = "cuda"
+    dtype = torch.float16
 
 class Dinov2Embeddings(nn.Module):
     """
@@ -372,6 +374,8 @@ class Dinov2Model(nn.Module):
 
         self.embeddings = Dinov2Embeddings(config)
         self.encoder = Dinov2Encoder(config)
+        self.device = config.device
+        self.dtype = config.dtype
 
         self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
@@ -391,7 +395,7 @@ class Dinov2Model(nn.Module):
             embedding_output,
             head_mask = head_mask,
         )
-        sequence_output = encoder_outputs[0]
+        sequence_output = encoder_outputs
         sequence_output = self.layernorm(sequence_output)
 
         return sequence_output

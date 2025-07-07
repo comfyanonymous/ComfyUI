@@ -1,13 +1,18 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dinov2 import Dinov2Model, DinoConfig
+from dinov2 import DinoConfig, Dinov2Model
 
 # avoid using torchvision by recreating image processing functions
 
 def resize(img: torch.Tensor, size: int) -> torch.Tensor:
+    
+    batched = img.ndim == 4
 
-    _, h, w = img.shape
+    if not batched:
+        img = img.unsqueeze(0)
+        
+    _, _, h, w = img.shape
 
     # mantain aspect ratio
     if h < w:
@@ -17,18 +22,31 @@ def resize(img: torch.Tensor, size: int) -> torch.Tensor:
         new_w = size
         new_h = int(h * size / w)
     
-    img = img.unsqueeze(0) 
     img = F.interpolate(img, size = (new_h, new_w), mode = 'bilinear', align_corners = False, antialias = True ) 
-    return img.squeeze(0)
+
+    if not batched:
+        img = img.squeeze(0)
+        
+    return img
 
 
 def center_crop(img: torch.Tensor, size: int) -> torch.Tensor:
 
-    _, h, w = img.shape
+    batched = img.ndim == 4
+    if not batched:
+        img = img.unsqueeze(0)
+    
+    _, _, h, w = img.shape
     top = (h - size) // 2
     left = (w - size) // 2
 
-    return img[:, top:top + size, left:left + size]
+        
+    cropped = img[..., top:top + size, left:left + size]
+
+    if not batched:
+        cropped = cropped.squeeze(0)
+
+    return cropped
 
 def normalize(img: torch.Tensor, mean: list, std: list) -> torch.Tensor:
 
@@ -47,8 +65,8 @@ class ImageEncoder(nn.Module):
     def __init__(
         self,
         config: DinoConfig,
-        use_cls_token=True,
-        image_size=224,
+        use_cls_token = True,
+        image_size = 518,
         **kwargs,
     ):
         super().__init__()
@@ -77,15 +95,16 @@ class ImageEncoder(nn.Module):
 
     def forward(self, image, value_range=(-1, 1), **kwargs):
 
+        if image.ndim == 3:
+            image = image.unsqueeze(0)
+
         if value_range is not None:
             low, high = value_range
             image = (image - low) / (high - low)
 
-        image = image.to(self.model.device, dtype=self.model.dtype)
         inputs = self.transform(image)
-        outputs = self.model(inputs)
-
-        last_hidden_state = outputs.last_hidden_state
+        inputs = inputs.to(self.model.device, dtype=self.model.dtype)
+        last_hidden_state = self.model(inputs)
 
         if not self.use_cls_token:
             last_hidden_state = last_hidden_state[:, 1:, :]
@@ -101,16 +120,16 @@ class ImageEncoder(nn.Module):
             batch_size,
             self.num_patches,
             self.model.config.hidden_size,
-            device=device,
-            dtype=dtype,
+            device = device,
+            dtype = dtype,
         )
 
         return zero
     
 class SingleImageEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, config):
         super().__init__()
-        self.main_image_encoder = ImageEncoder()
+        self.main_image_encoder = ImageEncoder(config)
 
     def forward(self, image, **kwargs):
         outputs = {
@@ -124,22 +143,22 @@ class SingleImageEncoder(nn.Module):
         }
         return outputs
     
-def load_dino2(dino2: Dinov2Model):
-
-    checkpoint = ""
-    dino2.load_state_dict(torch.load(checkpoint))
-    return dino2
-    
 def test_image_encoder():
 
     torch.manual_seed(2025)
-    image_encoder = SingleImageEncoder()
+    config = DinoConfig()
+    image_encoder = SingleImageEncoder(config)
 
-    image = torch.rand(1, 3, 224, 224)
+    image = torch.rand(3, 224, 224)
 
     outputs = image_encoder(image)
 
     print(outputs)
 
 if __name__ == "__main__":
-    test_image_encoder()
+    #test_image_encoder()
+    conditioner = SingleImageEncoder(DinoConfig())
+    torch.manual_seed(2025)
+    image = torch.rand(1, 3, 224, 224)
+    outputs = conditioner(image)
+    print(outputs["main"].size())

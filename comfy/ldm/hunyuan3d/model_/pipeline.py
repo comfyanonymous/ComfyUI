@@ -5,6 +5,7 @@ from PIL import Image
 from typing import List, Union
 from torch.utils._pytree import tree_map
 from torch.utils.data._utils.collate import default_collate
+from vae import VAE
 
 def export_to_trimesh(mesh_output):
     if isinstance(mesh_output, list):
@@ -23,18 +24,29 @@ def export_to_trimesh(mesh_output):
         return mesh_output
 
 class Hunyuan3DDiTFlowMatchingPipeline(nn.Module):
-    def __init__(self, model, vae, conditioner, image_processor, scheduler):
-
+    def __init__(self, model, vae, conditioner, image_processor, scheduler, device, dtype):
+        super().__init__()
+        
         self.vae = vae
         self.model = model
         self.conditioner = conditioner
         self.image_processor = image_processor
         self.scheduler = scheduler
+        self.device = device
+        self.dtype = dtype
 
     def compile(self):
         self.vae = torch.compile(self.vae)
         self.model = torch.compile(self.model)
         self.conditioner = torch.compile(self.conditioner)
+
+    def load_ckpt(self, checkpoint_path: str):
+
+        checkpoint = torch.load(checkpoint_path, weights_only = True)
+        self.model.load_state_dict(checkpoint["model"])
+        self.vae.load_state_dict(checkpoint["vae"])
+        self.conditioner.load_state_dict(checkpoint["conditioner"])
+        
 
     def encode_cond(self, image, additional_cond_inputs, do_classifier_free_guidance):
 
@@ -51,7 +63,22 @@ class Hunyuan3DDiTFlowMatchingPipeline(nn.Module):
 
         return cond
     
+    def to(self, device=None, dtype=None):
+        if dtype is not None:
+            self.dtype = dtype
+            self.vae.to(dtype=dtype)
+            self.model.to(dtype=dtype)
+            self.conditioner.to(dtype=dtype)
+        if device is not None:
+            self.device = torch.device(device)
+            self.vae.to(device)
+            self.model.to(device)
+            self.conditioner.to(device)
+    
     def prepare_images(self, images):
+
+        if isinstance(images, (str, Image.Image)):
+            return self.image_processor(images)
 
         outputs = []
         for image in images:
@@ -107,7 +134,7 @@ class Hunyuan3DDiTFlowMatchingPipeline(nn.Module):
             self.model.guidance_embed is True
         )
 
-        cond_inputs = self.prepare_image(image)
+        cond_inputs = self.prepare_images(image)
         image = cond_inputs.pop('image')
 
         cond = self.encode_cond(
@@ -135,7 +162,7 @@ class Hunyuan3DDiTFlowMatchingPipeline(nn.Module):
                 latent_model_input = latents
 
             timestep = t.expand(latent_model_input.shape[0]).to(latents.dtype)
-            timestep = timestep / self.scheduler.num_train_timesteps
+            timestep = timestep / self.scheduler.num_training_timesteps
             noise_pred = self.model(latent_model_input, timestep, cond, guidance=guidance)
 
             if do_classifier_free_guidance:
@@ -143,7 +170,7 @@ class Hunyuan3DDiTFlowMatchingPipeline(nn.Module):
                 noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_cond - noise_pred_uncond)
 
             # compute the previous noisy sample x_t -> x_t-1
-            latents = self.scheduler.step(noise_pred, t, latents)
+            latents = self.scheduler.reverse_flow(noise_pred, latents)
 
             if callback is not None and i % callback_steps == 0:
                 step_idx = i // getattr(self.scheduler, "order", 1)
@@ -153,4 +180,18 @@ class Hunyuan3DDiTFlowMatchingPipeline(nn.Module):
         mesh = self.vae.decode(latents, bounds = bounds, octree_res = octree_res, num_chunks = num_chunks)
 
         return export_to_trimesh(mesh)
-    
+
+if __name__ == '__main__':
+    from scheduler import EulerScheduler
+    from conditioner import SingleImageEncoder
+    from image_processor import ImageProcessorV2
+    from dinov2 import DinoConfig
+    from hunyuandit import HunYuanDiTPlain
+
+    model = HunYuanDiTPlain(depth = 2)
+
+    pipeline = Hunyuan3DDiTFlowMatchingPipeline(vae = VAE(), scheduler = EulerScheduler(), model = model,
+                                                conditioner = SingleImageEncoder(DinoConfig()), image_processor = ImageProcessorV2(),
+                                                device = "cpu", dtype = torch.bfloat16) 
+    img = r"C:\Users\yrafa\Work\Hunyuan 3D\cat.jpg"
+    print(pipeline(img))

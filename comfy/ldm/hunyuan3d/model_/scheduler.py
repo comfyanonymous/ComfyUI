@@ -2,7 +2,7 @@ import torch
 
 class EulerScheduler(torch.nn.Module):
     def __init__(self, num_training_timesteps: int = 1_000, shift: float = 1, 
-                 num_inference_timesteps: int = 100, inference: bool = False):
+                 num_inference_timesteps: int = 50, inference: bool = True):
         super(EulerScheduler, self).__init__()
 
         # compute timestep values so we can index into them later

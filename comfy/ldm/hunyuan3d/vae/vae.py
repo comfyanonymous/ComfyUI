@@ -68,7 +68,7 @@ class VAE(nn.Module):
         super().__init__()
 
         self.latent_shape = (num_latents, embed_dim)
-        self.scale = scale_factor
+        self.scale_factor = scale_factor
 
         self.fourier_embedder = FourierEmbedder(num_freq = num_frequencies, include_pi = include_pi)
 
