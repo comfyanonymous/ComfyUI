@@ -381,6 +381,24 @@ class ShowURL(ComfyNodeABC):
             }
         }
 
+
+class TestURL(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+        }
+
+    RETURN_TYPES = ()
+    RETURN_NAMES = ()
+    FUNCTION = "show_url"
+    OUTPUT_NODE = True
+    CATEGORY = "image/video"
+    DESCRIPTION = "Show a URL as plain text in the UI."
+
+    def show_url(self, url):
+        return ("http://aaatesat.com",)
+
+
 NODE_CLASS_MAPPINGS = {
     "SaveWEBM": SaveWEBM,
     "SaveVideo": SaveVideo,
@@ -389,6 +407,7 @@ NODE_CLASS_MAPPINGS = {
     "LoadVideo": LoadVideo,
     "LoadVideoEncrypted": LoadVideoEncrypted,
     "ShowURL": ShowURL,
+    "TestURL": TestURL,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -398,4 +417,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadVideo": "Load Video",
     "LoadVideoEncrypted": "Load Video (Encrypted)",
     "ShowURL": "Show URL",
+    "TestURL": "Test URL",
 }
