@@ -255,13 +255,23 @@ class LoadImageTextSetFromFolderNode:
 
         sub_input_dir = os.path.join(folder_paths.get_input_directory(), folder)
         valid_extensions = [".png", ".jpg", ".jpeg", ".webp"]
-        image_files = [
-            f
-            for f in os.listdir(sub_input_dir)
-            if any(f.lower().endswith(ext) for ext in valid_extensions)
-        ]
+
+        image_files = []
+        for item in os.listdir(sub_input_dir):
+            path = os.path.join(sub_input_dir, item)
+            if any(item.lower().endswith(ext) for ext in valid_extensions):
+                image_files.append(path)
+            elif os.path.isdir(path):
+                # Support kohya-ss/sd-scripts folder structure
+                repeat = 1
+                if item.split("_")[0].isdigit():
+                    repeat = int(item.split("_")[0])
+                image_files.extend([
+                    os.path.join(path, f) for f in os.listdir(path) if any(f.lower().endswith(ext) for ext in valid_extensions)
+                ] * repeat)
+
         caption_file_path = [
-            os.path.basename(f).replace(os.path.splitext(f)[1], ".txt")
+            f.replace(os.path.splitext(f)[1], ".txt")
             for f in image_files
         ]
         captions = []
@@ -280,10 +290,15 @@ class LoadImageTextSetFromFolderNode:
 
         logging.info(f"Loaded {len(output_tensor)} images from {sub_input_dir}.")
 
+        logging.info(f"Encoding captions from {sub_input_dir}.")
         conditions = []
+        empty_cond = clip.encode_from_tokens_scheduled(clip.tokenize(""))
         for text in captions:
+            if text == "":
+                conditions.append(empty_cond)
             tokens = clip.tokenize(text)
             conditions.extend(clip.encode_from_tokens_scheduled(tokens))
+        logging.info(f"Encoded {len(conditions)} captions from {sub_input_dir}.")
         return (output_tensor, conditions)
 
 
