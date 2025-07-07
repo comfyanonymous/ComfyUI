@@ -93,6 +93,8 @@ class SaveVideo(ComfyNodeABC):
                 "filename_prefix": ("STRING", {"default": "video/ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."}),
                 "format": (VideoContainer.as_input(), {"default": "auto", "tooltip": "The format to save the video as."}),
                 "codec": (VideoCodec.as_input(), {"default": "auto", "tooltip": "The codec to use for the video."}),
+                "encrypt": ("BOOLEAN", {"default": False, "tooltip": "Enable simple XOR encryption"}),
+                "encryption_key": ("STRING", {"default": "mysecretkey", "tooltip": "Encryption key for XOR encryption"}),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -108,7 +110,18 @@ class SaveVideo(ComfyNodeABC):
     CATEGORY = "image/video"
     DESCRIPTION = "Saves the input images to your ComfyUI output directory."
 
-    def save_video(self, video: VideoInput, filename_prefix, format, codec, prompt=None, extra_pnginfo=None):
+    def simple_xor_encrypt(self, data: bytes, key: str) -> bytes:
+        """简单的XOR加密"""
+        key_bytes = key.encode('utf-8')
+        key_length = len(key_bytes)
+        encrypted = bytearray()
+        
+        for i, byte in enumerate(data):
+            encrypted.append(byte ^ key_bytes[i % key_length])
+        
+        return bytes(encrypted)
+
+    def save_video(self, video: VideoInput, filename_prefix, format, codec, encrypt, encryption_key, prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         width, height = video.get_dimensions()
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
@@ -127,16 +140,41 @@ class SaveVideo(ComfyNodeABC):
                 metadata["prompt"] = prompt
             if len(metadata) > 0:
                 saved_metadata = metadata
-        file = f"{filename}_{counter:05}_.{VideoContainer.get_extension(format)}"
+        
+        # 生成文件路径
+        file_extension = VideoContainer.get_extension(format)
+        temp_file_path = os.path.join(full_output_folder, f"temp_{filename}_{counter:05}_.{file_extension}")
+        final_file_path = os.path.join(full_output_folder, f"{filename}_{counter:05}_.{file_extension}")
+        
+        # 先保存到临时文件
         video.save_to(
-            os.path.join(full_output_folder, file),
+            temp_file_path,
             format=format,
             codec=codec,
             metadata=saved_metadata
         )
+        
+        # 如果启用加密，对文件进行XOR加密
+        if encrypt:
+            # 读取文件内容
+            with open(temp_file_path, 'rb') as f:
+                video_data = f.read()
+            
+            # 删除临时文件
+            os.remove(temp_file_path)
+            
+            # 加密数据
+            encrypted_data = self.simple_xor_encrypt(video_data, encryption_key)
+            
+            # 保存加密后的文件
+            with open(final_file_path, 'wb') as f:
+                f.write(encrypted_data)
+        else:
+            # 不加密，直接重命名
+            os.rename(temp_file_path, final_file_path)
 
         results.append({
-            "filename": file,
+            "filename": os.path.basename(final_file_path),
             "subfolder": subfolder,
             "type": self.type
         })
@@ -225,12 +263,113 @@ class LoadVideo(ComfyNodeABC):
 
         return True
 
+class LoadVideoEncrypted(ComfyNodeABC):
+    """支持解密加密视频的加载节点"""
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        input_dir = folder_paths.get_input_directory()
+        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        
+        # 使用PIL来过滤视频和动画文件，包括WebP动画
+        def is_video_or_animated_file(file_path):
+            """使用PIL判断文件是否为视频或动画文件"""
+            try:
+                from PIL import Image
+                with Image.open(file_path) as img:
+                    # 检查是否为动画文件（包括WebP动画、GIF等）
+                    if hasattr(img, 'is_animated') and img.is_animated:
+                        return True
+                    
+                    # 检查帧数，如果大于1帧，可能是视频
+                    if hasattr(img, 'n_frames') and img.n_frames > 1:
+                        return True
+                    
+                    # 检查持续时间，如果有持续时间信息，可能是视频
+                    if hasattr(img, 'duration') and img.duration > 0:
+                        return True
+                    
+                    return False
+            except Exception:
+                # 如果PIL无法打开，使用备用方案
+                import mimetypes
+                mime_type, _ = mimetypes.guess_type(file_path)
+                if mime_type:
+                    return mime_type.startswith('video/')
+                
+                video_extensions = {'.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv', '.m4v'}
+                file_ext = os.path.splitext(file_path)[1].lower()
+                return file_ext in video_extensions
+        
+        # 过滤出视频和动画文件
+        video_files = []
+        for file in files:
+            file_path = os.path.join(input_dir, file)
+            if is_video_or_animated_file(file_path):
+                video_files.append(file)
+        
+        return {
+            "required": {
+                "file": (sorted(video_files), {"video_upload": True}),
+                "is_encrypted": ("BOOLEAN", {"default": False, "tooltip": "Whether the file is XOR encrypted"}),
+                "encryption_key": ("STRING", {"default": "mysecretkey", "tooltip": "Encryption key for XOR decryption"}),
+            }
+        }
+
+    CATEGORY = "image/video"
+    RETURN_TYPES = (IO.VIDEO,)
+    FUNCTION = "load_video_encrypted"
+    
+    def simple_xor_decrypt(self, data: bytes, key: str) -> bytes:
+        """简单的XOR解密（XOR加密是对称的）"""
+        key_bytes = key.encode('utf-8')
+        key_length = len(key_bytes)
+        decrypted = bytearray()
+        
+        for i, byte in enumerate(data):
+            decrypted.append(byte ^ key_bytes[i % key_length])
+        
+        return bytes(decrypted)
+    
+    def load_video_encrypted(self, file, is_encrypted, encryption_key):
+        video_path = folder_paths.get_annotated_filepath(file)
+        
+        if not is_encrypted:
+            # 不加密，直接加载
+            return (VideoFromFile(video_path),)
+        else:
+            # 读取加密文件
+            with open(video_path, 'rb') as f:
+                encrypted_data = f.read()
+            
+            # 解密数据
+            decrypted_data = self.simple_xor_decrypt(encrypted_data, encryption_key)
+            
+            # 直接使用BytesIO，无需创建临时文件
+            import io
+            video_bytes_io = io.BytesIO(decrypted_data)
+            
+            return (VideoFromFile(video_bytes_io),)
+
+    @classmethod
+    def IS_CHANGED(cls, file, is_encrypted, encryption_key):
+        video_path = folder_paths.get_annotated_filepath(file)
+        mod_time = os.path.getmtime(video_path)
+        return mod_time
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, file, is_encrypted, encryption_key):
+        if not folder_paths.exists_annotated_filepath(file):
+            return "Invalid video file: {}".format(file)
+        return True
+
 NODE_CLASS_MAPPINGS = {
     "SaveWEBM": SaveWEBM,
     "SaveVideo": SaveVideo,
     "CreateVideo": CreateVideo,
     "GetVideoComponents": GetVideoComponents,
     "LoadVideo": LoadVideo,
+    "LoadVideoEncrypted": LoadVideoEncrypted,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -238,4 +377,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CreateVideo": "Create Video",
     "GetVideoComponents": "Get Video Components",
     "LoadVideo": "Load Video",
+    "LoadVideoEncrypted": "Load Video (Encrypted)",
 }
