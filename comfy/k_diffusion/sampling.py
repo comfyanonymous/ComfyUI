@@ -9,6 +9,7 @@ from tqdm.auto import trange, tqdm
 
 from . import utils
 from . import deis
+from . import sa_solver
 import comfy.model_patcher
 import comfy.model_sampling
 
@@ -1648,3 +1649,96 @@ def sample_seeds_3(model, x, sigmas, extra_args=None, callback=None, disable=Non
             if inject_noise:
                 x = x + sigmas[i + 1] * (noise_coeff_3 * noise_1 + noise_coeff_2 * noise_2 + noise_coeff_1 * noise_3) * s_noise
     return x
+
+
+# Modify from: https://github.com/scxue/SA-Solver
+# MIT license
+@torch.no_grad()
+def sample_sa_solver(model, x, sigmas, extra_args=None, callback=None, disable=False, tau_func=None, noise_sampler=None, predictor_order=3, corrector_order=4, pc_mode="PEC"):
+    if len(sigmas) <= 1:
+        return x
+
+    extra_args = {} if extra_args is None else extra_args
+    if tau_func is None:
+        model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
+        start_sigma = model_sampling.percent_to_sigma(0.2)
+        end_sigma = model_sampling.percent_to_sigma(0.8)
+        tau_func = sa_solver.get_tau_interval_func(start_sigma, end_sigma, eta=1.0)
+    tau = tau_func
+    seed = extra_args.get("seed", None)
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
+    s_in = x.new_ones([x.shape[0]])
+
+    sigma_prev_list = []
+    model_prev_list = []
+
+    for i in trange(len(sigmas) - 1, disable=disable):
+        sigma = sigmas[i]
+        if i == 0:
+            # Init the initial values
+            denoised = model(x, sigma * s_in, **extra_args)
+            model_prev_list.append(denoised)
+            sigma_prev_list.append(sigma)
+        else:
+            # Lower order final
+            predictor_order_used = min(predictor_order, i, len(sigmas) - i - 1)
+            corrector_order_used = min(corrector_order, i + 1, len(sigmas) - i + 1)
+
+            tau_val = tau(sigma)
+            noise = None if tau_val == 0 else noise_sampler(sigma, sigmas[i + 1])
+
+            # Predictor step
+            x_p = sa_solver.adams_bashforth_update_few_steps(order=predictor_order_used, x=x, tau=tau_val,
+                                                             model_prev_list=model_prev_list, sigma_prev_list=sigma_prev_list,
+                                                             noise=noise, sigma=sigma)
+
+            # Evaluation step
+            denoised = model(x_p, sigma * s_in, **extra_args)
+            model_prev_list.append(denoised)
+
+            # Corrector step
+            if corrector_order_used > 0:
+                x = sa_solver.adams_moulton_update_few_steps(order=corrector_order_used, x=x, tau=tau_val,
+                                                             model_prev_list=model_prev_list, sigma_prev_list=sigma_prev_list,
+                                                             noise=noise, sigma=sigma)
+            else:
+                x = x_p
+
+            del noise, x_p
+
+            # Evaluation step for PECE
+            if corrector_order_used > 0 and pc_mode == 'PECE':
+                del model_prev_list[-1]
+                denoised = model(x, sigma * s_in, **extra_args)
+                model_prev_list.append(denoised)
+
+            sigma_prev_list.append(sigma)
+            if len(model_prev_list) > max(predictor_order, corrector_order):
+                del model_prev_list[0]
+                del sigma_prev_list[0]
+
+        if callback is not None:
+            callback({'x': x, 'i': i, 'denoised': model_prev_list[-1]})
+
+    if sigmas[-1] == 0:
+        # Denoising step
+        return model_prev_list[-1]
+    return sa_solver.adams_bashforth_update_few_steps(order=1, x=x, tau=0, model_prev_list=model_prev_list, sigma_prev_list=sigma_prev_list, noise=0, sigma=sigmas[-1])
+
+@torch.no_grad()
+def sample_sa_solver_pece(model, x, sigmas, extra_args=None, callback=None, disable=False, tau_func=None, noise_sampler=None, predictor_order=3, corrector_order=4):
+    if len(sigmas) <= 1:
+        return x
+    return sample_sa_solver(
+        model,
+        x,
+        sigmas,
+        extra_args=extra_args,
+        callback=callback,
+        disable=disable,
+        tau_func=tau_func,
+        noise_sampler=noise_sampler,
+        predictor_order=predictor_order,
+        corrector_order=corrector_order,
+        pc_mode="PECE",
+    )

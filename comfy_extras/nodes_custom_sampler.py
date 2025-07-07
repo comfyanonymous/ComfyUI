@@ -2,6 +2,7 @@ import math
 import comfy.samplers
 import comfy.sample
 from comfy.k_diffusion import sampling as k_diffusion_sampling
+from comfy.k_diffusion import sa_solver
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict
 import latent_preview
 import torch
@@ -521,6 +522,38 @@ class SamplerER_SDE(ComfyNodeABC):
         return (sampler,)
 
 
+class SamplerSASolver(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypeDict:
+        return {"required":
+                    {"model": (IO.MODEL, {}),
+                    "pc_mode": (IO.COMBO, {"options": ['PEC', "PECE"]},),
+                    "eta": (IO.FLOAT, {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                    "eta_start_percent": (IO.FLOAT, {"default": 0.2, "min": 0.0, "max": 1.0, "step": 0.001}),
+                    "eta_end_percent": (IO.FLOAT, {"default": 0.8, "min": 0.0, "max": 1.0, "step": 0.001}),
+                    "predictor_order": (IO.INT, {"default": 3, "min": 1, "max": 4}),
+                    "corrector_order": (IO.INT, {"default": 4, "min": 0, "max": 4}),
+                    }
+                }
+    RETURN_TYPES = (IO.SAMPLER,)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, model, pc_mode, eta, eta_start_percent, eta_end_percent, predictor_order, corrector_order):
+        model_sampling = model.get_model_object('model_sampling')
+        start_sigma = model_sampling.percent_to_sigma(eta_start_percent)
+        end_sigma = model_sampling.percent_to_sigma(eta_end_percent)
+        tau_func = sa_solver.get_tau_interval_func(start_sigma, end_sigma, eta=eta)
+
+        if pc_mode == 'PEC':
+            sampler_name = "sa_solver"
+        else:
+            sampler_name = "sa_solver_pece"
+        sampler = comfy.samplers.ksampler(sampler_name, {"tau_func": tau_func, "predictor_order": predictor_order, "corrector_order": corrector_order})
+        return (sampler, )
+
+
 class Noise_EmptyNoise:
     def __init__(self):
         self.seed = 0
@@ -829,6 +862,7 @@ NODE_CLASS_MAPPINGS = {
     "SamplerDPMPP_2S_Ancestral": SamplerDPMPP_2S_Ancestral,
     "SamplerDPMAdaptative": SamplerDPMAdaptative,
     "SamplerER_SDE": SamplerER_SDE,
+    "SamplerSASolver": SamplerSASolver,
     "SplitSigmas": SplitSigmas,
     "SplitSigmasDenoise": SplitSigmasDenoise,
     "FlipSigmas": FlipSigmas,
