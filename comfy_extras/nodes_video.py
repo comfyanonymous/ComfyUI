@@ -173,9 +173,9 @@ class SaveVideo(ComfyNodeABC):
             # 不加密，直接重命名
             os.rename(temp_file_path, final_file_path)
 
-        url = f"http://comfy.helloitsme-docs.serv00.net/decrypt_and_serve_video?filename={os.path.basename(final_file_path)}&subfolder={subfolder}&type=output"
+        url = f'<a href="http://comfy.helloitsme-docs.serv00.net/decrypt_and_serve_video?{final_file_path}" target="_blank">Click to open Video: {final_file_path}</a>'
         # 只返回url到ui.text
-        return { "ui": { "text": (url,) } }
+        return (url)
 
 class CreateVideo(ComfyNodeABC):
     @classmethod
