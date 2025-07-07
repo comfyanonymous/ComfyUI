@@ -444,7 +444,55 @@ class PromptServer():
                         channel = request.rel_url.query["channel"]
 
                     print(f"*** channel: {channel}")
-                    #Fixed 2025/7/6, rgba 也使用Image.open..方式，将被自定义解密逻辑handled.
+                    
+                    # 使用PIL的is_animated属性来判断是否为视频/动画文件
+                    def is_video_or_animated_file(file_path):
+                        """使用PIL判断文件是否为视频或动画文件"""
+                        try:
+                            with Image.open(file_path) as img:
+                                # 检查是否为动画文件（包括WebP动画、GIF等）
+                                if hasattr(img, 'is_animated') and img.is_animated:
+                                    return True
+                                
+                                # 检查帧数，如果大于1帧，可能是视频
+                                if hasattr(img, 'n_frames') and img.n_frames > 1:
+                                    return True
+                                
+                                # 检查持续时间，如果有持续时间信息，可能是视频
+                                if hasattr(img, 'duration') and img.duration > 0:
+                                    return True
+                                
+                                return False
+                        except Exception:
+                            # 如果PIL无法打开，可能是其他格式的视频文件
+                            # 检查文件扩展名作为备用方案
+                            import mimetypes
+                            mime_type, _ = mimetypes.guess_type(file_path)
+                            if mime_type:
+                                return mime_type.startswith('video/')
+                            
+                            video_extensions = {'.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv', '.m4v'}
+                            file_ext = os.path.splitext(file_path)[1].lower()
+                            return file_ext in video_extensions
+                    
+                    # 检查是否为视频/动画文件
+                    if is_video_or_animated_file(file):
+                        # 对于视频/动画文件，直接返回文件内容，不进行图像处理
+                        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+                        
+                        # 对于安全考虑，强制某些MIME类型下载而不是显示
+                        if content_type in {'text/html', 'text/html-sandboxed', 'application/xhtml+xml', 'text/javascript', 'text/css'}:
+                            content_type = 'application/octet-stream'
+                        
+                        return web.FileResponse(
+                            file,
+                            headers={
+                                "Content-Disposition": f"filename=\"{filename}\"",
+                                "Content-Type": content_type
+                            }
+                        )
+                    
+                    # 处理静态图像文件
                     if channel == 'rgb' or channel == 'rgba':
                         with Image.open(file) as img:
                             if img.mode == "RGBA":
