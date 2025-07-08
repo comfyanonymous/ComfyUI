@@ -241,13 +241,21 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
                 audio_stream.layout = stream.layout
                 logging.info(f"Added audio stream: {stream.sample_rate}Hz, {stream.channels} channels")
 
+        # Calculate target frame count that's divisible by 32
+        fps = input_container.streams.video[0].average_rate
+        estimated_frames = int(duration_sec * fps)
+        target_frames = (estimated_frames // 32) * 32  # Round down to nearest multiple of 32
+
+        if target_frames == 0:
+            raise ValueError("Video too short: need at least 32 frames for Moonvalley")
+
         frame_count = 0
         audio_frame_count = 0
 
         # Decode and re-encode video frames
         if video_stream:
             for frame in input_container.decode(video=0):
-                if frame.time >= duration_sec:
+                if frame_count >= target_frames:
                     break
 
                 # Re-encode frame
@@ -259,7 +267,7 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
             for packet in video_stream.encode():
                 output_container.mux(packet)
 
-            logging.info(f"Encoded {frame_count} video frames")
+            logging.info(f"Encoded {frame_count} video frames (target: {target_frames})")
 
         # Decode and re-encode audio frames
         if audio_stream:
