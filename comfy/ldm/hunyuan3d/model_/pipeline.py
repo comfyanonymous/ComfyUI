@@ -183,8 +183,9 @@ class Hunyuan3DDiTFlowMatchingPipeline(nn.Module):
 
         try:
             if save_file is not None:
-                for output in mesh:
-                    save_glb(output.mesh_v, output.mesh_f, save_file, numpy_ready = True)
+                for i, output in enumerate(mesh):
+                    output_file = f"{save_file}_{i}" if len(mesh) > 1 else save_file
+                    save_glb(output.mesh_v, output.mesh_f, output_file, numpy_ready = True)
         except Exception as e:
             print(e)
             
