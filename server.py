@@ -652,6 +652,25 @@ class PromptServer():
             prompt_id = request.match_info.get("prompt_id", None)
             return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
 
+        @routes.get("/history_v2")
+        async def get_ordered_history(request):
+            max_items = request.rel_url.query.get("max_items", None)
+            if max_items is not None:
+                max_items = int(max_items)
+
+            offset = request.rel_url.query.get("offset", None)
+            if offset is not None:
+                offset = int(offset)
+            else:
+                offset = -1
+
+            return web.json_response(self.prompt_queue.get_ordered_history(max_items=max_items, offset=offset))
+
+        @routes.get("/history_v2/{prompt_id}")
+        async def get_history_v2_prompt_id(request):
+            prompt_id = request.match_info.get("prompt_id", None)
+            return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
+
         @routes.get("/queue")
         async def get_queue(request):
             queue_info = {}
