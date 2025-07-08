@@ -6,18 +6,28 @@ import comfy.model_management
 import folder_paths
 import comfy.utils
 import logging
+from contextlib import nullcontext
+import threading
 
 MAX_PREVIEW_RESOLUTION = args.preview_size
 
-def preview_to_image(latent_image):
-        latents_ubyte = (((latent_image + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
-                            .mul(0xFF)  # to 0..255
-                            )
-        if comfy.model_management.directml_enabled:
-                latents_ubyte = latents_ubyte.to(dtype=torch.uint8)
-        latents_ubyte = latents_ubyte.to(device="cpu", dtype=torch.uint8, non_blocking=comfy.model_management.device_supports_non_blocking(latent_image.device))
+if args.preview_stream:
+    preview_stream = torch.cuda.Stream()
+    preview_context = torch.cuda.stream(preview_stream)
+else:
+    preview_context = nullcontext()
 
-        return Image.fromarray(latents_ubyte.numpy())
+def preview_to_image(preview_image: torch.Tensor):
+        # no reason why any of this has to happen on GPU, also non-blocking transfers to cpu aren't safe ever
+        # but we don't care about it blocking because the main stream is fine
+        preview_image = preview_image.cpu()
+
+        preview_image.clamp_(-1.0, 1.0)
+        preview_image.add_(1.0)
+        preview_image.mul_(127.5)
+        preview_image.round_() # default behavior when casting is truncate which is wrong for image processing
+
+        return Image.fromarray(preview_image.to(dtype=torch.uint8).numpy())
 
 class LatentPreviewer:
     def decode_latent_to_preview(self, x0):
@@ -97,12 +107,23 @@ def prepare_callback(model, steps, x0_output_dict=None):
 
     pbar = comfy.utils.ProgressBar(steps)
     def callback(step, x0, x, total_steps):
-        if x0_output_dict is not None:
-            x0_output_dict["x0"] = x0
+        @torch.inference_mode
+        def worker():
+            if x0_output_dict is not None:
+                x0_output_dict["x0"] = x0
 
-        preview_bytes = None
-        if previewer:
-            preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
-        pbar.update_absolute(step + 1, total_steps, preview_bytes)
+            preview_bytes = None
+            if previewer:
+                with preview_context:
+                    preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
+            pbar.update_absolute(step + 1, total_steps, preview_bytes)
+
+        if args.preview_stream:
+            # must wait for default stream to catch up else we will decode a garbage tensor
+            # the default stream will not, under any circumstances, stop because of this
+            preview_stream.wait_stream(torch.cuda.default_stream())
+            threading.Thread(target=worker, daemon=True).start()
+        else: worker() # no point in threading this off if there's no separate stream
+        
     return callback
 
