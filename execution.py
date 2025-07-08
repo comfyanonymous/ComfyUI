@@ -1024,6 +1024,23 @@ class PromptQueue:
             else:
                 return {}
 
+    def get_ordered_history(self, max_items=None, offset=-1):
+        with self.mutex:
+            out = []
+
+            i = 0
+            if offset < 0 and max_items is not None:
+                offset = len(self.history) - max_items
+            for k in self.history:
+                if i >= offset:
+                    out.append({k: self.history[k]})
+                    if max_items is not None and len(out) >= max_items:
+                        break
+                i += 1
+
+
+            return {"history": out}
+
     def wipe_history(self):
         with self.mutex:
             self.history = {}

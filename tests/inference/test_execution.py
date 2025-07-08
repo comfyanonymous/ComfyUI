@@ -63,9 +63,38 @@ class ComfyClient:
         with urllib.request.urlopen("http://{}/view?{}".format(self.server_address, url_values)) as response:
             return response.read()
 
-    def get_history(self, prompt_id):
-        with urllib.request.urlopen("http://{}/history/{}".format(self.server_address, prompt_id)) as response:
+    def get_history(self, prompt_id=None, max_items=None):
+        if prompt_id:
+            url = "http://{}/history/{}".format(self.server_address, prompt_id)
+        else:
+            url = "http://{}/history".format(self.server_address)
+            if max_items is not None:
+                url += "?max_items={}".format(max_items)
+        with urllib.request.urlopen(url) as response:
             return json.loads(response.read())
+
+    def get_ordered_history(self, max_items=None, offset=None):
+        url = "http://{}/history_v2".format(self.server_address)
+        params = {}
+        if max_items is not None:
+            params['max_items'] = str(max_items)
+        if offset is not None:
+            params['offset'] = str(offset)
+        if params:
+            url += "?" + urllib.parse.urlencode(params)
+        with urllib.request.urlopen(url) as response:
+            return json.loads(response.read())
+
+    def get_history_v2_for_prompt(self, prompt_id):
+        url = "http://{}/history_v2/{}".format(self.server_address, prompt_id)
+        with urllib.request.urlopen(url) as response:
+            return json.loads(response.read())
+
+    def clear_history(self):
+        data = json.dumps({"clear": True}).encode('utf-8')
+        req = urllib.request.Request("http://{}/history".format(self.server_address), data=data)
+        req.add_header('Content-Type', 'application/json')
+        urllib.request.urlopen(req)
 
     def set_test_name(self, name):
         self.test_name = name
@@ -522,3 +551,149 @@ class TestExecution:
         assert len(images) == 2, "Should have 2 images"
         assert numpy.array(images[0]).min() == 0 and numpy.array(images[0]).max() == 0, "First image should be black"
         assert numpy.array(images[1]).min() == 0 and numpy.array(images[1]).max() == 0, "Second image should also be black"
+
+    def test_ordered_history_endpoint(self, client: ComfyClient, builder: GraphBuilder):
+        """Test the ordered history endpoint returns data in chronological order."""
+        # Clear history to start fresh
+        client.clear_history()
+
+        # Run multiple prompts to test ordering
+        prompt_ids = []
+        for _ in range(3):
+            g = builder
+            input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+            g.node("SaveImage", images=input1.out(0))
+
+            result = client.run(g)
+            prompt_ids.append(result.get_prompt_id())
+            time.sleep(0.1)  # Small delay to ensure different timestamps
+
+        # Test ordered history endpoint
+        ordered_history = client.get_ordered_history()
+        assert "history" in ordered_history, "Ordered history should have history key"
+        assert isinstance(ordered_history["history"], list), "Ordered history should be a list"
+        assert len(ordered_history["history"]) == 3, "Should have exactly 3 prompts in history"
+
+        # Verify chronological ordering (most recent first)
+        history_prompt_ids = []
+        for item in ordered_history["history"]:
+            for prompt_id in item.keys():
+                history_prompt_ids.append(prompt_id)
+
+        # Should be in chronological order (oldest first, as they're added in completion order)
+        assert history_prompt_ids == prompt_ids, "History should be in chronological order"
+
+    def test_history_prompt_id_endpoint(self, client: ComfyClient, builder: GraphBuilder):
+        """Test fetching specific prompt history by ID."""
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        g.node("SaveImage", images=input1.out(0))
+
+        result = client.run(g)
+        prompt_id = result.get_prompt_id()
+
+        # Test legacy history endpoint for specific prompt
+        legacy_history = client.get_history(prompt_id)
+        assert prompt_id in legacy_history, "Legacy history should contain prompt ID"
+        assert "outputs" in legacy_history[prompt_id], "Legacy history should have outputs"
+
+        # Test history_v2 endpoint for specific prompt
+        specific_history = client.get_history_v2_for_prompt(prompt_id)
+        assert prompt_id in specific_history, "History v2 should contain prompt ID"
+        assert specific_history[prompt_id] == legacy_history[prompt_id], "History v2 data should match legacy history"
+
+    def test_history_max_items(self, client: ComfyClient, builder: GraphBuilder):
+        """Test legacy history endpoint with max_items parameter."""
+        # Clear history to start fresh
+        client.clear_history()
+
+        # Run multiple prompts to test pagination
+        for _ in range(5):
+            g = GraphBuilder()  # Create fresh GraphBuilder for each run
+            input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+            g.node("SaveImage", images=input1.out(0))
+
+            client.run(g)
+            time.sleep(0.1)  # Small delay to ensure different timestamps
+
+        # Test max_items parameter on legacy history endpoint
+        limited_history = client.get_history(max_items=2)
+        assert len(limited_history) == 2, "History should return exactly max_items"
+
+    def test_ordered_history_max_items_and_offset(self, client: ComfyClient, builder: GraphBuilder):
+        """Test ordered history endpoint with max_items and offset parameters."""
+        # Clear history to start fresh
+        client.clear_history()
+
+        # Run multiple prompts to test pagination
+        for _ in range(5):
+            g = GraphBuilder()  # Create fresh GraphBuilder for each run
+            input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+            g.node("SaveImage", images=input1.out(0))
+
+            client.run(g)
+            time.sleep(0.1)  # Small delay to ensure different timestamps
+
+        # Test max_items parameter on ordered history endpoint
+        limited_ordered = client.get_ordered_history(max_items=3)
+        assert "history" in limited_ordered, "Limited ordered history should have history key"
+        assert len(limited_ordered["history"]) == 3, "Ordered history should return exactly max_items"
+
+        # Test pagination with offset as cursor
+        full_history = client.get_ordered_history()
+        assert len(full_history["history"]) == 5, "Should have 5 items in full history"
+
+        # Extract prompt IDs from full history for comparison
+        full_prompt_ids = []
+        for item in full_history["history"]:
+            for prompt_id in item.keys():
+                full_prompt_ids.append(prompt_id)
+
+        # Test proper pagination behavior with offset as cursor
+
+        # Test first page: offset=0, max_items=2
+        page1 = client.get_ordered_history(max_items=2, offset=0)
+        assert len(page1["history"]) == 2, "First page should have 2 items"
+        page1_ids = []
+        for item in page1["history"]:
+            for prompt_id in item.keys():
+                page1_ids.append(prompt_id)
+        assert page1_ids == full_prompt_ids[0:2], "First page should contain items at indices 0-1"
+
+        # Test second page: offset=2, max_items=2
+        page2 = client.get_ordered_history(max_items=2, offset=2)
+        assert len(page2["history"]) == 2, "Second page should have 2 items"
+        page2_ids = []
+        for item in page2["history"]:
+            for prompt_id in item.keys():
+                page2_ids.append(prompt_id)
+        assert page2_ids == full_prompt_ids[2:4], "Second page should contain items at indices 2-3"
+
+        # Test third page: offset=4, max_items=2
+        page3 = client.get_ordered_history(max_items=2, offset=4)
+        assert len(page3["history"]) == 1, "Third page should have 1 remaining item"
+        page3_ids = []
+        for item in page3["history"]:
+            for prompt_id in item.keys():
+                page3_ids.append(prompt_id)
+        assert page3_ids == full_prompt_ids[4:5], "Third page should contain item at index 4"
+
+        # Verify no overlap between pages
+        all_paginated_ids = page1_ids + page2_ids + page3_ids
+        assert len(set(all_paginated_ids)) == 5, "All paginated IDs should be unique"
+        assert set(all_paginated_ids) == set(full_prompt_ids), "Paginated results should cover all items"
+
+        # Test default behavior: get last N items (no offset specified)
+        # When offset < 0 and max_items is specified, offset = len(history) - max_items
+        last_2_items = client.get_ordered_history(max_items=2)
+        assert len(last_2_items["history"]) == 2, "Default behavior should return 2 items"
+        last_2_ids = []
+        for item in last_2_items["history"]:
+            for prompt_id in item.keys():
+                last_2_ids.append(prompt_id)
+        # This should be equivalent to offset=3 (5-2=3)
+        assert last_2_ids == full_prompt_ids[3:5], "Default behavior should return last 2 items"
+
+        # Test offset beyond available items
+        beyond_offset = client.get_ordered_history(max_items=2, offset=10)
+        assert len(beyond_offset["history"]) == 0, "Offset beyond items should return empty list"
