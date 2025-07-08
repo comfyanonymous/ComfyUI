@@ -64,6 +64,15 @@ class VideoFromFile(VideoInput):
         """
         self.__file = file
 
+    def get_stream_source(self) -> str | io.BytesIO:
+        """
+        Return the underlying file source for efficient streaming.
+        This avoids unnecessary memory copies when the source is already a file path.
+        """
+        if isinstance(self.__file, io.BytesIO):
+            self.__file.seek(0)
+        return self.__file
+
     def get_dimensions(self) -> tuple[int, int]:
         """
         Returns the dimensions of the video input.
