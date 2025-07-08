@@ -98,7 +98,8 @@ def poll_until_finished(
         completed_statuses=[
             "completed",
         ],
-        max_poll_attempts=240,
+        max_poll_attempts=240,  # 64 minutes with 16s interval
+        poll_interval=16.0,
         failed_statuses=["error"],
         status_extractor=lambda response: (
             response.status
