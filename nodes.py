@@ -26,7 +26,7 @@ import comfy.sd
 import comfy.utils
 import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
-from comfy_api.v3.io import ComfyNodeV3
+from comfy_api.v3 import io
 
 import comfy.clip_vision
 
@@ -2151,6 +2151,7 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
                 EXTENSION_WEB_DIRS[module_name] = web_dir
 
         # V1 node definition
+        v = False
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
             for name, node_cls in module.NODE_CLASS_MAPPINGS.items():
                 if name not in ignore:
@@ -2158,21 +2159,21 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
                     node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
-            return True
+            v = True
         # V3 node definition
-        elif getattr(module, "NODES_LIST", None) is not None:
+        if getattr(module, "NODES_LIST", None) is not None:
             for node_cls in module.NODES_LIST:
-                node_cls: ComfyNodeV3
+                node_cls: io.ComfyNodeV3
                 schema = node_cls.GET_SCHEMA()
                 if schema.node_id not in ignore:
                     NODE_CLASS_MAPPINGS[schema.node_id] = node_cls
                     node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
                 if schema.display_name is not None:
                     NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name
-            return True
-        else:
+            v = True
+        if not v:
             logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS or NODES_LIST (need one).")
-            return False
+        return v
     except Exception as e:
         logging.warning(traceback.format_exc())
         logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
