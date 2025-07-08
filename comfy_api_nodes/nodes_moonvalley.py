@@ -619,14 +619,14 @@ class MoonvalleyTxt2VideoNode(BaseMoonvalleyVideoNode):
 NODE_CLASS_MAPPINGS = {
     "MoonvalleyImg2VideoNode": MoonvalleyImg2VideoNode,
     "MoonvalleyTxt2VideoNode": MoonvalleyTxt2VideoNode,
-    "MoonvalleyVideo2VideoNode": MoonvalleyVideo2VideoNode,
+    # "MoonvalleyVideo2VideoNode": MoonvalleyVideo2VideoNode,
 }
 
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "MoonvalleyImg2VideoNode": "Moonvalley Marey Image to Video",
     "MoonvalleyTxt2VideoNode": "Moonvalley Marey Text to Video",
-    "MoonvalleyVideo2VideoNode": "Moonvalley Marey Video to Video",
+    # "MoonvalleyVideo2VideoNode": "Moonvalley Marey Video to Video",
 }
 
 def get_total_frames_from_length(length="5s"):
