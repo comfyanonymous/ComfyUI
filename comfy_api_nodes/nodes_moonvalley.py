@@ -28,8 +28,9 @@ from comfy_api_nodes.mapper_utils import model_field_to_node_input
 
 from comfy_api.input.video_types import VideoInput
 from comfy.comfy_types.node_typing import IO
-from comfy_api.input_impl import VideoFromComponents
-from comfy_api.util import VideoComponents
+from comfy_api.input_impl import VideoFromFile
+import av
+import io
 
 API_UPLOADS_ENDPOINT = "/proxy/moonvalley/uploads"
 API_PROMPTS_ENDPOINT = "/proxy/moonvalley/prompts"
@@ -48,6 +49,8 @@ MIN_VID_HEIGHT = 300
 
 MAX_VID_WIDTH = 10000
 MAX_VID_HEIGHT = 10000
+
+MAX_VIDEO_SIZE = 1024 * 1024 * 1024  # 1 GB max for in-memory video processing
 
 MOONVALLEY_MAREY_MAX_PROMPT_LENGTH = 5000
 R = TypeVar("R")
@@ -159,37 +162,18 @@ def validate_input_image(image: torch.Tensor, with_frame_conditioning: bool=Fals
     validate_input_media(width, height, with_frame_conditioning )
     validate_image_dimensions(image, min_width=300, min_height=300, max_height=MAX_HEIGHT, max_width=MAX_WIDTH)
 
-def get_frame_count(video: VideoInput) -> int:
-    """Get the number of frames from a VideoInput object."""
-    components = video.get_components()
-    # images tensor shape is [num_frames, height, width, channels]
-    return components.images.shape[0]
-
 def validate_input_video(video: VideoInput, num_frames_out: int, with_frame_conditioning: bool=False):
     try:
         width, height = video.get_dimensions()
     except Exception as e:
         logging.error("Error getting dimensions of video: %s", e)
-        return
-    # get number of frames from input video
-    num_frames_in = get_frame_count(video)
-    validate_input_media(width, height, with_frame_conditioning, num_frames_in )
+        raise ValueError(f"Cannot get video dimensions: {e}") from e
+
+    validate_input_media(width, height, with_frame_conditioning)
     validate_video_dimensions(video, min_width=MIN_VID_WIDTH, min_height=MIN_VID_HEIGHT, max_width=MAX_VID_WIDTH, max_height=MAX_VID_HEIGHT)
+
     trimmed_video = validate_input_video_length(video, num_frames_out)
-    # Save trimmed_video to a temp file and reopen as VideoInput object
-    import tempfile
-
-    # Save trimmed_video to a temporary file
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmpfile:
-        temp_path = tmpfile.name
-        trimmed_video.save_to(temp_path)
-
-    # Reopen as VideoInput object
-    from comfy_api.input_impl import VideoFromFile
-    trimmed_video = VideoFromFile(temp_path)
-
-    # Optionally, clean up the temp file after use elsewhere if needed
-    return {"input_video": trimmed_video, "temp_path": temp_path}
+    return trimmed_video
 
 
 def validate_input_video_length(video: VideoInput, num_frames: int):
@@ -202,46 +186,85 @@ def validate_input_video_length(video: VideoInput, num_frames: int):
            raise MoonvalleyApiError("Input Video length is less than 5s. Please use a video longer than or equal to 5s.")
        if video.get_duration() > 5:
         #    trim video to 5s
-        video = trim_video(video, 0, 5)
+        video = trim_video(video, 5)
     if num_frames == 256:
         if video.get_duration() < 10:
             raise MoonvalleyApiError("Input Video length is less than 10s. Please use a video longer than or equal to 10s.")
         if video.get_duration() > 10:
             # trim video to 10s
-            video = trim_video(video, 0, 10)
+            video = trim_video(video, 10)
     return video
 
-def trim_video(video: VideoInput, start_sec: float, end_sec: float) -> VideoInput:
+def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
     """
-    Returns a new VideoInput object trimmed between start_sec and end_sec (in seconds),
-    trimming both video frames and audio samples.
+    Returns a new VideoInput object trimmed from the beginning to the specified duration,
+    using av to avoid loading entire video into memory.
+
+    Args:
+        video: Input video to trim
+        duration_sec: Duration in seconds to keep from the beginning
+
+    Returns:
+        VideoFromFile object that owns the output buffer
     """
-    components = video.get_components()
-    frame_rate = components.frame_rate
-    start_frame = int(start_sec * frame_rate)
-    end_frame = int(end_sec * frame_rate)
-    trimmed_images = components.images[start_frame:end_frame]
+    output_buffer = io.BytesIO()
 
-    trimmed_audio = None
-    if components.audio is not None:
-        audio = components.audio
-        sample_rate = audio["sample_rate"]
-        start_sample = int(start_sec * sample_rate)
-        end_sample = int(end_sec * sample_rate)
-        # waveform shape: [B, C, T]
-        trimmed_waveform = audio["waveform"][..., start_sample:end_sample]
-        trimmed_audio = {
-            "waveform": trimmed_waveform,
-            "sample_rate": sample_rate
-        }
+    input_container = None
+    output_container = None
 
-    trimmed_components = VideoComponents(
-        images=trimmed_images,
-        audio=trimmed_audio,
-        frame_rate=frame_rate,
-        metadata=getattr(components, 'metadata', None)
-    )
-    return VideoFromComponents(trimmed_components)
+    try:
+        # Get the stream source - this avoids loading entire video into memory
+        # when the source is already a file path
+        input_source = video.get_stream_source()
+
+        # Open containers
+        input_container = av.open(input_source, mode='r')
+        output_container = av.open(output_buffer, mode='w', format='mp4')
+
+        # Set up stream mapping
+        stream_map = {}
+        for stream in input_container.streams:
+            if stream.type in ('video', 'audio'):
+                out_stream = output_container.add_stream_from_template(template=stream)
+                stream_map[stream] = out_stream
+
+        # Since we're always starting from 0, no need to seek
+        # Just process packets until we reach end_sec
+
+        for packet in input_container.demux():
+            if packet.stream not in stream_map:
+                continue
+
+            # Get packet timestamp (prefer PTS, fallback to DTS)
+            pts = packet.pts if packet.pts is not None else packet.dts
+            if pts is None:
+                continue  # Skip packets without timestamps
+
+            time_in_seconds = float(pts * packet.time_base)
+
+            # Stop when we reach the target duration
+            if time_in_seconds >= duration_sec:
+                break
+
+            # Remap packet to output stream (timestamps already start at 0)
+            packet.stream = stream_map[packet.stream]
+            output_container.mux(packet)
+
+        # Close containers
+        output_container.close()
+        input_container.close()
+
+        # Return as VideoFromFile using the buffer
+        output_buffer.seek(0)
+        return VideoFromFile(output_buffer)
+
+    except Exception as e:
+        # Clean up on error
+        if input_container is not None:
+            input_container.close()
+        if output_container is not None:
+            output_container.close()
+        raise RuntimeError(f"Failed to trim video: {str(e)}") from e
 
 # --- BaseMoonvalleyVideoNode ---
 class BaseMoonvalleyVideoNode:
@@ -450,17 +473,8 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
         """Validate video input"""
         video_url=""
         if video:
-            validated_video_set = validate_input_video(video, num_frames, False)
-
-            validated_video = validated_video_set["input_video"]
-            temp_path = validated_video_set["temp_path"]
+            validated_video = validate_input_video(video, num_frames, False)
             video_url = upload_video_to_comfyapi(validated_video, auth_kwargs=kwargs)
-            import os
-            try:
-                if temp_path and os.path.exists(temp_path):
-                    os.remove(temp_path)
-            except Exception as e:
-                logging.warning(f"Failed to delete temp video file {temp_path}: {e}")
 
         control_type = kwargs.get("control_type")
         motion_intensity = kwargs.get("motion_intensity")

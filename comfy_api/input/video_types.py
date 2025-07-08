@@ -1,6 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Union
+import io
 from comfy_api.util import VideoContainer, VideoCodec, VideoComponents
 
 class VideoInput(ABC):
@@ -30,6 +31,22 @@ class VideoInput(ABC):
         Abstract method to save the video input to a file.
         """
         pass
+
+    def get_stream_source(self) -> Union[str, io.BytesIO]:
+        """
+        Get a streamable source for the video. This allows processing without
+        loading the entire video into memory.
+
+        Returns:
+            Either a file path (str) or a BytesIO object that can be opened with av.
+
+        Default implementation creates a BytesIO buffer, but subclasses should
+        override this for better performance when possible.
+        """
+        buffer = io.BytesIO()
+        self.save_to(buffer)
+        buffer.seek(0)
+        return buffer
 
     # Provide a default implementation, but subclasses can provide optimized versions
     # if possible.
