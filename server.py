@@ -26,6 +26,7 @@ import mimetypes
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
+from comfy_api import feature_flags
 import node_helpers
 from comfyui_version import __version__
 from app.frontend_management import FrontendManager
@@ -174,6 +175,7 @@ class PromptServer():
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
         self.sockets = dict()
+        self.sockets_metadata = dict()
         self.web_root = (
             FrontendManager.init_frontend(args.front_end_version)
             if args.front_end_root is None
@@ -198,20 +200,53 @@ class PromptServer():
             else:
                 sid = uuid.uuid4().hex
 
+            # Store WebSocket for backward compatibility
             self.sockets[sid] = ws
+            # Store metadata separately
+            self.sockets_metadata[sid] = {"feature_flags": {}}
 
             try:
                 # Send initial state to the new client
-                await self.send("status", { "status": self.get_queue_info(), 'sid': sid }, sid)
+                await self.send("status", {"status": self.get_queue_info(), "sid": sid}, sid)
                 # On reconnect if we are the currently executing client send the current node
                 if self.client_id == sid and self.last_node_id is not None:
                     await self.send("executing", { "node": self.last_node_id }, sid)
 
+                # Flag to track if we've received the first message
+                first_message = True
+
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.ERROR:
                         logging.warning('ws connection closed with exception %s' % ws.exception())
+                    elif msg.type == aiohttp.WSMsgType.TEXT:
+                        try:
+                            data = json.loads(msg.data)
+                            # Check if first message is feature flags
+                            if first_message and data.get("type") == "feature_flags":
+                                # Store client feature flags
+                                client_flags = data.get("data", {})
+                                self.sockets_metadata[sid]["feature_flags"] = client_flags
+
+                                # Send server feature flags in response
+                                await self.send(
+                                    "feature_flags",
+                                    feature_flags.get_server_features(),
+                                    sid,
+                                )
+
+                                logging.info(
+                                    f"Feature flags negotiated for client {sid}: {client_flags}"
+                                )
+                            first_message = False
+                        except json.JSONDecodeError:
+                            logging.warning(
+                                f"Invalid JSON received from client {sid}: {msg.data}"
+                            )
+                        except Exception as e:
+                            logging.error(f"Error processing WebSocket message: {e}")
             finally:
                 self.sockets.pop(sid, None)
+                self.sockets_metadata.pop(sid, None)
             return ws
 
         @routes.get("/")
@@ -543,6 +578,10 @@ class PromptServer():
                 ]
             }
             return web.json_response(system_stats)
+
+        @routes.get("/features")
+        async def get_features(request):
+            return web.json_response(feature_flags.get_server_features())
 
         @routes.get("/prompt")
         async def get_prompt(request):
@@ -882,10 +921,10 @@ class PromptServer():
         ssl_ctx = None
         scheme = "http"
         if args.tls_keyfile and args.tls_certfile:
-                ssl_ctx = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER, verify_mode=ssl.CERT_NONE)
-                ssl_ctx.load_cert_chain(certfile=args.tls_certfile,
+            ssl_ctx = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER, verify_mode=ssl.CERT_NONE)
+            ssl_ctx.load_cert_chain(certfile=args.tls_certfile,
                                 keyfile=args.tls_keyfile)
-                scheme = "https"
+            scheme = "https"
 
         if verbose:
             logging.info("Starting server\n")

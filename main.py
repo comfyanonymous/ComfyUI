@@ -13,6 +13,7 @@ import logging
 import sys
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
+from comfy_api import feature_flags
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
@@ -246,9 +247,17 @@ def hijack_progress(server_instance):
 
         server_instance.send_sync("progress", progress, server_instance.client_id)
         if preview_image is not None:
-            # Also send old method for backward compatibility
-            # TODO - Remove after this repo is updated to frontend with metadata support
-            server_instance.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server_instance.client_id)
+            # Only send old method if client doesn't support preview metadata
+            if not feature_flags.supports_feature(
+                server_instance.sockets_metadata,
+                server_instance.client_id,
+                "supports_preview_metadata",
+            ):
+                server_instance.send_sync(
+                    BinaryEventTypes.UNENCODED_PREVIEW_IMAGE,
+                    preview_image,
+                    server_instance.client_id,
+                )
 
     comfy.utils.set_progress_bar_global_hook(hook)
 

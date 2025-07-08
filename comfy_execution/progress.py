@@ -6,6 +6,8 @@ from abc import ABC
 from tqdm import tqdm
 from comfy_execution.graph import DynamicPrompt
 from protocol import BinaryEventTypes
+from comfy_api import feature_flags
+
 
 class NodeState(Enum):
     Pending = "pending"
@@ -13,19 +15,23 @@ class NodeState(Enum):
     Finished = "finished"
     Error = "error"
 
+
 class NodeProgressState(TypedDict):
     """
     A class to represent the state of a node's progress.
     """
+
     state: NodeState
     value: float
     max: float
+
 
 class ProgressHandler(ABC):
     """
     Abstract base class for progress handlers.
     Progress handlers receive progress updates and display them in various ways.
     """
+
     def __init__(self, name: str):
         self.name = name
         self.enabled = True
@@ -37,8 +43,15 @@ class ProgressHandler(ABC):
         """Called when a node starts processing"""
         pass
 
-    def update_handler(self, node_id: str, value: float, max_value: float,
-                      state: NodeProgressState, prompt_id: str, image: Optional[Image.Image] = None):
+    def update_handler(
+        self,
+        node_id: str,
+        value: float,
+        max_value: float,
+        state: NodeProgressState,
+        prompt_id: str,
+        image: Optional[Image.Image] = None,
+    ):
         """Called when a node's progress is updated"""
         pass
 
@@ -58,10 +71,12 @@ class ProgressHandler(ABC):
         """Disable this handler"""
         self.enabled = False
 
+
 class CLIProgressHandler(ProgressHandler):
     """
     Handler that displays progress using tqdm progress bars in the CLI.
     """
+
     def __init__(self):
         super().__init__("cli")
         self.progress_bars: Dict[str, tqdm] = {}
@@ -75,12 +90,19 @@ class CLIProgressHandler(ProgressHandler):
                 desc=f"Node {node_id}",
                 unit="steps",
                 leave=True,
-                position=len(self.progress_bars)
+                position=len(self.progress_bars),
             )
 
     @override
-    def update_handler(self, node_id: str, value: float, max_value: float,
-                      state: NodeProgressState, prompt_id: str, image: Optional[Image.Image] = None):
+    def update_handler(
+        self,
+        node_id: str,
+        value: float,
+        max_value: float,
+        state: NodeProgressState,
+        prompt_id: str,
+        image: Optional[Image.Image] = None,
+    ):
         # Handle case where start_handler wasn't called
         if node_id not in self.progress_bars:
             self.progress_bars[node_id] = tqdm(
@@ -88,7 +110,7 @@ class CLIProgressHandler(ProgressHandler):
                 desc=f"Node {node_id}",
                 unit="steps",
                 leave=True,
-                position=len(self.progress_bars)
+                position=len(self.progress_bars),
             )
             self.progress_bars[node_id].update(value)
         else:
@@ -119,10 +141,12 @@ class CLIProgressHandler(ProgressHandler):
             bar.close()
         self.progress_bars.clear()
 
+
 class WebUIProgressHandler(ProgressHandler):
     """
     Handler that sends progress updates to the WebUI via WebSockets.
     """
+
     def __init__(self, server_instance):
         super().__init__("webui")
         self.server_instance = server_instance
@@ -145,17 +169,16 @@ class WebUIProgressHandler(ProgressHandler):
                 "prompt_id": prompt_id,
                 "display_node_id": self.registry.dynprompt.get_display_node_id(node_id),
                 "parent_node_id": self.registry.dynprompt.get_parent_node_id(node_id),
-                "real_node_id": self.registry.dynprompt.get_real_node_id(node_id)
+                "real_node_id": self.registry.dynprompt.get_real_node_id(node_id),
             }
             for node_id, state in nodes.items()
             if state["state"] != NodeState.Pending
         }
 
         # Send a combined progress_state message with all node states
-        self.server_instance.send_sync("progress_state", {
-            "prompt_id": prompt_id,
-            "nodes": active_nodes
-        })
+        self.server_instance.send_sync(
+            "progress_state", {"prompt_id": prompt_id, "nodes": active_nodes}
+        )
 
     @override
     def start_handler(self, node_id: str, state: NodeProgressState, prompt_id: str):
@@ -164,21 +187,41 @@ class WebUIProgressHandler(ProgressHandler):
             self._send_progress_state(prompt_id, self.registry.nodes)
 
     @override
-    def update_handler(self, node_id: str, value: float, max_value: float,
-                      state: NodeProgressState, prompt_id: str, image: Optional[Image.Image] = None):
+    def update_handler(
+        self,
+        node_id: str,
+        value: float,
+        max_value: float,
+        state: NodeProgressState,
+        prompt_id: str,
+        image: Optional[Image.Image] = None,
+    ):
         # Send progress state of all nodes
         if self.registry:
             self._send_progress_state(prompt_id, self.registry.nodes)
         if image:
-            metadata = {
-                "node_id": node_id,
-                "prompt_id": prompt_id,
-                "display_node_id": self.registry.dynprompt.get_display_node_id(node_id),
-                "parent_node_id": self.registry.dynprompt.get_parent_node_id(node_id),
-                "real_node_id": self.registry.dynprompt.get_real_node_id(node_id)
-            }
-            self.server_instance.send_sync(BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA, (image, metadata), self.server_instance.client_id)
-
+            # Only send new format if client supports it
+            if feature_flags.supports_feature(
+                self.server_instance.sockets_metadata,
+                self.server_instance.client_id,
+                "supports_preview_metadata",
+            ):
+                metadata = {
+                    "node_id": node_id,
+                    "prompt_id": prompt_id,
+                    "display_node_id": self.registry.dynprompt.get_display_node_id(
+                        node_id
+                    ),
+                    "parent_node_id": self.registry.dynprompt.get_parent_node_id(
+                        node_id
+                    ),
+                    "real_node_id": self.registry.dynprompt.get_real_node_id(node_id),
+                }
+                self.server_instance.send_sync(
+                    BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA,
+                    (image, metadata),
+                    self.server_instance.client_id,
+                )
 
     @override
     def finish_handler(self, node_id: str, state: NodeProgressState, prompt_id: str):
@@ -186,10 +229,12 @@ class WebUIProgressHandler(ProgressHandler):
         if self.registry:
             self._send_progress_state(prompt_id, self.registry.nodes)
 
+
 class ProgressRegistry:
     """
     Registry that maintains node progress state and notifies registered handlers.
     """
+
     def __init__(self, prompt_id: str, dynprompt: DynamicPrompt):
         self.prompt_id = prompt_id
         self.dynprompt = dynprompt
@@ -221,9 +266,7 @@ class ProgressRegistry:
         """Ensure a node entry exists"""
         if node_id not in self.nodes:
             self.nodes[node_id] = NodeProgressState(
-                state = NodeState.Pending,
-                value = 0,
-                max = 1
+                state=NodeState.Pending, value=0, max=1
             )
         return self.nodes[node_id]
 
@@ -239,7 +282,9 @@ class ProgressRegistry:
             if handler.enabled:
                 handler.start_handler(node_id, entry, self.prompt_id)
 
-    def update_progress(self, node_id: str, value: float, max_value: float, image: Optional[Image.Image]) -> None:
+    def update_progress(
+        self, node_id: str, value: float, max_value: float, image: Optional[Image.Image]
+    ) -> None:
         """Update progress for a node"""
         entry = self.ensure_entry(node_id)
         entry["state"] = NodeState.Running
@@ -249,7 +294,9 @@ class ProgressRegistry:
         # Notify all enabled handlers
         for handler in self.handlers.values():
             if handler.enabled:
-                handler.update_handler(node_id, value, max_value, entry, self.prompt_id, image)
+                handler.update_handler(
+                    node_id, value, max_value, entry, self.prompt_id, image
+                )
 
     def finish_progress(self, node_id: str) -> None:
         """Finish progress tracking for a node"""
@@ -267,8 +314,12 @@ class ProgressRegistry:
         for handler in self.handlers.values():
             handler.reset()
 
+
 # Global registry instance
-global_progress_registry: ProgressRegistry = ProgressRegistry(prompt_id="", dynprompt=DynamicPrompt({}))
+global_progress_registry: ProgressRegistry = ProgressRegistry(
+    prompt_id="", dynprompt=DynamicPrompt({})
+)
+
 
 def reset_progress_state(prompt_id: str, dynprompt: DynamicPrompt) -> None:
     global global_progress_registry
@@ -280,9 +331,11 @@ def reset_progress_state(prompt_id: str, dynprompt: DynamicPrompt) -> None:
     # Create new registry
     global_progress_registry = ProgressRegistry(prompt_id, dynprompt)
 
+
 def add_progress_handler(handler: ProgressHandler) -> None:
     handler.set_registry(global_progress_registry)
     global_progress_registry.register_handler(handler)
+
 
 def get_progress_state() -> ProgressRegistry:
     return global_progress_registry
