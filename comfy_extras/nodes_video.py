@@ -102,10 +102,10 @@ class SaveVideo(ComfyNodeABC):
             },
         }
 
-    RETURN_TYPES = ()
+    RETURN_TYPES = ("STRING",)
     FUNCTION = "save_video"
 
-    OUTPUT_NODE = True
+    # OUTPUT_NODE = True
 
     CATEGORY = "image/video"
     DESCRIPTION = "Saves the input images to your ComfyUI output directory."
@@ -358,101 +358,6 @@ class LoadVideoEncrypted(ComfyNodeABC):
             return "Invalid video file: {}".format(file)
         return True
 
-class ShowURL(ComfyNodeABC):
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "url": ("STRING", {"default": ""}),
-            }
-        }
-
-    RETURN_TYPES = ()
-    RETURN_NAMES = ()
-    FUNCTION = "show_url"
-    OUTPUT_NODE = True
-    CATEGORY = "image/video"
-    DESCRIPTION = "Show a URL as plain text in the UI."
-
-    def show_url(self, url):
-        return {
-            "ui": {
-                "text": (url,)
-            }
-        }
-
-
-class TestURL(ComfyNodeABC):
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {}
-        }
-
-    RETURN_TYPES = ()
-    RETURN_NAMES = ()
-    FUNCTION = "show_url"
-    OUTPUT_NODE = True
-    CATEGORY = "image/video"
-    DESCRIPTION = "Show a URL as plain text in the UI."
-
-    def show_url(self):
-        return ("http://aaatesat.com",)
-
-class TestURL2(ComfyNodeABC):
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {}
-        }
-
-    RETURN_TYPES = ()
-    RETURN_NAMES = ()
-    FUNCTION = "show_url"
-    OUTPUT_NODE = True
-    CATEGORY = "image/video"
-    DESCRIPTION = "Show a URL as plain text in the UI."
-
-    def show_url(self):
-        return {"ui": {"link": ["http://aauaoaaadaa.ad"]}}
-
-class TestURL3:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {}
-        }
-
-    RETURN_TYPES = ()
-    RETURN_NAMES = ()
-    FUNCTION = "show_url"
-    OUTPUT_NODE = True
-    CATEGORY = "image/video"
-    DESCRIPTION = "Show a URL as plain text in the UI."
-
-    def show_url(self):
-        return {"ui": {"link": ["http://aauaoaaadaa.ad"]}}
-
-
-class TestURL4:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "url_string": ("STRING", {"multiline": False, "default": "xyz"}),
-            },
-        }
-
-    RETURN_TYPES = ()
-    RETURN_NAMES = ()
-    FUNCTION = "show_url"
-    OUTPUT_NODE = True
-    CATEGORY = "image/video"
-    DESCRIPTION = "Show a URL as plain text in the UI."
-
-    def show_url(self, url_strin):
-        return {"ui": {"link": ["http://aauaoaaadaa.ad"]}}
-
 
 class DisplayLinkNode:
     def __init__(self):
@@ -486,12 +391,6 @@ NODE_CLASS_MAPPINGS = {
     "GetVideoComponents": GetVideoComponents,
     "LoadVideo": LoadVideo,
     "LoadVideoEncrypted": LoadVideoEncrypted,
-    "ShowURL": ShowURL,
-    "TestURL": TestURL,
-    "TestURL2": TestURL2,
-    "TestURL3": TestURL3,
-    "TestURL4": TestURL4,
-    "DisplayLink": DisplayLinkNode
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -500,10 +399,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GetVideoComponents": "Get Video Components",
     "LoadVideo": "Load Video",
     "LoadVideoEncrypted": "Load Video (Encrypted)",
-    "ShowURL": "Show URL",
-    "TestURL": "Test URL",
-    "TestURL2": "Test URL 2",
-    "TestURL3": "Test URL 3",
-    "TestURL4": "Test URL 4",
-    "DisplayLink": "Display Link (Custom)"
 }
