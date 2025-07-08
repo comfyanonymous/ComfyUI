@@ -456,7 +456,7 @@ class VoxelToMesh:
         return (MESH(torch.stack(vertices), torch.stack(faces)), )
 
 
-def save_glb(vertices, faces, filepath, metadata=None):
+def save_glb(vertices, faces, filepath, metadata=None, numpy_ready = False):
     """
     Save PyTorch tensor vertices and faces as a GLB file without external dependencies.
 
@@ -467,8 +467,12 @@ def save_glb(vertices, faces, filepath, metadata=None):
     """
 
     # Convert tensors to numpy arrays
-    vertices_np = vertices.cpu().numpy().astype(np.float32)
-    faces_np = faces.cpu().numpy().astype(np.uint32)
+    if not numpy_ready:
+        vertices_np = vertices.cpu().numpy().astype(np.float32)
+        faces_np = faces.cpu().numpy().astype(np.uint32)
+    else:
+        vertices_np = vertices.astype(np.float32)
+        faces_np = faces.astype(np.uint32)
 
     vertices_buffer = vertices_np.tobytes()
     indices_buffer = faces_np.tobytes()

@@ -1,26 +1,28 @@
 import torch
-import trimesh
 import torch.nn as nn
 from PIL import Image
 from typing import List, Union
 from torch.utils._pytree import tree_map
 from torch.utils.data._utils.collate import default_collate
 
-def export_to_trimesh(mesh_output):
-    if isinstance(mesh_output, list):
-        outputs = []
-        for mesh in mesh_output:
-            if mesh is None:
-                outputs.append(None)
-            else:
-                mesh.mesh_f = mesh.mesh_f[:, ::-1]
-                mesh_output = trimesh.Trimesh(mesh.mesh_v, mesh.mesh_f)
-                outputs.append(mesh_output)
-        return outputs
-    else:
-        mesh_output.mesh_f = mesh_output.mesh_f[:, ::-1]
-        mesh_output = trimesh.Trimesh(mesh_output.mesh_v, mesh_output.mesh_f)
-        return mesh_output
+import sys
+import os
+
+def find_project_root(target_folder_name="ComfyUI"):
+    """ Walks directory until it finds ComfyUI base directroy """
+    current = os.path.abspath(os.path.dirname(__file__))
+    while True:
+        if os.path.basename(current) == target_folder_name:
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            raise RuntimeError(f"Could not find folder named '{target_folder_name}' in parent paths.")
+        current = parent
+
+comfyui_root = find_project_root()
+sys.path.append(comfyui_root)
+
+from comfy_extras.nodes_hunyuan3d import save_glb
 
 class Hunyuan3DDiTFlowMatchingPipeline(nn.Module):
     def __init__(self, model, vae, conditioner, image_processor, scheduler, device, dtype):
@@ -120,8 +122,9 @@ class Hunyuan3DDiTFlowMatchingPipeline(nn.Module):
         bounds = 1.01,
         octree_res = 384,
         num_chunks = 8000,
+        save_file = None,
         **kwargs,
-    ) -> List[List[trimesh.Trimesh]]:
+    ):
         
         callback = kwargs.pop("callback", None)
         callback_steps = kwargs.pop("callback_steps", None)
@@ -178,4 +181,11 @@ class Hunyuan3DDiTFlowMatchingPipeline(nn.Module):
         latents = 1. / self.vae.scale_factor * latents
         mesh = self.vae.decode(latents, bounds = bounds, octree_res = octree_res, num_chunks = num_chunks)
 
-        return export_to_trimesh(mesh)
+        try:
+            if save_file is not None:
+                for output in mesh:
+                    save_glb(output.mesh_v, output.mesh_f, save_file, numpy_ready = True)
+        except Exception as e:
+            print(e)
+            
+        return mesh
