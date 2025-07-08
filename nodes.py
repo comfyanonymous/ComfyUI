@@ -1575,11 +1575,16 @@ class SaveImage(io.ComfyNodeV3):
             is_output_node=True,
         )
 
-    @classmethod
-    def execute(cls, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
-            filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
-        )
+    def __init__(self):
+        super().__init__()
+        self.output_dir = folder_paths.get_output_directory()
+        self.type = "output"
+        self.prefix_append = ""
+        self.compress_level = 4
+
+    def execute(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+        filename_prefix += self.prefix_append
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
         for (batch_number, image) in enumerate(images):
             i = 255. * image.cpu().numpy()
@@ -1595,11 +1600,11 @@ class SaveImage(io.ComfyNodeV3):
 
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
-                "type": "output",
+                "type": self.type,
             })
             counter += 1
 
@@ -1607,18 +1612,30 @@ class SaveImage(io.ComfyNodeV3):
 
 
 class PreviewImage(SaveImage):
+    @classmethod
+    def DEFINE_SCHEMA(cls):
+        return io.SchemaV3(
+            node_id="PreviewImage",
+            display_name="Preview Image",
+            description="Preview the input images.",
+            category="image",
+            inputs=[
+                io.Image.Input(
+                    "images",
+                    display_name="images",
+                    tooltip="The images to preview.",
+                ),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
     def __init__(self):
+        super().__init__()
         self.output_dir = folder_paths.get_temp_directory()
         self.type = "temp"
         self.prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
         self.compress_level = 1
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"images": ("IMAGE", ), },
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
-                }
 
 
 class LoadImage(io.ComfyNodeV3):
