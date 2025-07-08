@@ -221,38 +221,68 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
         input_container = av.open(input_source, mode='r')
         output_container = av.open(output_buffer, mode='w', format='mp4')
 
-        # Set up stream mapping
-        stream_map = {}
+        # Set up output streams for re-encoding
+        video_stream = None
+        audio_stream = None
+
         for stream in input_container.streams:
-            if stream.type in ('video', 'audio'):
-                out_stream = output_container.add_stream_from_template(template=stream)
-                stream_map[stream] = out_stream
+            logging.info(f"Found stream: type={stream.type}, class={type(stream)}")
+            if isinstance(stream, av.VideoStream):
+                # Create output video stream with same parameters
+                video_stream = output_container.add_stream('h264', rate=stream.average_rate)
+                video_stream.width = stream.width
+                video_stream.height = stream.height
+                video_stream.pix_fmt = 'yuv420p'
+                logging.info(f"Added video stream: {stream.width}x{stream.height} @ {stream.average_rate}fps")
+            elif isinstance(stream, av.AudioStream):
+                # Create output audio stream with same parameters
+                audio_stream = output_container.add_stream('aac', rate=stream.sample_rate)
+                audio_stream.sample_rate = stream.sample_rate
+                audio_stream.layout = stream.layout
+                logging.info(f"Added audio stream: {stream.sample_rate}Hz, {stream.channels} channels")
 
-        # Since we're always starting from 0, no need to seek
-        # Just process packets until we reach end_sec
+        frame_count = 0
+        audio_frame_count = 0
 
-        for packet in input_container.demux():
-            if packet.stream not in stream_map:
-                continue
+        # Decode and re-encode video frames
+        if video_stream:
+            for frame in input_container.decode(video=0):
+                if frame.time >= duration_sec:
+                    break
 
-            # Get packet timestamp (prefer PTS, fallback to DTS)
-            pts = packet.pts if packet.pts is not None else packet.dts
-            if pts is None:
-                continue  # Skip packets without timestamps
+                # Re-encode frame
+                for packet in video_stream.encode(frame):
+                    output_container.mux(packet)
+                frame_count += 1
 
-            time_in_seconds = float(pts * packet.time_base)
+            # Flush encoder
+            for packet in video_stream.encode():
+                output_container.mux(packet)
 
-            # Stop when we reach the target duration
-            if time_in_seconds >= duration_sec:
-                break
+            logging.info(f"Encoded {frame_count} video frames")
 
-            # Remap packet to output stream (timestamps already start at 0)
-            packet.stream = stream_map[packet.stream]
-            output_container.mux(packet)
+        # Decode and re-encode audio frames
+        if audio_stream:
+            input_container.seek(0)  # Reset to beginning for audio
+            for frame in input_container.decode(audio=0):
+                if frame.time >= duration_sec:
+                    break
+
+                # Re-encode frame
+                for packet in audio_stream.encode(frame):
+                    output_container.mux(packet)
+                audio_frame_count += 1
+
+            # Flush encoder
+            for packet in audio_stream.encode():
+                output_container.mux(packet)
+
+            logging.info(f"Encoded {audio_frame_count} audio frames")
 
         # Close containers
         output_container.close()
         input_container.close()
+
 
         # Return as VideoFromFile using the buffer
         output_buffer.seek(0)
