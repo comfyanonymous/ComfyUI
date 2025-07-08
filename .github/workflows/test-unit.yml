@@ -31,4 +31,5 @@ jobs:
     - name: Run Execution Model Tests
       run: |
         python -m pytest tests/inference/test_execution.py
+        python -m pytest tests/inference/test_async_nodes.py
 
