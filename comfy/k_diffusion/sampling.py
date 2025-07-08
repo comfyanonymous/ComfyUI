@@ -412,9 +412,13 @@ def sample_lms(model, x, sigmas, extra_args=None, callback=None, disable=None, o
             ds.pop(0)
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
-        cur_order = min(i + 1, order)
-        coeffs = [linear_multistep_coeff(cur_order, sigmas_cpu, i, j) for j in range(cur_order)]
-        x = x + sum(coeff * d for coeff, d in zip(coeffs, reversed(ds)))
+        if sigmas[i + 1] == 0:
+            # Denoising step
+            x = denoised
+        else:
+            cur_order = min(i + 1, order)
+            coeffs = [linear_multistep_coeff(cur_order, sigmas_cpu, i, j) for j in range(cur_order)]
+            x = x + sum(coeff * d for coeff, d in zip(coeffs, reversed(ds)))
     return x
 
 
@@ -1067,7 +1071,9 @@ def sample_ipndm(model, x, sigmas, extra_args=None, callback=None, disable=None,
         d_cur = (x_cur - denoised) / t_cur
 
         order = min(max_order, i+1)
-        if order == 1:      # First Euler step.
+        if t_next == 0:     # Denoising step
+            x_next = denoised
+        elif order == 1:    # First Euler step.
             x_next = x_cur + (t_next - t_cur) * d_cur
         elif order == 2:    # Use one history point.
             x_next = x_cur + (t_next - t_cur) * (3 * d_cur - buffer_model[-1]) / 2
@@ -1084,6 +1090,7 @@ def sample_ipndm(model, x, sigmas, extra_args=None, callback=None, disable=None,
             buffer_model.append(d_cur)
 
     return x_next
+
 
 #From https://github.com/zju-pi/diff-sampler/blob/main/diff-solvers-main/solvers.py
 #under Apache 2 license
@@ -1108,7 +1115,9 @@ def sample_ipndm_v(model, x, sigmas, extra_args=None, callback=None, disable=Non
         d_cur = (x_cur - denoised) / t_cur
 
         order = min(max_order, i+1)
-        if order == 1:      # First Euler step.
+        if t_next == 0:     # Denoising step
+            x_next = denoised
+        elif order == 1:    # First Euler step.
             x_next = x_cur + (t_next - t_cur) * d_cur
         elif order == 2:    # Use one history point.
             h_n = (t_next - t_cur)
@@ -1147,6 +1156,7 @@ def sample_ipndm_v(model, x, sigmas, extra_args=None, callback=None, disable=Non
             buffer_model.append(d_cur.detach())
 
     return x_next
+
 
 #From https://github.com/zju-pi/diff-sampler/blob/main/diff-solvers-main/solvers.py
 #under Apache 2 license
@@ -1197,6 +1207,7 @@ def sample_deis(model, x, sigmas, extra_args=None, callback=None, disable=None, 
             buffer_model.append(d_cur.detach())
 
     return x_next
+
 
 @torch.no_grad()
 def sample_euler_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None):
@@ -1404,6 +1415,7 @@ def sample_res_multistep_ancestral(model, x, sigmas, extra_args=None, callback=N
 def sample_res_multistep_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
     return res_multistep(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, s_noise=s_noise, noise_sampler=noise_sampler, eta=eta, cfg_pp=True)
 
+
 @torch.no_grad()
 def sample_gradient_estimation(model, x, sigmas, extra_args=None, callback=None, disable=None, ge_gamma=2., cfg_pp=False):
     """Gradient-estimation sampler. Paper: https://openreview.net/pdf?id=o2ND9v0CeK"""
@@ -1430,19 +1442,19 @@ def sample_gradient_estimation(model, x, sigmas, extra_args=None, callback=None,
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
         dt = sigmas[i + 1] - sigmas[i]
-        if i == 0:
+        if sigmas[i + 1] == 0:
+            # Denoising step
+            x = denoised
+        else:
             # Euler method
             if cfg_pp:
                 x = denoised + d * sigmas[i + 1]
             else:
                 x = x + d * dt
-        else:
-            # Gradient estimation
-            if cfg_pp:
+
+            if i >= 1:
+                # Gradient estimation
                 d_bar = (ge_gamma - 1) * (d - old_d)
-                x = denoised + d * sigmas[i + 1] + d_bar * dt
-            else:
-                d_bar = ge_gamma * d + (1 - ge_gamma) * old_d
                 x = x + d_bar * dt
         old_d = d
     return x

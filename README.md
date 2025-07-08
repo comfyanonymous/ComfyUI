@@ -86,6 +86,7 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
 - Smart memory management: can automatically run models on GPUs with as low as 1GB vram.
 - Works even if you don't have a GPU with: ```--cpu``` (slow)
 - Can load ckpt, safetensors and diffusers models/checkpoints. Standalone VAEs and CLIP models.
+- Safe loading of ckpt, pt, pth, etc.. files.
 - Embeddings/Textual inversion
 - [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
 - [Hypernetworks](https://comfyanonymous.github.io/ComfyUI_examples/hypernetworks/)
@@ -101,7 +102,6 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
 - [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
 - [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
 - Latent previews with [TAESD](#how-to-show-high-quality-previews)
-- Starts up very fast.
 - Works fully offline: core will never download anything unless you want to.
 - Optional API nodes to use paid models from external providers through the online [Comfy API](https://docs.comfy.org/tutorials/api-nodes/overview).
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
