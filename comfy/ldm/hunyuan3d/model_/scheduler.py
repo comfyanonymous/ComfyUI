@@ -2,7 +2,7 @@ import torch
 
 class EulerScheduler(torch.nn.Module):
     def __init__(self, num_training_timesteps: int = 1_000, shift: float = 1, 
-                 num_inference_timesteps: int = 50, inference: bool = True):
+                 num_inference_timesteps: int = 50, inference: bool = True, device: str = "cuda"):
         super(EulerScheduler, self).__init__()
 
         # compute timestep values so we can index into them later
@@ -22,16 +22,13 @@ class EulerScheduler(torch.nn.Module):
 
         if inference:
 
-            sigmas = torch.linspace(0, 1, num_inference_timesteps)
-            sigmas = sigmas * shift / (1 + (shift - 1) * sigmas)
-            sigmas = sigmas.to(torch.float32)
+            sigmas = torch.linspace(0, 1, num_inference_timesteps, dtype = torch.float32, device = device)
+            timesteps = sigmas * self.num_training_timesteps
 
-            timesteps = sigmas * num_training_timesteps
+            self.timesteps = timesteps.to(device = device)
+            self.sigmas = torch.cat([sigmas, torch.ones(1, device=sigmas.device)])
 
-            self.sigmas = torch.cat([sigmas, torch.ones(1, device = sigmas.device)])
-            self.timesteps = timesteps.to(device = sigmas.device)
-
-        self.step_index = 0
+        self._step_index = 0
 
     def sigma_to_timestep(self, sigma):
         return sigma * self.num_training_timesteps
@@ -71,20 +68,18 @@ class EulerScheduler(torch.nn.Module):
         return noised_image
     
     @torch.no_grad()
-    def reverse_flow(self, current_sample: torch.Tensor, model_output: torch.FloatTensor):
-        
-        # upcast to avoid precision errors
-        current_sample = current_sample.to(torch.float32)
+    def step(self, model_output: torch.FloatTensor, sample: torch.FloatTensor,):
+  
+        sample = sample.to(torch.float32)
 
-        # get the current and next sigma and the change between them
-        current_sigma = self.sigmas[self.step_index]
-        next_sigma = self.sigmas[self.step_index + 1]
-        dt = next_sigma - current_sigma
+        sigma = self.sigmas[self._step_index]
+        sigma_next = self.sigmas[self._step_index + 1]
 
-        prev_sample = current_sample + dt * model_output
+        prev_sample = sample + (sigma_next - sigma) * model_output
+
         prev_sample = prev_sample.to(model_output.dtype)
 
-        self.step_index += 1
+        self._step_index += 1
 
         return prev_sample
     

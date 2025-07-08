@@ -5,6 +5,10 @@
 import torch
 from torch import Tensor
 import math
+import trimesh
+import numpy as np
+from skimage import measure
+from dataclasses import dataclass
 
 def fps(src: Tensor, batch: Tensor, sampling_ratio: float, start_random: bool = True):
 
@@ -602,11 +606,6 @@ class PointCrossAttention(nn.Module):
 
         return latents
 
-import torch
-from skimage import measure
-from dataclasses import dataclass
-import numpy as np
-
 @dataclass
 class Latent2MeshOutput():
     # mesh for vertices and faces
@@ -707,10 +706,6 @@ def export_to_trimesh(mesh_output):
         mesh_output.mesh_f = mesh_output.mesh_f[:, ::-1]
         mesh_output = trimesh.Trimesh(mesh_output.mesh_v, mesh_output.mesh_f)
         return mesh_output
-
-import trimesh
-import torch
-import numpy as np
 
 def normalize_mesh(mesh, scale = 0.9999):
     """Normalize mesh to fit in [-scale, scale]. Translate mesh so its center is [0,0,0]"""

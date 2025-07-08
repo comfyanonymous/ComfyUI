@@ -5,7 +5,6 @@ from PIL import Image
 from typing import List, Union
 from torch.utils._pytree import tree_map
 from torch.utils.data._utils.collate import default_collate
-from vae import VAE
 
 def export_to_trimesh(mesh_output):
     if isinstance(mesh_output, list):
@@ -170,7 +169,7 @@ class Hunyuan3DDiTFlowMatchingPipeline(nn.Module):
                 noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_cond - noise_pred_uncond)
 
             # compute the previous noisy sample x_t -> x_t-1
-            latents = self.scheduler.reverse_flow(noise_pred, latents)
+            latents = self.scheduler.step(noise_pred, latents)
 
             if callback is not None and i % callback_steps == 0:
                 step_idx = i // getattr(self.scheduler, "order", 1)
@@ -180,18 +179,3 @@ class Hunyuan3DDiTFlowMatchingPipeline(nn.Module):
         mesh = self.vae.decode(latents, bounds = bounds, octree_res = octree_res, num_chunks = num_chunks)
 
         return export_to_trimesh(mesh)
-
-if __name__ == '__main__':
-    from scheduler import EulerScheduler
-    from conditioner import SingleImageEncoder
-    from image_processor import ImageProcessorV2
-    from dinov2 import DinoConfig
-    from hunyuandit import HunYuanDiTPlain
-
-    model = HunYuanDiTPlain(depth = 2)
-
-    pipeline = Hunyuan3DDiTFlowMatchingPipeline(vae = VAE(), scheduler = EulerScheduler(), model = model,
-                                                conditioner = SingleImageEncoder(DinoConfig()), image_processor = ImageProcessorV2(),
-                                                device = "cpu", dtype = torch.bfloat16) 
-    img = r"C:\Users\yrafa\Work\Hunyuan 3D\cat.jpg"
-    print(pipeline(img))
