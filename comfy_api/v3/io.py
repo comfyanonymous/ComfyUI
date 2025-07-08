@@ -1015,7 +1015,7 @@ class ComfyNodeV3:
         type_clone: type[ComfyNodeV3] = type(f"CLEAN_{c_type.__name__}", c_type.__bases__, {})
         # TODO: what parameters should be carried over?
         type_clone.SCHEMA = c_type.SCHEMA
-        type_clone.hidden = HiddenHolder.from_dict(hidden_inputs)
+        type_clone.hidden = HiddenHolder.from_dict(hidden_inputs) if hidden_inputs is not None else None
         # TODO: add anything we would want to expose inside node's execute function
         return type_clone
 
