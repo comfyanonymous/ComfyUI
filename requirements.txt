@@ -15,6 +15,7 @@ aiohttp>=3.11.8
 yarl>=1.18.0
 pyyaml
 Pillow
+huggingface_hub
 scipy
 tqdm
 psutil

@@ -12,6 +12,7 @@ from comfy_api.input import ImageInput, AudioInput, VideoInput
 from comfy_api.util import VideoContainer, VideoCodec, VideoComponents
 from comfy_api.input_impl import VideoFromFile, VideoFromComponents
 from comfy.cli_args import args
+from huggingface_hub import HfApi, HfFolder
 
 class SaveWEBM:
     def __init__(self):
@@ -94,7 +95,7 @@ class SaveVideo(ComfyNodeABC):
                 "format": (VideoContainer.as_input(), {"default": "auto", "tooltip": "The format to save the video as."}),
                 "codec": (VideoCodec.as_input(), {"default": "auto", "tooltip": "The codec to use for the video."}),
                 "encrypt": ("BOOLEAN", {"default": False, "tooltip": "Enable simple XOR encryption"}),
-                "encryption_key": ("STRING", {"default": "mysecretkey", "tooltip": "Encryption key for XOR encryption"}),
+                "encryption_key": ("STRING", {"default": "key4comfy", "tooltip": "Encryption key for XOR encryption"}),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -109,6 +110,20 @@ class SaveVideo(ComfyNodeABC):
 
     CATEGORY = "image/video"
     DESCRIPTION = "Saves the input images to your ComfyUI output directory."
+
+
+    def upload(self, hf_token, dataset_name, file_path):
+        api = HfApi()
+        HfFolder.save_token(hf_token)
+
+        api.upload_file(
+            path_or_fileobj=file_path,
+            path_in_repo=os.path.basename(file_path),
+            repo_id=dataset_name,
+            repo_type="dataset",
+            token=hf_token,
+        )
+
 
     def simple_xor_encrypt(self, data: bytes, key: str) -> bytes:
         """简单的XOR加密"""
@@ -173,7 +188,11 @@ class SaveVideo(ComfyNodeABC):
             # 不加密，直接重命名
             os.rename(temp_file_path, final_file_path)
 
-        url = f'<a href="http://comfy.helloitsme-docs.serv00.net/decrypt_and_serve_video?{final_file_path}" target="_blank">Click to open Video: {final_file_path}</a>'
+        # 上传到Hugging Face
+        self.upload(args.hf_token, args.hf_dataset_name, final_file_path)
+        final_filename = os.path.basename(final_file_path)
+
+        url = f'<a href="http://comfy.helloitsme-docs.serv00.net/decrypt_and_serve_video?url=https://huggingface.co/datasets/{args.hf_dataset_name}/resolve/main/ComfyUI_00053_.mp4&key={encryption_key}" target="_blank">Video generated, click to open: {final_filename}</a>'
         # 只返回url到ui.text
         return (url,)
 

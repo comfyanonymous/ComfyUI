@@ -150,6 +150,10 @@ parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test
 parser.add_argument("--windows-standalone-build", action="store_true", help="Windows standalone build: Enable convenient things that most people using the standalone windows build will probably enjoy (like auto opening the page on startup).")
 
 parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
+
+parser.add_argument("--hf_token", type=str, help="Hugging Face token for uploading files.")
+parser.add_argument("--hf_dataset_name", type=str, help="Hugging Face dataset name for uploading files.")
+
 parser.add_argument("--disable-all-custom-nodes", action="store_true", help="Disable loading all custom nodes.")
 parser.add_argument("--whitelist-custom-nodes", type=str, nargs='+', default=[], help="Specify custom node folders to load even when --disable-all-custom-nodes is enabled.")
 parser.add_argument("--disable-api-nodes", action="store_true", help="Disable loading all api nodes.")
