@@ -20,6 +20,8 @@ from comfy.clip_vision import ClipVisionModel
 from comfy.clip_vision import Output as ClipVisionOutput_
 from comfy_api.input import VideoInput
 from comfy.hooks import HookGroup, HookKeyframeGroup
+import folder_paths
+import os
 # from comfy_extras.nodes_images import SVG as SVG_ # NOTE: needs to be moved before can be imported due to circular reference
 
 
@@ -207,7 +209,10 @@ class WidgetInputV3(InputV3):
         })
     
     def get_io_type_V1(self):
+        if isinstance(self, Combo.Input):
+            return self.as_value_type_v1()
         return self.widgetType if self.widgetType is not None else super().get_io_type_V1()
+
 
 class OutputV3(IO_V3):
     def __init__(self, id: str, display_name: str=None, tooltip: str=None,
@@ -372,7 +377,7 @@ class String(ComfyTypeIO):
     class Input(WidgetInputV3):
         '''String input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                    multiline=False, placeholder: str=None, default: int=None,
+                    multiline=False, placeholder: str=None, default: str=None,
                     socketless: bool=None, force_input: bool=None):
             super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, force_input)
             self.multiline = multiline
@@ -389,11 +394,11 @@ class String(ComfyTypeIO):
 class Combo(ComfyType):
     Type = str
     class Input(WidgetInputV3):
-        '''Combo input (dropdown).'''
+        """Combo input (dropdown)."""
         Type = str
         def __init__(self, id: str, options: list[str]=None, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: str=None, control_after_generate: bool=None,
-                    image_upload: bool=None, image_folder: FolderType=None,
+                    image_upload: bool=None, image_folder: FolderType=None, content_types: list[Literal["image", "video", "audio", "model"]]=None,
                     remote: RemoteOptions=None,
                     socketless: bool=None):
             super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type)
@@ -402,6 +407,7 @@ class Combo(ComfyType):
             self.control_after_generate = control_after_generate
             self.image_upload = image_upload
             self.image_folder = image_folder
+            self.content_types = content_types
             self.remote = remote
             self.default: str
 
@@ -412,8 +418,22 @@ class Combo(ComfyType):
                 "control_after_generate": self.control_after_generate,
                 "image_upload": self.image_upload,
                 "image_folder": self.image_folder.value if self.image_folder else None,
+                "content_types": self.content_types if self.content_types else None,
                 "remote": self.remote.as_dict() if self.remote else None,
             })
+
+        def as_value_type_v1(self):
+            if getattr(self, "image_folder"):
+                if self.image_folder == FolderType.input:
+                    target_dir = folder_paths.get_input_directory()
+                elif self.image_folder == FolderType.output:
+                    target_dir = folder_paths.get_output_directory()
+                else:
+                    target_dir = folder_paths.get_temp_directory()
+                files = [f for f in os.listdir(target_dir) if os.path.isfile(os.path.join(target_dir, f))]
+                if self.content_types is None:
+                    return files
+                return sorted(folder_paths.filter_files_content_types(files, self.content_types))
 
 
 @comfytype(io_type="COMBO")
@@ -969,7 +989,7 @@ class SchemaV3:
             issues.append(f"Ids must be unique between inputs and outputs, but {intersection} are not.")
         if len(issues) > 0:
             raise ValueError("\n".join(issues))
-    
+
     def finalize(self):
         """Add hidden based on selected schema options."""
         # if is an api_node, will need key-related hidden

@@ -26,7 +26,7 @@ import comfy.sd
 import comfy.utils
 import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
-from comfy_api.v3.io import ComfyNodeV3
+from comfy_api.v3 import io
 
 import comfy.clip_vision
 
@@ -1550,36 +1550,36 @@ class KSamplerAdvanced:
             disable_noise = True
         return common_ksampler(model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)
 
-class SaveImage:
-    def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
-        self.type = "output"
-        self.prefix_append = ""
-        self.compress_level = 4
+
+class SaveImage(io.ComfyNodeV3):
+    @classmethod
+    def DEFINE_SCHEMA(cls):
+        return io.SchemaV3(
+            node_id="SaveImage",
+            display_name="Save Image",
+            description="Saves the input images to your ComfyUI output directory.",
+            category="image",
+            inputs=[
+                io.Image.Input(
+                    "images",
+                    display_name="images",
+                    tooltip="The images to save.",
+                ),
+                io.String.Input(
+                    "filename_prefix",
+                    default="ComfyUI",
+                    tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes.",
+                ),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "images": ("IMAGE", {"tooltip": "The images to save."}),
-                "filename_prefix": ("STRING", {"default": "ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."})
-            },
-            "hidden": {
-                "prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"
-            },
-        }
-
-    RETURN_TYPES = ()
-    FUNCTION = "save_images"
-
-    OUTPUT_NODE = True
-
-    CATEGORY = "image"
-    DESCRIPTION = "Saves the input images to your ComfyUI output directory."
-
-    def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
-        filename_prefix += self.prefix_append
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
+    def execute(cls, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
+        )
         results = list()
         for (batch_number, image) in enumerate(images):
             i = 255. * image.cpu().numpy()
@@ -1595,15 +1595,16 @@ class SaveImage:
 
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
-                "type": self.type
+                "type": "output",
             })
             counter += 1
 
         return { "ui": { "images": results } }
+
 
 class PreviewImage(SaveImage):
     def __init__(self):
@@ -1619,24 +1620,36 @@ class PreviewImage(SaveImage):
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
-class LoadImage:
+
+class LoadImage(io.ComfyNodeV3):
     @classmethod
-    def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
-        files = folder_paths.filter_files_content_types(files, ["image"])
-        return {"required":
-                    {"image": (sorted(files), {"image_upload": True})},
-                }
+    def DEFINE_SCHEMA(cls):
+        return io.SchemaV3(
+            node_id="LoadImage",
+            display_name="Load Image",
+            category="image",
+            inputs=[
+                io.Combo.Input(
+                    "image",
+                    display_name="image",
+                    image_upload=True,
+                    image_folder=io.FolderType.input,
+                    content_types=["image"],
+                ),
+            ],
+            outputs=[
+                io.Image.Output(
+                    "IMAGE",
+                ),
+                io.Mask.Output(
+                    "MASK",
+                ),
+            ],
+        )
 
-    CATEGORY = "image"
-
-    RETURN_TYPES = ("IMAGE", "MASK")
-    FUNCTION = "load_image"
-    def load_image(self, image):
-        image_path = folder_paths.get_annotated_filepath(image)
-
-        img = node_helpers.pillow(Image.open, image_path)
+    @classmethod
+    def execute(cls, image) -> io.NodeOutput:
+        img = node_helpers.pillow(Image.open, folder_paths.get_annotated_filepath(image))
 
         output_images = []
         output_masks = []
@@ -1678,7 +1691,7 @@ class LoadImage:
             output_image = output_images[0]
             output_mask = output_masks[0]
 
-        return (output_image, output_mask)
+        return io.NodeOutput(output_image, output_mask)
 
     @classmethod
     def IS_CHANGED(s, image):
@@ -1694,6 +1707,7 @@ class LoadImage:
             return "Invalid image file: {}".format(image)
 
         return True
+
 
 class LoadImageMask:
     _color_channels = ["alpha", "red", "green", "blue"]
@@ -2162,7 +2176,7 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
         # V3 node definition
         elif getattr(module, "NODES_LIST", None) is not None:
             for node_cls in module.NODES_LIST:
-                node_cls: ComfyNodeV3
+                node_cls: io.ComfyNodeV3
                 schema = node_cls.GET_SCHEMA()
                 if schema.node_id not in ignore:
                     NODE_CLASS_MAPPINGS[schema.node_id] = node_cls
