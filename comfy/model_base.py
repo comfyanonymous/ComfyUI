@@ -168,6 +168,7 @@ class BaseModel(torch.nn.Module):
         if self.manual_cast_dtype is not None:
             dtype = self.manual_cast_dtype
 
+        xc = xc.to(dtype)
         t = self.model_sampling.timestep(t).float()
         if context is not None:
             context = context.to(dtype)
@@ -1208,7 +1209,7 @@ class WAN21(BaseModel):
         if image.shape[1] > (extra_channels - 4):
             image = image[:, :(extra_channels - 4)]
 
-        mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None)) if "concat_mask" in kwargs or "denoise_mask" in kwargs else None
+        mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
         if mask is None:
             mask = torch.zeros_like(noise)[:, :4]
         else:
