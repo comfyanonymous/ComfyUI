@@ -967,6 +967,26 @@ class SchemaV3:
             issues.append(f"Ids must be unique between inputs and outputs, but {intersection} are not.")
         if len(issues) > 0:
             raise ValueError("\n".join(issues))
+    
+    def finalize(self):
+        """Add hidden based on selected schema options."""
+        # if is an api_node, will need key-related hidden
+        if self.is_api_node:
+            if self.hidden is None:
+                self.hidden = []
+            if Hidden.auth_token_comfy_org not in self.hidden:
+                self.hidden.append(Hidden.auth_token_comfy_org)
+            if Hidden.api_key_comfy_org not in self.hidden:
+                self.hidden.append(Hidden.api_key_comfy_org)
+        # if is an output_node, will need prompt and extra_pnginfo
+        if self.is_output_node:
+            if self.hidden is None:
+                self.hidden = []
+            if Hidden.prompt not in self.hidden:
+                self.hidden.append(Hidden.prompt)
+            if Hidden.extra_pnginfo not in self.hidden:
+                self.hidden.append(Hidden.extra_pnginfo)
+
 
 class Serializer:
     def __init_subclass__(cls, io_type: str, **kwargs):
@@ -1144,7 +1164,7 @@ class ComfyNodeV3:
 
     @classmethod
     def INPUT_TYPES(cls, include_hidden=True, return_schema=False) -> dict[str, dict] | tuple[dict[str, dict], SchemaV3]:
-        schema = cls.DEFINE_SCHEMA()
+        schema = cls.FINALIZE_SCHEMA()
         # for V1, make inputs be a dict with potential keys {required, optional, hidden}
         input = {
             "required": {}
@@ -1165,9 +1185,17 @@ class ComfyNodeV3:
         return input
 
     @classmethod
-    def GET_SCHEMA(cls) -> SchemaV3:
-        cls.VALIDATE_CLASS()
+    def FINALIZE_SCHEMA(cls):
+        """Call DEFINE_SCHEMA and finalize it."""
         schema = cls.DEFINE_SCHEMA()
+        schema.finalize()
+        return schema
+
+    @classmethod
+    def GET_SCHEMA(cls) -> SchemaV3:
+        """Validate node class, finalize schema, validate schema, and set expected class properties."""
+        cls.VALIDATE_CLASS()
+        schema = cls.FINALIZE_SCHEMA()
         schema.validate()
         if cls._DESCRIPTION is None:
             cls._DESCRIPTION = schema.description
