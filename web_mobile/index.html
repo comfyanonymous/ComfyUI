@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyUI Mobile</title>
+    <link rel="stylesheet" href="/mobile_static/styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <h1>ComfyUI Mobile</h1>
+            <div class="header-actions">
+                <button id="toggleView" class="btn-icon" title="Switch to Desktop View">
+                    <i class="fas fa-desktop"></i>
+                </button>
+                <button id="queuePrompt" class="btn-primary" disabled>
+                    <i class="fas fa-play"></i>
+                    Queue Prompt
+                </button>
+            </div>
+        </header>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-label">Status:</span>
+                <span id="connectionStatus" class="status-value">Connecting...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Queue:</span>
+                <span id="queueSize" class="status-value">0</span>
+            </div>
+        </div>
+
+        <!-- Workflow Pipeline -->
+        <main class="workflow-container">
+            <div id="workflowPipeline" class="workflow-pipeline">
+                <!-- Node cards will be dynamically inserted here -->
+                <div class="loading-message">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    Loading workflow...
+                </div>
+            </div>
+        </main>
+
+        <!-- Bottom Action Bar -->
+        <div class="action-bar">
+            <button id="loadWorkflow" class="btn-secondary">
+                <i class="fas fa-folder-open"></i>
+                Load
+            </button>
+            <button id="saveWorkflow" class="btn-secondary">
+                <i class="fas fa-save"></i>
+                Save
+            </button>
+            <button id="clearWorkflow" class="btn-secondary">
+                <i class="fas fa-trash"></i>
+                Clear
+            </button>
+            <button id="addNode" class="btn-secondary">
+                <i class="fas fa-plus"></i>
+                Add Node
+            </button>
+        </div>
+    </div>
+
+    <!-- Node Detail Modal -->
+    <div id="nodeDetailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Edit Node</h2>
+                <button id="closeModal" class="btn-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Node editing form will be dynamically inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button id="cancelEdit" class="btn-secondary">Cancel</button>
+                <button id="saveEdit" class="btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Sheet Menu -->
+    <div id="bottomSheet" class="bottom-sheet">
+        <div class="bottom-sheet-content">
+            <div class="bottom-sheet-header">
+                <h3 id="bottomSheetTitle">Node Actions</h3>
+                <button id="closeBottomSheet" class="btn-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="bottom-sheet-body" id="bottomSheetBody">
+                <!-- Action buttons will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Connection Manager Overlay -->
+    <div id="connectionOverlay" class="connection-overlay">
+        <div class="connection-message">
+            <i class="fas fa-link"></i>
+            <p>Tap a compatible input to connect</p>
+            <button id="cancelConnection" class="btn-secondary">Cancel</button>
+        </div>
+    </div>
+
+    <script src="/mobile_static/utils.js"></script>
+    <script src="/mobile_static/graph-linearization.js"></script>
+    <script src="/mobile_static/api-client.js"></script>
+    <script src="/mobile_static/mobile-interface.js"></script>
+    <script src="/mobile_static/app.js"></script>
+</body>
+</html>

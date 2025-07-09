@@ -711,6 +711,18 @@ class PromptServer():
 
             return web.Response(status=200)
 
+        @routes.get("/mobile")
+        async def get_mobile(request):
+            mobile_path = os.path.join(os.path.dirname(__file__), "web_mobile", "index.html")
+            if os.path.exists(mobile_path):
+                response = web.FileResponse(mobile_path)
+                response.headers['Cache-Control'] = 'no-cache'
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+                return response
+            else:
+                return web.Response(status=404, text="Mobile interface not found")
+
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
         self.client_session = aiohttp.ClientSession(timeout=timeout)
@@ -750,6 +762,13 @@ class PromptServer():
         if embedded_docs_path:
             self.app.add_routes([
                 web.static('/docs', embedded_docs_path)
+            ])
+
+        # Serve mobile interface static files
+        mobile_static_path = os.path.join(os.path.dirname(__file__), "web_mobile")
+        if os.path.exists(mobile_static_path):
+            self.app.add_routes([
+                web.static('/mobile_static', mobile_static_path)
             ])
 
         self.app.add_routes([
