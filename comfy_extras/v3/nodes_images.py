@@ -165,7 +165,7 @@ class LoadImage(io.ComfyNodeV3):
         return io.NodeOutput(output_image, output_mask)
 
     @classmethod
-    def IS_CHANGED(s, image):
+    def fingerprint_inputs(s, image):
         image_path = folder_paths.get_annotated_filepath(image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
@@ -173,7 +173,7 @@ class LoadImage(io.ComfyNodeV3):
         return m.digest().hex()
 
     @classmethod
-    def VALIDATE_INPUTS(s, image):
+    def validate_inputs(s, image):
         if not folder_paths.exists_annotated_filepath(image):
             return "Invalid image file: {}".format(image)
         return True
@@ -260,7 +260,7 @@ class LoadImageOutput(io.ComfyNodeV3):
         return io.NodeOutput(output_image, output_mask)
 
     @classmethod
-    def IS_CHANGED(s, image):
+    def fingerprint_inputs(s, image):
         image_path = folder_paths.get_annotated_filepath(image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
@@ -268,7 +268,7 @@ class LoadImageOutput(io.ComfyNodeV3):
         return m.digest().hex()
 
     @classmethod
-    def VALIDATE_INPUTS(s, image):
+    def validate_inputs(s, image):
         if not folder_paths.exists_annotated_filepath(image):
             return "Invalid image file: {}".format(image)
         return True
