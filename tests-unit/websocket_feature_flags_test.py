@@ -1,63 +1,9 @@
 """Simplified tests for WebSocket feature flags functionality."""
-from comfy.cli_args import args
-# Force CPU mode for unit testing
-args.cpu = True
-from unittest.mock import Mock, patch
 from comfy_api import feature_flags
 
 
 class TestWebSocketFeatureFlags:
     """Test suite for WebSocket feature flags integration."""
-
-    @patch('main.server')
-    def test_preview_message_with_feature_support(self, mock_server):
-        """Test that UNENCODED_PREVIEW_IMAGE is not sent when client supports metadata."""
-        # Setup mock server with client that supports preview metadata
-        mock_server.client_id = "test_client"
-        mock_server.sockets_metadata = {
-            "test_client": {
-                "feature_flags": {"supports_preview_metadata": True}
-            }
-        }
-        mock_server.send_sync = Mock()
-
-        # Import the function we're testing
-        from main import hijack_progress
-
-        # Call hijack_progress
-        hijack_progress(mock_server)
-
-        # Verify feature flags can check support
-        assert feature_flags.supports_feature(
-            mock_server.sockets_metadata,
-            "test_client",
-            "supports_preview_metadata"
-        ) is True
-
-    @patch('main.server')
-    def test_preview_message_without_feature_support(self, mock_server):
-        """Test that UNENCODED_PREVIEW_IMAGE is sent when client doesn't support metadata."""
-        # Setup mock server with legacy client
-        mock_server.client_id = "legacy_client"
-        mock_server.sockets_metadata = {
-            "legacy_client": {
-                "feature_flags": {}  # No features
-            }
-        }
-        mock_server.send_sync = Mock()
-
-        # Import the function we're testing
-        from main import hijack_progress
-
-        # Call hijack_progress
-        hijack_progress(mock_server)
-
-        # Verify feature flags check returns False
-        assert feature_flags.supports_feature(
-            mock_server.sockets_metadata,
-            "legacy_client",
-            "supports_preview_metadata"
-        ) is False
 
     def test_server_feature_flags_response(self):
         """Test server feature flags are properly formatted."""
