@@ -658,11 +658,8 @@ class PromptServer():
             if max_items is not None:
                 max_items = int(max_items)
 
-            offset = request.rel_url.query.get("offset", None)
-            if offset is not None:
-                offset = int(offset)
-            else:
-                offset = -1
+            offset = request.rel_url.query.get("offset", 0)
+            offset = int(offset)
 
             return web.json_response(self.prompt_queue.get_ordered_history(max_items=max_items, offset=offset))
 
