@@ -295,8 +295,8 @@ class Boolean:
         '''Boolean input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: bool=None, label_on: str=None, label_off: str=None,
-                    socketless: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type)
+                    socketless: bool=None, force_input: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, force_input)
             self.label_on = label_on
             self.label_off = label_off
             self.default: bool
@@ -318,8 +318,8 @@ class Int:
         '''Integer input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: int=None, min: int=None, max: int=None, step: int=None, control_after_generate: bool=None,
-                    display_mode: NumberDisplay=None, socketless: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type)
+                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, force_input)
             self.min = min
             self.max = max
             self.step = step
@@ -347,8 +347,8 @@ class Float(ComfyTypeIO):
         '''Float input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
-                    display_mode: NumberDisplay=None, socketless: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type)
+                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, force_input)
             self.min = min
             self.max = max
             self.step = step
@@ -373,8 +373,8 @@ class String(ComfyTypeIO):
         '''String input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     multiline=False, placeholder: str=None, default: int=None,
-                    socketless: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type)
+                    socketless: bool=None, force_input: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, force_input)
             self.multiline = multiline
             self.placeholder = placeholder
             self.default: str
