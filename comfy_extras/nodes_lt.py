@@ -134,8 +134,8 @@ class LTXVAddGuide:
         _, num_keyframes = get_keyframe_idxs(cond)
         latent_count = latent_length - num_keyframes
         frame_idx = frame_idx if frame_idx >= 0 else max((latent_count - 1) * time_scale_factor + 1 + frame_idx, 0)
-        if guide_length > 1:
-            frame_idx = frame_idx // time_scale_factor * time_scale_factor # frame index must be divisible by 8
+        if guide_length > 1 and frame_idx != 0:
+            frame_idx = (frame_idx - 1) // time_scale_factor * time_scale_factor + 1 # frame index - 1 must be divisible by 8 or frame_idx == 0
 
         latent_idx = (frame_idx + time_scale_factor - 1) // time_scale_factor
 
@@ -144,7 +144,7 @@ class LTXVAddGuide:
     def add_keyframe_index(self, cond, frame_idx, guiding_latent, scale_factors):
         keyframe_idxs, _ = get_keyframe_idxs(cond)
         _, latent_coords = self._patchifier.patchify(guiding_latent)
-        pixel_coords = latent_to_pixel_coords(latent_coords, scale_factors, True)
+        pixel_coords = latent_to_pixel_coords(latent_coords, scale_factors, causal_fix=frame_idx == 0)  # we need the causal fix only if we're placing the new latents at index 0
         pixel_coords[:, 0] += frame_idx
         if keyframe_idxs is None:
             keyframe_idxs = pixel_coords
