@@ -73,7 +73,7 @@ class V3TestNode(io.ComfyNodeV3):
         )
 
     @classmethod
-    def VALIDATE_INPUTS(cls, image: io.Image.Type, some_int: int, combo: io.Combo.Type, combo2: io.MultiCombo.Type, xyz: XYZ.Type=None, mask: io.Mask.Type=None, **kwargs):
+    def validate_inputs(cls, image: io.Image.Type, some_int: int, combo: io.Combo.Type, combo2: io.MultiCombo.Type, xyz: XYZ.Type=None, mask: io.Mask.Type=None, **kwargs):
         if some_int < 0:
             raise Exception("some_int must be greater than 0")
         if combo == "c":
@@ -172,6 +172,15 @@ class NInputsTest(io.ComfyNodeV3):
             ],
         )
     
+    @classmethod
+    def validate_inputs(cls, nmock, nmock2):
+        return True
+
+    @classmethod
+    def check_lazy_status(cls, **kwargs) -> list[str]:
+        need = [name for name in kwargs if kwargs[name] is None]
+        return need
+
     @classmethod
     def execute(cls, nmock, nmock2):
         first_image = nmock[0]

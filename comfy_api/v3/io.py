@@ -1026,12 +1026,6 @@ class ComfyNodeV3:
     hidden: HiddenHolder = None
 
     @classmethod
-    def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
-        schema = cls.GET_SCHEMA()
-        # TODO: finish
-        return None
-
-    @classmethod
     @abstractmethod
     def DEFINE_SCHEMA(cls) -> SchemaV3:
         """
@@ -1047,8 +1041,44 @@ class ComfyNodeV3:
     execute = None
 
     @classmethod
+    def validate_inputs(cls, **kwargs) -> bool:
+        """Optionally, define this function to validate inputs; equivalnet to V1's VALIDATE_INPUTS."""
+        pass
+    validate_inputs = None
+
+    @classmethod
+    def fingerprint_inputs(cls, **kwargs) -> Any:
+        """Optionally, define this function to fingerprint inputs; equivalent to V1's IS_CHANGED."""
+        pass
+    fingerprint_inputs = None
+
+    @classmethod
+    def check_lazy_status(cls, **kwargs) -> list[str]:
+        """Optionally, define this function to return a list of input names that should be evaluated.
+
+        This basic mixin impl. requires all inputs.
+
+        :kwargs: All node inputs will be included here.  If the input is ``None``, it should be assumed that it has not yet been evaluated.  \
+            When using ``INPUT_IS_LIST = True``, unevaluated will instead be ``(None,)``.
+
+        Params should match the nodes execution ``FUNCTION`` (self, and all inputs by name).
+        Will be executed repeatedly until it returns an empty list, or all requested items were already evaluated (and sent as params).
+
+        Comfy Docs: https://docs.comfy.org/custom-nodes/backend/lazy_evaluation#defining-check-lazy-status
+        """
+        need = [name for name in kwargs if kwargs[name] is None]
+        return need
+    check_lazy_status = None
+
+    @classmethod
     def GET_SERIALIZERS(cls) -> list[Serializer]:
         return []
+
+    @classmethod
+    def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
+        schema = cls.GET_SCHEMA()
+        # TODO: finish
+        return None
 
     def __init__(self):
         self.local_state: NodeStateLocal = None
