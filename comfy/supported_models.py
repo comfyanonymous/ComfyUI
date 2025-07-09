@@ -7,6 +7,7 @@ from . import sd1_clip
 from . import sdxl_clip
 from . import supported_models_base
 from . import utils
+from . import model_management
 from .text_encoders import ace
 from .text_encoders import aura_t5
 from .text_encoders import cosmos

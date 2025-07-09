@@ -6,11 +6,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from comfy.ldm.lightricks.model import Timesteps
-from comfy.ldm.flux.layers import EmbedND
-from comfy.ldm.modules.attention import optimized_attention_masked
-import comfy.model_management
-import comfy.ldm.common_dit
+from ..lightricks.model import Timesteps
+from ..flux.layers import EmbedND
+from ..modules.attention import optimized_attention_masked
+from ...model_management import cast_to
+from ..common_dit import pad_to_patch_size
 
 
 def apply_rotary_emb(x, freqs_cis):
@@ -363,7 +363,7 @@ class OmniGen2Transformer2DModel(nn.Module):
         l_effective_img_len = [(H // p) * (W // p) for (H, W) in img_sizes]
 
         if ref_image_hidden_states is not None:
-            ref_image_hidden_states = list(map(lambda ref: comfy.ldm.common_dit.pad_to_patch_size(ref, (p, p)), ref_image_hidden_states))
+            ref_image_hidden_states = list(map(lambda ref: pad_to_patch_size(ref, (p, p)), ref_image_hidden_states))
             ref_img_sizes = [[(imgs.size(2), imgs.size(3)) if imgs is not None else None for imgs in ref_image_hidden_states]] * batch_size
             l_effective_ref_img_len = [[(ref_img_size[0] // p) * (ref_img_size[1] // p) for ref_img_size in _ref_img_sizes] if _ref_img_sizes is not None else [0] for _ref_img_sizes in ref_img_sizes]
         else:
@@ -396,7 +396,7 @@ class OmniGen2Transformer2DModel(nn.Module):
         hidden_states = self.x_embedder(hidden_states)
         if ref_image_hidden_states is not None:
             ref_image_hidden_states = self.ref_image_patch_embedder(ref_image_hidden_states)
-            image_index_embedding = comfy.model_management.cast_to(self.image_index_embedding, dtype=hidden_states.dtype, device=hidden_states.device)
+            image_index_embedding = cast_to(self.image_index_embedding, dtype=hidden_states.dtype, device=hidden_states.device)
 
             for i in range(batch_size):
                 shift = 0
@@ -417,7 +417,7 @@ class OmniGen2Transformer2DModel(nn.Module):
 
     def forward(self, x, timesteps, context, num_tokens, ref_latents=None, attention_mask=None, **kwargs):
         B, C, H, W = x.shape
-        hidden_states = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
+        hidden_states = pad_to_patch_size(x, (self.patch_size, self.patch_size))
         _, _, H_padded, W_padded = hidden_states.shape
         timestep = 1.0 - timesteps
         text_hidden_states = context
