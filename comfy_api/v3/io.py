@@ -191,7 +191,7 @@ class WidgetInputV3(InputV3):
     '''
     def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: Any=None,
-                 socketless: bool=None, widgetType: str=None, extra_dict=None, force_input: bool=None):
+                 socketless: bool=None, widgetType: str=None, force_input: bool=None, extra_dict=None):
         super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
         self.default = default
         self.socketless = socketless
