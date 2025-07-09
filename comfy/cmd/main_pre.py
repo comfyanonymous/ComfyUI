@@ -18,6 +18,9 @@ os.environ["NO_ALBUMENTATIONS_UPDATE"] = "1"
 os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
 os.environ['DO_NOT_TRACK'] = '1'
 
+if 'OTEL_METRICS_EXPORTER' not in os.environ:
+    os.environ['OTEL_METRICS_EXPORTER'] = 'none'
+
 import ctypes
 import importlib.util
 import logging
