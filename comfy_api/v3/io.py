@@ -209,8 +209,6 @@ class WidgetInputV3(InputV3):
         })
     
     def get_io_type_V1(self):
-        if isinstance(self, Combo.Input):
-            return self.as_value_type_v1()
         return self.widgetType if self.widgetType is not None else super().get_io_type_V1()
 
 
@@ -411,18 +409,7 @@ class Combo(ComfyType):
             self.remote = remote
             self.default: str
 
-        def as_dict_V1(self):
-            return super().as_dict_V1() | prune_dict({
-                "multiselect": self.multiselect,
-                "options": self.options,
-                "control_after_generate": self.control_after_generate,
-                "image_upload": self.image_upload,
-                "image_folder": self.image_folder.value if self.image_folder else None,
-                "content_types": self.content_types if self.content_types else None,
-                "remote": self.remote.as_dict() if self.remote else None,
-            })
-
-        def as_value_type_v1(self):
+        def get_io_type_V1(self):
             if getattr(self, "image_folder"):
                 if self.image_folder == FolderType.input:
                     target_dir = folder_paths.get_input_directory()
@@ -434,6 +421,18 @@ class Combo(ComfyType):
                 if self.content_types is None:
                     return files
                 return sorted(folder_paths.filter_files_content_types(files, self.content_types))
+            return super().get_io_type_V1()
+
+        def as_dict_V1(self):
+            return super().as_dict_V1() | prune_dict({
+                "multiselect": self.multiselect,
+                "options": self.options,
+                "control_after_generate": self.control_after_generate,
+                "image_upload": self.image_upload,
+                "image_folder": self.image_folder.value if self.image_folder else None,
+                "content_types": self.content_types if self.content_types else None,
+                "remote": self.remote.as_dict() if self.remote else None,
+            })
 
 
 @comfytype(io_type="COMBO")
@@ -462,6 +461,20 @@ class MultiCombo(ComfyType):
 @comfytype(io_type="IMAGE")
 class Image(ComfyTypeIO):
     Type = torch.Tensor
+
+@comfytype(io_type="WEBCAM")
+class Webcam(ComfyTypeIO):
+    Type = str
+
+    class Input(WidgetInputV3):
+        """Webcam input."""
+        Type = str
+        def __init__(
+                self, id: str, display_name: str=None, optional=False,
+                tooltip: str=None, lazy: bool=None, default: str=None, socketless: bool=None
+        ):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type)
+
 
 @comfytype(io_type="MASK")
 class Mask(ComfyTypeIO):
@@ -1121,7 +1134,7 @@ class ComfyNodeV3:
         type_clone: type[ComfyNodeV3] = type(f"CLEAN_{c_type.__name__}", c_type.__bases__, {})
         # TODO: what parameters should be carried over?
         type_clone.SCHEMA = c_type.SCHEMA
-        type_clone.hidden = HiddenHolder.from_dict(hidden_inputs)
+        type_clone.hidden = HiddenHolder.from_dict(hidden_inputs) if hidden_inputs is not None else None
         # TODO: add anything we would want to expose inside node's execute function
         return type_clone
 
