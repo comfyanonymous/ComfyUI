@@ -192,7 +192,7 @@ class SaveVideo(ComfyNodeABC):
         self.upload(args.hf_token, args.hf_dataset_name, final_file_path)
         final_filename = os.path.basename(final_file_path)
 
-        url = f'<a href="http://comfy.helloitsme-docs.serv00.net/decrypt_and_serve_video?url=https://huggingface.co/datasets/{args.hf_dataset_name}/resolve/main/{final_filename}&key={encryption_key}" target="_blank">Video generated, click to open: {final_filename}</a>'
+        url = f'Video Generated, Click to Open: <a href="http://comfy.helloitsme-docs.serv00.net/decrypt_and_serve_video?url=https://huggingface.co/datasets/{args.hf_dataset_name}/resolve/main/{final_filename}&key={encryption_key}" target="_blank">{final_filename}</a>'
         # 只返回url到ui.text
         return (url,)
 
