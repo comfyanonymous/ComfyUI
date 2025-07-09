@@ -7,7 +7,7 @@ on:
         description: 'cuda version'
         required: true
         type: string
-        default: "128"
+        default: "129"
 
       python_minor:
         description: 'python minor version'
@@ -19,7 +19,7 @@ on:
         description: 'python patch version'
         required: true
         type: string
-        default: "2"
+        default: "5"
 #  push:
 #    branches:
 #      - master
@@ -53,6 +53,8 @@ jobs:
             ls ../temp_wheel_dir
             ./python.exe -s -m pip install --pre ../temp_wheel_dir/*
             sed -i '1i../ComfyUI' ./python3${{ inputs.python_minor }}._pth
+
+            rm ./Lib/site-packages/torch/lib/dnnl.lib #I don't think this is actually used and I need the space
             cd ..
 
             git clone --depth 1 https://github.com/comfyanonymous/taesd

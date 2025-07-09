@@ -379,6 +379,9 @@ class ModelPatcher:
     def set_model_sampler_pre_cfg_function(self, pre_cfg_function, disable_cfg1_optimization=False):
         self.model_options = set_model_options_pre_cfg_function(self.model_options, pre_cfg_function, disable_cfg1_optimization)
 
+    def set_model_sampler_calc_cond_batch_function(self, sampler_calc_cond_batch_function):
+        self.model_options["sampler_calc_cond_batch_function"] = sampler_calc_cond_batch_function
+
     def set_model_unet_function_wrapper(self, unet_wrapper_function: UnetWrapperFunction):
         self.model_options["model_function_wrapper"] = unet_wrapper_function
 
