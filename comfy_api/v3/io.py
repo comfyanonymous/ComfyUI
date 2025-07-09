@@ -433,7 +433,7 @@ class MultiCombo(ComfyType):
 
         def as_dict_V1(self):
             to_return = super().as_dict_V1() | prune_dict({
-                "multiselect": self.multiselect,
+                "multi_select": self.multiselect,
                 "placeholder": self.placeholder,
                 "chip": self.chip,
             })

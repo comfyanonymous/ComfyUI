@@ -73,6 +73,14 @@ class V3TestNode(io.ComfyNodeV3):
         )
 
     @classmethod
+    def VALIDATE_INPUTS(cls, image: io.Image.Type, some_int: int, combo: io.Combo.Type, combo2: io.MultiCombo.Type, xyz: XYZ.Type=None, mask: io.Mask.Type=None, **kwargs):
+        if some_int < 0:
+            raise Exception("some_int must be greater than 0")
+        if combo == "c":
+            raise Exception("combo must be a or b")
+        return True
+
+    @classmethod
     def execute(cls, image: io.Image.Type, some_int: int, combo: io.Combo.Type, combo2: io.MultiCombo.Type, xyz: XYZ.Type=None, mask: io.Mask.Type=None, **kwargs):
         zzz = cls.hidden.prompt
         cls.state.my_str = "LOLJK"
