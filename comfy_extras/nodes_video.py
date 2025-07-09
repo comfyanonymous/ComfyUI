@@ -394,6 +394,7 @@ class DisplayLinkNode:
         }
 
     RETURN_TYPES = ("STRING",)
+    OUTPUT_NODE = True
     FUNCTION = "display_link"
     CATEGORY = "image/video"
 
