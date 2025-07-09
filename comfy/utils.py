@@ -77,6 +77,7 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
         if safe_load or ALWAYS_SAFE_LOAD:
             pl_sd = torch.load(ckpt, map_location=device, weights_only=True, **torch_args)
         else:
+            logging.warning("WARNING: loading {} unsafely, upgrade your pytorch to 2.4 or newer to load this file safely.".format(ckpt))
             pl_sd = torch.load(ckpt, map_location=device, pickle_module=comfy.checkpoint_pickle)
         if "state_dict" in pl_sd:
             sd = pl_sd["state_dict"]

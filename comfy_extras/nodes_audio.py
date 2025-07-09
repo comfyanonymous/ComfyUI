@@ -133,14 +133,6 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
             if sample_rate != audio["sample_rate"]:
                 waveform = torchaudio.functional.resample(waveform, audio["sample_rate"], sample_rate)
 
-        # Create in-memory WAV buffer
-        wav_buffer = io.BytesIO()
-        torchaudio.save(wav_buffer, waveform, sample_rate, format="WAV")
-        wav_buffer.seek(0)  # Rewind for reading
-
-        # Use PyAV to convert and add metadata
-        input_container = av.open(wav_buffer)
-
         # Create output with specified format
         output_buffer = io.BytesIO()
         output_container = av.open(output_buffer, mode='w', format=format)
@@ -150,7 +142,6 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
             output_container.metadata[key] = value
 
         # Set up the output stream with appropriate properties
-        input_container.streams.audio[0]
         if format == "opus":
             out_stream = output_container.add_stream("libopus", rate=sample_rate)
             if quality == "64k":
@@ -175,18 +166,16 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
         else: #format == "flac":
             out_stream = output_container.add_stream("flac", rate=sample_rate)
 
-
-        # Copy frames from input to output
-        for frame in input_container.decode(audio=0):
-            frame.pts = None  # Let PyAV handle timestamps
-            output_container.mux(out_stream.encode(frame))
+        frame = av.AudioFrame.from_ndarray(waveform.movedim(0, 1).reshape(1, -1).float().numpy(), format='flt', layout='mono' if waveform.shape[0] == 1 else 'stereo')
+        frame.sample_rate = sample_rate
+        frame.pts = 0
+        output_container.mux(out_stream.encode(frame))
 
         # Flush encoder
         output_container.mux(out_stream.encode(None))
 
         # Close containers
         output_container.close()
-        input_container.close()
 
         # Write the output to file
         output_buffer.seek(0)
