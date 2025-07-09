@@ -406,6 +406,7 @@ class DisplayLinkNode:
 NODE_CLASS_MAPPINGS = {
     "SaveWEBM": SaveWEBM,
     "SaveVideo": SaveVideo,
+    "DisplayLinkNode": DisplayLinkNode,
     "CreateVideo": CreateVideo,
     "GetVideoComponents": GetVideoComponents,
     "LoadVideo": LoadVideo,
@@ -414,6 +415,7 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveVideo": "Save Video",
+    "DisplayLinkNode": "Display Link",
     "CreateVideo": "Create Video",
     "GetVideoComponents": "Get Video Components",
     "LoadVideo": "Load Video",
