@@ -4,6 +4,7 @@ from comfy import model_management
 import torch
 import comfy.utils
 import folder_paths
+from torch.nn import DataParallel
 
 try:
     from spandrel_extra_arches import EXTRA_REGISTRY
@@ -39,16 +40,29 @@ class UpscaleModelLoader:
 class ImageUpscaleWithModel:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "upscale_model": ("UPSCALE_MODEL",),
+        inputs = {"required": {
+                              "upscale_model": ("UPSCALE_MODEL",),
                               "image": ("IMAGE",),
-                              }}
+                              },
+                  "optional": {}}
+        for i in range(torch.cuda.device_count()):
+            inputs["optional"]["cuda_%d" % i] = ("BOOLEAN", {"default": True, "tooltip": "Use device %s" % torch.cuda.get_device_name(i)})
+        return inputs
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"
 
     CATEGORY = "image/upscaling"
 
-    def upscale(self, upscale_model, image):
+    def upscale(self, upscale_model, image, **kwargs):
         device = model_management.get_torch_device()
+        device_ids = []
+        for k, v in kwargs.items():
+            if k.startswith("cuda_") and v:
+                device_ids.append(int(k[5:]))
+        if kwargs.get("cuda_0"):
+            device = "cuda:0"
+        elif len(device_ids) > 0:
+            device = "cuda:%d" % device_ids[0]
 
         memory_required = model_management.module_size(upscale_model.model)
         memory_required += (512 * 512 * 3) * image.element_size() * max(upscale_model.scale, 1.0) * 384.0 #The 384.0 is an estimate of how much some of these models take, TODO: make it more accurate
@@ -58,6 +72,11 @@ class ImageUpscaleWithModel:
         upscale_model.to(device)
         in_img = image.movedim(-1,-3).to(device)
 
+        if len(device_ids) > 1:
+            parallel_model = DataParallel(upscale_model.model, device_ids=device_ids)
+        else:
+            parallel_model = upscale_model
+
         tile = 512
         overlap = 32
 
@@ -66,14 +85,19 @@ class ImageUpscaleWithModel:
             try:
                 steps = in_img.shape[0] * comfy.utils.get_tiled_scale_steps(in_img.shape[3], in_img.shape[2], tile_x=tile, tile_y=tile, overlap=overlap)
                 pbar = comfy.utils.ProgressBar(steps)
-                s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar)
+                s = comfy.utils.tiled_scale(in_img, parallel_model, tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar, output_device=device)
                 oom = False
+            except torch.OutOfMemoryError as e:
+                tile //= 2
+                if tile < 128:
+                    raise e
             except model_management.OOM_EXCEPTION as e:
                 tile //= 2
                 if tile < 128:
                     raise e
 
         upscale_model.to("cpu")
+        s.to("cpu")
         s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0)
         return (s,)
 
