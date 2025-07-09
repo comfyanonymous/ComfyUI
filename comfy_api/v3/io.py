@@ -844,7 +844,9 @@ class HiddenHolder:
         return None
     
     @classmethod
-    def from_dict(cls, d: dict):
+    def from_dict(cls, d: dict | None):
+        if d is None:
+            d = {}
         return cls(
             unique_id=d.get(Hidden.unique_id, None),
             prompt=d.get(Hidden.prompt, None),

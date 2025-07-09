@@ -1,4 +1,5 @@
 import torch
+import time
 from comfy_api.v3 import io, ui, resources
 import logging
 import folder_paths
@@ -175,6 +176,10 @@ class NInputsTest(io.ComfyNodeV3):
     @classmethod
     def validate_inputs(cls, nmock, nmock2):
         return True
+
+    @classmethod
+    def fingerprint_inputs(cls, nmock, nmock2):
+        return time.time()
 
     @classmethod
     def check_lazy_status(cls, **kwargs) -> list[str]:

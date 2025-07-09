@@ -52,7 +52,15 @@ class IsChangedCache:
         node = self.dynprompt.get_node(node_id)
         class_type = node["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-        if not hasattr(class_def, "IS_CHANGED"):
+        has_is_changed = False
+        is_changed_name = None
+        if issubclass(class_def, ComfyNodeV3) and getattr(class_def, "fingerprint_inputs", None) is not None:
+            has_is_changed = True
+            is_changed_name = "fingerprint_inputs"
+        elif hasattr(class_def, "IS_CHANGED"):
+            has_is_changed = True
+            is_changed_name = "IS_CHANGED"
+        if not has_is_changed:
             self.is_changed[node_id] = False
             return self.is_changed[node_id]
 
@@ -63,7 +71,7 @@ class IsChangedCache:
         # Intentionally do not use cached outputs here. We only want constants in IS_CHANGED
         input_data_all, _, hidden_inputs = get_input_data(node["inputs"], class_def, node_id, None)
         try:
-            is_changed = _map_node_over_list(class_def, input_data_all, "IS_CHANGED")
+            is_changed = _map_node_over_list(class_def, input_data_all, is_changed_name)
             node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
         except Exception as e:
             logging.warning("WARNING: {}".format(e))
