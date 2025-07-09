@@ -575,10 +575,7 @@ class TestExecution:
         assert len(ordered_history["history"]) == 3, "Should have exactly 3 prompts in history"
 
         # Verify chronological ordering (most recent first)
-        history_prompt_ids = []
-        for item in ordered_history["history"]:
-            for prompt_id in item.keys():
-                history_prompt_ids.append(prompt_id)
+        history_prompt_ids = [item["prompt_id"] for item in ordered_history["history"]]
 
         # Should be in chronological order (oldest first, as they're added in completion order)
         assert history_prompt_ids == prompt_ids, "History should be in chronological order"
@@ -644,38 +641,26 @@ class TestExecution:
         assert len(full_history["history"]) == 5, "Should have 5 items in full history"
 
         # Extract prompt IDs from full history for comparison
-        full_prompt_ids = []
-        for item in full_history["history"]:
-            for prompt_id in item.keys():
-                full_prompt_ids.append(prompt_id)
+        full_prompt_ids = [item["prompt_id"] for item in full_history["history"]]
 
         # Test proper pagination behavior with offset as cursor
 
         # Test first page: offset=0, max_items=2
         page1 = client.get_ordered_history(max_items=2, offset=0)
         assert len(page1["history"]) == 2, "First page should have 2 items"
-        page1_ids = []
-        for item in page1["history"]:
-            for prompt_id in item.keys():
-                page1_ids.append(prompt_id)
+        page1_ids = [item["prompt_id"] for item in page1["history"]]
         assert page1_ids == full_prompt_ids[0:2], "First page should contain items at indices 0-1"
 
         # Test second page: offset=2, max_items=2
         page2 = client.get_ordered_history(max_items=2, offset=2)
         assert len(page2["history"]) == 2, "Second page should have 2 items"
-        page2_ids = []
-        for item in page2["history"]:
-            for prompt_id in item.keys():
-                page2_ids.append(prompt_id)
+        page2_ids = [item["prompt_id"] for item in page2["history"]]
         assert page2_ids == full_prompt_ids[2:4], "Second page should contain items at indices 2-3"
 
         # Test third page: offset=4, max_items=2
         page3 = client.get_ordered_history(max_items=2, offset=4)
         assert len(page3["history"]) == 1, "Third page should have 1 remaining item"
-        page3_ids = []
-        for item in page3["history"]:
-            for prompt_id in item.keys():
-                page3_ids.append(prompt_id)
+        page3_ids = [item["prompt_id"] for item in page3["history"]]
         assert page3_ids == full_prompt_ids[4:5], "Third page should contain item at index 4"
 
         # Verify no overlap between pages
@@ -687,10 +672,7 @@ class TestExecution:
         # When offset < 0 and max_items is specified, offset = len(history) - max_items
         last_2_items = client.get_ordered_history(max_items=2)
         assert len(last_2_items["history"]) == 2, "Default behavior should return 2 items"
-        last_2_ids = []
-        for item in last_2_items["history"]:
-            for prompt_id in item.keys():
-                last_2_ids.append(prompt_id)
+        last_2_ids = [item["prompt_id"] for item in last_2_items["history"]]
         # This should be equivalent to offset=3 (5-2=3)
         assert last_2_ids == full_prompt_ids[3:5], "Default behavior should return last 2 items"
 

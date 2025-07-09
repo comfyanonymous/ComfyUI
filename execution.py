@@ -1024,22 +1024,25 @@ class PromptQueue:
             else:
                 return {}
 
-    def get_ordered_history(self, max_items=None, offset=-1):
+    def get_ordered_history(self, max_items=None, offset=0):
         with self.mutex:
-            out = []
+            history_keys = list(self.history.keys())
 
-            i = 0
             if offset < 0 and max_items is not None:
-                offset = len(self.history) - max_items
-            for k in self.history:
-                if i >= offset:
-                    out.append({k: self.history[k]})
-                    if max_items is not None and len(out) >= max_items:
-                        break
-                i += 1
+                offset = max(0, len(history_keys) - max_items)
 
+            # Use slice to get the desired range
+            end_index = offset + max_items if max_items is not None else None
+            selected_keys = history_keys[offset:end_index]
 
-            return {"history": out}
+            # Build history items with prompt_id field
+            history_items = []
+            for key in selected_keys:
+                item = copy.deepcopy(self.history[key])
+                item["prompt_id"] = key
+                history_items.append(item)
+
+            return {"history": history_items}
 
     def wipe_history(self):
         with self.mutex:
