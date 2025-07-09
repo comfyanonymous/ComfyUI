@@ -1,4 +1,7 @@
 """Simplified tests for WebSocket feature flags functionality."""
+from comfy.cli_args import args
+# Force CPU mode for unit testing
+args.cpu = True
 from unittest.mock import Mock, patch
 from comfy_api import feature_flags
 
