@@ -41,7 +41,7 @@ class ResourcesLocal(Resources):
     def __init__(self):
         super().__init__()
         self.local_resources: dict[ResourceKey, Any] = {}
-    
+
     def get(self, key: ResourceKey, default: Any=...) -> Any:
         cached = self.local_resources.get(key, None)
         if cached is not None:

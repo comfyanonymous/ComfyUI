@@ -28,7 +28,7 @@ from comfy_execution.graph import (
 )
 from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
-from comfy_api.v3.io import NodeOutput, ComfyNodeV3, Hidden, NodeStateLocal, ResourcesLocal
+from comfy_api.v3.io import NodeOutput, ComfyNodeV3, Hidden, NodeStateLocal, ResourcesLocal, AutogrowDynamic, is_class
 
 
 class ExecutionResult(Enum):
@@ -52,7 +52,15 @@ class IsChangedCache:
         node = self.dynprompt.get_node(node_id)
         class_type = node["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-        if not hasattr(class_def, "IS_CHANGED"):
+        has_is_changed = False
+        is_changed_name = None
+        if issubclass(class_def, ComfyNodeV3) and getattr(class_def, "fingerprint_inputs", None) is not None:
+            has_is_changed = True
+            is_changed_name = "fingerprint_inputs"
+        elif hasattr(class_def, "IS_CHANGED"):
+            has_is_changed = True
+            is_changed_name = "IS_CHANGED"
+        if not has_is_changed:
             self.is_changed[node_id] = False
             return self.is_changed[node_id]
 
@@ -63,7 +71,7 @@ class IsChangedCache:
         # Intentionally do not use cached outputs here. We only want constants in IS_CHANGED
         input_data_all, _, hidden_inputs = get_input_data(node["inputs"], class_def, node_id, None)
         try:
-            is_changed = _map_node_over_list(class_def, input_data_all, "IS_CHANGED")
+            is_changed = _map_node_over_list(class_def, input_data_all, is_changed_name)
             node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
         except Exception as e:
             logging.warning("WARNING: {}".format(e))
@@ -216,20 +224,38 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
             if pre_execute_cb is not None and index is not None:
                 pre_execute_cb(index)
             # V3
-            if isinstance(obj, ComfyNodeV3):
-                type(obj).VALIDATE_CLASS()
-                class_clone = type(obj).prepare_class_clone(hidden_inputs)
-                # NOTE: this is a mock of state management; for local, just stores NodeStateLocal on node instance
-                if hasattr(obj, "local_state"):
-                    if obj.local_state is None:
-                        obj.local_state = NodeStateLocal(class_clone.hidden.unique_id)
-                    class_clone.state = obj.local_state
-                # NOTE: this is a mock of resource management; for local, just stores ResourcesLocal on node instance
-                if hasattr(obj, "local_resources"):
-                    if obj.local_resources is None:
-                        obj.local_resources = ResourcesLocal()
-                    class_clone.resources = obj.local_resources
-                results.append(getattr(type(obj), func).__func__(class_clone, **inputs))
+            if isinstance(obj, ComfyNodeV3) or (is_class(obj) and issubclass(obj, ComfyNodeV3)):
+                # if is just a class, then assign no resources or state, just create clone
+                if is_class(obj):
+                    type_obj = obj
+                    obj.VALIDATE_CLASS()
+                    class_clone = obj.prepare_class_clone(hidden_inputs)
+                # otherwise, use class instance to populate/reuse some fields
+                else:
+                    type_obj = type(obj)
+                    type(obj).VALIDATE_CLASS()
+                    class_clone = type(obj).prepare_class_clone(hidden_inputs)
+                    # NOTE: this is a mock of state management; for local, just stores NodeStateLocal on node instance
+                    if hasattr(obj, "local_state"):
+                        if obj.local_state is None:
+                            obj.local_state = NodeStateLocal(class_clone.hidden.unique_id)
+                        class_clone.state = obj.local_state
+                    # NOTE: this is a mock of resource management; for local, just stores ResourcesLocal on node instance
+                    if hasattr(obj, "local_resources"):
+                        if obj.local_resources is None:
+                            obj.local_resources = ResourcesLocal()
+                        class_clone.resources = obj.local_resources
+                # TODO: delete this when done testing mocking dynamic inputs
+                for si in obj.SCHEMA.inputs:
+                    if isinstance(si, AutogrowDynamic.Input):
+                        add_key = si.id
+                        dynamic_list = []
+                        real_inputs = {k: v for k, v in inputs.items()}
+                        for d in si.get_dynamic():
+                            dynamic_list.append(real_inputs.pop(d.id, None))
+                        dynamic_list = [x for x in dynamic_list if x is not None]
+                        inputs = {**real_inputs, add_key: dynamic_list}
+                results.append(getattr(type_obj, func).__func__(class_clone, **inputs))
             # V1
             else:
                 results.append(getattr(obj, func)(**inputs))
@@ -382,7 +408,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                 obj = class_def()
                 caches.objects.set(unique_id, obj)
 
-            if hasattr(obj, "check_lazy_status"):
+            if getattr(obj, "check_lazy_status", None) is not None:
                 required_inputs = _map_node_over_list(obj, input_data_all, "check_lazy_status", allow_interrupt=True, hidden_inputs=hidden_inputs)
                 required_inputs = set(sum([r for r in required_inputs if isinstance(r,list)], []))
                 required_inputs = [x for x in required_inputs if isinstance(x,str) and (
@@ -641,8 +667,16 @@ def validate_inputs(prompt, item, validated):
 
     validate_function_inputs = []
     validate_has_kwargs = False
-    if hasattr(obj_class, "VALIDATE_INPUTS"):
-        argspec = inspect.getfullargspec(obj_class.VALIDATE_INPUTS)
+    validate_function_name = None
+    validate_function = None
+    if issubclass(obj_class, ComfyNodeV3):
+        validate_function_name = "validate_inputs"
+        validate_function = getattr(obj_class, validate_function_name, None)
+    else:
+        validate_function_name = "VALIDATE_INPUTS"
+        validate_function = getattr(obj_class, validate_function_name, None)
+    if validate_function is not None:
+        argspec = inspect.getfullargspec(validate_function)
         validate_function_inputs = argspec.args
         validate_has_kwargs = argspec.varkw is not None
     received_types = {}
@@ -825,8 +859,7 @@ def validate_inputs(prompt, item, validated):
         if 'input_types' in validate_function_inputs:
             input_filtered['input_types'] = [received_types]
 
-        #ret = obj_class.VALIDATE_INPUTS(**input_filtered)
-        ret = _map_node_over_list(obj_class, input_filtered, "VALIDATE_INPUTS", hidden_inputs=hidden_inputs)
+        ret = _map_node_over_list(obj_class, input_filtered, validate_function_name, hidden_inputs=hidden_inputs)
         for x in input_filtered:
             for i, r in enumerate(ret):
                 if r is not True and not isinstance(r, ExecutionBlocker):

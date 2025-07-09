@@ -1,12 +1,15 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 
-from comfy_api.v3.io import Image, Mask, FolderType, _UIOutput
+from comfy_api.v3.io import Image, Mask, FolderType, _UIOutput, ComfyNodeV3
 # used for image preview
+from comfy.cli_args import args
 import folder_paths
 import random
 from PIL import Image as PILImage
+from PIL.PngImagePlugin import PngInfo
 import os
+import json
 import numpy as np
 
 
@@ -24,7 +27,7 @@ class SavedResult:
         }
 
 class PreviewImage(_UIOutput):
-    def __init__(self, image: Image.Type, animated: bool=False, **kwargs):
+    def __init__(self, image: Image.Type, animated: bool=False, node: ComfyNodeV3=None, **kwargs):
         output_dir = folder_paths.get_temp_directory()
         type = "temp"
         prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
@@ -38,13 +41,13 @@ class PreviewImage(_UIOutput):
             i = 255. * image.cpu().numpy()
             img = PILImage.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             metadata = None
-            # if not args.disable_metadata:
-            #     metadata = PngInfo()
-            #     if prompt is not None:
-            #         metadata.add_text("prompt", json.dumps(prompt))
-            #     if extra_pnginfo is not None:
-            #         for x in extra_pnginfo:
-            #             metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+            if not args.disable_metadata and node is not None:
+                metadata = PngInfo()
+                if node.hidden.prompt is not None:
+                    metadata.add_text("prompt", json.dumps(node.hidden.prompt))
+                if node.hidden.extra_pnginfo is not None:
+                    for x in node.hidden.extra_pnginfo:
+                        metadata.add_text(x, json.dumps(node.hidden.extra_pnginfo[x]))
 
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.png"
@@ -63,9 +66,9 @@ class PreviewImage(_UIOutput):
         }
 
 class PreviewMask(PreviewImage):
-    def __init__(self, mask: PreviewMask.Type, animated: bool=False, **kwargs):
+    def __init__(self, mask: PreviewMask.Type, animated: bool=False, node: ComfyNodeV3=None, **kwargs):
         preview = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])).movedim(1, -1).expand(-1, -1, -1, 3)
-        super().__init__(preview, animated, **kwargs)
+        super().__init__(preview, animated, node, **kwargs)
 
 # class UILatent(_UIOutput):
 #     def __init__(self, values: list[SavedResult | dict], **kwargs):
