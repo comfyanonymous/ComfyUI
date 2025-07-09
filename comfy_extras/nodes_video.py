@@ -386,10 +386,10 @@ class DisplayLinkNode:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "url_string": ("STRING", {"multiline": False, "default": "https://www.example.com"}),
+                "url_string": ("STRING", {"multiline": False}),
             },
             "optional": {
-                "link_text": ("STRING", {"multiline": False, "default": "Click Here"}),
+                "link_text": ("STRING", {"multiline": False}),
             }
         }
 
