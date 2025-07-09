@@ -5,7 +5,9 @@ import comfy.model_management
 import comfy.utils
 import comfy.latent_formats
 import comfy.clip_vision
-
+import json
+import numpy as np
+from typing import List, Optional, Tuple, Union
 
 class WanImageToVideo:
     @classmethod
@@ -383,7 +385,255 @@ class WanPhantomSubjectToVideo:
         out_latent["samples"] = latent
         return (positive, cond2, negative, out_latent)
 
+def parse_json_tracks(tracks):
+    """Parse JSON track data into a standardized format"""
+    tracks_data = []
+    try:
+        # If tracks is a string, try to parse it as JSON
+        if isinstance(tracks, str):
+            parsed = json.loads(tracks.replace("'", '"'))
+            tracks_data.extend(parsed)
+        else:
+            # If tracks is a list of strings, parse each one
+            for track_str in tracks:
+                parsed = json.loads(track_str.replace("'", '"'))
+                tracks_data.append(parsed)
+        
+        # Check if we have a single track (dict with x,y) or a list of tracks
+        if tracks_data and isinstance(tracks_data[0], dict) and 'x' in tracks_data[0]:
+            # Single track detected, wrap it in a list
+            tracks_data = [tracks_data]
+        elif tracks_data and isinstance(tracks_data[0], list) and tracks_data[0] and isinstance(tracks_data[0][0], dict) and 'x' in tracks_data[0][0]:
+            # Already a list of tracks, nothing to do
+            pass
+        else:
+            # Unexpected format
+            print(f"Warning: Unexpected track format: {type(tracks_data[0])}")
+            
+    except json.JSONDecodeError as e:
+        print(f"Error parsing tracks JSON: {e}")
+        tracks_data = []
+    return tracks_data
+
+
+def tracks_to_tensor(tracks_data, length, width, height, batch_size=1):
+    """Convert parsed track data to tensor format (B, T, N, 4)"""
+    if not tracks_data:
+        # Return empty tracks if no data
+        return torch.zeros((batch_size, length, 1, 4))
+    
+    num_tracks = len(tracks_data)
+    tracks_tensor = torch.zeros((batch_size, length, num_tracks, 4))
+    
+    for batch_idx in range(batch_size):
+        for track_idx, track in enumerate(tracks_data):
+            for frame_idx in range(min(length, len(track))):
+                point = track[frame_idx]
+                if isinstance(point, dict):
+                    x = point.get('x', 0)
+                    y = point.get('y', 0)
+                    # Normalize coordinates to [-1, 1] range
+                    x_norm = (x / width) * 2 - 1
+                    y_norm = (y / height) * 2 - 1
+                    visible = point.get('visible', 1)
+                    
+                    tracks_tensor[batch_idx, frame_idx, track_idx] = torch.tensor([
+                        track_idx,  # track_id
+                        x_norm,     # x coordinate
+                        y_norm,     # y coordinate  
+                        visible     # visibility
+                    ])
+    
+    return tracks_tensor
+
+
+def ind_sel(target: torch.Tensor, ind: torch.Tensor, dim: int = 1):
+    """Index selection utility function"""
+    assert (
+        len(ind.shape) > dim
+    ), "Index must have the target dim, but get dim: %d, ind shape: %s" % (dim, str(ind.shape))
+
+    target = target.expand(
+        *tuple(
+            [ind.shape[k] if target.shape[k] == 1 else -1 for k in range(dim)]
+            + [
+                -1,
+            ]
+            * (len(target.shape) - dim)
+        )
+    )
+
+    ind_pad = ind
+
+    if len(target.shape) > dim + 1:
+        for _ in range(len(target.shape) - (dim + 1)):
+            ind_pad = ind_pad.unsqueeze(-1)
+        ind_pad = ind_pad.expand(*(-1,) * (dim + 1), *target.shape[(dim + 1) : :])
+
+    return torch.gather(target, dim=dim, index=ind_pad)
+
+
+def merge_final(vert_attr: torch.Tensor, weight: torch.Tensor, vert_assign: torch.Tensor):
+    """Merge vertex attributes with weights"""
+    target_dim = len(vert_assign.shape) - 1
+    if len(vert_attr.shape) == 2:
+        assert vert_attr.shape[0] > vert_assign.max()
+        new_shape = [1] * target_dim + list(vert_attr.shape)
+        tensor = vert_attr.reshape(new_shape)
+        sel_attr = ind_sel(tensor, vert_assign.type(torch.long), dim=target_dim)
+    else:
+        assert vert_attr.shape[1] > vert_assign.max()
+        new_shape = [vert_attr.shape[0]] + [1] * (target_dim - 1) + list(vert_attr.shape[1:])
+        tensor = vert_attr.reshape(new_shape)
+        sel_attr = ind_sel(tensor, vert_assign.type(torch.long), dim=target_dim)
+
+    final_attr = torch.sum(sel_attr * weight.unsqueeze(-1), dim=-2)
+    return final_attr
+
+def process_tracks(tracks_np: np.ndarray, frame_size: Tuple[int, int], quant_multi: int = 8, **kwargs):
+    # tracks: shape [t, h, w, 3] => samples align with 24 fps, model trained with 16 fps.
+    # frame_size: tuple (W, H)
+    tracks = torch.from_numpy(tracks_np).float()
+    
+    if tracks.shape[1] == 121:
+        tracks = torch.permute(tracks, (1, 0, 2, 3))
+    
+    tracks, visibles = tracks[..., :2], tracks[..., 2:3]
+    
+    short_edge = min(*frame_size)
+
+    frame_center = torch.tensor([*frame_size]).type_as(tracks) / 2
+    tracks = tracks - frame_center
+    
+    tracks = tracks / short_edge * 2
+
+    visibles = visibles * 2 - 1
+
+    trange = torch.linspace(-1, 1, tracks.shape[0]).view(-1, 1, 1, 1).expand(*visibles.shape)
+
+    out_ = torch.cat([trange, tracks, visibles], dim=-1).view(121, -1, 4)
+    
+    out_0 = out_[:1]
+    
+    out_l = out_[1:] # 121 => 120 | 1
+    out_l = torch.repeat_interleave(out_l, 2, dim=0)[1::3]  # 120 => 240 => 80
+    
+    final_result = torch.cat([out_0, out_l], dim=0)
+    
+    return final_result
+
+FIXED_LENGTH = 121
+def pad_pts(tr):
+    """Convert list of {x,y} to (FIXED_LENGTH,1,3) array, padding/truncating."""
+    pts = np.array([[p['x'], p['y'], 1] for p in tr], dtype=np.float32)
+    n = pts.shape[0]
+    if n < FIXED_LENGTH:
+        pad = np.zeros((FIXED_LENGTH - n, 3), dtype=np.float32)
+        pts = np.vstack((pts, pad))
+    else:
+        pts = pts[:FIXED_LENGTH]
+    return pts.reshape(FIXED_LENGTH, 1, 3)
+
+class WanTrackToVideo:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "positive": ("CONDITIONING", ),
+                    "negative": ("CONDITIONING", ),
+                    "vae": ("VAE", ),
+                    "tracks": ("STRING", {"multiline": True, "default": "[]"}),
+                    "width": ("INT", {"default": 832, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
+                    "height": ("INT", {"default": 480, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
+                    "length": ("INT", {"default": 81, "min": 1, "max": nodes.MAX_RESOLUTION, "step": 4}),
+                    "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
+                    "temperature": ("FLOAT", {"default": 220.0, "min": 1.0, "max": 1000.0, "step": 0.1}),
+                    "topk": ("INT", {"default": 2, "min": 1, "max": 10}),
+                    "start_image": ("IMAGE", ),
+                },
+                "optional": {
+                    "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
+                }}
+
+    RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
+    RETURN_NAMES = ("positive", "negative", "latent")
+    FUNCTION = "encode"
+
+    CATEGORY = "conditioning/video_models"
+
+    def encode(self, positive, negative, vae, tracks, width, height, length, batch_size, 
+               temperature, topk, start_image=None, clip_vision_output=None):
+        
+        # Parse tracks from JSON
+        tracks_data = parse_json_tracks(tracks)
+        
+        if tracks_data:
+            # Convert tracks to tensor format
+            arrs = []
+            for i, track in enumerate(tracks_data):
+                pts = pad_pts(track)
+                arrs.append(pts)
+
+            tracks_np = np.stack(arrs, axis=0)
+            processed_tracks = process_tracks(tracks_np, (width, height)).unsqueeze(0)
+            
+            if start_image is not None:
+                start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+                
+                lat_h = height // 8
+                lat_w = width // 8
+
+                msk = torch.ones(1, 81, lat_h, lat_w, device=start_image.device)
+                msk[:, 1:] = 0
+                
+                # repeat first frame 4 times
+                msk = torch.concat([
+                    torch.repeat_interleave(msk[:, 0:1], repeats=4, dim=1), msk[:, 1:]
+                ],
+                    dim=1)
+
+                # Reshape mask into groups of 4 frames
+                msk = msk.view(1, msk.shape[1] // 4, 4, lat_h, lat_w)
+
+                # first batch
+                msk = msk.transpose(1, 2)
+
+                zero_frames = torch.ones(3, 81 - 1, height, width) * .5
+                
+                start_image = start_image.permute(3,0,1,2) # C, T, H, W
+                res = torch.concat([
+                        start_image.to(start_image.device),
+                        zero_frames
+                    ],
+                        dim=1).to(start_image.device)
+
+                res = res.permute(1,2,3,0)[:, :, :, :3]  # T, H, W, C
+                
+                y = vae.encode(res)
+                
+                # Add motion features to conditioning
+                positive = node_helpers.conditioning_set_values(positive,
+                                                                {"tracks": processed_tracks,
+                                                                 "concat_mask": msk,
+                                                                "concat_latent_image": y})
+                negative = node_helpers.conditioning_set_values(negative, 
+                                                                {"tracks": processed_tracks,
+                                                                 "concat_mask": msk,
+                                                                "concat_latent_image": y})
+                
+
+        # Handle clip vision output if provided
+        if clip_vision_output is not None:
+            positive = node_helpers.conditioning_set_values(positive, {"clip_vision_output": clip_vision_output})
+            negative = node_helpers.conditioning_set_values(negative, {"clip_vision_output": clip_vision_output})
+
+        latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], 
+                           device=comfy.model_management.intermediate_device())
+        out_latent = {}
+        out_latent["samples"] = latent
+        return (positive, negative, out_latent)
+
 NODE_CLASS_MAPPINGS = {
+    "WanTrackToVideo": WanTrackToVideo,
     "WanImageToVideo": WanImageToVideo,
     "WanFunControlToVideo": WanFunControlToVideo,
     "WanFunInpaintToVideo": WanFunInpaintToVideo,
