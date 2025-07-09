@@ -1,4 +1,5 @@
 import torch
+import time
 from comfy_api.v3 import io, ui, resources
 import logging
 import folder_paths
@@ -71,6 +72,14 @@ class V3TestNode(io.ComfyNodeV3):
             ],
             is_output_node=True,
         )
+
+    @classmethod
+    def validate_inputs(cls, image: io.Image.Type, some_int: int, combo: io.Combo.Type, combo2: io.MultiCombo.Type, xyz: XYZ.Type=None, mask: io.Mask.Type=None, **kwargs):
+        if some_int < 0:
+            raise Exception("some_int must be greater than 0")
+        if combo == "c":
+            raise Exception("combo must be a or b")
+        return True
 
     @classmethod
     def execute(cls, image: io.Image.Type, some_int: int, combo: io.Combo.Type, combo2: io.MultiCombo.Type, xyz: XYZ.Type=None, mask: io.Mask.Type=None, **kwargs):
@@ -149,7 +158,50 @@ class V3LoraLoader(io.ComfyNodeV3):
         return io.NodeOutput(model_lora, clip_lora)
 
 
+class NInputsTest(io.ComfyNodeV3):
+    @classmethod
+    def DEFINE_SCHEMA(cls):
+        return io.SchemaV3(
+            node_id="V3_NInputsTest",
+            display_name="V3 N Inputs Test",
+            inputs=[
+                io.AutogrowDynamic.Input("nmock", template_input=io.Image.Input("image"), min=1, max=3),
+                io.AutogrowDynamic.Input("nmock2", template_input=io.Int.Input("int"), optional=True, min=1, max=4),
+            ],
+            outputs=[
+                io.Image.Output("image_out"),
+            ],
+        )
+    
+    @classmethod
+    def validate_inputs(cls, nmock, nmock2):
+        return True
+
+    @classmethod
+    def fingerprint_inputs(cls, nmock, nmock2):
+        return time.time()
+
+    @classmethod
+    def check_lazy_status(cls, **kwargs) -> list[str]:
+        need = [name for name in kwargs if kwargs[name] is None]
+        return need
+
+    @classmethod
+    def execute(cls, nmock, nmock2):
+        first_image = nmock[0]
+        all_images = []
+        for img in nmock:
+            if img.shape != first_image.shape:
+                img = img.movedim(-1,1)
+                img = comfy.utils.common_upscale(img, first_image.shape[2], first_image.shape[1], "lanczos", "center")
+                img = img.movedim(1,-1)
+            all_images.append(img)
+        combined_image = torch.cat(all_images, dim=0)
+        return io.NodeOutput(combined_image)
+
+
 NODES_LIST: list[type[io.ComfyNodeV3]] = [
     V3TestNode,
     V3LoraLoader,
+    NInputsTest,
 ]

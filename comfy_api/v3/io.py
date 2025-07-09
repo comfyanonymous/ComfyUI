@@ -1,10 +1,12 @@
 from __future__ import annotations
-from typing import Any, Literal, TYPE_CHECKING, TypeVar, Callable, Optional, cast, TypedDict, NotRequired
+from typing import Any, Literal, TYPE_CHECKING, TypeVar, Callable, Optional, cast, TypedDict
+from typing_extensions import NotRequired
 from enum import Enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from collections import Counter
 from comfy_api.v3.resources import Resources, ResourcesLocal
+import copy
 # used for type hinting
 import torch
 from spandrel import ImageModelDescriptor
@@ -189,17 +191,19 @@ class WidgetInputV3(InputV3):
     '''
     def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: Any=None,
-                 socketless: bool=None, widgetType: str=None, extra_dict=None):
+                 socketless: bool=None, widgetType: str=None, force_input: bool=None, extra_dict=None):
         super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
         self.default = default
         self.socketless = socketless
         self.widgetType = widgetType
+        self.force_input = force_input
     
     def as_dict_V1(self):
         return super().as_dict_V1() | prune_dict({
             "default": self.default,
             "socketless": self.socketless,
             "widgetType": self.widgetType,
+            "forceInput": self.force_input,
         })
     
     def get_io_type_V1(self):
@@ -291,8 +295,8 @@ class Boolean:
         '''Boolean input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: bool=None, label_on: str=None, label_off: str=None,
-                    socketless: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type)
+                    socketless: bool=None, force_input: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, force_input)
             self.label_on = label_on
             self.label_off = label_off
             self.default: bool
@@ -314,8 +318,8 @@ class Int:
         '''Integer input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: int=None, min: int=None, max: int=None, step: int=None, control_after_generate: bool=None,
-                    display_mode: NumberDisplay=None, socketless: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type)
+                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, force_input)
             self.min = min
             self.max = max
             self.step = step
@@ -343,8 +347,8 @@ class Float(ComfyTypeIO):
         '''Float input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
-                    display_mode: NumberDisplay=None, socketless: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type)
+                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, force_input)
             self.min = min
             self.max = max
             self.step = step
@@ -369,8 +373,8 @@ class String(ComfyTypeIO):
         '''String input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     multiline=False, placeholder: str=None, default: int=None,
-                    socketless: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type)
+                    socketless: bool=None, force_input: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, self.io_type, force_input)
             self.multiline = multiline
             self.placeholder = placeholder
             self.default: str
@@ -429,7 +433,7 @@ class MultiCombo(ComfyType):
 
         def as_dict_V1(self):
             to_return = super().as_dict_V1() | prune_dict({
-                "multiselect": self.multiselect,
+                "multi_select": self.multiselect,
                 "placeholder": self.placeholder,
                 "chip": self.chip,
             })
@@ -754,43 +758,68 @@ class MultiType:
             else:
                 return super().as_dict_V1()
 
-class DynamicInput(InputV3):
+class DynamicInput(InputV3, ABC):
     '''
     Abstract class for dynamic input registration.
     '''
-    def __init__(self, io_type: str, id: str, display_name: str=None):
-        super().__init__(io_type, id, display_name)
+    @abstractmethod
+    def get_dynamic(self) -> list[InputV3]:
+        ...
 
-class DynamicOutput(OutputV3):
+class DynamicOutput(OutputV3, ABC):
     '''
     Abstract class for dynamic output registration.
     '''
-    def __init__(self, io_type: str, id: str, display_name: str=None):
-        super().__init__(io_type, id, display_name)
+    @abstractmethod
+    def get_dynamic(self) -> list[OutputV3]:
+        ...
 
-# io_type="COMFY_MULTIGROW_V3"
-class AutoGrowDynamicInput(DynamicInput):
-    '''
-    Dynamic Input that adds another template_input each time one is provided.
 
-    Additional inputs are forced to have 'optional=True'.
-    '''
-    def __init__(self, id: str, template_input: InputV3, min: int=1, max: int=None):
-        super().__init__("AutoGrowDynamicInput", id)
-        self.template_input = template_input
-        if min is not None:
-            assert(min >= 1)
-        if max is not None:
-            assert(max >= 1)
-        self.min = min
-        self.max = max
+@comfytype(io_type="COMFY_AUTOGROW_V3")
+class AutogrowDynamic:
+    Type = list[Any]
+    class Input(DynamicInput):
+        def __init__(self, id: str, template_input: InputV3, min: int=1, max: int=None,
+                     display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
+            self.template_input = template_input
+            if min is not None:
+                assert(min >= 1)
+            if max is not None:
+                assert(max >= 1)
+            self.min = min
+            self.max = max
+
+        def get_dynamic(self) -> list[InputV3]:
+            curr_count = 1
+            new_inputs = []
+            for i in range(self.min):
+                new_input = copy.copy(self.template_input)
+                new_input.id = f"{new_input.id}{curr_count}_${self.id}_ag$"
+                if new_input.display_name is not None:
+                    new_input.display_name = f"{new_input.display_name}{curr_count}"
+                new_input.optional = self.optional or new_input.optional
+                if isinstance(self.template_input, WidgetInputV3):
+                    new_input.force_input = True
+                new_inputs.append(new_input)
+                curr_count += 1
+            # pretend to expand up to max
+            for i in range(curr_count-1, self.max):
+                new_input = copy.copy(self.template_input)
+                new_input.id = f"{new_input.id}{curr_count}_${self.id}_ag$"
+                if new_input.display_name is not None:
+                    new_input.display_name = f"{new_input.display_name}{curr_count}"
+                new_input.optional = True
+                if isinstance(self.template_input, WidgetInputV3):
+                    new_input.force_input = True
+                new_inputs.append(new_input)
+                curr_count += 1
+            return new_inputs
 
 # io_type="COMFY_COMBODYNAMIC_V3"
 class ComboDynamicInput(DynamicInput):
     def __init__(self, id: str):
         pass
-
-AutoGrowDynamicInput(id="dynamic", template_input=Image.Input(id="image"))
 
 
 class HiddenHolder:
@@ -815,7 +844,9 @@ class HiddenHolder:
         return None
     
     @classmethod
-    def from_dict(cls, d: dict):
+    def from_dict(cls, d: dict | None):
+        if d is None:
+            d = {}
         return cls(
             unique_id=d.get(Hidden.unique_id, None),
             prompt=d.get(Hidden.prompt, None),
@@ -938,6 +969,26 @@ class SchemaV3:
             issues.append(f"Ids must be unique between inputs and outputs, but {intersection} are not.")
         if len(issues) > 0:
             raise ValueError("\n".join(issues))
+    
+    def finalize(self):
+        """Add hidden based on selected schema options."""
+        # if is an api_node, will need key-related hidden
+        if self.is_api_node:
+            if self.hidden is None:
+                self.hidden = []
+            if Hidden.auth_token_comfy_org not in self.hidden:
+                self.hidden.append(Hidden.auth_token_comfy_org)
+            if Hidden.api_key_comfy_org not in self.hidden:
+                self.hidden.append(Hidden.api_key_comfy_org)
+        # if is an output_node, will need prompt and extra_pnginfo
+        if self.is_output_node:
+            if self.hidden is None:
+                self.hidden = []
+            if Hidden.prompt not in self.hidden:
+                self.hidden.append(Hidden.prompt)
+            if Hidden.extra_pnginfo not in self.hidden:
+                self.hidden.append(Hidden.extra_pnginfo)
+
 
 class Serializer:
     def __init_subclass__(cls, io_type: str, **kwargs):
@@ -960,6 +1011,11 @@ class classproperty(object):
         return self.f(owner)
 
 
+def add_to_dict_v1(i: InputV3, input: dict):
+    key = "optional" if i.optional else "required"
+    input.setdefault(key, {})[i.id] = (i.get_io_type_V1(), i.as_dict_V1())
+
+
 class ComfyNodeV3:
     """Common base class for all V3 nodes."""
 
@@ -970,12 +1026,6 @@ class ComfyNodeV3:
     state: NodeState = None
     resources: Resources = None
     hidden: HiddenHolder = None
-
-    @classmethod
-    def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
-        schema = cls.GET_SCHEMA()
-        # TODO: finish
-        return None
 
     @classmethod
     @abstractmethod
@@ -993,8 +1043,44 @@ class ComfyNodeV3:
     execute = None
 
     @classmethod
+    def validate_inputs(cls, **kwargs) -> bool:
+        """Optionally, define this function to validate inputs; equivalnet to V1's VALIDATE_INPUTS."""
+        pass
+    validate_inputs = None
+
+    @classmethod
+    def fingerprint_inputs(cls, **kwargs) -> Any:
+        """Optionally, define this function to fingerprint inputs; equivalent to V1's IS_CHANGED."""
+        pass
+    fingerprint_inputs = None
+
+    @classmethod
+    def check_lazy_status(cls, **kwargs) -> list[str]:
+        """Optionally, define this function to return a list of input names that should be evaluated.
+
+        This basic mixin impl. requires all inputs.
+
+        :kwargs: All node inputs will be included here.  If the input is ``None``, it should be assumed that it has not yet been evaluated.  \
+            When using ``INPUT_IS_LIST = True``, unevaluated will instead be ``(None,)``.
+
+        Params should match the nodes execution ``FUNCTION`` (self, and all inputs by name).
+        Will be executed repeatedly until it returns an empty list, or all requested items were already evaluated (and sent as params).
+
+        Comfy Docs: https://docs.comfy.org/custom-nodes/backend/lazy_evaluation#defining-check-lazy-status
+        """
+        need = [name for name in kwargs if kwargs[name] is None]
+        return need
+    check_lazy_status = None
+
+    @classmethod
     def GET_SERIALIZERS(cls) -> list[Serializer]:
         return []
+
+    @classmethod
+    def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
+        schema = cls.GET_SCHEMA()
+        # TODO: finish
+        return None
 
     def __init__(self):
         self.local_state: NodeStateLocal = None
@@ -1110,15 +1196,19 @@ class ComfyNodeV3:
 
     @classmethod
     def INPUT_TYPES(cls, include_hidden=True, return_schema=False) -> dict[str, dict] | tuple[dict[str, dict], SchemaV3]:
-        schema = cls.DEFINE_SCHEMA()
+        schema = cls.FINALIZE_SCHEMA()
         # for V1, make inputs be a dict with potential keys {required, optional, hidden}
         input = {
             "required": {}
         }
         if schema.inputs:
             for i in schema.inputs:
-                key = "optional" if i.optional else "required"
-                input.setdefault(key, {})[i.id] = (i.get_io_type_V1(), i.as_dict_V1())
+                if isinstance(i, DynamicInput):
+                    dynamic_inputs = i.get_dynamic()
+                    for d in dynamic_inputs:
+                        add_to_dict_v1(d, input)
+                else:
+                    add_to_dict_v1(i, input)
         if schema.hidden and include_hidden:
             for hidden in schema.hidden:
                 input.setdefault("hidden", {})[hidden.name] = (hidden.value,)
@@ -1127,9 +1217,17 @@ class ComfyNodeV3:
         return input
 
     @classmethod
-    def GET_SCHEMA(cls) -> SchemaV3:
-        cls.VALIDATE_CLASS()
+    def FINALIZE_SCHEMA(cls):
+        """Call DEFINE_SCHEMA and finalize it."""
         schema = cls.DEFINE_SCHEMA()
+        schema.finalize()
+        return schema
+
+    @classmethod
+    def GET_SCHEMA(cls) -> SchemaV3:
+        """Validate node class, finalize schema, validate schema, and set expected class properties."""
+        cls.VALIDATE_CLASS()
+        schema = cls.FINALIZE_SCHEMA()
         schema.validate()
         if cls._DESCRIPTION is None:
             cls._DESCRIPTION = schema.description
