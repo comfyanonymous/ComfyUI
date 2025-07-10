@@ -105,7 +105,7 @@ class V3TestNode(io.ComfyNodeV3):
         if hasattr(cls, "doohickey"):
             raise Exception("The 'cls' variable leaked state on class properties between runs!")
         cls.doohickey = "LOLJK"
-        return io.NodeOutput(some_int, image, ui=ui.PreviewImage(image))
+        return io.NodeOutput(some_int, image, ui=ui.PreviewImage(image, cls=cls))
 
 
 class V3LoraLoader(io.ComfyNodeV3):
