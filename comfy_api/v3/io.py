@@ -20,8 +20,6 @@ from comfy.clip_vision import ClipVisionModel
 from comfy.clip_vision import Output as ClipVisionOutput_
 from comfy_api.input import VideoInput
 from comfy.hooks import HookGroup, HookKeyframeGroup
-import folder_paths
-import os
 # from comfy_extras.nodes_images import SVG as SVG_ # NOTE: needs to be moved before can be imported due to circular reference
 
 
@@ -407,20 +405,6 @@ class Combo(ComfyType):
             self.content_types = content_types
             self.remote = remote
             self.default: str
-
-        def get_io_type_V1(self):
-            if getattr(self, "image_folder"):
-                if self.image_folder == FolderType.input:
-                    target_dir = folder_paths.get_input_directory()
-                elif self.image_folder == FolderType.output:
-                    target_dir = folder_paths.get_output_directory()
-                else:
-                    target_dir = folder_paths.get_temp_directory()
-                files = [f for f in os.listdir(target_dir) if os.path.isfile(os.path.join(target_dir, f))]
-                if self.content_types is None:
-                    return files
-                return sorted(folder_paths.filter_files_content_types(files, self.content_types))
-            return super().get_io_type_V1()
 
         def as_dict_V1(self):
             return super().as_dict_V1() | prune_dict({

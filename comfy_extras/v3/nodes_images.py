@@ -40,7 +40,7 @@ class SaveImage(io.ComfyNodeV3):
     @classmethod
     def execute(cls, images, filename_prefix="ComfyUI"):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
-            "", folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
+            filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
         )
         results = []
         for (batch_number, image) in enumerate(images):
@@ -106,6 +106,7 @@ class LoadImage(io.ComfyNodeV3):
                     image_upload=True,
                     image_folder=io.FolderType.input,
                     content_types=["image"],
+                    options=cls.get_files_options(),
                 ),
             ],
             outputs=[
@@ -117,6 +118,12 @@ class LoadImage(io.ComfyNodeV3):
                 ),
             ],
         )
+
+    @classmethod
+    def get_files_options(cls) -> list[str]:
+        target_dir = folder_paths.get_input_directory()
+        files = [f for f in os.listdir(target_dir) if os.path.isfile(os.path.join(target_dir, f))]
+        return sorted(folder_paths.filter_files_content_types(files, ["image"]))
 
     @classmethod
     def execute(cls, image) -> io.NodeOutput:
