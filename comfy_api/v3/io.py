@@ -204,7 +204,6 @@ class WidgetInputV3(InputV3):
         return super().as_dict_V1() | prune_dict({
             "default": self.default,
             "socketless": self.socketless,
-            "widgetType": self.widgetType,
             "forceInput": self.force_input,
         })
     
