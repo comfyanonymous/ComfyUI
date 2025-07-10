@@ -65,7 +65,7 @@ echo  ::  %time:~0,8%  ::  - Detected HIP version: !HIP_VERSION!
 
 :: Map HIP version to ZLUDA release
 if "!HIP_VERSION!"=="5.7" (
-    set "ZLUDA_HASH=c0804ca624963aab420cb418412b1c7fbae3454b"
+    set "ZLUDA_HASH=5e717459179dc272b7d7d23391f0fad66c7459cf"
     set "ZLUDA_LABEL=rocm5"
 ) else if "!HIP_VERSION!"=="6.2" (
     set "ZLUDA_HASH=dba64c0966df2c71e82255e942c96e2e1cea3a2d"
