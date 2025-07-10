@@ -4,7 +4,9 @@ from PIL import Image
 from enum import Enum
 from abc import ABC
 from tqdm import tqdm
-from comfy_execution.graph import DynamicPrompt
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from comfy_execution.graph import DynamicPrompt
 from protocol import BinaryEventTypes
 from comfy_api import feature_flags
 
@@ -235,7 +237,7 @@ class ProgressRegistry:
     Registry that maintains node progress state and notifies registered handlers.
     """
 
-    def __init__(self, prompt_id: str, dynprompt: DynamicPrompt):
+    def __init__(self, prompt_id: str, dynprompt: "DynamicPrompt"):
         self.prompt_id = prompt_id
         self.dynprompt = dynprompt
         self.nodes: Dict[str, NodeProgressState] = {}
@@ -314,14 +316,10 @@ class ProgressRegistry:
         for handler in self.handlers.values():
             handler.reset()
 
-
 # Global registry instance
-global_progress_registry: ProgressRegistry = ProgressRegistry(
-    prompt_id="", dynprompt=DynamicPrompt({})
-)
+global_progress_registry: ProgressRegistry | None = None
 
-
-def reset_progress_state(prompt_id: str, dynprompt: DynamicPrompt) -> None:
+def reset_progress_state(prompt_id: str, dynprompt: "DynamicPrompt") -> None:
     global global_progress_registry
 
     # Reset existing handlers if registry exists
@@ -333,9 +331,17 @@ def reset_progress_state(prompt_id: str, dynprompt: DynamicPrompt) -> None:
 
 
 def add_progress_handler(handler: ProgressHandler) -> None:
-    handler.set_registry(global_progress_registry)
-    global_progress_registry.register_handler(handler)
+    registry = get_progress_state()
+    handler.set_registry(registry)
+    registry.register_handler(handler)
 
 
 def get_progress_state() -> ProgressRegistry:
+    global global_progress_registry
+    if global_progress_registry is None:
+        from comfy_execution.graph import DynamicPrompt
+
+        global_progress_registry = ProgressRegistry(
+            prompt_id="", dynprompt=DynamicPrompt({})
+        )
     return global_progress_registry
