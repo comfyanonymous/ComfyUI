@@ -252,7 +252,7 @@ class TestExecution:
 
     @pytest.mark.parametrize("test_type, test_value", [
         ("StubInt", 5),
-        ("StubFloat", 5.0)
+        ("StubMask", 5.0)
     ])
     def test_validation_error_edge1(self, test_type, test_value, client: ComfyClient, builder: GraphBuilder):
         g = builder
@@ -496,6 +496,69 @@ class TestExecution:
         assert len(images) == 1, "Should have 1 image"
         assert numpy.array(images[0]).min() == 63 and numpy.array(images[0]).max() == 63, "Image should have value 0.25"
         assert not result.did_run(test_node), "The execution should have been cached"
+
+    def test_parallel_sleep_nodes(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        image = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+
+        # Create sleep nodes for each duration
+        sleep_node1 = g.node("TestSleep", value=image.out(0), seconds=2.8)
+        sleep_node2 = g.node("TestSleep", value=image.out(0), seconds=2.9)
+        sleep_node3 = g.node("TestSleep", value=image.out(0), seconds=3.0)
+
+        # Add outputs to verify the execution
+        _output1 = g.node("PreviewImage", images=sleep_node1.out(0))
+        _output2 = g.node("PreviewImage", images=sleep_node2.out(0))
+        _output3 = g.node("PreviewImage", images=sleep_node3.out(0))
+
+        start_time = time.time()
+        result = client.run(g)
+        elapsed_time = time.time() - start_time
+
+        # The test should take around 0.4 seconds (the longest sleep duration)
+        # plus some overhead, but definitely less than the sum of all sleeps (0.9s)
+        # We'll allow for up to 0.8s total to account for overhead
+        assert elapsed_time < 4.0, f"Parallel execution took {elapsed_time}s, expected less than 0.8s"
+
+        # Verify that all nodes executed
+        assert result.did_run(sleep_node1), "Sleep node 1 should have run"
+        assert result.did_run(sleep_node2), "Sleep node 2 should have run"
+        assert result.did_run(sleep_node3), "Sleep node 3 should have run"
+
+    def test_parallel_sleep_expansion(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        # Create input images with different values
+        image1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        image2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+        image3 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+
+        # Create a TestParallelSleep node that expands into multiple TestSleep nodes
+        parallel_sleep = g.node("TestParallelSleep",
+                                image1=image1.out(0),
+                                image2=image2.out(0),
+                                image3=image3.out(0),
+                                sleep1=0.4,
+                                sleep2=0.5,
+                                sleep3=0.6)
+        output = g.node("SaveImage", images=parallel_sleep.out(0))
+
+        start_time = time.time()
+        result = client.run(g)
+        elapsed_time = time.time() - start_time
+
+        # Similar to the previous test, expect parallel execution of the sleep nodes
+        # which should complete in less than the sum of all sleeps
+        assert elapsed_time < 0.8, f"Expansion execution took {elapsed_time}s, expected less than 0.8s"
+
+        # Verify the parallel sleep node executed
+        assert result.did_run(parallel_sleep), "ParallelSleep node should have run"
+
+        # Verify we get an image as output (blend of the three input images)
+        result_images = result.get_images(output)
+        assert len(result_images) == 1, "Should have 1 image"
+        # Average pixel value should be around 170 (255 * 2 // 3)
+        avg_value = numpy.array(result_images[0]).mean()
+        assert avg_value == 170, f"Image average value {avg_value} should be 170"
 
     # This tests that nodes with OUTPUT_IS_LIST function correctly when they receive an ExecutionBlocker
     # as input. We also test that when that list (containing an ExecutionBlocker) is passed to a node,
