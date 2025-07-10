@@ -26,7 +26,7 @@ import comfy.sd
 import comfy.utils
 import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
-from comfy_api.v3.io import ComfyNodeV3
+from comfy_api.v3 import io
 
 import comfy.clip_vision
 
@@ -2162,7 +2162,7 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
         # V3 node definition
         elif getattr(module, "NODES_LIST", None) is not None:
             for node_cls in module.NODES_LIST:
-                node_cls: ComfyNodeV3
+                node_cls: io.ComfyNodeV3
                 schema = node_cls.GET_SCHEMA()
                 if schema.node_id not in ignore:
                     NODE_CLASS_MAPPINGS[schema.node_id] = node_cls
@@ -2299,6 +2299,9 @@ def init_builtin_extra_nodes():
         "nodes_tcfg.py",
         "nodes_v3_test.py",
         "nodes_v1_test.py",
+        "v3/nodes_images.py",
+        "v3/nodes_mask.py",
+        "v3/nodes_webcam.py",
     ]
 
     import_failed = []

@@ -321,7 +321,10 @@ def get_output_data(obj, input_data_all, execution_block_cb=None, pre_execute_cb
         elif isinstance(r, NodeOutput):
             # V3
             if r.ui is not None:
-                uis.append(r.ui.as_dict())
+                if isinstance(r.ui, dict):
+                    uis.append(r.ui)
+                else:
+                    uis.append(r.ui.as_dict())
             if r.expand is not None:
                 has_subgraph = True
                 new_graph = r.expand
