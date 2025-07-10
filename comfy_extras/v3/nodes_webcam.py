@@ -13,12 +13,12 @@ import node_helpers
 MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
 
-class WebcamCapture(io.ComfyNodeV3):
+class WebcamCapture_V3(io.ComfyNodeV3):
     @classmethod
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
-            node_id="WebcamCapture",
-            display_name="Webcam Capture",
+            node_id="WebcamCapture_V3",
+            display_name="Webcam Capture _V3",
             category="image",
             inputs=[
                 io.Webcam.Input(
@@ -114,4 +114,4 @@ class WebcamCapture(io.ComfyNodeV3):
         return True
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [WebcamCapture]
+NODES_LIST: list[type[io.ComfyNodeV3]] = [WebcamCapture_V3]

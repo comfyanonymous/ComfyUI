@@ -1,7 +1,7 @@
 from comfy_api.v3 import io, ui
 
 
-class MaskPreview(io.ComfyNodeV3):
+class MaskPreview_V3(io.ComfyNodeV3):
     """Mask Preview - original implement in ComfyUI_essentials.
 
     https://github.com/cubiq/ComfyUI_essentials/blob/9d9f4bedfc9f0321c19faf71855e228c93bd0dc9/mask.py#L81
@@ -11,8 +11,8 @@ class MaskPreview(io.ComfyNodeV3):
     @classmethod
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
-            node_id="MaskPreview",
-            display_name="Convert Mask to Image",
+            node_id="MaskPreview_V3",
+            display_name="Convert Mask to Image _V3",
             category="mask",
             inputs=[
                 io.Mask.Input(
@@ -29,4 +29,4 @@ class MaskPreview(io.ComfyNodeV3):
         return io.NodeOutput(ui=ui.PreviewMask(masks))
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [MaskPreview]
+NODES_LIST: list[type[io.ComfyNodeV3]] = [MaskPreview_V3]

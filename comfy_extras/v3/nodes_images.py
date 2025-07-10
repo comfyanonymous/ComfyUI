@@ -13,12 +13,12 @@ import folder_paths
 import node_helpers
 
 
-class SaveImage(io.ComfyNodeV3):
+class SaveImage_V3(io.ComfyNodeV3):
     @classmethod
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
-            node_id="SaveImage",
-            display_name="Save Image",
+            node_id="SaveImage_V3",
+            display_name="Save Image _V3",
             description="Saves the input images to your ComfyUI output directory.",
             category="image",
             inputs=[
@@ -68,12 +68,12 @@ class SaveImage(io.ComfyNodeV3):
         return io.NodeOutput(ui={"images": results})
 
 
-class PreviewImage(io.ComfyNodeV3):
+class PreviewImage_V3(io.ComfyNodeV3):
     @classmethod
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
-            node_id="PreviewImage",
-            display_name="Preview Image",
+            node_id="PreviewImage_V3",
+            display_name="Preview Image _V3",
             description="Preview the input images.",
             category="image",
             inputs=[
@@ -92,12 +92,12 @@ class PreviewImage(io.ComfyNodeV3):
         return io.NodeOutput(ui=ui.PreviewImage(images))
 
 
-class LoadImage(io.ComfyNodeV3):
+class LoadImage_V3(io.ComfyNodeV3):
     @classmethod
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
-            node_id="LoadImage",
-            display_name="Load Image",
+            node_id="LoadImage_V3",
+            display_name="Load Image _V3",
             category="image",
             inputs=[
                 io.Combo.Input(
@@ -186,12 +186,12 @@ class LoadImage(io.ComfyNodeV3):
         return True
 
 
-class LoadImageOutput(io.ComfyNodeV3):
+class LoadImageOutput_V3(io.ComfyNodeV3):
     @classmethod
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
-            node_id="LoadImageOutput",
-            display_name="Load Image (from Outputs)",
+            node_id="LoadImageOutput_V3",
+            display_name="Load Image (from Outputs) _V3",
             description="Load an image from the output folder. "
                         "When the refresh button is clicked, the node will update the image list "
                         "and automatically select the first image, allowing for easy iteration.",
@@ -283,8 +283,8 @@ class LoadImageOutput(io.ComfyNodeV3):
 
 
 NODES_LIST: list[type[io.ComfyNodeV3]] = [
-    SaveImage,
-    PreviewImage,
-    LoadImage,
-    LoadImageOutput,
+    SaveImage_V3,
+    PreviewImage_V3,
+    LoadImage_V3,
+    LoadImageOutput_V3,
 ]
