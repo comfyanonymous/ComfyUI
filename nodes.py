@@ -2296,7 +2296,7 @@ def init_builtin_extra_nodes():
         "nodes_string.py",
         "nodes_camera_trajectory.py",
         "nodes_edit_model.py",
-        "nodes_tcfg.py"
+        "nodes_tcfg.py",
         "nodes_v3_test.py",
         "nodes_v1_test.py",
     ]
