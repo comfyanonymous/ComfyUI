@@ -45,15 +45,15 @@ echo  ::  %time:~0,8%  ::  - Installing ComfyUI-deepcache
 git clone https://github.com/styler00dollar/ComfyUI-deepcache.git --quiet
 cd ..
 echo. 
-echo  ::  %time:~0,8%  ::  - Patching ZLUDA (Zluda 3.8.4 for HIP SDK 5.7.1)
-%SystemRoot%\system32\curl.exe -sL --ssl-no-revoke https://github.com/lshqqytiger/ZLUDA/releases/download/rel.c0804ca624963aab420cb418412b1c7fbae3454b/ZLUDA-windows-rocm5-amd64.zip > zluda.zip
+echo  ::  %time:~0,8%  ::  - Patching ZLUDA (Zluda 3.9.5 for HIP SDK 5.7.1)
+%SystemRoot%\system32\curl.exe -sL --ssl-no-revoke https://github.com/lshqqytiger/ZLUDA/releases/download/rel.5e717459179dc272b7d7d23391f0fad66c7459cf/ZLUDA-windows-rocm5-amd64.zip > zluda.zip
 %SystemRoot%\system32\tar.exe -xf zluda.zip
 del zluda.zip
 copy zluda\cublas.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\cublas64_11.dll /y >NUL
 copy zluda\cusparse.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\cusparse64_11.dll /y >NUL
 copy %VIRTUAL_ENV%\Lib\site-packages\torch\lib\nvrtc64_112_0.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\nvrtc_cuda.dll /y >NUL
 copy zluda\nvrtc.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\nvrtc64_112_0.dll /y >NUL
-@echo  ::  %time:~0,8%  ::  - ZLUDA is patched. (Zluda 3.8.4 for HIP 5.7.1)
+@echo  ::  %time:~0,8%  ::  - ZLUDA is patched. (Zluda 3.9.5 for HIP 5.7.1)
 echo. 
 set "endTime=%time: =0%"
 set "end=!endTime:%time:~8,1%=%%100)*100+1!"  &  set "start=!startTime:%time:~8,1%=%%100)*100+1!"
