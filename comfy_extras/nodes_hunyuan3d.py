@@ -110,17 +110,15 @@ class VAEDecodeHunyuan3D:
                 }),
                 "num_chunks": ("INT", {
                     "default": 8000, "min": 1000, "max": 500000,
-                    "visible_if": {"version": "2.0"}
                 }),
                 "octree_resolution": ("INT", {
                     "default": 256, "min": 16, "max": 512,
-                    "visible_if": {"version": "2.0"}
                 }),
             }
         }
 
-    RETURN_TYPES = ("VOXEL", "SDF_FUNCTION")
-    RETURN_NAMES = ("voxel", "sdf")
+    RETURN_TYPES = ("VOXEL", "MESH")
+    RETURN_NAMES = ("voxel", "mesh")
 
     FUNCTION = "decode"
     CATEGORY = "latent/3d"
@@ -137,6 +135,12 @@ class VAEDecodeHunyuan3D:
         mesh = vae.decode(samples["samples"], to_mesh = True,
                          num_chunks = num_chunks,
                          octree_resolution = octree_resolution)
+        
+        # ensure batch dim
+        if mesh.verticies.ndim == 2:
+            mesh.verticies = mesh.verticies[np.newaxis, ...]
+            mesh.faces = mesh.faces[np.newaxis, ...]
+
         return (None, mesh)
     
 def voxel_to_mesh(voxels, threshold=0.5, device=None):
@@ -495,7 +499,7 @@ class VoxelToMesh:
         return (MESH(torch.stack(vertices), torch.stack(faces)), )
 
 
-def save_glb(vertices, faces, filepath, metadata=None, numpy_ready = False):
+def save_glb(vertices, faces, filepath, metadata=None):
     """
     Save PyTorch tensor vertices and faces as a GLB file without external dependencies.
 
@@ -506,7 +510,7 @@ def save_glb(vertices, faces, filepath, metadata=None, numpy_ready = False):
     """
 
     # Convert tensors to numpy arrays
-    if not numpy_ready:
+    if isinstance(vertices, torch.tensor) and isinstance(faces, torch.tensor):
         vertices_np = vertices.cpu().numpy().astype(np.float32)
         faces_np = faces.cpu().numpy().astype(np.uint32)
     else:

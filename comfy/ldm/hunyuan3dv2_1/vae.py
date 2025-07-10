@@ -5,7 +5,6 @@
 import torch
 from torch import Tensor
 import math
-import trimesh
 import numpy as np
 from skimage import measure
 from dataclasses import dataclass
@@ -607,8 +606,8 @@ class PointCrossAttention(nn.Module):
 @dataclass
 class Latent2MeshOutput():
     # mesh for vertices and faces
-    mesh_v: None
-    mesh_f: None
+    vertices: None
+    faces: None
 
 class SufraceExtractor():
     def compute_box_stat(self, bounds, octree_resolution: int):
@@ -644,7 +643,7 @@ class SufraceExtractor():
                 vertices, faces = self.run(grid_logits[i], **kwds)
                 vertices = vertices.astype(np.float32)
                 faces = np.ascontiguousarray(faces)
-                outputs.append(Latent2MeshOutput(mesh_v = vertices, mesh_f = faces))
+                outputs.append(Latent2MeshOutput(vertices = vertices, faces = faces))
 
             except Exception:
                 import traceback
@@ -686,24 +685,6 @@ class VanillaVolumeDecoder():
         grid_logits = grid_logits.view((latents.shape[0], *grid_size)).float()
 
         return grid_logits
-
-def export_to_trimesh(mesh_output):
-    import trimesh
-    
-    if isinstance(mesh_output, list):
-        outputs = []
-        for mesh in mesh_output:
-            if mesh is None:
-                outputs.append(None)
-            else:
-                mesh.mesh_f = mesh.mesh_f[:, ::-1]
-                mesh_output = trimesh.Trimesh(mesh.mesh_v, mesh.mesh_f)
-                outputs.append(mesh_output)
-        return outputs
-    else:
-        mesh_output.mesh_f = mesh_output.mesh_f[:, ::-1]
-        mesh_output = trimesh.Trimesh(mesh_output.mesh_v, mesh_output.mesh_f)
-        return mesh_output
 
 def normalize_mesh(mesh, scale = 0.9999):
     """Normalize mesh to fit in [-scale, scale]. Translate mesh so its center is [0,0,0]"""
@@ -766,6 +747,8 @@ def sharp_sample_pointcloud(mesh, num = 16384):
 
 def load_surface_sharpedge(mesh, num_points=4096, num_sharp_points=4096, sharpedge_flag = True, device = "cuda"):
     """Load a surface with optional sharp-edge annotations from a trimesh mesh."""
+
+    import trimesh
 
     try:
         mesh_full = trimesh.util.concatenate(mesh.dump())
@@ -837,6 +820,7 @@ class SharpEdgeSurfaceLoader:
 
     @staticmethod
     def _load_mesh(mesh_input):
+        import trimesh
 
         if isinstance(mesh_input, str):
             mesh = trimesh.load(mesh_input, force="mesh", merge_primitives = True)
