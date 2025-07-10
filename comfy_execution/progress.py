@@ -317,7 +317,7 @@ class ProgressRegistry:
             handler.reset()
 
 # Global registry instance
-global_progress_registry: ProgressRegistry | None = None
+global_progress_registry: ProgressRegistry = None
 
 def reset_progress_state(prompt_id: str, dynprompt: "DynamicPrompt") -> None:
     global global_progress_registry
