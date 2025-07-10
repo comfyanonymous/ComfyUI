@@ -9,6 +9,8 @@ import trimesh
 import numpy as np
 from skimage import measure
 from dataclasses import dataclass
+import torch.nn as nn
+import torch.nn.functional as F
 
 def fps(src: Tensor, batch: Tensor, sampling_ratio: float, start_random: bool = True):
 
@@ -53,11 +55,7 @@ def fps(src: Tensor, batch: Tensor, sampling_ratio: float, start_random: bool = 
         sampled_indicies.append(torch.arange(start, end)[selected])
 
     return torch.cat(sampled_indicies, dim = 0)
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
+    
 class DropPath(nn.Module):
     """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
     """
@@ -624,11 +622,11 @@ class SufraceExtractor():
         grid_size = [int(octree_resolution) + 1, int(octree_resolution) + 1, int(octree_resolution) + 1]
         return grid_size, bbox_min, bbox_size
     
-    def run(self, grid_logit, *, bounds, octree_res, **kwargs):
+    def run(self, grid_logit, *, bounds, octree_res, level: float = 0.0, **kwargs):
         # grid_logit from volume decoder
         # use marching cube algo to turn an sdf to a mesh
         vertices, faces, _, _ = measure.marching_cubes(grid_logit.cpu().numpy(),
-                                           0.0,
+                                           level,
                                            method = "lewiner")
         
         grid_size, bbox_min, bbox_size = self.compute_box_stat(bounds = bounds, octree_resolution = octree_res)

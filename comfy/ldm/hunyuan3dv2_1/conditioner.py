@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dinov2 import DinoConfig, Dinov2Model
-
+from image_encoders.dino2 import Dinov2Model
+from dataclasses import dataclass, asdict
 # avoid using torchvision by recreating image processing functions
 
 def resize(img: torch.Tensor, size: int) -> torch.Tensor:
@@ -61,6 +61,27 @@ def compose(transforms):
         return img
     return apply
 
+# configuration for Dino Large
+@dataclass
+class DinoConfig():
+
+    hidden_size: int = 1024
+    use_mask_token: bool = True
+    patch_size: int = 14
+    image_size: int = 518
+    num_channels: int = 3
+    num_attention_heads: int = 16
+    attention_probs_dropout_prob: float = 0.0
+    hidden_dropout_prob: float = 0.0
+    mlp_ratio: int = 4
+    num_hidden_layers: int = 24
+    layer_norm_eps: float = 1e-6
+    qkv_bias: bool = True
+    layerscale_value: float =  1.0
+    drop_path_rate: float =  0.0
+    device: str = "cuda"
+    dtype = torch.float16
+
 class ImageEncoder(nn.Module):
     def __init__(
         self,
@@ -71,7 +92,11 @@ class ImageEncoder(nn.Module):
     ):
         super().__init__()
 
-        self.model = Dinov2Model(config)
+        
+        import comfy.ops
+        ops = comfy.ops.disable_weight_init
+
+        self.model = Dinov2Model(asdict(config), config.dtype, config.device, operations = ops)
 
         mean = [0.485, 0.456, 0.406]
         std = [0.229, 0.224, 0.225]

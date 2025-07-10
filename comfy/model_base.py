@@ -16,6 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import comfy.ldm.hunyuan3dv2_1
+import comfy.ldm.hunyuan3dv2_1.hunyuandit
 import torch
 import logging
 from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
@@ -1196,6 +1198,46 @@ class Hunyuan3Dv2(BaseModel):
         if guidance is not None:
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
+    
+class Hunyuan3Dv2_1(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hunyuan3dv2_1.hunyuandit.HunYuanDiTPlain)
+
+    def get_guidance_scale_embedding(self, w, embedding_dim=512, dtype=torch.float32):
+
+        assert len(w.shape) == 1
+        w = w * 1000.0
+
+        half_dim = embedding_dim // 2
+        emb = torch.log(torch.tensor(10000.0)) / (half_dim - 1)
+
+        emb = torch.exp(torch.arange(half_dim, dtype=dtype) * -emb)
+        emb = w.to(dtype)[:, None] * emb[None, :]
+
+        emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
+        if embedding_dim % 2 == 1:  # zero pad
+            emb = torch.nn.functional.pad(emb, (0, 1))
+
+        assert emb.shape == (w.shape[0], embedding_dim)
+
+        return emb
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+
+        guidance = kwargs.get("guidance", 5.0)
+        if guidance is not None:
+            
+            guidance_scale = torch.tensor([guidance], dtype = torch.float32, device = self.device)
+
+            guidance_embed = self.get_guidance_scale_embedding(guidance_scale,
+                                                               self.model.hidden_size,
+                                                               dtype = next(self.model.parameters()).dtype)
+            
+            out['guidance_cond'] = comfy.conds.CONDRegular(guidance_embed)
+
+        return out
+        
 
 class HiDream(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):

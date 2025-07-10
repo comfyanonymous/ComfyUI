@@ -355,7 +355,8 @@ class HunYuanDiTPlain(nn.Module):
         norm_type = 'layer',
         num_experts: int = 8,
         moe_top_k: int = 2,
-        use_fp16: bool = False
+        use_fp16: bool = False,
+        **kwargs
         ):
 
         super().__init__()
@@ -404,7 +405,7 @@ class HunYuanDiTPlain(nn.Module):
         
         main_condition = contexts['main']
 
-        time_embedded = self.t_embedder(t, condition=kwargs.get('guidance_cond'))
+        time_embedded = self.t_embedder(t, condition = kwargs.get('guidance_cond'))
         x_embedded = self.x_embedder(x)
 
         combined = torch.cat([time_embedded, x_embedded], dim=1)

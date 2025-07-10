@@ -15,6 +15,7 @@ import comfy.ldm.lightricks.vae.causal_video_autoencoder
 import comfy.ldm.cosmos.vae
 import comfy.ldm.wan.vae
 import comfy.ldm.hunyuan3d.vae
+import comfy.ldm.hunyuan3dv2_1.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
 import yaml
 import math
@@ -441,6 +442,29 @@ class VAE:
                 ddconfig = {"embed_dim": 64, "num_freqs": 8, "include_pi": False, "heads": 16, "width": 1024, "num_decoder_layers": 16, "qkv_bias": False, "qk_norm": True, "geo_decoder_mlp_expand_ratio": mlp_expand, "geo_decoder_downsample_ratio": downsample_ratio, "geo_decoder_ln_post": ln_post}
                 self.first_stage_model = comfy.ldm.hunyuan3d.vae.ShapeVAE(**ddconfig)
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+
+            # Hunyuan 3d v2 2.1
+            elif 'geo_decoder.cross_attn_decoder.mlp.c_proj.weight' in sd:
+
+                self.latent_dim = 1
+
+                def estimate_memory(shape, dtype, num_layers = 16, kv_cache_multiplier = 2):
+                    batch, num_tokens, hidden_dim = shape
+                    dtype_size = model_management.dtype_size(dtype)
+
+                    total_mem = batch * num_tokens * hidden_dim * dtype_size * (1 + kv_cache_multiplier * num_layers)
+                    return total_mem
+
+                # better memory estimations
+                self.memory_used_encode = lambda shape, dtype, num_layers = 8, kv_cache_multiplier = 0:\
+                    estimate_memory(shape, dtype, num_layers, kv_cache_multiplier) 
+
+                self.memory_used_decode = lambda shape, dtype, num_layers = 16, kv_cache_multiplier = 2: \
+                    estimate_memory(shape, dtype, num_layers, kv_cache_multiplier)
+
+                self.first_stage_model = comfy.ldm.hunyuan3dv2_1.vae.ShapeVAE()
+                self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+
             elif "vocoder.backbone.channel_layers.0.0.bias" in sd: #Ace Step Audio
                 self.first_stage_model = comfy.ldm.ace.vae.music_dcae_pipeline.MusicDCAE(source_sample_rate=44100)
                 self.memory_used_encode = lambda shape, dtype: (shape[2] * 330) * model_management.dtype_size(dtype)

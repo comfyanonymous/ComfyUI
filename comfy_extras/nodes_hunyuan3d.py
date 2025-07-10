@@ -8,22 +8,39 @@ import folder_paths
 import comfy.model_management
 from comfy.cli_args import args
 
-
 class EmptyLatentHunyuan3Dv2:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"resolution": ("INT", {"default": 3072, "min": 1, "max": 8192}),
-                             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "tooltip": "The number of latent images in the batch."}),
-                             }}
+        return {
+            "required": {
+                "resolution": ("INT", {"default": 3072, "min": 1, "max": 8192}),
+                "batch_size": ("INT", {
+                    "default": 1,
+                    "min": 1,
+                    "max": 4096,
+                    "tooltip": "The number of latent images in the batch."
+                }),
+                "version": (["2.0", "2.1"], {
+                    "default": "2.1",
+                    "tooltip": "Choose latent layout version. 2.0: (B, C, N), 2.1: (B, N, C)"
+                })
+            }
+        }
+
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
-
     CATEGORY = "latent/3d"
 
-    def generate(self, resolution, batch_size):
-        latent = torch.zeros([batch_size, 64, resolution], device=comfy.model_management.intermediate_device())
-        return ({"samples": latent, "type": "hunyuan3dv2"}, )
+    def generate(self, resolution, batch_size, version):
+        embed_dim = 64
+        if version == "2.0":
+            latent = torch.zeros([batch_size, embed_dim, resolution],
+                                 device = comfy.model_management.intermediate_device())
+        else:  # version = "2.1"
+            latent = torch.zeros([batch_size, resolution, embed_dim],
+                                 device = comfy.model_management.intermediate_device())
 
+        return ({"samples": latent, "type": "hunyuan3dv2"}, )
 
 class Hunyuan3Dv2Conditioning:
     @classmethod
@@ -80,26 +97,48 @@ class Hunyuan3Dv2ConditioningMultiView:
 class VOXEL:
     def __init__(self, data):
         self.data = data
-
-
 class VAEDecodeHunyuan3D:
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"samples": ("LATENT", ),
-                             "vae": ("VAE", ),
-                             "num_chunks": ("INT", {"default": 8000, "min": 1000, "max": 500000}),
-                             "octree_resolution": ("INT", {"default": 256, "min": 16, "max": 512}),
-                             }}
-    RETURN_TYPES = ("VOXEL",)
-    FUNCTION = "decode"
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "samples": ("LATENT",),
+                "vae": ("VAE",),
+                "version": (["2.0", "2.1"], {
+                    "default": "2.1",
+                    "tooltip": "2.0 returns voxel grid; 2.1 returns implicit SDF function."
+                }),
+                "num_chunks": ("INT", {
+                    "default": 8000, "min": 1000, "max": 500000,
+                    "visible_if": {"version": "2.0"}
+                }),
+                "octree_resolution": ("INT", {
+                    "default": 256, "min": 16, "max": 512,
+                    "visible_if": {"version": "2.0"}
+                }),
+            }
+        }
 
+    RETURN_TYPES = ("VOXEL", "SDF_FUNCTION")
+    RETURN_NAMES = ("voxel", "sdf")
+
+    FUNCTION = "decode"
     CATEGORY = "latent/3d"
 
-    def decode(self, vae, samples, num_chunks, octree_resolution):
-        voxels = VOXEL(vae.decode(samples["samples"], vae_options={"num_chunks": num_chunks, "octree_resolution": octree_resolution}))
-        return (voxels, )
+    def decode(self, vae, samples, version, num_chunks, octree_resolution):
 
+        if version == "2.0":
+            voxel = vae.decode(samples["samples"], vae_options={
+                "num_chunks": num_chunks,
+                "octree_resolution": octree_resolution
+            })
+            return (VOXEL(voxel), None)
 
+        mesh = vae.decode(samples["samples"], to_mesh = True,
+                         num_chunks = num_chunks,
+                         octree_resolution = octree_resolution)
+        return (None, mesh)
+    
 def voxel_to_mesh(voxels, threshold=0.5, device=None):
     if device is None:
         device = torch.device("cpu")
