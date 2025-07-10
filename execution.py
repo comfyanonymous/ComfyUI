@@ -1132,6 +1132,12 @@ class PromptQueue:
             for key in selected_keys:
                 item = copy.deepcopy(self.history[key])
                 item["prompt_id"] = key
+                
+                # Remove prompt[2] (workflow) and prompt[4] (execute_outputs) to reduce response size
+                if "prompt" in item:
+                    priority, prompt_id, _, extra_data, _ = item["prompt"]
+                    item["prompt"] = [priority, prompt_id, extra_data]
+                
                 history_items.append(item)
 
             return {"history": history_items}
