@@ -1130,13 +1130,28 @@ class PromptQueue:
             # Build history items with prompt_id field
             history_items = []
             for key in selected_keys:
-                item = copy.deepcopy(self.history[key])
-                item["prompt_id"] = key
+                history_entry = self.history[key]
                 
-                # Remove prompt[2] (workflow) and prompt[4] (execute_outputs) to reduce response size
-                if "prompt" in item:
-                    priority, prompt_id, _, extra_data, _ = item["prompt"]
-                    item["prompt"] = [priority, prompt_id, extra_data]
+                # Extract and filter prompt data
+                if "prompt" in history_entry:
+                    priority, prompt_id, _, extra_data, _ = history_entry["prompt"]
+                    filtered_prompt = [priority, prompt_id, extra_data]
+                else:
+                    filtered_prompt = None
+                
+                # Create lightweight history response
+                item = {
+                    "prompt_id": key,
+                    "outputs": history_entry.get("outputs", {}),
+                    "meta": history_entry.get("meta", {}),
+                    "prompt": filtered_prompt,
+                    "status": {
+                        "status_str": history_entry["status"]["status_str"],
+                        "messages": [(e, {k: v for k, v in d.items() if k != "nodes"}) 
+                                    if e == "execution_cached" else (e, d)
+                                    for e, d in history_entry["status"]["messages"]]
+                    } if history_entry.get("status") else None
+                }
                 
                 history_items.append(item)
 

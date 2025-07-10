@@ -766,7 +766,14 @@ class TestExecution:
         queue.history['test-prompt-123'] = {
             'prompt': mock_prompt_tuple,
             'outputs': {'1': {'images': []}},
-            'status': {'completed': True, 'messages': []},
+            'status': {
+                'status_str': 'success',
+                'completed': True,  # Should be filtered out
+                'messages': [
+                    ('execution_cached', {'nodes': ['node1', 'node2'], 'timestamp': 1234567890}),  # 'nodes' should be filtered
+                    ('execution_start', {'timestamp': 1234567800})  # Should remain unchanged
+                ]
+            },
             'meta': {'1': {'node_id': '1'}}
         }
         
@@ -795,5 +802,29 @@ class TestExecution:
         
         # Verify other fields are unchanged
         assert history_item["outputs"] == {'1': {'images': []}}, "Outputs should be unchanged"
-        assert history_item["status"] == {'completed': True, 'messages': []}, "Status should be unchanged"
         assert history_item["meta"] == {'1': {'node_id': '1'}}, "Meta should be unchanged"
+        
+        # Verify status field filtering
+        status = history_item["status"]
+        assert "status_str" in status, "Status should have status_str"
+        assert status["status_str"] == 'success', "Status string should be preserved"
+        assert "completed" not in status, "Completed field should be filtered out"
+        assert "messages" in status, "Status should have messages"
+        
+        # Verify message filtering
+        messages = status["messages"]
+        assert len(messages) == 2, "Should have 2 messages"
+        
+        # Check execution_cached message has nodes filtered out
+        execution_cached_msg = messages[0]
+        assert execution_cached_msg[0] == 'execution_cached', "First message should be execution_cached"
+        cached_data = execution_cached_msg[1]
+        assert "nodes" not in cached_data, "Nodes field should be filtered from execution_cached messages"
+        assert "timestamp" in cached_data, "Timestamp should be preserved in execution_cached messages"
+        assert cached_data["timestamp"] == 1234567890, "Timestamp value should be correct"
+        
+        # Check execution_start message remains unchanged
+        execution_start_msg = messages[1]
+        assert execution_start_msg[0] == 'execution_start', "Second message should be execution_start"
+        start_data = execution_start_msg[1]
+        assert start_data == {'timestamp': 1234567800}, "execution_start message should be unchanged"
