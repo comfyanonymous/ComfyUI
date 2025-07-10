@@ -24,7 +24,6 @@ class SaveImage_V3(io.ComfyNodeV3):
             inputs=[
                 io.Image.Input(
                     "images",
-                    display_name="images",
                     tooltip="The images to save.",
                 ),
                 io.String.Input(
@@ -79,7 +78,6 @@ class PreviewImage_V3(io.ComfyNodeV3):
             inputs=[
                 io.Image.Input(
                     "images",
-                    display_name="images",
                     tooltip="The images to preview.",
                 ),
             ],
@@ -102,7 +100,6 @@ class LoadImage_V3(io.ComfyNodeV3):
             inputs=[
                 io.Combo.Input(
                     "image",
-                    display_name="image",
                     image_upload=True,
                     image_folder=io.FolderType.input,
                     content_types=["image"],
@@ -199,7 +196,6 @@ class LoadImageOutput_V3(io.ComfyNodeV3):
             inputs=[
                 io.Combo.Input(
                     "image",
-                    display_name="image",
                     image_upload=True,
                     image_folder=io.FolderType.output,
                     content_types=["image"],

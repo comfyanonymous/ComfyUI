@@ -21,13 +21,9 @@ class WebcamCapture_V3(io.ComfyNodeV3):
             display_name="Webcam Capture _V3",
             category="image",
             inputs=[
-                io.Webcam.Input(
-                    "image",
-                    display_name="image",
-                ),
+                io.Webcam.Input("image"),
                 io.Int.Input(
                     "width",
-                    display_name="width",
                     default=0,
                     min=0,
                     max=MAX_RESOLUTION,
@@ -35,21 +31,15 @@ class WebcamCapture_V3(io.ComfyNodeV3):
                 ),
                 io.Int.Input(
                     "height",
-                    display_name="height",
                     default=0,
                     min=0,
                     max=MAX_RESOLUTION,
                     step=1,
                 ),
-                io.Boolean.Input(
-                    "capture_on_queue",
-                    default=True,
-                ),
+                io.Boolean.Input("capture_on_queue", default=True),
             ],
             outputs=[
-                io.Image.Output(
-                    "IMAGE",
-                ),
+                io.Image.Output("IMAGE"),
             ],
         )
 
