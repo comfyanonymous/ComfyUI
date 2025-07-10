@@ -87,7 +87,7 @@ class PreviewImage_V3(io.ComfyNodeV3):
 
     @classmethod
     def execute(cls, images):
-        return io.NodeOutput(ui=ui.PreviewImage(images))
+        return io.NodeOutput(ui=ui.PreviewImage(images, cls=cls))
 
 
 class LoadImage_V3(io.ComfyNodeV3):
@@ -107,12 +107,8 @@ class LoadImage_V3(io.ComfyNodeV3):
                 ),
             ],
             outputs=[
-                io.Image.Output(
-                    "IMAGE",
-                ),
-                io.Mask.Output(
-                    "MASK",
-                ),
+                io.Image.Output(),
+                io.Mask.Output(),
             ],
         )
 
@@ -207,12 +203,8 @@ class LoadImageOutput_V3(io.ComfyNodeV3):
                 ),
             ],
             outputs=[
-                io.Image.Output(
-                    "IMAGE",
-                ),
-                io.Mask.Output(
-                    "MASK",
-                ),
+                io.Image.Output(),
+                io.Mask.Output(),
             ],
         )
 

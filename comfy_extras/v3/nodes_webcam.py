@@ -39,7 +39,7 @@ class WebcamCapture_V3(io.ComfyNodeV3):
                 io.Boolean.Input("capture_on_queue", default=True),
             ],
             outputs=[
-                io.Image.Output("IMAGE"),
+                io.Image.Output(),
             ],
         )
 

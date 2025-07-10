@@ -211,7 +211,7 @@ class WidgetInputV3(InputV3):
 
 
 class OutputV3(IO_V3):
-    def __init__(self, id: str, display_name: str=None, tooltip: str=None,
+    def __init__(self, id: str=None, display_name: str=None, tooltip: str=None,
                  is_output_list=False):
         self.id = id
         self.display_name = display_name
@@ -790,6 +790,10 @@ class DynamicOutput(OutputV3, ABC):
     '''
     Abstract class for dynamic output registration.
     '''
+    def __init__(self, id: str, display_name: str=None, tooltip: str=None,
+                 is_output_list=False):
+        super().__init__(id, display_name, tooltip, is_output_list)
+
     @abstractmethod
     def get_dynamic(self) -> list[OutputV3]:
         ...
@@ -991,7 +995,7 @@ class SchemaV3:
             raise ValueError("\n".join(issues))
 
     def finalize(self):
-        """Add hidden based on selected schema options."""
+        """Add hidden based on selected schema options, and give outputs without ids default ids."""
         # if is an api_node, will need key-related hidden
         if self.is_api_node:
             if self.hidden is None:
@@ -1008,6 +1012,11 @@ class SchemaV3:
                 self.hidden.append(Hidden.prompt)
             if Hidden.extra_pnginfo not in self.hidden:
                 self.hidden.append(Hidden.extra_pnginfo)
+        # give outputs without ids default ids
+        if self.outputs is not None:
+            for i, output in enumerate(self.outputs):
+                if output.id is None:
+                    output.id = f"_{i}_{output.io_type}_"
 
 
 class Serializer:
