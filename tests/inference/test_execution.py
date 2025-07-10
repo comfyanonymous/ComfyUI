@@ -742,3 +742,58 @@ class TestExecution:
         # Test offset beyond available items
         beyond_offset = client.get_ordered_history(max_items=2, offset=10)
         assert len(beyond_offset["history"]) == 0, "Offset beyond items should return empty list"
+
+    def test_ordered_history_prompt_field_filtering_unit(self):
+        """Unit test for prompt field filtering logic in get_ordered_history."""
+        from execution import PromptQueue
+        
+        # Mock server
+        class MockServer:
+            def queue_updated(self): pass
+        
+        # Create queue and add mock history
+        queue = PromptQueue(MockServer())
+        
+        # Mock history entry with full prompt structure
+        mock_prompt_tuple = (
+            12345,  # priority/timestamp
+            'test-prompt-123',  # prompt_id  
+            {'nodes': {'1': {'class_type': 'SaveImage'}}},  # workflow (should be filtered)
+            {'client_id': 'test-client'},  # extra_data
+            ['1']  # execute_outputs (should be filtered)
+        )
+        
+        queue.history['test-prompt-123'] = {
+            'prompt': mock_prompt_tuple,
+            'outputs': {'1': {'images': []}},
+            'status': {'completed': True, 'messages': []},
+            'meta': {'1': {'node_id': '1'}}
+        }
+        
+        # Test get_ordered_history with our filtering
+        result = queue.get_ordered_history()
+        
+        # Verify structure
+        assert "history" in result, "Result should have history key"
+        assert len(result["history"]) == 1, "Should have one history item"
+        
+        history_item = result["history"][0]
+        
+        # Verify prompt_id field is added
+        assert "prompt_id" in history_item, "History item should have prompt_id field"
+        assert history_item["prompt_id"] == 'test-prompt-123', "prompt_id should match"
+        
+        # Verify prompt field is filtered
+        filtered_prompt = history_item["prompt"]
+        assert isinstance(filtered_prompt, list), "Filtered prompt should be a list"
+        assert len(filtered_prompt) == 3, f"Filtered prompt should have 3 elements, got {len(filtered_prompt)}"
+        
+        # Verify correct elements are preserved
+        assert filtered_prompt[0] == 12345, "Priority should be preserved"
+        assert filtered_prompt[1] == 'test-prompt-123', "Prompt ID should be preserved"
+        assert filtered_prompt[2] == {'client_id': 'test-client'}, "Extra data should be preserved"
+        
+        # Verify other fields are unchanged
+        assert history_item["outputs"] == {'1': {'images': []}}, "Outputs should be unchanged"
+        assert history_item["status"] == {'completed': True, 'messages': []}, "Status should be unchanged"
+        assert history_item["meta"] == {'1': {'node_id': '1'}}, "Meta should be unchanged"
