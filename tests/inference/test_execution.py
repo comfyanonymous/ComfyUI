@@ -759,7 +759,13 @@ class TestExecution:
             12345,  # priority/timestamp
             'test-prompt-123',  # prompt_id  
             {'nodes': {'1': {'class_type': 'SaveImage'}}},  # workflow (should be filtered)
-            {'client_id': 'test-client'},  # extra_data
+            {  # extra_data
+                'client_id': 'test-client',
+                'extra_pnginfo': {
+                    'workflow': {'nodes': {'1': {'class_type': 'SaveImage'}}},  # Should be filtered out
+                    'version': '1.0'  # Should be preserved
+                }
+            },
             ['1']  # execute_outputs (should be filtered)
         )
         
@@ -798,7 +804,13 @@ class TestExecution:
         # Verify correct elements are preserved
         assert filtered_prompt[0] == 12345, "Priority should be preserved"
         assert filtered_prompt[1] == 'test-prompt-123', "Prompt ID should be preserved"
-        assert filtered_prompt[2] == {'client_id': 'test-client'}, "Extra data should be preserved"
+        
+        # Verify extra_data filtering
+        extra_data = filtered_prompt[2]
+        assert extra_data['client_id'] == 'test-client', "Client ID should be preserved"
+        assert 'extra_pnginfo' in extra_data, "extra_pnginfo should be present"
+        assert 'workflow' not in extra_data['extra_pnginfo'], "Workflow should be filtered out"
+        assert extra_data['extra_pnginfo']['version'] == '1.0', "Other extra_pnginfo data should be preserved"
         
         # Verify other fields are unchanged
         assert history_item["outputs"] == {'1': {'images': []}}, "Outputs should be unchanged"
