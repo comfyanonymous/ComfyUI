@@ -19,6 +19,7 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 
 ## What's New?
 
+* Updated zluda version for old install method and for old amd devices to 3.9.5 (latest) because the newer amd gpu drivers are having problem with old zluda versions. For newer users this wouldn't be a problem but if you already had comfyui-zluda installed (via the older method) and want to re-install the app , please delete everything in : "C:\Users\yourusername\AppData\Local\ZLUDA\ComputeCache" so new zluda can create its database from scratch. 
 * Added "cfz-vae-loader" node to cfz folder, it enables changing vae precision on the fly without using "--fp16-vae" etc. on the starting commandline. This is important because while "wan" works faster with fp16 , flux produces black output if fp16 vae is used. So, start comfy normally and add this node to your wan workflow to change it only with that model type.
 * Use update.bat if comfyui.bat or comfyui-n.bat can't update. (as when they are the files that needs to be updated, so delete them, run update.bat) When you run your comfyui(-n).bat afterwards, it now copies correct zluda and uses that. 
 * Added two workflows for wan text to video and image to video. They are on CFZ folder. From now on I will try to share other workflows that works good on zluda at least on my setup, it could be a starting point for new users if nothing else. Text-to-video has some notes please read them. 
@@ -102,7 +103,7 @@ If coming from the very start, you need :
     *  (Alternative source for hip addon for zluda 3.9.5 : (https://www.mediafire.com/file/ooawc9s34sazerr/HIP-SDK-extension(zluda395).zip/file))
      
 6. If you have an AMD GPU below 6800 (6700,6600 etc.), download the recommended library files for your gpu
-   - NOTE : Besides those older gpu's the newest gfx1200 and gfx1201 aka 9070 - 9070xt STILL requires libraries because amd didn't add support for them in the 6.2.4 . In the future they %100 would but using 6.2.4 those gpu's also need libraries - from likelovewant libs. Those gpu's only have libraries for HIP 6.2.4, so you have to install HIP 6.2.4 and get the libraries from the likelovewant repository below for your gpu's. At this moment though, this newest GPU's have very poor performance with zluda even if you set them up with libraries etc ... Keep this in mind.
+   - !!! NOTE !!! : Besides those older gpu's the newest gfx1200 and gfx1201 aka 9070 - 9070xt STILL requires libraries because amd didn't add support for them in the 6.2.4 . In the future they %100 would but using 6.2.4 those gpu's also need libraries - from likelovewant libs. Those gpu's only have libraries for HIP 6.2.4, so you have to install HIP 6.2.4 and get the libraries from the likelovewant repository below for your gpu's. At this moment though, this newest GPU's have very poor performance with zluda even if you set them up with libraries etc ... Keep this in mind.
 
 - from [Brknsoul Repository](https://github.com/brknsoul/ROCmLibs) (for hip 5.7.1)
 
