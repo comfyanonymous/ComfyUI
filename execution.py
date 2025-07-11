@@ -1130,12 +1130,13 @@ class PromptQueue:
             # Build history items with prompt_id field
             history_items = []
             for key in selected_keys:
-                history_entry = self.history[key]
+                # Deep copy the history entry to avoid modifying the original
+                history_entry = copy.deepcopy(self.history[key])
                 
                 # Extract and filter prompt data
                 if "prompt" in history_entry:
                     priority, prompt_id, _, extra_data, _ = history_entry["prompt"]
-                    # Remove workflow from extra_pnginfo
+                    # Remove workflow from extra_pnginfo (safe to modify since we deepcopied)
                     if "extra_pnginfo" in extra_data:
                         extra_data["extra_pnginfo"].pop("workflow", None)
                     filtered_prompt = {
