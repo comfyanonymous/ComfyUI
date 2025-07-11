@@ -1227,7 +1227,7 @@ class WAN21(BaseModel):
 
         tracks = kwargs.get("tracks", None)
         if tracks is not None:
-            res = patch_motion(tracks.to(device), res[0], 220.0, (4, 16), 2)[None]
+            res = patch_motion(tracks.to(device), res[0], kwargs.get("ati_temperature", None), (4, 16), kwargs.get("ati_topk", None))[None]
 
         return res
 
