@@ -742,7 +742,7 @@ class SaveImagesResponse(CustomNode):
 
             except Exception as e:
                 logging.error(f"Error while trying to save file with fsspec_url {uri}", exc_info=e)
-                abs_path = os.path.abspath(local_path)
+                abs_path = "" if local_path is None else os.path.abspath(local_path)
 
             if is_null_uri(local_path):
                 filename_for_ui = ""
