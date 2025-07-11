@@ -495,6 +495,29 @@ def kl_optimal_scheduler(n: int, sigma_min: float, sigma_max: float) -> torch.Te
     sigmas[:-1] = (adj_idxs * math.atan(sigma_min) + (1 - adj_idxs) * math.atan(sigma_max)).tan_()
     return sigmas
 
+def power_shift_scheduler(model_sampling, steps, power=2.0, midpoint_shift=1.0, discard_penultimate=True):
+    total_timesteps = (len(model_sampling.sigmas) - 1)
+    x = numpy.linspace(0, 1, steps, endpoint=False)
+    x = x**midpoint_shift
+
+    ts_normalized = (1 - x**power)**power
+    ts = numpy.rint(ts_normalized * total_timesteps)
+
+    sigs = []
+    last_t = -1
+    for t in ts:
+        t_int = min(int(t), total_timesteps)
+        if t_int != last_t:
+            sigs.append(float(model_sampling.sigmas[t_int]))
+        last_t = t_int
+
+    sigs.append(0.0)
+    if discard_penultimate is True:
+        sigmas = torch.FloatTensor(sigs)
+        return torch.cat((sigmas[:-2], sigmas[-1:]))
+    else:
+        return torch.FloatTensor(sigs)
+
 def get_mask_aabb(masks):
     if masks.numel() == 0:
         return torch.zeros((0, 4), device=masks.device, dtype=torch.int)
@@ -1052,6 +1075,7 @@ SCHEDULER_HANDLERS = {
     "normal": SchedulerHandler(normal_scheduler),
     "linear_quadratic": SchedulerHandler(linear_quadratic_schedule),
     "kl_optimal": SchedulerHandler(kl_optimal_scheduler, use_ms=False),
+    "power_shift": SchedulerHandler(power_shift_scheduler),
 }
 SCHEDULER_NAMES = list(SCHEDULER_HANDLERS)
 
