@@ -416,7 +416,6 @@ def parse_json_tracks(tracks):
         tracks_data = []
     return tracks_data
 
-
 def tracks_to_tensor(tracks_data, length, width, height, batch_size=1):
     """Convert parsed track data to tensor format (B, T, N, 4)"""
     if not tracks_data:
@@ -446,50 +445,6 @@ def tracks_to_tensor(tracks_data, length, width, height, batch_size=1):
                     ])
     
     return tracks_tensor
-
-
-def ind_sel(target: torch.Tensor, ind: torch.Tensor, dim: int = 1):
-    """Index selection utility function"""
-    assert (
-        len(ind.shape) > dim
-    ), "Index must have the target dim, but get dim: %d, ind shape: %s" % (dim, str(ind.shape))
-
-    target = target.expand(
-        *tuple(
-            [ind.shape[k] if target.shape[k] == 1 else -1 for k in range(dim)]
-            + [
-                -1,
-            ]
-            * (len(target.shape) - dim)
-        )
-    )
-
-    ind_pad = ind
-
-    if len(target.shape) > dim + 1:
-        for _ in range(len(target.shape) - (dim + 1)):
-            ind_pad = ind_pad.unsqueeze(-1)
-        ind_pad = ind_pad.expand(*(-1,) * (dim + 1), *target.shape[(dim + 1) : :])
-
-    return torch.gather(target, dim=dim, index=ind_pad)
-
-
-def merge_final(vert_attr: torch.Tensor, weight: torch.Tensor, vert_assign: torch.Tensor):
-    """Merge vertex attributes with weights"""
-    target_dim = len(vert_assign.shape) - 1
-    if len(vert_attr.shape) == 2:
-        assert vert_attr.shape[0] > vert_assign.max()
-        new_shape = [1] * target_dim + list(vert_attr.shape)
-        tensor = vert_attr.reshape(new_shape)
-        sel_attr = ind_sel(tensor, vert_assign.type(torch.long), dim=target_dim)
-    else:
-        assert vert_attr.shape[1] > vert_assign.max()
-        new_shape = [vert_attr.shape[0]] + [1] * (target_dim - 1) + list(vert_attr.shape[1:])
-        tensor = vert_attr.reshape(new_shape)
-        sel_attr = ind_sel(tensor, vert_assign.type(torch.long), dim=target_dim)
-
-    final_attr = torch.sum(sel_attr * weight.unsqueeze(-1), dim=-2)
-    return final_attr
 
 def process_tracks(tracks_np: np.ndarray, frame_size: Tuple[int, int], num_frames, quant_multi: int = 8, **kwargs):
     # tracks: shape [t, h, w, 3] => samples align with 24 fps, model trained with 16 fps.
