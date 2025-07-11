@@ -24,7 +24,6 @@ class SaveImage_V3(io.ComfyNodeV3):
             inputs=[
                 io.Image.Input(
                     "images",
-                    display_name="images",
                     tooltip="The images to save.",
                 ),
                 io.String.Input(
@@ -79,7 +78,6 @@ class PreviewImage_V3(io.ComfyNodeV3):
             inputs=[
                 io.Image.Input(
                     "images",
-                    display_name="images",
                     tooltip="The images to preview.",
                 ),
             ],
@@ -89,7 +87,7 @@ class PreviewImage_V3(io.ComfyNodeV3):
 
     @classmethod
     def execute(cls, images):
-        return io.NodeOutput(ui=ui.PreviewImage(images))
+        return io.NodeOutput(ui=ui.PreviewImage(images, cls=cls))
 
 
 class LoadImage_V3(io.ComfyNodeV3):
@@ -102,7 +100,6 @@ class LoadImage_V3(io.ComfyNodeV3):
             inputs=[
                 io.Combo.Input(
                     "image",
-                    display_name="image",
                     image_upload=True,
                     image_folder=io.FolderType.input,
                     content_types=["image"],
@@ -110,12 +107,8 @@ class LoadImage_V3(io.ComfyNodeV3):
                 ),
             ],
             outputs=[
-                io.Image.Output(
-                    "IMAGE",
-                ),
-                io.Mask.Output(
-                    "MASK",
-                ),
+                io.Image.Output(),
+                io.Mask.Output(),
             ],
         )
 
@@ -199,7 +192,6 @@ class LoadImageOutput_V3(io.ComfyNodeV3):
             inputs=[
                 io.Combo.Input(
                     "image",
-                    display_name="image",
                     image_upload=True,
                     image_folder=io.FolderType.output,
                     content_types=["image"],
@@ -211,12 +203,8 @@ class LoadImageOutput_V3(io.ComfyNodeV3):
                 ),
             ],
             outputs=[
-                io.Image.Output(
-                    "IMAGE",
-                ),
-                io.Mask.Output(
-                    "MASK",
-                ),
+                io.Image.Output(),
+                io.Mask.Output(),
             ],
         )
 
