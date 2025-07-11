@@ -3,6 +3,7 @@ from typing import Type, Literal
 
 import nodes
 import asyncio
+import inspect
 from comfy_execution.graph_utils import is_link
 from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputTypeOptions
 
@@ -239,8 +240,15 @@ class ExecutionList(TopologicalSort):
                 return True
             return False
 
+        # If an available node is async, do that first.
+        # This will execute the asynchronous function earlier, reducing the overall time.
+        def is_async(node_id):
+            class_type = self.dynprompt.get_node(node_id)["class_type"]
+            class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+            return inspect.iscoroutinefunction(getattr(class_def, class_def.FUNCTION))
+
         for node_id in node_list:
-            if is_output(node_id):
+            if is_output(node_id) or is_async(node_id):
                 return node_id
 
         #This should handle the VAEDecode -> preview case
