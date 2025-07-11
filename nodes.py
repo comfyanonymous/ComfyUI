@@ -2302,7 +2302,6 @@ def init_builtin_extra_nodes():
         "v3/nodes_images.py",
         "v3/nodes_mask.py",
         "v3/nodes_webcam.py",
-        "v3/nodes_stable_cascade.py",
     ]
 
     import_failed = []
