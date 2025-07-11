@@ -4,6 +4,7 @@ import asyncio
 import copy
 import heapq
 import inspect
+import json
 import logging
 import sys
 import threading
@@ -559,6 +560,11 @@ class PromptExecutor:
         current_span = get_current_span()
         current_span.set_status(Status(StatusCode.ERROR))
         current_span.record_exception(ex)
+        try:
+            encoded_prompt = json.dumps(prompt)
+            current_span.set_attribute("prompt", encoded_prompt)
+        except Exception as exc_info:
+            pass
 
         node_id = error["node_id"]
         class_type = prompt[node_id]["class_type"]
