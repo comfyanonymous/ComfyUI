@@ -561,7 +561,7 @@ class PromptServer():
                     "ram_total": ram_total,
                     "ram_free": ram_free,
                     "comfyui_version": __version__,
-                    "required_frontend_version":required_frontend_version,
+                    "required_frontend_version": required_frontend_version,
                     "python_version": sys.version,
                     "pytorch_version": comfy.model_management.torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
