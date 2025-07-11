@@ -495,7 +495,7 @@ def kl_optimal_scheduler(n: int, sigma_min: float, sigma_max: float) -> torch.Te
     sigmas[:-1] = (adj_idxs * math.atan(sigma_min) + (1 - adj_idxs) * math.atan(sigma_max)).tan_()
     return sigmas
 
-def power_shift_scheduler(model_sampling, steps, power=2.0, midpoint_shift=1.0, discard_penultimate=True):
+def power_shift_scheduler(model_sampling, steps, power=2.0, midpoint_shift=1.0, discard_penultimate=False):
     total_timesteps = (len(model_sampling.sigmas) - 1)
     x = numpy.linspace(0, 1, steps, endpoint=False)
     x = x**midpoint_shift
