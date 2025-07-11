@@ -798,15 +798,17 @@ class TestExecution:
         
         # Verify prompt field is filtered
         filtered_prompt = history_item["prompt"]
-        assert isinstance(filtered_prompt, list), "Filtered prompt should be a list"
-        assert len(filtered_prompt) == 3, f"Filtered prompt should have 3 elements, got {len(filtered_prompt)}"
+        assert isinstance(filtered_prompt, dict), "Filtered prompt should be a dictionary"
+        assert "priority" in filtered_prompt, "Filtered prompt should have priority"
+        assert "prompt_id" in filtered_prompt, "Filtered prompt should have prompt_id"
+        assert "extra_data" in filtered_prompt, "Filtered prompt should have extra_data"
         
         # Verify correct elements are preserved
-        assert filtered_prompt[0] == 12345, "Priority should be preserved"
-        assert filtered_prompt[1] == 'test-prompt-123', "Prompt ID should be preserved"
+        assert filtered_prompt["priority"] == 12345, "Priority should be preserved"
+        assert filtered_prompt["prompt_id"] == 'test-prompt-123', "Prompt ID should be preserved"
         
         # Verify extra_data filtering
-        extra_data = filtered_prompt[2]
+        extra_data = filtered_prompt["extra_data"]
         assert extra_data['client_id'] == 'test-client', "Client ID should be preserved"
         assert 'extra_pnginfo' in extra_data, "extra_pnginfo should be present"
         assert 'workflow' not in extra_data['extra_pnginfo'], "Workflow should be filtered out"

@@ -1138,7 +1138,11 @@ class PromptQueue:
                     # Remove workflow from extra_pnginfo
                     if "extra_pnginfo" in extra_data:
                         extra_data["extra_pnginfo"].pop("workflow", None)
-                    filtered_prompt = [priority, prompt_id, extra_data]
+                    filtered_prompt = {
+                        "priority": priority,
+                        "prompt_id": prompt_id,
+                        "extra_data": extra_data
+                    }
                 else:
                     filtered_prompt = None
                 
