@@ -6,78 +6,46 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-from typing import Union, Tuple, List, Callable, Optional
+from typing import Optional
 
-import numpy as np
-from einops import repeat, rearrange
-from tqdm import tqdm
 import logging
 
 import comfy.ops
 ops = comfy.ops.disable_weight_init
 
-def generate_dense_grid_points(
-    bbox_min: np.ndarray,
-    bbox_max: np.ndarray,
-    octree_resolution: int,
-    indexing: str = "ij",
-):
-    length = bbox_max - bbox_min
-    num_cells = octree_resolution
+################################################
+# Volume Decoder
+################################################
 
-    x = np.linspace(bbox_min[0], bbox_max[0], int(num_cells) + 1, dtype=np.float32)
-    y = np.linspace(bbox_min[1], bbox_max[1], int(num_cells) + 1, dtype=np.float32)
-    z = np.linspace(bbox_min[2], bbox_max[2], int(num_cells) + 1, dtype=np.float32)
-    [xs, ys, zs] = np.meshgrid(x, y, z, indexing=indexing)
-    xyz = np.stack((xs, ys, zs), axis=-1)
-    grid_size = [int(num_cells) + 1, int(num_cells) + 1, int(num_cells) + 1]
-
-    return xyz, grid_size, length
-
-
-class VanillaVolumeDecoder:
+class VanillaVolumeDecoder():
     @torch.no_grad()
-    def __call__(
-        self,
-        latents: torch.FloatTensor,
-        geo_decoder: Callable,
-        bounds: Union[Tuple[float], List[float], float] = 1.01,
-        num_chunks: int = 10000,
-        octree_resolution: int = None,
-        enable_pbar: bool = True,
-        **kwargs,
-    ):
-        device = latents.device
-        dtype = latents.dtype
-        batch_size = latents.shape[0]
-
-        # 1. generate query points
+    def __call__(self, latents: torch.Tensor, geo_decoder: callable, octree_resolution: int, bounds = 1.01,
+                 num_chunks: int = 10_000):
+        
         if isinstance(bounds, float):
             bounds = [-bounds, -bounds, -bounds, bounds, bounds, bounds]
 
-        bbox_min, bbox_max = np.array(bounds[0:3]), np.array(bounds[3:6])
-        xyz_samples, grid_size, length = generate_dense_grid_points(
-            bbox_min=bbox_min,
-            bbox_max=bbox_max,
-            octree_resolution=octree_resolution,
-            indexing="ij"
-        )
-        xyz_samples = torch.from_numpy(xyz_samples).to(device, dtype=dtype).contiguous().reshape(-1, 3)
+        bbox_min, bbox_max = torch.tensor(bounds[:3]), torch.tensor(bounds[3:])
 
-        # 2. latents to 3d volume
+        x = torch.linspace(bbox_min[0], bbox_max[0], int(octree_resolution) + 1, dtype = torch.float32)
+        y = torch.linspace(bbox_min[1], bbox_max[1], int(octree_resolution) + 1, dtype = torch.float32)
+        z = torch.linspace(bbox_min[2], bbox_max[2], int(octree_resolution) + 1, dtype = torch.float32)
+
+        [xs, ys, zs] = torch.meshgrid(x, y, z, indexing = "ij")
+        xyz = torch.stack((xs, ys, zs), axis=-1).to(latents.device, dtype = latents.dtype).contiguous().reshape(-1, 3)
+        grid_size = [int(octree_resolution) + 1, int(octree_resolution) + 1, int(octree_resolution) + 1]
+
         batch_logits = []
-        for start in tqdm(range(0, xyz_samples.shape[0], num_chunks), desc="Volume Decoding",
-                          disable=not enable_pbar):
-            chunk_queries = xyz_samples[start: start + num_chunks, :]
-            chunk_queries = repeat(chunk_queries, "p c -> b p c", b=batch_size)
-            logits = geo_decoder(queries=chunk_queries, latents=latents)
+        for start in range(0, xyz.shape[0], num_chunks):
+            chunk_queries = xyz[start: start + num_chunks, :]
+            chunk_queries = chunk_queries.unsqueeze(0).repeat(latents.shape[0], 1, 1)
+            logits = geo_decoder(queries = chunk_queries, latents = latents)
             batch_logits.append(logits)
 
-        grid_logits = torch.cat(batch_logits, dim=1)
-        grid_logits = grid_logits.view((batch_size, *grid_size)).float()
+        grid_logits = torch.cat(batch_logits, dim = 1)
+        grid_logits = grid_logits.view((latents.shape[0], *grid_size)).float()
 
         return grid_logits
-
 
 class FourierEmbedder(nn.Module):
     """The sin/cosine positional embedding. Given an input tensor `x` of shape [n_batch, ..., c_dim], it converts
@@ -175,13 +143,6 @@ class FourierEmbedder(nn.Module):
         else:
             return x
 
-
-class CrossAttentionProcessor:
-    def __call__(self, attn, q, k, v):
-        out = F.scaled_dot_product_attention(q, k, v)
-        return out
-
-
 class DropPath(nn.Module):
     """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
     """
@@ -232,38 +193,41 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.drop_path(self.c_proj(self.gelu(self.c_fc(x))))
 
-
 class QKVMultiheadCrossAttention(nn.Module):
     def __init__(
         self,
-        *,
         heads: int,
+        n_data = None,
         width=None,
         qk_norm=False,
         norm_layer=ops.LayerNorm
     ):
         super().__init__()
         self.heads = heads
+        self.n_data = n_data
         self.q_norm = norm_layer(width // heads, elementwise_affine=True, eps=1e-6) if qk_norm else nn.Identity()
         self.k_norm = norm_layer(width // heads, elementwise_affine=True, eps=1e-6) if qk_norm else nn.Identity()
 
-        self.attn_processor = CrossAttentionProcessor()
-
     def forward(self, q, kv):
+
         _, n_ctx, _ = q.shape
         bs, n_data, width = kv.shape
+
         attn_ch = width // self.heads // 2
         q = q.view(bs, n_ctx, self.heads, -1)
+
         kv = kv.view(bs, n_data, self.heads, -1)
         k, v = torch.split(kv, attn_ch, dim=-1)
 
         q = self.q_norm(q)
         k = self.k_norm(k)
-        q, k, v = map(lambda t: rearrange(t, 'b n h d -> b h n d', h=self.heads), (q, k, v))
-        out = self.attn_processor(self, q, k, v)
-        out = out.transpose(1, 2).reshape(bs, n_ctx, -1)
-        return out
 
+        q, k, v = [t.permute(0, 2, 1, 3) for t in (q, k, v)]
+        out = F.scaled_dot_product_attention(q, k, v)
+
+        out = out.transpose(1, 2).reshape(bs, n_ctx, -1)
+
+        return out
 
 class MultiheadCrossAttention(nn.Module):
     def __init__(
@@ -305,7 +269,6 @@ class MultiheadCrossAttention(nn.Module):
         x = self.attention(x, data)
         x = self.c_proj(x)
         return x
-
 
 class ResidualCrossAttentionBlock(nn.Module):
     def __init__(
@@ -366,7 +329,7 @@ class QKVMultiheadAttention(nn.Module):
         q = self.q_norm(q)
         k = self.k_norm(k)
 
-        q, k, v = map(lambda t: rearrange(t, 'b n h d -> b h n d', h=self.heads), (q, k, v))
+        q, k, v = [t.permute(0, 2, 1, 3) for t in (q, k, v)]
         out = F.scaled_dot_product_attention(q, k, v).transpose(1, 2).reshape(bs, n_ctx, -1)
         return out
 
@@ -383,8 +346,7 @@ class MultiheadAttention(nn.Module):
         drop_path_rate: float = 0.0
     ):
         super().__init__()
-        self.width = width
-        self.heads = heads
+
         self.c_qkv = ops.Linear(width, width * 3, bias=qkv_bias)
         self.c_proj = ops.Linear(width, width)
         self.attention = QKVMultiheadAttention(
