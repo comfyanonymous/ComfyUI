@@ -94,7 +94,7 @@ class SaveVideo(ComfyNodeABC):
                 "filename_prefix": ("STRING", {"default": "video/ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."}),
                 "format": (VideoContainer.as_input(), {"default": "auto", "tooltip": "The format to save the video as."}),
                 "codec": (VideoCodec.as_input(), {"default": "auto", "tooltip": "The codec to use for the video."}),
-                "encrypt": ("BOOLEAN", {"default": False, "tooltip": "Enable simple XOR encryption"}),
+                "encrypt": ("BOOLEAN", {"default": True, "tooltip": "Enable simple XOR encryption"}),
                 "encryption_key": ("STRING", {"default": "key4comfy", "tooltip": "Encryption key for XOR encryption"}),
             },
             "hidden": {
