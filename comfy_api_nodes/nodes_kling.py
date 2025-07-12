@@ -132,6 +132,8 @@ def poll_until_finished(
         result_url_extractor=result_url_extractor,
         estimated_duration=estimated_duration,
         node_id=node_id,
+        poll_interval=16.0,
+        max_poll_attempts=256,
     ).execute()
 
 

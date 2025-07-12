@@ -178,10 +178,6 @@ If you have trouble extracting it, right click the file -> properties -> unblock
 
 See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
 
-## Jupyter Notebook
-
-To run it on services like paperspace, kaggle or colab you can use my [Jupyter Notebook](notebooks/comfyui_colab.ipynb)
-
 
 ## [comfy-cli](https://docs.comfy.org/comfy-cli/getting-started)
 

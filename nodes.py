@@ -2319,6 +2319,7 @@ def init_builtin_api_nodes():
         "nodes_pika.py",
         "nodes_runway.py",
         "nodes_tripo.py",
+        "nodes_moonvalley.py",
         "nodes_rodin.py",
         "nodes_gemini.py",
     ]
