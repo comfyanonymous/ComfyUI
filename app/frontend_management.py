@@ -29,6 +29,26 @@ def frontend_install_warning_message():
 This error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.
 """.strip()
 
+def is_valid_version(version: str) -> bool:
+    """Validate if a string is a valid semantic version (X.Y.Z format)."""
+    pattern = r"^(\d+)\.(\d+)\.(\d+)$"
+    return bool(re.match(pattern, version))
+
+def get_required_frontend_version():
+    """Get the required frontend version from requirements.txt."""
+    try:
+        with open(requirements_path, "r", encoding="utf-8") as f:
+            version_str = f.readline().split("=")[-1].strip()
+            if not is_valid_version(version_str):
+                logging.error(f"Invalid version format in requirements.txt: {version_str}")
+                return None
+            return version_str
+    except FileNotFoundError:
+        logging.error("requirements.txt not found. Cannot determine required frontend version.")
+        return None
+    except Exception as e:
+        logging.error(f"Error reading requirements.txt: {e}")
+        return None
 
 def check_frontend_version():
     """Check if the frontend version is up to date."""
@@ -39,8 +59,8 @@ def check_frontend_version():
     try:
         frontend_version_str = version("comfyui-frontend-package")
         frontend_version = parse_version(frontend_version_str)
-        with open(requirements_path, "r", encoding="utf-8") as f:
-            required_frontend = parse_version(f.readline().split("=")[-1])
+        required_frontend_str = get_required_frontend_version()
+        required_frontend = parse_version(required_frontend_str)
         if frontend_version < required_frontend:
             app.logger.log_startup_warning(
                 f"""
@@ -167,6 +187,11 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 class FrontendManager:
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
+
+    @classmethod
+    def get_required_frontend_version(cls) -> str:
+        """Get the required frontend version from requirements.txt."""
+        return get_required_frontend_version()
 
     @classmethod
     def default_frontend_path(cls) -> str:
