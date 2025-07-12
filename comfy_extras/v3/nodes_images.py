@@ -100,9 +100,8 @@ class LoadImage_V3(io.ComfyNodeV3):
             inputs=[
                 io.Combo.Input(
                     "image",
-                    image_upload=True,
+                    upload=io.UploadType.image,
                     image_folder=io.FolderType.input,
-                    content_types=["image"],
                     options=cls.get_files_options(),
                 ),
             ],
@@ -192,9 +191,8 @@ class LoadImageOutput_V3(io.ComfyNodeV3):
             inputs=[
                 io.Combo.Input(
                     "image",
-                    image_upload=True,
+                    upload=io.UploadType.image,
                     image_folder=io.FolderType.output,
-                    content_types=["image"],
                     remote=io.RemoteOptions(
                         route="/internal/files/output",
                         refresh_button=True,
