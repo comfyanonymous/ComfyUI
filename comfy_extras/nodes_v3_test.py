@@ -62,8 +62,8 @@ class V3TestNode(io.ComfyNodeV3):
                 #                                                   ]]
             ],
             outputs=[
-                io.Int.Output("int_output"),
-                io.Image.Output("img_output", display_name="img🖼️", tooltip="This is an image"),
+                io.Int.Output(),
+                io.Image.Output(display_name="img🖼️", tooltip="This is an image"),
             ],
             hidden=[
                 io.Hidden.prompt,
@@ -105,7 +105,7 @@ class V3TestNode(io.ComfyNodeV3):
         if hasattr(cls, "doohickey"):
             raise Exception("The 'cls' variable leaked state on class properties between runs!")
         cls.doohickey = "LOLJK"
-        return io.NodeOutput(some_int, image, ui=ui.PreviewImage(image))
+        return io.NodeOutput(some_int, image, ui=ui.PreviewImage(image, cls=cls))
 
 
 class V3LoraLoader(io.ComfyNodeV3):
@@ -142,8 +142,8 @@ class V3LoraLoader(io.ComfyNodeV3):
                 ),
             ],
             outputs=[
-                io.Model.Output("model_out"),
-                io.Clip.Output("clip_out"),
+                io.Model.Output(),
+                io.Clip.Output(),
             ],
         )
 
@@ -169,7 +169,7 @@ class NInputsTest(io.ComfyNodeV3):
                 io.AutogrowDynamic.Input("nmock2", template_input=io.Int.Input("int"), optional=True, min=1, max=4),
             ],
             outputs=[
-                io.Image.Output("image_out"),
+                io.Image.Output(),
             ],
         )
     

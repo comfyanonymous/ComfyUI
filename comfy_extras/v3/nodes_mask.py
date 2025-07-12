@@ -12,13 +12,10 @@ class MaskPreview_V3(io.ComfyNodeV3):
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
             node_id="MaskPreview_V3",
-            display_name="Convert Mask to Image _V3",
+            display_name="Preview Mask _V3",
             category="mask",
             inputs=[
-                io.Mask.Input(
-                    "masks",
-                    display_name="masks",
-                ),
+                io.Mask.Input("masks"),
             ],
             hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
             is_output_node=True,
