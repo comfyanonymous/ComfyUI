@@ -1165,6 +1165,26 @@ class PromptQueue:
 
             return {"history": history_items}
 
+    def get_history_v2(self, prompt_id):
+        with self.mutex:
+            if prompt_id in self.history:
+                history_entry = copy.deepcopy(self.history[prompt_id])
+                
+                # Extract and convert prompt tuple to dict
+                if "prompt" in history_entry:
+                    priority, prompt_id_inner, prompt_data, extra_data, outputs_to_execute = history_entry["prompt"]
+                    history_entry["prompt"] = {
+                        "priority": priority,
+                        "prompt_id": prompt_id_inner,
+                        "prompt": prompt_data,
+                        "extra_data": extra_data,
+                        "outputs_to_execute": outputs_to_execute
+                    }
+                
+                return {prompt_id: history_entry}
+            else:
+                return {}
+
     def wipe_history(self):
         with self.mutex:
             self.history = {}
