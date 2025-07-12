@@ -28,6 +28,14 @@ class FolderType(str, Enum):
     output = "output"
     temp = "temp"
 
+
+class UploadType(str, Enum):
+    image = "image_upload"
+    audio = "audio_upload"
+    video = "video_upload"
+    model = "file_upload"
+
+
 class RemoteOptions:
     def __init__(self, route: str, refresh_button: bool, control_after_refresh: Literal["first", "last"]="first",
                  timeout: int=None, max_retries: int=None, refresh: int=None):
@@ -394,16 +402,15 @@ class Combo(ComfyType):
         Type = str
         def __init__(self, id: str, options: list[str]=None, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: str=None, control_after_generate: bool=None,
-                    image_upload: bool=None, image_folder: FolderType=None, content_types: list[Literal["image", "video", "audio", "model"]]=None,
+                    upload: UploadType=None, image_folder: FolderType=None,
                     remote: RemoteOptions=None,
                     socketless: bool=None):
             super().__init__(id, display_name, optional, tooltip, lazy, default, socketless)
             self.multiselect = False
             self.options = options
             self.control_after_generate = control_after_generate
-            self.image_upload = image_upload
+            self.upload = upload
             self.image_folder = image_folder
-            self.content_types = content_types
             self.remote = remote
             self.default: str
 
@@ -412,9 +419,8 @@ class Combo(ComfyType):
                 "multiselect": self.multiselect,
                 "options": self.options,
                 "control_after_generate": self.control_after_generate,
-                "image_upload": self.image_upload,
+                **({self.upload.value: True} if self.upload is not None else {}),
                 "image_folder": self.image_folder.value if self.image_folder else None,
-                "content_types": self.content_types if self.content_types else None,
                 "remote": self.remote.as_dict() if self.remote else None,
             })
 
