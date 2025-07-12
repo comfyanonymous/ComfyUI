@@ -29,15 +29,19 @@ def frontend_install_warning_message():
 This error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.
 """.strip()
 
+def parse_version(version: str) -> tuple[int, int, int]:
+        return tuple(map(int, version.split(".")))
+
+def get_installed_frontend_version():
+    """Get the currently installed frontend package version."""
+    frontend_version_str = version("comfyui-frontend-package")
+    return frontend_version_str
 
 def check_frontend_version():
     """Check if the frontend version is up to date."""
 
-    def parse_version(version: str) -> tuple[int, int, int]:
-        return tuple(map(int, version.split(".")))
-
     try:
-        frontend_version_str = version("comfyui-frontend-package")
+        frontend_version_str = get_installed_frontend_version()
         frontend_version = parse_version(frontend_version_str)
         with open(requirements_path, "r", encoding="utf-8") as f:
             required_frontend = parse_version(f.readline().split("=")[-1])
@@ -167,6 +171,11 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 class FrontendManager:
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
+
+    @classmethod
+    def get_frontend_version(cls) -> str:
+        """Get the currently installed frontend package version."""
+        return get_installed_frontend_version()
 
     @classmethod
     def default_frontend_path(cls) -> str:
