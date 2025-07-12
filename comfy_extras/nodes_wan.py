@@ -544,7 +544,7 @@ class WanTrackToVideo:
             lat_h = height // 8
             lat_w = width // 8
 
-            msk = torch.ones(1, latent.shape[2], lat_h, lat_w, device=start_image.device)
+            msk = torch.ones(1, length - 1, lat_h, lat_w, device=start_image.device)
             msk[:, 1:] = 0
             
             # repeat first frame 4 times
