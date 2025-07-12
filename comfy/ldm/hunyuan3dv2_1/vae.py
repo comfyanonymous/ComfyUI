@@ -5,10 +5,13 @@ import numpy as np
 from skimage import measure
 from dataclasses import dataclass
 import torch.nn as nn
-from hunyuan3d.vae import (
+
+import sys, os; 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+
+from comfy.ldm.hunyuan3d.vae import (
     CrossAttentionDecoder, Transformer, ResidualCrossAttentionBlock, FourierEmbedder, VanillaVolumeDecoder
 )
-
 def fps(src: Tensor, batch: Tensor, sampling_ratio: float, start_random: bool = True):
 
     # manually create the pointer vector
@@ -91,12 +94,11 @@ class PointCrossAttention(nn.Module):
         self.self_attn = None
         if layers > 0:
             self.self_attn = Transformer(
-                n_ctx = num_latents,
                 width = width,
                 heads = heads,
                 qkv_bias = qkv_bias,
                 qk_norm = qk_norm,
-                depth = layers
+                layers = layers
             )
 
         if use_ln_post:
@@ -281,7 +283,7 @@ class Latent2MeshOutput():
     vertices: None
     faces: None
 
-class SufraceExtractor():
+class SurfaceExtractor():
     def compute_box_stat(self, bounds, octree_resolution: int):
 
         # if float, turn it into a cube
@@ -293,14 +295,14 @@ class SufraceExtractor():
         grid_size = [int(octree_resolution) + 1, int(octree_resolution) + 1, int(octree_resolution) + 1]
         return grid_size, bbox_min, bbox_size
     
-    def run(self, grid_logit, *, bounds, octree_res, level: float = 0.0, **kwargs):
+    def run(self, grid_logit, *, bounds, octree_resolution, level: float = 0.0, **kwargs):
         # grid_logit from volume decoder
         # use marching cube algo to turn an sdf to a mesh
         vertices, faces, _, _ = measure.marching_cubes(grid_logit.cpu().numpy(),
                                            level,
                                            method = "lewiner")
         
-        grid_size, bbox_min, bbox_size = self.compute_box_stat(bounds = bounds, octree_resolution = octree_res)
+        grid_size, bbox_min, bbox_size = self.compute_box_stat(bounds = bounds, octree_resolution = octree_resolution)
         vertices = vertices / grid_size * bbox_size + bbox_min
 
         return vertices, faces
@@ -308,6 +310,8 @@ class SufraceExtractor():
     def __call__(self, grid_logits, **kwds):
         
         outputs = []
+        veritces_list = []
+        faces_list = []
         # loop over the batches
         for i in range(grid_logits.shape[0]):
             try:
@@ -315,7 +319,9 @@ class SufraceExtractor():
                 vertices, faces = self.run(grid_logits[i], **kwds)
                 vertices = vertices.astype(np.float32)
                 faces = np.ascontiguousarray(faces)
-                outputs.append(Latent2MeshOutput(vertices = vertices, faces = faces))
+                #outputs.append(Latent2MeshOutput(vertices = vertices, faces = faces))
+                veritces_list.append(vertices)
+                faces_list.append(faces)
 
             except Exception:
                 import traceback
@@ -552,9 +558,8 @@ class VAE(nn.Module):
                                            pc_sharpedge_size = pc_sharpedge_size) 
         
         self.transformer = Transformer(
-            n_ctx=num_latents,
             width=width,
-            depth=num_decoder_layers,
+            layers=num_decoder_layers,
             heads=heads,
             qkv_bias=qkv_bias,
             qk_norm=qk_norm,
@@ -564,7 +569,6 @@ class VAE(nn.Module):
         self.geo_decoder = CrossAttentionDecoder(
             fourier_embedder = self.fourier_embedder,
             out_channels = 1,
-            num_latents = num_latents,
             mlp_expand_ratio = geo_decoder_mlp_expand_ratio,
             downsample_ratio = geo_decoder_downsample_ratio,
             enable_ln_post = geo_decoder_ln_post,
@@ -578,7 +582,7 @@ class VAE(nn.Module):
         self.post_kl = nn.Linear(embed_dim, width)
 
         self.volume_decoder = VanillaVolumeDecoder()
-        self.surface_extractor = SufraceExtractor()
+        self.surface_extractor = SurfaceExtractor()
         
 
     def forward(self):
@@ -596,8 +600,8 @@ class VAE(nn.Module):
 
         return latents
 
-    def decode(self, latents, to_mesh: bool = True, **kwargs):
-
+    def decode(self, latents, **kwargs):
+        to_mesh = kwargs.pop("to_mesh", True)
         latents = self.post_kl(latents)
         latents = self.transformer(latents)
 

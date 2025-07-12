@@ -50,12 +50,14 @@ class SwiGLUFFN(torch.nn.Module):
 
 
 class Dino2Block(torch.nn.Module):
-    def __init__(self, dim, num_heads, layer_norm_eps, dtype, device, operations):
+    def __init__(self, dim, num_heads, layer_norm_eps, dtype, device, operations, use_swiglu_ffn):
         super().__init__()
         self.attention = Dino2AttentionBlock(dim, num_heads, layer_norm_eps, dtype, device, operations)
         self.layer_scale1 = LayerScale(dim, dtype, device, operations)
         self.layer_scale2 = LayerScale(dim, dtype, device, operations)
-        self.mlp = SwiGLUFFN(dim, dtype, device, operations)
+        if use_swiglu_ffn:
+            self.mlp = SwiGLUFFN(dim, dtype, device, operations)
+        else: self.mlp = torch.nn.Identity()
         self.norm1 = operations.LayerNorm(dim, eps=layer_norm_eps, dtype=dtype, device=device)
         self.norm2 = operations.LayerNorm(dim, eps=layer_norm_eps, dtype=dtype, device=device)
 
@@ -66,9 +68,10 @@ class Dino2Block(torch.nn.Module):
 
 
 class Dino2Encoder(torch.nn.Module):
-    def __init__(self, dim, num_heads, layer_norm_eps, num_layers, dtype, device, operations):
+    def __init__(self, dim, num_heads, layer_norm_eps, num_layers, dtype, device, operations, use_swiglu_ffn):
         super().__init__()
-        self.layer = torch.nn.ModuleList([Dino2Block(dim, num_heads, layer_norm_eps, dtype, device, operations) for _ in range(num_layers)])
+        self.layer = torch.nn.ModuleList([Dino2Block(dim, num_heads, layer_norm_eps, dtype, device, operations, use_swiglu_ffn = use_swiglu_ffn)
+                                          for _ in range(num_layers)])
 
     def forward(self, x, intermediate_output=None):
         optimized_attention = optimized_attention_for_device(x.device, False, small_input=True)
@@ -128,9 +131,10 @@ class Dinov2Model(torch.nn.Module):
         dim = config_dict["hidden_size"]
         heads = config_dict["num_attention_heads"]
         layer_norm_eps = config_dict["layer_norm_eps"]
+        use_swiglu_ffn = config_dict["use_swiglu_ffn"]
 
         self.embeddings = Dino2Embeddings(dim, dtype, device, operations)
-        self.encoder = Dino2Encoder(dim, heads, layer_norm_eps, num_layers, dtype, device, operations)
+        self.encoder = Dino2Encoder(dim, heads, layer_norm_eps, num_layers, dtype, device, operations, use_swiglu_ffn = use_swiglu_ffn)
         self.layernorm = operations.LayerNorm(dim, eps=layer_norm_eps, dtype=dtype, device=device)
 
     def forward(self, pixel_values, attention_mask=None, intermediate_output=None):

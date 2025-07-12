@@ -312,6 +312,8 @@ class CrossAttention(nn.Module):
         b, s1, _ = x.shape  
         _, s2, _ = y.shape 
 
+        y = y.to(next(self.to_k.parameters()).dtype)
+
         q = self.to_q(x)
         k = self.to_k(y)
         v = self.to_v(y)
@@ -531,13 +533,16 @@ class HunYuanDiTPlain(nn.Module):
         qk_norm: bool = True,
         qkv_bias: bool = False,
         num_moe_layers: int = 6,
-        guidance_cond_proj_dim = None,
+        guidance_cond_proj_dim = 2048,
         norm_type = 'layer',
         num_experts: int = 8,
         moe_top_k: int = 2,
         use_fp16: bool = False,
+        dtype = None,
         **kwargs
         ):
+
+        self.dtype = dtype
 
         super().__init__()
 
@@ -581,11 +586,13 @@ class HunYuanDiTPlain(nn.Module):
 
         self.final_layer = FinalLayer(hidden_size, self.out_channels, use_fp16 = use_fp16)
 
-    def forward(self, x, t, contexts, **kwargs):
+    def forward(self, x, t, context, **kwargs):
         
-        main_condition = contexts['main']
+        main_condition = context
 
         time_embedded = self.t_embedder(t, condition = kwargs.get('guidance_cond'))
+
+        x = x.to(dtype = next(self.x_embedder.parameters()).dtype)
         x_embedded = self.x_embedder(x)
 
         combined = torch.cat([time_embedded, x_embedded], dim=1)

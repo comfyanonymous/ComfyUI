@@ -132,13 +132,15 @@ class VAEDecodeHunyuan3D:
             })
             return (VOXEL(voxel), None)
 
-        mesh = vae.decode(samples["samples"], to_mesh = True,
-                         num_chunks = num_chunks,
-                         octree_resolution = octree_resolution)
+        mesh = vae.decode(samples["samples"],vae_options={
+                "num_chunks": num_chunks,
+                "octree_resolution": octree_resolution,
+                "to_mesh": True
+        })
         
         # ensure batch dim
-        if mesh.verticies.ndim == 2:
-            mesh.verticies = mesh.verticies[np.newaxis, ...]
+        if mesh.vertices.ndim == 2:
+            mesh.vertices = mesh.vertices[np.newaxis, ...]
             mesh.faces = mesh.faces[np.newaxis, ...]
 
         return (None, mesh)
