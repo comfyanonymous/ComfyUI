@@ -1045,6 +1045,12 @@ class PromptQueue:
             if status is not None:
                 status_dict = copy.deepcopy(status._asdict())
 
+            # Remove auth tokens from extra_data before storing in history
+            if "auth_token_comfy_org" in prompt[3]:
+                del prompt[3]["auth_token_comfy_org"]
+            if "api_key_comfy_org" in prompt[3]:
+                del prompt[3]["api_key_comfy_org"]
+
             self.history[prompt[1]] = {
                 "prompt": prompt,
                 "outputs": {},
