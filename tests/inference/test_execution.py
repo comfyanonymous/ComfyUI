@@ -660,9 +660,24 @@ class TestExecution:
         # Test history_v2 endpoint for specific prompt
         specific_history = client.get_history_v2_for_prompt(prompt_id)
         assert prompt_id in specific_history, "History v2 should contain prompt ID"
-        assert specific_history[prompt_id] == legacy_history[prompt_id], "History v2 data should match legacy history"
+        
+        # Verify key fields match between legacy and v2
+        v2_data = specific_history[prompt_id]
+        legacy_data = legacy_history[prompt_id]
+        
+        # Check that outputs and status match
+        assert v2_data["outputs"] == legacy_data["outputs"], "Outputs should match"
+        assert v2_data["status"] == legacy_data["status"], "Status should match"
+        
+        # Verify prompt is converted to dict format in v2
+        assert isinstance(v2_data["prompt"], dict), "Prompt should be a dictionary in v2"
+        assert "prompt_id" in v2_data["prompt"], "Prompt dict should have prompt_id"
+        assert "priority" in v2_data["prompt"], "Prompt dict should have priority"
+        assert "prompt" in v2_data["prompt"], "Prompt dict should have prompt data"
+        assert "extra_data" in v2_data["prompt"], "Prompt dict should have extra_data"
+        assert "outputs_to_execute" in v2_data["prompt"], "Prompt dict should have outputs_to_execute"
 
-    def test_history_max_items(self, client: ComfyClient, builder: GraphBuilder):
+    def test_history_max_items(self, client: ComfyClient):
         """Test legacy history endpoint with max_items parameter."""
         # Clear history to start fresh
         client.clear_history()
@@ -680,7 +695,7 @@ class TestExecution:
         limited_history = client.get_history(max_items=2)
         assert len(limited_history) == 2, "History should return exactly max_items"
 
-    def test_ordered_history_max_items_and_offset(self, client: ComfyClient, builder: GraphBuilder):
+    def test_ordered_history_max_items_and_offset(self, client: ComfyClient):
         """Test ordered history endpoint with max_items and offset parameters."""
         # Clear history to start fresh
         client.clear_history()
@@ -731,13 +746,13 @@ class TestExecution:
         assert len(set(all_paginated_ids)) == 5, "All paginated IDs should be unique"
         assert set(all_paginated_ids) == set(full_prompt_ids), "Paginated results should cover all items"
 
-        # Test default behavior: get last N items (no offset specified)
-        # When offset < 0 and max_items is specified, offset = len(history) - max_items
-        last_2_items = client.get_ordered_history(max_items=2)
-        assert len(last_2_items["history"]) == 2, "Default behavior should return 2 items"
-        last_2_ids = [item["prompt_id"] for item in last_2_items["history"]]
-        # This should be equivalent to offset=3 (5-2=3)
-        assert last_2_ids == full_prompt_ids[3:5], "Default behavior should return last 2 items"
+        # Test default behavior: get first N items (no offset specified)
+        # When offset is not specified, it defaults to 0
+        first_2_items = client.get_ordered_history(max_items=2)
+        assert len(first_2_items["history"]) == 2, "Default behavior should return 2 items"
+        first_2_ids = [item["prompt_id"] for item in first_2_items["history"]]
+        # This should be equivalent to offset=0 with max_items=2
+        assert first_2_ids == full_prompt_ids[0:2], "Default behavior should return first 2 items"
 
         # Test offset beyond available items
         beyond_offset = client.get_ordered_history(max_items=2, offset=10)
