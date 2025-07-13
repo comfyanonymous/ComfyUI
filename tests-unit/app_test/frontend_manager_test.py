@@ -177,7 +177,7 @@ def test_get_frontend_version():
     #Arrange
     expected_version = "1.23.4"
     
-    version = FrontendManager.get_frontend_version()
+    version = FrontendManager.get_required_frontend_version()
     
     #Assert
     assert version == expected_version 

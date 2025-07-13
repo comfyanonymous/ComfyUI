@@ -553,7 +553,7 @@ class PromptServer():
             ram_free = comfy.model_management.get_free_memory(cpu_device)
             vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
-            required_frontend_version = FrontendManager.get_frontend_version()
+            required_frontend_version = FrontendManager.get_required_frontend_version()
 
             system_stats = {
                 "system": {
