@@ -108,17 +108,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                clear:
-                  type: boolean
-                  description: If true, clears the entire queue
-                delete:
-                  type: array
-                  description: Array of prompt IDs to delete from the queue
-                  items:
-                    type: string
-                    format: uuid
+              $ref: '#/components/schemas/QueueManageRequest'
       responses:
         '200':
           description: Success
@@ -144,14 +134,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                unload_models:
-                  type: boolean
-                  description: If true, unloads models from memory
-                free_memory:
-                  type: boolean
-                  description: If true, frees GPU memory
+              $ref: '#/components/schemas/FreeResourcesRequest'
       responses:
         '200':
           description: Success
@@ -190,17 +173,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                clear:
-                  type: boolean
-                  description: If true, clears the entire history
-                delete:
-                  type: array
-                  description: Array of prompt IDs to delete from history
-                  items:
-                    type: string
-                    format: uuid
+              $ref: '#/components/schemas/HistoryManageRequest'
       responses:
         '200':
           description: Success
@@ -302,17 +275,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  name:
-                    type: string
-                    description: Filename of the uploaded image
-                  subfolder:
-                    type: string
-                    description: Subfolder the image was stored in
-                  type:
-                    type: string
-                    description: Type of directory the image was stored in
+                $ref: '#/components/schemas/UploadResponse'
         '400':
           description: Bad request
   /api/upload/mask:
@@ -343,16 +306,7 @@ paths:
             application/json:
               schema:
                 type: object
-                properties:
-                  name:
-                    type: string
-                    description: Filename of the uploaded mask
-                  subfolder:
-                    type: string
-                    description: Subfolder the mask was stored in
-                  type:
-                    type: string
-                    description: Type of directory the mask was stored in
+                $ref: '#/components/schemas/UploadResponse'
         '400':
           description: Bad request
   /api/view:
@@ -893,3 +847,48 @@ components:
               torch_vram_free:
                 type: number
                 description: Free VRAM as reported by PyTorch
+    QueueManageRequest:
+      type: object
+      properties:
+        clear:
+          type: boolean
+          description: If true, clears the entire queue
+        delete:
+          type: array
+          description: Array of prompt IDs to delete from the queue
+          items:
+            type: string
+            format: uuid
+    FreeResourcesRequest:
+      type: object
+      properties:
+        unload_models:
+          type: boolean
+          description: If true, unloads models from memory
+        free_memory:
+          type: boolean
+          description: If true, frees GPU memory
+    HistoryManageRequest:
+      type: object
+      properties:
+        clear:
+          type: boolean
+          description: If true, clears the entire history
+        delete:
+          type: array
+          description: Array of prompt IDs to delete from history
+          items:
+            type: string
+            format: uuid
+    UploadResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Filename of the uploaded file
+        subfolder:
+          type: string
+          description: Subfolder where the file was stored
+        type:
+          type: string
+          description: Type of directory the file was stored in
