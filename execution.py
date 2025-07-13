@@ -123,6 +123,8 @@ class CacheSet:
         }
         return result
 
+SENSITIVE_EXTRA_DATA_KEYS = ("auth_token_comfy_org", "api_key_comfy_org")
+
 def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
@@ -1045,11 +1047,10 @@ class PromptQueue:
             if status is not None:
                 status_dict = copy.deepcopy(status._asdict())
 
-            # Remove auth tokens from extra_data before storing in history
-            if "auth_token_comfy_org" in prompt[3]:
-                del prompt[3]["auth_token_comfy_org"]
-            if "api_key_comfy_org" in prompt[3]:
-                del prompt[3]["api_key_comfy_org"]
+            # Remove sensitive data from extra_data before storing in history
+            for sensitive_val in SENSITIVE_EXTRA_DATA_KEYS:
+                if sensitive_val in prompt[3]:
+                    prompt[3].pop(sensitive_val)
 
             self.history[prompt[1]] = {
                 "prompt": prompt,
