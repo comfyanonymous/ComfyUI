@@ -432,8 +432,8 @@ class VAE:
                 self.memory_used_encode = lambda shape, dtype: 6000 * shape[3] * shape[4] * model_management.dtype_size(dtype)
                 self.memory_used_decode = lambda shape, dtype: 7000 * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
 
-            # Hunyuan 3d v2 2.1
-            elif 'geo_decoder.cross_attn_decoder.mlp.c_proj.weight' in sd:
+            # Hunyuan 3d v2 2.0 & 2.1
+            elif "geo_decoder.cross_attn_decoder.ln_1.bias" in sd:
 
                 self.latent_dim = 1
 
@@ -450,20 +450,8 @@ class VAE:
 
                 self.memory_used_decode = lambda shape, dtype, num_layers = 16, kv_cache_multiplier = 2: \
                     estimate_memory(shape, dtype, num_layers, kv_cache_multiplier)
-
-                self.first_stage_model = comfy.ldm.hunyuan3dv2_1.vae.VAE()
-                self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
-
-            elif "geo_decoder.cross_attn_decoder.ln_1.bias" in sd:
-                self.latent_dim = 1
-                ln_post = "geo_decoder.ln_post.weight" in sd
-                inner_size = sd["geo_decoder.output_proj.weight"].shape[1]
-                downsample_ratio = sd["post_kl.weight"].shape[0] // inner_size
-                mlp_expand = sd["geo_decoder.cross_attn_decoder.mlp.c_fc.weight"].shape[0] // inner_size
-                self.memory_used_encode = lambda shape, dtype: (1000 * shape[2]) * model_management.dtype_size(dtype)  # TODO
-                self.memory_used_decode = lambda shape, dtype: (1024 * 1024 * 1024 * 2.0) * model_management.dtype_size(dtype)  # TODO
-                ddconfig = {"embed_dim": 64, "num_freqs": 8, "include_pi": False, "heads": 16, "width": 1024, "num_decoder_layers": 16, "qkv_bias": False, "qk_norm": True, "geo_decoder_mlp_expand_ratio": mlp_expand, "geo_decoder_downsample_ratio": downsample_ratio, "geo_decoder_ln_post": ln_post}
-                self.first_stage_model = comfy.ldm.hunyuan3d.vae.ShapeVAE(**ddconfig)
+                
+                self.first_stage_model = comfy.ldm.hunyuan3d.vae.ShapeVAE()
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
 
 
