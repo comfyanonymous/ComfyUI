@@ -28,7 +28,7 @@ from comfy_execution.graph import (
 )
 from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
-from comfy_api.v3.io import NodeOutput, ComfyNodeV3, Hidden, NodeStateLocal, ResourcesLocal, AutogrowDynamic, is_class, lock_class
+from comfy_api.v3 import io, helpers
 
 
 class ExecutionResult(Enum):
@@ -54,7 +54,7 @@ class IsChangedCache:
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         has_is_changed = False
         is_changed_name = None
-        if issubclass(class_def, ComfyNodeV3) and getattr(class_def, "fingerprint_inputs", None) is not None:
+        if issubclass(class_def, io.ComfyNodeV3) and helpers.first_real_override(class_def, "fingerprint_inputs", base=io.ComfyNodeV3) is not None:
             has_is_changed = True
             is_changed_name = "fingerprint_inputs"
         elif hasattr(class_def, "IS_CHANGED"):
@@ -127,7 +127,7 @@ class CacheSet:
         return result
 
 def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, extra_data={}):
-    is_v3 = issubclass(class_def, ComfyNodeV3)
+    is_v3 = issubclass(class_def, io.ComfyNodeV3)
     if is_v3:
         valid_inputs, schema = class_def.INPUT_TYPES(include_hidden=False, return_schema=True)
     else:
@@ -161,18 +161,18 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
 
     if is_v3:
         if schema.hidden:
-            if Hidden.prompt in schema.hidden:
-                hidden_inputs_v3[Hidden.prompt] = dynprompt.get_original_prompt() if dynprompt is not None else {}
-            if Hidden.dynprompt in schema.hidden:
-                hidden_inputs_v3[Hidden.dynprompt] = dynprompt
-            if Hidden.extra_pnginfo in schema.hidden:
-                hidden_inputs_v3[Hidden.extra_pnginfo] = extra_data.get('extra_pnginfo', None)
-            if Hidden.unique_id in schema.hidden:
-                hidden_inputs_v3[Hidden.unique_id] = unique_id
-            if Hidden.auth_token_comfy_org in schema.hidden:
-                hidden_inputs_v3[Hidden.auth_token_comfy_org] = extra_data.get("auth_token_comfy_org", None)
-            if Hidden.api_key_comfy_org in schema.hidden:
-                hidden_inputs_v3[Hidden.api_key_comfy_org] = extra_data.get("api_key_comfy_org", None)
+            if io.Hidden.prompt in schema.hidden:
+                hidden_inputs_v3[io.Hidden.prompt] = dynprompt.get_original_prompt() if dynprompt is not None else {}
+            if io.Hidden.dynprompt in schema.hidden:
+                hidden_inputs_v3[io.Hidden.dynprompt] = dynprompt
+            if io.Hidden.extra_pnginfo in schema.hidden:
+                hidden_inputs_v3[io.Hidden.extra_pnginfo] = extra_data.get('extra_pnginfo', None)
+            if io.Hidden.unique_id in schema.hidden:
+                hidden_inputs_v3[io.Hidden.unique_id] = unique_id
+            if io.Hidden.auth_token_comfy_org in schema.hidden:
+                hidden_inputs_v3[io.Hidden.auth_token_comfy_org] = extra_data.get("auth_token_comfy_org", None)
+            if io.Hidden.api_key_comfy_org in schema.hidden:
+                hidden_inputs_v3[io.Hidden.api_key_comfy_org] = extra_data.get("api_key_comfy_org", None)
     else:
         if "hidden" in valid_inputs:
             h = valid_inputs["hidden"]
@@ -224,9 +224,9 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
             if pre_execute_cb is not None and index is not None:
                 pre_execute_cb(index)
             # V3
-            if isinstance(obj, ComfyNodeV3) or (is_class(obj) and issubclass(obj, ComfyNodeV3)):
+            if isinstance(obj, io.ComfyNodeV3) or (io.is_class(obj) and issubclass(obj, io.ComfyNodeV3)):
                 # if is just a class, then assign no resources or state, just create clone
-                if is_class(obj):
+                if io.is_class(obj):
                     type_obj = obj
                     obj.VALIDATE_CLASS()
                     class_clone = obj.PREPARE_CLASS_CLONE(hidden_inputs)
@@ -238,16 +238,16 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
                     # NOTE: this is a mock of state management; for local, just stores NodeStateLocal on node instance
                     if hasattr(obj, "local_state"):
                         if obj.local_state is None:
-                            obj.local_state = NodeStateLocal(class_clone.hidden.unique_id)
+                            obj.local_state = io.NodeStateLocal(class_clone.hidden.unique_id)
                         class_clone.state = obj.local_state
                     # NOTE: this is a mock of resource management; for local, just stores ResourcesLocal on node instance
                     if hasattr(obj, "local_resources"):
                         if obj.local_resources is None:
-                            obj.local_resources = ResourcesLocal()
+                            obj.local_resources = io.ResourcesLocal()
                         class_clone.resources = obj.local_resources
                 # TODO: delete this when done testing mocking dynamic inputs
                 for si in obj.SCHEMA.inputs:
-                    if isinstance(si, AutogrowDynamic.Input):
+                    if isinstance(si, io.AutogrowDynamic.Input):
                         add_key = si.id
                         dynamic_list = []
                         real_inputs = {k: v for k, v in inputs.items()}
@@ -255,7 +255,7 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
                             dynamic_list.append(real_inputs.pop(d.id, None))
                         dynamic_list = [x for x in dynamic_list if x is not None]
                         inputs = {**real_inputs, add_key: dynamic_list}
-                results.append(getattr(type_obj, func).__func__(lock_class(class_clone), **inputs))
+                results.append(getattr(type_obj, func).__func__(io.lock_class(class_clone), **inputs))
             # V1
             else:
                 results.append(getattr(obj, func)(**inputs))
@@ -318,7 +318,7 @@ def get_output_data(obj, input_data_all, execution_block_cb=None, pre_execute_cb
                     result = tuple([result] * len(obj.RETURN_TYPES))
                 results.append(result)
                 subgraph_results.append((None, result))
-        elif isinstance(r, NodeOutput):
+        elif isinstance(r, io.NodeOutput):
             # V3
             if r.ui is not None:
                 if isinstance(r.ui, dict):
@@ -411,7 +411,11 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                 obj = class_def()
                 caches.objects.set(unique_id, obj)
 
-            if getattr(obj, "check_lazy_status", None) is not None:
+            if issubclass(class_def, io.ComfyNodeV3):
+                lazy_status_present = helpers.first_real_override(class_def, "check_lazy_status", base=io.ComfyNodeV3) is not None
+            else:
+                lazy_status_present = getattr(obj, "check_lazy_status", None) is not None
+            if lazy_status_present:
                 required_inputs = _map_node_over_list(obj, input_data_all, "check_lazy_status", allow_interrupt=True, hidden_inputs=hidden_inputs)
                 required_inputs = set(sum([r for r in required_inputs if isinstance(r,list)], []))
                 required_inputs = [x for x in required_inputs if isinstance(x,str) and (
@@ -670,11 +674,9 @@ def validate_inputs(prompt, item, validated):
 
     validate_function_inputs = []
     validate_has_kwargs = False
-    validate_function_name = None
-    validate_function = None
-    if issubclass(obj_class, ComfyNodeV3):
+    if issubclass(obj_class, io.ComfyNodeV3):
         validate_function_name = "validate_inputs"
-        validate_function = getattr(obj_class, validate_function_name, None)
+        validate_function = helpers.first_real_override(obj_class, validate_function_name, base=io.ComfyNodeV3)
     else:
         validate_function_name = "VALIDATE_INPUTS"
         validate_function = getattr(obj_class, validate_function_name, None)

@@ -1,11 +1,11 @@
 import torch
 import time
 from comfy_api.v3 import io, ui, resources
-import logging
+import logging  # noqa
 import folder_paths
 import comfy.utils
 import comfy.sd
-from typing import Any
+
 
 @io.comfytype(io_type="XYZ")
 class XYZ:
@@ -88,11 +88,11 @@ class V3TestNode(io.ComfyNodeV3):
         expected_int = 123
         if "thing" not in cls.state:
             cls.state["thing"] = "hahaha"
-            yyy = cls.state["thing"]
+            yyy = cls.state["thing"]    # noqa
             del cls.state["thing"]
         if cls.state.get_value("int2") is None:
             cls.state.set_value("int2", 123)
-            zzz = cls.state.get_value("int2")
+            zzz = cls.state.get_value("int2")   # noqa
             cls.state.pop("int2")
         if cls.state.my_int is None:
             cls.state.my_int = expected_int
@@ -175,7 +175,7 @@ class NInputsTest(io.ComfyNodeV3):
                 io.Image.Output(),
             ],
         )
-    
+
     @classmethod
     def validate_inputs(cls, nmock, nmock2):
         return True
