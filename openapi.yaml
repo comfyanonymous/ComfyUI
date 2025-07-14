@@ -696,15 +696,11 @@ components:
         queue_running:
           type: array
           items:
-            type: object
-            description: Currently running items
-            additionalProperties: true
+            $ref: '#/components/schemas/QueueItem'
         queue_pending:
           type: array
           items:
-            type: object
-            description: Pending items in the queue
-            additionalProperties: true
+            $ref: '#/components/schemas/QueueItem'
     HistoryItem:
       type: object
       properties:
@@ -936,3 +932,23 @@ components:
         enabled:
           type: boolean
           description: Whether to enable or disable subscription
+    QueueItem:
+      type: array
+      description: Queue item containing execution details
+      items:
+        oneOf:
+          - type: integer
+            description: Queue position number
+          - type: string
+            format: uuid
+            description: Unique prompt identifier
+          - type: object
+            description: Workflow graph with nodes and connections
+            additionalProperties: true
+          - type: object
+            description: Extra metadata (auth tokens, client info, etc.)
+            additionalProperties: true
+          - type: array
+            description: Array of output node IDs
+            items:
+              type: string
