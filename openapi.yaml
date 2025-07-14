@@ -50,10 +50,22 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PromptInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       tags:
       - workflow
@@ -83,6 +95,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/queue:
     get:
       tags:
@@ -93,10 +111,22 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/QueueInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       tags:
       - queue
@@ -112,6 +142,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/interrupt:
     post:
       tags:
@@ -122,6 +158,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/free:
     post:
       tags:
@@ -138,6 +180,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/history:
     get:
       tags:
@@ -156,6 +204,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -177,6 +231,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/history/{prompt_id}:
     get:
       tags:
@@ -195,6 +255,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -209,6 +275,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -232,6 +304,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -279,6 +357,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -312,6 +396,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -370,6 +460,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             image/*:
               schema:
@@ -402,6 +498,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -418,6 +520,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -441,6 +549,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -459,6 +573,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -475,6 +595,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -491,6 +617,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -527,6 +659,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -541,6 +679,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -555,6 +699,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -575,6 +725,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /internal/folder_paths:
     get:
       tags:
@@ -585,6 +741,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -612,6 +774,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
