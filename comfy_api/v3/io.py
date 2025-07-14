@@ -1178,7 +1178,7 @@ class ComfyNodeV3:
             raise Exception(f"Invalid return type from node: {type(to_return)}")
 
     @classmethod
-    def prepare_class_clone(cls, hidden_inputs: dict) -> type[ComfyNodeV3]:
+    def PREPARE_CLASS_CLONE(cls, hidden_inputs: dict) -> type[ComfyNodeV3]:
         """Creates clone of real node class to prevent monkey-patching."""
         c_type: type[ComfyNodeV3] = cls if is_class(cls) else type(cls)
         type_clone: type[ComfyNodeV3] = shallow_clone_class(c_type)

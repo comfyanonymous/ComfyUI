@@ -229,12 +229,12 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
                 if is_class(obj):
                     type_obj = obj
                     obj.VALIDATE_CLASS()
-                    class_clone = obj.prepare_class_clone(hidden_inputs)
+                    class_clone = obj.PREPARE_CLASS_CLONE(hidden_inputs)
                 # otherwise, use class instance to populate/reuse some fields
                 else:
                     type_obj = type(obj)
                     type_obj.VALIDATE_CLASS()
-                    class_clone = type_obj.prepare_class_clone(hidden_inputs)
+                    class_clone = type_obj.PREPARE_CLASS_CLONE(hidden_inputs)
                     # NOTE: this is a mock of state management; for local, just stores NodeStateLocal on node instance
                     if hasattr(obj, "local_state"):
                         if obj.local_state is None:
