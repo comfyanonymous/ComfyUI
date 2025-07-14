@@ -251,6 +251,8 @@ paths:
           multipart/form-data:
             schema:
               type: object
+              required:
+                - image
               properties:
                 image:
                   type: string
@@ -258,16 +260,21 @@ paths:
                   description: The image file to upload
                 overwrite:
                   type: string
-                  description: Whether to overwrite if file exists (true/false)
+                  enum:
+                    - "true"
+                    - "false"
+                  description: Whether to overwrite if file exists
                 type:
                   type: string
                   enum:
                   - input
                   - temp
                   - output
+                  default: input
                   description: Type of directory to store the image in
                 subfolder:
                   type: string
+                  default: ""
                   description: Subfolder to store the image in
       responses:
         '200':
@@ -291,6 +298,9 @@ paths:
           multipart/form-data:
             schema:
               type: object
+              required:
+                - image
+                - original_ref
               properties:
                 image:
                   type: string
