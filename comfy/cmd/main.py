@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import Optional
 
 from comfy.component_model.entrypoints_common import configure_application_paths, executor_from_args
-# main_pre must be the earliest import since it suppresses some spurious warnings
-from .main_pre import args
 from . import hook_breaker_ac10a0
 from .extra_model_paths import load_extra_path_config
+# main_pre must be the earliest import since it suppresses some spurious warnings
+from .main_pre import args
 from .. import model_management
 from ..analytics.analytics import initialize_event_tracking
 from ..cmd import cuda_malloc
@@ -135,6 +135,12 @@ def start_comfyui(asyncio_loop: asyncio.AbstractEventLoop = None):
     asyncio_loop.run_until_complete(_start_comfyui())
 
 
+def setup_database():
+    from ..app.database.db import dependencies_available, init_db
+    if dependencies_available():
+        init_db()
+
+
 async def _start_comfyui(from_script_dir: Optional[Path] = None):
     """
     Runs ComfyUI's frontend and backend like upstream.
@@ -174,6 +180,8 @@ async def _start_comfyui(from_script_dir: Optional[Path] = None):
         import_all_nodes_in_workspace(raise_on_failure=False)
         folder_paths.create_directories()
         exit(0)
+
+    setup_database()
 
     if args.windows_standalone_build:
         folder_paths.create_directories()
@@ -301,6 +309,7 @@ def entrypoint():
 
 def main():
     entrypoint()
+
 
 if __name__ == "__main__":
     entrypoint()

@@ -4,6 +4,7 @@ import dataclasses
 import json
 import logging
 import math
+import os
 import os.path
 from enum import Enum
 from typing import Any, Optional
@@ -1011,6 +1012,12 @@ def load_gligen(ckpt_path):
     return model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
 
 
+def model_detection_error_hint(path, state_dict):
+    filename = os.path.basename(path)
+    if 'lora' in filename.lower():
+        return "\nHINT: This seems to be a Lora file and Lora files should be put in the lora folder and loaded with a lora loader node.."
+    return ""
+
 def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_clip=True, embedding_directory=None, state_dict=None, config=None):
     logger.warning("Warning: The load checkpoint with config function is deprecated and will eventually be removed, please use the other one.")
     model, clip, vae, _ = load_checkpoint_guess_config(ckpt_path, output_vae=output_vae, output_clip=output_clip, output_clipvision=False, embedding_directory=embedding_directory, output_model=True)
@@ -1046,7 +1053,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     sd, metadata = utils.load_torch_file(ckpt_path, return_metadata=True)
     out = load_state_dict_guess_config(sd, output_vae, output_clip, output_clipvision, embedding_directory, output_model, model_options, te_model_options=te_model_options, ckpt_path=ckpt_path)
     if out is None:
-        raise RuntimeError("Could not detect model type of: {}".format(ckpt_path))
+        raise RuntimeError("Could not detect model type of: {}\n{}".format(ckpt_path, model_detection_error_hint(ckpt_path, sd)))
     return out
 
 
@@ -1226,7 +1233,7 @@ def load_diffusion_model(unet_path, model_options: dict = None):
     model = load_diffusion_model_state_dict(sd, model_options=model_options, ckpt_path=unet_path)
     if model is None:
         logger.error("ERROR UNSUPPORTED DIFFUSION MODEL {}".format(unet_path))
-        raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
+        raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(unet_path, model_detection_error_hint(unet_path, sd)))
     return model
 
 

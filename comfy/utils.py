@@ -17,29 +17,29 @@
 """
 from __future__ import annotations
 
-import itertools
-import math
-import sys
-
 import contextlib
 import contextvars
+import itertools
 import json
 import logging
-import numpy as np
+import math
 import os
 import random
-import safetensors.torch
 import struct
-import torch
+import sys
 import warnings
-from PIL import Image
 from contextlib import contextmanager
-from einops import rearrange
 from pathlib import Path
 from pickle import UnpicklingError
+from typing import Optional, Any
+
+import numpy as np
+import safetensors.torch
+import torch
+from PIL import Image
+from einops import rearrange
 from torch.nn.functional import interpolate
 from tqdm import tqdm
-from typing import Optional, Any
 
 from . import interruption, checkpoint_pickle
 from .cli_args import args
@@ -130,7 +130,8 @@ def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=Fal
             if safe_load or ALWAYS_SAFE_LOAD:
                 pl_sd = torch.load(ckpt, map_location=device, weights_only=True, **torch_args)
             else:
-                pl_sd = torch.load(ckpt, map_location=device, pickle_module=checkpoint_pickle)
+                logging.warning("WARNING: loading {} unsafely, upgrade your pytorch to 2.4 or newer to load this file safely.".format(ckpt))
+            pl_sd = torch.load(ckpt, map_location=device, pickle_module=checkpoint_pickle)
             if "state_dict" in pl_sd:
                 sd = pl_sd["state_dict"]
             else:
@@ -1079,12 +1080,12 @@ def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap=8, upscale_amou
     return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=output_device, pbar=pbar)
 
 
-def _progress_bar_update(value: float, total: float, preview_image_or_data: Optional[Any] = None, client_id: Optional[str] = None, server: Optional[ExecutorToClientProgress] = None):
+def _progress_bar_update(value: float, total: float, preview_image_or_data: Optional[Any] = None, client_id: Optional[str] = None, server: Optional[ExecutorToClientProgress] = None, node_id: str = None):
     server = server or current_execution_context().server
     # todo: this should really be from the context. right now the server is behaving like a context
     client_id = client_id or server.client_id
     interruption.throw_exception_if_processing_interrupted()
-    progress: ProgressMessage = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
+    progress: ProgressMessage = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": node_id or server.last_node_id}
     if isinstance(preview_image_or_data, dict):
         progress["output"] = preview_image_or_data
 
@@ -1127,10 +1128,11 @@ class _DisabledProgressBar:
 
 
 class ProgressBar:
-    def __init__(self, total: float):
+    def __init__(self, total: float, node_id: Any = None):
         self.total: float = total
         self.current: float = 0.0
         self.server = current_execution_context().server
+        self.node_id = node_id
 
     def update_absolute(self, value, total=None, preview_image_or_output=None):
         if total is not None:
@@ -1138,7 +1140,7 @@ class ProgressBar:
         if value > self.total:
             value = self.total
         self.current = value
-        _progress_bar_update(self.current, self.total, preview_image_or_output, server=self.server)
+        _progress_bar_update(self.current, self.total, preview_image_or_output, server=self.server, node_id=self.node_id)
 
     def update(self, value):
         self.update_absolute(self.current + value)

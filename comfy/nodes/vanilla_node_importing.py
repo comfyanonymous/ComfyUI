@@ -153,6 +153,7 @@ def _vanilla_load_custom_nodes_1(module_path, ignore=set()) -> ExportedNodes:
 
 
 def _vanilla_load_custom_nodes_2(node_paths: Iterable[str]) -> ExportedNodes:
+    from ..cli_args import args
     base_node_names = set(base_nodes.NODE_CLASS_MAPPINGS.keys())
     node_import_times = []
     exported_nodes = ExportedNodes()
@@ -167,6 +168,9 @@ def _vanilla_load_custom_nodes_2(node_paths: Iterable[str]) -> ExportedNodes:
             module_path = join(custom_node_path, possible_module)
             if isfile(module_path) and splitext(module_path)[1] != ".py": continue
             if module_path.endswith(".disabled"): continue
+            if args.disable_all_custom_nodes and possible_module not in args.whitelist_custom_nodes:
+                logger.info(f"Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
+                continue
             time_before = time.perf_counter()
             possible_exported_nodes = _vanilla_load_custom_nodes_1(module_path, base_node_names)
             # comfyui-manager mitigation

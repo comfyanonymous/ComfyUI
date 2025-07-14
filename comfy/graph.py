@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import inspect
 from typing import Optional, Type, Literal
 
 from .comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputTypeOptions
@@ -96,6 +98,8 @@ class TopologicalSort:
         self.pendingNodes = {}
         self.blockCount = {}  # Number of nodes this node is directly blocked by
         self.blocking = {}  # Which nodes are blocked by this node
+        self.externalBlocks = 0
+        self.unblockedEvent = asyncio.Event()
 
     def get_input_info(self, unique_id, input_name):
         class_type = self.dynprompt.get_node(unique_id)["class_type"]
@@ -149,6 +153,18 @@ class TopologicalSort:
         for link in links:
             self.add_strong_link(*link)
 
+    def add_external_block(self, node_id):
+        assert node_id in self.blockCount, "Can't add external block to a node that isn't pending"
+        self.externalBlocks += 1
+        self.blockCount[node_id] += 1
+
+        def unblock():
+            self.externalBlocks -= 1
+            self.blockCount[node_id] -= 1
+            self.unblockedEvent.set()
+
+        return unblock
+
     def is_cached(self, node_id):
         return False
 
@@ -179,11 +195,16 @@ class ExecutionList(TopologicalSort):
     def is_cached(self, node_id):
         return self.output_cache.get(node_id) is not None
 
-    def stage_node_execution(self) -> tuple[Optional[str], Optional[DependencyExecutionErrorMessage], Optional[DependencyCycleError]]:
+    async def stage_node_execution(self) -> tuple[Optional[str], Optional[DependencyExecutionErrorMessage], Optional[DependencyCycleError]]:
         assert self.staged_node_id is None
         if self.is_empty():
             return None, None, None
         available = self.get_ready_nodes()
+        while len(available) == 0 and self.externalBlocks > 0:
+            # Wait for an external block to be released
+            await self.unblockedEvent.wait()
+            self.unblockedEvent.clear()
+            available = self.get_ready_nodes()
         if len(available) == 0:
             cycled_nodes = self.get_nodes_in_cycle()
             # Because cycles composed entirely of static nodes are caught during initial validation,
@@ -219,8 +240,15 @@ class ExecutionList(TopologicalSort):
                 return True
             return False
 
+        # If an available node is async, do that first.
+        # This will execute the asynchronous function earlier, reducing the overall time.
+        def is_async(node_id):
+            class_type = self.dynprompt.get_node(node_id)["class_type"]
+            class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+            return inspect.iscoroutinefunction(getattr(class_def, class_def.FUNCTION))
+
         for node_id in node_list:
-            if is_output(node_id):
+            if is_output(node_id) or is_async(node_id):
                 return node_id
 
         # This should handle the VAEDecode -> preview case
