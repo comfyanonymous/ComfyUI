@@ -5,6 +5,7 @@ from enum import Enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from collections import Counter
+from comfy_execution.graph import ExecutionBlocker
 from comfy_api.v3.resources import Resources, ResourcesLocal
 import copy
 # used for type hinting
@@ -98,11 +99,9 @@ class NumberDisplay(str, Enum):
     slider = "slider"
 
 
-class ComfyType:
+class ComfyType(ABC):
     Type = Any
     io_type: str = None
-    Input: type[InputV3] = None
-    Output: type[OutputV3] = None
 
 # NOTE: this is a workaround to make the decorator return the correct type
 T = TypeVar("T", bound=type)
@@ -119,8 +118,10 @@ def comfytype(io_type: str, **kwargs):
         if isinstance(cls, ComfyType) or issubclass(cls, ComfyType):
             # clone Input and Output classes to avoid modifying the original class
             new_cls = cls
-            new_cls.Input = copy_class(new_cls.Input)
-            new_cls.Output = copy_class(new_cls.Output)
+            if hasattr(new_cls, "Input"):
+                new_cls.Input = copy_class(new_cls.Input)
+            if hasattr(new_cls, "Output"):
+                new_cls.Output = copy_class(new_cls.Output)
         else:
             # copy class attributes except for special ones that shouldn't be in type()
             cls_dict = {
@@ -128,9 +129,9 @@ def comfytype(io_type: str, **kwargs):
                 if k not in ('__dict__', '__weakref__', '__module__', '__doc__')
             }
             # new class
-            new_cls: ComfyType = type(
+            new_cls: ComfyTypeIO = type(
                 cls.__name__,
-                (cls, ComfyType),
+                (cls, ComfyTypeIO),
                 cls_dict
             )
             # metadata preservation
@@ -139,14 +140,14 @@ def comfytype(io_type: str, **kwargs):
             # assign ComfyType attributes, if needed
         # NOTE: do we need __ne__ trick for io_type? (see node_typing.IO.__ne__ for details)
         new_cls.io_type = io_type
-        if new_cls.Input is not None:
+        if hasattr(new_cls, "Input") and new_cls.Input is not None:
             new_cls.Input.Parent = new_cls
-        if new_cls.Output is not None:
+        if hasattr(new_cls, "Output") and new_cls.Output is not None:
             new_cls.Output.Parent = new_cls
         return new_cls
     return decorator
 
-def Custom(io_type: str) -> type[ComfyType]:
+def Custom(io_type: str) -> type[ComfyTypeIO]:
     '''Create a ComfyType for a custom io_type.'''
     @comfytype(io_type=io_type)
     class CustomComfyType(ComfyTypeIO):
@@ -227,10 +228,13 @@ class OutputV3(IO_V3):
         self.is_output_list = is_output_list
 
 
-class ComfyTypeIO(ComfyType):
-    '''ComfyType subclass that has default Input and Output classes; useful for basic Inputs and Outputs.'''
+class ComfyTypeI(ComfyType):
+    '''ComfyType subclass that only has a default Input class - intended for types that only have Inputs.'''
     class Input(InputV3):
         ...
+
+class ComfyTypeIO(ComfyTypeI):
+    '''ComfyType subclass that has default Input and Output classes; useful for types with both Inputs and Outputs.'''
     class Output(OutputV3):
         ...
 
@@ -297,7 +301,7 @@ class NodeStateLocal(NodeState):
 
 
 @comfytype(io_type="BOOLEAN")
-class Boolean:
+class Boolean(ComfyTypeIO):
     Type = bool
     
     class Input(WidgetInputV3):
@@ -316,11 +320,8 @@ class Boolean:
                 "label_off": self.label_off,
             })
 
-    class Output(OutputV3):
-        ...
-
 @comfytype(io_type="INT")
-class Int:
+class Int(ComfyTypeIO):
     Type = int
 
     class Input(WidgetInputV3):
@@ -344,9 +345,6 @@ class Int:
                 "control_after_generate": self.control_after_generate,
                 "display": self.display_mode,
             })
-
-    class Output(OutputV3):
-        ...
 
 @comfytype(io_type="FLOAT")
 class Float(ComfyTypeIO):
@@ -395,7 +393,7 @@ class String(ComfyTypeIO):
             })
 
 @comfytype(io_type="COMBO")
-class Combo(ComfyType):
+class Combo(ComfyTypeI):
     Type = str
     class Input(WidgetInputV3):
         """Combo input (dropdown)."""
@@ -426,7 +424,7 @@ class Combo(ComfyType):
 
 
 @comfytype(io_type="COMBO")
-class MultiCombo(ComfyType):
+class MultiCombo(ComfyTypeI):
     '''Multiselect Combo input (dropdown for selecting potentially more than one value).'''
     # TODO: something is wrong with the serialization, frontend does not recognize it as multiselect
     Type = list[str]
@@ -1046,6 +1044,40 @@ class classproperty(object):
         return self.f(owner)
 
 
+# NOTE: this was ai generated and validated by hand
+def shallow_clone_class(cls, new_name=None):
+    '''
+    Shallow clone a class.
+    '''
+    return type(
+        new_name or f"{cls.__name__}Clone",
+        cls.__bases__,
+        dict(cls.__dict__)
+    )
+
+# NOTE: this was ai generated and validated by hand
+def lock_class(cls):
+    '''
+    Lock a class so that its top-levelattributes cannot be modified.
+    '''
+    # Locked instance __setattr__
+    def locked_instance_setattr(self, name, value):
+        raise AttributeError(
+            f"Cannot set attribute '{name}' on immutable instance of {type(self).__name__}"
+        )
+    # Locked metaclass
+    class LockedMeta(type(cls)):
+        def __setattr__(cls_, name, value):
+            raise AttributeError(
+                f"Cannot modify class attribute '{name}' on locked class '{cls_.__name__}'"
+            )
+    # Rebuild class with locked behavior
+    locked_dict = dict(cls.__dict__)
+    locked_dict['__setattr__'] = locked_instance_setattr
+
+    return LockedMeta(cls.__name__, cls.__bases__, locked_dict)
+
+
 def add_to_dict_v1(i: InputV3, input: dict):
     key = "optional" if i.optional else "required"
     input.setdefault(key, {})[i.id] = (i.get_io_type_V1(), i.as_dict_V1())
@@ -1130,14 +1162,28 @@ class ComfyNodeV3:
             raise Exception(f"No execute function was defined for node class {cls.__name__}.")
 
     @classmethod
-    def prepare_class_clone(cls, hidden_inputs: dict, *args, **kwargs) -> type[ComfyNodeV3]:
+    def EXECUTE_NORMALIZED(cls, *args, **kwargs) -> NodeOutput:
+        to_return = cls.execute(*args, **kwargs)
+        if to_return is None:
+            return NodeOutput()
+        elif isinstance(to_return, NodeOutput):
+            return to_return
+        elif isinstance(to_return, tuple):
+            return NodeOutput(*to_return)
+        elif isinstance(to_return, dict):
+            return NodeOutput.from_dict(to_return)
+        elif isinstance(to_return, ExecutionBlocker):
+            return NodeOutput(block_execution=to_return.message)
+        else:
+            raise Exception(f"Invalid return type from node: {type(to_return)}")
+
+    @classmethod
+    def PREPARE_CLASS_CLONE(cls, hidden_inputs: dict) -> type[ComfyNodeV3]:
         """Creates clone of real node class to prevent monkey-patching."""
         c_type: type[ComfyNodeV3] = cls if is_class(cls) else type(cls)
-        type_clone: type[ComfyNodeV3] = type(f"CLEAN_{c_type.__name__}", c_type.__bases__, {})
-        # TODO: what parameters should be carried over?
-        type_clone.SCHEMA = c_type.SCHEMA
+        type_clone: type[ComfyNodeV3] = shallow_clone_class(c_type)
+        # set hidden
         type_clone.hidden = HiddenHolder.from_dict(hidden_inputs)
-        # TODO: add anything we would want to expose inside node's execute function
         return type_clone
 
     #############################################
@@ -1227,7 +1273,7 @@ class ComfyNodeV3:
             cls.GET_SCHEMA()
         return cls._NOT_IDEMPOTENT
 
-    FUNCTION = "execute"
+    FUNCTION = "EXECUTE_NORMALIZED"
 
     @classmethod
     def INPUT_TYPES(cls, include_hidden=True, return_schema=False) -> dict[str, dict] | tuple[dict[str, dict], SchemaV3]:
@@ -1355,6 +1401,25 @@ class NodeOutput:
     def result(self):
         # TODO: use kwargs to refer to outputs by id + organize in proper order
         return self.args if len(self.args) > 0 else None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "NodeOutput":
+        args = ()
+        ui = None   
+        expand = None
+        if "result" in data:
+            result = data["result"]
+            if isinstance(result, ExecutionBlocker):
+                return cls(block_execution=result.message)
+            args = result
+        if "ui" in data:
+            ui = data["ui"]
+        if "expand" in data:
+            expand = data["expand"]
+        return cls(args=args, ui=ui, expand=expand)
+
+    def __getitem__(self, index) -> Any:
+        return self.args[index]
 
 class _UIOutput(ABC):
     def __init__(self):
