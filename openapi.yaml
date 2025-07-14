@@ -517,6 +517,20 @@ paths:
       responses:
         '101':
           description: Switching Protocols to WebSocket
+  /api/features:
+    get:
+      tags:
+      - system
+      summary: Get server feature flags
+      description: Returns the server's feature flags and capabilities
+      operationId: getFeatures
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerFeatures'
   /internal/logs:
     get:
       tags:
@@ -544,28 +558,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  entries:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        t:
-                          type: string
-                          description: Timestamp
-                        m:
-                          type: string
-                          description: Message
-                  size:
-                    type: object
-                    properties:
-                      cols:
-                        type: integer
-                        description: Terminal columns
-                      rows:
-                        type: integer
-                        description: Terminal rows
+                $ref: '#/components/schemas/RawLogsResponse'
   /internal/logs/subscribe:
     patch:
       tags:
@@ -578,14 +571,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                clientId:
-                  type: string
-                  description: Client ID
-                enabled:
-                  type: boolean
-                  description: Whether to enable or disable subscription
+              $ref: '#/components/schemas/LogsSubscribeRequest'
       responses:
         '200':
           description: Success
@@ -902,3 +888,51 @@ components:
         type:
           type: string
           description: Type of directory the file was stored in
+    ServerFeatures:
+      type: object
+      properties:
+        supports_preview_metadata:
+          type: boolean
+          description: Whether the server supports preview metadata
+        max_upload_size:
+          type: integer
+          description: Maximum file upload size in bytes
+    RawLogsResponse:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogEntry'
+        size:
+          $ref: '#/components/schemas/TerminalSize'
+    LogEntry:
+      type: object
+      properties:
+        t:
+          type: string
+          description: Timestamp
+        m:
+          type: string
+          description: Message
+    TerminalSize:
+      type: object
+      properties:
+        cols:
+          type: integer
+          description: Terminal columns
+        rows:
+          type: integer
+          description: Terminal rows
+    LogsSubscribeRequest:
+      type: object
+      required:
+        - clientId
+        - enabled
+      properties:
+        clientId:
+          type: string
+          description: Client ID
+        enabled:
+          type: boolean
+          description: Whether to enable or disable subscription
