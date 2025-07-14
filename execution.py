@@ -28,7 +28,7 @@ from comfy_execution.graph import (
 )
 from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
-from comfy_api.v3.io import NodeOutput, ComfyNodeV3, Hidden, NodeStateLocal, ResourcesLocal, AutogrowDynamic, is_class
+from comfy_api.v3.io import NodeOutput, ComfyNodeV3, Hidden, NodeStateLocal, ResourcesLocal, AutogrowDynamic, is_class, lock_class
 
 
 class ExecutionResult(Enum):
@@ -233,8 +233,8 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
                 # otherwise, use class instance to populate/reuse some fields
                 else:
                     type_obj = type(obj)
-                    type(obj).VALIDATE_CLASS()
-                    class_clone = type(obj).prepare_class_clone(hidden_inputs)
+                    type_obj.VALIDATE_CLASS()
+                    class_clone = type_obj.prepare_class_clone(hidden_inputs)
                     # NOTE: this is a mock of state management; for local, just stores NodeStateLocal on node instance
                     if hasattr(obj, "local_state"):
                         if obj.local_state is None:
@@ -255,7 +255,7 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
                             dynamic_list.append(real_inputs.pop(d.id, None))
                         dynamic_list = [x for x in dynamic_list if x is not None]
                         inputs = {**real_inputs, add_key: dynamic_list}
-                results.append(getattr(type_obj, func).__func__(class_clone, **inputs))
+                results.append(getattr(type_obj, func).__func__(lock_class(class_clone), **inputs))
             # V1
             else:
                 results.append(getattr(obj, func)(**inputs))

@@ -104,7 +104,10 @@ class V3TestNode(io.ComfyNodeV3):
             raise Exception("The 'cls' variable leaked instance state between runs!")
         if hasattr(cls, "doohickey"):
             raise Exception("The 'cls' variable leaked state on class properties between runs!")
-        cls.doohickey = "LOLJK"
+        try:
+            cls.doohickey = "LOLJK"
+        except AttributeError:
+            pass
         return io.NodeOutput(some_int, image, ui=ui.PreviewImage(image, cls=cls))
 
 
