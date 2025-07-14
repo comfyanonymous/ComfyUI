@@ -54,7 +54,7 @@ class IsChangedCache:
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         has_is_changed = False
         is_changed_name = None
-        if issubclass(class_def, io.ComfyNodeV3) and getattr(class_def, "fingerprint_inputs", None) is not None:
+        if issubclass(class_def, io.ComfyNodeV3) and helpers.first_real_override(class_def, "fingerprint_inputs", base=io.ComfyNodeV3) is not None:
             has_is_changed = True
             is_changed_name = "fingerprint_inputs"
         elif hasattr(class_def, "IS_CHANGED"):
@@ -411,7 +411,11 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                 obj = class_def()
                 caches.objects.set(unique_id, obj)
 
-            if getattr(obj, "check_lazy_status", None) is not None:
+            if issubclass(class_def, io.ComfyNodeV3):
+                lazy_status_present = helpers.first_real_override(class_def, "check_lazy_status", base=io.ComfyNodeV3) is not None
+            else:
+                lazy_status_present = getattr(obj, "check_lazy_status", None) is not None
+            if lazy_status_present:
                 required_inputs = _map_node_over_list(obj, input_data_all, "check_lazy_status", allow_interrupt=True, hidden_inputs=hidden_inputs)
                 required_inputs = set(sum([r for r in required_inputs if isinstance(r,list)], []))
                 required_inputs = [x for x in required_inputs if isinstance(x,str) and (

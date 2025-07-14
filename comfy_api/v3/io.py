@@ -1115,8 +1115,6 @@ class ComfyNodeV3:
         """Optionally, define this function to fingerprint inputs; equivalent to V1's IS_CHANGED."""
         raise NotImplementedError
 
-    fingerprint_inputs = None
-
     @classmethod
     def check_lazy_status(cls, **kwargs) -> list[str]:
         """Optionally, define this function to return a list of input names that should be evaluated.
@@ -1132,8 +1130,6 @@ class ComfyNodeV3:
         Comfy Docs: https://docs.comfy.org/custom-nodes/backend/lazy_evaluation#defining-check-lazy-status
         """
         return [name for name in kwargs if kwargs[name] is None]
-
-    check_lazy_status = None
 
     @classmethod
     def GET_SERIALIZERS(cls) -> list[Serializer]:
