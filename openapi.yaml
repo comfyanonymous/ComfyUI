@@ -498,18 +498,18 @@ paths:
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelMetadata'
+        '404':
+          description: File not found
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          content:
-            application/json:
-              schema:
-                type: object
-        '404':
-          description: File not found
   /api/models:
     get:
       tags:
@@ -1100,6 +1100,43 @@ components:
         enabled:
           type: boolean
           description: Whether to enable or disable subscription
+    ModelMetadata:
+      type: object
+      description: Model metadata from safetensors files
+      properties:
+        modelspec.date:
+          type: string
+          description: Model creation date
+        modelspec.architecture:
+          type: string
+          description: Model architecture (e.g., stable-diffusion-v1)
+        modelspec.title:
+          type: string
+          description: Model title
+        modelspec.description:
+          type: string
+          description: Model description
+        modelspec.sai_model_spec:
+          type: string
+          description: SAI model specification version
+        format:
+          type: string
+          description: Model format (e.g., pt, safetensors)
+        modelspec.implementation:
+          type: string
+          description: Implementation URL or reference
+        modelspec.license:
+          type: string
+          description: Model license
+        modelspec.author:
+          type: string
+          description: Model author(s)
+        modelspec.thumbnail:
+          type: string
+          description: Base64-encoded thumbnail image
+      additionalProperties:
+        type: string
+        description: Additional metadata fields
     QueueItem:
       type: array
       description: Queue item containing execution details
