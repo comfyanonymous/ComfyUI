@@ -12,6 +12,7 @@ from .outputs_types import OutputsDict
 from .queue_types import BinaryEventTypes
 from ..cli_args_types import Configuration
 from ..nodes.package_typing import InputTypeSpec
+from ..progress_types import PreviewImageMetadata
 
 
 class ExecInfo(TypedDict):
@@ -82,7 +83,7 @@ ExecutedMessage = ExecutingMessage
 
 SendSyncEvent = Union[Literal["status", "execution_error", "executing", "progress", "executed"], BinaryEventTypes, None]
 
-SendSyncData = Union[StatusMessage, ExecutingMessage, DependencyExecutionErrorMessage, ExecutionErrorMessage, ExecutionInterruptedMessage, ProgressMessage, UnencodedPreviewImageMessage, bytes, bytearray, str, None]
+SendSyncData = Union[StatusMessage, ExecutingMessage, DependencyExecutionErrorMessage, ExecutionErrorMessage, ExecutionInterruptedMessage, ProgressMessage, UnencodedPreviewImageMessage, tuple[UnencodedPreviewImageMessage, PreviewImageMetadata], bytes, bytearray, str, None]
 
 
 class ExecutorToClientProgress(Protocol):

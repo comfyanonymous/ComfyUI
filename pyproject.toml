@@ -220,9 +220,6 @@ torchvision = [
 torchaudio = [
     { index = "pytorch-cpu", extra = "cpu" },
 ]
-comfyui-frontend-package = [
-    { git = "https://github.com/appmana/appmana-comfyui-frontend", subdirectory = "comfyui_frontend_package" },
-]
 "sageattention" = [
     { git = "https://github.com/thu-ml/SageAttention.git", extra = "attention", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
 ]
@@ -244,4 +241,4 @@ exclude = ["*.ipynb"]
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["comfy/", "comfy_extras/", "comfy_api/", "comfy_api_nodes/", "comfy_config/"]
+packages = ["comfy/", "comfy_extras/", "comfy_api/", "comfy_api_nodes/", "comfy_config/", "comfy_execution/"]

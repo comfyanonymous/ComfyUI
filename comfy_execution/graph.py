@@ -4,11 +4,11 @@ import asyncio
 import inspect
 from typing import Optional, Type, Literal
 
-from .comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputTypeOptions
-from .component_model.executor_types import DependencyCycleError, NodeInputError, NodeNotFoundError, \
+from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputTypeOptions
+from comfy.component_model.executor_types import DependencyCycleError, NodeInputError, NodeNotFoundError, \
     DependencyExecutionErrorMessage
+from comfy.nodes_context import get_nodes
 from .graph_utils import is_link
-from .nodes_context import get_nodes
 
 
 class DynamicPrompt:

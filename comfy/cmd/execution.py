@@ -19,12 +19,16 @@ from typing import List, Optional, Tuple, Literal
 import torch
 from opentelemetry.trace import get_current_span, StatusCode, Status
 
+from comfy_execution.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID, \
+    DependencyAwareCache, \
+    BasicCache
+# order matters
+from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
+from comfy_execution.graph_utils import is_link, GraphBuilder
 from comfy_execution.utils import CurrentNodeContext
 from .main_pre import tracer
 from .. import interruption
 from .. import model_management
-from ..caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID, DependencyAwareCache, \
-    BasicCache
 from ..cli_args import args
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, ValidationTuple, ValidateInputsTuple, \
@@ -36,12 +40,10 @@ from ..component_model.module_property import create_module_properties
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
 from ..execution_context import context_execute_node, context_execute_prompt
 from ..execution_ext import should_panic_on_exception
-# order matters
-from ..graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
-from ..graph_utils import is_link, GraphBuilder
 from ..nodes.package_typing import InputTypeSpec, FloatSpecOptions, IntSpecOptions, CustomNode
 from ..nodes_context import get_nodes
-from ..progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler
+from ..progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler, \
+    ProgressRegistry
 from ..validation import validate_node_input
 
 _module_properties = create_module_properties()
@@ -135,6 +137,7 @@ class CacheSet:
 
 SENSITIVE_EXTRA_DATA_KEYS = ("auth_token_comfy_org", "api_key_comfy_org")
 
+
 def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, extra_data=None):
     if extra_data is None:
         extra_data = {}
@@ -187,8 +190,10 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
                 input_data_all[x] = [extra_data.get("api_key_comfy_org", None)]
     return input_data_all, missing_keys
 
+
 def map_node_over_list(obj, input_data_all: typing.Dict[str, typing.Any], func: str, allow_interrupt=False, execution_block_cb=None, pre_execute_cb=None):
     raise ValueError("")
+
 
 async def resolve_map_node_over_list_results(results):
     remaining = [x for x in results if isinstance(x, asyncio.Task) and not x.done()]
@@ -245,6 +250,7 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
         return {k: v[i if len(v) > i else -1] for k, v in d.items()}
 
     results = []
+
     async def process_inputs(inputs, index=None, input_is_list=False):
         if allow_interrupt:
             interruption.throw_exception_if_processing_interrupted()
@@ -264,8 +270,10 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
             f = getattr(obj, func)
             if inspect.iscoroutinefunction(f):
                 async def async_wrapper(f, prompt_id, unique_id, list_index, args):
+                    # todo: this is redundant with other parts of the hiddenswitch fork, but we've shimmed it for compatibility
                     with CurrentNodeContext(prompt_id, unique_id, list_index):
                         return await f(**args)
+
                 task = asyncio.create_task(async_wrapper(f, prompt_id, unique_id, index, args=inputs))
                 # Give the task a chance to execute without yielding
                 await asyncio.sleep(0)
@@ -321,6 +329,7 @@ async def get_output_data(prompt_id, unique_id, obj, input_data_all, execution_b
         return return_values, {}, False, has_pending_task
     output, ui, has_subgraph = get_output_from_returns(return_values, obj)
     return output, ui, has_subgraph, False
+
 
 def get_output_from_returns(return_values, obj):
     results = []
@@ -464,9 +473,9 @@ async def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra
             if hasattr(obj, "check_lazy_status"):
                 required_inputs = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, "check_lazy_status", allow_interrupt=True)
                 required_inputs = await resolve_map_node_over_list_results(required_inputs)
-                required_inputs = set(sum([r for r in required_inputs if isinstance(r,list)], []))
-                required_inputs = [x for x in required_inputs if isinstance(x,str) and (
-                    x not in input_data_all or x in missing_keys
+                required_inputs = set(sum([r for r in required_inputs if isinstance(r, list)], []))
+                required_inputs = [x for x in required_inputs if isinstance(x, str) and (
+                        x not in input_data_all or x in missing_keys
                 )]
                 if len(required_inputs) > 0:
                     for i in required_inputs:
@@ -500,10 +509,12 @@ async def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra
             if has_pending_tasks:
                 pending_async_nodes[unique_id] = output_data
                 unblock = execution_list.add_external_block(unique_id)
+
                 async def await_completion():
                     tasks = [x for x in output_data if isinstance(x, asyncio.Task)]
                     await asyncio.gather(*tasks, return_exceptions=True)
                     unblock()
+
                 asyncio.create_task(await_completion())
                 return (ExecutionResult.PENDING, None, None)
         if len(output_ui) > 0:
@@ -683,11 +694,12 @@ class PromptExecutor:
         # torchao and potentially other optimization approaches break when the models are created in inference mode
         # todo: this should really be backpropagated to code which creates ModelPatchers via lazy evaluation rather than globally checked here
         inference_mode = all(not hasattr(node_class, "INFERENCE_MODE") or node_class.INFERENCE_MODE for node_class in iterate_obj_classes(prompt))
-        with context_execute_prompt(self.server, prompt_id, inference_mode=inference_mode):
-            await self._execute_async(prompt, prompt_id, extra_data, execute_outputs)
+        dynamic_prompt = DynamicPrompt(prompt)
+        reset_progress_state(prompt_id, dynamic_prompt)
+        with context_execute_prompt(self.server, prompt_id, progress_registry=ProgressRegistry(prompt_id, dynamic_prompt), inference_mode=inference_mode):
+            await self._execute_async(dynamic_prompt, prompt_id, extra_data, execute_outputs)
 
-
-    async def _execute_async(self, prompt, prompt_id, extra_data=None, execute_outputs: list[str] = None, inference_mode: bool = True):
+    async def _execute_async(self, prompt: DynamicPrompt, prompt_id, extra_data=None, execute_outputs: list[str] = None, inference_mode: bool = True):
         if execute_outputs is None:
             execute_outputs = []
         if extra_data is None:
@@ -704,8 +716,8 @@ class PromptExecutor:
         self.add_message("execution_start", {"prompt_id": prompt_id}, broadcast=False)
 
         with torch.inference_mode() if inference_mode else nullcontext():
-            dynamic_prompt = DynamicPrompt(prompt)
-            reset_progress_state(prompt_id, dynamic_prompt)
+            dynamic_prompt = prompt
+            prompt: dict = prompt.original_prompt
             add_progress_handler(WebUIProgressHandler(self.server))
             is_changed_cache = IsChangedCache(prompt_id, dynamic_prompt, self.caches.outputs)
             for cache in self.caches.all:
@@ -722,7 +734,7 @@ class PromptExecutor:
                              {"nodes": cached_nodes, "prompt_id": prompt_id},
                              broadcast=False)
             pending_subgraph_results = {}
-            pending_async_nodes = {} # TODO - Unify this with pending_subgraph_results
+            pending_async_nodes = {}  # TODO - Unify this with pending_subgraph_results
             executed = set()
             execution_list = ExecutionList(dynamic_prompt, self.caches.outputs)
             current_outputs = self.caches.outputs.all_node_ids()
@@ -988,7 +1000,7 @@ async def validate_inputs(prompt_id: typing.Any, prompt, item, validated: typing
         if 'input_types' in validate_function_inputs:
             input_filtered['input_types'] = [received_types]
 
-        #ret = obj_class.VALIDATE_INPUTS(**input_filtered)
+        # ret = obj_class.VALIDATE_INPUTS(**input_filtered)
         ret = await _async_map_node_over_list(prompt_id, unique_id, obj_class, input_filtered, "VALIDATE_INPUTS")
         ret = await resolve_map_node_over_list_results(ret)
         for x in input_filtered:

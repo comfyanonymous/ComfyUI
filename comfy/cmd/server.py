@@ -12,6 +12,7 @@ import socket
 import struct
 import sys
 import traceback
+import typing
 import urllib
 import uuid
 from asyncio import Future, AbstractEventLoop, Task
@@ -45,7 +46,8 @@ from ..cmd import execution
 from ..cmd import folder_paths
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue, AsyncAbstractPromptQueue
 from ..component_model.encode_text_for_progress import encode_text_for_progress
-from ..component_model.executor_types import ExecutorToClientProgress, StatusMessage, QueueInfo, ExecInfo
+from ..component_model.executor_types import ExecutorToClientProgress, StatusMessage, QueueInfo, ExecInfo, \
+    UnencodedPreviewImageMessage
 from ..component_model.file_output_path import file_output_path
 from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation, ExecutionError, \
     ExecutionStatus
@@ -53,6 +55,7 @@ from ..digest import digest
 from ..images import open_image
 from ..model_management import get_torch_device, get_torch_device_name, get_total_memory, get_free_memory, torch_version
 from ..nodes.package_typing import ExportedNodes
+from ..progress_types import PreviewImageMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -1049,7 +1052,7 @@ class PromptServer(ExecutorToClientProgress):
         prompt_info['exec_info'] = exec_info
         return prompt_info
 
-    async def send(self, event, data, sid=None):
+    async def send(self, event, data: UnencodedPreviewImageMessage | tuple[UnencodedPreviewImageMessage, PreviewImageMetadata] | bytes | bytearray | dict, sid=None):
         if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
             await self.send_image(data, sid=sid)
         elif event == BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA:
@@ -1061,7 +1064,7 @@ class PromptServer(ExecutorToClientProgress):
         else:
             await self.send_json(event, data, sid)
 
-    def encode_bytes(self, event: int | Enum | str, data):
+    def encode_bytes(self, event: int | Enum | str, data: bytes | bytearray | typing.Sequence[int]):
         # todo: investigate what is propagating these spurious, string-repr'd previews
         if event == repr(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE):
             event = BinaryEventTypes.UNENCODED_PREVIEW_IMAGE.value
@@ -1077,14 +1080,14 @@ class PromptServer(ExecutorToClientProgress):
         message.extend(data)
         return message
 
-    async def send_image(self, image_data, sid=None):
+    async def send_image(self, image_data: UnencodedPreviewImageMessage, sid=None):
         image_type = image_data[0]
         image = image_data[1]
         max_size = image_data[2]
         preview_bytes = encode_preview_image(image, image_type, max_size)
         await self.send_bytes(BinaryEventTypes.PREVIEW_IMAGE, preview_bytes, sid=sid)
 
-    async def send_image_with_metadata(self, image_data, metadata=None, sid=None):
+    async def send_image_with_metadata(self, image_data: UnencodedPreviewImageMessage, metadata: Optional[PreviewImageMetadata] = None, sid=None):
         image_type = image_data[0]
         image = image_data[1]
         max_size = image_data[2]
@@ -1104,7 +1107,6 @@ class PromptServer(ExecutorToClientProgress):
         metadata["image_type"] = mimetype
 
         # Serialize metadata as JSON
-        import json
         metadata_json = json.dumps(metadata).encode('utf-8')
         metadata_length = len(metadata_json)
 
@@ -1131,7 +1133,7 @@ class PromptServer(ExecutorToClientProgress):
         elif sid in self.sockets:
             await send_socket_catch_exception(self.sockets[sid].send_bytes, message)
 
-    async def send_json(self, event, data, sid=None):
+    async def send_json(self, event, data: dict, sid=None):
         message = {"type": event, "data": data}
 
         if sid is None:

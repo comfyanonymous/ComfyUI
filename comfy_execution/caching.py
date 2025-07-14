@@ -3,7 +3,7 @@ from typing import Sequence, Mapping, Dict
 
 from .graph import DynamicPrompt
 from .graph_utils import is_link
-from .nodes_context import get_nodes
+from comfy.nodes_context import get_nodes
 from abc import ABC, abstractmethod
 
 

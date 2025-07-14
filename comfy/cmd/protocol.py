@@ -1,7 +1,4 @@
+from ..component_model import queue_types
 
-class BinaryEventTypes:
-    PREVIEW_IMAGE = 1
-    UNENCODED_PREVIEW_IMAGE = 2
-    TEXT = 3
-    PREVIEW_IMAGE_WITH_METADATA = 4
-
+# todo: should protocol really be all of queue_types?
+BinaryEventTypes = queue_types.BinaryEventTypes

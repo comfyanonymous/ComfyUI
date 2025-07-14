@@ -10,6 +10,7 @@ from .component_model.executor_types import ExecutorToClientProgress
 from .component_model.folder_path_types import FolderNames
 from .distributed.server_stub import ServerStub
 from .nodes.package_typing import ExportedNodes, exported_nodes_view
+from .progress_types import AbstractProgressRegistry, ProgressRegistryStub
 
 comfyui_execution_context: Final[ContextVar] = ContextVar("comfyui_execution_context")
 # enables context var propagation across process boundaries for process pool executors
@@ -23,10 +24,21 @@ class ExecutionContext:
     custom_nodes: ExportedNodes
     node_id: Optional[str] = None
     task_id: Optional[str] = None
+    list_index: Optional[int] = None
     inference_mode: bool = True
+    progress_registry: Optional[AbstractProgressRegistry] = None
+
+    def __iter__(self):
+        """
+        Provides tuple-like unpacking behavior, similar to a NamedTuple.
+        Yields task_id, node_id, and list_index.
+        """
+        yield self.task_id
+        yield self.node_id
+        yield self.list_index
 
 
-comfyui_execution_context.set(ExecutionContext(server=ServerStub(), folder_names_and_paths=FolderNames(is_root=True), custom_nodes=ExportedNodes()))
+comfyui_execution_context.set(ExecutionContext(server=ServerStub(), folder_names_and_paths=FolderNames(is_root=True), custom_nodes=ExportedNodes(), progress_registry=ProgressRegistryStub()))
 
 
 def current_execution_context() -> ExecutionContext:
@@ -51,9 +63,9 @@ def context_folder_names_and_paths(folder_names_and_paths: FolderNames):
 
 
 @contextmanager
-def context_execute_prompt(server: ExecutorToClientProgress, prompt_id: str, inference_mode: bool = True):
+def context_execute_prompt(server: ExecutorToClientProgress, prompt_id: str, progress_registry: AbstractProgressRegistry, inference_mode: bool = True):
     current_ctx = current_execution_context()
-    new_ctx = replace(current_ctx, server=server, task_id=prompt_id, inference_mode=inference_mode)
+    new_ctx = replace(current_ctx, server=server, task_id=prompt_id, inference_mode=inference_mode, progress_registry=progress_registry)
     with _new_execution_context(new_ctx):
         yield new_ctx
 
@@ -83,5 +95,19 @@ def context_add_custom_nodes(exported_nodes: ExportedNodes):
         merged_custom_nodes = exported_nodes_view(current_ctx.custom_nodes, exported_nodes)
 
     new_ctx = replace(current_ctx, custom_nodes=merged_custom_nodes)
+    with _new_execution_context(new_ctx):
+        yield new_ctx
+
+
+@contextmanager
+def context_set_node_and_prompt(prompt_id: str, node_id: str, list_index: Optional[int] = None):
+    """
+    A context manager to set the prompt_id (task_id), node_id, and optional list_index for the current execution.
+    This is useful for fine-grained context setting within a node's execution, especially for batch processing.
+
+    Replaces the @guill code upstream
+    """
+    current_ctx = current_execution_context()
+    new_ctx = replace(current_ctx, task_id=prompt_id, node_id=node_id, list_index=list_index)
     with _new_execution_context(new_ctx):
         yield new_ctx

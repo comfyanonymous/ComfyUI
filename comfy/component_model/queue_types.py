@@ -4,6 +4,7 @@ import asyncio
 from enum import Enum
 from typing import NamedTuple, Optional, List, Literal, Sequence
 from typing import Tuple
+
 from typing_extensions import NotRequired, TypedDict
 
 from .outputs_types import OutputsDict
@@ -142,6 +143,7 @@ class BinaryEventTypes(Enum):
     PREVIEW_IMAGE = 1
     UNENCODED_PREVIEW_IMAGE = 2
     TEXT = 3
+    PREVIEW_IMAGE_WITH_METADATA = 4
 
 
 class ExecutorToClientMessage(TypedDict, total=False):

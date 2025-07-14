@@ -7,10 +7,16 @@ from PIL import Image
 from tqdm import tqdm
 from typing_extensions import override
 
+from .component_model.module_property import create_module_properties
+from .execution_context import current_execution_context
+from .progress_types import AbstractProgressRegistry
+
 if TYPE_CHECKING:
-    from .graph import DynamicPrompt
-from protocol import BinaryEventTypes
+    from comfy_execution.graph import DynamicPrompt
+from .cmd.protocol import BinaryEventTypes
 from comfy_api import feature_flags
+
+_module_properties = create_module_properties()
 
 
 class NodeState(Enum):
@@ -234,7 +240,7 @@ class WebUIProgressHandler(ProgressHandler):
             self._send_progress_state(prompt_id, self.registry.nodes)
 
 
-class ProgressRegistry:
+class ProgressRegistry(AbstractProgressRegistry):
     """
     Registry that maintains node progress state and notifies registered handlers.
     """
@@ -320,18 +326,25 @@ class ProgressRegistry:
 
 
 # Global registry instance
-global_progress_registry: ProgressRegistry = None
+@_module_properties.getter
+def _global_progress_registry() -> ProgressRegistry:
+    return current_execution_context().progress_registry
 
 
 def reset_progress_state(prompt_id: str, dynprompt: "DynamicPrompt") -> None:
-    global global_progress_registry
+    """
+    the caller must create a new progress registry
+    :param prompt_id:
+    :param dynprompt:
+    :return: None
+    """
+    global_progress_registry = _global_progress_registry()
 
     # Reset existing handlers if registry exists
     if global_progress_registry is not None:
         global_progress_registry.reset_handlers()
 
-    # Create new registry
-    global_progress_registry = ProgressRegistry(prompt_id, dynprompt)
+    # XXX caller now creates new progress registry
 
 
 def add_progress_handler(handler: ProgressHandler) -> None:
@@ -341,11 +354,4 @@ def add_progress_handler(handler: ProgressHandler) -> None:
 
 
 def get_progress_state() -> ProgressRegistry:
-    global global_progress_registry
-    if global_progress_registry is None:
-        from .graph import DynamicPrompt
-
-        global_progress_registry = ProgressRegistry(
-            prompt_id="", dynprompt=DynamicPrompt({})
-        )
-    return global_progress_registry
+    return _global_progress_registry()
