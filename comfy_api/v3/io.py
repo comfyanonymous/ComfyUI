@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Literal, TYPE_CHECKING, TypeVar, Callable, Optional, cast, TypedDict
+from typing import Any, Literal, TypeVar, Callable, TypedDict
 from typing_extensions import NotRequired
 from enum import Enum
 from abc import ABC, abstractmethod
@@ -108,7 +108,7 @@ T = TypeVar("T", bound=type)
 def comfytype(io_type: str, **kwargs):
     '''
     Decorator to mark nested classes as ComfyType; io_type will be bound to the class.
-    
+
     A ComfyType may have the following attributes:
     - Type = <type hint here>
     - class Input(InputV3): ...
@@ -206,7 +206,7 @@ class WidgetInputV3(InputV3):
         self.socketless = socketless
         self.widgetType = widgetType
         self.force_input = force_input
-    
+
     def as_dict_V1(self):
         return super().as_dict_V1() | prune_dict({
             "default": self.default,
@@ -214,7 +214,7 @@ class WidgetInputV3(InputV3):
             "widgetType": self.widgetType,
             "forceInput": self.force_input,
         })
-    
+
     def get_io_type_V1(self):
         return self.widgetType if self.widgetType is not None else super().get_io_type_V1()
 
@@ -289,13 +289,13 @@ class NodeStateLocal(NodeState):
             super().__setattr__(key, value)
         else:
             self.local_state[key] = value
-    
+
     def __setitem__(self, key: str, value: Any):
         self.local_state[key] = value
-    
+
     def __getitem__(self, key: str):
         return self.local_state[key]
-    
+
     def __delitem__(self, key: str):
         del self.local_state[key]
 
@@ -303,7 +303,7 @@ class NodeStateLocal(NodeState):
 @comfytype(io_type="BOOLEAN")
 class Boolean(ComfyTypeIO):
     Type = bool
-    
+
     class Input(WidgetInputV3):
         '''Boolean input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
@@ -313,7 +313,7 @@ class Boolean(ComfyTypeIO):
             self.label_on = label_on
             self.label_off = label_off
             self.default: bool
-        
+
         def as_dict_V1(self):
             return super().as_dict_V1() | prune_dict({
                 "label_on": self.label_on,
@@ -385,7 +385,7 @@ class String(ComfyTypeIO):
             self.multiline = multiline
             self.placeholder = placeholder
             self.default: str
-        
+
         def as_dict_V1(self):
             return super().as_dict_V1() | prune_dict({
                 "multiline": self.multiline,
@@ -500,7 +500,7 @@ class Conditioning(ComfyTypeIO):
         By default, the dimensions are based on total pixel amount, but the first value can be set to "percentage" to use a percentage of the image size instead.
 
         (1024, 1024, 0, 0) would apply conditioning to the top-left 1024x1024 pixels.
-        
+
         ("percentage", 0.5, 0.5, 0, 0) would apply conditioning to the top-left 50% of the image.''' # TODO: verify its actually top-left
         strength: NotRequired[float]
         '''Strength of conditioning. Default strength is 1.0.'''
@@ -755,7 +755,7 @@ class MultiType:
                     self.input_override.widgetType = self.input_override.get_io_type_V1()
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self._io_types = types
-        
+
         @property
         def io_types(self) -> list[type[InputV3]]:
             '''
@@ -768,14 +768,14 @@ class MultiType:
                 else:
                     io_types.append(x)
             return io_types
-        
+
         def get_io_type_V1(self):
             # ensure types are unique and order is preserved
             str_types = [x.io_type for x in self.io_types]
             if self.input_override is not None:
                 str_types.insert(0, self.input_override.get_io_type_V1())
             return ",".join(list(dict.fromkeys(str_types)))
-        
+
         def as_dict_V1(self):
             if self.input_override is not None:
                 return self.input_override.as_dict_V1() | super().as_dict_V1()
@@ -870,7 +870,7 @@ class HiddenHolder:
     def __getattr__(self, key: str):
         '''If hidden variable not found, return None.'''
         return None
-    
+
     @classmethod
     def from_dict(cls, d: dict | None):
         if d is None:
@@ -1088,7 +1088,7 @@ class ComfyNodeV3:
 
     RELATIVE_PYTHON_MODULE = None
     SCHEMA = None
-    
+
     # filled in during execution
     state: NodeState = None
     resources: Resources = None
@@ -1097,28 +1097,24 @@ class ComfyNodeV3:
     @classmethod
     @abstractmethod
     def DEFINE_SCHEMA(cls) -> SchemaV3:
-        """
-        Override this function with one that returns a SchemaV3 instance.
-        """
-        return None
-    DEFINE_SCHEMA = None
+        """Override this function with one that returns a SchemaV3 instance."""
+        raise NotImplementedError
 
     @classmethod
     @abstractmethod
     def execute(cls, **kwargs) -> NodeOutput:
-        pass
-    execute = None
+        raise NotImplementedError
 
     @classmethod
     def validate_inputs(cls, **kwargs) -> bool:
-        """Optionally, define this function to validate inputs; equivalnet to V1's VALIDATE_INPUTS."""
-        pass
-    validate_inputs = None
+        """Optionally, define this function to validate inputs; equivalent to V1's VALIDATE_INPUTS."""
+        raise NotImplementedError
 
     @classmethod
     def fingerprint_inputs(cls, **kwargs) -> Any:
         """Optionally, define this function to fingerprint inputs; equivalent to V1's IS_CHANGED."""
-        pass
+        raise NotImplementedError
+
     fingerprint_inputs = None
 
     @classmethod
@@ -1135,8 +1131,8 @@ class ComfyNodeV3:
 
         Comfy Docs: https://docs.comfy.org/custom-nodes/backend/lazy_evaluation#defining-check-lazy-status
         """
-        need = [name for name in kwargs if kwargs[name] is None]
-        return need
+        return [name for name in kwargs if kwargs[name] is None]
+
     check_lazy_status = None
 
     @classmethod
@@ -1405,7 +1401,7 @@ class NodeOutput:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "NodeOutput":
         args = ()
-        ui = None   
+        ui = None
         expand = None
         if "result" in data:
             result = data["result"]

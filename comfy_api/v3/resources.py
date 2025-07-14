@@ -32,7 +32,7 @@ class TorchDictFolderFilename(ResourceKey):
 class Resources(ABC):
     def __init__(self):
         ...
-    
+
     @abstractmethod
     def get(self, key: ResourceKey, default: Any=...) -> Any:
         pass

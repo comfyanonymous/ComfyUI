@@ -1,7 +1,6 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
 
-from comfy_api.v3.io import Image, Mask, FolderType, _UIOutput, ComfyNodeV3
+from comfy_api.v3.io import Image, FolderType, _UIOutput, ComfyNodeV3
 # used for image preview
 from comfy.cli_args import args
 import folder_paths
@@ -13,33 +12,33 @@ import json
 import numpy as np
 
 
-class SavedResult:
+class SavedResult(dict):
     def __init__(self, filename: str, subfolder: str, type: FolderType):
-        self.filename = filename
-        self.subfolder = subfolder
-        self.type = type
-    
-    def as_dict(self):
-        return {
-            "filename": self.filename,
-            "subfolder": self.subfolder,
-            "type": self.type
-        }
+        super().__init__(filename=filename, subfolder=subfolder,type=type.value)
+
+    @property
+    def filename(self) -> str:
+        return self["filename"]
+
+    @property
+    def subfolder(self) -> str:
+        return self["subfolder"]
+
+    @property
+    def type(self) -> FolderType:
+        return FolderType(self["type"])
+
 
 class PreviewImage(_UIOutput):
     def __init__(self, image: Image.Type, animated: bool=False, cls: ComfyNodeV3=None, **kwargs):
         output_dir = folder_paths.get_temp_directory()
-        type = "temp"
         prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
-        compress_level = 1
-        filename_prefix = "ComfyUI"
+        filename_prefix = "ComfyUI" + prefix_append
 
-        filename_prefix += prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, output_dir, image[0].shape[1], image[0].shape[0])
         results = list()
         for (batch_number, image) in enumerate(image):
-            i = 255. * image.cpu().numpy()
-            img = PILImage.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+            img = PILImage.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8))
             metadata = None
             if not args.disable_metadata and cls is not None:
                 metadata = PngInfo()
@@ -51,17 +50,16 @@ class PreviewImage(_UIOutput):
 
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=compress_level)
-            results.append(SavedResult(file, subfolder, type))
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=1)
+            results.append(SavedResult(file, subfolder, FolderType.temp))
             counter += 1
-        
+
         self.values = results
         self.animated = animated
-    
+
     def as_dict(self):
-        values = [x.as_dict() if isinstance(x, SavedResult) else x for x in self.values]
         return {
-            "images": values,
+            "images": self.values,
             "animated": (self.animated,)
         }
 
@@ -111,36 +109,29 @@ class PreviewMask(PreviewImage):
 #         comfy.utils.save_torch_file(output, file, metadata=metadata)
 
 #         self.values = values
-    
+
 #     def as_dict(self):
-#         values = [x.as_dict() if isinstance(x, SavedResult) else x for x in self.values]
 #         return {
-#             "latents": values,
+#             "latents": self.values,
 #         }
 
 class PreviewAudio(_UIOutput):
     def __init__(self, values: list[SavedResult | dict], **kwargs):
         self.values = values
-    
+
     def as_dict(self):
-        values = [x.as_dict() if isinstance(x, SavedResult) else x for x in self.values]
-        return {
-            "audio": values,
-        }
+        return {"audio": self.values}
 
 class PreviewUI3D(_UIOutput):
     def __init__(self, values: list[SavedResult | dict], **kwargs):
         self.values = values
-    
+
     def as_dict(self):
-        values = [x.as_dict() if isinstance(x, SavedResult) else x for x in self.values]
-        return {
-            "3d": values,
-        }
+        return {"3d": self.values}
 
 class PreviewText(_UIOutput):
     def __init__(self, value: str, **kwargs):
         self.value = value
-    
+
     def as_dict(self):
         return {"text": (self.value,)}

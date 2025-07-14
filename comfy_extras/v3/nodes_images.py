@@ -37,7 +37,7 @@ class SaveImage_V3(io.ComfyNodeV3):
         )
 
     @classmethod
-    def execute(cls, images, filename_prefix="ComfyUI"):
+    def execute(cls, images, filename_prefix="ComfyUI") -> io.NodeOutput:
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
             filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
         )
@@ -57,14 +57,120 @@ class SaveImage_V3(io.ComfyNodeV3):
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.png"
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
-            results.append({
-                "filename": file,
-                "subfolder": subfolder,
-                "type": "output",
-            })
+            results.append(ui.SavedResult(file, subfolder, io.FolderType.output))
             counter += 1
 
         return io.NodeOutput(ui={"images": results})
+
+
+class SaveAnimatedPNG_V3(io.ComfyNodeV3):
+    @classmethod
+    def DEFINE_SCHEMA(cls):
+        return io.SchemaV3(
+            node_id="SaveAnimatedPNG_V3",
+            display_name="Save Animated PNG _V3",
+            category="image/animation",
+            inputs=[
+                io.Image.Input("images"),
+                io.String.Input("filename_prefix", default="ComfyUI"),
+                io.Float.Input("fps", default=6.0, min=0.01, max=1000.0, step=0.01),
+                io.Int.Input("compress_level", default=4, min=0, max=9),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, images, fps, compress_level, filename_prefix="ComfyUI") -> io.NodeOutput:
+        full_output_folder, filename, counter, subfolder, filename_prefix = (
+            folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0])
+        )
+        results = []
+        pil_images = []
+        for image in images:
+            img = Image.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8))
+            pil_images.append(img)
+
+        metadata = None
+        if not args.disable_metadata:
+            metadata = PngInfo()
+            if cls.hidden.prompt is not None:
+                metadata.add(
+                    b"comf", "prompt".encode("latin-1", "strict") + b"\0" + json.dumps(cls.hidden.prompt).encode("latin-1", "strict"), after_idat=True
+                )
+            if cls.hidden.extra_pnginfo is not None:
+                for x in cls.hidden.extra_pnginfo:
+                    metadata.add(
+                        b"comf", x.encode("latin-1", "strict") + b"\0" + json.dumps(cls.hidden.extra_pnginfo[x]).encode("latin-1", "strict"), after_idat=True
+                    )
+
+        file = f"{filename}_{counter:05}_.png"
+        pil_images[0].save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=compress_level, save_all=True, duration=int(1000.0/fps), append_images=pil_images[1:])
+        results.append(ui.SavedResult(file, subfolder, io.FolderType.output))
+
+        return io.NodeOutput(ui={"images": results, "animated": (True,) })
+
+
+class SaveAnimatedWEBP_V3(io.ComfyNodeV3):
+    COMPRESS_METHODS = {"default": 4, "fastest": 0, "slowest": 6}
+
+    @classmethod
+    def DEFINE_SCHEMA(cls):
+        return io.SchemaV3(
+            node_id="SaveAnimatedWEBP_V3",
+            display_name="Save Animated WEBP _V3",
+            category="image/animation",
+            inputs=[
+                io.Image.Input("images"),
+                io.String.Input("filename_prefix", default="ComfyUI"),
+                io.Float.Input("fps", default=6.0, min=0.01, max=1000.0, step=0.01),
+                io.Boolean.Input("lossless", default=True),
+                io.Int.Input("quality", default=80, min=0, max=100),
+                io.Combo.Input("method", options=list(cls.COMPRESS_METHODS.keys())),
+                # "num_frames": ("INT", {"default": 0, "min": 0, "max": 8192}),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, images, fps, filename_prefix, lossless, quality, method, num_frames=0) -> io.NodeOutput:
+        method = cls.COMPRESS_METHODS.get(method)
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0])
+        results = []
+        pil_images = []
+        for image in images:
+            img = Image.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8))
+            pil_images.append(img)
+
+        metadata = pil_images[0].getexif()
+        if not args.disable_metadata:
+            if cls.hidden.prompt is not None:
+                metadata[0x0110] = "prompt:{}".format(json.dumps(cls.hidden.prompt))
+            if cls.hidden.extra_pnginfo is not None:
+                inital_exif = 0x010f
+                for x in cls.hidden.extra_pnginfo:
+                    metadata[inital_exif] = "{}:{}".format(x, json.dumps(cls.hidden.extra_pnginfo[x]))
+                    inital_exif -= 1
+
+        if num_frames == 0:
+            num_frames = len(pil_images)
+
+        for i in range(0, len(pil_images), num_frames):
+            file = f"{filename}_{counter:05}_.webp"
+            pil_images[i].save(
+                os.path.join(full_output_folder, file),
+                save_all=True, duration=int(1000.0/fps),
+                append_images=pil_images[i + 1:i + num_frames],
+                exif=metadata,
+                lossless=lossless,
+                quality=quality,
+                method=method,
+            )
+            results.append(ui.SavedResult(file, subfolder, io.FolderType.output))
+            counter += 1
+
+        return io.NodeOutput(ui={"images": results, "animated": (num_frames != 1,)})
 
 
 class PreviewImage_V3(io.ComfyNodeV3):
@@ -76,17 +182,14 @@ class PreviewImage_V3(io.ComfyNodeV3):
             description="Preview the input images.",
             category="image",
             inputs=[
-                io.Image.Input(
-                    "images",
-                    tooltip="The images to preview.",
-                ),
+                io.Image.Input("images", tooltip="The images to preview."),
             ],
             hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
             is_output_node=True,
         )
 
     @classmethod
-    def execute(cls, images):
+    def execute(cls, images) -> io.NodeOutput:
         return io.NodeOutput(ui=ui.PreviewImage(images, cls=cls))
 
 
@@ -267,8 +370,9 @@ class LoadImageOutput_V3(io.ComfyNodeV3):
         return True
 
 
-
 NODES_LIST: list[type[io.ComfyNodeV3]] = [
+    SaveAnimatedPNG_V3,
+    SaveAnimatedWEBP_V3,
     SaveImage_V3,
     PreviewImage_V3,
     LoadImage_V3,

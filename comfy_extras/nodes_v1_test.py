@@ -20,7 +20,7 @@ class TestNode(ComfyNodeABC):
                 "mask": (IO.MASK,),
             }
         }
-    
+
     RETURN_TYPES = (IO.INT, IO.IMAGE)
     RETURN_NAMES = ("INT", "img🖼️")
     OUTPUT_TOOLTIPS = (None, "This is an image")
