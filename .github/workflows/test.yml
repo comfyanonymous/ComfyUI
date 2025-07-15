@@ -18,16 +18,13 @@ jobs:
       fail-fast: false
       matrix:
         runner:
-          - labels: [self-hosted, Linux, X64, cuda-3060-12gb]
+          - labels: [self-hosted, Linux, X64, cuda-3090-24gb]
             container: "nvcr.io/nvidia/pytorch:25.03-py3"
     steps:
       - run: |
           apt update || true
-          apt install -y curl nodejs python3 python3-pip git build-essential ffmpeg libsm6 libxext6 || true
-          pip uninstall -y $(pip list --format=freeze | grep opencv) || true
-          rm -rf /usr/local/lib/python3.12/dist-packages/cv2/ || true
-          ln -s `which python3` /usr/bin/python || true
-          ln -s `which pip3` /usr/bin/pip || true
+          pip uninstall -y $(pip list --format=freeze | grep opencv)
+          rm -rf /usr/local/lib/python3.12/dist-packages/cv2/
         name: Prepare Python
       - run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -38,12 +35,13 @@ jobs:
         run: |
           export UV_BREAK_SYSTEM_PACKAGES=true
           export UV_SYSTEM_PYTHON=true
-          uv sync --extra cu128 --inexact --frozen
+          pip freeze | grep numpy > numpy_override.txt
+          uv pip install . --inexact --group dev --override numpy_override.txt
       - name: Run tests
         run: |
           nvidia-smi
-          uv run pytest -v tests/unit
+          pytest -v tests/unit
       - name: Lint for errors
         run: |
-          uv run pylint --rcfile=.pylintrc comfy/
-          uv run pylint --rcfile=.pylintrc comfy_extras/
+          pylint --rcfile=.pylintrc comfy/
+          pylint --rcfile=.pylintrc comfy_extras/
