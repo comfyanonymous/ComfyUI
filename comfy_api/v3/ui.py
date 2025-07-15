@@ -1,19 +1,21 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
+
+import json
+import os
+import random
 from io import BytesIO
 
 import av
+import numpy as np
 import torchaudio
-from comfy_api.v3.io import Image, FolderType, _UIOutput, ComfyNodeV3
-# used for image preview
-from comfy.cli_args import args
-import folder_paths
-import random
 from PIL import Image as PILImage
 from PIL.PngImagePlugin import PngInfo
-import os
-import json
-import numpy as np
+
+import folder_paths
+
+# used for image preview
+from comfy.cli_args import args
+from comfy_api.v3.io import ComfyNodeV3, FolderType, Image, _UIOutput
 
 
 class SavedResult(dict):
@@ -67,10 +69,12 @@ class PreviewImage(_UIOutput):
             "animated": (self.animated,)
         }
 
+
 class PreviewMask(PreviewImage):
     def __init__(self, mask: PreviewMask.Type, animated: bool=False, cls: ComfyNodeV3=None, **kwargs):
         preview = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])).movedim(1, -1).expand(-1, -1, -1, 3)
         super().__init__(preview, animated, cls, **kwargs)
+
 
 # class UILatent(_UIOutput):
 #     def __init__(self, values: list[SavedResult | dict], **kwargs):
@@ -119,21 +123,15 @@ class PreviewMask(PreviewImage):
 #             "latents": self.values,
 #         }
 
-class PreviewAudio(_UIOutput):
-    def __init__(self, values: list[SavedResult | dict], **kwargs):
-        self.values = values
 
+class PreviewAudio(_UIOutput):
     def __init__(self, audio, cls: ComfyNodeV3=None, **kwargs):
-        output_dir = folder_paths.get_temp_directory()
-        type = "temp"
-        prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
-        filename_prefix = "ComfyUI"
         quality = "128k"
         format = "flac"
 
-        filename_prefix += prefix_append
+        filename_prefix = "ComfyUI_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
-            filename_prefix, output_dir
+            filename_prefix, folder_paths.get_temp_directory()
         )
 
         # Prepare metadata dictionary
@@ -223,7 +221,7 @@ class PreviewAudio(_UIOutput):
             with open(output_path, 'wb') as f:
                 f.write(output_buffer.getbuffer())
 
-            results.append(SavedResult(file, subfolder, type))
+            results.append(SavedResult(file, subfolder, FolderType.temp))
             counter += 1
 
         self.values = results
@@ -231,12 +229,14 @@ class PreviewAudio(_UIOutput):
     def as_dict(self):
         return {"audio": self.values}
 
+
 class PreviewUI3D(_UIOutput):
     def __init__(self, values: list[SavedResult | dict], **kwargs):
         self.values = values
 
     def as_dict(self):
         return {"3d": self.values}
+
 
 class PreviewText(_UIOutput):
     def __init__(self, value: str, **kwargs):
