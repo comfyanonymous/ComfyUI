@@ -40,6 +40,7 @@ jobs:
       - name: Run tests
         run: |
           nvidia-smi
+          export OTEL_METRICS_EXPORTER=none
           pytest -v tests/unit
       - name: Lint for errors
         run: |
