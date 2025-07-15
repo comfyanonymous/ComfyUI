@@ -1117,6 +1117,37 @@ class PromptQueue:
                 return {}
 
     def get_ordered_history(self, max_items=None, offset=0):
+        """
+        Retrieves execution history in chronological order with pagination support.
+        Used by the /history API endpoint for lightweight history listings.
+        
+        API Output Structure:
+        {
+            "history": [
+                {
+                    "prompt_id": str,          # Unique identifier for this execution
+                    "outputs": dict,           # Node outputs {node_id: ui_data}
+                    "meta": dict,              # Node metadata {node_id: {node_id, display_node, parent_node, real_node_id}}
+                    "prompt": {
+                        "priority": int,       # Execution priority
+                        "prompt_id": str,      # Same as root prompt_id
+                        "extra_data": dict     # Additional metadata (workflow removed from extra_pnginfo)
+                    } | None,                  # None if no prompt data available
+                    "status": {
+                        "status_str": str,     # "success" | "error" 
+                        "messages": [          # Filtered execution event messages
+                            (event_name: str, event_data: dict)
+                        ]
+                    } | None                   # None if no status recorded
+                },
+                # ... more history items
+            ]
+        }
+        
+        Parameters:
+        - max_items: Maximum number of items to return (None = all)
+        - offset: Starting index (0-based, negative values calculated from end)
+        """
         with self.mutex:
             history_keys = list(self.history.keys())
 
@@ -1166,6 +1197,31 @@ class PromptQueue:
             return {"history": history_items}
 
     def get_history_v2(self, prompt_id):
+        """
+        Retrieves execution history for a specific prompt ID in v2 format.
+        
+        API Output Structure:
+        {
+            "<prompt_id>": {
+                "prompt": {
+                    "priority": int,           # Execution priority
+                    "prompt_id": str,          # Same as the key
+                    "prompt": dict,            # The workflow/node data
+                    "extra_data": dict,        # Additional metadata (client_id, etc.)
+                    "outputs_to_execute": list # Node IDs to execute
+                },
+                "outputs": dict,               # Node outputs {node_id: ui_data}
+                "meta": dict,                  # Node metadata {node_id: {node_id, display_node, parent_node, real_node_id}}
+                "status": {
+                    "status_str": str,         # "success" | "error"
+                    "completed": bool,         # Whether execution finished
+                    "messages": list           # Execution event messages
+                } | None                       # None if no status recorded
+            }
+        }
+        
+        Returns empty dict {} if prompt_id not found.
+        """
         with self.mutex:
             if prompt_id in self.history:
                 history_entry = copy.deepcopy(self.history[prompt_id])
