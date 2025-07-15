@@ -31,7 +31,7 @@ This error is happening because the ComfyUI frontend is no longer shipped as par
 
 def parse_version(version: str) -> tuple[int, int, int]:
         return tuple(map(int, version.split(".")))
-    
+
 def is_valid_version(version: str) -> bool:
     """Validate if a string is a valid semantic version (X.Y.Z format)."""
     pattern = r"^(\d+)\.(\d+)\.(\d+)$"
