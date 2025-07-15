@@ -5,10 +5,11 @@ import torch
 
 from .autoencoder_dc import AutoencoderDC
 
+logger = logging.getLogger(__name__)
 try:
     import torchaudio  # pylint: disable=import-error
 except:
-    logging.warning("torchaudio missing, ACE model will be broken")
+    logger.warning("torchaudio missing, ACE model will be broken")
 
 import torchvision.transforms as transforms
 from .music_vocoder import ADaMoSHiFiGANV1

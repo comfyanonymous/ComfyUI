@@ -147,6 +147,11 @@ class SupportedExtensions:
         p: FolderNames = self.parent()
         p.remove_all_supported_extensions(self.folder_name)
 
+    def __len__(self):
+        p: FolderNames = self.parent()
+        return len(list(p.supported_extensions(self.folder_name)))
+
+
     __ior__ = _append_any
     add = _append_any
     update = _append_any

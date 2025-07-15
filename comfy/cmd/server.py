@@ -1003,6 +1003,14 @@ class PromptServer(ExecutorToClientProgress):
         self.client_session = aiohttp.ClientSession(timeout=timeout)
 
     def add_routes(self):
+        # a mitigation for vanilla comfyui custom nodes that are stateful and add routes to a global
+        # prompt server instance. this is not a recommended pattern, but this mitigation is here to
+        # support it
+        from ..nodes.vanilla_node_importing import prompt_server_instance_routes
+        for route in prompt_server_instance_routes.routes:
+            self.routes.route(route.method, route.path)(route.handler)
+        prompt_server_instance_routes.clear()
+
         self.user_manager.add_routes(self.routes)
         self.model_file_manager.add_routes(self.routes)
         # todo: needs to use module directories

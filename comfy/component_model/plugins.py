@@ -1,6 +1,15 @@
+from typing import Callable, NamedTuple
+
+
+class RouteTuple(NamedTuple):
+    method: str
+    path: str
+    func: Callable
+
+
 class _RoutesWrapper:
     def __init__(self):
-        self.routes = []
+        self.routes: list[RouteTuple] = []
 
     def _decorator_factory(self, method):
         def decorator(path):
@@ -8,7 +17,8 @@ class _RoutesWrapper:
                 from ..cmd.server import PromptServer
                 if PromptServer.instance is not None and not isinstance(PromptServer.instance.routes, _RoutesWrapper):
                     getattr(PromptServer.instance.routes, method)(path)(func)
-                self.routes.append((method, path, func))
+                else:
+                    self.routes.append(RouteTuple(method, path, func))
                 return func
 
             return wrapper
@@ -38,6 +48,9 @@ class _RoutesWrapper:
 
     def route(self, method, path):
         return self._decorator_factory(method.lower())(path)
+
+    def clear(self):
+        self.routes.clear()
 
 
 prompt_server_instance_routes = _RoutesWrapper()

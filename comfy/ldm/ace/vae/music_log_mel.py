@@ -1,23 +1,28 @@
 # Original from: https://github.com/ace-step/ACE-Step/blob/main/music_dcae/music_log_mel.py
+import logging
+
 import torch
 import torch.nn as nn
 from torch import Tensor
-import logging
+
+logger = logging.getLogger(__name__)
+
 try:
     from torchaudio.transforms import MelScale  # pylint: disable=import-error
 except:
-    logging.warning("torchaudio missing, ACE model will be broken")
+    logger.warning("torchaudio missing, ACE model will be broken")
 
 from .... import model_management
 
+
 class LinearSpectrogram(nn.Module):
     def __init__(
-        self,
-        n_fft=2048,
-        win_length=2048,
-        hop_length=512,
-        center=False,
-        mode="pow2_sqrt",
+            self,
+            n_fft=2048,
+            win_length=2048,
+            hop_length=512,
+            center=False,
+            mode="pow2_sqrt",
     ):
         super().__init__()
 
@@ -64,15 +69,15 @@ class LinearSpectrogram(nn.Module):
 
 class LogMelSpectrogram(nn.Module):
     def __init__(
-        self,
-        sample_rate=44100,
-        n_fft=2048,
-        win_length=2048,
-        hop_length=512,
-        n_mels=128,
-        center=False,
-        f_min=0.0,
-        f_max=None,
+            self,
+            sample_rate=44100,
+            n_fft=2048,
+            win_length=2048,
+            hop_length=512,
+            n_mels=128,
+            center=False,
+            f_min=0.0,
+            f_max=None,
     ):
         super().__init__()
 

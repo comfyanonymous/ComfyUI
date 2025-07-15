@@ -203,7 +203,9 @@ async def _start_comfyui(from_script_dir: Optional[Path] = None):
 
     # at this stage, it's safe to import nodes
     hook_breaker_ac10a0.save_functions()
-    server.nodes = get_nodes()
+    nodes_to_import = get_nodes()
+    logger.debug(f"Imported {len(nodes_to_import)} nodes")
+    server.nodes = nodes_to_import
     hook_breaker_ac10a0.restore_functions()
     # as a side effect, this also populates the nodes for execution
 
