@@ -50,10 +50,22 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PromptInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       tags:
       - workflow
@@ -83,6 +95,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/queue:
     get:
       tags:
@@ -93,10 +111,22 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/QueueInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       tags:
       - queue
@@ -108,20 +138,16 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                clear:
-                  type: boolean
-                  description: If true, clears the entire queue
-                delete:
-                  type: array
-                  description: Array of prompt IDs to delete from the queue
-                  items:
-                    type: string
-                    format: uuid
+              $ref: '#/components/schemas/QueueManageRequest'
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/interrupt:
     post:
       tags:
@@ -132,6 +158,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/free:
     post:
       tags:
@@ -144,17 +176,16 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                unload_models:
-                  type: boolean
-                  description: If true, unloads models from memory
-                free_memory:
-                  type: boolean
-                  description: If true, frees GPU memory
+              $ref: '#/components/schemas/FreeResourcesRequest'
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/history:
     get:
       tags:
@@ -173,6 +204,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -190,20 +227,16 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                clear:
-                  type: boolean
-                  description: If true, clears the entire history
-                delete:
-                  type: array
-                  description: Array of prompt IDs to delete from history
-                  items:
-                    type: string
-                    format: uuid
+              $ref: '#/components/schemas/HistoryManageRequest'
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/history/{prompt_id}:
     get:
       tags:
@@ -222,6 +255,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -236,6 +275,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -259,6 +304,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -278,6 +329,8 @@ paths:
           multipart/form-data:
             schema:
               type: object
+              required:
+                - image
               properties:
                 image:
                   type: string
@@ -285,34 +338,35 @@ paths:
                   description: The image file to upload
                 overwrite:
                   type: string
-                  description: Whether to overwrite if file exists (true/false)
+                  enum:
+                    - "true"
+                    - "false"
+                  description: Whether to overwrite if file exists
                 type:
                   type: string
                   enum:
                   - input
                   - temp
                   - output
+                  default: input
                   description: Type of directory to store the image in
                 subfolder:
                   type: string
+                  default: ""
                   description: Subfolder to store the image in
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  name:
-                    type: string
-                    description: Filename of the uploaded image
-                  subfolder:
-                    type: string
-                    description: Subfolder the image was stored in
-                  type:
-                    type: string
-                    description: Type of directory the image was stored in
+                $ref: '#/components/schemas/ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
         '400':
           description: Bad request
   /api/upload/mask:
@@ -328,6 +382,9 @@ paths:
           multipart/form-data:
             schema:
               type: object
+              required:
+                - image
+                - original_ref
               properties:
                 image:
                   type: string
@@ -339,20 +396,17 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: object
-                properties:
-                  name:
-                    type: string
-                    description: Filename of the uploaded mask
-                  subfolder:
-                    type: string
-                    description: Subfolder the mask was stored in
-                  type:
-                    type: string
-                    description: Type of directory the mask was stored in
+                $ref: '#/components/schemas/UploadResponse'
         '400':
           description: Bad request
   /api/view:
@@ -406,6 +460,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             image/*:
               schema:
@@ -441,9 +501,15 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/ModelMetadata'
         '404':
           description: File not found
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/models:
     get:
       tags:
@@ -454,6 +520,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -477,6 +549,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -495,6 +573,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -511,6 +595,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -527,6 +617,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -553,6 +649,26 @@ paths:
       responses:
         '101':
           description: Switching Protocols to WebSocket
+  /api/features:
+    get:
+      tags:
+      - system
+      summary: Get server feature flags
+      description: Returns the server's feature flags and capabilities
+      operationId: getFeatures
+      responses:
+        '200':
+          description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerFeatures'
   /internal/logs:
     get:
       tags:
@@ -563,6 +679,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -577,31 +699,16 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  entries:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        t:
-                          type: string
-                          description: Timestamp
-                        m:
-                          type: string
-                          description: Message
-                  size:
-                    type: object
-                    properties:
-                      cols:
-                        type: integer
-                        description: Terminal columns
-                      rows:
-                        type: integer
-                        description: Terminal rows
+                $ref: '#/components/schemas/ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RawLogsResponse'
   /internal/logs/subscribe:
     patch:
       tags:
@@ -614,17 +721,16 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                clientId:
-                  type: string
-                  description: Client ID
-                enabled:
-                  type: boolean
-                  description: Whether to enable or disable subscription
+              $ref: '#/components/schemas/LogsSubscribeRequest'
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /internal/folder_paths:
     get:
       tags:
@@ -635,6 +741,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -662,6 +774,12 @@ paths:
       responses:
         '200':
           description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -746,15 +864,11 @@ components:
         queue_running:
           type: array
           items:
-            type: object
-            description: Currently running items
-            additionalProperties: true
+            $ref: '#/components/schemas/QueueItem'
         queue_pending:
           type: array
           items:
-            type: object
-            description: Pending items in the queue
-            additionalProperties: true
+            $ref: '#/components/schemas/QueueItem'
     HistoryItem:
       type: object
       properties:
@@ -893,3 +1007,153 @@ components:
               torch_vram_free:
                 type: number
                 description: Free VRAM as reported by PyTorch
+    QueueManageRequest:
+      type: object
+      properties:
+        clear:
+          type: boolean
+          description: If true, clears the entire queue
+        delete:
+          type: array
+          description: Array of prompt IDs to delete from the queue
+          items:
+            type: string
+            format: uuid
+    FreeResourcesRequest:
+      type: object
+      properties:
+        unload_models:
+          type: boolean
+          description: If true, unloads models from memory
+        free_memory:
+          type: boolean
+          description: If true, frees GPU memory
+    HistoryManageRequest:
+      type: object
+      properties:
+        clear:
+          type: boolean
+          description: If true, clears the entire history
+        delete:
+          type: array
+          description: Array of prompt IDs to delete from history
+          items:
+            type: string
+            format: uuid
+    UploadResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Filename of the uploaded file
+        subfolder:
+          type: string
+          description: Subfolder where the file was stored
+        type:
+          type: string
+          description: Type of directory the file was stored in
+    ServerFeatures:
+      type: object
+      properties:
+        supports_preview_metadata:
+          type: boolean
+          description: Whether the server supports preview metadata
+        max_upload_size:
+          type: integer
+          description: Maximum file upload size in bytes
+    RawLogsResponse:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogEntry'
+        size:
+          $ref: '#/components/schemas/TerminalSize'
+    LogEntry:
+      type: object
+      properties:
+        t:
+          type: string
+          description: Timestamp
+        m:
+          type: string
+          description: Message
+    TerminalSize:
+      type: object
+      properties:
+        cols:
+          type: integer
+          description: Terminal columns
+        rows:
+          type: integer
+          description: Terminal rows
+    LogsSubscribeRequest:
+      type: object
+      required:
+        - clientId
+        - enabled
+      properties:
+        clientId:
+          type: string
+          description: Client ID
+        enabled:
+          type: boolean
+          description: Whether to enable or disable subscription
+    ModelMetadata:
+      type: object
+      description: Model metadata from safetensors files
+      properties:
+        modelspec.date:
+          type: string
+          description: Model creation date
+        modelspec.architecture:
+          type: string
+          description: Model architecture (e.g., stable-diffusion-v1)
+        modelspec.title:
+          type: string
+          description: Model title
+        modelspec.description:
+          type: string
+          description: Model description
+        modelspec.sai_model_spec:
+          type: string
+          description: SAI model specification version
+        format:
+          type: string
+          description: Model format (e.g., pt, safetensors)
+        modelspec.implementation:
+          type: string
+          description: Implementation URL or reference
+        modelspec.license:
+          type: string
+          description: Model license
+        modelspec.author:
+          type: string
+          description: Model author(s)
+        modelspec.thumbnail:
+          type: string
+          description: Base64-encoded thumbnail image
+      additionalProperties:
+        type: string
+        description: Additional metadata fields
+    QueueItem:
+      type: array
+      description: Queue item containing execution details
+      items:
+        oneOf:
+          - type: integer
+            description: Queue position number
+          - type: string
+            format: uuid
+            description: Unique prompt identifier
+          - type: object
+            description: Workflow graph with nodes and connections
+            additionalProperties: true
+          - type: object
+            description: Extra metadata (auth tokens, client info, etc.)
+            additionalProperties: true
+          - type: array
+            description: Array of output node IDs
+            items:
+              type: string
