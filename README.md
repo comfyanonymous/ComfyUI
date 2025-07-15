@@ -444,11 +444,39 @@ Custom Nodes can be added to ComfyUI by copying and pasting Python files into yo
 
 There are two kinds of custom nodes: vanilla custom nodes, which generally expect to be dropped into the `custom_nodes` directory and managed by a tool called the ComfyUI Extension manager ("vanilla" custom nodes) and this repository's opinionated, installable custom nodes ("installable").
 
+### Installing ComfyUI Manager
+
+ComfyUI-Manager is a popular extension to help you install and manage other custom nodes. To install it, you will need `git` on your system.
+
+The installation process for ComfyUI-Manager requires two steps: installing its Python dependencies, and then cloning its code into the `custom_nodes` directory.
+
+1.  **Install dependencies.**
+    First, ensure you have installed `comfyui` from this repository as described in the Installing section. Then, run the following command from your ComfyUI workspace directory (the one containing your `.venv` folder) to install the extra dependencies for ComfyUI-Manager:
+
+    ```shell
+    uv pip install --torch-backend=auto --upgrade "comfyui[comfyui_manager]@git+https://github.com/hiddenswitch/ComfyUI.git"
+    ```
+
+2.  **Clone the repository.**
+    Next, you need to clone the ComfyUI-Manager repository into the `custom_nodes` directory within your ComfyUI workspace. Your workspace is the directory you created during the initial setup where you ran `uv venv` (e.g., `~/Documents/ComfyUI_Workspace`).
+
+    If the `custom_nodes` directory does not exist in your workspace, create it first (e.g., `mkdir custom_nodes`). Then, from your workspace directory, run the following command:
+
+    ```shell
+    git clone https://github.com/Comfy-Org/ComfyUI-Manager.git ./custom_nodes/ComfyUI-Manager
+    ```
+    This command will place the manager's code into `custom_nodes/ComfyUI-Manager/`.
+
+3.  **Restart ComfyUI.**
+    After the cloning is complete, restart ComfyUI. You should now see a "Manager" button in the menu.
+
 ### Vanilla Custom Nodes
 
-Clone the repository containing the custom nodes into `custom_nodes/` in your working directory. Currently, this is not known to be compatible with ComfyUI Node Manager.
+Clone the repository containing the custom nodes into `custom_nodes/` in your working directory and install its requirements, or use the manager.
 
-Run `pip install git+https://github.com/owner/repository`, replacing the `git` repository with the installable custom nodes URL. This is just the GitHub URL.
+### Custom Nodes Authored for this Fork
+
+Run `uv pip install "git+https://github.com/owner/repository"`, replacing the `git` repository with the installable custom nodes URL. This is just the GitHub URL.
 
 ## Authoring Custom Nodes
 
