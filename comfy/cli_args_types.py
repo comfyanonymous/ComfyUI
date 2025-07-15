@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import enum
+import logging
 import os
 from typing import Optional, List, Callable, Any, Union, Mapping, NamedTuple
 
@@ -18,6 +19,22 @@ class LatentPreviewMethod(enum.Enum):
 
 
 ConfigObserver = Callable[[str, Any], None]
+
+
+def db_config() -> str:
+    from .vendor.appdirs import user_data_dir
+
+    logger = logging.getLogger(__name__)
+    try:
+        data_dir = user_data_dir(appname="comfyui")
+        os.makedirs(data_dir, exist_ok=True)
+        db_path = os.path.join(data_dir, "comfy.db")
+        default_db_url = f"sqlite:///{db_path}"
+    except Exception as e:
+        # Fallback to an in-memory database if the user directory can't be accessed
+        logger.warning(f"Could not determine user data directory for database, falling back to in-memory: {e}")
+        default_db_url = "sqlite:///:memory:"
+    return default_db_url
 
 
 def is_valid_directory(path: str) -> str:
@@ -261,7 +278,7 @@ class Configuration(dict):
         self.front_end_version: str = "comfyanonymous/ComfyUI@latest"
         self.front_end_root: Optional[str] = None
         self.comfy_api_base: str = "https://api.comfy.org"
-        self.database_url: str = "sqlite:///:memory:"
+        self.database_url: str = db_config()
 
         for key, value in kwargs.items():
             self[key] = value

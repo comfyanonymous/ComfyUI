@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 from enum import Enum
 from typing import NamedTuple, Optional, List, Literal, Sequence
 from typing import Tuple
@@ -23,6 +24,13 @@ class ExecutionStatus(NamedTuple):
     status_str: Literal['success', 'error']
     completed: bool
     messages: List[str]
+
+    def as_dict(self) -> ExecutionStatusAsDict:
+        return {
+            "status_str": self.status_str,
+            "completed": self.completed,
+            "messages": copy.copy(self.messages),
+        }
 
 
 class ExecutionError(RuntimeError):

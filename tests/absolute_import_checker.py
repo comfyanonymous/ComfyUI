@@ -24,18 +24,46 @@ class AbsoluteImportChecker(BaseChecker):
         super().__init__(linter)
 
     def visit_importfrom(self, node: nodes.ImportFrom) -> None:
-        current_file = node.root().file
-        if current_file is None:
+        """
+        Check for absolute imports from the same top-level package.
+
+        This method is called for every `from ... import ...` statement.
+        It checks if a module within 'comfy' or 'comfy_extras' packages
+        is using an absolute import from its own package, which should
+        be a relative import instead.
+
+        For example, inside `comfy/nodes/logic.py`, an import like
+        `from comfy.utils import some_function` will be flagged.
+        The preferred way would be `from ..utils import some_function`.
+        """
+        # An import is relative if its level is greater than 0.
+        # e.g., from . import foo (level=1), from .. import bar (level=2)
+        # We only want to check absolute imports, so we skip relative ones.
+        if node.level and node.level > 0:
             return
 
-        package_path = os.path.dirname(current_file)
-        package_name = os.path.basename(package_path)
+        # Get the fully qualified name of the module being linted.
+        # For a file at '.../comfy/nodes/common.py', this will be 'comfy.nodes.common'.
+        module_qname = node.root().qname()
 
-        if node.modname.startswith(package_name) and package_name in ['comfy', 'comfy_extras']:
-            import_parts = node.modname.split('.')
+        # `node.modname` is the module name in the `from` statement.
+        # For `from comfy.utils import x`, `modname` is `comfy.utils`.
+        imported_modname = node.modname
+        if not imported_modname:
+            return
 
-            if import_parts[0] == package_name:
-                self.add_message('absolute-import-used', node=node, args=(node.modname,))
+        # We are only interested in modules within 'comfy' or 'comfy_extras'.
+        # We determine this by looking at the first part of the qualified name.
+        current_top_package = module_qname.split('.')[0]
+        if current_top_package not in ['comfy', 'comfy_extras']:
+            return
+
+        imported_top_package = imported_modname.split('.')[0]
+
+        # If the top-level package of the imported module is the same as the
+        # current module's top-level package, it's an internal absolute import.
+        if imported_top_package == current_top_package:
+            self.add_message('absolute-import-used', node=node, args=(imported_modname,))
 
 
 def register(linter: "PyLinter") -> None:

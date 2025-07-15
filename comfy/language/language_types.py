@@ -10,7 +10,7 @@ from transformers.tokenization_utils_base import TextInput, PreTokenizedInput, T
 from transformers.utils import PaddingStrategy
 from typing_extensions import TypedDict, NotRequired
 
-from comfy.component_model.tensor_types import RGBImageBatch
+from ..component_model.tensor_types import RGBImageBatch
 
 
 class ProcessorResult(TypedDict):

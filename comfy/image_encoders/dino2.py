@@ -1,7 +1,8 @@
 import torch
-from comfy.text_encoders.bert import BertAttention
-import comfy.model_management
-from comfy.ldm.modules.attention import optimized_attention_for_device
+
+from ..ldm.modules.attention import optimized_attention_for_device
+from ..model_management import cast_to_device
+from ..text_encoders.bert import BertAttention
 
 
 class Dino2AttentionOutput(torch.nn.Module):
@@ -29,7 +30,7 @@ class LayerScale(torch.nn.Module):
         self.lambda1 = torch.nn.Parameter(torch.empty(dim, device=device, dtype=dtype))
 
     def forward(self, x):
-        return x * comfy.model_management.cast_to_device(self.lambda1, x.device, x.dtype)
+        return x * cast_to_device(self.lambda1, x.device, x.dtype)
 
 
 class SwiGLUFFN(torch.nn.Module):
@@ -117,7 +118,7 @@ class Dino2Embeddings(torch.nn.Module):
         x = self.patch_embeddings(pixel_values)
         # TODO: mask_token?
         x = torch.cat((self.cls_token.to(device=x.device, dtype=x.dtype).expand(x.shape[0], -1, -1), x), dim=1)
-        x = x + comfy.model_management.cast_to_device(self.position_embeddings, x.device, x.dtype)
+        x = x + cast_to_device(self.position_embeddings, x.device, x.dtype)
         return x
 
 

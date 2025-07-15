@@ -23,7 +23,7 @@ from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from torch import nn
 
-from comfy.ldm.modules.attention import optimized_attention
+from ..modules.attention import optimized_attention
 
 
 def get_normalization(name: str, channels: int, weight_args={}, operations=None):

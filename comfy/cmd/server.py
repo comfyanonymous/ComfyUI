@@ -1169,7 +1169,7 @@ class PromptServer(ExecutorToClientProgress):
         await runner.setup()
 
         if 'tls_keyfile' in args or 'tls_certfile' in args:
-            raise ValueError("Use caddy instead of aiohttp to serve https by setting up a reverse proxy. See README.md")
+            logger.warning("Use caddy instead of aiohttp to serve https by setting up a reverse proxy. See README.md")
 
         def is_ipv4(address: str, *args):
             try:

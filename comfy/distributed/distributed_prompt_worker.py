@@ -10,12 +10,12 @@ from aio_pika.patterns import JsonRPC
 from aiohttp import web
 from aiormq import AMQPConnectionError
 
+from ..cmd.main_pre import tracer
 from .executors import ContextVarExecutor
 from .distributed_progress import DistributedExecutorToClientProgress
 from .distributed_types import RpcRequest, RpcReply
 from .process_pool_executor import ProcessPoolExecutor
 from ..client.embedded_comfy_client import Comfy
-from ..cmd.main_pre import tracer
 from ..component_model.queue_types import ExecutionStatus
 
 logger = logging.getLogger(__name__)

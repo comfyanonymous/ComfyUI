@@ -11,7 +11,7 @@ import configargparse as argparse
 from . import __version__
 from . import options
 from .cli_args_types import LatentPreviewMethod, Configuration, ConfigurationExtender, EnumAction, \
-    EnhancedConfigArgParser, PerformanceFeature, is_valid_directory
+    EnhancedConfigArgParser, PerformanceFeature, is_valid_directory, db_config
 
 # todo: move this
 DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
@@ -261,8 +261,8 @@ def _create_parser() -> EnhancedConfigArgParser:
         help="Set the base URL for the ComfyUI API.  (default: https://api.comfy.org)",
     )
 
-    parser.add_argument("--database-url", type=str, default=f"sqlite:///:memory:", help="Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.")
-
+    default_db_url = db_config()
+    parser.add_argument("--database-url", type=str, default=default_db_url, help="Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.")
     parser.add_argument("--workflows", type=str, nargs='+', default=[], help="Execute the API workflow(s) specified in the provided files. For each workflow, its outputs will be printed to a line to standard out. Application logging will be redirected to standard error. Use `-` to signify standard in.")
 
     # now give plugins a chance to add configuration

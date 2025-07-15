@@ -82,7 +82,7 @@ limit-inference-results=100
 
 # List of plugins (as comma separated values of python module names) to load,
 # usually to register additional checkers.
-load-plugins=tests.absolute_import_checker
+load-plugins=tests.absolute_import_checker,tests.main_pre_import_checker
 
 # Pickle collected data for later comparisons.
 persistent=yes
@@ -678,7 +678,7 @@ disable=raw-checker-failed,
 # either give multiple identifier separated by comma (,) or put this option
 # multiple time (only on the command line, not in the configuration file where
 # it should appear only once). See also the "--disable" option for examples.
-enable=absolute-import-used
+enable=
 
 [METHOD_ARGS]
 

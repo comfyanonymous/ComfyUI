@@ -31,9 +31,9 @@ import psutil
 import torch
 from opentelemetry.trace import get_current_span
 
+from .cmd.main_pre import tracer
 from . import interruption
 from .cli_args import args, PerformanceFeature
-from .cmd.main_pre import tracer
 from .component_model.deprecation import _deprecate_method
 from .model_management_types import ModelManageable
 

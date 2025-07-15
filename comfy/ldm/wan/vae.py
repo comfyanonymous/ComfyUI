@@ -5,10 +5,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-from comfy.ldm.modules.diffusionmodules.model import vae_attention
+from ..modules.diffusionmodules.model import vae_attention
 
-import comfy.ops
-ops = comfy.ops.disable_weight_init
+from ...ops import disable_weight_init
+ops = disable_weight_init
 
 CACHE_T = 2
 

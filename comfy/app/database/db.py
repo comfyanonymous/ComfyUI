@@ -1,8 +1,10 @@
 import logging
 import os
 import shutil
+from importlib.resources import files
 
 from ...cli_args import args
+from ...component_model.files import get_package_as_path
 
 Session = None
 
@@ -15,6 +17,7 @@ from sqlalchemy.orm import sessionmaker
 
 _DB_AVAILABLE = True
 
+logger = logging.getLogger(__name__)
 
 def dependencies_available():
     """
@@ -32,9 +35,8 @@ def can_create_session():
 
 
 def get_alembic_config():
-    root_path = os.path.join(os.path.dirname(__file__), "../..")
-    config_path = os.path.abspath(os.path.join(root_path, "alembic.ini"))
-    scripts_path = os.path.abspath(os.path.join(root_path, "alembic_db"))
+    config_path = str(files("comfy") / "alembic.ini")
+    scripts_path = get_package_as_path("comfy.alembic_db")
 
     config = Config(config_path)
     config.set_main_option("script_location", scripts_path)
@@ -53,7 +55,7 @@ def get_db_path():
 
 def init_db():
     db_url = args.database_url
-    logging.debug(f"Database URL: {db_url}")
+    logger.debug(f"Database URL: {db_url}")
     db_path = get_db_path()
     db_exists = os.path.exists(db_path)
 
@@ -70,7 +72,7 @@ def init_db():
     target_rev = script.get_current_head()
 
     if target_rev is None:
-        logging.warning("No target revision found.")
+        logger.debug("No target revision found.")
     elif current_rev != target_rev:
         # Backup the database pre upgrade
         backup_path = db_path + ".bkp"
@@ -81,13 +83,13 @@ def init_db():
 
         try:
             command.upgrade(config, target_rev)
-            logging.info(f"Database upgraded from {current_rev} to {target_rev}")
+            logger.info(f"Database upgraded from {current_rev} to {target_rev}")
         except Exception as e:
             if backup_path:
                 # Restore the database from backup if upgrade fails
                 shutil.copy(backup_path, db_path)
                 os.remove(backup_path)
-            logging.exception("Error upgrading database: ")
+            logger.exception("Error upgrading database: ")
             raise e
 
     global Session

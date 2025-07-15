@@ -122,7 +122,7 @@ def test_bool_request_parameter():
     assert v == True
 
 
-def test_string_enum_request_parameter():
+async def test_string_enum_request_parameter():
     nt = StringEnumRequestParameter.INPUT_TYPES()
     assert nt is not None
     n = StringEnumRequestParameter()
@@ -155,8 +155,9 @@ def test_string_enum_request_parameter():
     }
     from comfy.cmd.execution import validate_inputs
     validated: dict[str, ValidateInputsTuple] = {}
-    validated["1"] = validate_inputs(prompt, "1", validated)
-    validated["2"] = validate_inputs(prompt, "2", validated)
+    prompt_id = str(uuid.uuid4())
+    validated["1"] = await validate_inputs(prompt_id, prompt, "1", validated)
+    validated["2"] = await validate_inputs(prompt_id, prompt, "2", validated)
     assert validated["2"].valid
 
 

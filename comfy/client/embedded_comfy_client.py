@@ -14,11 +14,11 @@ from opentelemetry import context, propagate
 from opentelemetry.context import Context, attach, detach
 from opentelemetry.trace import Status, StatusCode
 
+from ..cmd.main_pre import tracer
 from .client_types import V1QueuePromptResponse
 from ..api.components.schema.prompt import PromptDict
 from ..cli_args_types import Configuration
 from ..cmd.folder_paths import init_default_paths  # pylint: disable=import-error
-from ..cmd.main_pre import tracer
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.make_mutable import make_mutable
 from ..distributed.executors import ContextVarExecutor
@@ -97,7 +97,7 @@ async def __execute_prompt(
             else:
                 prompt_executor.server = progress_handler
 
-            prompt_executor.execute(prompt_mut, prompt_id, {"client_id": client_id},
+            await prompt_executor.execute_async(prompt_mut, prompt_id, {"client_id": client_id},
                                     execute_outputs=validation_tuple.good_output_node_ids)
             return prompt_executor.outputs_ui
         except Exception as exc_info:
@@ -195,7 +195,7 @@ class Comfy:
         if isinstance(prompt, str):
             prompt = json.loads(prompt)
         if isinstance(prompt, dict):
-            from comfy.api.components.schema.prompt import Prompt
+            from ..api.components.schema.prompt import Prompt
             prompt = Prompt.validate(prompt)
         outputs = await self.queue_prompt(prompt)
         return V1QueuePromptResponse(urls=[], outputs=outputs)

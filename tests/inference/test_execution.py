@@ -15,7 +15,7 @@ from comfy.component_model.executor_types import SendSyncEvent, SendSyncData, Ex
     DependencyCycleError
 from comfy.distributed.server_stub import ServerStub
 from comfy.execution_context import context_add_custom_nodes
-from comfy.graph_utils import GraphBuilder, Node
+from comfy_execution.graph_utils import GraphBuilder, Node
 from comfy.nodes.package_typing import ExportedNodes
 
 current_test_name = ContextVar('current_test_name', default=None)

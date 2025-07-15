@@ -11,7 +11,7 @@ import math
 from .position_embedding import VideoRopePosition3DEmb, LearnablePosEmbAxis
 from torchvision import transforms
 
-from comfy.ldm.modules.attention import optimized_attention
+from ..modules.attention import optimized_attention
 
 def apply_rotary_pos_emb(
     t: torch.Tensor,

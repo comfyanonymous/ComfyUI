@@ -1,48 +1,23 @@
-import sys
-import time
-
 import logging
 import multiprocessing
 import os
 import pathlib
+import subprocess
+import sys
+import time
+import urllib
+from typing import Tuple, List
+
 import pytest
 import requests
-import socket
-import subprocess
-import urllib
-from testcontainers.rabbitmq import RabbitMqContainer
-from typing import Tuple, List
 
 from comfy.cli_args_types import Configuration
 
 logging.getLogger("pika").setLevel(logging.CRITICAL + 1)
 logging.getLogger("aio_pika").setLevel(logging.CRITICAL + 1)
-logging.getLogger("testcontainers.core.container").setLevel(logging.WARNING)
-logging.getLogger("testcontainers.core.waiting_utils").setLevel(logging.WARNING)
 
 # fixes issues with running the testcontainers rabbitmqcontainer on Windows
 os.environ["TC_HOST"] = "localhost"
-
-
-def get_lan_ip():
-    """
-    Finds the host's IP address on the LAN it's connected to.
-
-    Returns:
-        str: The IP address of the host on the LAN.
-    """
-    # Create a dummy socket
-    s = None
-    try:
-        # Connect to a dummy address (Here, Google's public DNS server)
-        # The actual connection is not made, but this allows finding out the LAN IP
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-    finally:
-        if s is not None:
-            s.close()
-    return ip
 
 
 def run_server(server_arguments: Configuration):
@@ -95,6 +70,11 @@ def has_gpu() -> bool:
 @pytest.fixture(scope="module", autouse=False, params=["ThreadPoolExecutor", "ProcessPoolExecutor"])
 def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers: int = 1):
     from huggingface_hub import hf_hub_download
+    from testcontainers.rabbitmq import RabbitMqContainer
+
+    logging.getLogger("testcontainers.core.container").setLevel(logging.WARNING)
+    logging.getLogger("testcontainers.core.waiting_utils").setLevel(logging.WARNING)
+
     hf_hub_download("stabilityai/stable-diffusion-xl-base-1.0", "sd_xl_base_1.0.safetensors")
     hf_hub_download("stabilityai/stable-diffusion-xl-refiner-1.0", "sd_xl_refiner_1.0.safetensors")
 
@@ -108,8 +88,8 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers
 
         frontend_command = [
             "comfyui",
-            "--listen=0.0.0.0",
-            "--port=9001",
+            "--listen=127.0.0.1",
+            "--port=19001",
             "--cpu",
             "--distributed-queue-frontend",
             f"-w={str(tmp_path)}",
@@ -122,7 +102,7 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers
         for i in range(num_workers):
             backend_command = [
                 "comfyui-worker",
-                f"--port={9002 + i}",
+                f"--port={19002 + i}",
                 f"-w={str(tmp_path)}",
                 f"--distributed-queue-connection-uri={connection_uri}",
                 f"--executor-factory={executor_factory}"
@@ -130,7 +110,7 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers
             processes_to_close.append(subprocess.Popen(backend_command, stdout=sys.stdout, stderr=sys.stderr))
 
         try:
-            server_address = f"http://{get_lan_ip()}:9001"
+            server_address = f"http://127.0.0.1:19001"
             start_time = time.time()
             connected = False
             while time.time() - start_time < 60:

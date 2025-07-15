@@ -131,6 +131,7 @@ dev = [
     "freezegun",
     "coverage",
     "pylint",
+    "astroid",
 ]
 
 [project.optional-dependencies]

@@ -1,12 +1,6 @@
 import torch
 from torch import nn
-from comfy.ldm.flux.layers import (
-    DoubleStreamBlock,
-    LastLayer,
-    MLPEmbedder,
-    SingleStreamBlock,
-    timestep_embedding,
-)
+from ..flux.layers import DoubleStreamBlock, LastLayer, MLPEmbedder, SingleStreamBlock, timestep_embedding
 
 
 class Hunyuan3Dv2(nn.Module):

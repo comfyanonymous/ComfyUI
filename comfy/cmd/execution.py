@@ -19,14 +19,15 @@ from typing import List, Optional, Tuple, Literal
 import torch
 from opentelemetry.trace import get_current_span, StatusCode, Status
 
+# order matters
+from .main_pre import tracer
+
 from comfy_execution.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID, \
     DependencyAwareCache, \
     BasicCache
-# order matters
 from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
 from comfy_execution.graph_utils import is_link, GraphBuilder
 from comfy_execution.utils import CurrentNodeContext
-from .main_pre import tracer
 from .. import interruption
 from .. import model_management
 from ..cli_args import args
@@ -37,7 +38,7 @@ from ..component_model.executor_types import ExecutorToClientProgress, Validatio
     HistoryResultDict, ExecutionErrorMessage, ExecutionInterruptedMessage
 from ..component_model.files import canonicalize_path
 from ..component_model.module_property import create_module_properties
-from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
+from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus, ExecutionStatusAsDict
 from ..execution_context import context_execute_node, context_execute_prompt
 from ..execution_ext import should_panic_on_exception
 from ..nodes.package_typing import InputTypeSpec, FloatSpecOptions, IntSpecOptions, CustomNode
@@ -388,7 +389,7 @@ def format_value(x) -> FormattedValue:
         return str(x.__class__)
 
 
-async def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, caches, _node_id: str, extra_data: dict, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes) -> RecursiveExecutionTuple:
+async def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, caches, node_id: str, extra_data: dict, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes) -> RecursiveExecutionTuple:
     """
 
     :param server:
@@ -402,8 +403,8 @@ async def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, ca
     :param pending_subgraph_results:
     :return:
     """
-    with context_execute_node(_node_id):
-        return _execute(server, dynprompt, caches, _node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes)
+    with context_execute_node(node_id):
+        return await _execute(server, dynprompt, caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes)
 
 
 async def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes) -> RecursiveExecutionTuple:
@@ -516,7 +517,7 @@ async def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra
                     unblock()
 
                 asyncio.create_task(await_completion())
-                return (ExecutionResult.PENDING, None, None)
+                return RecursiveExecutionTuple(ExecutionResult.PENDING, None, None)
         if len(output_ui) > 0:
             caches.ui.set(unique_id, {
                 "meta": {
@@ -684,11 +685,6 @@ class PromptExecutor:
 
         if ex is not None and self.raise_exceptions:
             raise ex
-
-    def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
-        asyncio_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(asyncio_loop)
-        asyncio.run(self.execute_async(prompt, prompt_id, extra_data, execute_outputs))
 
     async def execute_async(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
         # torchao and potentially other optimization approaches break when the models are created in inference mode
@@ -1206,7 +1202,7 @@ class PromptQueue(AbstractPromptQueue):
             self.server.queue_updated()
             return copy.deepcopy(item_with_future.queue_tuple), task_id
 
-    def task_done(self, item_id: str, outputs: dict,
+    def task_done(self, item_id: str, outputs: HistoryResultDict,
                   status: Optional[ExecutionStatus]):
         history_result = outputs
         with self.mutex:
@@ -1215,9 +1211,9 @@ class PromptQueue(AbstractPromptQueue):
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
                 self.history.pop(next(iter(self.history)))
 
-            status_dict: Optional[dict] = None
+            status_dict = None
             if status is not None:
-                status_dict = copy.deepcopy(ExecutionStatus(*status)._asdict())
+                status_dict: Optional[ExecutionStatusAsDict] = status.as_dict()
 
             outputs_ = history_result["outputs"]
             # Remove sensitive data from extra_data before storing in history
@@ -1225,11 +1221,13 @@ class PromptQueue(AbstractPromptQueue):
                 if sensitive_val in prompt[3]:
                     prompt[3].pop(sensitive_val)
 
-            self.history[prompt[1]] = {
+            history_entry: HistoryEntry = {
                 "prompt": prompt,
                 "outputs": copy.deepcopy(outputs_),
-                'status': status_dict,
             }
+            if status_dict is not None:
+                history_entry["status"] = status_dict
+            self.history[prompt[1]] = history_entry
             self.history[prompt[1]].update(history_result)
             self.server.queue_updated()
             if queue_item.completed:

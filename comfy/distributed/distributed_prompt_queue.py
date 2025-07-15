@@ -13,12 +13,12 @@ from aio_pika import connect_robust
 from aio_pika.abc import AbstractConnection, AbstractChannel
 from aio_pika.patterns import JsonRPC
 
+from ..cmd.main_pre import tracer
 from .distributed_progress import ProgressHandlers
 from .distributed_types import RpcRequest, RpcReply
 from .history import History
 from .server_stub import ServerStub
 from ..auth.permissions import jwt_decode
-from ..cmd.main_pre import tracer
 from ..cmd.server import PromptServer
 from ..component_model.abstract_prompt_queue import AsyncAbstractPromptQueue, AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, SendSyncEvent, SendSyncData, HistoryResultDict

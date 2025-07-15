@@ -1,3 +1,4 @@
+# pylint: disable=no-member
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
@@ -7,8 +8,7 @@ from alembic import context
 # access to the values within the .ini file in use.
 config = context.config
 
-
-from comfy.app.database.models import Base
+from ..app.database.models import Base
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

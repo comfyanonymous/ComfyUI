@@ -2,7 +2,6 @@ import asyncio
 
 from ..cmd.main_pre import args
 from ..component_model.entrypoints_common import configure_application_paths, executor_from_args
-from ..distributed.executors import ContextVarExecutor, ContextVarProcessPoolExecutor
 
 
 async def main():

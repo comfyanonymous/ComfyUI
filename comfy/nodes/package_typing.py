@@ -7,8 +7,6 @@ from typing import Union, Optional, Sequence, Dict, ClassVar, Protocol, Tuple, T
 
 from typing_extensions import TypedDict, NotRequired
 
-from comfy.comfy_types import FileLocator
-
 T = TypeVar('T')
 
 
