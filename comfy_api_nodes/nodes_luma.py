@@ -36,7 +36,7 @@ from comfy_api_nodes.apinode_utils import (
     process_image_response,
     validate_string,
 )
-from server import PromptServer
+from comfy.cmd.server import PromptServer
 
 import requests
 import torch

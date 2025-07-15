@@ -2,7 +2,7 @@ from __future__ import annotations
 from inspect import cleandoc
 from typing import Optional
 from comfy.utils import ProgressBar
-from comfy_extras.nodes_images import SVG # Added
+from comfy_extras.nodes.nodes_images import SVG # Added
 from comfy.comfy_types.node_typing import IO
 from comfy_api_nodes.apis.recraft_api import (
     RecraftImageGenerationRequest,
@@ -30,7 +30,7 @@ from comfy_api_nodes.apinode_utils import (
     resize_mask_to_image,
     validate_string,
 )
-from server import PromptServer
+from comfy.cmd.server import PromptServer
 
 import torch
 from io import BytesIO

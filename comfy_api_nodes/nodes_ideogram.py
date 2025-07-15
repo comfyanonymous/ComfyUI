@@ -23,7 +23,7 @@ from comfy_api_nodes.apinode_utils import (
     bytesio_to_image_tensor,
     resize_mask_to_image,
 )
-from server import PromptServer
+from comfy.cmd.server import PromptServer
 
 V1_V1_RES_MAP = {
   "Auto":"AUTO",

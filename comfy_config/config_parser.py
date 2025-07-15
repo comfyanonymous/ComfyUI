@@ -113,9 +113,9 @@ def extract_node_configuration(path) -> Optional[PyProjectConfig]:
     project_data = raw_settings.project
 
     tool_data = raw_settings.tool
-    comfy_data = tool_data.get("comfy", {}) if tool_data else {}
+    comfy_data = tool_data.get("comfy", {}) if tool_data else {}  # pylint: disable=no-member
 
-    dependencies = project_data.get("dependencies", [])
+    dependencies = project_data.get("dependencies", [])  # pylint: disable=no-member
     supported_comfyui_frontend_version = ""
     for dep in dependencies:
         if isinstance(dep, str) and dep.startswith("comfyui-frontend-package"):
@@ -124,7 +124,7 @@ def extract_node_configuration(path) -> Optional[PyProjectConfig]:
 
     supported_comfyui_version = comfy_data.get("requires-comfyui", "")
 
-    classifiers = project_data.get('classifiers', [])
+    classifiers = project_data.get('classifiers', [])  # pylint: disable=no-member
     supported_os = validate_and_extract_os_classifiers(classifiers)
     supported_accelerators = validate_and_extract_accelerator_classifiers(classifiers)
 

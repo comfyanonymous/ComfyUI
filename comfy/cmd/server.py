@@ -859,8 +859,8 @@ class PromptServer(ExecutorToClientProgress):
                 return web.Response(status=400, reason="no prompt was specified")
 
             content_digest = digest(prompt_dict)
-
-            valid = execution.validate_prompt(prompt_dict)
+            task_id = str(uuid.uuid4())
+            valid = await execution.validate_prompt(task_id, prompt_dict)
             if not valid[0]:
                 return web.Response(status=400, content_type="application/json", body=json.dumps(valid[1]))
 
@@ -872,7 +872,6 @@ class PromptServer(ExecutorToClientProgress):
             completed: Future[TaskInvocation | dict] = self.loop.create_future()
             # todo: actually implement idempotency keys
             # we would need some kind of more durable, distributed task queue
-            task_id = str(uuid.uuid4())
             item = QueueItem(queue_tuple=(number, task_id, prompt_dict, {}, valid[2]), completed=completed)
 
             try:

@@ -23,12 +23,13 @@ from comfy.distributed.process_pool_executor import ProcessPoolExecutor
 from comfy.distributed.server_stub import ServerStub
 
 
-def create_test_prompt() -> QueueItem:
+async def create_test_prompt() -> QueueItem:
     from comfy.cmd.execution import validate_prompt
 
     prompt = make_mutable(sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1))
-    validation_tuple = validate_prompt(prompt)
     item_id = str(uuid.uuid4())
+
+    validation_tuple = await validate_prompt(item_id, prompt)
     queue_tuple: QueueTuple = (0, item_id, prompt, {}, validation_tuple[2])
     return QueueItem(queue_tuple, None)
 
@@ -55,7 +56,7 @@ async def test_basic_queue_worker(executor_factory: Callable[..., Executor]) -> 
             # now submit some jobs
             distributed_queue = DistributedPromptQueue(ServerStub(), is_callee=False, is_caller=True, connection_uri=f"amqp://guest:guest@127.0.0.1:{params.port}")
             await distributed_queue.init()
-            queue_item = create_test_prompt()
+            queue_item = await create_test_prompt()
             res: TaskInvocation = await distributed_queue.put_async(queue_item)
             assert res.item_id == queue_item.prompt_id
             assert len(res.outputs) == 1
@@ -73,7 +74,7 @@ async def test_distributed_prompt_queues_same_process():
         from comfy.distributed.distributed_prompt_queue import DistributedPromptQueue
         async with DistributedPromptQueue(ServerStub(), is_callee=False, is_caller=True, connection_uri=connection_uri) as frontend:
             async with DistributedPromptQueue(ServerStub(), is_callee=True, is_caller=False, connection_uri=connection_uri) as worker:
-                test_prompt = create_test_prompt()
+                test_prompt = await create_test_prompt()
                 test_prompt.completed = asyncio.Future()
 
                 frontend.put(test_prompt)
@@ -224,8 +225,8 @@ async def test_two_workers_distinct_requests():
         await queue.init()
 
         # Submit two prompts
-        task1 = asyncio.create_task(queue.put_async(create_test_prompt()))
-        task2 = asyncio.create_task(queue.put_async(create_test_prompt()))
+        task1 = asyncio.create_task(queue.put_async(await create_test_prompt()))
+        task2 = asyncio.create_task(queue.put_async(await create_test_prompt()))
 
         # Wait for tasks to complete
         await asyncio.gather(task1, task2)

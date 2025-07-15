@@ -1,9 +1,12 @@
 # Original from: https://github.com/ace-step/ACE-Step/blob/main/music_dcae/music_dcae_pipeline.py
-import torch
-from .autoencoder_dc import AutoencoderDC
 import logging
+
+import torch
+
+from .autoencoder_dc import AutoencoderDC
+
 try:
-    import torchaudio
+    import torchaudio  # pylint: disable=import-error
 except:
     logging.warning("torchaudio missing, ACE model will be broken")
 

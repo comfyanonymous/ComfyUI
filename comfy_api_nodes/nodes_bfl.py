@@ -32,7 +32,7 @@ import requests
 import torch
 import base64
 import time
-from server import PromptServer
+from comfy.cmd.server import PromptServer
 
 
 def convert_mask_to_image(mask: torch.Tensor):

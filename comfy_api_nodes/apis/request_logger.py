@@ -2,7 +2,7 @@ import os
 import datetime
 import json
 import logging
-import folder_paths
+from comfy.cmd import folder_paths
 
 # Get the logger instance
 logger = logging.getLogger(__name__)

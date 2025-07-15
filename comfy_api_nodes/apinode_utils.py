@@ -16,7 +16,7 @@ from comfy_api_nodes.apis.client import (
     UploadRequest,
     UploadResponse,
 )
-from server import PromptServer
+from comfy.cmd.server import PromptServer
 
 
 import numpy as np

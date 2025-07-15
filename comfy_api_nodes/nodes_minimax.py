@@ -24,7 +24,7 @@ from comfy_api_nodes.apinode_utils import (
     upload_images_to_comfyapi,
     validate_string,
 )
-from server import PromptServer
+from comfy.cmd.server import PromptServer
 
 
 I2V_AVERAGE_DURATION = 114

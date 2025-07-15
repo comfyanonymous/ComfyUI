@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch import Tensor
 import logging
 try:
-    from torchaudio.transforms import MelScale
+    from torchaudio.transforms import MelScale  # pylint: disable=import-error
 except:
     logging.warning("torchaudio missing, ACE model will be broken")
 

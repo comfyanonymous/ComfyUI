@@ -82,7 +82,7 @@ async def __execute_prompt(
         try:
             prompt_mut = make_mutable(prompt)
             from ..cmd.execution import validate_prompt
-            validation_tuple = validate_prompt(prompt_mut)
+            validation_tuple = await validate_prompt(prompt_id, prompt_mut)
             if not validation_tuple.valid:
                 if validation_tuple.node_errors is not None and len(validation_tuple.node_errors) > 0:
                     validation_error_dict = validation_tuple.node_errors

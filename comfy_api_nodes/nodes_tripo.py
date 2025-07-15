@@ -1,5 +1,5 @@
 import os
-from folder_paths import get_output_directory
+from comfy.cmd.folder_paths import get_output_directory
 from comfy_api_nodes.mapper_utils import model_field_to_node_input
 from comfy.comfy_types.node_typing import IO
 from comfy_api_nodes.apis import (

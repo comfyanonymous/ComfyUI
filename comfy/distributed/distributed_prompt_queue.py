@@ -110,7 +110,7 @@ class DistributedPromptQueue(AbstractPromptQueue, AsyncAbstractPromptQueue):
     async def _callee_do_work_item(self, request: dict) -> dict:
         assert self._is_callee
         request_obj = RpcRequest.from_dict(request)
-        item = request_obj.as_queue_tuple().queue_tuple
+        item = (await request_obj.as_queue_tuple()).queue_tuple
         item_with_completer = QueueItem(item, self._loop.create_future())
         self._callee_local_in_progress[item_with_completer.prompt_id] = item_with_completer
         # todo: check if we have the local model content needed to execute this request and if not, reject it

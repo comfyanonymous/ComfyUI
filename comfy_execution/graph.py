@@ -244,7 +244,7 @@ class ExecutionList(TopologicalSort):
         # This will execute the asynchronous function earlier, reducing the overall time.
         def is_async(node_id):
             class_type = self.dynprompt.get_node(node_id)["class_type"]
-            class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+            class_def = get_nodes().NODE_CLASS_MAPPINGS[class_type]
             return inspect.iscoroutinefunction(getattr(class_def, class_def.FUNCTION))
 
         for node_id in node_list:

@@ -103,7 +103,7 @@ from urllib.parse import urljoin, urlparse
 from pydantic import BaseModel, Field
 import uuid # For generating unique operation IDs
 
-from server import PromptServer
+from comfy.cmd.server import PromptServer
 from comfy.cli_args import args
 from comfy import utils
 from . import request_logger

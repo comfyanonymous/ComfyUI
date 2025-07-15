@@ -1724,8 +1724,8 @@ def sample_sa_solver(model, x, sigmas, extra_args=None, callback=None, disable=F
     x_pred = x  # x: current state, x_pred: predicted next state
 
     h = 0.0
-    tau_t = 0.0
-    noise = 0.0
+    tau_t = torch.float(0.0)
+    noise = torch.float(0.0)
     pred_list = []
 
     # Lower order near the end to improve stability
