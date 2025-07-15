@@ -1119,7 +1119,8 @@ class PromptQueue:
     def get_ordered_history(self, max_items=None, offset=0):
         """
         Retrieves execution history in chronological order with pagination support.
-        Used by the /history API endpoint for lightweight history listings.
+        Returns a lightweight list of history objects.
+        Used by the /history_v2.
         
         API Output Structure:
         {
@@ -1154,20 +1155,15 @@ class PromptQueue:
             if offset < 0 and max_items is not None:
                 offset = max(0, len(history_keys) - max_items)
 
-            # Use slice to get the desired range
             end_index = offset + max_items if max_items is not None else None
             selected_keys = history_keys[offset:end_index]
 
-            # Build history items with prompt_id field
             history_items = []
             for key in selected_keys:
-                # Deep copy the history entry to avoid modifying the original
                 history_entry = copy.deepcopy(self.history[key])
                 
-                # Extract and filter prompt data
                 if "prompt" in history_entry:
                     priority, prompt_id, _, extra_data, _ = history_entry["prompt"]
-                    # Remove workflow from extra_pnginfo (safe to modify since we deepcopied)
                     if "extra_pnginfo" in extra_data:
                         extra_data["extra_pnginfo"].pop("workflow", None)
                     filtered_prompt = {
@@ -1178,7 +1174,6 @@ class PromptQueue:
                 else:
                     filtered_prompt = None
                 
-                # Create lightweight history response
                 item = {
                     "prompt_id": key,
                     "outputs": history_entry.get("outputs", {}),
@@ -1198,7 +1193,8 @@ class PromptQueue:
 
     def get_history_v2(self, prompt_id):
         """
-        Retrieves execution history for a specific prompt ID in v2 format.
+        Retrieves execution history for a specific prompt ID.
+        Used by /history_v2/:prompt_id
         
         API Output Structure:
         {
@@ -1226,7 +1222,6 @@ class PromptQueue:
             if prompt_id in self.history:
                 history_entry = copy.deepcopy(self.history[prompt_id])
                 
-                # Extract and convert prompt tuple to dict
                 if "prompt" in history_entry:
                     priority, prompt_id_inner, prompt_data, extra_data, outputs_to_execute = history_entry["prompt"]
                     history_entry["prompt"] = {
