@@ -1,5 +1,5 @@
-from comfy.cldm.control_types import UNION_CONTROLNET_TYPES
 import comfy.utils
+from comfy.cldm.control_types import UNION_CONTROLNET_TYPES
 from comfy_api.v3 import io
 
 
@@ -27,11 +27,13 @@ class ControlNetApplyAdvanced_V3(io.ComfyNodeV3):
         )
 
     @classmethod
-    def execute(cls, positive, negative, control_net, image, strength, start_percent, end_percent, vae=None, extra_concat=[]) -> io.NodeOutput:
+    def execute(
+        cls, positive, negative, control_net, image, strength, start_percent, end_percent, vae=None, extra_concat=[]
+    ) -> io.NodeOutput:
         if strength == 0:
             return io.NodeOutput(positive, negative)
 
-        control_hint = image.movedim(-1,1)
+        control_hint = image.movedim(-1, 1)
         cnets = {}
 
         out = []
@@ -40,16 +42,18 @@ class ControlNetApplyAdvanced_V3(io.ComfyNodeV3):
             for t in conditioning:
                 d = t[1].copy()
 
-                prev_cnet = d.get('control', None)
+                prev_cnet = d.get("control", None)
                 if prev_cnet in cnets:
                     c_net = cnets[prev_cnet]
                 else:
-                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent), vae=vae, extra_concat=extra_concat)
+                    c_net = control_net.copy().set_cond_hint(
+                        control_hint, strength, (start_percent, end_percent), vae=vae, extra_concat=extra_concat
+                    )
                     c_net.set_previous_controlnet(prev_cnet)
                     cnets[prev_cnet] = c_net
 
-                d['control'] = c_net
-                d['control_apply_to_uncond'] = False
+                d["control"] = c_net
+                d["control_apply_to_uncond"] = False
                 n = [t[0], d]
                 c.append(n)
             out.append(c)
@@ -107,7 +111,9 @@ class ControlNetInpaintingAliMamaApply_V3(ControlNetApplyAdvanced_V3):
         )
 
     @classmethod
-    def execute(cls, positive, negative, control_net, vae, image, mask, strength, start_percent, end_percent) -> io.NodeOutput:
+    def execute(
+        cls, positive, negative, control_net, vae, image, mask, strength, start_percent, end_percent
+    ) -> io.NodeOutput:
         extra_concat = []
         if control_net.concat_mask:
             mask = 1.0 - mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
@@ -115,7 +121,17 @@ class ControlNetInpaintingAliMamaApply_V3(ControlNetApplyAdvanced_V3):
             image = image * mask_apply.movedim(1, -1).repeat(1, 1, 1, image.shape[3])
             extra_concat = [mask]
 
-        return super().execute(positive, negative, control_net, image, strength, start_percent, end_percent, vae=vae, extra_concat=extra_concat)
+        return super().execute(
+            positive,
+            negative,
+            control_net,
+            image,
+            strength,
+            start_percent,
+            end_percent,
+            vae=vae,
+            extra_concat=extra_concat,
+        )
 
 
 NODES_LIST: list[type[io.ComfyNodeV3]] = [
