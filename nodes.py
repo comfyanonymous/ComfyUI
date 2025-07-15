@@ -2299,9 +2299,11 @@ def init_builtin_extra_nodes():
         "nodes_tcfg.py",
         "nodes_v3_test.py",
         "nodes_v1_test.py",
+        "v3/nodes_audio.py",
         "v3/nodes_controlnet.py",
         "v3/nodes_images.py",
         "v3/nodes_mask.py",
+        "v3/nodes_primitive.py",
         "v3/nodes_webcam.py",
         "v3/nodes_stable_cascade.py",
     ]

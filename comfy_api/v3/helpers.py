@@ -1,4 +1,4 @@
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 
 def first_real_override(cls: type, name: str, *, base: type) -> Optional[Callable]:

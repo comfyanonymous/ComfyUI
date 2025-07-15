@@ -1,27 +1,30 @@
 from __future__ import annotations
-from typing import Any, Literal, TypeVar, Callable, TypedDict
-from typing_extensions import NotRequired
-from enum import Enum
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, asdict
-from collections import Counter
-from comfy_execution.graph import ExecutionBlocker
-from comfy_api.internal import ComfyNodeInternal
-from comfy_api.v3.resources import Resources, ResourcesLocal
+
 import copy
+from abc import ABC, abstractmethod
+from collections import Counter
+from dataclasses import asdict, dataclass
+from enum import Enum
+from typing import Any, Callable, Literal, TypedDict, TypeVar
+
 # used for type hinting
 import torch
 from spandrel import ImageModelDescriptor
-from comfy.model_patcher import ModelPatcher
-from comfy.samplers import Sampler, CFGGuider
-from comfy.sd import CLIP
-from comfy.controlnet import ControlNet
-from comfy.sd import VAE
-from comfy.sd import StyleModel as StyleModel_
+from typing_extensions import NotRequired
+
 from comfy.clip_vision import ClipVisionModel
 from comfy.clip_vision import Output as ClipVisionOutput_
-from comfy_api.input import VideoInput
+from comfy.controlnet import ControlNet
 from comfy.hooks import HookGroup, HookKeyframeGroup
+from comfy.model_patcher import ModelPatcher
+from comfy.samplers import CFGGuider, Sampler
+from comfy.sd import CLIP, VAE
+from comfy.sd import StyleModel as StyleModel_
+from comfy_api.input import VideoInput
+from comfy_api.internal import ComfyNodeInternal
+from comfy_api.v3.resources import Resources, ResourcesLocal
+from comfy_execution.graph import ExecutionBlocker
+
 # from comfy_extras.nodes_images import SVG as SVG_ # NOTE: needs to be moved before can be imported due to circular reference
 
 
@@ -1191,7 +1194,7 @@ class ComfyNodeV3(ComfyNodeInternal):
 
     @classmethod
     def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
-        schema = cls.GET_SCHEMA()
+        # schema = cls.GET_SCHEMA()
         # TODO: finish
         return None
 
@@ -1237,84 +1240,84 @@ class ComfyNodeV3(ComfyNodeInternal):
     #--------------------------------------------
     _DESCRIPTION = None
     @classproperty
-    def DESCRIPTION(cls):
+    def DESCRIPTION(cls):  # noqa
         if cls._DESCRIPTION is None:
             cls.GET_SCHEMA()
         return cls._DESCRIPTION
 
     _CATEGORY = None
     @classproperty
-    def CATEGORY(cls):
+    def CATEGORY(cls):  # noqa
         if cls._CATEGORY is None:
             cls.GET_SCHEMA()
         return cls._CATEGORY
 
     _EXPERIMENTAL = None
     @classproperty
-    def EXPERIMENTAL(cls):
+    def EXPERIMENTAL(cls):  # noqa
         if cls._EXPERIMENTAL is None:
             cls.GET_SCHEMA()
         return cls._EXPERIMENTAL
 
     _DEPRECATED = None
     @classproperty
-    def DEPRECATED(cls):
+    def DEPRECATED(cls):  # noqa
         if cls._DEPRECATED is None:
             cls.GET_SCHEMA()
         return cls._DEPRECATED
 
     _API_NODE = None
     @classproperty
-    def API_NODE(cls):
+    def API_NODE(cls):  # noqa
         if cls._API_NODE is None:
             cls.GET_SCHEMA()
         return cls._API_NODE
 
     _OUTPUT_NODE = None
     @classproperty
-    def OUTPUT_NODE(cls):
+    def OUTPUT_NODE(cls):  # noqa
         if cls._OUTPUT_NODE is None:
             cls.GET_SCHEMA()
         return cls._OUTPUT_NODE
 
     _INPUT_IS_LIST = None
     @classproperty
-    def INPUT_IS_LIST(cls):
+    def INPUT_IS_LIST(cls):  # noqa
         if cls._INPUT_IS_LIST is None:
             cls.GET_SCHEMA()
         return cls._INPUT_IS_LIST
     _OUTPUT_IS_LIST = None
 
     @classproperty
-    def OUTPUT_IS_LIST(cls):
+    def OUTPUT_IS_LIST(cls):  # noqa
         if cls._OUTPUT_IS_LIST is None:
             cls.GET_SCHEMA()
         return cls._OUTPUT_IS_LIST
 
     _RETURN_TYPES = None
     @classproperty
-    def RETURN_TYPES(cls):
+    def RETURN_TYPES(cls):  # noqa
         if cls._RETURN_TYPES is None:
             cls.GET_SCHEMA()
         return cls._RETURN_TYPES
 
     _RETURN_NAMES = None
     @classproperty
-    def RETURN_NAMES(cls):
+    def RETURN_NAMES(cls):  # noqa
         if cls._RETURN_NAMES is None:
             cls.GET_SCHEMA()
         return cls._RETURN_NAMES
 
     _OUTPUT_TOOLTIPS = None
     @classproperty
-    def OUTPUT_TOOLTIPS(cls):
+    def OUTPUT_TOOLTIPS(cls):  # noqa
         if cls._OUTPUT_TOOLTIPS is None:
             cls.GET_SCHEMA()
         return cls._OUTPUT_TOOLTIPS
 
     _NOT_IDEMPOTENT = None
     @classproperty
-    def NOT_IDEMPOTENT(cls):
+    def NOT_IDEMPOTENT(cls):  # noqa
         if cls._NOT_IDEMPOTENT is None:
             cls.GET_SCHEMA()
         return cls._NOT_IDEMPOTENT
@@ -1494,36 +1497,36 @@ class TestNode(ComfyNodeV3):
     def execute(cls, **kwargs):
         pass
 
-if __name__ == "__main__":
-    print("hello there")
-    inputs: list[InputV3] = [
-        Int.Input("tessfes", widgetType=String.io_type),
-        Int.Input("my_int"),
-        Custom("XYZ").Input("xyz"),
-        Custom("MODEL_M").Input("model1"),
-        Image.Input("my_image"),
-        Float.Input("my_float"),
-        MultiType.Input("my_inputs", [String, Custom("MODEL_M"), Custom("XYZ")]),
-    ]
-    Custom("XYZ").Input()
-    outputs: list[OutputV3] = [
-        Image.Output("image"),
-        Custom("XYZ").Output("xyz"),
-    ]
-
-    for c in inputs:
-        if isinstance(c, MultiType):
-            print(f"{c}, {type(c)}, {type(c).io_type}, {c.id}, {[x.io_type for x in c.io_types]}")
-            print(c.get_io_type_V1())
-        else:
-            print(f"{c}, {type(c)}, {type(c).io_type}, {c.id}")
-
-    for c in outputs:
-        print(f"{c}, {type(c)}, {type(c).io_type}, {c.id}")
-
-    zz = TestNode()
-    print(zz.GET_NODE_INFO_V1())
-
-    # aa = NodeInfoV1()
-    # print(asdict(aa))
-    # print(as_pruned_dict(aa))
+# if __name__ == "__main__":
+#     print("hello there")
+#     inputs: list[InputV3] = [
+#         Int.Input("tessfes", widgetType=String.io_type),
+#         Int.Input("my_int"),
+#         Custom("XYZ").Input("xyz"),
+#         Custom("MODEL_M").Input("model1"),
+#         Image.Input("my_image"),
+#         Float.Input("my_float"),
+#         MultiType.Input("my_inputs", [String, Custom("MODEL_M"), Custom("XYZ")]),
+#     ]
+#     Custom("XYZ").Input()
+#     outputs: list[OutputV3] = [
+#         Image.Output("image"),
+#         Custom("XYZ").Output("xyz"),
+#     ]
+#
+#     for c in inputs:
+#         if isinstance(c, MultiType):
+#             print(f"{c}, {type(c)}, {type(c).io_type}, {c.id}, {[x.io_type for x in c.io_types]}")
+#             print(c.get_io_type_V1())
+#         else:
+#             print(f"{c}, {type(c)}, {type(c).io_type}, {c.id}")
+#
+#     for c in outputs:
+#         print(f"{c}, {type(c)}, {type(c).io_type}, {c.id}")
+#
+#     zz = TestNode()
+#     print(zz.GET_NODE_INFO_V1())
+#
+#     # aa = NodeInfoV1()
+#     # print(asdict(aa))
+#     # print(as_pruned_dict(aa))
