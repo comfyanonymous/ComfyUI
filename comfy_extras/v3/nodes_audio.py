@@ -65,14 +65,14 @@ class EmptyLatentAudio_V3(io.ComfyNodeV3):
     def execute(cls, seconds, batch_size) -> io.NodeOutput:
         length = round((seconds * 44100 / 2048) / 2) * 2
         latent = torch.zeros([batch_size, 64, length], device=comfy.model_management.intermediate_device())
-        return io.NodeOutput({"samples":latent, "type": "audio"})
+        return io.NodeOutput({"samples": latent, "type": "audio"})
 
 
 class LoadAudio_V3(io.ComfyNodeV3):
     @classmethod
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
-            node_id="LoadAudio_V3",         # frontend expects "LoadAudio" to work
+            node_id="LoadAudio_V3",  # frontend expects "LoadAudio" to work
             display_name="Load Audio _V3",  # frontend ignores "display_name" for this node
             category="audio",
             inputs=[
@@ -110,7 +110,7 @@ class PreviewAudio_V3(io.ComfyNodeV3):
     @classmethod
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
-            node_id="PreviewAudio_V3",         # frontend expects "PreviewAudio" to work
+            node_id="PreviewAudio_V3",  # frontend expects "PreviewAudio" to work
             display_name="Preview Audio _V3",  # frontend ignores "display_name" for this node
             category="audio",
             inputs=[
@@ -129,7 +129,7 @@ class SaveAudioMP3_V3(io.ComfyNodeV3):
     @classmethod
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
-            node_id="SaveAudioMP3_V3",           # frontend expects "SaveAudioMP3" to work
+            node_id="SaveAudioMP3_V3",  # frontend expects "SaveAudioMP3" to work
             display_name="Save Audio(MP3) _V3",  # frontend ignores "display_name" for this node
             category="audio",
             inputs=[
@@ -150,7 +150,7 @@ class SaveAudioOpus_V3(io.ComfyNodeV3):
     @classmethod
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
-            node_id="SaveAudioOpus_V3",           # frontend expects "SaveAudioOpus" to work
+            node_id="SaveAudioOpus_V3",  # frontend expects "SaveAudioOpus" to work
             display_name="Save Audio(Opus) _V3",  # frontend ignores "display_name" for this node
             category="audio",
             inputs=[
@@ -171,7 +171,7 @@ class SaveAudio_V3(io.ComfyNodeV3):
     @classmethod
     def DEFINE_SCHEMA(cls):
         return io.SchemaV3(
-            node_id="SaveAudio_V3",         # frontend expects "SaveAudio" to work
+            node_id="SaveAudio_V3",  # frontend expects "SaveAudio" to work
             display_name="Save Audio _V3",  # frontend ignores "display_name" for this node
             category="audio",
             inputs=[
@@ -203,7 +203,7 @@ class VAEDecodeAudio_V3(io.ComfyNodeV3):
     @classmethod
     def execute(cls, vae, samples) -> io.NodeOutput:
         audio = vae.decode(samples["samples"]).movedim(-1, 1)
-        std = torch.std(audio, dim=[1,2], keepdim=True) * 5.0
+        std = torch.std(audio, dim=[1, 2], keepdim=True) * 5.0
         std[std < 1.0] = 1.0
         audio /= std
         return io.NodeOutput({"waveform": audio, "sample_rate": 44100})
@@ -250,7 +250,7 @@ def _save_audio(cls, audio, filename_prefix="ComfyUI", format="flac", quality="1
     OPUS_RATES = [8000, 12000, 16000, 24000, 48000]
 
     results = []
-    for (batch_number, waveform) in enumerate(audio["waveform"].cpu()):
+    for batch_number, waveform in enumerate(audio["waveform"].cpu()):
         filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
         file = f"{filename_with_batch_num}_{counter:05}_.{format}"
         output_path = os.path.join(full_output_folder, file)
@@ -277,7 +277,7 @@ def _save_audio(cls, audio, filename_prefix="ComfyUI", format="flac", quality="1
 
         # Create output with specified format
         output_buffer = BytesIO()
-        output_container = av.open(output_buffer, mode='w', format=format)
+        output_container = av.open(output_buffer, mode="w", format=format)
 
         # Set metadata on the container
         for key, value in metadata.items():
@@ -299,19 +299,19 @@ def _save_audio(cls, audio, filename_prefix="ComfyUI", format="flac", quality="1
         elif format == "mp3":
             out_stream = output_container.add_stream("libmp3lame", rate=sample_rate)
             if quality == "V0":
-                #TODO i would really love to support V3 and V5 but there doesn't seem to be a way to set the qscale level, the property below is a bool
+                # TODO i would really love to support V3 and V5 but there doesn't seem to be a way to set the qscale level, the property below is a bool
                 out_stream.codec_context.qscale = 1
             elif quality == "128k":
                 out_stream.bit_rate = 128000
             elif quality == "320k":
                 out_stream.bit_rate = 320000
-        else: # format == "flac":
+        else:  # format == "flac":
             out_stream = output_container.add_stream("flac", rate=sample_rate)
 
         frame = av.AudioFrame.from_ndarray(
             waveform.movedim(0, 1).reshape(1, -1).float().numpy(),
-            format='flt',
-            layout='mono' if waveform.shape[0] == 1 else 'stereo',
+            format="flt",
+            layout="mono" if waveform.shape[0] == 1 else "stereo",
         )
         frame.sample_rate = sample_rate
         frame.pts = 0
@@ -325,7 +325,7 @@ def _save_audio(cls, audio, filename_prefix="ComfyUI", format="flac", quality="1
 
         # Write the output to file
         output_buffer.seek(0)
-        with open(output_path, 'wb') as f:
+        with open(output_path, "wb") as f:
             f.write(output_buffer.getbuffer())
 
         results.append(ui.SavedResult(file, subfolder, io.FolderType.output))

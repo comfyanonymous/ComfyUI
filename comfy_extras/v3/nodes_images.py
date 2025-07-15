@@ -1,16 +1,16 @@
+import hashlib
 import json
 import os
-import torch
-import hashlib
 
 import numpy as np
+import torch
 from PIL import Image, ImageOps, ImageSequence
 from PIL.PngImagePlugin import PngInfo
 
-from comfy_api.v3 import io, ui
-from comfy.cli_args import args
 import folder_paths
 import node_helpers
+from comfy.cli_args import args
+from comfy_api.v3 import io, ui
 
 
 class SaveImage_V3(io.ComfyNodeV3):
@@ -29,7 +29,8 @@ class SaveImage_V3(io.ComfyNodeV3):
                 io.String.Input(
                     "filename_prefix",
                     default="ComfyUI",
-                    tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes.",
+                    tooltip="The prefix for the file to save. This may include formatting information "
+                    "such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes.",
                 ),
             ],
             hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
@@ -42,8 +43,8 @@ class SaveImage_V3(io.ComfyNodeV3):
             filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
         )
         results = []
-        for (batch_number, image) in enumerate(images):
-            i = 255. * image.cpu().numpy()
+        for batch_number, image in enumerate(images):
+            i = 255.0 * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             metadata = None
             if not args.disable_metadata:
@@ -82,13 +83,13 @@ class SaveAnimatedPNG_V3(io.ComfyNodeV3):
 
     @classmethod
     def execute(cls, images, fps, compress_level, filename_prefix="ComfyUI") -> io.NodeOutput:
-        full_output_folder, filename, counter, subfolder, filename_prefix = (
-            folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0])
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
         )
         results = []
         pil_images = []
         for image in images:
-            img = Image.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8))
+            img = Image.fromarray(np.clip(255.0 * image.cpu().numpy(), 0, 255).astype(np.uint8))
             pil_images.append(img)
 
         metadata = None
@@ -96,19 +97,34 @@ class SaveAnimatedPNG_V3(io.ComfyNodeV3):
             metadata = PngInfo()
             if cls.hidden.prompt is not None:
                 metadata.add(
-                    b"comf", "prompt".encode("latin-1", "strict") + b"\0" + json.dumps(cls.hidden.prompt).encode("latin-1", "strict"), after_idat=True
+                    b"comf",
+                    "prompt".encode("latin-1", "strict")
+                    + b"\0"
+                    + json.dumps(cls.hidden.prompt).encode("latin-1", "strict"),
+                    after_idat=True,
                 )
             if cls.hidden.extra_pnginfo is not None:
                 for x in cls.hidden.extra_pnginfo:
                     metadata.add(
-                        b"comf", x.encode("latin-1", "strict") + b"\0" + json.dumps(cls.hidden.extra_pnginfo[x]).encode("latin-1", "strict"), after_idat=True
+                        b"comf",
+                        x.encode("latin-1", "strict")
+                        + b"\0"
+                        + json.dumps(cls.hidden.extra_pnginfo[x]).encode("latin-1", "strict"),
+                        after_idat=True,
                     )
 
         file = f"{filename}_{counter:05}_.png"
-        pil_images[0].save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=compress_level, save_all=True, duration=int(1000.0/fps), append_images=pil_images[1:])
+        pil_images[0].save(
+            os.path.join(full_output_folder, file),
+            pnginfo=metadata,
+            compress_level=compress_level,
+            save_all=True,
+            duration=int(1000.0 / fps),
+            append_images=pil_images[1:],
+        )
         results.append(ui.SavedResult(file, subfolder, io.FolderType.output))
 
-        return io.NodeOutput(ui={"images": results, "animated": (True,) })
+        return io.NodeOutput(ui={"images": results, "animated": (True,)})
 
 
 class SaveAnimatedWEBP_V3(io.ComfyNodeV3):
@@ -136,11 +152,13 @@ class SaveAnimatedWEBP_V3(io.ComfyNodeV3):
     @classmethod
     def execute(cls, images, fps, filename_prefix, lossless, quality, method, num_frames=0) -> io.NodeOutput:
         method = cls.COMPRESS_METHODS.get(method)
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0])
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
+        )
         results = []
         pil_images = []
         for image in images:
-            img = Image.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8))
+            img = Image.fromarray(np.clip(255.0 * image.cpu().numpy(), 0, 255).astype(np.uint8))
             pil_images.append(img)
 
         metadata = pil_images[0].getexif()
@@ -148,7 +166,7 @@ class SaveAnimatedWEBP_V3(io.ComfyNodeV3):
             if cls.hidden.prompt is not None:
                 metadata[0x0110] = "prompt:{}".format(json.dumps(cls.hidden.prompt))
             if cls.hidden.extra_pnginfo is not None:
-                inital_exif = 0x010f
+                inital_exif = 0x010F
                 for x in cls.hidden.extra_pnginfo:
                     metadata[inital_exif] = "{}:{}".format(x, json.dumps(cls.hidden.extra_pnginfo[x]))
                     inital_exif -= 1
@@ -160,8 +178,9 @@ class SaveAnimatedWEBP_V3(io.ComfyNodeV3):
             file = f"{filename}_{counter:05}_.webp"
             pil_images[i].save(
                 os.path.join(full_output_folder, file),
-                save_all=True, duration=int(1000.0/fps),
-                append_images=pil_images[i + 1:i + num_frames],
+                save_all=True,
+                duration=int(1000.0 / fps),
+                append_images=pil_images[i + 1 : i + num_frames],
                 exif=metadata,
                 lossless=lossless,
                 quality=quality,
@@ -228,12 +247,12 @@ class LoadImage_V3(io.ComfyNodeV3):
         output_masks = []
         w, h = None, None
 
-        excluded_formats = ['MPO']
+        excluded_formats = ["MPO"]
 
         for i in ImageSequence.Iterator(img):
             i = node_helpers.pillow(ImageOps.exif_transpose, i)
 
-            if i.mode == 'I':
+            if i.mode == "I":
                 i = i.point(lambda i: i * (1 / 255))
             image = i.convert("RGB")
 
@@ -246,14 +265,14 @@ class LoadImage_V3(io.ComfyNodeV3):
 
             image = np.array(image).astype(np.float32) / 255.0
             image = torch.from_numpy(image)[None,]
-            if 'A' in i.getbands():
-                mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
-                mask = 1. - torch.from_numpy(mask)
-            elif i.mode == 'P' and 'transparency' in i.info:
-                mask = np.array(i.convert('RGBA').getchannel('A')).astype(np.float32) / 255.0
-                mask = 1. - torch.from_numpy(mask)
+            if "A" in i.getbands():
+                mask = np.array(i.getchannel("A")).astype(np.float32) / 255.0
+                mask = 1.0 - torch.from_numpy(mask)
+            elif i.mode == "P" and "transparency" in i.info:
+                mask = np.array(i.convert("RGBA").getchannel("A")).astype(np.float32) / 255.0
+                mask = 1.0 - torch.from_numpy(mask)
             else:
-                mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
+                mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
             output_images.append(image)
             output_masks.append(mask.unsqueeze(0))
 
@@ -270,7 +289,7 @@ class LoadImage_V3(io.ComfyNodeV3):
     def fingerprint_inputs(s, image):
         image_path = folder_paths.get_annotated_filepath(image)
         m = hashlib.sha256()
-        with open(image_path, 'rb') as f:
+        with open(image_path, "rb") as f:
             m.update(f.read())
         return m.digest().hex()
 
@@ -288,8 +307,8 @@ class LoadImageOutput_V3(io.ComfyNodeV3):
             node_id="LoadImageOutput_V3",
             display_name="Load Image (from Outputs) _V3",
             description="Load an image from the output folder. "
-                        "When the refresh button is clicked, the node will update the image list "
-                        "and automatically select the first image, allowing for easy iteration.",
+            "When the refresh button is clicked, the node will update the image list "
+            "and automatically select the first image, allowing for easy iteration.",
             category="image",
             inputs=[
                 io.Combo.Input(
@@ -317,12 +336,12 @@ class LoadImageOutput_V3(io.ComfyNodeV3):
         output_masks = []
         w, h = None, None
 
-        excluded_formats = ['MPO']
+        excluded_formats = ["MPO"]
 
         for i in ImageSequence.Iterator(img):
             i = node_helpers.pillow(ImageOps.exif_transpose, i)
 
-            if i.mode == 'I':
+            if i.mode == "I":
                 i = i.point(lambda i: i * (1 / 255))
             image = i.convert("RGB")
 
@@ -335,12 +354,12 @@ class LoadImageOutput_V3(io.ComfyNodeV3):
 
             image = np.array(image).astype(np.float32) / 255.0
             image = torch.from_numpy(image)[None,]
-            if 'A' in i.getbands():
-                mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
-                mask = 1. - torch.from_numpy(mask)
-            elif i.mode == 'P' and 'transparency' in i.info:
-                mask = np.array(i.convert('RGBA').getchannel('A')).astype(np.float32) / 255.0
-                mask = 1. - torch.from_numpy(mask)
+            if "A" in i.getbands():
+                mask = np.array(i.getchannel("A")).astype(np.float32) / 255.0
+                mask = 1.0 - torch.from_numpy(mask)
+            elif i.mode == "P" and "transparency" in i.info:
+                mask = np.array(i.convert("RGBA").getchannel("A")).astype(np.float32) / 255.0
+                mask = 1.0 - torch.from_numpy(mask)
             else:
                 mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
             output_images.append(image)
@@ -359,7 +378,7 @@ class LoadImageOutput_V3(io.ComfyNodeV3):
     def fingerprint_inputs(s, image):
         image_path = folder_paths.get_annotated_filepath(image)
         m = hashlib.sha256()
-        with open(image_path, 'rb') as f:
+        with open(image_path, "rb") as f:
             m.update(f.read())
         return m.digest().hex()
 
