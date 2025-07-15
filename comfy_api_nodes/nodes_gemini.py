@@ -406,7 +406,7 @@ class GeminiInputFiles(ComfyNodeABC):
 
     def create_file_part(self, file_path: str) -> GeminiPart:
         mime_type = (
-            GeminiMimeType.pdf
+            GeminiMimeType.application_pdf
             if file_path.endswith(".pdf")
             else GeminiMimeType.text_plain
         )
