@@ -390,19 +390,19 @@ class String(ComfyTypeIO):
     class Input(WidgetInputV3):
         '''String input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                    multiline=False, placeholder: str=None, default: str=None, dynamicPrompts: bool=None,
+                    multiline=False, placeholder: str=None, default: str=None, dynamic_prompts: bool=None,
                     socketless: bool=None, force_input: bool=None):
             super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input)
             self.multiline = multiline
             self.placeholder = placeholder
-            self.dynamicPrompts = dynamicPrompts
+            self.dynamic_prompts = dynamic_prompts
             self.default: str
 
         def as_dict_V1(self):
             return super().as_dict_V1() | prune_dict({
                 "multiline": self.multiline,
                 "placeholder": self.placeholder,
-                "dynamicPrompts": self.dynamicPrompts,
+                "dynamicPrompts": self.dynamic_prompts,
             })
 
 @comfytype(io_type="COMBO")
