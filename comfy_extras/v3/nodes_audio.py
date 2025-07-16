@@ -18,7 +18,7 @@ from comfy_api.v3 import io, ui
 
 class ConditioningStableAudio_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="ConditioningStableAudio_V3",
             category="conditioning",
@@ -48,7 +48,7 @@ class ConditioningStableAudio_V3(io.ComfyNodeV3):
 
 class EmptyLatentAudio_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="EmptyLatentAudio_V3",
             category="latent/audio",
@@ -70,7 +70,7 @@ class EmptyLatentAudio_V3(io.ComfyNodeV3):
 
 class LoadAudio_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="LoadAudio_V3",  # frontend expects "LoadAudio" to work
             display_name="Load Audio _V3",  # frontend ignores "display_name" for this node
@@ -108,7 +108,7 @@ class LoadAudio_V3(io.ComfyNodeV3):
 
 class PreviewAudio_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="PreviewAudio_V3",  # frontend expects "PreviewAudio" to work
             display_name="Preview Audio _V3",  # frontend ignores "display_name" for this node
@@ -127,7 +127,7 @@ class PreviewAudio_V3(io.ComfyNodeV3):
 
 class SaveAudioMP3_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="SaveAudioMP3_V3",  # frontend expects "SaveAudioMP3" to work
             display_name="Save Audio(MP3) _V3",  # frontend ignores "display_name" for this node
@@ -148,7 +148,7 @@ class SaveAudioMP3_V3(io.ComfyNodeV3):
 
 class SaveAudioOpus_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="SaveAudioOpus_V3",  # frontend expects "SaveAudioOpus" to work
             display_name="Save Audio(Opus) _V3",  # frontend ignores "display_name" for this node
@@ -169,7 +169,7 @@ class SaveAudioOpus_V3(io.ComfyNodeV3):
 
 class SaveAudio_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="SaveAudio_V3",  # frontend expects "SaveAudio" to work
             display_name="Save Audio _V3",  # frontend ignores "display_name" for this node
@@ -189,7 +189,7 @@ class SaveAudio_V3(io.ComfyNodeV3):
 
 class VAEDecodeAudio_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="VAEDecodeAudio_V3",
             category="latent/audio",
@@ -211,7 +211,7 @@ class VAEDecodeAudio_V3(io.ComfyNodeV3):
 
 class VAEEncodeAudio_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="VAEEncodeAudio_V3",
             category="latent/audio",
