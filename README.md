@@ -886,7 +886,7 @@ usage: comfyui.exe [-h] [-c CONFIG_FILE]
                    [--reserve-vram RESERVE_VRAM] [--async-offload]
                    [--default-hashing-function {md5,sha1,sha256,sha512}]
                    [--disable-smart-memory] [--deterministic]
-                   [--fast [FAST ...]] [--mmap-torch-files]
+                   [--fast [FAST ...]] [--mmap-torch-files] [--disable-mmap]
                    [--dont-print-server] [--quick-test-for-ci]
                    [--windows-standalone-build] [--disable-metadata]
                    [--disable-all-custom-nodes]
@@ -1121,6 +1121,8 @@ options:
                         fp8_matrix_mult cublas_ops [env var: COMFYUI_FAST]
   --mmap-torch-files    Use mmap when loading ckpt/pt files. [env var:
                         COMFYUI_MMAP_TORCH_FILES]
+  --disable-mmap        Don't use mmap when loading safetensors. [env var:
+                        COMFYUI_DISABLE_MMAP]
   --dont-print-server   Don't print server output. [env var:
                         COMFYUI_DONT_PRINT_SERVER]
   --quick-test-for-ci   Quick test for CI. Raises an error if nodes cannot be
