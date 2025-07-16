@@ -101,6 +101,7 @@ def copy_class(cls: type) -> type:
 class NumberDisplay(str, Enum):
     number = "number"
     slider = "slider"
+    color = "color"
 
 
 class ComfyType(ABC):
@@ -354,7 +355,7 @@ class Int(ComfyTypeIO):
                 "max": self.max,
                 "step": self.step,
                 "control_after_generate": self.control_after_generate,
-                "display": self.display_mode,
+                "display": self.display_mode.value if self.display_name else None,
             })
 
 @comfytype(io_type="FLOAT")
