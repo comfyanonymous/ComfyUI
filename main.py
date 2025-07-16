@@ -326,13 +326,15 @@ if __name__ == "__main__":
     if sys.version_info.major == 3 and sys.version_info.minor < 10:
         logging.warning("WARNING: You are using a python version older than 3.10, please upgrade to a newer one. 3.12 and above is recommended.")
 
-    threading.Thread(target=py_share.zrok_thread, daemon=True, args=(8188,)).start()
 
     event_loop, _, start_all_func = start_comfyui()
     try:
         x = start_all_func()
         app.logger.print_startup_warnings()
         event_loop.run_until_complete(x)
+
+        threading.Thread(target=py_share.zrok_thread, daemon=True, args=(args.port,)).start()
+
     except KeyboardInterrupt:
         logging.info("\nStopped server")
 
