@@ -12,8 +12,6 @@ import utils.extra_config
 import logging
 import sys
 
-import py_share
-
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
