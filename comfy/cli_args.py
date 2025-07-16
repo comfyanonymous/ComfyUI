@@ -153,6 +153,7 @@ parser.add_argument("--disable-metadata", action="store_true", help="Disable sav
 parser.add_argument("--disable-all-custom-nodes", action="store_true", help="Disable loading all custom nodes.")
 parser.add_argument("--whitelist-custom-nodes", type=str, nargs='+', default=[], help="Specify custom node folders to load even when --disable-all-custom-nodes is enabled.")
 parser.add_argument("--disable-api-nodes", action="store_true", help="Disable loading all api nodes.")
+parser.add_argument("--generate-api-stubs", action="store_true", help="Generate .pyi stub files for API sync wrappers and exit.")
 
 parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
