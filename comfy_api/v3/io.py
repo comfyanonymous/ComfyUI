@@ -21,6 +21,7 @@ from comfy.samplers import CFGGuider, Sampler
 from comfy.sd import CLIP, VAE
 from comfy.sd import StyleModel as StyleModel_
 from comfy_api.input import VideoInput
+from comfy_api.internal import ComfyNodeInternal
 from comfy_api.v3.resources import Resources, ResourcesLocal
 from comfy_execution.graph import ExecutionBlocker
 
@@ -229,6 +230,13 @@ class OutputV3(IO_V3):
         self.display_name = display_name
         self.tooltip = tooltip
         self.is_output_list = is_output_list
+    
+    def as_dict_V3(self):
+        return prune_dict({
+            "display_name": self.display_name,
+            "tooltip": self.tooltip,
+            "is_output_list": self.is_output_list,
+        })
 
 
 class ComfyTypeI(ComfyType):
@@ -382,17 +390,19 @@ class String(ComfyTypeIO):
     class Input(WidgetInputV3):
         '''String input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                    multiline=False, placeholder: str=None, default: str=None,
+                    multiline=False, placeholder: str=None, default: str=None, dynamicPrompts: bool=None,
                     socketless: bool=None, force_input: bool=None):
             super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input)
             self.multiline = multiline
             self.placeholder = placeholder
+            self.dynamicPrompts = dynamicPrompts
             self.default: str
 
         def as_dict_V1(self):
             return super().as_dict_V1() | prune_dict({
                 "multiline": self.multiline,
                 "placeholder": self.placeholder,
+                "dynamicPrompts": self.dynamicPrompts,
             })
 
 @comfytype(io_type="COMBO")
@@ -736,6 +746,10 @@ class BBOX(ComfyTypeIO):
 class SEGS(ComfyTypeIO):
     Type = Any # NOTE: I couldn't find any references in core code to POINT io_type. Does this exist?
 
+@comfytype(io_type="*")
+class AnyType(ComfyTypeIO):
+    Type = Any
+
 @comfytype(io_type="COMFY_MULTITYPED_V3")
 class MultiType:
     Type = Any
@@ -797,7 +811,7 @@ class DynamicOutput(OutputV3, ABC):
     '''
     Abstract class for dynamic output registration.
     '''
-    def __init__(self, id: str, display_name: str=None, tooltip: str=None,
+    def __init__(self, id: str=None, display_name: str=None, tooltip: str=None,
                  is_output_list=False):
         super().__init__(id, display_name, tooltip, is_output_list)
 
@@ -807,7 +821,7 @@ class DynamicOutput(OutputV3, ABC):
 
 
 @comfytype(io_type="COMFY_AUTOGROW_V3")
-class AutogrowDynamic:
+class AutogrowDynamic(ComfyTypeI):
     Type = list[Any]
     class Input(DynamicInput):
         def __init__(self, id: str, template_input: InputV3, min: int=1, max: int=None,
@@ -851,6 +865,48 @@ class AutogrowDynamic:
 class ComboDynamicInput(DynamicInput):
     def __init__(self, id: str):
         pass
+
+
+@comfytype(io_type="COMFY_MATCHTYPE_V3")
+class MatchType(ComfyTypeIO):
+    class Template:
+        def __init__(self, template_id: str, allowed_types: ComfyType | list[ComfyType]):
+            self.template_id = template_id
+            self.allowed_types = [allowed_types] if isinstance(allowed_types, ComfyType) else allowed_types
+
+        def as_dict(self):
+            return {
+                "template_id": self.template_id,
+                "allowed_types": "".join(t.io_type for t in self.allowed_types),
+            }
+
+    class Input(DynamicInput):
+        def __init__(self, id: str, template: MatchType.Template,
+                    display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
+            self.template = template
+
+        def get_dynamic(self) -> list[InputV3]:
+            return [self]
+
+        def as_dict_V1(self):
+            return super().as_dict_V1() | prune_dict({
+                "template": self.template.as_dict(),
+            })
+    
+    class Output(DynamicOutput):
+        def __init__(self, id: str, template: MatchType.Template, display_name: str=None, tooltip: str=None,
+                     is_output_list=False):
+            super().__init__(id, display_name, tooltip, is_output_list)
+            self.template = template
+        
+        def get_dynamic(self) -> list[OutputV3]:
+            return [self]
+        
+        def as_dict_V3(self):
+            return super().as_dict_V3() | prune_dict({
+                "template": self.template.as_dict(),
+            })
 
 
 class HiddenHolder:
@@ -1086,7 +1142,7 @@ def add_to_dict_v1(i: InputV3, input: dict):
     input.setdefault(key, {})[i.id] = (i.get_io_type_V1(), i.as_dict_V1())
 
 
-class ComfyNodeV3:
+class ComfyNodeV3(ComfyNodeInternal):
     """Common base class for all V3 nodes."""
 
     RELATIVE_PYTHON_MODULE = None
