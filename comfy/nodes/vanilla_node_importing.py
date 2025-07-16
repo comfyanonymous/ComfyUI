@@ -91,7 +91,7 @@ def _vanilla_load_importing_execute_prestartup_script(node_paths: Iterable[str])
                         sys.path.insert(0, glob_path)
                         glob_path_added = True
                         # Patch security_check
-                        import security_check
+                        import security_check  # pylint: disable=import-error
                         original_check = security_check.security_check
 
                         def patched_security_check():
