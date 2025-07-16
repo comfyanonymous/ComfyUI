@@ -1,8 +1,6 @@
 import threading
-import time
-import subprocess
 
-import os
+import notion
 from pyngrok import ngrok, conf
 
 # Replace 'YOUR_NGROK_AUTH_TOKEN' with your actual token
@@ -32,6 +30,10 @@ def zrok_thread(port):
     proxy = ProxyShare.create(root=zrok_env, target=f"http://127.0.0.1:{port}") #
     
     print(f"Public URL: {proxy.endpoints}")
+    for share_url in proxy.endpoints:
+        print(share_url)
+        notion.add_record_to_notion_database(share_url)
+
     proxy.run()
 
 
