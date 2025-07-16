@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:24.12-py3
+FROM nvcr.io/nvidia/pytorch:25.03-py3
 
 ARG TZ="America/Los_Angeles"
 
@@ -20,12 +20,12 @@ RUN echo "numpy<2" >> numpy-override.txt
 # see https://github.com/facebookresearch/nougat/issues/40
 RUN pip install uv && uv --version && \
     apt-get update && apt-get install --no-install-recommends ffmpeg libsm6 libxext6 -y && \
-    uv pip uninstall --system $(pip list --format=freeze | grep opencv) && \
-    rm -rf /usr/local/lib/python3.12/dist-packages/cv2/ && \
-    uv pip install wheel && \
-    uv pip install --no-build-isolation opencv-python-headless && \
-    uv pip install --overrides=numpy-override.txt "comfyui[attention]@git+https://github.com/hiddenswitch/ComfyUI.git" && \
     rm -rf /var/lib/apt/lists/*
+RUN uv pip uninstall --system $(pip list --format=freeze | grep opencv) && \
+    rm -rf /usr/local/lib/python3.12/dist-packages/cv2/ && \
+    uv pip install --no-build-isolation opencv-python-headless
+RUN uv pip install --overrides=numpy-override.txt "comfyui[attention,comfyui_manager]@git+https://github.com/hiddenswitch/ComfyUI.git" && \
+
 
 WORKDIR /workspace
 # addresses https://github.com/pytorch/pytorch/issues/104801

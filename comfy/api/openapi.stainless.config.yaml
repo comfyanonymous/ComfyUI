@@ -1,0 +1,132 @@
+# yaml-language-server: $schema=https://app.stainlessapi.com/config.schema.json
+
+organization:
+  # Name of your organization or company, used to determine the name of the client
+  # and headings.
+  name: comfyui
+  docs: https://docs.comfyui.com
+  contact: dev-feedback@comfyui.com
+
+# `targets` define the output targets and their customization options, such as
+# whether to emit the Node SDK and what it's package name should be.
+targets:
+  node:
+    package_name: comfyui
+    production_repo: null
+    publish:
+      npm: false
+  python:
+    package_name: comfyui
+    production_repo: null
+    publish:
+      pypi: false
+
+# `client_settings` define settings for the API client, such as extra constructor
+# arguments (used for authentication), retry behavior, idempotency, etc.
+client_settings:
+  opts: {}
+
+# `environments` are a map of the name of the environment (e.g. "sandbox",
+# "production") to the corresponding url to use.
+environments:
+  production: http://localhost:8188
+
+# `pagination` defines [pagination schemes] which provides a template to match
+# endpoints and generate next-page and auto-pagination helpers in the SDKs.
+pagination: []
+
+# `resources` define the structure and organziation for your API, such as how
+# methods and models are grouped together and accessed. See the [configuration
+# guide] for more information.
+#
+# [configuration guide]:
+#   https://app.stainlessapi.com/docs/guides/configure#resources
+resources:
+  root:
+    # Configure the methods defined in this resource. Each key in the object is the
+    # name of the method and the value is either an endpoint (for example, `get /foo`)
+    # or an object with more detail.
+    #
+    # [reference]: https://app.stainlessapi.com/docs/reference/config#method
+    methods:
+      retrieve: get /
+
+  embeddings:
+    methods:
+      list: get /embeddings
+
+  extensions:
+    methods:
+      list: get /extensions
+
+  uploads:
+    # Subresources define resources that are nested within another for more powerful
+    # logical groupings, e.g. `cards.payments`.
+    subresources:
+      images:
+        methods:
+          upload: post /upload/image
+
+  views:
+    methods:
+      retrieve: get /view
+
+  prompts:
+    # Configure the models--named types--defined in the resource. Each key in the
+    # object is the name of the model and the value is either the name of a schema in
+    # `#/components/schemas` or an object with more detail.
+    #
+    # [reference]: https://app.stainlessapi.com/docs/reference/config#model
+    models:
+      prompt: Prompt
+      file_output: "#/components/schemas/FileOutput"
+    methods:
+      retrieve: get /api/v1/prompts/{prompt_id}
+      create: post /api/v1/prompts
+      list: get /api/v1/prompts
+
+  objects:
+    subresources:
+      info:
+        methods:
+          retrieve: get /object_info
+
+  history:
+    methods:
+      list: get /history
+      create: post /history
+
+  queues:
+    methods:
+      list: get /queue
+      create: post /queue
+
+  $client:
+    methods:
+      interrupt: post /interrupt
+      free: post /free
+
+settings:
+  license: Apache-2.0
+
+# `readme` is used to configure the code snippets that will be rendered in the
+# README.md of various SDKs. In particular, you can change the `headline`
+# snippet's endpoint and the arguments to call it with.
+readme:
+  example_requests:
+    default:
+      type: request
+      endpoint: get /object_info
+      params: &ref_0 {}
+    headline:
+      type: request
+      endpoint: get /object_info
+      params: *ref_0
+    pagination:
+      type: request
+      endpoint: get /embeddings
+      params: {}
+
+unspecified_endpoints:
+  - get /prompt
+  - post /prompt

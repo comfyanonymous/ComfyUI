@@ -18,8 +18,6 @@ classifiers = [
 ]
 
 dependencies = [
-    "torch",
-    "torchvision",
     "comfyui-frontend-package",
     "comfyui-workflow-templates",
     "comfyui-embedded-docs",
@@ -65,6 +63,7 @@ dependencies = [
     "natsort",
     "OpenEXR",
     "opentelemetry-distro",
+    "opentelemetry-sdk<1.35.0",
     "opentelemetry-exporter-otlp<=1.27.0",
     "opentelemetry-propagator-jaeger",
     "opentelemetry-instrumentation",
@@ -134,18 +133,6 @@ dev = [
     "astroid",
 ]
 
-comfyui_manager = [
-    "GitPython",
-    "PyGithub",
-    "matrix-client==0.4.0",
-    "rich",
-    "typing-extensions",
-    "toml",
-    "uv",
-    "chardet",
-    "pip",
-]
-
 [project.optional-dependencies]
 cpu = [
     "torch",
@@ -176,6 +163,18 @@ rocm = [
 attention = [
     "sageattention",
     "flash_attn ; sys_platform == 'Linux'",
+]
+
+comfyui-manager = [
+    "GitPython",
+    "PyGithub",
+    "matrix-client==0.4.0",
+    "rich",
+    "typing-extensions",
+    "toml",
+    "uv",
+    "chardet",
+    "pip",
 ]
 
 [project.scripts]
