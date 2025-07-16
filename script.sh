@@ -93,16 +93,3 @@ cd custom_nodes
 git clone https://github.com/Vander-Bilt/MyHTMLNode.git
 cd /kaggle/ComfyUI
 
-
-
-
-# pyngrok
-pip install pyngrok
-
-# zrok环境准备
-mkdir -p ~/.zrok
-cp -r /kaggle/input/zrok-env/. ~/.zrok/
-
-pip install zrok waitress
-
-

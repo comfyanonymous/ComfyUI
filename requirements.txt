@@ -21,7 +21,6 @@ tqdm
 psutil
 alembic
 SQLAlchemy
-notion-client
 
 #non essential dependencies:
 kornia>=0.7.1

@@ -333,8 +333,6 @@ if __name__ == "__main__":
         app.logger.print_startup_warnings()
         event_loop.run_until_complete(x)
 
-        threading.Thread(target=py_share.zrok_thread, daemon=True, args=(args.port,)).start()
-
     except KeyboardInterrupt:
         logging.info("\nStopped server")
 
