@@ -46,3 +46,24 @@ jobs:
         run: |
           pylint --rcfile=.pylintrc comfy/
           pylint --rcfile=.pylintrc comfy_extras/
+  build_and_execute_macos:
+    environment: "Testing"
+    name: Unit Tests for macOS
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout git repo
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install system dependencies
+        run: brew install ffmpeg
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Install ComfyUI
+        run: uv pip install '.[mps,dev]' --inexact
+      - name: Run tests
+        run: |
+          export OTEL_METRICS_EXPORTER=none
+          pytest -v tests/unit
