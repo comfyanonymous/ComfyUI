@@ -1,4 +1,0 @@
-recursive-include comfy/ *
-include requirements-dev.txt
-include requirements.txt
-include README.md
