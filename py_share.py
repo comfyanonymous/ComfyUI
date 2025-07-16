@@ -37,3 +37,4 @@ def zrok_thread(port):
 
 # threading.Thread(target=ngrok_thread, daemon=True, args=(8188,)).start()
 threading.Thread(target=zrok_thread, daemon=True, args=(8188,)).start()
+time.sleep(5)  # 观察5秒内是否有输出
