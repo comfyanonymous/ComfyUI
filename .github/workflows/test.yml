@@ -23,14 +23,8 @@ jobs:
     steps:
       - run: |
           apt-get update
+          # required for opencv
           apt-get install --no-install-recommends -y ffmpeg libsm6 libxext6
-          pip install uv && uv --version
-          apt-get purge -y
-          rm -rf /var/lib/apt/lists/*
-            
-          uv pip uninstall --system $(pip list --format=freeze | grep opencv)
-          rm -rf /usr/local/lib/python3.12/dist-packages/cv2/
-          uv pip install --no-build-isolation opencv-python-headless
         name: Prepare Python
       - run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
