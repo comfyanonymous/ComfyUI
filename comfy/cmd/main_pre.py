@@ -154,11 +154,5 @@ def _configure_logging():
 
 _configure_logging()
 _fix_pytorch_240()
-
-# explicitly disable OpenTelemetry metrics by providing a no-op MeterProvider.
-# this prevents the SDK from auto-configuring a default OTLP exporter that
-# would try to connect to localhost when no metrics configuration is present.
-set_meter_provider(MeterProvider())
-
 tracer = _create_tracer()
 __all__ = ["args", "tracer"]
