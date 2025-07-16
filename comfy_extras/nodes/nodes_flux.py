@@ -1,6 +1,6 @@
 from comfy import node_helpers
 import comfy.utils
-from comfy_extras.constants.resolutions import KONTEXT_RESOLUTIONS
+from ..constants.resolutions import KONTEXT_RESOLUTIONS
 
 
 class CLIPTextEncodeFlux:

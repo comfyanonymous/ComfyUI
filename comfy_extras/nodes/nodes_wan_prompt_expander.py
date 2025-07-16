@@ -4,7 +4,7 @@ import torch
 from comfy.language.language_types import LanguageModel
 from comfy.node_helpers import export_custom_nodes
 from comfy.nodes.package_typing import InputTypes, ValidatedNodeResult
-from comfy_extras.nodes.nodes_language import OneShotInstructTokenize, TransformersLoader
+from .nodes_language import OneShotInstructTokenize, TransformersLoader
 
 model_dict = {
     "QwenVL2.5_3B": "Qwen/Qwen2.5-VL-3B-Instruct",

@@ -7,7 +7,7 @@ from torch import Tensor
 
 from comfy.component_model.tensor_types import MaskBatch, ImageBatch
 from comfy.nodes.package_typing import CustomNode
-from comfy_extras.constants.resolutions import RESOLUTION_MAP, SD_RESOLUTIONS, RESOLUTION_NAMES
+from ..constants.resolutions import RESOLUTION_MAP, SD_RESOLUTIONS, RESOLUTION_NAMES
 
 
 class CompositeContext(NamedTuple):

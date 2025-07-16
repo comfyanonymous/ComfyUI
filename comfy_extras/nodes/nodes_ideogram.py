@@ -11,8 +11,8 @@ from PIL import Image
 from comfy.component_model.tensor_types import RGBImageBatch, MaskBatch, ImageBatch
 from comfy.nodes.package_typing import CustomNode, Seed31
 from comfy.utils import pil2tensor, tensor2pil
-from comfy_extras.constants.resolutions import IDEOGRAM_RESOLUTIONS
-from comfy_extras.nodes.nodes_mask import MaskToImage
+from ..constants.resolutions import IDEOGRAM_RESOLUTIONS
+from .nodes_mask import MaskToImage
 
 # --- ENUMs and Constants ---
 

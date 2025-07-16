@@ -19,7 +19,7 @@ from comfy.nodes.base_nodes import ImageScale
 from comfy.nodes.common import MAX_RESOLUTION
 from comfy.nodes.package_typing import CustomNode
 from comfy.utils import common_upscale
-from comfy_extras.constants.resolutions import RESOLUTION_MAP, RESOLUTION_NAMES, SD_RESOLUTIONS
+from ..constants.resolutions import RESOLUTION_MAP, RESOLUTION_NAMES, SD_RESOLUTIONS
 
 
 def levels_adjustment(image: ImageBatch, black_level: float = 0.0, mid_level: float = 0.5, white_level: float = 1.0, clip: bool = True) -> ImageBatch:

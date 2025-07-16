@@ -15,8 +15,7 @@ from comfy.model_management import load_models_gpu
 from comfy.model_patcher import ModelPatcher
 from comfy.node_helpers import export_custom_nodes
 from comfy.nodes.package_typing import InputTypes, ValidatedNodeResult, CustomNode
-from comfy_extras.nodes.nodes_language import TransformersLoader, TransformersTokenize, OneShotInstructTokenize, \
-    _AUTO_CHAT_TEMPLATE
+from .nodes_language import TransformersLoader, TransformersTokenize, OneShotInstructTokenize, _AUTO_CHAT_TEMPLATE
 
 # from https://github.com/NVIDIA/Cosmos/blob/b867572b99d08f450ddb8bcd6661d8c35bf6b967/cosmos1/models/diffusion/nemo/inference/inference_utils.py#L54
 COSMOS_TEXT_TO_WORLD_UPSAMPLE_TASK = "Upsample the short caption to a long caption: "
