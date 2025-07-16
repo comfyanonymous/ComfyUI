@@ -17,14 +17,14 @@ ENV LC_ALL=C.UTF-8
 # mitigates
 # RuntimeError: Failed to import transformers.generation.utils because of the following error (look up to see its traceback):
 # numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject
-RUN echo "numpy<2" >> numpy-override.txt
+RUN pip freeze | grep numpy > numpy-override.txt
 
 # mitigates AttributeError: module 'cv2.dnn' has no attribute 'DictValue' \
 # see https://github.com/facebookresearch/nougat/issues/40
 RUN apt-get update && \
-    apt-get install --no-install-recommends -y tzdata ffmpeg libsm6 libxext6 && \
+    apt-get install --no-install-recommends -y ffmpeg libsm6 libxext6 && \
     pip install uv && uv --version && \
-    apt-get purge -y --auto-remove tzdata && \
+    apt-get purge -y && \
     rm -rf /var/lib/apt/lists/*
 
 RUN uv pip uninstall --system $(pip list --format=freeze | grep opencv) && \
