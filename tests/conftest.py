@@ -11,13 +11,16 @@ from typing import Tuple, List
 import pytest
 import requests
 
+os.environ['OTEL_METRICS_EXPORTER'] = 'none'
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+# fixes issues with running the testcontainers rabbitmqcontainer on Windows
+os.environ["TC_HOST"] = "localhost"
+
 from comfy.cli_args_types import Configuration
 
 logging.getLogger("pika").setLevel(logging.CRITICAL + 1)
 logging.getLogger("aio_pika").setLevel(logging.CRITICAL + 1)
-
-# fixes issues with running the testcontainers rabbitmqcontainer on Windows
-os.environ["TC_HOST"] = "localhost"
 
 
 def run_server(server_arguments: Configuration):

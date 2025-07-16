@@ -29,13 +29,15 @@ import sys
 import warnings
 
 from opentelemetry import trace
+from opentelemetry.semconv import attributes
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.aio_pika import AioPikaInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.metrics import set_meter_provider
+from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
-from opentelemetry.semconv.resource import ResourceAttributes as ResAttrs
 
 from .. import options
 from ..app import logger
@@ -114,8 +116,8 @@ def _fix_pytorch_240():
 
 def _create_tracer():
     resource = Resource.create({
-        ResAttrs.SERVICE_NAME: args.otel_service_name,
-        ResAttrs.SERVICE_VERSION: args.otel_service_version,
+        attributes.SERVICE_NAME: args.otel_service_name,
+        attributes.SERVICE_VERSION: args.otel_service_version,
     })
 
     # omit progress spans from aio pika
@@ -152,5 +154,11 @@ def _configure_logging():
 
 _configure_logging()
 _fix_pytorch_240()
+
+# explicitly disable OpenTelemetry metrics by providing a no-op MeterProvider.
+# this prevents the SDK from auto-configuring a default OTLP exporter that
+# would try to connect to localhost when no metrics configuration is present.
+set_meter_provider(MeterProvider())
+
 tracer = _create_tracer()
 __all__ = ["args", "tracer"]
