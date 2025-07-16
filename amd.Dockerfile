@@ -21,11 +21,6 @@ RUN apt-get update && \
     apt-get purge -y --auto-remove tzdata && \
     rm -rf /var/lib/apt/lists/*
 
-
-RUN uv pip uninstall --system $(pip list --format=freeze | grep opencv) && \
-    rm -rf /usr/local/lib/python3.12/dist-packages/cv2/ && \
-    uv pip install --no-build-isolation opencv-python-headless
-
 RUN uv pip install --overrides=numpy-override.txt "comfyui[attention,comfyui_manager]@git+https://github.com/hiddenswitch/ComfyUI.git"
 
 WORKDIR /workspace
