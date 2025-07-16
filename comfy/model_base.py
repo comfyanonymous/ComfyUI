@@ -1125,39 +1125,38 @@ def patch_motion(
     topk: int = 2,
 ):
     """Apply motion patching based on tracks"""
-    with torch.no_grad():
-        _, T, H, W = vid.shape
-        N = tracks.shape[2]
-        _, tracks_xy, visible = torch.split(
-            tracks, [1, 2, 1], dim=-1
-        )  # (B, T, N, 2) | (B, T, N, 1)
-        tracks_n = tracks_xy / torch.tensor([W / min(H, W), H / min(H, W)], device=tracks_xy.device)
-        tracks_n = tracks_n.clamp(-1, 1)
-        visible = visible.clamp(0, 1)
+    _, T, H, W = vid.shape
+    N = tracks.shape[2]
+    _, tracks_xy, visible = torch.split(
+        tracks, [1, 2, 1], dim=-1
+    )  # (B, T, N, 2) | (B, T, N, 1)
+    tracks_n = tracks_xy / torch.tensor([W / min(H, W), H / min(H, W)], device=tracks_xy.device)
+    tracks_n = tracks_n.clamp(-1, 1)
+    visible = visible.clamp(0, 1)
 
-        xx = torch.linspace(-W / min(H, W), W / min(H, W), W)
-        yy = torch.linspace(-H / min(H, W), H / min(H, W), H)
+    xx = torch.linspace(-W / min(H, W), W / min(H, W), W)
+    yy = torch.linspace(-H / min(H, W), H / min(H, W), H)
 
-        grid = torch.stack(torch.meshgrid(yy, xx, indexing="ij")[::-1], dim=-1).to(
-            tracks_xy.device
-        )
+    grid = torch.stack(torch.meshgrid(yy, xx, indexing="ij")[::-1], dim=-1).to(
+        tracks_xy.device
+    )
 
-        tracks_pad = tracks_xy[:, 1:]
-        visible_pad = visible[:, 1:]
+    tracks_pad = tracks_xy[:, 1:]
+    visible_pad = visible[:, 1:]
 
-        visible_align = visible_pad.view(T - 1, 4, *visible_pad.shape[2:]).sum(1)
-        tracks_align = (tracks_pad * visible_pad).view(T - 1, 4, *tracks_pad.shape[2:]).sum(
-            1
-        ) / (visible_align + 1e-5)
-        dist_ = (
-            (tracks_align[:, None, None] - grid[None, :, :, None]).pow(2).sum(-1)
-        )  # T, H, W, N
-        weight = torch.exp(-dist_ * temperature) * visible_align.clamp(0, 1).view(
-            T - 1, 1, 1, N
-        )
-        vert_weight, vert_index = torch.topk(
-            weight, k=min(topk, weight.shape[-1]), dim=-1
-        )
+    visible_align = visible_pad.view(T - 1, 4, *visible_pad.shape[2:]).sum(1)
+    tracks_align = (tracks_pad * visible_pad).view(T - 1, 4, *tracks_pad.shape[2:]).sum(
+        1
+    ) / (visible_align + 1e-5)
+    dist_ = (
+        (tracks_align[:, None, None] - grid[None, :, :, None]).pow(2).sum(-1)
+    )  # T, H, W, N
+    weight = torch.exp(-dist_ * temperature) * visible_align.clamp(0, 1).view(
+        T - 1, 1, 1, N
+    )
+    vert_weight, vert_index = torch.topk(
+        weight, k=min(topk, weight.shape[-1]), dim=-1
+    )
 
     grid_mode = "bilinear"
     point_feature = torch.nn.functional.grid_sample(
