@@ -29,12 +29,11 @@ import sys
 import warnings
 
 from opentelemetry import trace
-from opentelemetry.semconv import attributes
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.aio_pika import AioPikaInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
-from opentelemetry.metrics import set_meter_provider
-from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.semconv.attributes import service_attributes
+
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
@@ -116,8 +115,8 @@ def _fix_pytorch_240():
 
 def _create_tracer():
     resource = Resource.create({
-        attributes.SERVICE_NAME: args.otel_service_name,
-        attributes.SERVICE_VERSION: args.otel_service_version,
+        service_attributes.SERVICE_NAME: args.otel_service_name,
+        service_attributes.SERVICE_VERSION: args.otel_service_version,
     })
 
     # omit progress spans from aio pika
