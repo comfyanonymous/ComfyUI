@@ -50,6 +50,8 @@ from .component_model.queue_types import BinaryEventTypes
 from .execution_context import current_execution_context
 
 MMAP_TORCH_FILES = args.mmap_torch_files
+DISABLE_MMAP = args.disable_mmap
+
 logger = logging.getLogger(__name__)
 
 ALWAYS_SAFE_LOAD = False
@@ -96,7 +98,10 @@ def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=Fal
             with safetensors.safe_open(Path(ckpt).resolve(strict=True), framework="pt", device=device.type) as f:
                 sd = {}
                 for k in f.keys():
-                    sd[k] = f.get_tensor(k)
+                    tensor = f.get_tensor(k)
+                    if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
+                        tensor = tensor.to(device=device, copy=True)
+                    sd[k] = tensor
                 if return_metadata:
                     metadata = f.metadata()
         except Exception as e:
