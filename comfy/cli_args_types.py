@@ -157,6 +157,7 @@ class Configuration(dict):
         async_offload (bool): Use async weight offloading.
         default_hashing_function (str): Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.
         mmap_torch_files (bool): Use mmap when loading ckpt/pt files.
+        disable_mmap (bool): Don't use mmap when loading safetensors.
         dont_print_server (bool): Don't print server output.
         disable_api_nodes (bool): Disable loading all api nodes.
         front_end_version (str): Specifies the version of the frontend to be used.
@@ -274,6 +275,7 @@ class Configuration(dict):
         self.async_offload: bool = False
         self.default_hashing_function: str = 'sha256'
         self.mmap_torch_files: bool = False
+        self.disable_mmap: bool = False
         self.disable_api_nodes: bool = False
         self.front_end_version: str = "comfyanonymous/ComfyUI@latest"
         self.front_end_root: Optional[str] = None
