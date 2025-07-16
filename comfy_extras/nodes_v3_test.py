@@ -27,7 +27,7 @@ class V3TestNode(io.ComfyNodeV3):
         self.hahajkunless = ";)"
 
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="V3_01_TestNode1",
             display_name="V3 Test Node",
@@ -113,7 +113,7 @@ class V3TestNode(io.ComfyNodeV3):
 
 class V3LoraLoader(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="V3_LoraLoader",
             display_name="V3 LoRA Loader",
@@ -163,7 +163,7 @@ class V3LoraLoader(io.ComfyNodeV3):
 
 class NInputsTest(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="V3_NInputsTest",
             display_name="V3 N Inputs Test",

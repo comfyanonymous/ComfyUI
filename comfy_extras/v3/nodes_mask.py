@@ -9,7 +9,7 @@ class MaskPreview_V3(io.ComfyNodeV3):
     """
 
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="MaskPreview_V3",
             display_name="Preview Mask _V3",

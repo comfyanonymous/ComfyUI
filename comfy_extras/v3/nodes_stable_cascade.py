@@ -25,7 +25,7 @@ from comfy_api.v3 import io
 
 class StableCascade_EmptyLatentImage_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="StableCascade_EmptyLatentImage_V3",
             category="latent/stable_cascade",
@@ -50,7 +50,7 @@ class StableCascade_EmptyLatentImage_V3(io.ComfyNodeV3):
 
 class StableCascade_StageC_VAEEncode_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="StableCascade_StageC_VAEEncode_V3",
             category="latent/stable_cascade",
@@ -81,7 +81,7 @@ class StableCascade_StageC_VAEEncode_V3(io.ComfyNodeV3):
 
 class StableCascade_StageB_Conditioning_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="StableCascade_StageB_Conditioning_V3",
             category="conditioning/stable_cascade",
@@ -107,7 +107,7 @@ class StableCascade_StageB_Conditioning_V3(io.ComfyNodeV3):
 
 class StableCascade_SuperResolutionControlnet_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="StableCascade_SuperResolutionControlnet_V3",
             category="_for_testing/stable_cascade",

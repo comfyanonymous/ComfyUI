@@ -7,7 +7,7 @@ from comfy_api.v3 import io
 
 class String_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="PrimitiveString_V3",
             display_name="String _V3",
@@ -25,7 +25,7 @@ class String_V3(io.ComfyNodeV3):
 
 class StringMultiline_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="PrimitiveStringMultiline_V3",
             display_name="String (Multiline) _V3",
@@ -43,7 +43,7 @@ class StringMultiline_V3(io.ComfyNodeV3):
 
 class Int_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="PrimitiveInt_V3",
             display_name="Int _V3",
@@ -61,7 +61,7 @@ class Int_V3(io.ComfyNodeV3):
 
 class Float_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="PrimitiveFloat_V3",
             display_name="Float _V3",
@@ -79,7 +79,7 @@ class Float_V3(io.ComfyNodeV3):
 
 class Boolean_V3(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="PrimitiveBoolean_V3",
             display_name="Boolean _V3",

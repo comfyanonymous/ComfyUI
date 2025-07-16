@@ -230,7 +230,7 @@ class OutputV3(IO_V3):
         self.display_name = display_name
         self.tooltip = tooltip
         self.is_output_list = is_output_list
-    
+
     def as_dict_V3(self):
         return prune_dict({
             "display_name": self.display_name,
@@ -893,16 +893,16 @@ class MatchType(ComfyTypeIO):
             return super().as_dict_V1() | prune_dict({
                 "template": self.template.as_dict(),
             })
-    
+
     class Output(DynamicOutput):
         def __init__(self, id: str, template: MatchType.Template, display_name: str=None, tooltip: str=None,
                      is_output_list=False):
             super().__init__(id, display_name, tooltip, is_output_list)
             self.template = template
-        
+
         def get_dynamic(self) -> list[OutputV3]:
             return [self]
-        
+
         def as_dict_V3(self):
             return super().as_dict_V3() | prune_dict({
                 "template": self.template.as_dict(),
@@ -1155,7 +1155,7 @@ class ComfyNodeV3(ComfyNodeInternal):
 
     @classmethod
     @abstractmethod
-    def DEFINE_SCHEMA(cls) -> SchemaV3:
+    def define_schema(cls) -> SchemaV3:
         """Override this function with one that returns a SchemaV3 instance."""
         raise NotImplementedError
 
@@ -1207,8 +1207,8 @@ class ComfyNodeV3(ComfyNodeInternal):
 
     @classmethod
     def VALIDATE_CLASS(cls):
-        if not callable(cls.DEFINE_SCHEMA):
-            raise Exception(f"No DEFINE_SCHEMA function was defined for node class {cls.__name__}.")
+        if not callable(cls.define_schema):
+            raise Exception(f"No define_schema function was defined for node class {cls.__name__}.")
         if not callable(cls.execute):
             raise Exception(f"No execute function was defined for node class {cls.__name__}.")
 
@@ -1350,8 +1350,8 @@ class ComfyNodeV3(ComfyNodeInternal):
 
     @classmethod
     def FINALIZE_SCHEMA(cls):
-        """Call DEFINE_SCHEMA and finalize it."""
-        schema = cls.DEFINE_SCHEMA()
+        """Call define_schema and finalize it."""
+        schema = cls.define_schema()
         schema.finalize()
         return schema
 
@@ -1482,7 +1482,7 @@ class _UIOutput(ABC):
 
 class TestNode(ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return SchemaV3(
         node_id="TestNode_v3",
         display_name="Test Node (V3)",

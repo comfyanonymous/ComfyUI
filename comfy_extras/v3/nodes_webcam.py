@@ -9,32 +9,18 @@ import node_helpers
 import nodes
 from comfy_api.v3 import io
 
-MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
-
-class WebcamCapture_V3(io.ComfyNodeV3):
+class WebcamCapture(io.ComfyNodeV3):
     @classmethod
-    def DEFINE_SCHEMA(cls):
+    def define_schema(cls):
         return io.SchemaV3(
             node_id="WebcamCapture_V3",
             display_name="Webcam Capture _V3",
             category="image",
             inputs=[
                 io.Webcam.Input("image"),
-                io.Int.Input(
-                    "width",
-                    default=0,
-                    min=0,
-                    max=MAX_RESOLUTION,
-                    step=1,
-                ),
-                io.Int.Input(
-                    "height",
-                    default=0,
-                    min=0,
-                    max=MAX_RESOLUTION,
-                    step=1,
-                ),
+                io.Int.Input("width", default=0, min=0, max=nodes.MAX_RESOLUTION, step=1),
+                io.Int.Input("height", default=0, min=0, max=nodes.MAX_RESOLUTION, step=1),
                 io.Boolean.Input("capture_on_queue", default=True),
             ],
             outputs=[
@@ -103,4 +89,4 @@ class WebcamCapture_V3(io.ComfyNodeV3):
         return True
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [WebcamCapture_V3]
+NODES_LIST: list[type[io.ComfyNodeV3]] = [WebcamCapture]
