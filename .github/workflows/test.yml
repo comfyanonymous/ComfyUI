@@ -62,8 +62,10 @@ jobs:
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
       - name: Install ComfyUI
-        run: uv pip install '.[mps,dev]' --inexact
+        run: |
+          uv venv --python 3.12
+          uv pip install '.[mps,dev]' --inexact
       - name: Run tests
         run: |
           export OTEL_METRICS_EXPORTER=none
-          pytest -v tests/unit
+          uv run pytest -v tests/unit
