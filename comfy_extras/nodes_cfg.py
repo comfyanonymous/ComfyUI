@@ -54,7 +54,6 @@ class CFGNorm:
     def patch(self, model, strength):
         m = model.clone()
         def cfg_norm(args):
-            x = args["input"]
             cond_p = args['cond_denoised']
             pred_text_ = args["denoised"]
 
