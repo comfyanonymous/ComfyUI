@@ -53,6 +53,13 @@ def on_flush(callback):
         stderr_interceptor.on_flush(callback)
 
 
+class StackTraceLogger(logging.Logger):
+    def _log(self, level, msg, args, exc_info=None, extra=None, stack_info=False, stacklevel=1):
+        if level >= logging.WARNING:
+            stack_info = True
+        super()._log(level, msg, args, exc_info, extra, stack_info, stacklevel=stacklevel + 1)
+
+
 def setup_logger(log_level: str = 'INFO', capacity: int = 300, use_stdout: bool = False):
     global logs
     if logs:
@@ -71,6 +78,7 @@ def setup_logger(log_level: str = 'INFO', capacity: int = 300, use_stdout: bool 
     stderr_interceptor = sys.stderr = LogInterceptor(sys.stderr)
 
     # Setup default global logger
+    logging.setLoggerClass(StackTraceLogger)
     logger = logging.getLogger()
     logger.setLevel(log_level)
 

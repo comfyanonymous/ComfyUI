@@ -31,7 +31,32 @@ RUN uv pip uninstall --system $(pip list --format=freeze | grep opencv) && \
     rm -rf /usr/local/lib/python3.12/dist-packages/cv2/ && \
     uv pip install --no-build-isolation opencv-python-headless
 
-RUN uv pip install --overrides=numpy-override.txt "comfyui[attention,comfyui_manager]@git+https://github.com/hiddenswitch/ComfyUI.git"
+# this exotic command will determine the correct torchaudio to install for the image
+RUN <<-EOF
+python -c 'import torch, re, subprocess
+torch_version_full = torch.__version__
+torch_ver_match = re.match(r"(\d+\.\d+\.\d+)", torch_version_full)
+if not torch_ver_match:
+    raise ValueError(f"Could not parse torch version from {torch_version_full}")
+torch_ver = torch_ver_match.group(1)
+cuda_ver_tag = f"cu{torch.version.cuda.replace(".", "")}"
+command = [
+    "uv", "pip", "install", "--no-deps", "--overrides=numpy-override.txt",
+    f"torchaudio=={torch_ver}+{cuda_ver_tag}",
+    "--extra-index-url", f"https://download.pytorch.org/whl/{cuda_ver_tag}",
+]
+subprocess.run(command, check=True)'
+EOF
+
+# sources for building this dockerfile
+# use these lines to build from the local fs
+# ADD . /src
+# ARG SOURCES=/src
+# this builds from github
+ARG SOURCES="comfyui[attention,comfyui_manager]@git+https://github.com/hiddenswitch/ComfyUI.git"
+ENV SOURCES=$SOURCES
+
+RUN uv pip install --overrides=numpy-override.txt $SOURCES
 
 WORKDIR /workspace
 # addresses https://github.com/pytorch/pytorch/issues/104801
@@ -39,4 +64,4 @@ WORKDIR /workspace
 RUN comfyui --quick-test-for-ci --cpu --cwd /workspace
 
 EXPOSE 8188
-CMD ["python", "-m", "comfy.cmd.main", "--listen"]
+CMD ["python", "-m", "comfy.cmd.main", "--listen", "--use-sage-attention", "--reserve-vram=0", "--logging-level=INFO", "--enable-cors"]
