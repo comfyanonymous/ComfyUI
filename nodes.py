@@ -785,8 +785,8 @@ class VAELoader:
         #         # For weights without clear prefix, assume they're decoder weights
         #         sd["taehv_decoder.{}".format(k)] = tae_weights[k]
 
-        sa.update(tae_weights)
-        sa['taehv_flag'] = True
+        sd.update(tae_weights)
+        sd['taehv_flag'] = True
         #TODO: Confirm scale/shift params
         if name == "taehv":
             sd["vae_scale"] = torch.tensor(0.476986)  # HunyuanVideo scale
@@ -808,7 +808,7 @@ class VAELoader:
     def load_vae(self, vae_name):
         if vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
             sd = self.load_taesd(vae_name)
-        elif vae_name in ["taehv", "taew2_1"]
+        elif vae_name in ["taehv", "taew2_1"]:
             sd = self.load_tae_video(vae_name)
         else:
             vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
