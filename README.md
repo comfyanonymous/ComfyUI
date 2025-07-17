@@ -230,6 +230,22 @@ To disable model downloading, start with the command line argument `--disable-kn
 
 To save space, you will need to enable Developer Mode in the Windows Settings, then reboot your computer. This way, Hugging Face can download models into a common place for all your apps, and place small "link" files that ComfyUI and others can read instead of whole copies of models.
 
+## Using ComfyUI in Google Colab
+
+Access an example Colab Notebook here: https://colab.research.google.com/drive/1Gd9F8iYRJW-LG8JLiwGTKLAcXLJ5eH78?usp=sharing
+
+This demonstrates running a workflow inside colab and accessing the UI remotely.
+
+## Using a "Python Embedded" "Portable" Style Distribution
+
+This is a "ComfyUI" "Portable" style distribution with a "`python_embedded`" directory, carefully spelled correctly. It includes Python 3.12, `torch==2.7.1+cu128`, `sageattention` and the ComfyUI-Manager.
+
+On **Windows**:
+
+1. Download all the files in this the latest release: ([`comfyui_portable.exe`](https://github.com/hiddenswitch/ComfyUI/releases/download/latest/comfyui_portable.exe), [`comfyui_portable.7z.001`](https://github.com/hiddenswitch/ComfyUI/releases/download/latest/comfyui_portable.7z.001) and [`comfyui_portable.7z.002`](https://github.com/hiddenswitch/ComfyUI/releases/download/latest/comfyui_portable.7z.002)).
+2. Run `comfyui_portable.exe` to extract a workspace containing an embedded Python 3.12.
+3. Double-click on `comfyui.bat` inside `ComfyUI_Workspace` to start the server.
+
 ## LTS Custom Nodes
 
 These packages have been adapted to be installable with `pip` and download models to the correct places:
