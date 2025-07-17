@@ -23,7 +23,7 @@ import nodes
 from comfy_api.v3 import io
 
 
-class StableCascade_EmptyLatentImage_V3(io.ComfyNodeV3):
+class StableCascade_EmptyLatentImage(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
         return io.SchemaV3(
@@ -48,7 +48,7 @@ class StableCascade_EmptyLatentImage_V3(io.ComfyNodeV3):
         return io.NodeOutput({"samples": c_latent}, {"samples": b_latent})
 
 
-class StableCascade_StageC_VAEEncode_V3(io.ComfyNodeV3):
+class StableCascade_StageC_VAEEncode(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
         return io.SchemaV3(
@@ -79,7 +79,7 @@ class StableCascade_StageC_VAEEncode_V3(io.ComfyNodeV3):
         return io.NodeOutput({"samples": c_latent}, {"samples": b_latent})
 
 
-class StableCascade_StageB_Conditioning_V3(io.ComfyNodeV3):
+class StableCascade_StageB_Conditioning(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
         return io.SchemaV3(
@@ -105,7 +105,7 @@ class StableCascade_StageB_Conditioning_V3(io.ComfyNodeV3):
         return io.NodeOutput(c)
 
 
-class StableCascade_SuperResolutionControlnet_V3(io.ComfyNodeV3):
+class StableCascade_SuperResolutionControlnet(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
         return io.SchemaV3(
@@ -136,8 +136,8 @@ class StableCascade_SuperResolutionControlnet_V3(io.ComfyNodeV3):
 
 
 NODES_LIST: list[type[io.ComfyNodeV3]] = [
-    StableCascade_EmptyLatentImage_V3,
-    StableCascade_StageB_Conditioning_V3,
-    StableCascade_StageC_VAEEncode_V3,
-    StableCascade_SuperResolutionControlnet_V3,
+    StableCascade_EmptyLatentImage,
+    StableCascade_StageB_Conditioning,
+    StableCascade_StageC_VAEEncode,
+    StableCascade_SuperResolutionControlnet,
 ]
