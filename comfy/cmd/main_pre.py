@@ -45,6 +45,7 @@ log_msg_to_filter = "NOTE: Redirects are currently not supported in Windows or M
 logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").addFilter(
     lambda record: log_msg_to_filter not in record.getMessage()
 )
+logging.getLogger("alembic.runtime.migration").setLevel(logging.WARNING)
 
 from ..cli_args import args
 

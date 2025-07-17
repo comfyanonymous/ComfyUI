@@ -101,11 +101,11 @@ def _vanilla_load_importing_execute_prestartup_script(node_paths: Iterable[str])
                                 logger.error(f"ComfyUI-Manager security_check failed but was caught gracefully: {e}", exc_info=e)
 
                         security_check.security_check = patched_security_check
-                        logger.info("Patched ComfyUI-Manager's security_check to fail gracefully.")
+                        logger.debug("Patched ComfyUI-Manager's security_check to fail gracefully.")
 
                         # Patch logging
                         logging.Logger.addHandler = no_op_add_handler
-                        logger.info("Patched logging.Logger.addHandler to prevent ComfyUI-Manager from adding a logging handler.")
+                        logger.debug("Patched logging.Logger.addHandler to prevent ComfyUI-Manager from adding a logging handler.")
 
                         time_before = time.perf_counter()
                         success = execute_script(script_path)
@@ -303,7 +303,7 @@ def mitigated_import_of_vanilla_custom_nodes() -> ExportedNodes:
     if not getattr(threading.Thread.start, '__is_patched_by_us', False):
         threading.Thread.start = patched_start
         setattr(threading.Thread.start, '__is_patched_by_us', True)
-        logger.info("Patched `threading.Thread.start` to propagate contextvars.")
+        logger.debug("Patched `threading.Thread.start` to propagate contextvars.")
     _vanilla_load_importing_execute_prestartup_script(node_paths)
     vanilla_custom_nodes = _vanilla_load_custom_nodes_2(node_paths)
     return vanilla_custom_nodes
