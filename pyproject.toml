@@ -166,7 +166,7 @@ mps = [
 ]
 
 attention = [
-    "sageattention",
+    "sageattention==2.2.0 ; sys_platform == 'Linux' or sys_platform == 'win32'",
     "flash_attn ; sys_platform == 'Linux'",
 ]
 
@@ -244,11 +244,20 @@ torchvision = [
 torchaudio = [
     { index = "pytorch-cpu", extra = "cpu" },
 ]
-"sageattention" = [
-    { git = "https://github.com/thu-ml/SageAttention.git", extra = "attention", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
+sageattention = [
+    { git = "https://github.com/woct0rdho/SageAttention.git", rev = "v2.2.0", marker = "sys_platform == 'Linux'" },
+    { url = "https://github.com/woct0rdho/SageAttention/releases/download/v2.2.0-windows.post1/sageattention-2.2.0%2Bcu128torch2.8.0-cp38-abi3-win_amd64.whl", marker = "sys_platform == 'win32'" },
 ]
 
+[[tool.uv.dependency-metadata]]
+name = "flash-attn"
+version = "2.6.3"
+requires-dist = ["torch", "einops"]
 
+[[tool.uv.dependency-metadata]]
+name = "sageattention"
+version = "2.2.0"
+requires-dist = ["torch"]
 
 [tool.ruff]
 lint.select = [
