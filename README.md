@@ -6,7 +6,7 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 ### New Features
 
 - To run, just type `comfyui` in your command line and press enter.
-- [Installable](#installing) via `uv`: `UV_TORCH_BACKEND=auto uv pip install comfyui@git+https://github.com/hiddenswitch/ComfyUI.git`.
+- [Installable](#installing) via `uv`: `uv pip install --torch-backend=auto "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"`.
 - [Large Language Models](#large-language-models) with multi-modal support included.
 - [Automatic model downloading](#model-downloading) to save you disk space and time.
 - [Distributed](#distributed-multi-process-and-multi-gpu-comfy) with support for multiple GPUs, multiple backends and frontends, including in containers, using RabbitMQ.
@@ -122,7 +122,6 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
    ```shell
    uv venv --python 3.12
    ```
-5. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
 5. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux):
    ```powershell
    uv pip install --torch-backend=auto "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
@@ -147,7 +146,7 @@ cd ~\Documents\ComfyUI_Workspace\
 uv run comfyui
 ```
 
-Upgrades are delivered frequently and automatically. To force one immediately, run pip upgrade like so:
+Upgrades are delivered frequently and automatically. To force one immediately, run `uv pip install --upgrade` like so:
 
 ```shell
 uv pip install --torch-backend=auto --upgrade "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
@@ -155,7 +154,7 @@ uv pip install --torch-backend=auto --upgrade "comfyui@git+https://github.com/hi
 
 ### macOS
 
-1. Install Python 3.10, 3.11 or 3.12. This should be achieved by installing `brew`, a macOS package manager, first:
+1. Install `brew`, a macOS package manager, if you haven't already:
    ```shell
    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
    ```
@@ -175,9 +174,9 @@ uv pip install --torch-backend=auto --upgrade "comfyui@git+https://github.com/hi
    uv venv --python 3.12
    ```
 
-5. Run the following command to install `comfyui` into your current environment.
+5. Run the following command to install `comfyui` into your current environment. The `mps` extra improves performance.
    ```shell
-   uv pip install "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
+   uv pip install "comfyui[mps]@git+https://github.com/hiddenswitch/ComfyUI.git"
    ```
 6. To run the web server:
    ```shell
@@ -228,7 +227,7 @@ To disable model downloading, start with the command line argument `--disable-kn
 
 ### Saving Space on Windows
 
-To save space, you will need to enable Developer Mode in the Windows Settings, then reboot your computer. This way, Hugging Face can download models into a common place for all your apps, and place small "link" files that ComfyUI and others can read instead of whole copies of models.
+To save space, you will need to enable **Developer Mode** in the Windows Settings, then reboot your computer. This way, Hugging Face can download models into a common place for all your apps, and place small "link" files that ComfyUI and others can read instead of whole copies of models.
 
 ## Using ComfyUI in Google Colab
 
@@ -310,8 +309,7 @@ For models compatible with Ascend Extension for PyTorch (`torch_npu`). To get st
 
 1. Begin by installing the recommended or newer kernel version for Linux as specified in the Installation page of torch-npu, if necessary.
 2. Proceed with the installation of Ascend Basekit, which includes the driver, firmware, and CANN, following the instructions provided for your specific platform.
-3. Next, install the necessary packages for torch-npu by adhering to the platform-specific instructions on the [Installation](https://ascend.github.io/docs/sources/pytorch/install.html#pytorch) page.
-4. Finally, adhere to the [ComfyUI manual installation](#manual-install-windows-linux) guide for Linux. Once all components are installed, you can run ComfyUI as described earlier.
+3. Next, install the necessary packages for `torch-npu` by adhering to the platform-specific instructions on the [Installation](https://ascend.github.io/docs/sources/pytorch/install.html#pytorch) page.
 
 ###### Notes for Cambricon MLU Users
 
@@ -698,14 +696,14 @@ options:
 You can now start `comfyui` with:
 
 ```shell
-comfyui --openai-api-key=abcdefg12345
+uv run comfyui --openai-api-key=abcdefg12345
 ```
 
 or set the environment variable you specified:
 
 ```shell
 export OPENAI_API_KEY=abcdefg12345
-comfyui
+uv run comfyui
 ```
 
 or add it to your config file:
@@ -724,7 +722,7 @@ Since `comfyui` looks for a `config.yaml` in your current working directory by d
 `config.yaml` is located in your current working directory:
 
 ```shell
-comfyui
+uv run comfyui
 ```
 
 Your entry point for adding configuration options should **not** import your nodes. This gives you the opportunity to
@@ -776,9 +774,9 @@ Only parts of the graph that change from each execution to the next will be exec
 
 Dragging a generated png on the webpage or loading one will give you the full workflow including seeds that were used to create it.
 
-You can use () to change emphasis of a word or phrase like: (good code:1.2) or (bad code:0.8). The default emphasis for () is 1.1. To use () characters in your actual prompt escape them like \\( or \\).
+You can use `()` to change emphasis of a word or phrase like: `(good code:1.2)` or `(bad code:0.8)`. The default emphasis for `()` is 1.1. To use `()` characters in your actual prompt escape them like `\\(` or `\\)`.
 
-You can use {day|night}, for wildcard/dynamic prompts. With this syntax "{wild|card|test}" will be randomly replaced by either "wild", "card" or "test" by the frontend every time you queue the prompt. To use {} characters in your actual prompt escape them like: \\{ or \\}.
+You can use `{day|night}`, for wildcard/dynamic prompts. With this syntax "{wild|card|test}" will be randomly replaced by either "wild", "card" or "test" by the frontend every time you queue the prompt. To use {} characters in your actual prompt escape them like: \\{ or \\}.
 
 Dynamic prompts also support C-style comments, like `// comment` or `/* comment */`.
 
@@ -846,7 +844,7 @@ This supports configuration with command line arguments, the environment and a c
 
 First, run `comfyui --help` for all supported configuration and arguments.
 
-Args that start with `--` can also be set in a config file (`config.yaml` or `config.json` or specified via `-c`). Config file syntax allows: `key=value`, `flag=true`, `stuff=[a,b,c]` (for details, see syntax [here](https://goo.gl/R74nmi)). In general, command-line values override environment variables which override config file values which override defaults.
+Args that start with `--` can also be set in a config file (`config.yaml`, `config.ini`, `config.conf` or `config.json` or specified via `-c`). Config file syntax allows: `key=value`, `flag=true`, `stuff=[a,b,c]` (for details, see syntax [here](https://goo.gl/R74nmi)). In general, command-line values override environment variables which override config file values which override defaults.
 
 ## Extra Model Paths
 
