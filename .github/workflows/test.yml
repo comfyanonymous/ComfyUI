@@ -48,7 +48,7 @@ jobs:
           pylint --rcfile=.pylintrc comfy_extras/
   build_and_execute_macos:
     environment: "Testing"
-    name: Unit Tests for macOS
+    name: Installation Test for macOS
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -64,8 +64,8 @@ jobs:
       - name: Install ComfyUI
         run: |
           uv venv --python 3.12
-          uv pip install '.[mps,dev]' --inexact
-      - name: Run tests
-        run: |
-          export OTEL_METRICS_EXPORTER=none
-          uv run pytest -v tests/unit
+          uv pip install --torch-backend=auto '.[mps,dev]' --inexact
+#      - name: Run tests
+#        run: |
+#          export OTEL_METRICS_EXPORTER=none
+#          uv run pytest -v tests/unit

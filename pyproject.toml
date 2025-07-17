@@ -21,6 +21,8 @@ dependencies = [
     "comfyui-frontend-package",
     "comfyui-workflow-templates",
     "comfyui-embedded-docs",
+    "torch",
+    "torchvision",
     "torchdiffeq>=0.2.3",
     "torchsde>=0.2.6",
     "einops>=0.6.0",

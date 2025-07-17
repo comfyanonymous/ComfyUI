@@ -21,22 +21,6 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 
 ComfyUI lets you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. Available on Windows, Linux, and macOS.
 
-## Get Started
-
-#### [Desktop Application](https://www.comfy.org/download)
-
-- The easiest way to get started.
-- Available on Windows & macOS.
-
-#### [Windows Portable Package](#installing)
-
-- Get the latest commits and completely portable.
-- Available on Windows.
-
-#### [Manual Install](#manual-install-windows-linux)
-
-Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon, Ascend).
-
 ## [Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
 
 See what ComfyUI can do with the [example workflows](https://comfyanonymous.github.io/ComfyUI_examples/).
@@ -119,7 +103,6 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
 
    ```shell
    Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-   choco install -y python --version 3.12.6
    ```
 
 2. Install `uv`, which makes subsequent installation of Python packages much faster:
@@ -137,9 +120,9 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
 
 4. Create a virtual environment:
    ```shell
-   uv venv
+   uv venv --python 3.12
    ```
-5. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
+5. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux):
    ```powershell
    uv pip install --torch-backend=auto "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
    ```
@@ -179,23 +162,23 @@ uv pip install --torch-backend=auto --upgrade "comfyui@git+https://github.com/hi
    ```shell
    HOMEBREW_NO_AUTO_UPDATE=1 brew install uv
    ```
-3. Switch into a directory that you want to store your outputs, custom nodes and models in. This is your ComfyUI workspace. For example, if you want to store your workspace in a directory called `ComfyUI_Workspace` in your Documents folder:
+2. Switch into a directory that you want to store your outputs, custom nodes and models in. This is your ComfyUI workspace. For example, if you want to store your workspace in a directory called `ComfyUI_Workspace` in your Documents folder:
 
    ```shell
    mkdir -pv ~/Documents/ComfyUI_Workspace
    cd ~/Documents/ComfyUI_Workspace
    ```
 
-4. Create a virtual environment:
+3. Create a virtual environment:
    ```shell
    uv venv --python 3.12
    ```
 
-5. Run the following command to install `comfyui` into your current environment.
+4. Run the following command to install `comfyui` into your current environment. This will install PyTorch with Metal (MPS) support from the nightly channel for GPU acceleration.
    ```shell
-   uv pip install "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
+   uv pip install --torch-backend=auto "comfyui[mps]@git+https://github.com/hiddenswitch/ComfyUI.git"
    ```
-6. To run the web server:
+5. To run the web server:
    ```shell
    uv run comfyui
    ```
