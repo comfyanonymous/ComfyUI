@@ -122,6 +122,7 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
    ```shell
    uv venv --python 3.12
    ```
+5. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
 5. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux):
    ```powershell
    uv pip install --torch-backend=auto "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
@@ -162,23 +163,23 @@ uv pip install --torch-backend=auto --upgrade "comfyui@git+https://github.com/hi
    ```shell
    HOMEBREW_NO_AUTO_UPDATE=1 brew install uv
    ```
-2. Switch into a directory that you want to store your outputs, custom nodes and models in. This is your ComfyUI workspace. For example, if you want to store your workspace in a directory called `ComfyUI_Workspace` in your Documents folder:
+3. Switch into a directory that you want to store your outputs, custom nodes and models in. This is your ComfyUI workspace. For example, if you want to store your workspace in a directory called `ComfyUI_Workspace` in your Documents folder:
 
    ```shell
    mkdir -pv ~/Documents/ComfyUI_Workspace
    cd ~/Documents/ComfyUI_Workspace
    ```
 
-3. Create a virtual environment:
+4. Create a virtual environment:
    ```shell
    uv venv --python 3.12
    ```
 
-4. Run the following command to install `comfyui` into your current environment. This will install PyTorch with Metal (MPS) support from the nightly channel for GPU acceleration.
+5. Run the following command to install `comfyui` into your current environment.
    ```shell
-   uv pip install --torch-backend=auto "comfyui[mps]@git+https://github.com/hiddenswitch/ComfyUI.git"
+   uv pip install "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"
    ```
-5. To run the web server:
+6. To run the web server:
    ```shell
    uv run comfyui
    ```
@@ -1500,16 +1501,22 @@ Known models listed in [**model_downloader.py**](./comfy/model_downloader.py) ar
 
 # Containers
 
-Build the `Dockerfile`:
+On NVIDIA:
 
-```shell
-docker build . -t hiddenswitch/comfyui
+```agsl
+docker pull ghcr.io/hiddenswitch/comfyui:latest
 ```
 
 To run:
 
+**Windows, `cmd`**
 ```shell
-docker run -it -v ./output:/workspace/output -v ./models:/workspace/models --gpus=all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 --rm hiddenswitch/comfyui
+docker run -p "8188:8188" -v %cd%:/workspace -w "/workspace" --rm -it --gpus=all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 ghcr.io/hiddenswitch/comfyui:latest
+```
+
+**Linux**:
+```shell
+docker run -p "8188:8188" -v $(pwd):/workspace -w "/workspace" --rm -it --gpus=all --ipc=host ghcr.io/hiddenswitch/comfyui:latest
 ```
 
 ## Frontend Development
