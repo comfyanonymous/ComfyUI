@@ -5,7 +5,7 @@ import sys
 from comfy_api.v3 import io
 
 
-class String_V3(io.ComfyNodeV3):
+class String(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
         return io.SchemaV3(
@@ -23,7 +23,7 @@ class String_V3(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class StringMultiline_V3(io.ComfyNodeV3):
+class StringMultiline(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
         return io.SchemaV3(
@@ -41,7 +41,7 @@ class StringMultiline_V3(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class Int_V3(io.ComfyNodeV3):
+class Int(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
         return io.SchemaV3(
@@ -59,7 +59,7 @@ class Int_V3(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class Float_V3(io.ComfyNodeV3):
+class Float(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
         return io.SchemaV3(
@@ -77,7 +77,7 @@ class Float_V3(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class Boolean_V3(io.ComfyNodeV3):
+class Boolean(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
         return io.SchemaV3(
@@ -96,9 +96,9 @@ class Boolean_V3(io.ComfyNodeV3):
 
 
 NODES_LIST: list[type[io.ComfyNodeV3]] = [
-    String_V3,
-    StringMultiline_V3,
-    Int_V3,
-    Float_V3,
-    Boolean_V3,
+    String,
+    StringMultiline,
+    Int,
+    Float,
+    Boolean,
 ]

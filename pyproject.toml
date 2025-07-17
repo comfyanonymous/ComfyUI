@@ -24,7 +24,7 @@ lint.select = [
   "F",
 ]
 exclude = ["*.ipynb"]
-line-length = 120
+line-length = 144
 lint.pycodestyle.ignore-overlong-task-comments = true
 
 [tool.ruff.lint.per-file-ignores]

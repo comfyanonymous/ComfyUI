@@ -355,7 +355,7 @@ class Int(ComfyTypeIO):
                 "max": self.max,
                 "step": self.step,
                 "control_after_generate": self.control_after_generate,
-                "display": self.display_mode.value if self.display_name else None,
+                "display": self.display_mode.value if self.display_mode else None,
             })
 
 @comfytype(io_type="FLOAT")
