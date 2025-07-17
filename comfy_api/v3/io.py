@@ -6,11 +6,12 @@ from collections import Counter
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any, Callable, Literal, TypedDict, TypeVar
+from comfy_api.v3.helpers import first_real_override
 
 # used for type hinting
 import torch
 from spandrel import ImageModelDescriptor
-from typing_extensions import NotRequired
+from typing_extensions import NotRequired, final
 
 from comfy.clip_vision import ClipVisionModel
 from comfy.clip_vision import Output as ClipVisionOutput_
@@ -1244,8 +1245,9 @@ def add_to_dict_v3(io: InputV3 | OutputV3, d: dict):
     d[io.id] = (io.get_io_type(), io.as_dict())
 
 
-class ComfyNodeV3(ComfyNodeInternal):
-    """Common base class for all V3 nodes."""
+
+class _ComfyNodeBaseInternal(ComfyNodeInternal):
+    """Common base class for storing internal methods and properties; DO NOT USE for defining nodes."""
 
     RELATIVE_PYTHON_MODULE = None
     SCHEMA = None
@@ -1264,6 +1266,7 @@ class ComfyNodeV3(ComfyNodeInternal):
     @classmethod
     @abstractmethod
     def execute(cls, **kwargs) -> NodeOutput:
+        """Override this function with one that performs node's actions."""
         raise NotImplementedError
 
     @classmethod
@@ -1292,28 +1295,28 @@ class ComfyNodeV3(ComfyNodeInternal):
         """
         return [name for name in kwargs if kwargs[name] is None]
 
-    @classmethod
-    def GET_SERIALIZERS(cls) -> list[Serializer]:
-        return []
-
-    @classmethod
-    def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
-        schema = cls.GET_SCHEMA()
-        info = schema.get_v3_info(cls)
-        return asdict(info)
-
     def __init__(self):
         self.local_state: NodeStateLocal = None
         self.local_resources: ResourcesLocal = None
         self.__class__.VALIDATE_CLASS()
 
     @classmethod
+    def GET_SERIALIZERS(cls) -> list[Serializer]:
+        return []
+
+    @classmethod
+    def GET_BASE_CLASS(cls):
+        return _ComfyNodeBaseInternal
+
+    @final
+    @classmethod
     def VALIDATE_CLASS(cls):
-        if not callable(cls.define_schema):
+        if first_real_override(cls, "define_schema") is None:
             raise Exception(f"No define_schema function was defined for node class {cls.__name__}.")
-        if not callable(cls.execute):
+        if first_real_override(cls, "execute") is None:
             raise Exception(f"No execute function was defined for node class {cls.__name__}.")
 
+    @final
     @classmethod
     def EXECUTE_NORMALIZED(cls, *args, **kwargs) -> NodeOutput:
         to_return = cls.execute(*args, **kwargs)
@@ -1330,6 +1333,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         else:
             raise Exception(f"Invalid return type from node: {type(to_return)}")
 
+    @final
     @classmethod
     def PREPARE_CLASS_CLONE(cls, hidden_inputs: dict) -> type[ComfyNodeV3]:
         """Creates clone of real node class to prevent monkey-patching."""
@@ -1339,10 +1343,24 @@ class ComfyNodeV3(ComfyNodeInternal):
         type_clone.hidden = HiddenHolder.from_dict(hidden_inputs)
         return type_clone
 
+    @final
+    @classmethod
+    def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
+        schema = cls.GET_SCHEMA()
+        info = schema.get_v3_info(cls)
+        return asdict(info)
     #############################################
     # V1 Backwards Compatibility code
     #--------------------------------------------
+    @final
+    @classmethod
+    def GET_NODE_INFO_V1(cls) -> dict[str, Any]:
+        schema = cls.GET_SCHEMA()
+        info = schema.get_v1_info(cls)
+        return asdict(info)
+
     _DESCRIPTION = None
+    @final
     @classproperty
     def DESCRIPTION(cls):  # noqa
         if cls._DESCRIPTION is None:
@@ -1350,6 +1368,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._DESCRIPTION
 
     _CATEGORY = None
+    @final
     @classproperty
     def CATEGORY(cls):  # noqa
         if cls._CATEGORY is None:
@@ -1357,6 +1376,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._CATEGORY
 
     _EXPERIMENTAL = None
+    @final
     @classproperty
     def EXPERIMENTAL(cls):  # noqa
         if cls._EXPERIMENTAL is None:
@@ -1364,6 +1384,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._EXPERIMENTAL
 
     _DEPRECATED = None
+    @final
     @classproperty
     def DEPRECATED(cls):  # noqa
         if cls._DEPRECATED is None:
@@ -1371,6 +1392,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._DEPRECATED
 
     _API_NODE = None
+    @final
     @classproperty
     def API_NODE(cls):  # noqa
         if cls._API_NODE is None:
@@ -1378,6 +1400,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._API_NODE
 
     _OUTPUT_NODE = None
+    @final
     @classproperty
     def OUTPUT_NODE(cls):  # noqa
         if cls._OUTPUT_NODE is None:
@@ -1385,6 +1408,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._OUTPUT_NODE
 
     _INPUT_IS_LIST = None
+    @final
     @classproperty
     def INPUT_IS_LIST(cls):  # noqa
         if cls._INPUT_IS_LIST is None:
@@ -1392,6 +1416,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._INPUT_IS_LIST
     _OUTPUT_IS_LIST = None
 
+    @final
     @classproperty
     def OUTPUT_IS_LIST(cls):  # noqa
         if cls._OUTPUT_IS_LIST is None:
@@ -1399,6 +1424,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._OUTPUT_IS_LIST
 
     _RETURN_TYPES = None
+    @final
     @classproperty
     def RETURN_TYPES(cls):  # noqa
         if cls._RETURN_TYPES is None:
@@ -1406,6 +1432,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._RETURN_TYPES
 
     _RETURN_NAMES = None
+    @final
     @classproperty
     def RETURN_NAMES(cls):  # noqa
         if cls._RETURN_NAMES is None:
@@ -1413,6 +1440,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._RETURN_NAMES
 
     _OUTPUT_TOOLTIPS = None
+    @final
     @classproperty
     def OUTPUT_TOOLTIPS(cls):  # noqa
         if cls._OUTPUT_TOOLTIPS is None:
@@ -1420,6 +1448,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._OUTPUT_TOOLTIPS
 
     _NOT_IDEMPOTENT = None
+    @final
     @classproperty
     def NOT_IDEMPOTENT(cls):  # noqa
         if cls._NOT_IDEMPOTENT is None:
@@ -1428,6 +1457,7 @@ class ComfyNodeV3(ComfyNodeInternal):
 
     FUNCTION = "EXECUTE_NORMALIZED"
 
+    @final
     @classmethod
     def INPUT_TYPES(cls, include_hidden=True, return_schema=False) -> dict[str, dict] | tuple[dict[str, dict], SchemaV3]:
         schema = cls.FINALIZE_SCHEMA()
@@ -1439,6 +1469,7 @@ class ComfyNodeV3(ComfyNodeInternal):
             return input, schema
         return input
 
+    @final
     @classmethod
     def FINALIZE_SCHEMA(cls):
         """Call define_schema and finalize it."""
@@ -1446,6 +1477,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         schema.finalize()
         return schema
 
+    @final
     @classmethod
     def GET_SCHEMA(cls) -> SchemaV3:
         """Validate node class, finalize schema, validate schema, and set expected class properties."""
@@ -1487,14 +1519,56 @@ class ComfyNodeV3(ComfyNodeInternal):
             cls._OUTPUT_TOOLTIPS = output_tooltips
         cls.SCHEMA = schema
         return schema
-
-    @classmethod
-    def GET_NODE_INFO_V1(cls) -> dict[str, Any]:
-        schema = cls.GET_SCHEMA()
-        info = schema.get_v1_info(cls)
-        return asdict(info)
     #--------------------------------------------
     #############################################
+
+
+class ComfyNodeV3(_ComfyNodeBaseInternal):
+    """Common base class for all V3 nodes."""
+
+    @classmethod
+    @abstractmethod
+    def define_schema(cls) -> SchemaV3:
+        """Override this function with one that returns a SchemaV3 instance."""
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def execute(cls, **kwargs) -> NodeOutput:
+        """Override this function with one that performs node's actions."""
+        raise NotImplementedError
+
+    @classmethod
+    def validate_inputs(cls, **kwargs) -> bool:
+        """Optionally, define this function to validate inputs; equivalent to V1's VALIDATE_INPUTS."""
+        raise NotImplementedError
+
+    @classmethod
+    def fingerprint_inputs(cls, **kwargs) -> Any:
+        """Optionally, define this function to fingerprint inputs; equivalent to V1's IS_CHANGED."""
+        raise NotImplementedError
+
+    @classmethod
+    def check_lazy_status(cls, **kwargs) -> list[str]:
+        """Optionally, define this function to return a list of input names that should be evaluated.
+
+        This basic mixin impl. requires all inputs.
+
+        :kwargs: All node inputs will be included here.  If the input is ``None``, it should be assumed that it has not yet been evaluated.  \
+            When using ``INPUT_IS_LIST = True``, unevaluated will instead be ``(None,)``.
+
+        Params should match the nodes execution ``FUNCTION`` (self, and all inputs by name).
+        Will be executed repeatedly until it returns an empty list, or all requested items were already evaluated (and sent as params).
+
+        Comfy Docs: https://docs.comfy.org/custom-nodes/backend/lazy_evaluation#defining-check-lazy-status
+        """
+        return [name for name in kwargs if kwargs[name] is None]
+
+    @final
+    @classmethod
+    def GET_BASE_CLASS(cls):
+        """DO NOT override this class. Will break things in execution.py."""
+        return ComfyNodeV3
 
 
 class NodeOutput:

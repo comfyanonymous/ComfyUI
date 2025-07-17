@@ -28,6 +28,7 @@ from comfy_execution.graph import (
 )
 from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
+from comfy_api.internal import ComfyNodeInternal
 from comfy_api.v3 import io, helpers
 
 
@@ -54,7 +55,7 @@ class IsChangedCache:
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         has_is_changed = False
         is_changed_name = None
-        if issubclass(class_def, io.ComfyNodeV3) and helpers.first_real_override(class_def, "fingerprint_inputs", base=io.ComfyNodeV3) is not None:
+        if issubclass(class_def, ComfyNodeInternal) and helpers.first_real_override(class_def, "fingerprint_inputs") is not None:
             has_is_changed = True
             is_changed_name = "fingerprint_inputs"
         elif hasattr(class_def, "IS_CHANGED"):
@@ -127,7 +128,7 @@ class CacheSet:
         return result
 
 def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, extra_data={}):
-    is_v3 = issubclass(class_def, io.ComfyNodeV3)
+    is_v3 = issubclass(class_def, ComfyNodeInternal)
     if is_v3:
         valid_inputs, schema = class_def.INPUT_TYPES(include_hidden=False, return_schema=True)
     else:
@@ -224,7 +225,7 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
             if pre_execute_cb is not None and index is not None:
                 pre_execute_cb(index)
             # V3
-            if isinstance(obj, io.ComfyNodeV3) or (io.is_class(obj) and issubclass(obj, io.ComfyNodeV3)):
+            if isinstance(obj, ComfyNodeInternal) or (io.is_class(obj) and issubclass(obj, ComfyNodeInternal)):
                 # if is just a class, then assign no resources or state, just create clone
                 if io.is_class(obj):
                     type_obj = obj
@@ -411,8 +412,8 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                 obj = class_def()
                 caches.objects.set(unique_id, obj)
 
-            if issubclass(class_def, io.ComfyNodeV3):
-                lazy_status_present = helpers.first_real_override(class_def, "check_lazy_status", base=io.ComfyNodeV3) is not None
+            if issubclass(class_def, ComfyNodeInternal):
+                lazy_status_present = helpers.first_real_override(class_def, "check_lazy_status") is not None
             else:
                 lazy_status_present = getattr(obj, "check_lazy_status", None) is not None
             if lazy_status_present:
@@ -674,9 +675,9 @@ def validate_inputs(prompt, item, validated):
 
     validate_function_inputs = []
     validate_has_kwargs = False
-    if issubclass(obj_class, io.ComfyNodeV3):
+    if issubclass(obj_class, ComfyNodeInternal):
         validate_function_name = "validate_inputs"
-        validate_function = helpers.first_real_override(obj_class, validate_function_name, base=io.ComfyNodeV3)
+        validate_function = helpers.first_real_override(obj_class, validate_function_name)
     else:
         validate_function_name = "VALIDATE_INPUTS"
         validate_function = getattr(obj_class, validate_function_name, None)
