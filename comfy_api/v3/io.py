@@ -6,11 +6,12 @@ from collections import Counter
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any, Callable, Literal, TypedDict, TypeVar
+from comfy_api.v3.helpers import first_real_override
 
 # used for type hinting
 import torch
 from spandrel import ImageModelDescriptor
-from typing_extensions import NotRequired
+from typing_extensions import NotRequired, final
 
 from comfy.clip_vision import ClipVisionModel
 from comfy.clip_vision import Output as ClipVisionOutput_
@@ -189,14 +190,15 @@ class InputV3(IO_V3):
         self.lazy = lazy
         self.extra_dict = extra_dict if extra_dict is not None else {}
 
-    def as_dict_V1(self):
+    def as_dict(self):
         return prune_dict({
             "display_name": self.display_name,
+            "optional": self.optional,
             "tooltip": self.tooltip,
             "lazy": self.lazy,
         }) | prune_dict(self.extra_dict)
 
-    def get_io_type_V1(self):
+    def get_io_type(self):
         return self.io_type
 
 class WidgetInputV3(InputV3):
@@ -205,23 +207,23 @@ class WidgetInputV3(InputV3):
     '''
     def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: Any=None,
-                 socketless: bool=None, widgetType: str=None, force_input: bool=None, extra_dict=None):
+                 socketless: bool=None, widget_type: str=None, force_input: bool=None, extra_dict=None):
         super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
         self.default = default
         self.socketless = socketless
-        self.widgetType = widgetType
+        self.widget_type = widget_type
         self.force_input = force_input
 
-    def as_dict_V1(self):
-        return super().as_dict_V1() | prune_dict({
+    def as_dict(self):
+        return super().as_dict() | prune_dict({
             "default": self.default,
             "socketless": self.socketless,
-            "widgetType": self.widgetType,
+            "widgetType": self.widget_type,
             "forceInput": self.force_input,
         })
 
-    def get_io_type_V1(self):
-        return self.widgetType if self.widgetType is not None else super().get_io_type_V1()
+    def get_io_type(self):
+        return self.widget_type if self.widget_type is not None else super().get_io_type()
 
 
 class OutputV3(IO_V3):
@@ -232,12 +234,15 @@ class OutputV3(IO_V3):
         self.tooltip = tooltip
         self.is_output_list = is_output_list
 
-    def as_dict_V3(self):
+    def as_dict(self):
         return prune_dict({
             "display_name": self.display_name,
             "tooltip": self.tooltip,
             "is_output_list": self.is_output_list,
         })
+
+    def get_io_type(self):
+        return self.io_type
 
 
 class ComfyTypeI(ComfyType):
@@ -326,8 +331,8 @@ class Boolean(ComfyTypeIO):
             self.label_off = label_off
             self.default: bool
 
-        def as_dict_V1(self):
-            return super().as_dict_V1() | prune_dict({
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
                 "label_on": self.label_on,
                 "label_off": self.label_off,
             })
@@ -349,8 +354,8 @@ class Int(ComfyTypeIO):
             self.display_mode = display_mode
             self.default: int
 
-        def as_dict_V1(self):
-            return super().as_dict_V1() | prune_dict({
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
                 "min": self.min,
                 "max": self.max,
                 "step": self.step,
@@ -375,8 +380,8 @@ class Float(ComfyTypeIO):
             self.display_mode = display_mode
             self.default: float
 
-        def as_dict_V1(self):
-            return super().as_dict_V1() | prune_dict({
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
                 "min": self.min,
                 "max": self.max,
                 "step": self.step,
@@ -399,8 +404,8 @@ class String(ComfyTypeIO):
             self.dynamic_prompts = dynamic_prompts
             self.default: str
 
-        def as_dict_V1(self):
-            return super().as_dict_V1() | prune_dict({
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
                 "multiline": self.multiline,
                 "placeholder": self.placeholder,
                 "dynamicPrompts": self.dynamic_prompts,
@@ -426,8 +431,8 @@ class Combo(ComfyTypeI):
             self.remote = remote
             self.default: str
 
-        def as_dict_V1(self):
-            return super().as_dict_V1() | prune_dict({
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
                 "multiselect": self.multiselect,
                 "options": self.options,
                 "control_after_generate": self.control_after_generate,
@@ -445,15 +450,15 @@ class MultiCombo(ComfyTypeI):
     class Input(Combo.Input):
         def __init__(self, id: str, options: list[str], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: list[str]=None, placeholder: str=None, chip: bool=None, control_after_generate: bool=None,
-                    socketless: bool=None, widgetType: str=None):
-            super().__init__(id, options, display_name, optional, tooltip, lazy, default, control_after_generate, socketless, widgetType)
+                    socketless: bool=None):
+            super().__init__(id, options, display_name, optional, tooltip, lazy, default, control_after_generate, socketless=socketless)
             self.multiselect = True
             self.placeholder = placeholder
             self.chip = chip
             self.default: list[str]
 
-        def as_dict_V1(self):
-            to_return = super().as_dict_V1() | prune_dict({
+        def as_dict(self):
+            to_return = super().as_dict() | prune_dict({
                 "multi_select": self.multiselect,
                 "placeholder": self.placeholder,
                 "chip": self.chip,
@@ -768,9 +773,9 @@ class MultiType:
                 display_name = id.display_name if id.display_name is not None else display_name
                 lazy = id.lazy if id.lazy is not None else lazy
                 id = id.id
-                # if is a widget input, make sure widgetType is set appropriately
+                # if is a widget input, make sure widget_type is set appropriately
                 if isinstance(self.input_override, WidgetInputV3):
-                    self.input_override.widgetType = self.input_override.get_io_type_V1()
+                    self.input_override.widget_type = self.input_override.get_io_type()
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self._io_types = types
 
@@ -787,18 +792,18 @@ class MultiType:
                     io_types.append(x)
             return io_types
 
-        def get_io_type_V1(self):
+        def get_io_type(self):
             # ensure types are unique and order is preserved
             str_types = [x.io_type for x in self.io_types]
             if self.input_override is not None:
-                str_types.insert(0, self.input_override.get_io_type_V1())
+                str_types.insert(0, self.input_override.get_io_type())
             return ",".join(list(dict.fromkeys(str_types)))
 
-        def as_dict_V1(self):
+        def as_dict(self):
             if self.input_override is not None:
-                return self.input_override.as_dict_V1() | super().as_dict_V1()
+                return self.input_override.as_dict() | super().as_dict()
             else:
-                return super().as_dict_V1()
+                return super().as_dict()
 
 class DynamicInput(InputV3, ABC):
     '''
@@ -890,8 +895,8 @@ class MatchType(ComfyTypeIO):
         def get_dynamic(self) -> list[InputV3]:
             return [self]
 
-        def as_dict_V1(self):
-            return super().as_dict_V1() | prune_dict({
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
                 "template": self.template.as_dict(),
             })
 
@@ -904,8 +909,8 @@ class MatchType(ComfyTypeIO):
         def get_dynamic(self) -> list[OutputV3]:
             return [self]
 
-        def as_dict_V3(self):
-            return super().as_dict_V3() | prune_dict({
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
                 "template": self.template.as_dict(),
             })
 
@@ -980,6 +985,19 @@ class NodeInfoV1:
     experimental: bool=None
     api_node: bool=None
 
+@dataclass
+class NodeInfoV3:
+    input: dict=None
+    output: dict=None
+    hidden: list[str]=None
+    name: str=None
+    display_name: str=None
+    description: str=None
+    category: str=None
+    output_node: bool=None
+    deprecated: bool=None
+    experimental: bool=None
+    api_node: bool=None
 
 def as_pruned_dict(dataclass_obj):
     '''Return dict of dataclass object with pruned None values.'''
@@ -1082,6 +1100,84 @@ class SchemaV3:
                 if output.id is None:
                     output.id = f"_{i}_{output.io_type}_"
 
+    def get_v1_info(self, cls) -> NodeInfoV1:
+        # get V1 inputs
+        input = {
+            "required": {}
+        }
+        if self.inputs:
+            for i in self.inputs:
+                if isinstance(i, DynamicInput):
+                    dynamic_inputs = i.get_dynamic()
+                    for d in dynamic_inputs:
+                        add_to_dict_v1(d, input)
+                else:
+                    add_to_dict_v1(i, input)
+        if self.hidden:
+            for hidden in self.hidden:
+                input.setdefault("hidden", {})[hidden.name] = (hidden.value,)
+        # create separate lists from output fields
+        output = []
+        output_is_list = []
+        output_name = []
+        output_tooltips = []
+        if self.outputs:
+            for o in self.outputs:
+                output.append(o.io_type)
+                output_is_list.append(o.is_output_list)
+                output_name.append(o.display_name if o.display_name else o.io_type)
+                output_tooltips.append(o.tooltip if o.tooltip else None)
+
+        info = NodeInfoV1(
+            input=input,
+            input_order={key: list(value.keys()) for (key, value) in input.items()},
+            output=output,
+            output_is_list=output_is_list,
+            output_name=output_name,
+            output_tooltips=output_tooltips,
+            name=self.node_id,
+            display_name=self.display_name,
+            category=self.category,
+            description=self.description,
+            output_node=self.is_output_node,
+            deprecated=self.is_deprecated,
+            experimental=self.is_experimental,
+            api_node=self.is_api_node,
+            python_module=getattr(cls, "RELATIVE_PYTHON_MODULE", "nodes")
+        )
+        return info
+
+
+    def get_v3_info(self, cls) -> NodeInfoV3:
+        input_dict = {}
+        output_dict = {}
+        hidden_list = []
+        # TODO: make sure dynamic types will be handled correctly
+        if self.inputs:
+            for input in self.inputs:
+                add_to_dict_v3(input, input_dict)
+        if self.outputs:
+            for output in self.outputs:
+                add_to_dict_v3(output, output_dict)
+        if self.hidden:
+            for hidden in self.hidden:
+                hidden_list.append(hidden.value)
+
+        info = NodeInfoV3(
+            input=input_dict,
+            output=output_dict,
+            hidden=hidden_list,
+            name=self.node_id,
+            display_name=self.display_name,
+            description=self.description,
+            category=self.category,
+            output_node=self.is_output_node,
+            deprecated=self.is_deprecated,
+            experimental=self.is_experimental,
+            api_node=self.is_api_node,
+            python_module=getattr(cls, "RELATIVE_PYTHON_MODULE", "nodes")
+        )
+        return info
 
 class Serializer:
     def __init_subclass__(cls, io_type: str, **kwargs):
@@ -1140,11 +1236,18 @@ def lock_class(cls):
 
 def add_to_dict_v1(i: InputV3, input: dict):
     key = "optional" if i.optional else "required"
-    input.setdefault(key, {})[i.id] = (i.get_io_type_V1(), i.as_dict_V1())
+    as_dict = i.as_dict()
+    # for v1, we don't want to include the optional key
+    as_dict.pop("optional", None)
+    input.setdefault(key, {})[i.id] = (i.get_io_type(), as_dict)
+
+def add_to_dict_v3(io: InputV3 | OutputV3, d: dict):
+    d[io.id] = (io.get_io_type(), io.as_dict())
 
 
-class ComfyNodeV3(ComfyNodeInternal):
-    """Common base class for all V3 nodes."""
+
+class _ComfyNodeBaseInternal(ComfyNodeInternal):
+    """Common base class for storing internal methods and properties; DO NOT USE for defining nodes."""
 
     RELATIVE_PYTHON_MODULE = None
     SCHEMA = None
@@ -1163,6 +1266,7 @@ class ComfyNodeV3(ComfyNodeInternal):
     @classmethod
     @abstractmethod
     def execute(cls, **kwargs) -> NodeOutput:
+        """Override this function with one that performs node's actions."""
         raise NotImplementedError
 
     @classmethod
@@ -1191,28 +1295,28 @@ class ComfyNodeV3(ComfyNodeInternal):
         """
         return [name for name in kwargs if kwargs[name] is None]
 
-    @classmethod
-    def GET_SERIALIZERS(cls) -> list[Serializer]:
-        return []
-
-    @classmethod
-    def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
-        # schema = cls.GET_SCHEMA()
-        # TODO: finish
-        return None
-
     def __init__(self):
         self.local_state: NodeStateLocal = None
         self.local_resources: ResourcesLocal = None
         self.__class__.VALIDATE_CLASS()
 
     @classmethod
+    def GET_SERIALIZERS(cls) -> list[Serializer]:
+        return []
+
+    @classmethod
+    def GET_BASE_CLASS(cls):
+        return _ComfyNodeBaseInternal
+
+    @final
+    @classmethod
     def VALIDATE_CLASS(cls):
-        if not callable(cls.define_schema):
+        if first_real_override(cls, "define_schema") is None:
             raise Exception(f"No define_schema function was defined for node class {cls.__name__}.")
-        if not callable(cls.execute):
+        if first_real_override(cls, "execute") is None:
             raise Exception(f"No execute function was defined for node class {cls.__name__}.")
 
+    @final
     @classmethod
     def EXECUTE_NORMALIZED(cls, *args, **kwargs) -> NodeOutput:
         to_return = cls.execute(*args, **kwargs)
@@ -1229,6 +1333,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         else:
             raise Exception(f"Invalid return type from node: {type(to_return)}")
 
+    @final
     @classmethod
     def PREPARE_CLASS_CLONE(cls, hidden_inputs: dict) -> type[ComfyNodeV3]:
         """Creates clone of real node class to prevent monkey-patching."""
@@ -1238,10 +1343,24 @@ class ComfyNodeV3(ComfyNodeInternal):
         type_clone.hidden = HiddenHolder.from_dict(hidden_inputs)
         return type_clone
 
+    @final
+    @classmethod
+    def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
+        schema = cls.GET_SCHEMA()
+        info = schema.get_v3_info(cls)
+        return asdict(info)
     #############################################
     # V1 Backwards Compatibility code
     #--------------------------------------------
+    @final
+    @classmethod
+    def GET_NODE_INFO_V1(cls) -> dict[str, Any]:
+        schema = cls.GET_SCHEMA()
+        info = schema.get_v1_info(cls)
+        return asdict(info)
+
     _DESCRIPTION = None
+    @final
     @classproperty
     def DESCRIPTION(cls):  # noqa
         if cls._DESCRIPTION is None:
@@ -1249,6 +1368,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._DESCRIPTION
 
     _CATEGORY = None
+    @final
     @classproperty
     def CATEGORY(cls):  # noqa
         if cls._CATEGORY is None:
@@ -1256,6 +1376,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._CATEGORY
 
     _EXPERIMENTAL = None
+    @final
     @classproperty
     def EXPERIMENTAL(cls):  # noqa
         if cls._EXPERIMENTAL is None:
@@ -1263,6 +1384,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._EXPERIMENTAL
 
     _DEPRECATED = None
+    @final
     @classproperty
     def DEPRECATED(cls):  # noqa
         if cls._DEPRECATED is None:
@@ -1270,6 +1392,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._DEPRECATED
 
     _API_NODE = None
+    @final
     @classproperty
     def API_NODE(cls):  # noqa
         if cls._API_NODE is None:
@@ -1277,6 +1400,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._API_NODE
 
     _OUTPUT_NODE = None
+    @final
     @classproperty
     def OUTPUT_NODE(cls):  # noqa
         if cls._OUTPUT_NODE is None:
@@ -1284,6 +1408,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._OUTPUT_NODE
 
     _INPUT_IS_LIST = None
+    @final
     @classproperty
     def INPUT_IS_LIST(cls):  # noqa
         if cls._INPUT_IS_LIST is None:
@@ -1291,6 +1416,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._INPUT_IS_LIST
     _OUTPUT_IS_LIST = None
 
+    @final
     @classproperty
     def OUTPUT_IS_LIST(cls):  # noqa
         if cls._OUTPUT_IS_LIST is None:
@@ -1298,6 +1424,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._OUTPUT_IS_LIST
 
     _RETURN_TYPES = None
+    @final
     @classproperty
     def RETURN_TYPES(cls):  # noqa
         if cls._RETURN_TYPES is None:
@@ -1305,6 +1432,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._RETURN_TYPES
 
     _RETURN_NAMES = None
+    @final
     @classproperty
     def RETURN_NAMES(cls):  # noqa
         if cls._RETURN_NAMES is None:
@@ -1312,6 +1440,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._RETURN_NAMES
 
     _OUTPUT_TOOLTIPS = None
+    @final
     @classproperty
     def OUTPUT_TOOLTIPS(cls):  # noqa
         if cls._OUTPUT_TOOLTIPS is None:
@@ -1319,6 +1448,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         return cls._OUTPUT_TOOLTIPS
 
     _NOT_IDEMPOTENT = None
+    @final
     @classproperty
     def NOT_IDEMPOTENT(cls):  # noqa
         if cls._NOT_IDEMPOTENT is None:
@@ -1327,28 +1457,19 @@ class ComfyNodeV3(ComfyNodeInternal):
 
     FUNCTION = "EXECUTE_NORMALIZED"
 
+    @final
     @classmethod
     def INPUT_TYPES(cls, include_hidden=True, return_schema=False) -> dict[str, dict] | tuple[dict[str, dict], SchemaV3]:
         schema = cls.FINALIZE_SCHEMA()
-        # for V1, make inputs be a dict with potential keys {required, optional, hidden}
-        input = {
-            "required": {}
-        }
-        if schema.inputs:
-            for i in schema.inputs:
-                if isinstance(i, DynamicInput):
-                    dynamic_inputs = i.get_dynamic()
-                    for d in dynamic_inputs:
-                        add_to_dict_v1(d, input)
-                else:
-                    add_to_dict_v1(i, input)
-        if schema.hidden and include_hidden:
-            for hidden in schema.hidden:
-                input.setdefault("hidden", {})[hidden.name] = (hidden.value,)
+        info = schema.get_v1_info(cls)
+        input = info.input
+        if not include_hidden:
+            input.pop("hidden", None)
         if return_schema:
             return input, schema
         return input
 
+    @final
     @classmethod
     def FINALIZE_SCHEMA(cls):
         """Call define_schema and finalize it."""
@@ -1356,6 +1477,7 @@ class ComfyNodeV3(ComfyNodeInternal):
         schema.finalize()
         return schema
 
+    @final
     @classmethod
     def GET_SCHEMA(cls) -> SchemaV3:
         """Validate node class, finalize schema, validate schema, and set expected class properties."""
@@ -1397,45 +1519,56 @@ class ComfyNodeV3(ComfyNodeInternal):
             cls._OUTPUT_TOOLTIPS = output_tooltips
         cls.SCHEMA = schema
         return schema
-
-    @classmethod
-    def GET_NODE_INFO_V1(cls) -> dict[str, Any]:
-        schema = cls.GET_SCHEMA()
-        # get V1 inputs
-        input = cls.INPUT_TYPES()
-
-        # create separate lists from output fields
-        output = []
-        output_is_list = []
-        output_name = []
-        output_tooltips = []
-        if schema.outputs:
-            for o in schema.outputs:
-                output.append(o.io_type)
-                output_is_list.append(o.is_output_list)
-                output_name.append(o.display_name if o.display_name else o.io_type)
-                output_tooltips.append(o.tooltip if o.tooltip else None)
-
-        info = NodeInfoV1(
-            input=input,
-            input_order={key: list(value.keys()) for (key, value) in input.items()},
-            output=output,
-            output_is_list=output_is_list,
-            output_name=output_name,
-            output_tooltips=output_tooltips,
-            name=schema.node_id,
-            display_name=schema.display_name,
-            category=schema.category,
-            description=schema.description,
-            output_node=schema.is_output_node,
-            deprecated=schema.is_deprecated,
-            experimental=schema.is_experimental,
-            api_node=schema.is_api_node,
-            python_module=getattr(cls, "RELATIVE_PYTHON_MODULE", "nodes")
-        )
-        return asdict(info)
     #--------------------------------------------
     #############################################
+
+
+class ComfyNodeV3(_ComfyNodeBaseInternal):
+    """Common base class for all V3 nodes."""
+
+    @classmethod
+    @abstractmethod
+    def define_schema(cls) -> SchemaV3:
+        """Override this function with one that returns a SchemaV3 instance."""
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def execute(cls, **kwargs) -> NodeOutput:
+        """Override this function with one that performs node's actions."""
+        raise NotImplementedError
+
+    @classmethod
+    def validate_inputs(cls, **kwargs) -> bool:
+        """Optionally, define this function to validate inputs; equivalent to V1's VALIDATE_INPUTS."""
+        raise NotImplementedError
+
+    @classmethod
+    def fingerprint_inputs(cls, **kwargs) -> Any:
+        """Optionally, define this function to fingerprint inputs; equivalent to V1's IS_CHANGED."""
+        raise NotImplementedError
+
+    @classmethod
+    def check_lazy_status(cls, **kwargs) -> list[str]:
+        """Optionally, define this function to return a list of input names that should be evaluated.
+
+        This basic mixin impl. requires all inputs.
+
+        :kwargs: All node inputs will be included here.  If the input is ``None``, it should be assumed that it has not yet been evaluated.  \
+            When using ``INPUT_IS_LIST = True``, unevaluated will instead be ``(None,)``.
+
+        Params should match the nodes execution ``FUNCTION`` (self, and all inputs by name).
+        Will be executed repeatedly until it returns an empty list, or all requested items were already evaluated (and sent as params).
+
+        Comfy Docs: https://docs.comfy.org/custom-nodes/backend/lazy_evaluation#defining-check-lazy-status
+        """
+        return [name for name in kwargs if kwargs[name] is None]
+
+    @final
+    @classmethod
+    def GET_BASE_CLASS(cls):
+        """DO NOT override this class. Will break things in execution.py."""
+        return ComfyNodeV3
 
 
 class NodeOutput:
@@ -1479,57 +1612,4 @@ class _UIOutput(ABC):
 
     @abstractmethod
     def as_dict(self) -> dict:
-        ... # TODO: finish
-
-class TestNode(ComfyNodeV3):
-    @classmethod
-    def define_schema(cls):
-        return SchemaV3(
-        node_id="TestNode_v3",
-        display_name="Test Node (V3)",
-        category="v3_test",
-        inputs=[Int.Input("my_int"),
-                #AutoGrowDynamicInput("growing", Image.Input),
-                Mask.Input("thing"),
-                ],
-        outputs=[Image.Output("image_output")],
-        hidden=[Hidden.api_key_comfy_org, Hidden.auth_token_comfy_org, Hidden.unique_id]
-    )
-
-    @classmethod
-    def execute(cls, **kwargs):
-        pass
-
-# if __name__ == "__main__":
-#     print("hello there")
-#     inputs: list[InputV3] = [
-#         Int.Input("tessfes", widgetType=String.io_type),
-#         Int.Input("my_int"),
-#         Custom("XYZ").Input("xyz"),
-#         Custom("MODEL_M").Input("model1"),
-#         Image.Input("my_image"),
-#         Float.Input("my_float"),
-#         MultiType.Input("my_inputs", [String, Custom("MODEL_M"), Custom("XYZ")]),
-#     ]
-#     Custom("XYZ").Input()
-#     outputs: list[OutputV3] = [
-#         Image.Output("image"),
-#         Custom("XYZ").Output("xyz"),
-#     ]
-#
-#     for c in inputs:
-#         if isinstance(c, MultiType):
-#             print(f"{c}, {type(c)}, {type(c).io_type}, {c.id}, {[x.io_type for x in c.io_types]}")
-#             print(c.get_io_type_V1())
-#         else:
-#             print(f"{c}, {type(c)}, {type(c).io_type}, {c.id}")
-#
-#     for c in outputs:
-#         print(f"{c}, {type(c)}, {type(c).io_type}, {c.id}")
-#
-#     zz = TestNode()
-#     print(zz.GET_NODE_INFO_V1())
-#
-#     # aa = NodeInfoV1()
-#     # print(asdict(aa))
-#     # print(as_pruned_dict(aa))
+        ...
