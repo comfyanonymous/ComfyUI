@@ -1205,7 +1205,7 @@ class PromptServer(ExecutorToClientProgress):
         if verbose:
             logger.info(f"Server ready. To see the GUI go to: http://{address_print}:{port}")
         if call_on_start is not None:
-            call_on_start(address, port)
+            call_on_start("http", address, port)
 
     def add_on_prompt_handler(self, handler):
         self.on_prompt_handlers.append(handler)

@@ -18,7 +18,7 @@ DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
 
 
 def _create_parser() -> EnhancedConfigArgParser:
-    parser = EnhancedConfigArgParser(default_config_files=['config.yaml', 'config.json'],
+    parser = EnhancedConfigArgParser(default_config_files=['config.yaml', 'config.json', 'config.cfg', 'config.ini'],
                                      auto_env_var_prefix='COMFYUI_',
                                      args_for_setting_config_path=["-c", "--config"],
                                      add_env_var_help=True, add_config_file_help=True, add_help=True,
