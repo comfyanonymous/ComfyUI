@@ -246,7 +246,7 @@ torchaudio = [
 ]
 sageattention = [
     { git = "https://github.com/woct0rdho/SageAttention.git", rev = "v2.2.0", marker = "sys_platform == 'Linux'" },
-    { url = "https://github.com/woct0rdho/SageAttention/releases/download/v2.2.0-windows.post1/sageattention-2.2.0%2Bcu128torch2.8.0-cp38-abi3-win_amd64.whl", marker = "sys_platform == 'win32'" },
+    { url = "https://github.com/woct0rdho/SageAttention/releases/download/v2.2.0-windows.post1/sageattention-2.2.0+cu128torch2.7.1.post1-cp39-abi3-win_amd64.whl", marker = "sys_platform == 'win32'" },
 ]
 
 [[tool.uv.dependency-metadata]]
