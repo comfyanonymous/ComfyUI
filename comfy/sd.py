@@ -52,6 +52,7 @@ import comfy.lora_convert
 import comfy.hooks
 import comfy.t2i_adapter.adapter
 import comfy.taesd.taesd
+import comfy.taesd.taehv
 
 import comfy.ldm.flux.redux
 
@@ -297,6 +298,13 @@ class VAE:
             elif "taesd_decoder.1.weight" in sd:
                 self.latent_channels = sd["taesd_decoder.1.weight"].shape[1]
                 self.first_stage_model = comfy.taesd.taesd.TAESD(latent_channels=self.latent_channels)
+            elif "taehv_flag" in sd:
+                self.first_stage_model = comfy.taesd.taehv.TAEHV()
+                self.memory_used_decode = lambda shape, dtype: (1000 * shape[2] * shape[3] * shape[4] * 64) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (1000 * shape[2] * shape[3] * shape[4]) * model_management.dtype_size(dtype)
+                self.latent_channels = 16
+                self.latent_dim = 3
+                sd.pop('taehv_flag',None)
             elif "vquantizer.codebook.weight" in sd: #VQGan: stage a of stable cascade
                 self.first_stage_model = StageA()
                 self.downscale_ratio = 4
@@ -401,6 +409,7 @@ class VAE:
                 self.downscale_index_formula = (4, 8, 8)
                 self.latent_dim = 3
                 self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.conv.weight"].shape[1]
+                print('Loading Hunyuan VAE. Latent channels = ',self.latent_channels)
                 self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=sd['post_quant_conv.weight'].shape[1])
                 self.memory_used_decode = lambda shape, dtype: (1500 * shape[2] * shape[3] * shape[4] * (4 * 8 * 8)) * model_management.dtype_size(dtype)
                 self.memory_used_encode = lambda shape, dtype: (900 * max(shape[2], 2) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
