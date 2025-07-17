@@ -11,16 +11,20 @@ from comfy.cli_args import args
 class EmptyLatentHunyuan3Dv2:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"resolution": ("INT", {"default": 3072, "min": 1, "max": 8192}),
-                             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "tooltip": "The number of latent images in the batch."}),
-                             }}
+        return {
+            "required": {
+                "resolution": ("INT", {"default": 3072, "min": 1, "max": 8192}),
+                "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "tooltip": "The number of latent images in the batch."}),
+            }
+        }
+
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
 
     CATEGORY = "latent/3d"
 
     def generate(self, resolution, batch_size):
-        latent = torch.zeros([batch_size, resolution, 64], device=comfy.model_management.intermediate_device())
+        latent = torch.zeros([batch_size, 64, resolution], device=comfy.model_management.intermediate_device())
         return ({"samples": latent, "type": "hunyuan3dv2"}, )
 
 class Hunyuan3Dv2Conditioning:
@@ -95,7 +99,7 @@ class VAEDecodeHunyuan3D:
     def decode(self, vae, samples, num_chunks, octree_resolution):
         voxels = VOXEL(vae.decode(samples["samples"], vae_options={"num_chunks": num_chunks, "octree_resolution": octree_resolution}))
         return (voxels, )
-    
+
 def voxel_to_mesh(voxels, threshold=0.5, device=None):
     if device is None:
         device = torch.device("cpu")

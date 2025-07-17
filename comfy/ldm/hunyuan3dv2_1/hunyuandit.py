@@ -586,9 +586,11 @@ class HunYuanDiTPlain(nn.Module):
 
         self.final_layer = FinalLayer(hidden_size, self.out_channels, use_fp16 = use_fp16)
 
-    def forward(self, x, t, context, **kwargs):
-        
+    def forward(self, x, t, context, transformer_options = {}, **kwargs):
+
+        x = x.movedim(-1, -2)
         main_condition = context
+        t = 1.0 - t
 
         time_embedded = self.t_embedder(t, condition = kwargs.get('guidance_cond'))
 
@@ -597,20 +599,42 @@ class HunYuanDiTPlain(nn.Module):
 
         combined = torch.cat([time_embedded, x_embedded], dim=1)
 
+        def block_wrap(args):
+                    return block(
+                        args["x"],
+                        args["t"],
+                        args["cond"],
+                        skip_tensor=args.get("skip"),)
+
         skip_stack = []
+        patches_replace = transformer_options.get("patches_replace", {})
+        blocks_replace = patches_replace.get("dit", {})
         for idx, block in enumerate(self.blocks):
             if idx <= self.depth // 2:
                 skip_input = None
             else:
                 skip_input = skip_stack.pop()
 
-            combined = block(combined, time_embedded, main_condition, skip_tensor = skip_input)
+            if ("block", idx) in blocks_replace:
+
+                out = blocks_replace[("block", idx)](
+                    {
+                        "x": combined,
+                        "t": time_embedded,
+                        "cond": main_condition,
+                        "skip": skip_input,
+                    },
+                    {"original_block": block_wrap},
+                )
+                combined = out
+            else:
+                combined = block(combined, time_embedded, main_condition, skip_tensor=skip_input)
 
             if idx < self.depth // 2:
                 skip_stack.append(combined)
 
         output = self.final_layer(combined)
-        return output
+        return output.movedim(-2, -1) * (-1.0)
     
 def get_diffusion_checkpoint():
     import requests

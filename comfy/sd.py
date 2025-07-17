@@ -15,7 +15,6 @@ import comfy.ldm.lightricks.vae.causal_video_autoencoder
 import comfy.ldm.cosmos.vae
 import comfy.ldm.wan.vae
 import comfy.ldm.hunyuan3d.vae
-import comfy.ldm.hunyuan3dv2_1.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
 import yaml
 import math
