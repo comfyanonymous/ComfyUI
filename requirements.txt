@@ -28,4 +28,3 @@ soundfile
 av>=14.2.0
 pydantic~=2.0
 pydantic-settings~=2.0
-scikit-image  # for 3D mesh generation (marching cubes)
