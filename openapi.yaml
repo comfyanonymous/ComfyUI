@@ -50,12 +50,6 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
