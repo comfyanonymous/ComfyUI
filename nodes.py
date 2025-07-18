@@ -2313,6 +2313,7 @@ def init_builtin_extra_nodes():
         "v3/nodes_cond.py",
         "v3/nodes_controlnet.py",
         "v3/nodes_cosmos.py",
+        "v3/nodes_differential_diffusion.py",
         "v3/nodes_flux.py",
         "v3/nodes_freelunch.py",
         "v3/nodes_fresca.py",
@@ -2321,6 +2322,7 @@ def init_builtin_extra_nodes():
         "v3/nodes_mask.py",
         "v3/nodes_preview_any.py",
         "v3/nodes_primitive.py",
+        "v3/nodes_rebatch.py",
         "v3/nodes_stable_cascade.py",
         "v3/nodes_webcam.py",
     ]

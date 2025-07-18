@@ -23,7 +23,7 @@ lint.select = [
   # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
   "F",
 ]
-ignore = ["E501"]  # disable line-length checking
+lint.ignore = ["E501"]  # disable line-length checking
 exclude = ["*.ipynb"]
 
 [tool.ruff.lint.per-file-ignores]
