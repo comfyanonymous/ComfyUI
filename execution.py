@@ -1160,31 +1160,48 @@ class PromptQueue:
 
             history_items = []
             for key in selected_keys:
-                history_entry = copy.deepcopy(self.history[key])
+                history_entry = self.history[key]
                 
+                # Build filtered prompt without modifying original data
+                filtered_prompt = None
                 if "prompt" in history_entry:
                     priority, prompt_id, _, extra_data, _ = history_entry["prompt"]
-                    if "extra_pnginfo" in extra_data:
-                        extra_data["extra_pnginfo"].pop("workflow", None)
+                    
+                    # Create new extra_data dict, excluding workflow from extra_pnginfo
+                    filtered_extra_data = {}
+                    for k, v in extra_data.items():
+                        if k == "extra_pnginfo":
+                            # Create new dict without workflow
+                            filtered_extra_data[k] = {
+                                pk: pv for pk, pv in v.items() 
+                                if pk != "workflow"
+                            }
+                        else:
+                            # Reference original value for other keys
+                            filtered_extra_data[k] = v
+                    
                     filtered_prompt = {
                         "priority": priority,
                         "prompt_id": prompt_id,
-                        "extra_data": extra_data
+                        "extra_data": filtered_extra_data
                     }
-                else:
-                    filtered_prompt = None
                 
-                item = {
-                    "prompt_id": key,
-                    "outputs": history_entry.get("outputs", {}),
-                    "meta": history_entry.get("meta", {}),
-                    "prompt": filtered_prompt,
-                    "status": {
+                # Build status without modifying original
+                status = None
+                if history_entry.get("status"):
+                    status = {
                         "status_str": history_entry["status"]["status_str"],
                         "messages": [(e, {k: v for k, v in d.items() if k != "nodes"}) 
                                     if e == "execution_cached" else (e, d)
                                     for e, d in history_entry["status"]["messages"]]
-                    } if history_entry.get("status") else None
+                    }
+                
+                item = {
+                    "prompt_id": key,
+                    "outputs": history_entry.get("outputs", {}),  # Reference, not modified
+                    "meta": history_entry.get("meta", {}),  # Reference, not modified
+                    "prompt": filtered_prompt,
+                    "status": status
                 }
                 
                 history_items.append(item)
@@ -1220,11 +1237,15 @@ class PromptQueue:
         """
         with self.mutex:
             if prompt_id in self.history:
-                history_entry = copy.deepcopy(self.history[prompt_id])
+                history_entry = self.history[prompt_id]
                 
+                # Build new entry without modifying original
+                new_entry = {}
+                
+                # Convert prompt tuple to dict if present
                 if "prompt" in history_entry:
                     priority, prompt_id_inner, prompt_data, extra_data, outputs_to_execute = history_entry["prompt"]
-                    history_entry["prompt"] = {
+                    new_entry["prompt"] = {
                         "priority": priority,
                         "prompt_id": prompt_id_inner,
                         "prompt": prompt_data,
@@ -1232,7 +1253,12 @@ class PromptQueue:
                         "outputs_to_execute": outputs_to_execute
                     }
                 
-                return {prompt_id: history_entry}
+                # Copy other fields by reference
+                for key, value in history_entry.items():
+                    if key != "prompt":
+                        new_entry[key] = value
+                
+                return {prompt_id: new_entry}
             else:
                 return {}
 
