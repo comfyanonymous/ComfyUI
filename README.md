@@ -1581,3 +1581,21 @@ This will use a snapshot of the legacy frontend preserved in the [ComfyUI Legacy
 ## Known Issues
 
 Please visit the Issues tab for documented known issues.
+
+## Sponsoring ComfyUI LTS
+
+This Long-Term Support (LTS) fork of ComfyUI is maintained by [Hidden Switch](https://hiddenswitch.com) and [AppMana](https://appmana.com), a creative technology consultancy that builds and maintains:
+- Tools and infrastructure for generative AI art and video.
+- A high-performance streaming service for Unity and Unreal Engine applications.
+- A community-authored digital card game, [Spellsource](https://spellsource.com).
+
+Your sponsorship enables us to dedicate significant engineering time to this project. This results in faster bug fixes, quicker adoption of upstream features, and the development of robust, professional-grade features like:
+- Long-term support and stability.
+- Easy installation and dependency management via `pip` and `uv`.
+- First-class support for installable custom nodes.
+- Distributed, multi-GPU processing capabilities.
+- New API and embedding options for professional workflows.
+
+A lot of work goes into maintaining a project of this scale—not just software development, but also responding to issues, reviewing contributions, writing high-quality documentation, testing across different platforms (Windows, Linux, macOS, CUDA, ROCm), and keeping the ecosystem of dependent custom nodes up-to-date.
+
+Your financial support allows us to prioritize these tasks and continue to move this project and its community forward.
