@@ -5,6 +5,7 @@ import logging  # noqa
 import folder_paths
 import comfy.utils
 import comfy.sd
+import asyncio
 
 
 @io.comfytype(io_type="XYZ")
@@ -203,8 +204,43 @@ class NInputsTest(io.ComfyNodeV3):
         return io.NodeOutput(combined_image)
 
 
+class V3TestSleep(io.ComfyNodeV3):
+    @classmethod
+    def define_schema(cls):
+        return io.SchemaV3(
+            node_id="V3_TestSleep",
+            display_name="V3 Test Sleep",
+            category="_for_testing",
+            description="Test async sleep functionality.",
+            inputs=[
+                io.AnyType.Input("value", display_name="Value"),
+                io.Float.Input("seconds", display_name="Seconds", default=1.0, min=0.0, max=9999.0, step=0.01, tooltip="The amount of seconds to sleep."),
+            ],
+            outputs=[
+                io.AnyType.Output(),
+            ],
+            hidden=[
+                io.Hidden.unique_id,
+            ],
+        )
+
+    @classmethod
+    async def execute(cls, value: io.AnyType.Type, seconds: io.Float.Type, **kwargs):
+        logging.info(f"V3TestSleep: {cls.hidden.unique_id}")
+        pbar = comfy.utils.ProgressBar(seconds, node_id=cls.hidden.unique_id)
+        start = time.time()
+        expiration = start + seconds
+        now = start
+        while now < expiration:
+            now = time.time()
+            pbar.update_absolute(now - start)
+            await asyncio.sleep(0.02)
+        return io.NodeOutput(value)
+
+
 NODES_LIST: list[type[io.ComfyNodeV3]] = [
     V3TestNode,
     V3LoraLoader,
     NInputsTest,
+    V3TestSleep,
 ]

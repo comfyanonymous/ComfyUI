@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import inspect
 from abc import ABC, abstractmethod
 from collections import Counter
 from dataclasses import asdict, dataclass
@@ -75,6 +76,16 @@ class NumberDisplay(str, Enum):
     color = "color"
 
 
+class _StringIOType(str):
+    def __ne__(self, value: object) -> bool:
+        if self == "*" or value == "*":
+            return False
+        if not isinstance(value, str):
+            return True
+        a = frozenset(self.split(","))
+        b = frozenset(value.split(","))
+        return not (b.issubset(a) or a.issubset(b))
+
 class ComfyType(ABC):
     Type = Any
     io_type: str = None
@@ -114,8 +125,8 @@ def comfytype(io_type: str, **kwargs):
             new_cls.__module__ = cls.__module__
             new_cls.__doc__ = cls.__doc__
             # assign ComfyType attributes, if needed
-        # NOTE: do we need __ne__ trick for io_type? (see node_typing.IO.__ne__ for details)
-        new_cls.io_type = io_type
+        # NOTE: use __ne__ trick for io_type (see node_typing.IO.__ne__ for details)
+        new_cls.io_type = _StringIOType(io_type)
         if hasattr(new_cls, "Input") and new_cls.Input is not None:
             new_cls.Input.Parent = new_cls
         if hasattr(new_cls, "Output") and new_cls.Output is not None:
@@ -169,7 +180,7 @@ class InputV3(IO_V3):
         }) | prune_dict(self.extra_dict)
 
     def get_io_type(self):
-        return self.io_type
+        return _StringIOType(self.io_type)
 
 class WidgetInputV3(InputV3):
     '''
@@ -1227,10 +1238,33 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
         if first_real_override(cls, "execute") is None:
             raise Exception(f"No execute function was defined for node class {cls.__name__}.")
 
+    @classproperty
+    def FUNCTION(cls):  # noqa
+        if inspect.iscoroutinefunction(cls.execute):
+            return "EXECUTE_NORMALIZED_ASYNC"
+        return "EXECUTE_NORMALIZED"
+
     @final
     @classmethod
     def EXECUTE_NORMALIZED(cls, *args, **kwargs) -> NodeOutput:
         to_return = cls.execute(*args, **kwargs)
+        if to_return is None:
+            return NodeOutput()
+        elif isinstance(to_return, NodeOutput):
+            return to_return
+        elif isinstance(to_return, tuple):
+            return NodeOutput(*to_return)
+        elif isinstance(to_return, dict):
+            return NodeOutput.from_dict(to_return)
+        elif isinstance(to_return, ExecutionBlocker):
+            return NodeOutput(block_execution=to_return.message)
+        else:
+            raise Exception(f"Invalid return type from node: {type(to_return)}")
+
+    @final
+    @classmethod
+    async def EXECUTE_NORMALIZED_ASYNC(cls, *args, **kwargs) -> NodeOutput:
+        to_return = await cls.execute(*args, **kwargs)
         if to_return is None:
             return NodeOutput()
         elif isinstance(to_return, NodeOutput):
@@ -1365,8 +1399,6 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
         if cls._NOT_IDEMPOTENT is None:
             cls.GET_SCHEMA()
         return cls._NOT_IDEMPOTENT
-
-    FUNCTION = "EXECUTE_NORMALIZED"
 
     @final
     @classmethod
