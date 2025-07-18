@@ -1162,22 +1162,18 @@ class PromptQueue:
             for key in selected_keys:
                 history_entry = self.history[key]
                 
-                # Build filtered prompt without modifying original data
                 filtered_prompt = None
                 if "prompt" in history_entry:
                     priority, prompt_id, _, extra_data, _ = history_entry["prompt"]
                     
-                    # Create new extra_data dict, excluding workflow from extra_pnginfo
                     filtered_extra_data = {}
                     for k, v in extra_data.items():
                         if k == "extra_pnginfo":
-                            # Create new dict without workflow
                             filtered_extra_data[k] = {
                                 pk: pv for pk, pv in v.items() 
                                 if pk != "workflow"
                             }
                         else:
-                            # Reference original value for other keys
                             filtered_extra_data[k] = v
                     
                     filtered_prompt = {
@@ -1186,7 +1182,6 @@ class PromptQueue:
                         "extra_data": filtered_extra_data
                     }
                 
-                # Build status without modifying original
                 status = None
                 if history_entry.get("status"):
                     status = {
@@ -1198,8 +1193,8 @@ class PromptQueue:
                 
                 item = {
                     "prompt_id": key,
-                    "outputs": history_entry.get("outputs", {}),  # Reference, not modified
-                    "meta": history_entry.get("meta", {}),  # Reference, not modified
+                    "outputs": history_entry.get("outputs", {}),
+                    "meta": history_entry.get("meta", {}),
                     "prompt": filtered_prompt,
                     "status": status
                 }
@@ -1239,10 +1234,8 @@ class PromptQueue:
             if prompt_id in self.history:
                 history_entry = self.history[prompt_id]
                 
-                # Build new entry without modifying original
                 new_entry = {}
                 
-                # Convert prompt tuple to dict if present
                 if "prompt" in history_entry:
                     priority, prompt_id_inner, prompt_data, extra_data, outputs_to_execute = history_entry["prompt"]
                     new_entry["prompt"] = {
@@ -1253,7 +1246,6 @@ class PromptQueue:
                         "outputs_to_execute": outputs_to_execute
                     }
                 
-                # Copy other fields by reference
                 for key, value in history_entry.items():
                     if key != "prompt":
                         new_entry[key] = value
