@@ -28,7 +28,7 @@ from comfy_execution.graph import (
 )
 from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
-from comfy_api.internal import ComfyNodeInternal, lock_class, first_real_override
+from comfy_api.internal import ComfyNodeInternal, lock_class, first_real_override, is_class
 from comfy_api.v3 import io
 
 
@@ -225,9 +225,9 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
             if pre_execute_cb is not None and index is not None:
                 pre_execute_cb(index)
             # V3
-            if isinstance(obj, ComfyNodeInternal) or (io.is_class(obj) and issubclass(obj, ComfyNodeInternal)):
+            if isinstance(obj, ComfyNodeInternal) or (is_class(obj) and issubclass(obj, ComfyNodeInternal)):
                 # if is just a class, then assign no resources or state, just create clone
-                if io.is_class(obj):
+                if is_class(obj):
                     type_obj = obj
                     obj.VALIDATE_CLASS()
                     class_clone = obj.PREPARE_CLASS_CLONE(hidden_inputs)
