@@ -50,6 +50,7 @@ class CFGNorm:
     RETURN_NAMES = ("patched_model",)
     FUNCTION = "patch"
     CATEGORY = "advanced/guidance"
+    EXPERIMENTAL = True
 
     def patch(self, model, strength):
         m = model.clone()
