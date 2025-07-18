@@ -23,9 +23,8 @@ lint.select = [
   # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
   "F",
 ]
+lint.ignore = ["E501"]  # disable line-length checking
 exclude = ["*.ipynb"]
-line-length = 144
-lint.pycodestyle.ignore-overlong-task-comments = true
 
 [tool.ruff.lint.per-file-ignores]
 "!comfy_extras/v3/*" = ["E", "I"]  # enable these rules only for V3 nodes

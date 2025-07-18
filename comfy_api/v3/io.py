@@ -439,6 +439,12 @@ class MultiCombo(ComfyTypeI):
 class Image(ComfyTypeIO):
     Type = torch.Tensor
 
+
+@comfytype(io_type="WAN_CAMERA_EMBEDDING")
+class WanCameraEmbedding(ComfyTypeIO):
+    Type = torch.Tensor
+
+
 @comfytype(io_type="WEBCAM")
 class Webcam(ComfyTypeIO):
     Type = str
