@@ -112,3 +112,15 @@ def lock_class(cls):
     locked_dict['__setattr__'] = locked_instance_setattr
 
     return LockedMeta(cls.__name__, cls.__bases__, locked_dict)
+
+
+def make_locked_method_func(type_obj, func, class_clone):
+    """
+    Returns a function that, when called with **inputs, will execute:
+    getattr(type_obj, func).__func__(lock_class(class_clone), **inputs)
+    """
+    locked_class = lock_class(class_clone)
+    method = getattr(type_obj, func).__func__
+    def wrapped_func(**inputs):
+        return method(locked_class, **inputs)
+    return wrapped_func
