@@ -32,6 +32,7 @@ class CFGNorm(io.ComfyNodeV3):
                 io.Float.Input("strength", default=1.0, min=0.0, max=100.0, step=0.01),
             ],
             outputs=[io.Model.Output("patched_model", display_name="patched_model")],
+            is_experimental=True,
         )
 
     @classmethod
