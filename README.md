@@ -15,8 +15,8 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 - [Examples](#examples)
 - [Credits](#credits)
 
-*** FOR THOSE THAT ARE GETTING TROJAN DETECTIONS IN NCCL.DLL IN ZLUDA FOLDER, in dev's words :  "nccl.dll is a dummy file, it does nothing. when one of its functions is called, it will just return "not supported" status. nccl.dll, cufftw.dll are dummy. they are introduced only for compatibility (to run applications that reject to start without them, but rarely or never use them).zluda.exe hijacks windows api and injects some dlls. its behavior can be considered as malicious by some antiviruses, but it does not hurt the user.
-The antiviruses, including windows defender on my computer, didn't detect them as malicious when I made nightly build. but somehow the nightly build is now detected as virus on my end too. SO IGNORE THE WARNING AND MAYBE EXCLUDE THE ZLUDA FOLDER FROM DEFENDER.
+*** FOR THOSE THAT ARE GETTING TROJAN DETECTIONS IN NCCL.DLL IN ZLUDA FOLDER, in dev's words :  "   nccl.dll is a dummy file, it does nothing. when one of its functions is called, it will just return "not supported" status. nccl.dll, cufftw.dll are dummy. they are introduced only for compatibility (to run applications that reject to start without them, but rarely or never use them).zluda.exe hijacks windows api and injects some dlls. its behavior can be considered as malicious by some antiviruses, but it does not hurt the user.
+The antiviruses, including windows defender on my computer, didn't detect them as malicious when I made nightly build. but somehow the nightly build is now detected as virus on my end too.   " SO IGNORE THE WARNING AND MAYBE EXCLUDE THE ZLUDA FOLDER FROM DEFENDER.
 
 *** For those who can't seem to follow this readme structure here is install instructions put together neatly : "https://github.com/patientx/ComfyUI-Zluda/issues/188"
 
