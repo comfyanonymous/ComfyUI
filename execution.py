@@ -28,8 +28,8 @@ from comfy_execution.graph import (
 )
 from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
-from comfy_api.internal import ComfyNodeInternal
-from comfy_api.v3 import io, helpers
+from comfy_api.internal import ComfyNodeInternal, lock_class, first_real_override, is_class
+from comfy_api.v3 import io
 
 
 class ExecutionResult(Enum):
@@ -55,7 +55,7 @@ class IsChangedCache:
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         has_is_changed = False
         is_changed_name = None
-        if issubclass(class_def, ComfyNodeInternal) and helpers.first_real_override(class_def, "fingerprint_inputs") is not None:
+        if issubclass(class_def, ComfyNodeInternal) and first_real_override(class_def, "fingerprint_inputs") is not None:
             has_is_changed = True
             is_changed_name = "fingerprint_inputs"
         elif hasattr(class_def, "IS_CHANGED"):
@@ -225,9 +225,9 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
             if pre_execute_cb is not None and index is not None:
                 pre_execute_cb(index)
             # V3
-            if isinstance(obj, ComfyNodeInternal) or (io.is_class(obj) and issubclass(obj, ComfyNodeInternal)):
+            if isinstance(obj, ComfyNodeInternal) or (is_class(obj) and issubclass(obj, ComfyNodeInternal)):
                 # if is just a class, then assign no resources or state, just create clone
-                if io.is_class(obj):
+                if is_class(obj):
                     type_obj = obj
                     obj.VALIDATE_CLASS()
                     class_clone = obj.PREPARE_CLASS_CLONE(hidden_inputs)
@@ -256,7 +256,7 @@ def _map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execut
                             dynamic_list.append(real_inputs.pop(d.id, None))
                         dynamic_list = [x for x in dynamic_list if x is not None]
                         inputs = {**real_inputs, add_key: dynamic_list}
-                results.append(getattr(type_obj, func).__func__(io.lock_class(class_clone), **inputs))
+                results.append(getattr(type_obj, func).__func__(lock_class(class_clone), **inputs))
             # V1
             else:
                 results.append(getattr(obj, func)(**inputs))
@@ -413,7 +413,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                 caches.objects.set(unique_id, obj)
 
             if issubclass(class_def, ComfyNodeInternal):
-                lazy_status_present = helpers.first_real_override(class_def, "check_lazy_status") is not None
+                lazy_status_present = first_real_override(class_def, "check_lazy_status") is not None
             else:
                 lazy_status_present = getattr(obj, "check_lazy_status", None) is not None
             if lazy_status_present:
@@ -677,7 +677,7 @@ def validate_inputs(prompt, item, validated):
     validate_has_kwargs = False
     if issubclass(obj_class, ComfyNodeInternal):
         validate_function_name = "validate_inputs"
-        validate_function = helpers.first_real_override(obj_class, validate_function_name)
+        validate_function = first_real_override(obj_class, validate_function_name)
     else:
         validate_function_name = "VALIDATE_INPUTS"
         validate_function = getattr(obj_class, validate_function_name, None)

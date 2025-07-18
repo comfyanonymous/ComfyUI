@@ -6,7 +6,6 @@ from collections import Counter
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any, Callable, Literal, TypedDict, TypeVar
-from comfy_api.v3.helpers import first_real_override
 
 # used for type hinting
 import torch
@@ -22,7 +21,8 @@ from comfy.samplers import CFGGuider, Sampler
 from comfy.sd import CLIP, VAE
 from comfy.sd import StyleModel as StyleModel_
 from comfy_api.input import VideoInput
-from comfy_api.internal import ComfyNodeInternal
+from comfy_api.internal import (ComfyNodeInternal, classproperty, copy_class, first_real_override, is_class,
+    prune_dict, shallow_clone_class)
 from comfy_api.v3.resources import Resources, ResourcesLocal
 from comfy_execution.graph import ExecutionBlocker
 
@@ -67,36 +67,6 @@ class RemoteOptions:
             "max_retries": self.max_retries,
             "refresh": self.refresh,
         })
-
-
-def is_class(obj):
-    '''
-    Returns True if is a class type.
-    Returns False if is a class instance.
-    '''
-    return isinstance(obj, type)
-
-
-def copy_class(cls: type) -> type:
-    '''
-    Copy a class and its attributes.
-    '''
-    if cls is None:
-        return None
-    cls_dict = {
-            k: v for k, v in cls.__dict__.items()
-            if k not in ('__dict__', '__weakref__', '__module__', '__doc__')
-        }
-    # new class
-    new_cls = type(
-        cls.__name__,
-        (cls,),
-        cls_dict
-    )
-    # metadata preservation
-    new_cls.__module__ = cls.__module__
-    new_cls.__doc__ = cls.__doc__
-    return new_cls
 
 
 class NumberDisplay(str, Enum):
@@ -999,13 +969,6 @@ class NodeInfoV3:
     experimental: bool=None
     api_node: bool=None
 
-def as_pruned_dict(dataclass_obj):
-    '''Return dict of dataclass object with pruned None values.'''
-    return prune_dict(asdict(dataclass_obj))
-
-def prune_dict(d: dict):
-    return {k: v for k,v in d.items() if v is not None}
-
 
 @dataclass
 class SchemaV3:
@@ -1179,60 +1142,6 @@ class SchemaV3:
         )
         return info
 
-class Serializer:
-    def __init_subclass__(cls, io_type: str, **kwargs):
-        cls.io_type = io_type
-        super().__init_subclass__(**kwargs)
-
-    @classmethod
-    def serialize(cls, o: Any) -> str:
-        pass
-
-    @classmethod
-    def deserialize(cls, s: str) -> Any:
-        pass
-
-
-class classproperty(object):
-    def __init__(self, f):
-        self.f = f
-    def __get__(self, obj, owner):
-        return self.f(owner)
-
-
-# NOTE: this was ai generated and validated by hand
-def shallow_clone_class(cls, new_name=None):
-    '''
-    Shallow clone a class.
-    '''
-    return type(
-        new_name or f"{cls.__name__}Clone",
-        cls.__bases__,
-        dict(cls.__dict__)
-    )
-
-# NOTE: this was ai generated and validated by hand
-def lock_class(cls):
-    '''
-    Lock a class so that its top-levelattributes cannot be modified.
-    '''
-    # Locked instance __setattr__
-    def locked_instance_setattr(self, name, value):
-        raise AttributeError(
-            f"Cannot set attribute '{name}' on immutable instance of {type(self).__name__}"
-        )
-    # Locked metaclass
-    class LockedMeta(type(cls)):
-        def __setattr__(cls_, name, value):
-            raise AttributeError(
-                f"Cannot modify class attribute '{name}' on locked class '{cls_.__name__}'"
-            )
-    # Rebuild class with locked behavior
-    locked_dict = dict(cls.__dict__)
-    locked_dict['__setattr__'] = locked_instance_setattr
-
-    return LockedMeta(cls.__name__, cls.__bases__, locked_dict)
-
 
 def add_to_dict_v1(i: InputV3, input: dict):
     key = "optional" if i.optional else "required"
@@ -1299,10 +1208,6 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
         self.local_state: NodeStateLocal = None
         self.local_resources: ResourcesLocal = None
         self.__class__.VALIDATE_CLASS()
-
-    @classmethod
-    def GET_SERIALIZERS(cls) -> list[Serializer]:
-        return []
 
     @classmethod
     def GET_BASE_CLASS(cls):
