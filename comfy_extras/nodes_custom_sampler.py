@@ -173,6 +173,33 @@ class VPScheduler:
         sigmas = k_diffusion_sampling.get_sigmas_vp(n=steps, beta_d=beta_d, beta_min=beta_min, eps_s=eps_s)
         return (sigmas, )
 
+class PowerShiftScheduler:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"model": ("MODEL",),
+                     "steps": ("INT", {"default": 20, "min": 3, "max": 1000}),
+                     "power": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 5.0, "step": 0.001}),
+                     "midpoint_shift": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 5.0, "step": 0.001}),
+                     "discard_penultimate": ("BOOLEAN", {"default": False}),
+                     "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                      }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "sampling/custom_sampling/schedulers"
+
+    FUNCTION = "get_sigmas"
+
+    def get_sigmas(self, model, steps, power, midpoint_shift, discard_penultimate, denoise):
+        total_steps = steps
+        if denoise < 1.0:
+            total_steps = int(steps/denoise)
+
+        sigmas = comfy.samplers.power_shift_scheduler(model.get_model_object("model_sampling"), total_steps, power, midpoint_shift, discard_penultimate=discard_penultimate).cpu()
+        sigmas = sigmas[-(steps + 1):]
+
+        return (sigmas, )
+
 class SplitSigmas:
     @classmethod
     def INPUT_TYPES(s):
