@@ -2319,6 +2319,7 @@ def init_builtin_extra_nodes():
         "v3/nodes_fresca.py",
         "v3/nodes_gits.py",
         "v3/nodes_images.py",
+        "v3/nodes_latent.py",
         "v3/nodes_mask.py",
         "v3/nodes_preview_any.py",
         "v3/nodes_primitive.py",
