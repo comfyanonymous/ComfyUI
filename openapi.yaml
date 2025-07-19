@@ -243,16 +243,16 @@ paths:
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryItem'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HistoryItem'
   /api/object_info:
     get:
       tags:
@@ -263,18 +263,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties:
                   $ref: '#/components/schemas/NodeInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/object_info/{node_class}:
     get:
       tags:
