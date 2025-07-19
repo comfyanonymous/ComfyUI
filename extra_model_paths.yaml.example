@@ -36,9 +36,14 @@ a111:
 #                  models/diffusion_models
 #                  models/unet
 #     embeddings: models/embeddings/
+#     gligen: models/gligen/
+#     hypernetworks: models/hypernetworks/
 #     loras: models/loras/
+#     photomaker: models/photomaker/
+#     style_models: models/style_models/
 #     upscale_models: models/upscale_models/
 #     vae: models/vae/
+#     vae_approx: models/vae_approx/
 
 #other_ui:
 #    base_path: path/to/ui
