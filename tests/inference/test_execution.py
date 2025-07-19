@@ -660,15 +660,15 @@ class TestExecution:
         # Test history_v2 endpoint for specific prompt
         specific_history = client.get_history_v2_for_prompt(prompt_id)
         assert prompt_id in specific_history, "History v2 should contain prompt ID"
-        
+
         # Verify key fields match between legacy and v2
         v2_data = specific_history[prompt_id]
         legacy_data = legacy_history[prompt_id]
-        
+
         # Check that outputs and status match
         assert v2_data["outputs"] == legacy_data["outputs"], "Outputs should match"
         assert v2_data["status"] == legacy_data["status"], "Status should match"
-        
+
         # Verify prompt is converted to dict format in v2
         assert isinstance(v2_data["prompt"], dict), "Prompt should be a dictionary in v2"
         assert "prompt_id" in v2_data["prompt"], "Prompt dict should have prompt_id"
@@ -761,18 +761,18 @@ class TestExecution:
     def test_ordered_history_prompt_field_filtering_unit(self):
         """Unit test for prompt field filtering logic in get_ordered_history."""
         from execution import PromptQueue
-        
+
         # Mock server
         class MockServer:
             def queue_updated(self): pass
-        
+
         # Create queue and add mock history
         queue = PromptQueue(MockServer())
-        
+
         # Mock history entry with full prompt structure
         mock_prompt_tuple = (
             12345,  # priority/timestamp
-            'test-prompt-123',  # prompt_id  
+            'test-prompt-123',  # prompt_id
             {'nodes': {'1': {'class_type': 'SaveImage'}}},  # workflow (should be filtered)
             {  # extra_data
                 'client_id': 'test-client',
@@ -783,7 +783,7 @@ class TestExecution:
             },
             ['1']  # execute_outputs (should be filtered)
         )
-        
+
         queue.history['test-prompt-123'] = {
             'prompt': mock_prompt_tuple,
             'outputs': {'1': {'images': []}},
@@ -797,53 +797,53 @@ class TestExecution:
             },
             'meta': {'1': {'node_id': '1'}}
         }
-        
+
         # Test get_ordered_history with our filtering
         result = queue.get_ordered_history()
-        
+
         # Verify structure
         assert "history" in result, "Result should have history key"
         assert len(result["history"]) == 1, "Should have one history item"
-        
+
         history_item = result["history"][0]
-        
+
         # Verify prompt_id field is added
         assert "prompt_id" in history_item, "History item should have prompt_id field"
         assert history_item["prompt_id"] == 'test-prompt-123', "prompt_id should match"
-        
+
         # Verify prompt field is filtered
         filtered_prompt = history_item["prompt"]
         assert isinstance(filtered_prompt, dict), "Filtered prompt should be a dictionary"
         assert "priority" in filtered_prompt, "Filtered prompt should have priority"
         assert "prompt_id" in filtered_prompt, "Filtered prompt should have prompt_id"
         assert "extra_data" in filtered_prompt, "Filtered prompt should have extra_data"
-        
+
         # Verify correct elements are preserved
         assert filtered_prompt["priority"] == 12345, "Priority should be preserved"
         assert filtered_prompt["prompt_id"] == 'test-prompt-123', "Prompt ID should be preserved"
-        
+
         # Verify extra_data filtering
         extra_data = filtered_prompt["extra_data"]
         assert extra_data['client_id'] == 'test-client', "Client ID should be preserved"
         assert 'extra_pnginfo' in extra_data, "extra_pnginfo should be present"
         assert 'workflow' not in extra_data['extra_pnginfo'], "Workflow should be filtered out"
         assert extra_data['extra_pnginfo']['version'] == '1.0', "Other extra_pnginfo data should be preserved"
-        
+
         # Verify other fields are unchanged
         assert history_item["outputs"] == {'1': {'images': []}}, "Outputs should be unchanged"
         assert history_item["meta"] == {'1': {'node_id': '1'}}, "Meta should be unchanged"
-        
+
         # Verify status field filtering
         status = history_item["status"]
         assert "status_str" in status, "Status should have status_str"
         assert status["status_str"] == 'success', "Status string should be preserved"
         assert "completed" not in status, "Completed field should be filtered out"
         assert "messages" in status, "Status should have messages"
-        
+
         # Verify message filtering
         messages = status["messages"]
         assert len(messages) == 2, "Should have 2 messages"
-        
+
         # Check execution_cached message has nodes filtered out
         execution_cached_msg = messages[0]
         assert execution_cached_msg[0] == 'execution_cached', "First message should be execution_cached"
@@ -851,7 +851,7 @@ class TestExecution:
         assert "nodes" not in cached_data, "Nodes field should be filtered from execution_cached messages"
         assert "timestamp" in cached_data, "Timestamp should be preserved in execution_cached messages"
         assert cached_data["timestamp"] == 1234567890, "Timestamp value should be correct"
-        
+
         # Check execution_start message remains unchanged
         execution_start_msg = messages[1]
         assert execution_start_msg[0] == 'execution_start', "Second message should be execution_start"
