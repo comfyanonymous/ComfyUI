@@ -26,6 +26,7 @@ import comfy.sd
 import comfy.utils
 import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
+from comfy_api.v3 import io
 
 import comfy.clip_vision
 
@@ -2149,6 +2150,7 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
             if os.path.isdir(web_dir):
                 EXTENSION_WEB_DIRS[module_name] = web_dir
 
+        # V1 node definition
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
             for name, node_cls in module.NODE_CLASS_MAPPINGS.items():
                 if name not in ignore:
@@ -2157,8 +2159,19 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
             return True
+        # V3 node definition
+        elif getattr(module, "NODES_LIST", None) is not None:
+            for node_cls in module.NODES_LIST:
+                node_cls: io.ComfyNodeV3
+                schema = node_cls.GET_SCHEMA()
+                if schema.node_id not in ignore:
+                    NODE_CLASS_MAPPINGS[schema.node_id] = node_cls
+                    node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
+                if schema.display_name is not None:
+                    NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name
+            return True
         else:
-            logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
+            logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS or NODES_LIST (need one).")
             return False
     except Exception as e:
         logging.warning(traceback.format_exc())
@@ -2283,7 +2296,35 @@ def init_builtin_extra_nodes():
         "nodes_string.py",
         "nodes_camera_trajectory.py",
         "nodes_edit_model.py",
-        "nodes_tcfg.py"
+        "nodes_tcfg.py",
+        "nodes_v3_test.py",
+        "nodes_v1_test.py",
+        "v3/nodes_ace.py",
+        "v3/nodes_advanced_samplers.py",
+        "v3/nodes_align_your_steps.py",
+        "v3/nodes_apg.py",
+        "v3/nodes_attention_multiply.py",
+        "v3/nodes_audio.py",
+        "v3/nodes_camera_trajectory.py",
+        "v3/nodes_canny.py",
+        "v3/nodes_cfg.py",
+        "v3/nodes_clip_sdxl.py",
+        "v3/nodes_compositing.py",
+        "v3/nodes_cond.py",
+        "v3/nodes_controlnet.py",
+        "v3/nodes_cosmos.py",
+        "v3/nodes_differential_diffusion.py",
+        "v3/nodes_flux.py",
+        "v3/nodes_freelunch.py",
+        "v3/nodes_fresca.py",
+        "v3/nodes_gits.py",
+        "v3/nodes_images.py",
+        "v3/nodes_mask.py",
+        "v3/nodes_preview_any.py",
+        "v3/nodes_primitive.py",
+        "v3/nodes_rebatch.py",
+        "v3/nodes_stable_cascade.py",
+        "v3/nodes_webcam.py",
     ]
 
     import_failed = []
