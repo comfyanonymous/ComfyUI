@@ -8,9 +8,9 @@ import json
 from typing import Optional, Literal
 from fractions import Fraction
 from comfy.comfy_types import IO, FileLocator, ComfyNodeABC
-from comfy_api.input import ImageInput, AudioInput, VideoInput
-from comfy_api.util import VideoContainer, VideoCodec, VideoComponents
-from comfy_api.input_impl import VideoFromFile, VideoFromComponents
+from comfy_api.latest.input import ImageInput, AudioInput, VideoInput
+from comfy_api.latest.util import VideoContainer, VideoCodec, VideoComponents
+from comfy_api.latest.input_impl import VideoFromFile, VideoFromComponents
 from comfy.cli_args import args
 
 class SaveWEBM:
@@ -239,3 +239,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GetVideoComponents": "Get Video Components",
     "LoadVideo": "Load Video",
 }
+

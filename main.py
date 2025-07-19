@@ -22,6 +22,12 @@ if __name__ == "__main__":
 
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
+# Handle --generate-api-stubs early
+if args.generate_api_stubs:
+    from comfy_api.generate_api_stubs import main as generate_stubs_main
+    generate_stubs_main()
+    sys.exit(0)
+
 def apply_custom_paths():
     # extra model paths
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
@@ -304,10 +310,10 @@ def start_comfyui(asyncio_loop=None):
     prompt_server = server.PromptServer(asyncio_loop)
 
     hook_breaker_ac10a0.save_functions()
-    nodes.init_extra_nodes(
+    asyncio_loop.run_until_complete(nodes.init_extra_nodes(
         init_custom_nodes=(not args.disable_all_custom_nodes) or len(args.whitelist_custom_nodes) > 0,
         init_api_nodes=not args.disable_api_nodes
-    )
+    ))
     hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()

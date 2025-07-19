@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from fractions import Fraction
 from typing import Optional
-from comfy_api.input import ImageInput, AudioInput
+from comfy_api.latest.input import ImageInput, AudioInput
 
 class VideoCodec(str, Enum):
     AUTO = "auto"
@@ -48,4 +48,5 @@ class VideoComponents:
     frame_rate: Fraction
     audio: Optional[AudioInput] = None
     metadata: Optional[dict] = None
+
 
