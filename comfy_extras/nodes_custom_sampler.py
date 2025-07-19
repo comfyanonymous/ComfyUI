@@ -301,6 +301,35 @@ class ExtendIntermediateSigmas:
 
         return (extended_sigmas,)
 
+
+class SamplingPercentToSigma:
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypeDict:
+        return {
+            "required": {
+                "model": (IO.MODEL, {}),
+                "sampling_percent": (IO.FLOAT, {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.0001}),
+                "return_actual_sigma": (IO.BOOLEAN, {"default": False, "tooltip": "Return the actual sigma value instead of the value used for interval checks.\nThis only affects results at 0.0 and 1.0."}),
+            }
+        }
+
+    RETURN_TYPES = (IO.FLOAT,)
+    RETURN_NAMES = ("sigma_value",)
+    CATEGORY = "sampling/custom_sampling/sigmas"
+
+    FUNCTION = "get_sigma"
+
+    def get_sigma(self, model, sampling_percent, return_actual_sigma):
+        model_sampling = model.get_model_object("model_sampling")
+        sigma_val = model_sampling.percent_to_sigma(sampling_percent)
+        if return_actual_sigma:
+            if sampling_percent == 0.0:
+                sigma_val = model_sampling.sigma_max.item()
+            elif sampling_percent == 1.0:
+                sigma_val = model_sampling.sigma_min.item()
+        return (sigma_val,)
+
+
 class KSamplerSelect:
     @classmethod
     def INPUT_TYPES(s):
@@ -887,6 +916,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipSigmas": FlipSigmas,
     "SetFirstSigma": SetFirstSigma,
     "ExtendIntermediateSigmas": ExtendIntermediateSigmas,
+    "SamplingPercentToSigma": SamplingPercentToSigma,
 
     "CFGGuider": CFGGuider,
     "DualCFGGuider": DualCFGGuider,
