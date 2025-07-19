@@ -230,6 +230,14 @@ class PreviewAudio(_UIOutput):
         return {"audio": self.values}
 
 
+class PreviewVideo(_UIOutput):
+    def __init__(self, values: list[SavedResult | dict], **kwargs):
+        self.values = values
+
+    def as_dict(self):
+        return {"images": self.values, "animated": (True,)}
+
+
 class PreviewUI3D(_UIOutput):
     def __init__(self, values: list[SavedResult | dict], **kwargs):
         self.values = values
