@@ -222,6 +222,7 @@ class V3TestSleep(io.ComfyNodeV3):
             hidden=[
                 io.Hidden.unique_id,
             ],
+            is_experimental=True,
         )
 
     @classmethod
