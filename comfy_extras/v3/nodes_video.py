@@ -29,7 +29,7 @@ class CreateVideo(io.ComfyNodeV3):
                 io.Audio.Input("audio", optional=True, tooltip="The audio to add to the video."),
             ],
             outputs=[
-                io.Video.Output("video"),
+                io.Video.Output(),
             ],
         )
 
@@ -56,9 +56,9 @@ class GetVideoComponents(io.ComfyNodeV3):
                 io.Video.Input("video", tooltip="The video to extract components from."),
             ],
             outputs=[
-                io.Image.Output("images"),
-                io.Audio.Output("audio"),
-                io.Float.Output("fps"),
+                io.Image.Output(display_name="images"),
+                io.Audio.Output(display_name="audio"),
+                io.Float.Output(display_name="fps"),
             ],
         )
 

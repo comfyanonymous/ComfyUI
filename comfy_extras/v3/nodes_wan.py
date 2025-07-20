@@ -55,8 +55,8 @@ class WanCameraImageToVideo(io.ComfyNodeV3):
                 io.WanCameraEmbedding.Input("camera_conditions", optional=True),
             ],
             outputs=[
-                io.Conditioning.Output("positive_out", display_name="positive"),
-                io.Conditioning.Output("negative_out", display_name="negative"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
                 io.Latent.Output(display_name="latent"),
             ],
         )
@@ -108,8 +108,8 @@ class WanFirstLastFrameToVideo(io.ComfyNodeV3):
                 io.Image.Input("end_image", optional=True),
             ],
             outputs=[
-                io.Conditioning.Output("positive_out", display_name="positive"),
-                io.Conditioning.Output("negative_out", display_name="negative"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
                 io.Latent.Output(display_name="latent"),
             ],
         )
@@ -178,8 +178,8 @@ class WanFunControlToVideo(io.ComfyNodeV3):
                 io.Image.Input("control_video", optional=True),
             ],
             outputs=[
-                io.Conditioning.Output("positive_out", display_name="positive"),
-                io.Conditioning.Output("negative_out", display_name="negative"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
                 io.Latent.Output(display_name="latent"),
             ],
         )
@@ -232,8 +232,8 @@ class WanFunInpaintToVideo(io.ComfyNodeV3):
                 io.Image.Input("end_image", optional=True),
             ],
             outputs=[
-                io.Conditioning.Output("positive_out", display_name="positive"),
-                io.Conditioning.Output("negative_out", display_name="negative"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
                 io.Latent.Output(display_name="latent"),
             ],
         )
@@ -262,8 +262,8 @@ class WanImageToVideo(io.ComfyNodeV3):
                 io.Image.Input("start_image", optional=True),
             ],
             outputs=[
-                io.Conditioning.Output("positive_out", display_name="positive"),
-                io.Conditioning.Output("negative_out", display_name="negative"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
                 io.Latent.Output(display_name="latent"),
             ],
         )
@@ -309,9 +309,9 @@ class WanPhantomSubjectToVideo(io.ComfyNodeV3):
                 io.Image.Input("images", optional=True),
             ],
             outputs=[
-                io.Conditioning.Output("positive_out", display_name="positive"),
-                io.Conditioning.Output("negative_text", display_name="negative"),
-                io.Conditioning.Output("negative_img_text", display_name="negative_img_text"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative_text"),
+                io.Conditioning.Output(display_name="negative_img_text"),
                 io.Latent.Output(display_name="latent"),
             ],
         )
@@ -357,8 +357,8 @@ class WanVaceToVideo(io.ComfyNodeV3):
                 io.Image.Input("reference_image", optional=True),
             ],
             outputs=[
-                io.Conditioning.Output("positive_out", display_name="positive"),
-                io.Conditioning.Output("negative_out", display_name="negative"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
                 io.Latent.Output(display_name="latent"),
                 io.Int.Output(display_name="trim_latent"),
             ],
