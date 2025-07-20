@@ -1,17 +1,14 @@
 import hashlib
-import json
 import os
 
 import numpy as np
 import torch
 from PIL import Image, ImageOps, ImageSequence
-from PIL.PngImagePlugin import PngInfo
 
 import comfy.utils
 import folder_paths
 import node_helpers
 import nodes
-from comfy.cli_args import args
 from comfy_api.v3 import io, ui
 from server import PromptServer
 
@@ -633,48 +630,15 @@ class SaveAnimatedPNG(io.ComfyNodeV3):
 
     @classmethod
     def execute(cls, images, fps, compress_level, filename_prefix="ComfyUI") -> io.NodeOutput:
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
-            filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
-        )
-        results = []
-        pil_images = []
-        for image in images:
-            img = Image.fromarray(np.clip(255.0 * image.cpu().numpy(), 0, 255).astype(np.uint8))
-            pil_images.append(img)
-
-        metadata = None
-        if not args.disable_metadata:
-            metadata = PngInfo()
-            if cls.hidden.prompt is not None:
-                metadata.add(
-                    b"comf",
-                    "prompt".encode("latin-1", "strict")
-                    + b"\0"
-                    + json.dumps(cls.hidden.prompt).encode("latin-1", "strict"),
-                    after_idat=True,
-                )
-            if cls.hidden.extra_pnginfo is not None:
-                for x in cls.hidden.extra_pnginfo:
-                    metadata.add(
-                        b"comf",
-                        x.encode("latin-1", "strict")
-                        + b"\0"
-                        + json.dumps(cls.hidden.extra_pnginfo[x]).encode("latin-1", "strict"),
-                        after_idat=True,
-                    )
-
-        file = f"{filename}_{counter:05}_.png"
-        pil_images[0].save(
-            os.path.join(full_output_folder, file),
-            pnginfo=metadata,
+        result = ui.ImageSaveHelper.save_animated_png(
+            images=images,
+            filename_prefix=filename_prefix,
+            folder_type=io.FolderType.output,
+            cls=cls,
+            fps=fps,
             compress_level=compress_level,
-            save_all=True,
-            duration=int(1000.0 / fps),
-            append_images=pil_images[1:],
         )
-        results.append(ui.SavedResult(file, subfolder, io.FolderType.output))
-
-        return io.NodeOutput(ui={"images": results, "animated": (True,)})
+        return io.NodeOutput(ui={"images": [result], "animated": (len(images) != 1,)})
 
 
 class SaveAnimatedWEBP(io.ComfyNodeV3):
@@ -693,53 +657,24 @@ class SaveAnimatedWEBP(io.ComfyNodeV3):
                 io.Boolean.Input("lossless", default=True),
                 io.Int.Input("quality", default=80, min=0, max=100),
                 io.Combo.Input("method", options=list(cls.COMPRESS_METHODS.keys())),
-                # "num_frames": ("INT", {"default": 0, "min": 0, "max": 8192}),
             ],
             hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
             is_output_node=True,
         )
 
     @classmethod
-    def execute(cls, images, fps, filename_prefix, lossless, quality, method, num_frames=0) -> io.NodeOutput:
-        method = cls.COMPRESS_METHODS.get(method)
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
-            filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
+    def execute(cls, images, fps, filename_prefix, lossless, quality, method) -> io.NodeOutput:
+        result = ui.ImageSaveHelper.save_animated_webp(
+            images=images,
+            filename_prefix=filename_prefix,
+            folder_type=io.FolderType.output,
+            cls=cls,
+            fps=fps,
+            lossless=lossless,
+            quality=quality,
+            method=cls.COMPRESS_METHODS.get(method)
         )
-        results = []
-        pil_images = []
-        for image in images:
-            img = Image.fromarray(np.clip(255.0 * image.cpu().numpy(), 0, 255).astype(np.uint8))
-            pil_images.append(img)
-
-        metadata = pil_images[0].getexif()
-        if not args.disable_metadata:
-            if cls.hidden.prompt is not None:
-                metadata[0x0110] = "prompt:{}".format(json.dumps(cls.hidden.prompt))
-            if cls.hidden.extra_pnginfo is not None:
-                inital_exif = 0x010F
-                for x in cls.hidden.extra_pnginfo:
-                    metadata[inital_exif] = "{}:{}".format(x, json.dumps(cls.hidden.extra_pnginfo[x]))
-                    inital_exif -= 1
-
-        if num_frames == 0:
-            num_frames = len(pil_images)
-
-        for i in range(0, len(pil_images), num_frames):
-            file = f"{filename}_{counter:05}_.webp"
-            pil_images[i].save(
-                os.path.join(full_output_folder, file),
-                save_all=True,
-                duration=int(1000.0 / fps),
-                append_images=pil_images[i + 1 : i + num_frames],
-                exif=metadata,
-                lossless=lossless,
-                quality=quality,
-                method=method,
-            )
-            results.append(ui.SavedResult(file, subfolder, io.FolderType.output))
-            counter += 1
-
-        return io.NodeOutput(ui={"images": results, "animated": (num_frames != 1,)})
+        return io.NodeOutput(ui={"images": [result], "animated": (len(images) != 1,)})
 
 
 class SaveImage(io.ComfyNodeV3):
@@ -768,28 +703,13 @@ class SaveImage(io.ComfyNodeV3):
 
     @classmethod
     def execute(cls, images, filename_prefix="ComfyUI") -> io.NodeOutput:
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
-            filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
+        results = ui.ImageSaveHelper.save_images(
+            images,
+            filename_prefix=filename_prefix,
+            folder_type=io.FolderType.output,
+            cls=cls,
+            compress_level=4,
         )
-        results = []
-        for batch_number, image in enumerate(images):
-            i = 255.0 * image.cpu().numpy()
-            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            metadata = None
-            if not args.disable_metadata:
-                metadata = PngInfo()
-                if cls.hidden.prompt is not None:
-                    metadata.add_text("prompt", json.dumps(cls.hidden.prompt))
-                if cls.hidden.extra_pnginfo is not None:
-                    for x in cls.hidden.extra_pnginfo:
-                        metadata.add_text(x, json.dumps(cls.hidden.extra_pnginfo[x]))
-
-            filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
-            file = f"{filename_with_batch_num}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
-            results.append(ui.SavedResult(file, subfolder, io.FolderType.output))
-            counter += 1
-
         return io.NodeOutput(ui={"images": results})
 
 
