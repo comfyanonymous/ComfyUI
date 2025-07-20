@@ -604,16 +604,16 @@ paths:
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStats'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SystemStats'
   /api/ws:
     get:
       tags:
@@ -646,16 +646,16 @@ paths:
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerFeatures'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ServerFeatures'
   /internal/logs:
     get:
       tags:
@@ -666,16 +666,16 @@ paths:
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              schema:
+                type: string
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          content:
-            application/json:
-              schema:
-                type: string
   /internal/logs/raw:
     get:
       tags:
@@ -686,16 +686,16 @@ paths:
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RawLogsResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RawLogsResponse'
   /internal/logs/subscribe:
     patch:
       tags:
@@ -728,18 +728,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties:
                   type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /internal/files/{directory_type}:
     get:
       tags:
@@ -761,12 +761,6 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -775,6 +769,12 @@ paths:
                   type: string
         '400':
           description: Invalid directory type
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     PromptRequest:
