@@ -21,8 +21,8 @@ class ControlNetApplyAdvanced(io.ComfyNodeV3):
                 io.Vae.Input("vae", optional=True),
             ],
             outputs=[
-                io.Conditioning.Output("positive_out", display_name="positive"),
-                io.Conditioning.Output("negative_out", display_name="negative"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
             ],
         )
 
@@ -71,7 +71,7 @@ class SetUnionControlNetType(io.ComfyNodeV3):
                 io.Combo.Input("type", options=["auto"] + list(UNION_CONTROLNET_TYPES.keys())),
             ],
             outputs=[
-                io.ControlNet.Output("control_net_out"),
+                io.ControlNet.Output(),
             ],
         )
 
@@ -105,8 +105,8 @@ class ControlNetInpaintingAliMamaApply(ControlNetApplyAdvanced):
                 io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001),
             ],
             outputs=[
-                io.Conditioning.Output("positive_out", display_name="positive"),
-                io.Conditioning.Output("negative_out", display_name="negative"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
             ],
         )
 

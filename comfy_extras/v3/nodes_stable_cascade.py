@@ -36,8 +36,8 @@ class StableCascade_EmptyLatentImage(io.ComfyNodeV3):
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
             ],
             outputs=[
-                io.Latent.Output("stage_c", display_name="stage_c"),
-                io.Latent.Output("stage_b", display_name="stage_b"),
+                io.Latent.Output(display_name="stage_c"),
+                io.Latent.Output(display_name="stage_b"),
             ],
         )
 
@@ -60,8 +60,8 @@ class StableCascade_StageC_VAEEncode(io.ComfyNodeV3):
                 io.Int.Input("compression", default=42, min=4, max=128, step=1),
             ],
             outputs=[
-                io.Latent.Output("stage_c", display_name="stage_c"),
-                io.Latent.Output("stage_b", display_name="stage_b"),
+                io.Latent.Output(display_name="stage_c"),
+                io.Latent.Output(display_name="stage_b"),
             ],
         )
 
@@ -117,9 +117,9 @@ class StableCascade_SuperResolutionControlnet(io.ComfyNodeV3):
                 io.Vae.Input("vae"),
             ],
             outputs=[
-                io.Image.Output("controlnet_input", display_name="controlnet_input"),
-                io.Latent.Output("stage_c", display_name="stage_c"),
-                io.Latent.Output("stage_b", display_name="stage_b"),
+                io.Image.Output(display_name="controlnet_input"),
+                io.Latent.Output(display_name="stage_c"),
+                io.Latent.Output(display_name="stage_b"),
             ],
         )
 

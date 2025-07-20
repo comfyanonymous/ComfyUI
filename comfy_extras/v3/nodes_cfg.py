@@ -31,7 +31,7 @@ class CFGNorm(io.ComfyNodeV3):
                 io.Model.Input("model"),
                 io.Float.Input("strength", default=1.0, min=0.0, max=100.0, step=0.01),
             ],
-            outputs=[io.Model.Output("patched_model", display_name="patched_model")],
+            outputs=[io.Model.Output(display_name="patched_model")],
             is_experimental=True,
         )
 
@@ -61,7 +61,7 @@ class CFGZeroStar(io.ComfyNodeV3):
             inputs=[
                 io.Model.Input("model"),
             ],
-            outputs=[io.Model.Output("patched_model", display_name="patched_model")],
+            outputs=[io.Model.Output(display_name="patched_model")],
         )
 
     @classmethod
