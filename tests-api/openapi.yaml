@@ -50,12 +50,6 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -111,12 +105,6 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -204,18 +192,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/HistoryItem'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       tags:
       - workflow
@@ -255,16 +243,16 @@ paths:
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryItem'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HistoryItem'
   /api/object_info:
     get:
       tags:
@@ -275,18 +263,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties:
                   $ref: '#/components/schemas/NodeInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/object_info/{node_class}:
     get:
       tags:
@@ -304,18 +292,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties:
                   $ref: '#/components/schemas/NodeInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/upload/image:
     post:
       tags:
@@ -357,18 +345,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/UploadResponse'
         '400':
           description: Bad request
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/upload/mask:
     post:
       tags:
@@ -396,19 +384,18 @@ paths:
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          description: Bad request
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          content:
-            application/json:
-              schema:
-                type: object
-                $ref: '#/components/schemas/UploadResponse'
-        '400':
-          description: Bad request
   /api/view:
     get:
       tags:
@@ -460,12 +447,6 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             image/*:
               schema:
@@ -475,6 +456,12 @@ paths:
           description: Bad request
         '404':
           description: File not found
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/view_metadata/{folder_name}:
     get:
       tags:
@@ -520,18 +507,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: array
                 items:
                   type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/models/{folder}:
     get:
       tags:
@@ -549,12 +536,6 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -563,6 +544,12 @@ paths:
                   type: string
         '404':
           description: Folder not found
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/embeddings:
     get:
       tags:
@@ -573,18 +560,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: array
                 items:
                   type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/extensions:
     get:
       tags:
@@ -595,18 +582,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: array
                 items:
                   type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/system_stats:
     get:
       tags:
@@ -617,16 +604,16 @@ paths:
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStats'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SystemStats'
   /api/ws:
     get:
       tags:
@@ -659,16 +646,16 @@ paths:
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerFeatures'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ServerFeatures'
   /internal/logs:
     get:
       tags:
@@ -679,16 +666,16 @@ paths:
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              schema:
+                type: string
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          content:
-            application/json:
-              schema:
-                type: string
   /internal/logs/raw:
     get:
       tags:
@@ -699,16 +686,16 @@ paths:
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RawLogsResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RawLogsResponse'
   /internal/logs/subscribe:
     patch:
       tags:
@@ -741,18 +728,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties:
                   type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /internal/files/{directory_type}:
     get:
       tags:
@@ -774,12 +761,6 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -788,6 +769,12 @@ paths:
                   type: string
         '400':
           description: Invalid directory type
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     PromptRequest:
@@ -1139,11 +1126,13 @@ components:
         description: Additional metadata fields
     QueueItem:
       type: array
-      description: Queue item containing execution details
+      description: Queue item containing execution details as a 5-element tuple [position, prompt_id, prompt, extra_data, outputs_to_execute]
+      minItems: 5
+      maxItems: 5
       items:
         oneOf:
-          - type: integer
-            description: Queue position number
+          - type: number
+            description: Queue position number (lower numbers have higher priority)
           - type: string
             format: uuid
             description: Unique prompt identifier
