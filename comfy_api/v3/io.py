@@ -237,67 +237,6 @@ class ComfyTypeIO(ComfyTypeI):
         ...
 
 
-class NodeState(ABC):
-    def __init__(self, node_id: str):
-        self.node_id = node_id
-
-    @abstractmethod
-    def get_value(self, key: str):
-        pass
-
-    @abstractmethod
-    def set_value(self, key: str, value: Any):
-        pass
-
-    @abstractmethod
-    def pop(self, key: str):
-        pass
-
-    @abstractmethod
-    def __contains__(self, key: str):
-        pass
-
-
-class NodeStateLocal(NodeState):
-    def __init__(self, node_id: str):
-        super().__init__(node_id)
-        self.local_state = {}
-
-    def get_value(self, key: str):
-        return self.local_state.get(key)
-
-    def set_value(self, key: str, value: Any):
-        self.local_state[key] = value
-
-    def pop(self, key: str):
-        return self.local_state.pop(key, None)
-
-    def __contains__(self, key: str):
-        return key in self.local_state
-
-    def __getattr__(self, key: str):
-        local_state = type(self).__getattribute__(self, "local_state")
-        if key in local_state:
-            return local_state[key]
-        return None
-        # raise AttributeError(f"'{type(self).__name__}' object has no attribute '{key}'")
-
-    def __setattr__(self, key: str, value: Any):
-        if key in ['node_id', 'local_state']:
-            super().__setattr__(key, value)
-        else:
-            self.local_state[key] = value
-
-    def __setitem__(self, key: str, value: Any):
-        self.local_state[key] = value
-
-    def __getitem__(self, key: str):
-        return self.local_state[key]
-
-    def __delitem__(self, key: str):
-        del self.local_state[key]
-
-
 @comfytype(io_type="BOOLEAN")
 class Boolean(ComfyTypeIO):
     Type = bool
@@ -1179,7 +1118,6 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
     SCHEMA = None
 
     # filled in during execution
-    state: NodeState = None
     resources: Resources = None
     hidden: HiddenHolder = None
 
@@ -1222,7 +1160,6 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
         return [name for name in kwargs if kwargs[name] is None]
 
     def __init__(self):
-        self.local_state: NodeStateLocal = None
         self.local_resources: ResourcesLocal = None
         self.__class__.VALIDATE_CLASS()
 
