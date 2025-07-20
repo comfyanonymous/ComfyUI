@@ -507,18 +507,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: array
                 items:
                   type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/models/{folder}:
     get:
       tags:
@@ -536,12 +536,6 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
@@ -550,6 +544,12 @@ paths:
                   type: string
         '404':
           description: Folder not found
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/embeddings:
     get:
       tags:
@@ -560,18 +560,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: array
                 items:
                   type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/extensions:
     get:
       tags:
@@ -582,18 +582,18 @@ paths:
       responses:
         '200':
           description: Success
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           content:
             application/json:
               schema:
                 type: array
                 items:
                   type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/system_stats:
     get:
       tags:
