@@ -28,13 +28,13 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
-# OSS Configuration - TODO: Configure these values
+# OSS Configuration - Try bucket-specific endpoint
 OSS_CONFIG = {
-    'endpoint': '',  # OSS endpoint, e.g., 'https://oss-cn-hangzhou.aliyuncs.com'
-    'access_key_id': '',  # Access Key ID
-    'access_key_secret': '',  # Access Key Secret
-    'bucket_name': '',  # Bucket name
-    'base_path': 'extensions/',  # Base path in OSS bucket
+    'endpoint': 'https://oss-cn-shanghai.aliyuncs.com',  # Bucket-specific endpoint
+    'access_key_id': '',
+    'access_key_secret': '',
+    'bucket_name': 'tusi-assets',
+    'base_path': 'comfyui/howell5/static_extensions/',
 }
 
 
@@ -50,18 +50,41 @@ def get_oss_client():
         # Try to import oss2 - if not available, fall back to local mode
         try:
             import oss2
+            from oss2.credentials import StaticCredentialsProvider
         except ImportError:
             logger.warning("oss2 package not found. Install with: pip install oss2")
             return None
             
-        # Initialize OSS client
-        auth = oss2.Auth(OSS_CONFIG['access_key_id'], OSS_CONFIG['access_key_secret'])
-        bucket = oss2.Bucket(auth, OSS_CONFIG['endpoint'], OSS_CONFIG['bucket_name'])
+        # Initialize OSS client with V4 auth and region
+        # Use StaticCredentialsProvider for direct key/secret
+        credentials_provider = StaticCredentialsProvider(
+            OSS_CONFIG['access_key_id'], 
+            OSS_CONFIG['access_key_secret']
+        )
+        auth = oss2.ProviderAuthV4(credentials_provider)
         
-        # Test connection
-        bucket.get_bucket_info()
-        logger.info(f"OSS connection established to bucket: {OSS_CONFIG['bucket_name']}")
-        return bucket
+        # Extract region from endpoint or use default
+        region = "cn-shanghai"  # extracted from oss-cn-shanghai.aliyuncs.com
+        
+        bucket = oss2.Bucket(
+            auth, 
+            OSS_CONFIG['endpoint'], 
+            OSS_CONFIG['bucket_name'], 
+            region=region
+        )
+        
+        # Test connection with a simple list operation
+        logger.info(f"Testing OSS connection to {OSS_CONFIG['endpoint']}/{OSS_CONFIG['bucket_name']}")
+        
+        try:
+            result = bucket.list_objects(max_keys=1)
+            logger.info(f"OSS connection established to bucket: {OSS_CONFIG['bucket_name']}")
+            return bucket
+        except Exception as list_error:
+            logger.error(f"OSS list test failed: {list_error}")
+            logger.info("Trying without connection test...")
+            # Return bucket anyway, let the upload operations handle errors
+            return bucket
         
     except Exception as e:
         logger.warning(f"Failed to initialize OSS client: {e}. Falling back to local mode.")
