@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: ComfyUI API
   description: 'API for ComfyUI - A powerful and modular UI for Stable Diffusion.
@@ -1127,22 +1127,21 @@ components:
     QueueItem:
       type: array
       description: Queue item containing execution details as a 5-element tuple [position, prompt_id, prompt, extra_data, outputs_to_execute]
+      prefixItems:
+        - type: number
+          description: Queue position number (lower numbers have higher priority)
+        - type: string
+          format: uuid
+          description: Unique prompt identifier
+        - type: object
+          description: Workflow graph with nodes and connections
+          additionalProperties: true
+        - type: object
+          description: Extra metadata (auth tokens, client info, etc.)
+          additionalProperties: true
+        - type: array
+          description: Array of output node IDs
+          items:
+            type: string
       minItems: 5
       maxItems: 5
-      items:
-        oneOf:
-          - type: number
-            description: Queue position number (lower numbers have higher priority)
-          - type: string
-            format: uuid
-            description: Unique prompt identifier
-          - type: object
-            description: Workflow graph with nodes and connections
-            additionalProperties: true
-          - type: object
-            description: Extra metadata (auth tokens, client info, etc.)
-            additionalProperties: true
-          - type: array
-            description: Array of output node IDs
-            items:
-              type: string
