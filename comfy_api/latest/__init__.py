@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Type, TYPE_CHECKING
 from comfy_api.internal import ComfyAPIBase
 from comfy_api.internal.singleton import ProxiedSingleton

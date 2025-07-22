@@ -2,6 +2,8 @@
 API Nodes for Gemini Multimodal LLM Usage via Remote API
 See: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference
 """
+from __future__ import annotations
+
 
 import os
 from enum import Enum
