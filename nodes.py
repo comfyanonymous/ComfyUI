@@ -2330,6 +2330,8 @@ def init_builtin_extra_nodes():
         "v3/nodes_primitive.py",
         "v3/nodes_rebatch.py",
         "v3/nodes_stable_cascade.py",
+        "v3/nodes_video.py",
+        "v3/nodes_wan.py",
         "v3/nodes_webcam.py",
     ]
 
