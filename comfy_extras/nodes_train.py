@@ -20,7 +20,7 @@ import folder_paths
 import node_helpers
 from comfy.cli_args import args
 from comfy.comfy_types.node_typing import IO
-from comfy.weight_adapter import adapters
+from comfy.weight_adapter import adapters, adapter_maps
 
 
 def make_batch_extra_option_dict(d, indicies, full_size=None):
@@ -478,6 +478,17 @@ class TrainLoraNode:
                     ["bf16", "fp32"],
                     {"default": "bf16", "tooltip": "The dtype to use for lora."},
                 ),
+                "algorithm": (
+                    list(adapter_maps.keys()),
+                    {"default": list(adapter_maps.keys())[0], "tooltip": "The algorithm to use for training."},
+                ),
+                "gradient_checkpointing": (
+                    IO.BOOLEAN,
+                    {
+                        "default": True,
+                        "tooltip": "Use gradient checkpointing for training.",
+                    }
+                ),
                 "existing_lora": (
                     folder_paths.get_filename_list("loras") + ["[None]"],
                     {
@@ -508,6 +519,8 @@ class TrainLoraNode:
         seed,
         training_dtype,
         lora_dtype,
+        algorithm,
+        gradient_checkpointing,
         existing_lora,
     ):
         mp = model.clone()
@@ -558,10 +571,8 @@ class TrainLoraNode:
                                 if existing_adapter is not None:
                                     break
                             else:
-                                # If no existing adapter found, use LoRA
-                                # We will add algo option in the future
                                 existing_adapter = None
-                                adapter_cls = adapters[0]
+                                adapter_cls = adapter_maps[algorithm]
 
                             if existing_adapter is not None:
                                 train_adapter = existing_adapter.to_train().to(lora_dtype)
@@ -615,8 +626,9 @@ class TrainLoraNode:
                 criterion = torch.nn.SmoothL1Loss()
 
             # setup models
-            for m in find_all_highest_child_module_with_forward(mp.model.diffusion_model):
-                patch(m)
+            if gradient_checkpointing:
+                for m in find_all_highest_child_module_with_forward(mp.model.diffusion_model):
+                    patch(m)
             mp.model.requires_grad_(False)
             comfy.model_management.load_models_gpu([mp], memory_required=1e20, force_full_load=True)
 
