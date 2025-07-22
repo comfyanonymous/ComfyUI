@@ -13,10 +13,10 @@ class LohaDiff(WeightAdapterTrainBase):
         w1a, w1b, alpha, w2a, w2b, t1, t2, dora_scale = weights
 
         # Create trainable parameters
-        self.w1a = torch.nn.Parameter(w1a)
-        self.w1b = torch.nn.Parameter(w1b)
-        self.w2a = torch.nn.Parameter(w2a)
-        self.w2b = torch.nn.Parameter(w2b)
+        self.w1_a = torch.nn.Parameter(w1a)
+        self.w1_b = torch.nn.Parameter(w1b)
+        self.w2_a = torch.nn.Parameter(w2a)
+        self.w2_b = torch.nn.Parameter(w2b)
 
         self.use_tucker = False
         if t1 is not None and t2 is not None:
