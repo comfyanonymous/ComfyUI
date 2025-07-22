@@ -4,7 +4,7 @@ from comfy_api.internal.singleton import ProxiedSingleton
 from comfy_api.internal.async_to_sync import create_sync_class
 from comfy_api.latest.input import ImageInput
 from comfy_execution.utils import get_executing_context
-from comfy_execution.progress import get_progress_state, PreviewImageTuple
+from comfy_execution.progress import get_progress_state
 from PIL import Image
 from comfy.cli_args import args
 import numpy as np
@@ -20,7 +20,8 @@ class ComfyAPI_latest(ComfyAPIBase):
             value: float,
             max_value: float,
             node_id: str | None = None,
-            preview_image: PreviewImageTuple | Image.Image | ImageInput | None = None,
+            preview_image: Image.Image | ImageInput | None = None,
+            ignore_size_limit: bool = False,
         ) -> None:
             """
             Update the progress bar displayed in the ComfyUI interface.
@@ -53,7 +54,9 @@ class ComfyAPI_latest(ComfyAPIBase):
                 if isinstance(preview_image, Image.Image):
                     # Detect image format from PIL Image
                     image_format = preview_image.format if preview_image.format else "JPEG"
-                    preview_image = (image_format, preview_image, args.preview_size)
+                    # Use None for preview_size if ignore_size_limit is True
+                    preview_size = None if ignore_size_limit else args.preview_size
+                    preview_image = (image_format, preview_image, preview_size)
 
             get_progress_state().update_progress(
                 node_id=node_id,
