@@ -18,7 +18,7 @@ class ImageRebatch(io.ComfyNodeV3):
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
             ],
             outputs=[
-                io.Image.Output("IMAGE", display_name="IMAGE", is_output_list=True),
+                io.Image.Output(display_name="IMAGE", is_output_list=True),
             ],
         )
 
