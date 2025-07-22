@@ -189,6 +189,16 @@ class PromptServer():
 
         self.on_prompt_handlers = []
 
+        #add api get progress status <start>
+        async def get_node_status(request):
+            return web.json_response({
+                "total_nodes": execution.total_nodes,
+                "executed_nodes": execution.executed_nodes
+            })
+        routes.get('/node_status')(get_node_status)
+        self.app.add_routes(routes)
+        #add api get progress status <end>
+
         @routes.get('/ws')
         async def websocket_handler(request):
             ws = web.WebSocketResponse()
