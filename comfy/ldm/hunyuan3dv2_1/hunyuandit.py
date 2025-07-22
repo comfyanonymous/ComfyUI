@@ -589,7 +589,11 @@ class HunYuanDiTPlain(nn.Module):
     def forward(self, x, t, context, transformer_options = {}, **kwargs):
 
         x = x.movedim(-1, -2)
+        uncond_emb, cond_emb = context.chunk(2, dim = 0)
+
+        context = torch.cat([cond_emb, uncond_emb], dim = 0)
         main_condition = context
+
         t = 1.0 - t
 
         time_embedded = self.t_embedder(t, condition = kwargs.get('guidance_cond'))
@@ -600,11 +604,11 @@ class HunYuanDiTPlain(nn.Module):
         combined = torch.cat([time_embedded, x_embedded], dim=1)
 
         def block_wrap(args):
-                    return block(
-                        args["x"],
-                        args["t"],
-                        args["cond"],
-                        skip_tensor=args.get("skip"),)
+            return block(
+                args["x"],
+                args["t"],
+                args["cond"],
+                skip_tensor=args.get("skip"),)
 
         skip_stack = []
         patches_replace = transformer_options.get("patches_replace", {})
@@ -617,7 +621,7 @@ class HunYuanDiTPlain(nn.Module):
 
             if ("block", idx) in blocks_replace:
 
-                out = blocks_replace[("block", idx)](
+                combined = blocks_replace[("block", idx)](
                     {
                         "x": combined,
                         "t": time_embedded,
@@ -626,7 +630,6 @@ class HunYuanDiTPlain(nn.Module):
                     },
                     {"original_block": block_wrap},
                 )
-                combined = out
             else:
                 combined = block(combined, time_embedded, main_condition, skip_tensor=skip_input)
 
@@ -634,13 +637,16 @@ class HunYuanDiTPlain(nn.Module):
                 skip_stack.append(combined)
 
         output = self.final_layer(combined)
-        return output.movedim(-2, -1) * (-1.0)
+        output =  output.movedim(-2, -1) * (-1.0)
+        
+        cond_emb, uncond_emb = output.chunk(2, dim = 0)
+        return torch.cat([uncond_emb, cond_emb])
     
 def get_diffusion_checkpoint():
     import requests
 
     url = "https://huggingface.co/tencent/Hunyuan3D-2.1/resolve/main/hunyuan3d-dit-v2-1/model.fp16.ckpt"
-    output_path = "model.fp16.ckpt"
+    output_path = "hunyuan3dv2_1.ckpt"
     
     response = requests.get(url, stream=True)
     response.raise_for_status() 

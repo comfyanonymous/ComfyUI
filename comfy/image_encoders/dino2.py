@@ -31,7 +31,21 @@ class LayerScale(torch.nn.Module):
     def forward(self, x):
         return x * comfy.model_management.cast_to_device(self.lambda1, x.device, x.dtype)
 
+class Dinov2MLP(torch.nn.Module):
+    def __init__(self, hidden_size: int, dtype, device, operations):
+        super().__init__()
+        
+        mlp_ratio = 4
+        hidden_features = int(hidden_size * mlp_ratio)
+        self.fc1 = operations.Linear(hidden_size, hidden_features, bias = True, device=device, dtype=dtype)
+        self.fc2 = operations.Linear(hidden_features, hidden_size, bias = True, device=device, dtype=dtype)
 
+    def forward(self, hidden_state: torch.Tensor) -> torch.Tensor:
+        hidden_state = self.fc1(hidden_state)
+        hidden_state = torch.nn.functional.gelu(hidden_state)
+        hidden_state = self.fc2(hidden_state)
+        return hidden_state
+    
 class SwiGLUFFN(torch.nn.Module):
     def __init__(self, dim, dtype, device, operations):
         super().__init__()
@@ -57,7 +71,7 @@ class Dino2Block(torch.nn.Module):
         self.layer_scale2 = LayerScale(dim, dtype, device, operations)
         if use_swiglu_ffn:
             self.mlp = SwiGLUFFN(dim, dtype, device, operations)
-        else: self.mlp = torch.nn.Identity()
+        else: self.mlp = Dinov2MLP(dim, dtype, device, operations)
         self.norm1 = operations.LayerNorm(dim, eps=layer_norm_eps, dtype=dtype, device=device)
         self.norm2 = operations.LayerNorm(dim, eps=layer_norm_eps, dtype=dtype, device=device)
 
