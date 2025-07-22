@@ -276,7 +276,6 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                             dynamic_list.append(real_inputs.pop(d.id, None))
                         dynamic_list = [x for x in dynamic_list if x is not None]
                         inputs = {**real_inputs, add_key: dynamic_list}
-                # TODO: make checkign for async work, this will currently always return False for iscoroutinefunction
                 f = make_locked_method_func(type_obj, func, class_clone)
             # V1
             else:

@@ -218,9 +218,73 @@ class V3TestSleep(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
+class V3DummyStart(io.ComfyNodeV3):
+    @classmethod
+    def define_schema(cls):
+        return io.SchemaV3(
+            node_id="V3_DummyStart",
+            display_name="V3 Dummy Start",
+            category="v3 nodes",
+            description="This is a dummy start node.",
+            inputs=[],
+            outputs=[
+                io.Custom("XYZ").Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls):
+        return io.NodeOutput(None)
+
+
+class V3DummyEnd(io.ComfyNodeV3):
+    COOL_VALUE = 123
+
+    @classmethod
+    def define_schema(cls):
+        return io.SchemaV3(
+            node_id="V3_DummyEnd",
+            display_name="V3 Dummy End",
+            category="v3 nodes",
+            description="This is a dummy end node.",
+            inputs=[
+                io.Custom("XYZ").Input("xyz"),
+            ],
+            outputs=[],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def custom_action(cls):
+        return 456
+
+    @classmethod
+    def execute(cls, xyz: io.Custom("XYZ").Type):
+        logging.info(f"V3DummyEnd: {cls.COOL_VALUE}")
+        logging.info(f"V3DummyEnd: {cls.custom_action()}")
+        return
+
+
+class V3DummyEndInherit(V3DummyEnd):
+    @classmethod
+    def define_schema(cls):
+        schema = super().define_schema()
+        schema.node_id = "V3_DummyEndInherit"
+        schema.display_name = "V3 Dummy End Inherit"
+        return schema
+
+    @classmethod
+    def execute(cls, xyz: io.Custom("XYZ").Type):
+        logging.info(f"V3DummyEndInherit: {cls.COOL_VALUE}")
+        return super().execute(xyz)
+
+
 NODES_LIST: list[type[io.ComfyNodeV3]] = [
     V3TestNode,
     V3LoraLoader,
     NInputsTest,
     V3TestSleep,
+    V3DummyStart,
+    V3DummyEnd,
+    V3DummyEndInherit,
 ]
