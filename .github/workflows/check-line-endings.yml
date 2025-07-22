@@ -17,6 +17,7 @@ jobs:
       - name: Check for Windows line endings (CRLF)
         run: |
           # Get the list of changed files in the PR
+          git merge origin/${{ github.base_ref }} --no-edit
           CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}..HEAD)
 
           # Flag to track if CRLF is found
