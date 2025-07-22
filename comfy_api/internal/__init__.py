@@ -84,13 +84,12 @@ class classproperty(object):
 # NOTE: this was ai generated and validated by hand
 def shallow_clone_class(cls, new_name=None):
     '''
-    Shallow clone a class.
+    Shallow clone a class while preserving super() functionality.
     '''
-    return type(
-        new_name or f"{cls.__name__}Clone",
-        cls.__bases__,
-        dict(cls.__dict__)
-    )
+    new_name = new_name or f"{cls.__name__}Clone"
+    # Include the original class in the bases to maintain proper inheritance
+    new_bases = (cls,) + cls.__bases__
+    return type(new_name, new_bases, dict(cls.__dict__))
 
 # NOTE: this was ai generated and validated by hand
 def lock_class(cls):
