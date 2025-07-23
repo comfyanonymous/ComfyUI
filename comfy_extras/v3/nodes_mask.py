@@ -57,7 +57,7 @@ def composite(destination, source, x, y, mask=None, multiplier=8, resize_source=
     return destination
 
 
-class CropMask(io.ComfyNodeV3):
+class CropMask(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -80,7 +80,7 @@ class CropMask(io.ComfyNodeV3):
         return io.NodeOutput(mask[:, y : y + height, x : x + width])
 
 
-class FeatherMask(io.ComfyNodeV3):
+class FeatherMask(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -125,7 +125,7 @@ class FeatherMask(io.ComfyNodeV3):
         return io.NodeOutput(output)
 
 
-class GrowMask(io.ComfyNodeV3):
+class GrowMask(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -158,7 +158,7 @@ class GrowMask(io.ComfyNodeV3):
         return io.NodeOutput(torch.stack(out, dim=0))
 
 
-class ImageColorToMask(io.ComfyNodeV3):
+class ImageColorToMask(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -183,7 +183,7 @@ class ImageColorToMask(io.ComfyNodeV3):
         return io.NodeOutput(torch.where(temp == color, 1.0, 0).float())
 
 
-class ImageCompositeMasked(io.ComfyNodeV3):
+class ImageCompositeMasked(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -209,7 +209,7 @@ class ImageCompositeMasked(io.ComfyNodeV3):
         return io.NodeOutput(output)
 
 
-class ImageToMask(io.ComfyNodeV3):
+class ImageToMask(io.ComfyNode):
     CHANNELS = ["red", "green", "blue", "alpha"]
 
     @classmethod
@@ -230,7 +230,7 @@ class ImageToMask(io.ComfyNodeV3):
         return io.NodeOutput(image[:, :, :, cls.CHANNELS.index(channel)])
 
 
-class InvertMask(io.ComfyNodeV3):
+class InvertMask(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -248,7 +248,7 @@ class InvertMask(io.ComfyNodeV3):
         return io.NodeOutput(1.0 - mask)
 
 
-class LatentCompositeMasked(io.ComfyNodeV3):
+class LatentCompositeMasked(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -275,7 +275,7 @@ class LatentCompositeMasked(io.ComfyNodeV3):
         return io.NodeOutput(output)
 
 
-class MaskComposite(io.ComfyNodeV3):
+class MaskComposite(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -335,7 +335,7 @@ class MaskComposite(io.ComfyNodeV3):
         return io.NodeOutput(torch.clamp(output, 0.0, 1.0))
 
 
-class MaskPreview(io.ComfyNodeV3):
+class MaskPreview(io.ComfyNode):
     """Mask Preview - original implement in ComfyUI_essentials.
 
     https://github.com/cubiq/ComfyUI_essentials/blob/9d9f4bedfc9f0321c19faf71855e228c93bd0dc9/mask.py#L81
@@ -360,7 +360,7 @@ class MaskPreview(io.ComfyNodeV3):
         return io.NodeOutput(ui=ui.PreviewMask(masks))
 
 
-class MaskToImage(io.ComfyNodeV3):
+class MaskToImage(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -378,7 +378,7 @@ class MaskToImage(io.ComfyNodeV3):
         return io.NodeOutput(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])).movedim(1, -1).expand(-1, -1, -1, 3))
 
 
-class SolidMask(io.ComfyNodeV3):
+class SolidMask(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -398,7 +398,7 @@ class SolidMask(io.ComfyNodeV3):
         return io.NodeOutput(torch.full((1, height, width), value, dtype=torch.float32, device="cpu"))
 
 
-class ThresholdMask(io.ComfyNodeV3):
+class ThresholdMask(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -417,7 +417,7 @@ class ThresholdMask(io.ComfyNodeV3):
         return io.NodeOutput((mask > value).float())
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     CropMask,
     FeatherMask,
     GrowMask,

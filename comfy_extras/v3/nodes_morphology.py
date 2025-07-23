@@ -16,7 +16,7 @@ import comfy.model_management
 from comfy_api.v3 import io
 
 
-class ImageRGBToYUV(io.ComfyNodeV3):
+class ImageRGBToYUV(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -38,7 +38,7 @@ class ImageRGBToYUV(io.ComfyNodeV3):
         return io.NodeOutput(out[..., 0:1].expand_as(image), out[..., 1:2].expand_as(image), out[..., 2:3].expand_as(image))
 
 
-class ImageYUVToRGB(io.ComfyNodeV3):
+class ImageYUVToRGB(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -60,7 +60,7 @@ class ImageYUVToRGB(io.ComfyNodeV3):
         return io.NodeOutput(kornia.color.ycbcr_to_rgb(image.movedim(-1, 1)).movedim(1, -1))
 
 
-class Morphology(io.ComfyNodeV3):
+class Morphology(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

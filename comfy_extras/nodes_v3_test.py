@@ -17,7 +17,7 @@ class XYZ:
         ...
 
 
-class V3TestNode(io.ComfyNodeV3):
+class V3TestNode(io.ComfyNode):
     # NOTE: this is here just to test that state is not leaking
     def __init__(self):
         super().__init__()
@@ -91,7 +91,7 @@ class V3TestNode(io.ComfyNodeV3):
         return io.NodeOutput(some_int, image, ui=ui.PreviewImage(image, cls=cls))
 
 
-class V3LoraLoader(io.ComfyNodeV3):
+class V3LoraLoader(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -141,7 +141,7 @@ class V3LoraLoader(io.ComfyNodeV3):
         return io.NodeOutput(model_lora, clip_lora)
 
 
-class NInputsTest(io.ComfyNodeV3):
+class NInputsTest(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -183,7 +183,7 @@ class NInputsTest(io.ComfyNodeV3):
         return io.NodeOutput(combined_image)
 
 
-class V3TestSleep(io.ComfyNodeV3):
+class V3TestSleep(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -218,7 +218,7 @@ class V3TestSleep(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class V3DummyStart(io.ComfyNodeV3):
+class V3DummyStart(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -237,7 +237,7 @@ class V3DummyStart(io.ComfyNodeV3):
         return io.NodeOutput(None)
 
 
-class V3DummyEnd(io.ComfyNodeV3):
+class V3DummyEnd(io.ComfyNode):
     COOL_VALUE = 123
 
     @classmethod
@@ -279,7 +279,7 @@ class V3DummyEndInherit(V3DummyEnd):
         return super().execute(xyz)
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     V3TestNode,
     V3LoraLoader,
     NInputsTest,

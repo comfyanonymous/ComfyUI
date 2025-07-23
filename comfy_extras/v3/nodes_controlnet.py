@@ -3,7 +3,7 @@ from comfy.cldm.control_types import UNION_CONTROLNET_TYPES
 from comfy_api.v3 import io
 
 
-class ControlNetApplyAdvanced(io.ComfyNodeV3):
+class ControlNetApplyAdvanced(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -60,7 +60,7 @@ class ControlNetApplyAdvanced(io.ComfyNodeV3):
         return io.NodeOutput(out[0], out[1])
 
 
-class SetUnionControlNetType(io.ComfyNodeV3):
+class SetUnionControlNetType(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -134,7 +134,7 @@ class ControlNetInpaintingAliMamaApply(ControlNetApplyAdvanced):
         )
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     ControlNetApplyAdvanced,
     SetUnionControlNetType,
     ControlNetInpaintingAliMamaApply,

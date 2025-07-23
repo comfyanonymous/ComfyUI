@@ -17,7 +17,7 @@ def attention_multiply(attn, model, q, k, v, out):
     return m
 
 
-class UNetSelfAttentionMultiply(io.ComfyNodeV3):
+class UNetSelfAttentionMultiply(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -39,7 +39,7 @@ class UNetSelfAttentionMultiply(io.ComfyNodeV3):
         return io.NodeOutput(attention_multiply("attn1", model, q, k, v, out))
 
 
-class UNetCrossAttentionMultiply(io.ComfyNodeV3):
+class UNetCrossAttentionMultiply(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -61,7 +61,7 @@ class UNetCrossAttentionMultiply(io.ComfyNodeV3):
         return io.NodeOutput(attention_multiply("attn2", model, q, k, v, out))
 
 
-class CLIPAttentionMultiply(io.ComfyNodeV3):
+class CLIPAttentionMultiply(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -95,7 +95,7 @@ class CLIPAttentionMultiply(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class UNetTemporalAttentionMultiply(io.ComfyNodeV3):
+class UNetTemporalAttentionMultiply(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(

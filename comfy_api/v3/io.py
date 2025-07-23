@@ -22,7 +22,7 @@ from comfy.samplers import CFGGuider, Sampler
 from comfy.sd import CLIP, VAE
 from comfy.sd import StyleModel as StyleModel_
 from comfy_api.input import VideoInput
-from comfy_api.internal import (ComfyNodeInternal, classproperty, copy_class, first_real_override, is_class,
+from comfy_api.internal import (_ComfyNodeInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
 from comfy_api.v3.resources import Resources, ResourcesLocal
 from comfy_execution.graph import ExecutionBlocker
@@ -1116,7 +1116,7 @@ def add_to_dict_v3(io: InputV3 | OutputV3, d: dict):
 
 
 
-class _ComfyNodeBaseInternal(ComfyNodeInternal):
+class _ComfyNodeBaseInternal(_ComfyNodeInternal):
     """Common base class for storing internal methods and properties; DO NOT USE for defining nodes."""
 
     RELATIVE_PYTHON_MODULE = None
@@ -1222,10 +1222,10 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
 
     @final
     @classmethod
-    def PREPARE_CLASS_CLONE(cls, hidden_inputs: dict) -> type[ComfyNodeV3]:
+    def PREPARE_CLASS_CLONE(cls, hidden_inputs: dict) -> type[ComfyNode]:
         """Creates clone of real node class to prevent monkey-patching."""
-        c_type: type[ComfyNodeV3] = cls if is_class(cls) else type(cls)
-        type_clone: type[ComfyNodeV3] = shallow_clone_class(c_type)
+        c_type: type[ComfyNode] = cls if is_class(cls) else type(cls)
+        type_clone: type[ComfyNode] = shallow_clone_class(c_type)
         # set hidden
         type_clone.hidden = HiddenHolder.from_dict(hidden_inputs)
         return type_clone
@@ -1408,7 +1408,7 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
     #############################################
 
 
-class ComfyNodeV3(_ComfyNodeBaseInternal):
+class ComfyNode(_ComfyNodeBaseInternal):
     """Common base class for all V3 nodes."""
 
     @classmethod
@@ -1453,7 +1453,7 @@ class ComfyNodeV3(_ComfyNodeBaseInternal):
     @classmethod
     def GET_BASE_CLASS(cls):
         """DO NOT override this class. Will break things in execution.py."""
-        return ComfyNodeV3
+        return ComfyNode
 
 
 class NodeOutput:

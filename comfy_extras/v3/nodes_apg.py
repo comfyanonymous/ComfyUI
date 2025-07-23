@@ -10,7 +10,7 @@ def project(v0, v1):
     return v0_parallel, v0_orthogonal
 
 
-class APG(io.ComfyNodeV3):
+class APG(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(

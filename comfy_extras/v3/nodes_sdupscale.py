@@ -6,7 +6,7 @@ import comfy.utils
 from comfy_api.v3 import io
 
 
-class SD_4XUpscale_Conditioning(io.ComfyNodeV3):
+class SD_4XUpscale_Conditioning(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

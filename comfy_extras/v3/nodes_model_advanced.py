@@ -57,7 +57,7 @@ class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete)
         return log_sigma.exp().to(timestep.device)
 
 
-class ModelComputeDtype(io.ComfyNodeV3):
+class ModelComputeDtype(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -79,7 +79,7 @@ class ModelComputeDtype(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class ModelSamplingContinuousEDM(io.ComfyNodeV3):
+class ModelSamplingContinuousEDM(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -131,7 +131,7 @@ class ModelSamplingContinuousEDM(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class ModelSamplingContinuousV(io.ComfyNodeV3):
+class ModelSamplingContinuousV(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -165,7 +165,7 @@ class ModelSamplingContinuousV(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class ModelSamplingDiscrete(io.ComfyNodeV3):
+class ModelSamplingDiscrete(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -207,7 +207,7 @@ class ModelSamplingDiscrete(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class ModelSamplingFlux(io.ComfyNodeV3):
+class ModelSamplingFlux(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -247,7 +247,7 @@ class ModelSamplingFlux(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class ModelSamplingSD3(io.ComfyNodeV3):
+class ModelSamplingSD3(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -298,7 +298,7 @@ class ModelSamplingAuraFlow(ModelSamplingSD3):
         return super().execute(model, shift, multiplier)
 
 
-class ModelSamplingStableCascade(io.ComfyNodeV3):
+class ModelSamplingStableCascade(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -329,7 +329,7 @@ class ModelSamplingStableCascade(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class RescaleCFG(io.ComfyNodeV3):
+class RescaleCFG(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

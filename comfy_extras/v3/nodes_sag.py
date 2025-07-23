@@ -111,7 +111,7 @@ def gaussian_blur_2d(img, kernel_size, sigma):
     return F.conv2d(img, kernel2d, groups=img.shape[-3])
 
 
-class SelfAttentionGuidance(io.ComfyNodeV3):
+class SelfAttentionGuidance(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

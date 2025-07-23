@@ -4,7 +4,7 @@ import nodes
 from comfy_api.v3 import io
 
 
-class CLIPTextEncodeSDXL(io.ComfyNodeV3):
+class CLIPTextEncodeSDXL(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -48,7 +48,7 @@ class CLIPTextEncodeSDXL(io.ComfyNodeV3):
         return io.NodeOutput(conditioning)
 
 
-class CLIPTextEncodeSDXLRefiner(io.ComfyNodeV3):
+class CLIPTextEncodeSDXLRefiner(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

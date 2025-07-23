@@ -15,7 +15,7 @@ from comfy_api.util import VideoCodec, VideoComponents, VideoContainer
 from comfy_api.v3 import io, ui
 
 
-class CreateVideo(io.ComfyNodeV3):
+class CreateVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -44,7 +44,7 @@ class CreateVideo(io.ComfyNodeV3):
         ))
 
 
-class GetVideoComponents(io.ComfyNodeV3):
+class GetVideoComponents(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -68,7 +68,7 @@ class GetVideoComponents(io.ComfyNodeV3):
         return io.NodeOutput(components.images, components.audio, float(components.frame_rate))
 
 
-class LoadVideo(io.ComfyNodeV3):
+class LoadVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         input_dir = folder_paths.get_input_directory()
@@ -105,7 +105,7 @@ class LoadVideo(io.ComfyNodeV3):
         return True
 
 
-class SaveVideo(io.ComfyNodeV3):
+class SaveVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -152,7 +152,7 @@ class SaveVideo(io.ComfyNodeV3):
         return io.NodeOutput(ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
 
 
-class SaveWEBM(io.ComfyNodeV3):
+class SaveWEBM(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

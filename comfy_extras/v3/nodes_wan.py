@@ -11,7 +11,7 @@ import nodes
 from comfy_api.v3 import io
 
 
-class TrimVideoLatent(io.ComfyNodeV3):
+class TrimVideoLatent(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -36,7 +36,7 @@ class TrimVideoLatent(io.ComfyNodeV3):
         return io.NodeOutput(samples_out)
 
 
-class WanCameraImageToVideo(io.ComfyNodeV3):
+class WanCameraImageToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -88,7 +88,7 @@ class WanCameraImageToVideo(io.ComfyNodeV3):
         return io.NodeOutput(positive, negative, out_latent)
 
 
-class WanFirstLastFrameToVideo(io.ComfyNodeV3):
+class WanFirstLastFrameToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -159,7 +159,7 @@ class WanFirstLastFrameToVideo(io.ComfyNodeV3):
         return io.NodeOutput(positive, negative, out_latent)
 
 
-class WanFunControlToVideo(io.ComfyNodeV3):
+class WanFunControlToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -213,7 +213,7 @@ class WanFunControlToVideo(io.ComfyNodeV3):
         return io.NodeOutput(positive, negative, out_latent)
 
 
-class WanFunInpaintToVideo(io.ComfyNodeV3):
+class WanFunInpaintToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -244,7 +244,7 @@ class WanFunInpaintToVideo(io.ComfyNodeV3):
         return flfv.execute(positive, negative, vae, width, height, length, batch_size, start_image=start_image, end_image=end_image, clip_vision_start_image=clip_vision_output)
 
 
-class WanImageToVideo(io.ComfyNodeV3):
+class WanImageToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -292,7 +292,7 @@ class WanImageToVideo(io.ComfyNodeV3):
         return io.NodeOutput(positive, negative, out_latent)
 
 
-class WanPhantomSubjectToVideo(io.ComfyNodeV3):
+class WanPhantomSubjectToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -336,7 +336,7 @@ class WanPhantomSubjectToVideo(io.ComfyNodeV3):
         return io.NodeOutput(positive, cond2, negative, out_latent)
 
 
-class WanVaceToVideo(io.ComfyNodeV3):
+class WanVaceToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

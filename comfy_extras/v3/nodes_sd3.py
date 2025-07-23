@@ -10,7 +10,7 @@ from comfy_api.v3 import io
 from comfy_extras.v3.nodes_slg import SkipLayerGuidanceDiT
 
 
-class CLIPTextEncodeSD3(io.ComfyNodeV3):
+class CLIPTextEncodeSD3(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -54,7 +54,7 @@ class CLIPTextEncodeSD3(io.ComfyNodeV3):
         return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
 
 
-class EmptySD3LatentImage(io.ComfyNodeV3):
+class EmptySD3LatentImage(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -109,7 +109,7 @@ class SkipLayerGuidanceSD3(SkipLayerGuidanceDiT):
         )
 
 
-class TripleCLIPLoader(io.ComfyNodeV3):
+class TripleCLIPLoader(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

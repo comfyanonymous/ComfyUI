@@ -28,7 +28,7 @@ def Fourier_filter(x, threshold, scale):
     return x_filtered.to(x.dtype)
 
 
-class FreeU(io.ComfyNodeV3):
+class FreeU(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -73,7 +73,7 @@ class FreeU(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class FreeU_V2(io.ComfyNodeV3):
+class FreeU_V2(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

@@ -135,7 +135,7 @@ def get_camera_motion(angle, T, speed, n=81):
     return RT
 
 
-class WanCameraEmbedding(io.ComfyNodeV3):
+class WanCameraEmbedding(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

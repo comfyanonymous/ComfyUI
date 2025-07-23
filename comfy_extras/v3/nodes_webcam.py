@@ -10,7 +10,7 @@ import nodes
 from comfy_api.v3 import io
 
 
-class WebcamCapture(io.ComfyNodeV3):
+class WebcamCapture(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -89,4 +89,4 @@ class WebcamCapture(io.ComfyNodeV3):
         return True
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [WebcamCapture]
+NODES_LIST: list[type[io.ComfyNode]] = [WebcamCapture]

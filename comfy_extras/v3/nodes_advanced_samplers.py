@@ -41,7 +41,7 @@ def sample_lcm_upscale(
     return x
 
 
-class SamplerLCMUpscale(io.ComfyNodeV3):
+class SamplerLCMUpscale(io.ComfyNode):
     UPSCALE_METHODS = ["bislerp", "nearest-exact", "bilinear", "area", "bicubic"]
 
     @classmethod
@@ -99,7 +99,7 @@ def sample_euler_pp(model, x, sigmas, extra_args=None, callback=None, disable=No
     return x
 
 
-class SamplerEulerCFGpp(io.ComfyNodeV3):
+class SamplerEulerCFGpp(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(

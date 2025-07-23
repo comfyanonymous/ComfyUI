@@ -112,7 +112,7 @@ def porter_duff_composite(
     return out_image, out_alpha
 
 
-class JoinImageWithAlpha(io.ComfyNodeV3):
+class JoinImageWithAlpha(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -138,7 +138,7 @@ class JoinImageWithAlpha(io.ComfyNodeV3):
         return io.NodeOutput(torch.stack(out_images))
 
 
-class PorterDuffImageComposite(io.ComfyNodeV3):
+class PorterDuffImageComposite(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -199,7 +199,7 @@ class PorterDuffImageComposite(io.ComfyNodeV3):
         return io.NodeOutput(torch.stack(out_images), torch.stack(out_alphas))
 
 
-class SplitImageWithAlpha(io.ComfyNodeV3):
+class SplitImageWithAlpha(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

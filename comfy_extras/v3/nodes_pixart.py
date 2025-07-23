@@ -4,7 +4,7 @@ import nodes
 from comfy_api.v3 import io
 
 
-class CLIPTextEncodePixArtAlpha(io.ComfyNodeV3):
+class CLIPTextEncodePixArtAlpha(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

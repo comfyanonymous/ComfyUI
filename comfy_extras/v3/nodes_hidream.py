@@ -6,7 +6,7 @@ import folder_paths
 from comfy_api.v3 import io
 
 
-class CLIPTextEncodeHiDream(io.ComfyNodeV3):
+class CLIPTextEncodeHiDream(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -33,7 +33,7 @@ class CLIPTextEncodeHiDream(io.ComfyNodeV3):
         return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
 
 
-class QuadrupleCLIPLoader(io.ComfyNodeV3):
+class QuadrupleCLIPLoader(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

@@ -3,7 +3,7 @@ from __future__ import annotations
 from comfy_api.v3 import io
 
 
-class CLIPTextEncodeControlnet(io.ComfyNodeV3):
+class CLIPTextEncodeControlnet(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -30,7 +30,7 @@ class CLIPTextEncodeControlnet(io.ComfyNodeV3):
         return io.NodeOutput(c)
 
 
-class T5TokenizerOptions(io.ComfyNodeV3):
+class T5TokenizerOptions(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(

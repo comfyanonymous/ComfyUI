@@ -4,7 +4,7 @@ import comfy.utils
 from comfy_api.v3 import io
 
 
-class PatchModelAddDownscale(io.ComfyNodeV3):
+class PatchModelAddDownscale(io.ComfyNode):
     UPSCALE_METHODS = ["bicubic", "nearest-exact", "bilinear", "area", "bislerp"]
 
     @classmethod

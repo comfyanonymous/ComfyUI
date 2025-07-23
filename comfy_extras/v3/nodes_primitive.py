@@ -5,7 +5,7 @@ import sys
 from comfy_api.v3 import io
 
 
-class String(io.ComfyNodeV3):
+class String(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -23,7 +23,7 @@ class String(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class StringMultiline(io.ComfyNodeV3):
+class StringMultiline(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -41,7 +41,7 @@ class StringMultiline(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class Int(io.ComfyNodeV3):
+class Int(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -59,7 +59,7 @@ class Int(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class Float(io.ComfyNodeV3):
+class Float(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -77,7 +77,7 @@ class Float(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class Boolean(io.ComfyNodeV3):
+class Boolean(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -95,7 +95,7 @@ class Boolean(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     String,
     StringMultiline,
     Int,

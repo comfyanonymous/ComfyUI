@@ -21,7 +21,7 @@ def optimized_scale(positive, negative):
     return st_star.reshape([positive.shape[0]] + [1] * (positive.ndim - 1))
 
 
-class CFGNorm(io.ComfyNodeV3):
+class CFGNorm(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -52,7 +52,7 @@ class CFGNorm(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class CFGZeroStar(io.ComfyNodeV3):
+class CFGZeroStar(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(

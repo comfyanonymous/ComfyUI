@@ -4,7 +4,7 @@ import node_helpers
 from comfy_api.v3 import io
 
 
-class ReferenceLatent(io.ComfyNodeV3):
+class ReferenceLatent(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

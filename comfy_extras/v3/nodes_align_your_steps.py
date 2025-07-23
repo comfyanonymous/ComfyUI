@@ -47,7 +47,7 @@ def loglinear_interp(t_steps, num_steps):
     return np.exp(new_ys)[::-1].copy()
 
 
-class AlignYourStepsScheduler(io.ComfyNodeV3):
+class AlignYourStepsScheduler(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(

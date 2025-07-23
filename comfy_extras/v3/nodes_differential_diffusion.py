@@ -5,7 +5,7 @@ import torch
 from comfy_api.v3 import io
 
 
-class DifferentialDiffusion(io.ComfyNodeV3):
+class DifferentialDiffusion(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

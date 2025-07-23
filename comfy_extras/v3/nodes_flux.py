@@ -25,7 +25,7 @@ PREFERED_KONTEXT_RESOLUTIONS = [
 ]
 
 
-class CLIPTextEncodeFlux(io.ComfyNodeV3):
+class CLIPTextEncodeFlux(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -50,7 +50,7 @@ class CLIPTextEncodeFlux(io.ComfyNodeV3):
         return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens, add_dict={"guidance": guidance}))
 
 
-class FluxDisableGuidance(io.ComfyNodeV3):
+class FluxDisableGuidance(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -71,7 +71,7 @@ class FluxDisableGuidance(io.ComfyNodeV3):
         return io.NodeOutput(c)
 
 
-class FluxGuidance(io.ComfyNodeV3):
+class FluxGuidance(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -92,7 +92,7 @@ class FluxGuidance(io.ComfyNodeV3):
         return io.NodeOutput(c)
 
 
-class FluxKontextImageScale(io.ComfyNodeV3):
+class FluxKontextImageScale(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(

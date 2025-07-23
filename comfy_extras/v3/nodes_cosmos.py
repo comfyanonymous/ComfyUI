@@ -20,7 +20,7 @@ def vae_encode_with_padding(vae, image, width, height, length, padding=0):
     return latent_temp[:, :, :latent_len]
 
 
-class CosmosImageToVideoLatent(io.ComfyNodeV3):
+class CosmosImageToVideoLatent(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -67,7 +67,7 @@ class CosmosImageToVideoLatent(io.ComfyNodeV3):
         return io.NodeOutput(out_latent)
 
 
-class CosmosPredict2ImageToVideoLatent(io.ComfyNodeV3):
+class CosmosPredict2ImageToVideoLatent(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -116,7 +116,7 @@ class CosmosPredict2ImageToVideoLatent(io.ComfyNodeV3):
         return io.NodeOutput(out_latent)
 
 
-class EmptyCosmosLatentVideo(io.ComfyNodeV3):
+class EmptyCosmosLatentVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(

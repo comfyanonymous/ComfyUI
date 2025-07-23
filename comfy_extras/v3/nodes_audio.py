@@ -12,7 +12,7 @@ import node_helpers
 from comfy_api.v3 import io, ui
 
 
-class ConditioningStableAudio(io.ComfyNodeV3):
+class ConditioningStableAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -42,7 +42,7 @@ class ConditioningStableAudio(io.ComfyNodeV3):
         )
 
 
-class EmptyLatentAudio(io.ComfyNodeV3):
+class EmptyLatentAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -64,7 +64,7 @@ class EmptyLatentAudio(io.ComfyNodeV3):
         return io.NodeOutput({"samples": latent, "type": "audio"})
 
 
-class LoadAudio(io.ComfyNodeV3):
+class LoadAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -102,7 +102,7 @@ class LoadAudio(io.ComfyNodeV3):
         return True
 
 
-class PreviewAudio(io.ComfyNodeV3):
+class PreviewAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -121,7 +121,7 @@ class PreviewAudio(io.ComfyNodeV3):
         return io.NodeOutput(ui=ui.PreviewAudio(audio, cls=cls))
 
 
-class SaveAudioMP3(io.ComfyNodeV3):
+class SaveAudioMP3(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -146,7 +146,7 @@ class SaveAudioMP3(io.ComfyNodeV3):
         )
 
 
-class SaveAudioOpus(io.ComfyNodeV3):
+class SaveAudioOpus(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -171,7 +171,7 @@ class SaveAudioOpus(io.ComfyNodeV3):
         )
 
 
-class SaveAudio(io.ComfyNodeV3):
+class SaveAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -193,7 +193,7 @@ class SaveAudio(io.ComfyNodeV3):
         )
 
 
-class VAEDecodeAudio(io.ComfyNodeV3):
+class VAEDecodeAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -215,7 +215,7 @@ class VAEDecodeAudio(io.ComfyNodeV3):
         return io.NodeOutput({"waveform": audio, "sample_rate": 44100})
 
 
-class VAEEncodeAudio(io.ComfyNodeV3):
+class VAEEncodeAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -238,7 +238,7 @@ class VAEEncodeAudio(io.ComfyNodeV3):
         return io.NodeOutput({"samples": vae.encode(waveform.movedim(1, -1))})
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     ConditioningStableAudio,
     EmptyLatentAudio,
     LoadAudio,

@@ -5,7 +5,7 @@ import json
 from comfy_api.v3 import io, ui
 
 
-class PreviewAny(io.ComfyNodeV3):
+class PreviewAny(io.ComfyNode):
     """Originally implement from https://github.com/rgthree/rgthree-comfy/blob/main/py/display_any.py
 
     upstream requested in https://github.com/Kosinkadink/rfcs/blob/main/rfcs/0000-corenodes.md#preview-nodes"""
@@ -42,6 +42,6 @@ class PreviewAny(io.ComfyNodeV3):
         return io.NodeOutput(ui=ui.PreviewText(value))
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     PreviewAny,
 ]

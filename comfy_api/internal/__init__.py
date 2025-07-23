@@ -17,7 +17,7 @@ def first_real_override(cls: type, name: str, *, base: type=None) -> Optional[Ca
     if base_attr is None:
         return None
     base_func = base_attr.__func__
-    for c in cls.mro():                       # NodeB, NodeA, ComfyNodeV3, object …
+    for c in cls.mro():                       # NodeB, NodeA, ComfyNode, object …
         if c is base:                         # reached the placeholder – we're done
             break
         if name in c.__dict__:                # first class that *defines* the attr
@@ -27,7 +27,7 @@ def first_real_override(cls: type, name: str, *, base: type=None) -> Optional[Ca
     return None
 
 
-class ComfyNodeInternal:
+class _ComfyNodeInternal:
     """Class that all V3-based APIs inherit from for ComfyNode.
 
     This is intended to only be referenced within execution.py, as it has to handle all V3 APIs going forward."""

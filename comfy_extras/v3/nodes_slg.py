@@ -7,7 +7,7 @@ import comfy.samplers
 from comfy_api.v3 import io
 
 
-class SkipLayerGuidanceDiT(io.ComfyNodeV3):
+class SkipLayerGuidanceDiT(io.ComfyNode):
     """
     Enhance guidance towards detailed dtructure by having another set of CFG negative with skipped layers.
     Inspired by Perturbed Attention Guidance (https://arxiv.org/abs/2403.17377)
@@ -92,7 +92,7 @@ class SkipLayerGuidanceDiT(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class SkipLayerGuidanceDiTSimple(io.ComfyNodeV3):
+class SkipLayerGuidanceDiTSimple(io.ComfyNode):
     """Simple version of the SkipLayerGuidanceDiT node that only modifies the uncond pass."""
 
     @classmethod

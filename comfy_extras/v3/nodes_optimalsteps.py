@@ -26,7 +26,7 @@ NOISE_LEVELS = {
 }
 
 
-class OptimalStepsScheduler(io.ComfyNodeV3):
+class OptimalStepsScheduler(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
