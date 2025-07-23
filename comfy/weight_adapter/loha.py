@@ -81,40 +81,36 @@ class LohaDiff(WeightAdapterTrainBase):
         w1a, w1b, alpha, w2a, w2b, t1, t2, dora_scale = weights
 
         # Create trainable parameters
-        self.w1_a = torch.nn.Parameter(w1a)
-        self.w1_b = torch.nn.Parameter(w1b)
-        self.w2_a = torch.nn.Parameter(w2a)
-        self.w2_b = torch.nn.Parameter(w2b)
+        self.hada_w1_a = torch.nn.Parameter(w1a)
+        self.hada_w1_b = torch.nn.Parameter(w1b)
+        self.hada_w2_a = torch.nn.Parameter(w2a)
+        self.hada_w2_b = torch.nn.Parameter(w2b)
 
         self.use_tucker = False
         if t1 is not None and t2 is not None:
             self.use_tucker = True
-            self.t1 = torch.nn.Parameter(t1)
-            self.t2 = torch.nn.Parameter(t2)
+            self.hada_t1 = torch.nn.Parameter(t1)
+            self.hada_t2 = torch.nn.Parameter(t2)
         else:
             # Keep the attributes for consistent access
-            self.t1 = None
-            self.t2 = None
+            self.hada_t1 = None
+            self.hada_t2 = None
 
         # Store rank and non-trainable alpha
         self.rank = w1b.shape[0]
-        self.alpha = torch.nn.Parameter(torch.tensor(alpha), requires_grad=False)
-        # dora_scale is not used in the training forward pass
+        self.register_buffer("alpha", torch.tensor(alpha))
 
     def __call__(self, w):
         org_dtype = w.dtype
 
-        # Apply scaling
         scale = self.alpha / self.rank
-        # Reconstruct the two matrices m1 and m2
         if self.use_tucker:
-            # CP/Tucker decomposition case
-            diff_weight = HadaWeightTucker.apply(self.t1, self.w1_a, self.w1_b, self.t2, self.w2_a, self.w2_b, scale)
+            diff_weight = HadaWeightTucker.apply(self.hada_t1, self.hada_w1_a, self.hada_w1_b, self.hada_t2, self.hada_w2_a, self.hada_w2_b, scale)
         else:
-            diff_weight = HadaWeight.apply(self.w1_a, self.w1_b, self.w2_a, self.w2_b, scale)
+            diff_weight = HadaWeight.apply(self.hada_w1_a, self.hada_w1_b, self.hada_w2_a, self.hada_w2_b, scale)
 
         # Add the scaled difference to the original weight
-        weight = w + diff_weight.reshape(w.shape).to(w.dtype)
+        weight = w.to(diff_weight) + diff_weight.reshape(w.shape)
 
         return weight.to(org_dtype)
 
@@ -140,8 +136,8 @@ class LoHaAdapter(WeightAdapterBase):
         torch.nn.init.constant_(mat2, 0.0)
         mat3 = torch.empty(out_dim, rank, device=weight.device, dtype=weight.dtype)
         mat4 = torch.empty(rank, in_dim, device=weight.device, dtype=weight.dtype)
-        torch.nn.init.normal_(mat1, 1)
-        torch.nn.init.normal_(mat2, 0.1)
+        torch.nn.init.normal_(mat3, 1)
+        torch.nn.init.normal_(mat4, 0.1)
         return LohaDiff(
             (mat1, mat2, alpha, mat3, mat4, None, None, None)
         )
