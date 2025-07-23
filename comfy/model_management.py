@@ -186,10 +186,7 @@ def get_total_memory(dev=None, torch_total_too=False):
         elif is_intel_xpu():
             stats = torch.xpu.memory_stats(dev)
             mem_reserved = stats['reserved_bytes.all.current']
-            if torch_version_numeric < (2, 6):
-                mem_total_xpu = torch.xpu.get_device_properties(dev).total_memory
-            else:
-                _, mem_total_xpu = torch.xpu.mem_get_info(dev)
+            mem_total_xpu = torch.xpu.get_device_properties(dev).total_memory
             mem_total_torch = mem_reserved
             mem_total = mem_total_xpu
         elif is_ascend_npu():
