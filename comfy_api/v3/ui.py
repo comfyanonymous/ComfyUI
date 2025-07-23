@@ -37,6 +37,20 @@ class SavedResult(dict):
         return FolderType(self["type"])
 
 
+class SavedImages(_UIOutput):
+    """A UI output class to represent one or more saved images, potentially animated."""
+    def __init__(self, results: list[SavedResult], is_animated: bool = False):
+        super().__init__()
+        self.results = results
+        self.is_animated = is_animated
+
+    def as_dict(self) -> dict:
+        data = {"images": self.results}
+        if self.is_animated:
+            data["animated"] = (True,)
+        return data
+
+
 def _get_directory_by_folder_type(folder_type: FolderType) -> str:
     if folder_type == FolderType.input:
         return folder_paths.get_input_directory()
@@ -126,13 +140,21 @@ class ImageSaveHelper:
         return results
 
     @staticmethod
+    def get_save_images_ui(images, filename_prefix: str, cls: Type[ComfyNodeV3] | None, compress_level=4) -> SavedImages:
+        """Saves a batch of images and returns a UI object for the node output."""
+        return SavedImages(
+                ImageSaveHelper.save_images(
+                images,
+                filename_prefix=filename_prefix,
+                folder_type=FolderType.output,
+                cls=cls,
+                compress_level=compress_level,
+            )
+        )
+
+    @staticmethod
     def save_animated_png(
-        images,
-        filename_prefix: str,
-        folder_type: FolderType,
-        cls: Type[ComfyNodeV3] | None,
-        fps: float,
-        compress_level: int
+        images, filename_prefix: str, folder_type: FolderType, cls: Type[ComfyNodeV3] | None, fps: float, compress_level: int
     ) -> SavedResult:
         """Saves a batch of images as a single animated PNG."""
         full_output_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
@@ -151,6 +173,21 @@ class ImageSaveHelper:
             append_images=pil_images[1:],
         )
         return SavedResult(file, subfolder, folder_type)
+
+    @staticmethod
+    def get_save_animated_png_ui(
+        images, filename_prefix: str, cls: Type[ComfyNodeV3] | None, fps: float, compress_level: int
+    ) -> SavedImages:
+        """Saves an animated PNG and returns a UI object for the node output."""
+        result = ImageSaveHelper.save_animated_png(
+            images,
+            filename_prefix=filename_prefix,
+            folder_type=FolderType.output,
+            cls=cls,
+            fps=fps,
+            compress_level=compress_level,
+        )
+        return SavedImages([result], is_animated=len(images) > 1)
 
     @staticmethod
     def save_animated_webp(
@@ -181,6 +218,29 @@ class ImageSaveHelper:
             method=method,
         )
         return SavedResult(file, subfolder, folder_type)
+
+    @staticmethod
+    def get_save_animated_webp_ui(
+        images,
+        filename_prefix: str,
+        cls: Type[ComfyNodeV3] | None,
+        fps: float,
+        lossless: bool,
+        quality: int,
+        method: int,
+    ) -> SavedImages:
+        """Saves an animated WebP and returns a UI object for the node output."""
+        result = ImageSaveHelper.save_animated_webp(
+            images,
+            filename_prefix=filename_prefix,
+            folder_type=FolderType.output,
+            cls=cls,
+            fps=fps,
+            lossless=lossless,
+            quality=quality,
+            method=method,
+        )
+        return SavedImages([result], is_animated=len(images) > 1)
 
 
 class PreviewImage(_UIOutput):
