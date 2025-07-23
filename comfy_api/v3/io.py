@@ -73,7 +73,6 @@ class RemoteOptions:
 class NumberDisplay(str, Enum):
     number = "number"
     slider = "slider"
-    color = "color"
 
 
 class _StringIOType(str):
