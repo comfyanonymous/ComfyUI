@@ -39,13 +39,13 @@ def make_batch_extra_option_dict(d, indicies, full_size=None):
 
 
 class TrainSampler(comfy.samplers.Sampler):
-
-    def __init__(self, loss_fn, optimizer, loss_callback=None, batch_size=1, total_steps=1, seed=0, training_dtype=torch.bfloat16):
+    def __init__(self, loss_fn, optimizer, loss_callback=None, batch_size=1, grad_acc=1, total_steps=1, seed=0, training_dtype=torch.bfloat16):
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.loss_callback = loss_callback
         self.batch_size = batch_size
         self.total_steps = total_steps
+        self.grad_acc = grad_acc
         self.seed = seed
         self.training_dtype = training_dtype
 
@@ -92,8 +92,9 @@ class TrainSampler(comfy.samplers.Sampler):
                 self.loss_callback(loss.item())
             pbar.set_postfix({"loss": f"{loss.item():.4f}"})
 
-            self.optimizer.step()
-            self.optimizer.zero_grad()
+            if (i+1) % self.grad_acc == 0:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
         torch.cuda.empty_cache()
         return torch.zeros_like(latent_image)
 
@@ -419,6 +420,16 @@ class TrainLoraNode:
                         "tooltip": "The batch size to use for training.",
                     },
                 ),
+                "grad_accumulation_steps": (
+                    IO.INT,
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 1024,
+                        "step": 1,
+                        "tooltip": "The number of gradient accumulation steps to use for training.",
+                    }
+                ),
                 "steps": (
                     IO.INT,
                     {
@@ -512,6 +523,7 @@ class TrainLoraNode:
         positive,
         batch_size,
         steps,
+        grad_accumulation_steps,
         learning_rate,
         rank,
         optimizer,
@@ -641,7 +653,8 @@ class TrainLoraNode:
                 optimizer,
                 loss_callback=loss_callback,
                 batch_size=batch_size,
-                total_steps=steps,
+                grad_acc=grad_accumulation_steps,
+                total_steps=steps*grad_accumulation_steps,
                 seed=seed,
                 training_dtype=dtype
             )
