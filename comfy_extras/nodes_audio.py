@@ -278,6 +278,42 @@ class PreviewAudio(SaveAudio):
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
+def f32_pcm(wav: torch.Tensor) -> torch.Tensor:
+    """Convert audio to float 32 bits PCM format."""
+    if wav.dtype.is_floating_point:
+        return wav
+    elif wav.dtype == torch.int16:
+        return wav.float() / (2 ** 15)
+    elif wav.dtype == torch.int32:
+        return wav.float() / (2 ** 31)
+    raise ValueError(f"Unsupported wav dtype: {wav.dtype}")
+
+def load(filepath: str) -> tuple[torch.Tensor, int]:
+    with av.open(filepath) as af:
+        if not af.streams.audio:
+            raise ValueError("No audio stream found in the file.")
+
+        stream = af.streams.audio[0]
+        sr = stream.codec_context.sample_rate
+        n_channels = stream.channels
+
+        frames = []
+        length = 0
+        for frame in af.decode(streams=stream.index):
+            buf = torch.from_numpy(frame.to_ndarray())
+            if buf.shape[0] != n_channels:
+                buf = buf.view(-1, n_channels).t()
+
+            frames.append(buf)
+            length += buf.shape[1]
+
+        if not frames:
+            raise ValueError("No audio frames decoded.")
+
+        wav = torch.cat(frames, dim=1)
+        wav = f32_pcm(wav)
+        return wav, sr
+
 class LoadAudio:
     @classmethod
     def INPUT_TYPES(s):
@@ -292,7 +328,7 @@ class LoadAudio:
 
     def load(self, audio):
         audio_path = folder_paths.get_annotated_filepath(audio)
-        waveform, sample_rate = torchaudio.load(audio_path)
+        waveform, sample_rate = load(audio_path)
         audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
         return (audio, )
 
