@@ -10,7 +10,7 @@ class OFTDiff(WeightAdapterTrainBase):
     def __init__(self, weights):
         super().__init__()
         # Unpack weights tuple from LoHaAdapter
-        blocks, rescale, alpha, dora_scale = weights
+        blocks, rescale, alpha, _ = weights
 
         # Create trainable parameters
         self.oft_blocks = torch.nn.Parameter(blocks)
@@ -124,7 +124,6 @@ class OFTAdapter(WeightAdapterBase):
         rescale = v[1]
         alpha = v[2]
         if alpha is None:
-            print("Alpha is None")
             alpha = 0
         dora_scale = v[3]
 

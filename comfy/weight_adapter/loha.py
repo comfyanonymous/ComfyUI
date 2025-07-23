@@ -78,7 +78,7 @@ class LohaDiff(WeightAdapterTrainBase):
     def __init__(self, weights):
         super().__init__()
         # Unpack weights tuple from LoHaAdapter
-        w1a, w1b, alpha, w2a, w2b, t1, t2, dora_scale = weights
+        w1a, w1b, alpha, w2a, w2b, t1, t2, _ = weights
 
         # Create trainable parameters
         self.hada_w1_a = torch.nn.Parameter(w1a)
@@ -98,7 +98,7 @@ class LohaDiff(WeightAdapterTrainBase):
 
         # Store rank and non-trainable alpha
         self.rank = w1b.shape[0]
-        self.register_buffer("alpha", torch.tensor(alpha))
+        self.alpha = torch.nn.Parameter(torch.tensor(alpha), requires_grad=False)
 
     def __call__(self, w):
         org_dtype = w.dtype

@@ -17,16 +17,16 @@ class LokrDiff(WeightAdapterTrainBase):
         (lokr_w1, lokr_w2, alpha, lokr_w1_a, lokr_w1_b, lokr_w2_a, lokr_w2_b, lokr_t2, dora_scale) = weights
         self.use_tucker = False
         if lokr_w1_a is not None:
-            out_dim_a, rank_a = lokr_w1_a.shape[0], lokr_w1_a.shape[1]
-            rank_a, in_dim_a = lokr_w1_b.shape[0], lokr_w1_b.shape[1]
+            _, rank_a = lokr_w1_a.shape[0], lokr_w1_a.shape[1]
+            rank_a, _ = lokr_w1_b.shape[0], lokr_w1_b.shape[1]
             self.lokr_w1_a = torch.nn.Parameter(lokr_w1_a)
             self.lokr_w1_b = torch.nn.Parameter(lokr_w1_b)
             self.w1_rebuild = True
             self.ranka = rank_a
 
         if lokr_w2_a is not None:
-            out_dim_b, rank_b = lokr_w2_a.shape[0], lokr_w2_a.shape[1]
-            rank_b, in_dim_b = lokr_w2_b.shape[0], lokr_w2_b.shape[1]
+            _, rank_b = lokr_w2_a.shape[0], lokr_w2_a.shape[1]
+            rank_b, _ = lokr_w2_b.shape[0], lokr_w2_b.shape[1]
             self.lokr_w2_a = torch.nn.Parameter(lokr_w2_a)
             self.lokr_w2_b = torch.nn.Parameter(lokr_w2_b)
             if lokr_t2 is not None:
@@ -36,12 +36,10 @@ class LokrDiff(WeightAdapterTrainBase):
             self.rankb = rank_b
 
         if lokr_w1 is not None:
-            out_dim_a, in_dim_a = lokr_w1.shape[0], lokr_w1.shape[1]
             self.lokr_w1 = torch.nn.Parameter(lokr_w1)
             self.w1_rebuild = False
 
         if lokr_w2 is not None:
-            out_dim_b, in_dim_b = lokr_w2.shape[0], lokr_w2.shape[1]
             self.lokr_w2 = torch.nn.Parameter(lokr_w2)
             self.w2_rebuild = False
 
