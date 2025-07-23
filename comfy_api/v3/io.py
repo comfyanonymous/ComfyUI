@@ -85,7 +85,7 @@ class _StringIOType(str):
         b = frozenset(value.split(","))
         return not (b.issubset(a) or a.issubset(b))
 
-class ComfyType(ABC):
+class _ComfyType(ABC):
     Type = Any
     io_type: str = None
 
@@ -101,7 +101,7 @@ def comfytype(io_type: str, **kwargs):
     - class Output(OutputV3): ...
     '''
     def decorator(cls: T) -> T:
-        if isinstance(cls, ComfyType) or issubclass(cls, ComfyType):
+        if isinstance(cls, _ComfyType) or issubclass(cls, _ComfyType):
             # clone Input and Output classes to avoid modifying the original class
             new_cls = cls
             if hasattr(new_cls, "Input"):
@@ -144,7 +144,7 @@ class IO_V3:
     '''
     Base class for V3 Inputs and Outputs.
     '''
-    Parent: ComfyType = None
+    Parent: _ComfyType = None
 
     def __init__(self):
         pass
@@ -225,7 +225,7 @@ class OutputV3(IO_V3):
         return self.io_type
 
 
-class ComfyTypeI(ComfyType):
+class ComfyTypeI(_ComfyType):
     '''ComfyType subclass that only has a default Input class - intended for types that only have Inputs.'''
     class Input(InputV3):
         ...
@@ -694,7 +694,7 @@ class MultiType:
         '''
         Input that permits more than one input type; if `id` is an instance of `ComfyType.Input`, then that input will be used to create a widget (if applicable) with overridden values.
         '''
-        def __init__(self, id: str | InputV3, types: list[type[ComfyType] | ComfyType], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+        def __init__(self, id: str | InputV3, types: list[type[_ComfyType] | _ComfyType], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
             # if id is an Input, then use that Input with overridden values
             self.input_override = None
             if isinstance(id, InputV3):
@@ -807,9 +807,9 @@ class ComboDynamicInput(DynamicInput):
 @comfytype(io_type="COMFY_MATCHTYPE_V3")
 class MatchType(ComfyTypeIO):
     class Template:
-        def __init__(self, template_id: str, allowed_types: ComfyType | list[ComfyType]):
+        def __init__(self, template_id: str, allowed_types: _ComfyType | list[_ComfyType]):
             self.template_id = template_id
-            self.allowed_types = [allowed_types] if isinstance(allowed_types, ComfyType) else allowed_types
+            self.allowed_types = [allowed_types] if isinstance(allowed_types, _ComfyType) else allowed_types
 
         def as_dict(self):
             return {
