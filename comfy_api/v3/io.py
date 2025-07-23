@@ -662,6 +662,12 @@ class Accumulation(ComfyTypeIO):
 class Load3DCamera(ComfyTypeIO):
     Type = Any # TODO: figure out type for this; in code, only described as image['camera_info'], gotten from a LOAD_3D or LOAD_3D_ANIMATION type
 
+
+@comfytype(io_type="PHOTOMAKER")
+class Photomaker(ComfyTypeIO):
+    Type = Any
+
+
 @comfytype(io_type="POINT")
 class Point(ComfyTypeIO):
     Type = Any # NOTE: I couldn't find any references in core code to POINT io_type. Does this exist?
