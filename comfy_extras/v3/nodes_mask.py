@@ -60,7 +60,7 @@ def composite(destination, source, x, y, mask=None, multiplier=8, resize_source=
 class CropMask(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="CropMask_V3",
             display_name="Crop Mask _V3",
             category="mask",
@@ -83,7 +83,7 @@ class CropMask(io.ComfyNodeV3):
 class FeatherMask(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="FeatherMask_V3",
             display_name="Feather Mask _V3",
             category="mask",
@@ -128,7 +128,7 @@ class FeatherMask(io.ComfyNodeV3):
 class GrowMask(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="GrowMask_V3",
             display_name="Grow Mask _V3",
             category="mask",
@@ -161,7 +161,7 @@ class GrowMask(io.ComfyNodeV3):
 class ImageColorToMask(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageColorToMask_V3",
             display_name="Image Color to Mask _V3",
             category="mask",
@@ -186,7 +186,7 @@ class ImageColorToMask(io.ComfyNodeV3):
 class ImageCompositeMasked(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageCompositeMasked_V3",
             display_name="Image Composite Masked _V3",
             category="image",
@@ -214,7 +214,7 @@ class ImageToMask(io.ComfyNodeV3):
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageToMask_V3",
             display_name="Convert Image to Mask _V3",
             category="mask",
@@ -233,7 +233,7 @@ class ImageToMask(io.ComfyNodeV3):
 class InvertMask(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="InvertMask_V3",
             display_name="Invert Mask _V3",
             category="mask",
@@ -251,7 +251,7 @@ class InvertMask(io.ComfyNodeV3):
 class LatentCompositeMasked(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentCompositeMasked_V3",
             display_name="Latent Composite Masked _V3",
             category="latent",
@@ -278,7 +278,7 @@ class LatentCompositeMasked(io.ComfyNodeV3):
 class MaskComposite(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="MaskComposite_V3",
             display_name="Mask Composite _V3",
             category="mask",
@@ -344,7 +344,7 @@ class MaskPreview(io.ComfyNodeV3):
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="MaskPreview_V3",
             display_name="Preview Mask _V3",
             category="mask",
@@ -363,7 +363,7 @@ class MaskPreview(io.ComfyNodeV3):
 class MaskToImage(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="MaskToImage_V3",
             display_name="Convert Mask to Image _V3",
             category="mask",
@@ -381,7 +381,7 @@ class MaskToImage(io.ComfyNodeV3):
 class SolidMask(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SolidMask_V3",
             display_name="Solid Mask _V3",
             category="mask",
@@ -401,7 +401,7 @@ class SolidMask(io.ComfyNodeV3):
 class ThresholdMask(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ThresholdMask_V3",
             display_name="Threshold Mask _V3",
             category="mask",

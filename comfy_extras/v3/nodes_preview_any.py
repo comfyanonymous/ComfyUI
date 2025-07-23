@@ -12,7 +12,7 @@ class PreviewAny(io.ComfyNodeV3):
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PreviewAny_V3",  # frontend expects "PreviewAny" to work
             display_name="Preview Any _V3",  # frontend ignores "display_name" for this node
             description="Preview any type of data by converting it to a readable text format.",

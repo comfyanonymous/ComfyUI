@@ -59,7 +59,7 @@ def Fourier_filter(x, scale_low=1.0, scale_high=1.5, freq_cutoff=20):
 class FreSca(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="FreSca_V3",
             display_name="FreSca _V3",
             category="_for_testing",

@@ -23,7 +23,7 @@ def gaussian_kernel(kernel_size: int, sigma: float, device=None):
 class Blend(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageBlend_V3",
             category="image/postprocessing",
             inputs=[
@@ -77,7 +77,7 @@ class Blend(io.ComfyNodeV3):
 class Blur(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageBlur_V3",
             category="image/postprocessing",
             inputs=[
@@ -115,7 +115,7 @@ class ImageScaleToTotalPixels(io.ComfyNodeV3):
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageScaleToTotalPixels_V3",
             category="image/upscaling",
             inputs=[
@@ -144,7 +144,7 @@ class ImageScaleToTotalPixels(io.ComfyNodeV3):
 class Quantize(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageQuantize_V3",
             category="image/postprocessing",
             inputs=[
@@ -208,7 +208,7 @@ class Quantize(io.ComfyNodeV3):
 class Sharpen(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageSharpen_V3",
             category="image/postprocessing",
             inputs=[

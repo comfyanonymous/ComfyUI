@@ -9,7 +9,7 @@ from comfy_api.v3 import io
 class CLIPTextEncodeHiDream(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="CLIPTextEncodeHiDream_V3",
             category="advanced/conditioning",
             inputs=[
@@ -36,7 +36,7 @@ class CLIPTextEncodeHiDream(io.ComfyNodeV3):
 class QuadrupleCLIPLoader(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="QuadrupleCLIPLoader_V3",
             category="advanced/loaders",
             description="[Recipes]\n\nhidream: long clip-l, long clip-g, t5xxl, llama_8b_3.1_instruct",

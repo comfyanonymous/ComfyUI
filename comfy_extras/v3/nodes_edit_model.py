@@ -7,7 +7,7 @@ from comfy_api.v3 import io
 class ReferenceLatent(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ReferenceLatent_V3",
             category="advanced/conditioning/edit_models",
             description="This node sets the guiding latent for an edit model. If the model supports it you can chain multiple to set multiple reference images.",

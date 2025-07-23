@@ -89,7 +89,7 @@ def preprocess(image: torch.Tensor, crf=29):
 class EmptyLTXVLatentVideo(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="EmptyLTXVLatentVideo_V3",
             category="latent/video/ltxv",
             inputs=[
@@ -118,7 +118,7 @@ class LTXVAddGuide(io.ComfyNodeV3):
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LTXVAddGuide_V3",
             category="conditioning/video_models",
             inputs=[
@@ -278,7 +278,7 @@ class LTXVAddGuide(io.ComfyNodeV3):
 class LTXVConditioning(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LTXVConditioning_V3",
             category="conditioning/video_models",
             inputs=[
@@ -302,7 +302,7 @@ class LTXVConditioning(io.ComfyNodeV3):
 class LTXVCropGuides(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LTXVCropGuides_V3",
             category="conditioning/video_models",
             inputs=[
@@ -338,7 +338,7 @@ class LTXVCropGuides(io.ComfyNodeV3):
 class LTXVImgToVideo(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LTXVImgToVideo_V3",
             category="conditioning/video_models",
             inputs=[
@@ -386,7 +386,7 @@ class LTXVImgToVideo(io.ComfyNodeV3):
 class LTXVPreprocess(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LTXVPreprocess_V3",
             category="image",
             inputs=[
@@ -411,7 +411,7 @@ class LTXVPreprocess(io.ComfyNodeV3):
 class LTXVScheduler(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LTXVScheduler_V3",
             category="sampling/custom_sampling/schedulers",
             inputs=[
@@ -474,7 +474,7 @@ class LTXVScheduler(io.ComfyNodeV3):
 class ModelSamplingLTXV(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ModelSamplingLTXV_V3",
             category="advanced/model",
             inputs=[

@@ -13,7 +13,7 @@ from comfy_api.v3 import io
 class WebcamCapture(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="WebcamCapture_V3",
             display_name="Webcam Capture _V3",
             category="image",

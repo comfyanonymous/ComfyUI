@@ -8,7 +8,7 @@ from comfy_api.v3 import io
 class DifferentialDiffusion(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="DifferentialDiffusion_V3",
             display_name="Differential Diffusion _V3",
             category="_for_testing",

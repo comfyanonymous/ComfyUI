@@ -23,8 +23,8 @@ def optimized_scale(positive, negative):
 
 class CFGNorm(io.ComfyNodeV3):
     @classmethod
-    def define_schema(cls) -> io.SchemaV3:
-        return io.SchemaV3(
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
             node_id="CFGNorm_V3",
             category="advanced/guidance",
             inputs=[
@@ -54,8 +54,8 @@ class CFGNorm(io.ComfyNodeV3):
 
 class CFGZeroStar(io.ComfyNodeV3):
     @classmethod
-    def define_schema(cls) -> io.SchemaV3:
-        return io.SchemaV3(
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
             node_id="CFGZeroStar_V3",
             category="advanced/guidance",
             inputs=[

@@ -9,7 +9,7 @@ class PatchModelAddDownscale(io.ComfyNodeV3):
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PatchModelAddDownscale_V3",
             display_name="PatchModelAddDownscale (Kohya Deep Shrink) _V3",
             category="model_patches/unet",

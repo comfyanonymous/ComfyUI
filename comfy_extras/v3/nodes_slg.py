@@ -16,7 +16,7 @@ class SkipLayerGuidanceDiT(io.ComfyNodeV3):
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SkipLayerGuidanceDiT_V3",
             category="advanced/guidance",
             description="Generic version of SkipLayerGuidance node that can be used on every DiT model.",
@@ -97,7 +97,7 @@ class SkipLayerGuidanceDiTSimple(io.ComfyNodeV3):
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SkipLayerGuidanceDiTSimple_V3",
             category="advanced/guidance",
             description="Simple version of the SkipLayerGuidanceDiT node that only modifies the uncond pass.",

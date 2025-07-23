@@ -932,7 +932,7 @@ class NodeInfoV3:
 
 
 @dataclass
-class SchemaV3:
+class Schema:
     """Definition of V3 node properties."""
 
     node_id: str
@@ -1128,8 +1128,8 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
 
     @classmethod
     @abstractmethod
-    def define_schema(cls) -> SchemaV3:
-        """Override this function with one that returns a SchemaV3 instance."""
+    def define_schema(cls) -> Schema:
+        """Override this function with one that returns a Schema instance."""
         raise NotImplementedError
 
     @classmethod
@@ -1344,7 +1344,7 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
 
     @final
     @classmethod
-    def INPUT_TYPES(cls, include_hidden=True, return_schema=False) -> dict[str, dict] | tuple[dict[str, dict], SchemaV3]:
+    def INPUT_TYPES(cls, include_hidden=True, return_schema=False) -> dict[str, dict] | tuple[dict[str, dict], Schema]:
         schema = cls.FINALIZE_SCHEMA()
         info = schema.get_v1_info(cls)
         input = info.input
@@ -1364,7 +1364,7 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
 
     @final
     @classmethod
-    def GET_SCHEMA(cls) -> SchemaV3:
+    def GET_SCHEMA(cls) -> Schema:
         """Validate node class, finalize schema, validate schema, and set expected class properties."""
         cls.VALIDATE_CLASS()
         schema = cls.FINALIZE_SCHEMA()
@@ -1413,8 +1413,8 @@ class ComfyNodeV3(_ComfyNodeBaseInternal):
 
     @classmethod
     @abstractmethod
-    def define_schema(cls) -> SchemaV3:
-        """Override this function with one that returns a SchemaV3 instance."""
+    def define_schema(cls) -> Schema:
+        """Override this function with one that returns a Schema instance."""
         raise NotImplementedError
 
     @classmethod

@@ -339,7 +339,7 @@ NOISE_LEVELS = {
 class GITSScheduler(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="GITSScheduler_V3",
             category="sampling/custom_sampling/schedulers",
             inputs=[

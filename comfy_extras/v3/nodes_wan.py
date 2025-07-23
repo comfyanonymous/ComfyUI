@@ -14,7 +14,7 @@ from comfy_api.v3 import io
 class TrimVideoLatent(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="TrimVideoLatent_V3",
             category="latent/video",
             is_experimental=True,
@@ -39,7 +39,7 @@ class TrimVideoLatent(io.ComfyNodeV3):
 class WanCameraImageToVideo(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="WanCameraImageToVideo_V3",
             category="conditioning/video_models",
             inputs=[
@@ -91,7 +91,7 @@ class WanCameraImageToVideo(io.ComfyNodeV3):
 class WanFirstLastFrameToVideo(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="WanFirstLastFrameToVideo_V3",
             category="conditioning/video_models",
             inputs=[
@@ -162,7 +162,7 @@ class WanFirstLastFrameToVideo(io.ComfyNodeV3):
 class WanFunControlToVideo(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="WanFunControlToVideo_V3",
             category="conditioning/video_models",
             inputs=[
@@ -216,7 +216,7 @@ class WanFunControlToVideo(io.ComfyNodeV3):
 class WanFunInpaintToVideo(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="WanFunInpaintToVideo_V3",
             category="conditioning/video_models",
             inputs=[
@@ -247,7 +247,7 @@ class WanFunInpaintToVideo(io.ComfyNodeV3):
 class WanImageToVideo(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="WanImageToVideo_V3",
             category="conditioning/video_models",
             inputs=[
@@ -295,7 +295,7 @@ class WanImageToVideo(io.ComfyNodeV3):
 class WanPhantomSubjectToVideo(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="WanPhantomSubjectToVideo_V3",
             category="conditioning/video_models",
             inputs=[
@@ -339,7 +339,7 @@ class WanPhantomSubjectToVideo(io.ComfyNodeV3):
 class WanVaceToVideo(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="WanVaceToVideo_V3",
             category="conditioning/video_models",
             is_experimental=True,

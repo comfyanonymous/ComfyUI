@@ -124,7 +124,7 @@ class PhotoMakerIDEncoder(comfy.clip_model.CLIPVisionModelProjection):
 class PhotoMakerEncode(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PhotoMakerEncode_V3",
             category="_for_testing/photomaker",
             inputs=[
@@ -176,7 +176,7 @@ class PhotoMakerEncode(io.ComfyNodeV3):
 class PhotoMakerLoader(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PhotoMakerLoader_V3",
             category="_for_testing/photomaker",
             inputs=[

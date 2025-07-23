@@ -18,7 +18,7 @@ from comfy_api.v3 import io, ui
 class CreateVideo(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="CreateVideo_V3",
             display_name="Create Video _V3",
             category="image/video",
@@ -47,7 +47,7 @@ class CreateVideo(io.ComfyNodeV3):
 class GetVideoComponents(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="GetVideoComponents_V3",
             display_name="Get Video Components _V3",
             category="image/video",
@@ -74,7 +74,7 @@ class LoadVideo(io.ComfyNodeV3):
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         files = folder_paths.filter_files_content_types(files, ["video"])
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LoadVideo_V3",
             display_name="Load Video _V3",
             category="image/video",
@@ -108,7 +108,7 @@ class LoadVideo(io.ComfyNodeV3):
 class SaveVideo(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SaveVideo_V3",
             display_name="Save Video _V3",
             category="image/video",
@@ -155,7 +155,7 @@ class SaveVideo(io.ComfyNodeV3):
 class SaveWEBM(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SaveWEBM_V3",
             category="image/video",
             is_experimental=True,

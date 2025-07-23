@@ -28,7 +28,7 @@ PREFERED_KONTEXT_RESOLUTIONS = [
 class CLIPTextEncodeFlux(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="CLIPTextEncodeFlux_V3",
             category="advanced/conditioning/flux",
             inputs=[
@@ -53,7 +53,7 @@ class CLIPTextEncodeFlux(io.ComfyNodeV3):
 class FluxDisableGuidance(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="FluxDisableGuidance_V3",
             category="advanced/conditioning/flux",
             description="This node completely disables the guidance embed on Flux and Flux like models",
@@ -74,7 +74,7 @@ class FluxDisableGuidance(io.ComfyNodeV3):
 class FluxGuidance(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="FluxGuidance_V3",
             category="advanced/conditioning/flux",
             inputs=[
@@ -95,7 +95,7 @@ class FluxGuidance(io.ComfyNodeV3):
 class FluxKontextImageScale(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="FluxKontextImageScale_V3",
             category="advanced/conditioning/flux",
             description="This node resizes the image to one that is more optimal for flux kontext.",

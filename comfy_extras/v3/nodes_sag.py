@@ -114,7 +114,7 @@ def gaussian_blur_2d(img, kernel_size, sigma):
 class SelfAttentionGuidance(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SelfAttentionGuidance_V3",
             display_name="Self-Attention Guidance _V3",
             category="_for_testing",

@@ -7,7 +7,7 @@ from comfy_api.v3 import io
 class CLIPTextEncodeSDXL(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="CLIPTextEncodeSDXL_V3",
             category="advanced/conditioning",
             inputs=[
@@ -51,7 +51,7 @@ class CLIPTextEncodeSDXL(io.ComfyNodeV3):
 class CLIPTextEncodeSDXLRefiner(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="CLIPTextEncodeSDXLRefiner_V3",
             category="advanced/conditioning",
             inputs=[

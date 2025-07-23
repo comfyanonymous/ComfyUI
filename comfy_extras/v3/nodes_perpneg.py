@@ -84,7 +84,7 @@ class Guider_PerpNeg(comfy.samplers.CFGGuider):
 class PerpNegGuider(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PerpNegGuider_V3",
             category="_for_testing",
             inputs=[

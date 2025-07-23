@@ -7,7 +7,7 @@ from comfy_api.v3 import io
 class CLIPTextEncodePixArtAlpha(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="CLIPTextEncodePixArtAlpha_V3",
             category="advanced/conditioning",
             description="Encodes text and sets the resolution conditioning for PixArt Alpha. Does not apply to PixArt Sigma.",

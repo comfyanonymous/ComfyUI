@@ -6,7 +6,7 @@ from comfy_api.v3 import io
 class ControlNetApplyAdvanced(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ControlNetApplyAdvanced_V3",
             display_name="Apply ControlNet _V3",
             category="conditioning/controlnet",
@@ -63,7 +63,7 @@ class ControlNetApplyAdvanced(io.ComfyNodeV3):
 class SetUnionControlNetType(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SetUnionControlNetType_V3",
             category="conditioning/controlnet",
             inputs=[
@@ -90,7 +90,7 @@ class SetUnionControlNetType(io.ComfyNodeV3):
 class ControlNetInpaintingAliMamaApply(ControlNetApplyAdvanced):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ControlNetInpaintingAliMamaApply_V3",
             category="conditioning/controlnet",
             inputs=[

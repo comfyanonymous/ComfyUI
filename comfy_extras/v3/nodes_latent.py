@@ -20,7 +20,7 @@ def reshape_latent_to(target_shape, latent, repeat_batch=True):
 class LatentAdd(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentAdd_V3",
             category="latent/advanced",
             inputs=[
@@ -47,7 +47,7 @@ class LatentAdd(io.ComfyNodeV3):
 class LatentApplyOperation(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentApplyOperation_V3",
             category="latent/advanced/operations",
             is_experimental=True,
@@ -72,7 +72,7 @@ class LatentApplyOperation(io.ComfyNodeV3):
 class LatentApplyOperationCFG(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentApplyOperationCFG_V3",
             category="latent/advanced/operations",
             is_experimental=True,
@@ -104,7 +104,7 @@ class LatentApplyOperationCFG(io.ComfyNodeV3):
 class LatentBatch(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentBatch_V3",
             category="latent/batch",
             inputs=[
@@ -133,7 +133,7 @@ class LatentBatch(io.ComfyNodeV3):
 class LatentBatchSeedBehavior(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentBatchSeedBehavior_V3",
             category="latent/advanced",
             inputs=[
@@ -162,7 +162,7 @@ class LatentBatchSeedBehavior(io.ComfyNodeV3):
 class LatentInterpolate(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentInterpolate_V3",
             category="latent/advanced",
             inputs=[
@@ -201,7 +201,7 @@ class LatentInterpolate(io.ComfyNodeV3):
 class LatentMultiply(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentMultiply_V3",
             category="latent/advanced",
             inputs=[
@@ -225,7 +225,7 @@ class LatentMultiply(io.ComfyNodeV3):
 class LatentOperationSharpen(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentOperationSharpen_V3",
             category="latent/advanced/operations",
             is_experimental=True,
@@ -267,7 +267,7 @@ class LatentOperationSharpen(io.ComfyNodeV3):
 class LatentOperationTonemapReinhard(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentOperationTonemapReinhard_V3",
             category="latent/advanced/operations",
             is_experimental=True,
@@ -302,7 +302,7 @@ class LatentOperationTonemapReinhard(io.ComfyNodeV3):
 class LatentSubtract(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentSubtract_V3",
             category="latent/advanced",
             inputs=[

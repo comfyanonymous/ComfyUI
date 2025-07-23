@@ -22,8 +22,8 @@ def vae_encode_with_padding(vae, image, width, height, length, padding=0):
 
 class CosmosImageToVideoLatent(io.ComfyNodeV3):
     @classmethod
-    def define_schema(cls) -> io.SchemaV3:
-        return io.SchemaV3(
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
             node_id="CosmosImageToVideoLatent_V3",
             category="conditioning/inpaint",
             inputs=[
@@ -69,8 +69,8 @@ class CosmosImageToVideoLatent(io.ComfyNodeV3):
 
 class CosmosPredict2ImageToVideoLatent(io.ComfyNodeV3):
     @classmethod
-    def define_schema(cls) -> io.SchemaV3:
-        return io.SchemaV3(
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
             node_id="CosmosPredict2ImageToVideoLatent_V3",
             category="conditioning/inpaint",
             inputs=[
@@ -118,8 +118,8 @@ class CosmosPredict2ImageToVideoLatent(io.ComfyNodeV3):
 
 class EmptyCosmosLatentVideo(io.ComfyNodeV3):
     @classmethod
-    def define_schema(cls) -> io.SchemaV3:
-        return io.SchemaV3(
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
             node_id="EmptyCosmosLatentVideo_V3",
             category="latent/video",
             inputs=[

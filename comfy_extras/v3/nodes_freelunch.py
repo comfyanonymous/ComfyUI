@@ -31,7 +31,7 @@ def Fourier_filter(x, threshold, scale):
 class FreeU(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="FreeU_V3",
             category="model_patches/unet",
             inputs=[
@@ -76,7 +76,7 @@ class FreeU(io.ComfyNodeV3):
 class FreeU_V2(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="FreeU_V2_V3",
             category="model_patches/unet",
             inputs=[

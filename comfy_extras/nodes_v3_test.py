@@ -25,7 +25,7 @@ class V3TestNode(io.ComfyNodeV3):
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="V3_01_TestNode1",
             display_name="V3 Test Node",
             category="v3 nodes",
@@ -94,7 +94,7 @@ class V3TestNode(io.ComfyNodeV3):
 class V3LoraLoader(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="V3_LoraLoader",
             display_name="V3 LoRA Loader",
             category="v3 nodes",
@@ -144,7 +144,7 @@ class V3LoraLoader(io.ComfyNodeV3):
 class NInputsTest(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="V3_NInputsTest",
             display_name="V3 N Inputs Test",
             inputs=[
@@ -186,7 +186,7 @@ class NInputsTest(io.ComfyNodeV3):
 class V3TestSleep(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="V3_TestSleep",
             display_name="V3 Test Sleep",
             category="_for_testing",
@@ -221,7 +221,7 @@ class V3TestSleep(io.ComfyNodeV3):
 class V3DummyStart(io.ComfyNodeV3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="V3_DummyStart",
             display_name="V3 Dummy Start",
             category="v3 nodes",
@@ -242,7 +242,7 @@ class V3DummyEnd(io.ComfyNodeV3):
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="V3_DummyEnd",
             display_name="V3 Dummy End",
             category="v3 nodes",
