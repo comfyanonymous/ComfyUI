@@ -9,12 +9,8 @@ import asyncio
 
 
 @io.comfytype(io_type="XYZ")
-class XYZ:
+class XYZ(io.ComfyTypeIO):
     Type = tuple[int,str]
-    class Input(io.InputV3):
-        ...
-    class Output(io.OutputV3):
-        ...
 
 
 class V3TestNode(io.ComfyNode):

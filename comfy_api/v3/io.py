@@ -140,7 +140,7 @@ def Custom(io_type: str) -> type[ComfyTypeIO]:
         ...
     return CustomComfyType
 
-class IO_V3:
+class _IO_V3:
     '''
     Base class for V3 Inputs and Outputs.
     '''
@@ -157,7 +157,7 @@ class IO_V3:
     def Type(self):
         return self.Parent.Type
 
-class InputV3(IO_V3):
+class InputV3(_IO_V3):
     '''
     Base class for a V3 Input.
     '''
@@ -206,7 +206,7 @@ class WidgetInputV3(InputV3):
         return self.widget_type if self.widget_type is not None else super().get_io_type()
 
 
-class OutputV3(IO_V3):
+class OutputV3(_IO_V3):
     def __init__(self, id: str=None, display_name: str=None, tooltip: str=None,
                  is_output_list=False):
         self.id = id
