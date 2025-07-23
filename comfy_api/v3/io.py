@@ -1460,16 +1460,14 @@ class NodeOutput:
     '''
     Standardized output of a node; can pass in any number of args and/or a UIOutput into 'ui' kwarg.
     '''
-    def __init__(self, *args: Any, ui: _UIOutput | dict=None, expand: dict=None, block_execution: str=None, **kwargs):
+    def __init__(self, *args: Any, ui: _UIOutput | dict=None, expand: dict=None, block_execution: str=None):
         self.args = args
         self.ui = ui
         self.expand = expand
         self.block_execution = block_execution
-        # self.kwargs = kwargs
 
     @property
     def result(self):
-        # TODO: use kwargs to refer to outputs by id + organize in proper order
         return self.args if len(self.args) > 0 else None
 
     @classmethod
