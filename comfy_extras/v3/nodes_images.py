@@ -630,15 +630,15 @@ class SaveAnimatedPNG(io.ComfyNodeV3):
 
     @classmethod
     def execute(cls, images, fps, compress_level, filename_prefix="ComfyUI") -> io.NodeOutput:
-        result = ui.ImageSaveHelper.save_animated_png(
-            images=images,
-            filename_prefix=filename_prefix,
-            folder_type=io.FolderType.output,
-            cls=cls,
-            fps=fps,
-            compress_level=compress_level,
+        return io.NodeOutput(
+            ui=ui.ImageSaveHelper.get_save_animated_png_ui(
+                images=images,
+                filename_prefix=filename_prefix,
+                cls=cls,
+                fps=fps,
+                compress_level=compress_level,
+            )
         )
-        return io.NodeOutput(ui={"images": [result], "animated": (len(images) != 1,)})
 
 
 class SaveAnimatedWEBP(io.ComfyNodeV3):
@@ -664,17 +664,17 @@ class SaveAnimatedWEBP(io.ComfyNodeV3):
 
     @classmethod
     def execute(cls, images, fps, filename_prefix, lossless, quality, method) -> io.NodeOutput:
-        result = ui.ImageSaveHelper.save_animated_webp(
-            images=images,
-            filename_prefix=filename_prefix,
-            folder_type=io.FolderType.output,
-            cls=cls,
-            fps=fps,
-            lossless=lossless,
-            quality=quality,
-            method=cls.COMPRESS_METHODS.get(method)
+        return io.NodeOutput(
+            ui=ui.ImageSaveHelper.get_save_animated_webp_ui(
+                images=images,
+                filename_prefix=filename_prefix,
+                cls=cls,
+                fps=fps,
+                lossless=lossless,
+                quality=quality,
+                method=cls.COMPRESS_METHODS.get(method)
+            )
         )
-        return io.NodeOutput(ui={"images": [result], "animated": (len(images) != 1,)})
 
 
 class SaveImage(io.ComfyNodeV3):
@@ -703,14 +703,9 @@ class SaveImage(io.ComfyNodeV3):
 
     @classmethod
     def execute(cls, images, filename_prefix="ComfyUI") -> io.NodeOutput:
-        results = ui.ImageSaveHelper.save_images(
-            images,
-            filename_prefix=filename_prefix,
-            folder_type=io.FolderType.output,
-            cls=cls,
-            compress_level=4,
+        return io.NodeOutput(
+            ui=ui.ImageSaveHelper.get_save_images_ui(images, filename_prefix=filename_prefix, cls=cls, compress_level=4)
         )
-        return io.NodeOutput(ui={"images": results})
 
 
 NODES_LIST: list[type[io.ComfyNodeV3]] = [
