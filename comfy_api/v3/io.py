@@ -962,8 +962,6 @@ class Schema:
 
     If a node is not connected to any output nodes, that node will not be executed.  Usage::
 
-        OUTPUT_NODE = True
-
     From the docs:
 
     By default, a node is not considered an output. Set ``OUTPUT_NODE = True`` to specify that it is.
@@ -978,6 +976,8 @@ class Schema:
     """Flags a node as an API node. See: https://docs.comfy.org/tutorials/api-nodes/overview."""
     not_idempotent: bool=False
     """Flags a node as not idempotent; when True, the node will run and not reuse the cached outputs when identical inputs are provided on a different node in the graph."""
+    enable_expand: bool=False
+    """Flags a node as expandable, allowing NodeOutput to include 'expand' property."""
 
     def validate(self):
         '''Validate the schema:
@@ -1191,34 +1191,40 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
     def EXECUTE_NORMALIZED(cls, *args, **kwargs) -> NodeOutput:
         to_return = cls.execute(*args, **kwargs)
         if to_return is None:
-            return NodeOutput()
+            to_return = NodeOutput()
         elif isinstance(to_return, NodeOutput):
-            return to_return
+            pass
         elif isinstance(to_return, tuple):
-            return NodeOutput(*to_return)
+            to_return = NodeOutput(*to_return)
         elif isinstance(to_return, dict):
-            return NodeOutput.from_dict(to_return)
+            to_return = NodeOutput.from_dict(to_return)
         elif isinstance(to_return, ExecutionBlocker):
-            return NodeOutput(block_execution=to_return.message)
+            to_return = NodeOutput(block_execution=to_return.message)
         else:
             raise Exception(f"Invalid return type from node: {type(to_return)}")
+        if to_return.expand is not None and not cls.SCHEMA.enable_expand:
+            raise Exception(f"Node {cls.__name__} is not expandable, but expand included in NodeOutput; developer should set enable_expand=True on node's Schema to allow this.")
+        return to_return
 
     @final
     @classmethod
     async def EXECUTE_NORMALIZED_ASYNC(cls, *args, **kwargs) -> NodeOutput:
         to_return = await cls.execute(*args, **kwargs)
         if to_return is None:
-            return NodeOutput()
+            to_return = NodeOutput()
         elif isinstance(to_return, NodeOutput):
-            return to_return
+            pass
         elif isinstance(to_return, tuple):
-            return NodeOutput(*to_return)
+            to_return = NodeOutput(*to_return)
         elif isinstance(to_return, dict):
-            return NodeOutput.from_dict(to_return)
+            to_return = NodeOutput.from_dict(to_return)
         elif isinstance(to_return, ExecutionBlocker):
-            return NodeOutput(block_execution=to_return.message)
+            to_return = NodeOutput(block_execution=to_return.message)
         else:
             raise Exception(f"Invalid return type from node: {type(to_return)}")
+        if to_return.expand is not None and not cls.SCHEMA.enable_expand:
+            raise Exception(f"Node {cls.__name__} is not expandable, but expand included in NodeOutput; developer should set enable_expand=True on node's Schema to allow this.")
+        return to_return
 
     @final
     @classmethod
