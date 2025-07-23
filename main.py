@@ -115,6 +115,15 @@ if os.name == "nt":
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
 if __name__ == "__main__":
+    if args.default_device is not None:
+        default_dev = args.default_device
+        devices = list(range(32))
+        devices.remove(default_dev)
+        devices.insert(0, default_dev)
+        devices = ','.join(map(str, devices))
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(devices)
+        os.environ['HIP_VISIBLE_DEVICES'] = str(devices)
+
     if args.cuda_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
