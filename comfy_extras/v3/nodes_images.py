@@ -13,10 +13,10 @@ from comfy_api.v3 import io, ui
 from server import PromptServer
 
 
-class GetImageSize(io.ComfyNodeV3):
+class GetImageSize(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="GetImageSize_V3",
             display_name="Get Image Size _V3",
             description="Returns width and height of the image, and passes it through unchanged.",
@@ -46,10 +46,10 @@ class GetImageSize(io.ComfyNodeV3):
         return io.NodeOutput(width, height, batch_size)
 
 
-class ImageAddNoise(io.ComfyNodeV3):
+class ImageAddNoise(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageAddNoise_V3",
             display_name="Image Add Noise _V3",
             category="image",
@@ -79,10 +79,10 @@ class ImageAddNoise(io.ComfyNodeV3):
         return io.NodeOutput(s)
 
 
-class ImageCrop(io.ComfyNodeV3):
+class ImageCrop(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageCrop_V3",
             display_name="Image Crop _V3",
             category="image/transform",
@@ -105,10 +105,10 @@ class ImageCrop(io.ComfyNodeV3):
         return io.NodeOutput(image[:, y:to_y, x:to_x, :])
 
 
-class ImageFlip(io.ComfyNodeV3):
+class ImageFlip(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageFlip_V3",
             display_name="Image Flip _V3",
             category="image/transform",
@@ -129,10 +129,10 @@ class ImageFlip(io.ComfyNodeV3):
         return io.NodeOutput(image)
 
 
-class ImageFromBatch(io.ComfyNodeV3):
+class ImageFromBatch(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageFromBatch_V3",
             display_name="Image From Batch _V3",
             category="image/batch",
@@ -153,10 +153,10 @@ class ImageFromBatch(io.ComfyNodeV3):
         return io.NodeOutput(s)
 
 
-class ImageRotate(io.ComfyNodeV3):
+class ImageRotate(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageRotate_V3",
             display_name="Image Rotate _V3",
             category="image/transform",
@@ -180,12 +180,12 @@ class ImageRotate(io.ComfyNodeV3):
         return io.NodeOutput(torch.rot90(image, k=rotate_by, dims=[2, 1]))
 
 
-class ImageStitch(io.ComfyNodeV3):
+class ImageStitch(io.ComfyNode):
     """Upstreamed from https://github.com/kijai/ComfyUI-KJNodes"""
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageStitch_V3",
             display_name="Image Stitch _V3",
             description="Stitches image2 to image1 in the specified direction. "
@@ -350,10 +350,10 @@ class ImageStitch(io.ComfyNodeV3):
         return io.NodeOutput(torch.cat(images, dim=concat_dim))
 
 
-class LoadImage(io.ComfyNodeV3):
+class LoadImage(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LoadImage_V3",
             display_name="Load Image _V3",
             category="image",
@@ -438,10 +438,10 @@ class LoadImage(io.ComfyNodeV3):
         return True
 
 
-class LoadImageOutput(io.ComfyNodeV3):
+class LoadImageOutput(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LoadImageOutput_V3",
             display_name="Load Image (from Outputs) _V3",
             description="Load an image from the output folder. "
@@ -527,10 +527,10 @@ class LoadImageOutput(io.ComfyNodeV3):
         return True
 
 
-class PreviewImage(io.ComfyNodeV3):
+class PreviewImage(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PreviewImage_V3",
             display_name="Preview Image _V3",
             description="Preview the input images.",
@@ -547,10 +547,10 @@ class PreviewImage(io.ComfyNodeV3):
         return io.NodeOutput(ui=ui.PreviewImage(images, cls=cls))
 
 
-class RepeatImageBatch(io.ComfyNodeV3):
+class RepeatImageBatch(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="RepeatImageBatch_V3",
             display_name="Repeat Image Batch _V3",
             category="image/batch",
@@ -566,10 +566,10 @@ class RepeatImageBatch(io.ComfyNodeV3):
         return io.NodeOutput(image.repeat((amount, 1, 1, 1)))
 
 
-class ResizeAndPadImage(io.ComfyNodeV3):
+class ResizeAndPadImage(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ResizeAndPadImage_V3",
             display_name="Resize and Pad Image _V3",
             category="image/transform",
@@ -611,10 +611,10 @@ class ResizeAndPadImage(io.ComfyNodeV3):
         return io.NodeOutput(padded.permute(0, 2, 3, 1))
 
 
-class SaveAnimatedPNG(io.ComfyNodeV3):
+class SaveAnimatedPNG(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SaveAnimatedPNG_V3",
             display_name="Save Animated PNG _V3",
             category="image/animation",
@@ -641,12 +641,12 @@ class SaveAnimatedPNG(io.ComfyNodeV3):
         )
 
 
-class SaveAnimatedWEBP(io.ComfyNodeV3):
+class SaveAnimatedWEBP(io.ComfyNode):
     COMPRESS_METHODS = {"default": 4, "fastest": 0, "slowest": 6}
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SaveAnimatedWEBP_V3",
             display_name="Save Animated WEBP _V3",
             category="image/animation",
@@ -677,10 +677,10 @@ class SaveAnimatedWEBP(io.ComfyNodeV3):
         )
 
 
-class SaveImage(io.ComfyNodeV3):
+class SaveImage(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SaveImage_V3",
             display_name="Save Image _V3",
             description="Saves the input images to your ComfyUI output directory.",
@@ -708,7 +708,7 @@ class SaveImage(io.ComfyNodeV3):
         )
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     GetImageSize,
     ImageAddNoise,
     ImageCrop,

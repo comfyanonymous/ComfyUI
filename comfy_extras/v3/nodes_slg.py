@@ -7,7 +7,7 @@ import comfy.samplers
 from comfy_api.v3 import io
 
 
-class SkipLayerGuidanceDiT(io.ComfyNodeV3):
+class SkipLayerGuidanceDiT(io.ComfyNode):
     """
     Enhance guidance towards detailed dtructure by having another set of CFG negative with skipped layers.
     Inspired by Perturbed Attention Guidance (https://arxiv.org/abs/2403.17377)
@@ -16,7 +16,7 @@ class SkipLayerGuidanceDiT(io.ComfyNodeV3):
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SkipLayerGuidanceDiT_V3",
             category="advanced/guidance",
             description="Generic version of SkipLayerGuidance node that can be used on every DiT model.",
@@ -92,12 +92,12 @@ class SkipLayerGuidanceDiT(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class SkipLayerGuidanceDiTSimple(io.ComfyNodeV3):
+class SkipLayerGuidanceDiTSimple(io.ComfyNode):
     """Simple version of the SkipLayerGuidanceDiT node that only modifies the uncond pass."""
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SkipLayerGuidanceDiTSimple_V3",
             category="advanced/guidance",
             description="Simple version of the SkipLayerGuidanceDiT node that only modifies the uncond pass.",

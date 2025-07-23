@@ -7,10 +7,10 @@ import node_helpers
 from comfy_api.v3 import io
 
 
-class TextEncodeAceStepAudio(io.ComfyNodeV3):
+class TextEncodeAceStepAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="TextEncodeAceStepAudio_V3",
             category="conditioning",
             inputs=[
@@ -29,10 +29,10 @@ class TextEncodeAceStepAudio(io.ComfyNodeV3):
         return io.NodeOutput(conditioning)
 
 
-class EmptyAceStepLatentAudio(io.ComfyNodeV3):
+class EmptyAceStepLatentAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="EmptyAceStepLatentAudio_V3",
             category="latent/audio",
             inputs=[
@@ -51,7 +51,7 @@ class EmptyAceStepLatentAudio(io.ComfyNodeV3):
         return io.NodeOutput({"samples": latent, "type": "audio"})
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     TextEncodeAceStepAudio,
     EmptyAceStepLatentAudio,
 ]

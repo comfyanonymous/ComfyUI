@@ -3,10 +3,10 @@ from __future__ import annotations
 from comfy_api.v3 import io
 
 
-class CLIPTextEncodeControlnet(io.ComfyNodeV3):
+class CLIPTextEncodeControlnet(io.ComfyNode):
     @classmethod
-    def define_schema(cls) -> io.SchemaV3:
-        return io.SchemaV3(
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
             node_id="CLIPTextEncodeControlnet_V3",
             category="_for_testing/conditioning",
             inputs=[
@@ -30,10 +30,10 @@ class CLIPTextEncodeControlnet(io.ComfyNodeV3):
         return io.NodeOutput(c)
 
 
-class T5TokenizerOptions(io.ComfyNodeV3):
+class T5TokenizerOptions(io.ComfyNode):
     @classmethod
-    def define_schema(cls) -> io.SchemaV3:
-        return io.SchemaV3(
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
             node_id="T5TokenizerOptions_V3",
             category="_for_testing/conditioning",
             inputs=[

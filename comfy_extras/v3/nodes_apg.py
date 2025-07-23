@@ -10,10 +10,10 @@ def project(v0, v1):
     return v0_parallel, v0_orthogonal
 
 
-class APG(io.ComfyNodeV3):
+class APG(io.ComfyNode):
     @classmethod
-    def define_schema(cls) -> io.SchemaV3:
-        return io.SchemaV3(
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
             node_id="APG_V3",
             display_name="Adaptive Projected Guidance _V3",
             category="sampling/custom_sampling",

@@ -12,10 +12,10 @@ import node_helpers
 from comfy_api.v3 import io, ui
 
 
-class ConditioningStableAudio(io.ComfyNodeV3):
+class ConditioningStableAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ConditioningStableAudio_V3",
             category="conditioning",
             inputs=[
@@ -42,10 +42,10 @@ class ConditioningStableAudio(io.ComfyNodeV3):
         )
 
 
-class EmptyLatentAudio(io.ComfyNodeV3):
+class EmptyLatentAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="EmptyLatentAudio_V3",
             category="latent/audio",
             inputs=[
@@ -64,10 +64,10 @@ class EmptyLatentAudio(io.ComfyNodeV3):
         return io.NodeOutput({"samples": latent, "type": "audio"})
 
 
-class LoadAudio(io.ComfyNodeV3):
+class LoadAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LoadAudio_V3",  # frontend expects "LoadAudio" to work
             display_name="Load Audio _V3",  # frontend ignores "display_name" for this node
             category="audio",
@@ -102,10 +102,10 @@ class LoadAudio(io.ComfyNodeV3):
         return True
 
 
-class PreviewAudio(io.ComfyNodeV3):
+class PreviewAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PreviewAudio_V3",  # frontend expects "PreviewAudio" to work
             display_name="Preview Audio _V3",  # frontend ignores "display_name" for this node
             category="audio",
@@ -121,10 +121,10 @@ class PreviewAudio(io.ComfyNodeV3):
         return io.NodeOutput(ui=ui.PreviewAudio(audio, cls=cls))
 
 
-class SaveAudioMP3(io.ComfyNodeV3):
+class SaveAudioMP3(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SaveAudioMP3_V3",  # frontend expects "SaveAudioMP3" to work
             display_name="Save Audio(MP3) _V3",  # frontend ignores "display_name" for this node
             category="audio",
@@ -146,10 +146,10 @@ class SaveAudioMP3(io.ComfyNodeV3):
         )
 
 
-class SaveAudioOpus(io.ComfyNodeV3):
+class SaveAudioOpus(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SaveAudioOpus_V3",  # frontend expects "SaveAudioOpus" to work
             display_name="Save Audio(Opus) _V3",  # frontend ignores "display_name" for this node
             category="audio",
@@ -171,10 +171,10 @@ class SaveAudioOpus(io.ComfyNodeV3):
         )
 
 
-class SaveAudio(io.ComfyNodeV3):
+class SaveAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SaveAudio_V3",  # frontend expects "SaveAudio" to work
             display_name="Save Audio _V3",  # frontend ignores "display_name" for this node
             category="audio",
@@ -193,10 +193,10 @@ class SaveAudio(io.ComfyNodeV3):
         )
 
 
-class VAEDecodeAudio(io.ComfyNodeV3):
+class VAEDecodeAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="VAEDecodeAudio_V3",
             category="latent/audio",
             inputs=[
@@ -215,10 +215,10 @@ class VAEDecodeAudio(io.ComfyNodeV3):
         return io.NodeOutput({"waveform": audio, "sample_rate": 44100})
 
 
-class VAEEncodeAudio(io.ComfyNodeV3):
+class VAEEncodeAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="VAEEncodeAudio_V3",
             category="latent/audio",
             inputs=[
@@ -238,7 +238,7 @@ class VAEEncodeAudio(io.ComfyNodeV3):
         return io.NodeOutput({"samples": vae.encode(waveform.movedim(1, -1))})
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     ConditioningStableAudio,
     EmptyLatentAudio,
     LoadAudio,

@@ -32,7 +32,7 @@ from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
 from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler
 from comfy_execution.utils import CurrentNodeContext
-from comfy_api.internal import ComfyNodeInternal, first_real_override, is_class, make_locked_method_func
+from comfy_api.internal import _ComfyNodeInternal, first_real_override, is_class, make_locked_method_func
 from comfy_api.v3 import io
 
 
@@ -60,7 +60,7 @@ class IsChangedCache:
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         has_is_changed = False
         is_changed_name = None
-        if issubclass(class_def, ComfyNodeInternal) and first_real_override(class_def, "fingerprint_inputs") is not None:
+        if issubclass(class_def, _ComfyNodeInternal) and first_real_override(class_def, "fingerprint_inputs") is not None:
             has_is_changed = True
             is_changed_name = "fingerprint_inputs"
         elif hasattr(class_def, "IS_CHANGED"):
@@ -136,7 +136,7 @@ class CacheSet:
 SENSITIVE_EXTRA_DATA_KEYS = ("auth_token_comfy_org", "api_key_comfy_org")
 
 def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, extra_data={}):
-    is_v3 = issubclass(class_def, ComfyNodeInternal)
+    is_v3 = issubclass(class_def, _ComfyNodeInternal)
     if is_v3:
         valid_inputs, schema = class_def.INPUT_TYPES(include_hidden=False, return_schema=True)
     else:
@@ -245,7 +245,7 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
             if pre_execute_cb is not None and index is not None:
                 pre_execute_cb(index)
             # V3
-            if isinstance(obj, ComfyNodeInternal) or (is_class(obj) and issubclass(obj, ComfyNodeInternal)):
+            if isinstance(obj, _ComfyNodeInternal) or (is_class(obj) and issubclass(obj, _ComfyNodeInternal)):
                 # if is just a class, then assign no resources or state, just create clone
                 if is_class(obj):
                     type_obj = obj
@@ -476,7 +476,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 obj = class_def()
                 caches.objects.set(unique_id, obj)
 
-            if issubclass(class_def, ComfyNodeInternal):
+            if issubclass(class_def, _ComfyNodeInternal):
                 lazy_status_present = first_real_override(class_def, "check_lazy_status") is not None
             else:
                 lazy_status_present = getattr(obj, "check_lazy_status", None) is not None
@@ -761,7 +761,7 @@ async def validate_inputs(prompt_id, prompt, item, validated):
 
     validate_function_inputs = []
     validate_has_kwargs = False
-    if issubclass(obj_class, ComfyNodeInternal):
+    if issubclass(obj_class, _ComfyNodeInternal):
         validate_function_name = "validate_inputs"
         validate_function = first_real_override(obj_class, validate_function_name)
     else:

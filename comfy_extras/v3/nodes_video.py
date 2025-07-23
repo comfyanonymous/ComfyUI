@@ -15,10 +15,10 @@ from comfy_api.util import VideoCodec, VideoComponents, VideoContainer
 from comfy_api.v3 import io, ui
 
 
-class CreateVideo(io.ComfyNodeV3):
+class CreateVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="CreateVideo_V3",
             display_name="Create Video _V3",
             category="image/video",
@@ -44,10 +44,10 @@ class CreateVideo(io.ComfyNodeV3):
         ))
 
 
-class GetVideoComponents(io.ComfyNodeV3):
+class GetVideoComponents(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="GetVideoComponents_V3",
             display_name="Get Video Components _V3",
             category="image/video",
@@ -68,13 +68,13 @@ class GetVideoComponents(io.ComfyNodeV3):
         return io.NodeOutput(components.images, components.audio, float(components.frame_rate))
 
 
-class LoadVideo(io.ComfyNodeV3):
+class LoadVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         files = folder_paths.filter_files_content_types(files, ["video"])
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LoadVideo_V3",
             display_name="Load Video _V3",
             category="image/video",
@@ -105,10 +105,10 @@ class LoadVideo(io.ComfyNodeV3):
         return True
 
 
-class SaveVideo(io.ComfyNodeV3):
+class SaveVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SaveVideo_V3",
             display_name="Save Video _V3",
             category="image/video",
@@ -152,10 +152,10 @@ class SaveVideo(io.ComfyNodeV3):
         return io.NodeOutput(ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
 
 
-class SaveWEBM(io.ComfyNodeV3):
+class SaveWEBM(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SaveWEBM_V3",
             category="image/video",
             is_experimental=True,

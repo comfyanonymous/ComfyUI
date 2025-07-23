@@ -23,10 +23,10 @@ import nodes
 from comfy_api.v3 import io
 
 
-class StableCascade_EmptyLatentImage(io.ComfyNodeV3):
+class StableCascade_EmptyLatentImage(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="StableCascade_EmptyLatentImage_V3",
             category="latent/stable_cascade",
             inputs=[
@@ -48,10 +48,10 @@ class StableCascade_EmptyLatentImage(io.ComfyNodeV3):
         return io.NodeOutput({"samples": c_latent}, {"samples": b_latent})
 
 
-class StableCascade_StageC_VAEEncode(io.ComfyNodeV3):
+class StableCascade_StageC_VAEEncode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="StableCascade_StageC_VAEEncode_V3",
             category="latent/stable_cascade",
             inputs=[
@@ -79,10 +79,10 @@ class StableCascade_StageC_VAEEncode(io.ComfyNodeV3):
         return io.NodeOutput({"samples": c_latent}, {"samples": b_latent})
 
 
-class StableCascade_StageB_Conditioning(io.ComfyNodeV3):
+class StableCascade_StageB_Conditioning(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="StableCascade_StageB_Conditioning_V3",
             category="conditioning/stable_cascade",
             inputs=[
@@ -105,10 +105,10 @@ class StableCascade_StageB_Conditioning(io.ComfyNodeV3):
         return io.NodeOutput(c)
 
 
-class StableCascade_SuperResolutionControlnet(io.ComfyNodeV3):
+class StableCascade_SuperResolutionControlnet(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="StableCascade_SuperResolutionControlnet_V3",
             category="_for_testing/stable_cascade",
             is_experimental=True,
@@ -135,7 +135,7 @@ class StableCascade_SuperResolutionControlnet(io.ComfyNodeV3):
         return io.NodeOutput(controlnet_input, {"samples": c_latent}, {"samples": b_latent})
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     StableCascade_EmptyLatentImage,
     StableCascade_StageB_Conditioning,
     StableCascade_StageC_VAEEncode,

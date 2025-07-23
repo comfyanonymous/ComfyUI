@@ -10,10 +10,10 @@ from comfy_api.v3 import io
 #My modified one here is more basic but has fewer chances of breaking with ComfyUI updates.
 
 
-class PerturbedAttentionGuidance(io.ComfyNodeV3):
+class PerturbedAttentionGuidance(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PerturbedAttentionGuidance_V3",
             category="model_patches/unet",
             inputs=[

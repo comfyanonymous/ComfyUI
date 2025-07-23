@@ -5,14 +5,14 @@ import json
 from comfy_api.v3 import io, ui
 
 
-class PreviewAny(io.ComfyNodeV3):
+class PreviewAny(io.ComfyNode):
     """Originally implement from https://github.com/rgthree/rgthree-comfy/blob/main/py/display_any.py
 
     upstream requested in https://github.com/Kosinkadink/rfcs/blob/main/rfcs/0000-corenodes.md#preview-nodes"""
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PreviewAny_V3",  # frontend expects "PreviewAny" to work
             display_name="Preview Any _V3",  # frontend ignores "display_name" for this node
             description="Preview any type of data by converting it to a readable text format.",
@@ -42,6 +42,6 @@ class PreviewAny(io.ComfyNodeV3):
         return io.NodeOutput(ui=ui.PreviewText(value))
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     PreviewAny,
 ]

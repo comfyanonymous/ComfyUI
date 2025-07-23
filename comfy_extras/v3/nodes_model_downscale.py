@@ -4,12 +4,12 @@ import comfy.utils
 from comfy_api.v3 import io
 
 
-class PatchModelAddDownscale(io.ComfyNodeV3):
+class PatchModelAddDownscale(io.ComfyNode):
     UPSCALE_METHODS = ["bicubic", "nearest-exact", "bilinear", "area", "bislerp"]
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PatchModelAddDownscale_V3",
             display_name="PatchModelAddDownscale (Kohya Deep Shrink) _V3",
             category="model_patches/unet",

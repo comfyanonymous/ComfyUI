@@ -5,10 +5,10 @@ import sys
 from comfy_api.v3 import io
 
 
-class String(io.ComfyNodeV3):
+class String(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PrimitiveString_V3",
             display_name="String _V3",
             category="utils/primitive",
@@ -23,10 +23,10 @@ class String(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class StringMultiline(io.ComfyNodeV3):
+class StringMultiline(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PrimitiveStringMultiline_V3",
             display_name="String (Multiline) _V3",
             category="utils/primitive",
@@ -41,10 +41,10 @@ class StringMultiline(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class Int(io.ComfyNodeV3):
+class Int(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PrimitiveInt_V3",
             display_name="Int _V3",
             category="utils/primitive",
@@ -59,10 +59,10 @@ class Int(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class Float(io.ComfyNodeV3):
+class Float(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PrimitiveFloat_V3",
             display_name="Float _V3",
             category="utils/primitive",
@@ -77,10 +77,10 @@ class Float(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class Boolean(io.ComfyNodeV3):
+class Boolean(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PrimitiveBoolean_V3",
             display_name="Boolean _V3",
             category="utils/primitive",
@@ -95,7 +95,7 @@ class Boolean(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     String,
     StringMultiline,
     Int,

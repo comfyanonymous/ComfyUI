@@ -86,10 +86,10 @@ def preprocess(image: torch.Tensor, crf=29):
     return torch.tensor(image_array, dtype=image.dtype, device=image.device) / 255.0
 
 
-class EmptyLTXVLatentVideo(io.ComfyNodeV3):
+class EmptyLTXVLatentVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="EmptyLTXVLatentVideo_V3",
             category="latent/video/ltxv",
             inputs=[
@@ -112,13 +112,13 @@ class EmptyLTXVLatentVideo(io.ComfyNodeV3):
         return io.NodeOutput({"samples": latent})
 
 
-class LTXVAddGuide(io.ComfyNodeV3):
+class LTXVAddGuide(io.ComfyNode):
     NUM_PREFIX_FRAMES = 2
     PATCHIFIER = SymmetricPatchifier(1)
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LTXVAddGuide_V3",
             category="conditioning/video_models",
             inputs=[
@@ -275,10 +275,10 @@ class LTXVAddGuide(io.ComfyNodeV3):
         return latent_image, noise_mask
 
 
-class LTXVConditioning(io.ComfyNodeV3):
+class LTXVConditioning(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LTXVConditioning_V3",
             category="conditioning/video_models",
             inputs=[
@@ -299,10 +299,10 @@ class LTXVConditioning(io.ComfyNodeV3):
         return io.NodeOutput(positive, negative)
 
 
-class LTXVCropGuides(io.ComfyNodeV3):
+class LTXVCropGuides(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LTXVCropGuides_V3",
             category="conditioning/video_models",
             inputs=[
@@ -335,10 +335,10 @@ class LTXVCropGuides(io.ComfyNodeV3):
         return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask})
 
 
-class LTXVImgToVideo(io.ComfyNodeV3):
+class LTXVImgToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LTXVImgToVideo_V3",
             category="conditioning/video_models",
             inputs=[
@@ -383,10 +383,10 @@ class LTXVImgToVideo(io.ComfyNodeV3):
         return io.NodeOutput(positive, negative, {"samples": latent, "noise_mask": conditioning_latent_frames_mask})
 
 
-class LTXVPreprocess(io.ComfyNodeV3):
+class LTXVPreprocess(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LTXVPreprocess_V3",
             category="image",
             inputs=[
@@ -408,10 +408,10 @@ class LTXVPreprocess(io.ComfyNodeV3):
         return io.NodeOutput(torch.stack(output_images))
 
 
-class LTXVScheduler(io.ComfyNodeV3):
+class LTXVScheduler(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LTXVScheduler_V3",
             category="sampling/custom_sampling/schedulers",
             inputs=[
@@ -471,10 +471,10 @@ class LTXVScheduler(io.ComfyNodeV3):
         return io.NodeOutput(sigmas)
 
 
-class ModelSamplingLTXV(io.ComfyNodeV3):
+class ModelSamplingLTXV(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ModelSamplingLTXV_V3",
             category="advanced/model",
             inputs=[

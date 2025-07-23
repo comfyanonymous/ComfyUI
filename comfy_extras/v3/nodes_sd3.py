@@ -10,10 +10,10 @@ from comfy_api.v3 import io
 from comfy_extras.v3.nodes_slg import SkipLayerGuidanceDiT
 
 
-class CLIPTextEncodeSD3(io.ComfyNodeV3):
+class CLIPTextEncodeSD3(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="CLIPTextEncodeSD3_V3",
             category="advanced/conditioning",
             inputs=[
@@ -54,10 +54,10 @@ class CLIPTextEncodeSD3(io.ComfyNodeV3):
         return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
 
 
-class EmptySD3LatentImage(io.ComfyNodeV3):
+class EmptySD3LatentImage(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="EmptySD3LatentImage_V3",
             category="latent/sd3",
             inputs=[
@@ -86,7 +86,7 @@ class SkipLayerGuidanceSD3(SkipLayerGuidanceDiT):
     """
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="SkipLayerGuidanceSD3_V3",
             category="advanced/guidance",
             inputs=[
@@ -109,10 +109,10 @@ class SkipLayerGuidanceSD3(SkipLayerGuidanceDiT):
         )
 
 
-class TripleCLIPLoader(io.ComfyNodeV3):
+class TripleCLIPLoader(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="TripleCLIPLoader_V3",
             category="advanced/loaders",
             description="[Recipes]\n\nsd3: clip-l, clip-g, t5",

@@ -2162,7 +2162,7 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
         # V3 node definition
         elif getattr(module, "NODES_LIST", None) is not None:
             for node_cls in module.NODES_LIST:
-                node_cls: io.ComfyNodeV3
+                node_cls: io.ComfyNode
                 schema = node_cls.GET_SCHEMA()
                 if schema.node_id not in ignore:
                     NODE_CLASS_MAPPINGS[schema.node_id] = node_cls

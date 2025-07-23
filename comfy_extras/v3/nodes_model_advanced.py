@@ -57,10 +57,10 @@ class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete)
         return log_sigma.exp().to(timestep.device)
 
 
-class ModelComputeDtype(io.ComfyNodeV3):
+class ModelComputeDtype(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ModelComputeDtype_V3",
             category="advanced/debug/model",
             inputs=[
@@ -79,10 +79,10 @@ class ModelComputeDtype(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class ModelSamplingContinuousEDM(io.ComfyNodeV3):
+class ModelSamplingContinuousEDM(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ModelSamplingContinuousEDM_V3",
             category="advanced/model",
             inputs=[
@@ -131,10 +131,10 @@ class ModelSamplingContinuousEDM(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class ModelSamplingContinuousV(io.ComfyNodeV3):
+class ModelSamplingContinuousV(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ModelSamplingContinuousV_V3",
             category="advanced/model",
             inputs=[
@@ -165,10 +165,10 @@ class ModelSamplingContinuousV(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class ModelSamplingDiscrete(io.ComfyNodeV3):
+class ModelSamplingDiscrete(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ModelSamplingDiscrete_V3",
             category="advanced/model",
             inputs=[
@@ -207,10 +207,10 @@ class ModelSamplingDiscrete(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class ModelSamplingFlux(io.ComfyNodeV3):
+class ModelSamplingFlux(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ModelSamplingFlux_V3",
             category="advanced/model",
             inputs=[
@@ -247,10 +247,10 @@ class ModelSamplingFlux(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class ModelSamplingSD3(io.ComfyNodeV3):
+class ModelSamplingSD3(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ModelSamplingSD3_V3",
             category="advanced/model",
             inputs=[
@@ -281,7 +281,7 @@ class ModelSamplingSD3(io.ComfyNodeV3):
 class ModelSamplingAuraFlow(ModelSamplingSD3):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ModelSamplingAuraFlow_V3",
             category="advanced/model",
             inputs=[
@@ -298,10 +298,10 @@ class ModelSamplingAuraFlow(ModelSamplingSD3):
         return super().execute(model, shift, multiplier)
 
 
-class ModelSamplingStableCascade(io.ComfyNodeV3):
+class ModelSamplingStableCascade(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ModelSamplingStableCascade_V3",
             category="advanced/model",
             inputs=[
@@ -329,10 +329,10 @@ class ModelSamplingStableCascade(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class RescaleCFG(io.ComfyNodeV3):
+class RescaleCFG(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="RescaleCFG_V3",
             category="advanced/model",
             inputs=[

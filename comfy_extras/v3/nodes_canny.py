@@ -6,10 +6,10 @@ import comfy.model_management
 from comfy_api.v3 import io
 
 
-class Canny(io.ComfyNodeV3):
+class Canny(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="Canny_V3",
             category="image/preprocessors",
             inputs=[

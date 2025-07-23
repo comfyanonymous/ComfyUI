@@ -121,10 +121,10 @@ class PhotoMakerIDEncoder(comfy.clip_model.CLIPVisionModelProjection):
         return self.fuse_module(prompt_embeds, id_embeds, class_tokens_mask)
 
 
-class PhotoMakerEncode(io.ComfyNodeV3):
+class PhotoMakerEncode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PhotoMakerEncode_V3",
             category="_for_testing/photomaker",
             inputs=[
@@ -173,10 +173,10 @@ class PhotoMakerEncode(io.ComfyNodeV3):
         return io.NodeOutput([[out, {"pooled_output": pooled}]])
 
 
-class PhotoMakerLoader(io.ComfyNodeV3):
+class PhotoMakerLoader(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="PhotoMakerLoader_V3",
             category="_for_testing/photomaker",
             inputs=[

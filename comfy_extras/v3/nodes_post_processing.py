@@ -20,10 +20,10 @@ def gaussian_kernel(kernel_size: int, sigma: float, device=None):
     return g / g.sum()
 
 
-class Blend(io.ComfyNodeV3):
+class Blend(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageBlend_V3",
             category="image/postprocessing",
             inputs=[
@@ -74,10 +74,10 @@ class Blend(io.ComfyNodeV3):
         return torch.where(x <= 0.25, ((16 * x - 12) * x + 4) * x, torch.sqrt(x))
 
 
-class Blur(io.ComfyNodeV3):
+class Blur(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageBlur_V3",
             category="image/postprocessing",
             inputs=[
@@ -109,13 +109,13 @@ class Blur(io.ComfyNodeV3):
         return io.NodeOutput(blurred.to(comfy.model_management.intermediate_device()))
 
 
-class ImageScaleToTotalPixels(io.ComfyNodeV3):
+class ImageScaleToTotalPixels(io.ComfyNode):
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
     crop_methods = ["disabled", "center"]
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageScaleToTotalPixels_V3",
             category="image/upscaling",
             inputs=[
@@ -141,10 +141,10 @@ class ImageScaleToTotalPixels(io.ComfyNodeV3):
         return io.NodeOutput(s.movedim(1,-1))
 
 
-class Quantize(io.ComfyNodeV3):
+class Quantize(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageQuantize_V3",
             category="image/postprocessing",
             inputs=[
@@ -205,10 +205,10 @@ class Quantize(io.ComfyNodeV3):
         return io.NodeOutput(result)
 
 
-class Sharpen(io.ComfyNodeV3):
+class Sharpen(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="ImageSharpen_V3",
             category="image/postprocessing",
             inputs=[

@@ -22,7 +22,7 @@ from comfy.samplers import CFGGuider, Sampler
 from comfy.sd import CLIP, VAE
 from comfy.sd import StyleModel as StyleModel_
 from comfy_api.input import VideoInput
-from comfy_api.internal import (ComfyNodeInternal, classproperty, copy_class, first_real_override, is_class,
+from comfy_api.internal import (_ComfyNodeInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
 from comfy_api.v3.resources import Resources, ResourcesLocal
 from comfy_execution.graph import ExecutionBlocker
@@ -85,7 +85,7 @@ class _StringIOType(str):
         b = frozenset(value.split(","))
         return not (b.issubset(a) or a.issubset(b))
 
-class ComfyType(ABC):
+class _ComfyType(ABC):
     Type = Any
     io_type: str = None
 
@@ -101,7 +101,7 @@ def comfytype(io_type: str, **kwargs):
     - class Output(OutputV3): ...
     '''
     def decorator(cls: T) -> T:
-        if isinstance(cls, ComfyType) or issubclass(cls, ComfyType):
+        if isinstance(cls, _ComfyType) or issubclass(cls, _ComfyType):
             # clone Input and Output classes to avoid modifying the original class
             new_cls = cls
             if hasattr(new_cls, "Input"):
@@ -140,11 +140,11 @@ def Custom(io_type: str) -> type[ComfyTypeIO]:
         ...
     return CustomComfyType
 
-class IO_V3:
+class _IO_V3:
     '''
     Base class for V3 Inputs and Outputs.
     '''
-    Parent: ComfyType = None
+    Parent: _ComfyType = None
 
     def __init__(self):
         pass
@@ -157,7 +157,7 @@ class IO_V3:
     def Type(self):
         return self.Parent.Type
 
-class InputV3(IO_V3):
+class InputV3(_IO_V3):
     '''
     Base class for a V3 Input.
     '''
@@ -206,7 +206,7 @@ class WidgetInputV3(InputV3):
         return self.widget_type if self.widget_type is not None else super().get_io_type()
 
 
-class OutputV3(IO_V3):
+class OutputV3(_IO_V3):
     def __init__(self, id: str=None, display_name: str=None, tooltip: str=None,
                  is_output_list=False):
         self.id = id
@@ -225,7 +225,7 @@ class OutputV3(IO_V3):
         return self.io_type
 
 
-class ComfyTypeI(ComfyType):
+class ComfyTypeI(_ComfyType):
     '''ComfyType subclass that only has a default Input class - intended for types that only have Inputs.'''
     class Input(InputV3):
         ...
@@ -694,7 +694,7 @@ class MultiType:
         '''
         Input that permits more than one input type; if `id` is an instance of `ComfyType.Input`, then that input will be used to create a widget (if applicable) with overridden values.
         '''
-        def __init__(self, id: str | InputV3, types: list[type[ComfyType] | ComfyType], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+        def __init__(self, id: str | InputV3, types: list[type[_ComfyType] | _ComfyType], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
             # if id is an Input, then use that Input with overridden values
             self.input_override = None
             if isinstance(id, InputV3):
@@ -807,9 +807,9 @@ class ComboDynamicInput(DynamicInput):
 @comfytype(io_type="COMFY_MATCHTYPE_V3")
 class MatchType(ComfyTypeIO):
     class Template:
-        def __init__(self, template_id: str, allowed_types: ComfyType | list[ComfyType]):
+        def __init__(self, template_id: str, allowed_types: _ComfyType | list[_ComfyType]):
             self.template_id = template_id
-            self.allowed_types = [allowed_types] if isinstance(allowed_types, ComfyType) else allowed_types
+            self.allowed_types = [allowed_types] if isinstance(allowed_types, _ComfyType) else allowed_types
 
         def as_dict(self):
             return {
@@ -932,7 +932,7 @@ class NodeInfoV3:
 
 
 @dataclass
-class SchemaV3:
+class Schema:
     """Definition of V3 node properties."""
 
     node_id: str
@@ -1116,7 +1116,7 @@ def add_to_dict_v3(io: InputV3 | OutputV3, d: dict):
 
 
 
-class _ComfyNodeBaseInternal(ComfyNodeInternal):
+class _ComfyNodeBaseInternal(_ComfyNodeInternal):
     """Common base class for storing internal methods and properties; DO NOT USE for defining nodes."""
 
     RELATIVE_PYTHON_MODULE = None
@@ -1128,8 +1128,8 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
 
     @classmethod
     @abstractmethod
-    def define_schema(cls) -> SchemaV3:
-        """Override this function with one that returns a SchemaV3 instance."""
+    def define_schema(cls) -> Schema:
+        """Override this function with one that returns a Schema instance."""
         raise NotImplementedError
 
     @classmethod
@@ -1222,10 +1222,10 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
 
     @final
     @classmethod
-    def PREPARE_CLASS_CLONE(cls, hidden_inputs: dict) -> type[ComfyNodeV3]:
+    def PREPARE_CLASS_CLONE(cls, hidden_inputs: dict) -> type[ComfyNode]:
         """Creates clone of real node class to prevent monkey-patching."""
-        c_type: type[ComfyNodeV3] = cls if is_class(cls) else type(cls)
-        type_clone: type[ComfyNodeV3] = shallow_clone_class(c_type)
+        c_type: type[ComfyNode] = cls if is_class(cls) else type(cls)
+        type_clone: type[ComfyNode] = shallow_clone_class(c_type)
         # set hidden
         type_clone.hidden = HiddenHolder.from_dict(hidden_inputs)
         return type_clone
@@ -1344,7 +1344,7 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
 
     @final
     @classmethod
-    def INPUT_TYPES(cls, include_hidden=True, return_schema=False) -> dict[str, dict] | tuple[dict[str, dict], SchemaV3]:
+    def INPUT_TYPES(cls, include_hidden=True, return_schema=False) -> dict[str, dict] | tuple[dict[str, dict], Schema]:
         schema = cls.FINALIZE_SCHEMA()
         info = schema.get_v1_info(cls)
         input = info.input
@@ -1364,7 +1364,7 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
 
     @final
     @classmethod
-    def GET_SCHEMA(cls) -> SchemaV3:
+    def GET_SCHEMA(cls) -> Schema:
         """Validate node class, finalize schema, validate schema, and set expected class properties."""
         cls.VALIDATE_CLASS()
         schema = cls.FINALIZE_SCHEMA()
@@ -1408,13 +1408,13 @@ class _ComfyNodeBaseInternal(ComfyNodeInternal):
     #############################################
 
 
-class ComfyNodeV3(_ComfyNodeBaseInternal):
+class ComfyNode(_ComfyNodeBaseInternal):
     """Common base class for all V3 nodes."""
 
     @classmethod
     @abstractmethod
-    def define_schema(cls) -> SchemaV3:
-        """Override this function with one that returns a SchemaV3 instance."""
+    def define_schema(cls) -> Schema:
+        """Override this function with one that returns a Schema instance."""
         raise NotImplementedError
 
     @classmethod
@@ -1453,23 +1453,21 @@ class ComfyNodeV3(_ComfyNodeBaseInternal):
     @classmethod
     def GET_BASE_CLASS(cls):
         """DO NOT override this class. Will break things in execution.py."""
-        return ComfyNodeV3
+        return ComfyNode
 
 
 class NodeOutput:
     '''
     Standardized output of a node; can pass in any number of args and/or a UIOutput into 'ui' kwarg.
     '''
-    def __init__(self, *args: Any, ui: _UIOutput | dict=None, expand: dict=None, block_execution: str=None, **kwargs):
+    def __init__(self, *args: Any, ui: _UIOutput | dict=None, expand: dict=None, block_execution: str=None):
         self.args = args
         self.ui = ui
         self.expand = expand
         self.block_execution = block_execution
-        # self.kwargs = kwargs
 
     @property
     def result(self):
-        # TODO: use kwargs to refer to outputs by id + organize in proper order
         return self.args if len(self.args) > 0 else None
 
     @classmethod

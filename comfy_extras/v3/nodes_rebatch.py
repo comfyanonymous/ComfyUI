@@ -5,10 +5,10 @@ import torch
 from comfy_api.v3 import io
 
 
-class ImageRebatch(io.ComfyNodeV3):
+class ImageRebatch(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="RebatchImages_V3",
             display_name="Rebatch Images _V3",
             category="image/batch",
@@ -38,10 +38,10 @@ class ImageRebatch(io.ComfyNodeV3):
         return io.NodeOutput(output_list)
 
 
-class LatentRebatch(io.ComfyNodeV3):
+class LatentRebatch(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="RebatchLatents_V3",
             display_name="Rebatch Latents _V3",
             category="latent/batch",

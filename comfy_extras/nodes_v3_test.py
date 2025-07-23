@@ -9,15 +9,11 @@ import asyncio
 
 
 @io.comfytype(io_type="XYZ")
-class XYZ:
+class XYZ(io.ComfyTypeIO):
     Type = tuple[int,str]
-    class Input(io.InputV3):
-        ...
-    class Output(io.OutputV3):
-        ...
 
 
-class V3TestNode(io.ComfyNodeV3):
+class V3TestNode(io.ComfyNode):
     # NOTE: this is here just to test that state is not leaking
     def __init__(self):
         super().__init__()
@@ -25,7 +21,7 @@ class V3TestNode(io.ComfyNodeV3):
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="V3_01_TestNode1",
             display_name="V3 Test Node",
             category="v3 nodes",
@@ -91,10 +87,10 @@ class V3TestNode(io.ComfyNodeV3):
         return io.NodeOutput(some_int, image, ui=ui.PreviewImage(image, cls=cls))
 
 
-class V3LoraLoader(io.ComfyNodeV3):
+class V3LoraLoader(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="V3_LoraLoader",
             display_name="V3 LoRA Loader",
             category="v3 nodes",
@@ -141,10 +137,10 @@ class V3LoraLoader(io.ComfyNodeV3):
         return io.NodeOutput(model_lora, clip_lora)
 
 
-class NInputsTest(io.ComfyNodeV3):
+class NInputsTest(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="V3_NInputsTest",
             display_name="V3 N Inputs Test",
             inputs=[
@@ -183,10 +179,10 @@ class NInputsTest(io.ComfyNodeV3):
         return io.NodeOutput(combined_image)
 
 
-class V3TestSleep(io.ComfyNodeV3):
+class V3TestSleep(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="V3_TestSleep",
             display_name="V3 Test Sleep",
             category="_for_testing",
@@ -218,10 +214,10 @@ class V3TestSleep(io.ComfyNodeV3):
         return io.NodeOutput(value)
 
 
-class V3DummyStart(io.ComfyNodeV3):
+class V3DummyStart(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="V3_DummyStart",
             display_name="V3 Dummy Start",
             category="v3 nodes",
@@ -237,12 +233,12 @@ class V3DummyStart(io.ComfyNodeV3):
         return io.NodeOutput(None)
 
 
-class V3DummyEnd(io.ComfyNodeV3):
+class V3DummyEnd(io.ComfyNode):
     COOL_VALUE = 123
 
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="V3_DummyEnd",
             display_name="V3 Dummy End",
             category="v3 nodes",
@@ -279,7 +275,7 @@ class V3DummyEndInherit(V3DummyEnd):
         return super().execute(xyz)
 
 
-NODES_LIST: list[type[io.ComfyNodeV3]] = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     V3TestNode,
     V3LoraLoader,
     NInputsTest,

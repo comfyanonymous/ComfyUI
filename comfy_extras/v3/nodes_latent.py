@@ -17,10 +17,10 @@ def reshape_latent_to(target_shape, latent, repeat_batch=True):
     return latent
 
 
-class LatentAdd(io.ComfyNodeV3):
+class LatentAdd(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentAdd_V3",
             category="latent/advanced",
             inputs=[
@@ -44,10 +44,10 @@ class LatentAdd(io.ComfyNodeV3):
         return io.NodeOutput(samples_out)
 
 
-class LatentApplyOperation(io.ComfyNodeV3):
+class LatentApplyOperation(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentApplyOperation_V3",
             category="latent/advanced/operations",
             is_experimental=True,
@@ -69,10 +69,10 @@ class LatentApplyOperation(io.ComfyNodeV3):
         return io.NodeOutput(samples_out)
 
 
-class LatentApplyOperationCFG(io.ComfyNodeV3):
+class LatentApplyOperationCFG(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentApplyOperationCFG_V3",
             category="latent/advanced/operations",
             is_experimental=True,
@@ -101,10 +101,10 @@ class LatentApplyOperationCFG(io.ComfyNodeV3):
         return io.NodeOutput(m)
 
 
-class LatentBatch(io.ComfyNodeV3):
+class LatentBatch(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentBatch_V3",
             category="latent/batch",
             inputs=[
@@ -130,10 +130,10 @@ class LatentBatch(io.ComfyNodeV3):
         return io.NodeOutput(samples_out)
 
 
-class LatentBatchSeedBehavior(io.ComfyNodeV3):
+class LatentBatchSeedBehavior(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentBatchSeedBehavior_V3",
             category="latent/advanced",
             inputs=[
@@ -159,10 +159,10 @@ class LatentBatchSeedBehavior(io.ComfyNodeV3):
         return io.NodeOutput(samples_out)
 
 
-class LatentInterpolate(io.ComfyNodeV3):
+class LatentInterpolate(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentInterpolate_V3",
             category="latent/advanced",
             inputs=[
@@ -198,10 +198,10 @@ class LatentInterpolate(io.ComfyNodeV3):
         return io.NodeOutput(samples_out)
 
 
-class LatentMultiply(io.ComfyNodeV3):
+class LatentMultiply(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentMultiply_V3",
             category="latent/advanced",
             inputs=[
@@ -222,10 +222,10 @@ class LatentMultiply(io.ComfyNodeV3):
         return io.NodeOutput(samples_out)
 
 
-class LatentOperationSharpen(io.ComfyNodeV3):
+class LatentOperationSharpen(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentOperationSharpen_V3",
             category="latent/advanced/operations",
             is_experimental=True,
@@ -264,10 +264,10 @@ class LatentOperationSharpen(io.ComfyNodeV3):
         return io.NodeOutput(sharpen)
 
 
-class LatentOperationTonemapReinhard(io.ComfyNodeV3):
+class LatentOperationTonemapReinhard(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentOperationTonemapReinhard_V3",
             category="latent/advanced/operations",
             is_experimental=True,
@@ -299,10 +299,10 @@ class LatentOperationTonemapReinhard(io.ComfyNodeV3):
         return io.NodeOutput(tonemap_reinhard)
 
 
-class LatentSubtract(io.ComfyNodeV3):
+class LatentSubtract(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="LatentSubtract_V3",
             category="latent/advanced",
             inputs=[

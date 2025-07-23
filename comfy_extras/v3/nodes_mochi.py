@@ -7,10 +7,10 @@ import nodes
 from comfy_api.v3 import io
 
 
-class EmptyMochiLatentVideo(io.ComfyNodeV3):
+class EmptyMochiLatentVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return io.SchemaV3(
+        return io.Schema(
             node_id="EmptyMochiLatentVideo_V3",
             category="latent/video",
             inputs=[
