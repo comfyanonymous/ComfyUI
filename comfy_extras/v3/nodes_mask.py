@@ -167,7 +167,7 @@ class ImageColorToMask(io.ComfyNodeV3):
             category="mask",
             inputs=[
                 io.Image.Input("image"),
-                io.Int.Input("color", default=0, min=0, max=0xFFFFFF, display_mode=io.NumberDisplay.color),
+                io.Int.Input("color", default=0, min=0, max=0xFFFFFF),
             ],
             outputs=[io.Mask.Output()],
         )
