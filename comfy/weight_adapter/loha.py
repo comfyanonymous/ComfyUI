@@ -136,8 +136,8 @@ class LoHaAdapter(WeightAdapterBase):
         torch.nn.init.constant_(mat2, 0.0)
         mat3 = torch.empty(out_dim, rank, device=weight.device, dtype=weight.dtype)
         mat4 = torch.empty(rank, in_dim, device=weight.device, dtype=weight.dtype)
-        torch.nn.init.normal_(mat3, 1)
-        torch.nn.init.normal_(mat4, 0.1)
+        torch.nn.init.normal_(mat3, 0.1)
+        torch.nn.init.normal_(mat4, 0.01)
         return LohaDiff(
             (mat1, mat2, alpha, mat3, mat4, None, None, None)
         )
