@@ -6,7 +6,7 @@ import comfy.model_management
 import comfy.sd
 import folder_paths
 import nodes
-from comfy_api.v3 import io, resources
+from comfy_api.v3 import io
 from comfy_extras.v3.nodes_slg import SkipLayerGuidanceDiT
 
 
@@ -104,7 +104,7 @@ class SkipLayerGuidanceSD3(SkipLayerGuidanceDiT):
 
     @classmethod
     def execute(cls, model, layers: str, scale: float, start_percent: float, end_percent: float):
-        return SkipLayerGuidanceDiT.execute(
+        return super().execute(
             model=model, scale=scale, start_percent=start_percent, end_percent=end_percent, double_layers=layers
         )
 
@@ -128,16 +128,14 @@ class TripleCLIPLoader(io.ComfyNodeV3):
 
     @classmethod
     def execute(cls, clip_name1: str, clip_name2: str, clip_name3: str):
-        clip_data =[
-            cls.resources.get(resources.TorchDictFolderFilename("text_encoders", clip_name1)),
-            cls.resources.get(resources.TorchDictFolderFilename("text_encoders", clip_name2)),
-            cls.resources.get(resources.TorchDictFolderFilename("text_encoders", clip_name3)),
-        ]
-        return io.NodeOutput(
-            comfy.sd.load_text_encoder_state_dicts(
-                clip_data, embedding_directory=folder_paths.get_folder_paths("embeddings")
-            )
+        clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", clip_name1)
+        clip_path2 = folder_paths.get_full_path_or_raise("text_encoders", clip_name2)
+        clip_path3 = folder_paths.get_full_path_or_raise("text_encoders", clip_name3)
+        clip = comfy.sd.load_clip(
+            ckpt_paths=[clip_path1, clip_path2, clip_path3],
+            embedding_directory=folder_paths.get_folder_paths("embeddings"),
         )
+        return io.NodeOutput(clip)
 
 NODES_LIST = [
     CLIPTextEncodeSD3,
