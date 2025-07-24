@@ -33,11 +33,11 @@ class HyperTile(io.ComfyNode):
             node_id="HyperTile_V3",
             category="model_patches/unet",
             inputs=[
-                io.Model.Input(id="model"),
-                io.Int.Input(id="tile_size", default=256, min=1, max=2048),
-                io.Int.Input(id="swap_size", default=2, min=1, max=128),
-                io.Int.Input(id="max_depth", default=0, min=0, max=10),
-                io.Boolean.Input(id="scale_depth", default=False),
+                io.Model.Input("model"),
+                io.Int.Input("tile_size", default=256, min=1, max=2048),
+                io.Int.Input("swap_size", default=2, min=1, max=128),
+                io.Int.Input("max_depth", default=0, min=0, max=10),
+                io.Boolean.Input("scale_depth", default=False),
             ],
             outputs=[
                 io.Model.Output(),

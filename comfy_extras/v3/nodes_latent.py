@@ -24,8 +24,8 @@ class LatentAdd(io.ComfyNode):
             node_id="LatentAdd_V3",
             category="latent/advanced",
             inputs=[
-                io.Latent.Input(id="samples1"),
-                io.Latent.Input(id="samples2"),
+                io.Latent.Input("samples1"),
+                io.Latent.Input("samples2"),
             ],
             outputs=[
                 io.Latent.Output(),
@@ -52,8 +52,8 @@ class LatentApplyOperation(io.ComfyNode):
             category="latent/advanced/operations",
             is_experimental=True,
             inputs=[
-                io.Latent.Input(id="samples"),
-                io.LatentOperation.Input(id="operation"),
+                io.Latent.Input("samples"),
+                io.LatentOperation.Input("operation"),
             ],
             outputs=[
                 io.Latent.Output(),
@@ -77,8 +77,8 @@ class LatentApplyOperationCFG(io.ComfyNode):
             category="latent/advanced/operations",
             is_experimental=True,
             inputs=[
-                io.Model.Input(id="model"),
-                io.LatentOperation.Input(id="operation"),
+                io.Model.Input("model"),
+                io.LatentOperation.Input("operation"),
             ],
             outputs=[
                 io.Model.Output(),
@@ -108,8 +108,8 @@ class LatentBatch(io.ComfyNode):
             node_id="LatentBatch_V3",
             category="latent/batch",
             inputs=[
-                io.Latent.Input(id="samples1"),
-                io.Latent.Input(id="samples2"),
+                io.Latent.Input("samples1"),
+                io.Latent.Input("samples2"),
             ],
             outputs=[
                 io.Latent.Output(),
@@ -137,8 +137,8 @@ class LatentBatchSeedBehavior(io.ComfyNode):
             node_id="LatentBatchSeedBehavior_V3",
             category="latent/advanced",
             inputs=[
-                io.Latent.Input(id="samples"),
-                io.Combo.Input(id="seed_behavior", options=["random", "fixed"], default="fixed"),
+                io.Latent.Input("samples"),
+                io.Combo.Input("seed_behavior", options=["random", "fixed"], default="fixed"),
             ],
             outputs=[
                 io.Latent.Output(),
@@ -166,9 +166,9 @@ class LatentInterpolate(io.ComfyNode):
             node_id="LatentInterpolate_V3",
             category="latent/advanced",
             inputs=[
-                io.Latent.Input(id="samples1"),
-                io.Latent.Input(id="samples2"),
-                io.Float.Input(id="ratio", default=1.0, min=0.0, max=1.0, step=0.01),
+                io.Latent.Input("samples1"),
+                io.Latent.Input("samples2"),
+                io.Float.Input("ratio", default=1.0, min=0.0, max=1.0, step=0.01),
             ],
             outputs=[
                 io.Latent.Output(),
@@ -205,8 +205,8 @@ class LatentMultiply(io.ComfyNode):
             node_id="LatentMultiply_V3",
             category="latent/advanced",
             inputs=[
-                io.Latent.Input(id="samples"),
-                io.Float.Input(id="multiplier", default=1.0, min=-10.0, max=10.0, step=0.01),
+                io.Latent.Input("samples"),
+                io.Float.Input("multiplier", default=1.0, min=-10.0, max=10.0, step=0.01),
             ],
             outputs=[
                 io.Latent.Output(),
@@ -230,9 +230,9 @@ class LatentOperationSharpen(io.ComfyNode):
             category="latent/advanced/operations",
             is_experimental=True,
             inputs=[
-                io.Int.Input(id="sharpen_radius", default=9, min=1, max=31, step=1),
-                io.Float.Input(id="sigma", default=1.0, min=0.1, max=10.0, step=0.1),
-                io.Float.Input(id="alpha", default=0.1, min=0.0, max=5.0, step=0.01),
+                io.Int.Input("sharpen_radius", default=9, min=1, max=31, step=1),
+                io.Float.Input("sigma", default=1.0, min=0.1, max=10.0, step=0.1),
+                io.Float.Input("alpha", default=0.1, min=0.0, max=5.0, step=0.01),
             ],
             outputs=[
                 io.LatentOperation.Output(),
@@ -272,7 +272,7 @@ class LatentOperationTonemapReinhard(io.ComfyNode):
             category="latent/advanced/operations",
             is_experimental=True,
             inputs=[
-                io.Float.Input(id="multiplier", default=1.0, min=0.0, max=100.0, step=0.01),
+                io.Float.Input("multiplier", default=1.0, min=0.0, max=100.0, step=0.01),
             ],
             outputs=[
                 io.LatentOperation.Output(),
@@ -306,8 +306,8 @@ class LatentSubtract(io.ComfyNode):
             node_id="LatentSubtract_V3",
             category="latent/advanced",
             inputs=[
-                io.Latent.Input(id="samples1"),
-                io.Latent.Input(id="samples2"),
+                io.Latent.Input("samples1"),
+                io.Latent.Input("samples2"),
             ],
             outputs=[
                 io.Latent.Output(),

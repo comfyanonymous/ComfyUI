@@ -35,11 +35,11 @@ class FreeU(io.ComfyNode):
             node_id="FreeU_V3",
             category="model_patches/unet",
             inputs=[
-                io.Model.Input(id="model"),
-                io.Float.Input(id="b1", default=1.1, min=0.0, max=10.0, step=0.01),
-                io.Float.Input(id="b2", default=1.2, min=0.0, max=10.0, step=0.01),
-                io.Float.Input(id="s1", default=0.9, min=0.0, max=10.0, step=0.01),
-                io.Float.Input(id="s2", default=0.2, min=0.0, max=10.0, step=0.01),
+                io.Model.Input("model"),
+                io.Float.Input("b1", default=1.1, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("b2", default=1.2, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("s1", default=0.9, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("s2", default=0.2, min=0.0, max=10.0, step=0.01),
             ],
             outputs=[
                 io.Model.Output(),
@@ -80,11 +80,11 @@ class FreeU_V2(io.ComfyNode):
             node_id="FreeU_V2_V3",
             category="model_patches/unet",
             inputs=[
-                io.Model.Input(id="model"),
-                io.Float.Input(id="b1", default=1.3, min=0.0, max=10.0, step=0.01),
-                io.Float.Input(id="b2", default=1.4, min=0.0, max=10.0, step=0.01),
-                io.Float.Input(id="s1", default=0.9, min=0.0, max=10.0, step=0.01),
-                io.Float.Input(id="s2", default=0.2, min=0.0, max=10.0, step=0.01),
+                io.Model.Input("model"),
+                io.Float.Input("b1", default=1.3, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("b2", default=1.4, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("s1", default=0.9, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("s2", default=0.2, min=0.0, max=10.0, step=0.01),
             ],
             outputs=[
                 io.Model.Output(),

@@ -12,10 +12,10 @@ class InstructPixToPixConditioning(io.ComfyNode):
             node_id="InstructPixToPixConditioning_V3",
             category="conditioning/instructpix2pix",
             inputs=[
-                io.Conditioning.Input(id="positive"),
-                io.Conditioning.Input(id="negative"),
-                io.Vae.Input(id="vae"),
-                io.Image.Input(id="pixels"),
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Vae.Input("vae"),
+                io.Image.Input("pixels"),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),

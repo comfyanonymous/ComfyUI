@@ -33,9 +33,9 @@ class OptimalStepsScheduler(io.ComfyNode):
             node_id="OptimalStepsScheduler_V3",
             category="sampling/custom_sampling/schedulers",
             inputs=[
-                io.Combo.Input(id="model_type", options=["FLUX", "Wan", "Chroma"]),
-                io.Int.Input(id="steps", default=20, min=3, max=1000),
-                io.Float.Input(id="denoise", default=1.0, min=0.0, max=1.0, step=0.01),
+                io.Combo.Input("model_type", options=["FLUX", "Wan", "Chroma"]),
+                io.Int.Input("steps", default=20, min=3, max=1000),
+                io.Float.Input("denoise", default=1.0, min=0.0, max=1.0, step=0.01),
             ],
             outputs=[
                 io.Sigmas.Output(),

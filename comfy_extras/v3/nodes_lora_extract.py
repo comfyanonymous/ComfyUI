@@ -91,10 +91,10 @@ class LoraSave(io.ComfyNode):
             category="_for_testing",
             is_output_node=True,
             inputs=[
-                io.String.Input(id="filename_prefix", default="loras/ComfyUI_extracted_lora"),
-                io.Int.Input(id="rank", default=8, min=1, max=4096, step=1),
-                io.Combo.Input(id="lora_type", options=list(LORA_TYPES.keys())),
-                io.Boolean.Input(id="bias_diff", default=True),
+                io.String.Input("filename_prefix", default="loras/ComfyUI_extracted_lora"),
+                io.Int.Input("rank", default=8, min=1, max=4096, step=1),
+                io.Combo.Input("lora_type", options=list(LORA_TYPES.keys())),
+                io.Boolean.Input("bias_diff", default=True),
                 io.Model.Input(
                     id="model_diff", optional=True, tooltip="The ModelSubtract output to be converted to a lora."
                 ),

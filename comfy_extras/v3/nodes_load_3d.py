@@ -35,10 +35,10 @@ class Load3D(io.ComfyNode):
             category="3d",
             is_experimental=True,
             inputs=[
-                io.Combo.Input(id="model_file", options=sorted(files), upload=io.UploadType.model),
-                io.Load3D.Input(id="image"),
-                io.Int.Input(id="width", default=1024, min=1, max=4096, step=1),
-                io.Int.Input(id="height", default=1024, min=1, max=4096, step=1),
+                io.Combo.Input("model_file", options=sorted(files), upload=io.UploadType.model),
+                io.Load3D.Input("image"),
+                io.Int.Input("width", default=1024, min=1, max=4096, step=1),
+                io.Int.Input("height", default=1024, min=1, max=4096, step=1),
             ],
             outputs=[
                 io.Image.Output(display_name="image"),
@@ -96,10 +96,10 @@ class Load3DAnimation(io.ComfyNode):
             category="3d",
             is_experimental=True,
             inputs=[
-                io.Combo.Input(id="model_file", options=sorted(files), upload=io.UploadType.model),
-                io.Load3DAnimation.Input(id="image"),
-                io.Int.Input(id="width", default=1024, min=1, max=4096, step=1),
-                io.Int.Input(id="height", default=1024, min=1, max=4096, step=1),
+                io.Combo.Input("model_file", options=sorted(files), upload=io.UploadType.model),
+                io.Load3DAnimation.Input("image"),
+                io.Int.Input("width", default=1024, min=1, max=4096, step=1),
+                io.Int.Input("height", default=1024, min=1, max=4096, step=1),
             ],
             outputs=[
                 io.Image.Output(display_name="image"),
@@ -140,8 +140,8 @@ class Preview3D(io.ComfyNode):
             is_experimental=True,
             is_output_node=True,
             inputs=[
-                io.String.Input(id="model_file", default="", multiline=False),
-                io.Load3DCamera.Input(id="camera_info", optional=True),
+                io.String.Input("model_file", default="", multiline=False),
+                io.Load3DCamera.Input("camera_info", optional=True),
             ],
             outputs=[],
         )
@@ -161,8 +161,8 @@ class Preview3DAnimation(io.ComfyNode):
             is_experimental=True,
             is_output_node=True,
             inputs=[
-                io.String.Input(id="model_file", default="", multiline=False),
-                io.Load3DCamera.Input(id="camera_info", optional=True),
+                io.String.Input("model_file", default="", multiline=False),
+                io.Load3DCamera.Input("camera_info", optional=True),
             ],
             outputs=[],
         )

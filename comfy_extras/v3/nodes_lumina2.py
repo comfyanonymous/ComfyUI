@@ -27,9 +27,9 @@ class CLIPTextEncodeLumina2(io.ComfyNode):
             description="Encodes a system prompt and a user prompt using a CLIP model into an embedding "
                         "that can be used to guide the diffusion model towards generating specific images.",
             inputs=[
-                io.Combo.Input(id="system_prompt", options=list(cls.SYSTEM_PROMPT.keys()), tooltip=cls.SYSTEM_PROMPT_TIP),
-                io.String.Input(id="user_prompt", multiline=True, dynamic_prompts=True, tooltip="The text to be encoded."),
-                io.Clip.Input(id="clip", tooltip="The CLIP model used for encoding the text."),
+                io.Combo.Input("system_prompt", options=list(cls.SYSTEM_PROMPT.keys()), tooltip=cls.SYSTEM_PROMPT_TIP),
+                io.String.Input("user_prompt", multiline=True, dynamic_prompts=True, tooltip="The text to be encoded."),
+                io.Clip.Input("clip", tooltip="The CLIP model used for encoding the text."),
             ],
             outputs=[
                 io.Conditioning.Output(tooltip="A conditioning containing the embedded text used to guide the diffusion model."),
@@ -56,9 +56,9 @@ class RenormCFG(io.ComfyNode):
             node_id="RenormCFG_V3",
             category="advanced/model",
             inputs=[
-                io.Model.Input(id="model"),
-                io.Float.Input(id="cfg_trunc", default=100, min=0.0, max=100.0, step=0.01),
-                io.Float.Input(id="renorm_cfg", default=1.0, min=0.0, max=100.0, step=0.01),
+                io.Model.Input("model"),
+                io.Float.Input("cfg_trunc", default=100, min=0.0, max=100.0, step=0.01),
+                io.Float.Input("renorm_cfg", default=1.0, min=0.0, max=100.0, step=0.01),
             ],
             outputs=[
                 io.Model.Output(),
