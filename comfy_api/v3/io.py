@@ -657,9 +657,34 @@ class Accumulation(ComfyTypeIO):
         accum: list[Any]
     Type = AccumulationDict
 
+
 @comfytype(io_type="LOAD3D_CAMERA")
 class Load3DCamera(ComfyTypeIO):
-    Type = Any # TODO: figure out type for this; in code, only described as image['camera_info'], gotten from a LOAD_3D or LOAD_3D_ANIMATION type
+    class CameraInfo(TypedDict):
+        position: dict[str, float | int]
+        target: dict[str, float | int]
+        zoom: int
+        cameraType: str
+
+    Type = CameraInfo
+
+
+@comfytype(io_type="LOAD_3D")
+class Load3D(ComfyTypeIO):
+    """3D models are stored as a dictionary."""
+    class Model3DDict(TypedDict):
+        image: str
+        mask: str
+        normal: str
+        camera_info: Load3DCamera.CameraInfo
+        recording: NotRequired[str]
+
+    Type = Model3DDict
+
+
+@comfytype(io_type="LOAD_3D_ANIMATION")
+class Load3DAnimation(Load3D):
+    ...
 
 
 @comfytype(io_type="PHOTOMAKER")
