@@ -711,12 +711,16 @@ class WanTrackToVideo:
             res = res.permute(1,2,3,0)[:, :, :, :3]  # T, H, W, C
 
             y = vae.encode(res)
+            # Scale latent since patch_motion is non-linear
+            y = comfy.latent_formats.Wan21().process_in(y)
             c = torch.cat((msk, y), dim=1)
             res = patch_motion(
                 processed_tracks, c[0], temperature=temperature, topk=topk, vae_divide=(4, 16)
             )
 
             msk, y = res
+            y = comfy.latent_formats.Wan21().process_out(y)
+            
             msk = -msk + 1.0  # Invert mask to match expected format
             positive = node_helpers.conditioning_set_values(positive,
                                                             {"tracks": processed_tracks,
