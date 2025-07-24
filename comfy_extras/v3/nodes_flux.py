@@ -32,10 +32,10 @@ class CLIPTextEncodeFlux(io.ComfyNode):
             node_id="CLIPTextEncodeFlux_V3",
             category="advanced/conditioning/flux",
             inputs=[
-                io.Clip.Input(id="clip"),
-                io.String.Input(id="clip_l", multiline=True, dynamic_prompts=True),
-                io.String.Input(id="t5xxl", multiline=True, dynamic_prompts=True),
-                io.Float.Input(id="guidance", default=3.5, min=0.0, max=100.0, step=0.1),
+                io.Clip.Input("clip"),
+                io.String.Input("clip_l", multiline=True, dynamic_prompts=True),
+                io.String.Input("t5xxl", multiline=True, dynamic_prompts=True),
+                io.Float.Input("guidance", default=3.5, min=0.0, max=100.0, step=0.1),
             ],
             outputs=[
                 io.Conditioning.Output(),
@@ -58,7 +58,7 @@ class FluxDisableGuidance(io.ComfyNode):
             category="advanced/conditioning/flux",
             description="This node completely disables the guidance embed on Flux and Flux like models",
             inputs=[
-                io.Conditioning.Input(id="conditioning"),
+                io.Conditioning.Input("conditioning"),
             ],
             outputs=[
                 io.Conditioning.Output(),
@@ -78,8 +78,8 @@ class FluxGuidance(io.ComfyNode):
             node_id="FluxGuidance_V3",
             category="advanced/conditioning/flux",
             inputs=[
-                io.Conditioning.Input(id="conditioning"),
-                io.Float.Input(id="guidance", default=3.5, min=0.0, max=100.0, step=0.1),
+                io.Conditioning.Input("conditioning"),
+                io.Float.Input("guidance", default=3.5, min=0.0, max=100.0, step=0.1),
             ],
             outputs=[
                 io.Conditioning.Output(),
@@ -100,7 +100,7 @@ class FluxKontextImageScale(io.ComfyNode):
             category="advanced/conditioning/flux",
             description="This node resizes the image to one that is more optimal for flux kontext.",
             inputs=[
-                io.Image.Input(id="image"),
+                io.Image.Input("image"),
             ],
             outputs=[
                 io.Image.Output(),

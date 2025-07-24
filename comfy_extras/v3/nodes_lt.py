@@ -93,10 +93,10 @@ class EmptyLTXVLatentVideo(io.ComfyNode):
             node_id="EmptyLTXVLatentVideo_V3",
             category="latent/video/ltxv",
             inputs=[
-                io.Int.Input(id="width", default=768, min=64, max=nodes.MAX_RESOLUTION, step=32),
-                io.Int.Input(id="height", default=512, min=64, max=nodes.MAX_RESOLUTION, step=32),
-                io.Int.Input(id="length", default=97, min=1, max=nodes.MAX_RESOLUTION, step=8),
-                io.Int.Input(id="batch_size", default=1, min=1, max=4096),
+                io.Int.Input("width", default=768, min=64, max=nodes.MAX_RESOLUTION, step=32),
+                io.Int.Input("height", default=512, min=64, max=nodes.MAX_RESOLUTION, step=32),
+                io.Int.Input("length", default=97, min=1, max=nodes.MAX_RESOLUTION, step=8),
+                io.Int.Input("batch_size", default=1, min=1, max=4096),
             ],
             outputs=[
                 io.Latent.Output(),
@@ -122,10 +122,10 @@ class LTXVAddGuide(io.ComfyNode):
             node_id="LTXVAddGuide_V3",
             category="conditioning/video_models",
             inputs=[
-                io.Conditioning.Input(id="positive"),
-                io.Conditioning.Input(id="negative"),
-                io.Vae.Input(id="vae"),
-                io.Latent.Input(id="latent"),
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Vae.Input("vae"),
+                io.Latent.Input("latent"),
                 io.Image.Input(
                     id="image",
                     tooltip="Image or video to condition the latent video on. Must be 8*n + 1 frames. "
@@ -141,12 +141,12 @@ class LTXVAddGuide(io.ComfyNode):
                             "For videos with 9+ frames, frame_idx must be divisible by 8, otherwise it will be rounded "
                             "down to the nearest multiple of 8. Negative values are counted from the end of the video.",
                 ),
-                io.Float.Input(id="strength", default=1.0, min=0.0, max=1.0, step=0.01),
+                io.Float.Input("strength", default=1.0, min=0.0, max=1.0, step=0.01),
             ],
             outputs=[
-                io.Conditioning.Output(id="positive_out", display_name="positive"),
-                io.Conditioning.Output(id="negative_out", display_name="negative"),
-                io.Latent.Output(id="latent_out", display_name="latent"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="latent"),
             ],
         )
 
@@ -282,13 +282,13 @@ class LTXVConditioning(io.ComfyNode):
             node_id="LTXVConditioning_V3",
             category="conditioning/video_models",
             inputs=[
-                io.Conditioning.Input(id="positive"),
-                io.Conditioning.Input(id="negative"),
-                io.Float.Input(id="frame_rate", default=25.0, min=0.0, max=1000.0, step=0.01),
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Float.Input("frame_rate", default=25.0, min=0.0, max=1000.0, step=0.01),
             ],
             outputs=[
-                io.Conditioning.Output(id="positive_out", display_name="positive"),
-                io.Conditioning.Output(id="negative_out", display_name="negative"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
             ],
         )
 
@@ -306,14 +306,14 @@ class LTXVCropGuides(io.ComfyNode):
             node_id="LTXVCropGuides_V3",
             category="conditioning/video_models",
             inputs=[
-                io.Conditioning.Input(id="positive"),
-                io.Conditioning.Input(id="negative"),
-                io.Latent.Input(id="latent"),
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Latent.Input("latent"),
             ],
             outputs=[
-                io.Conditioning.Output(id="positive_out", display_name="positive"),
-                io.Conditioning.Output(id="negative_out", display_name="negative"),
-                io.Latent.Output(id="latent_out", display_name="latent"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="latent"),
             ],
         )
 
@@ -342,19 +342,19 @@ class LTXVImgToVideo(io.ComfyNode):
             node_id="LTXVImgToVideo_V3",
             category="conditioning/video_models",
             inputs=[
-                io.Conditioning.Input(id="positive"),
-                io.Conditioning.Input(id="negative"),
-                io.Vae.Input(id="vae"),
-                io.Image.Input(id="image"),
-                io.Int.Input(id="width", default=768, min=64, max=nodes.MAX_RESOLUTION, step=32),
-                io.Int.Input(id="height", default=512, min=64, max=nodes.MAX_RESOLUTION, step=32),
-                io.Int.Input(id="length", default=97, min=9, max=nodes.MAX_RESOLUTION, step=8),
-                io.Int.Input(id="batch_size", default=1, min=1, max=4096),
-                io.Float.Input(id="strength", default=1.0, min=0.0, max=1.0),
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Vae.Input("vae"),
+                io.Image.Input("image"),
+                io.Int.Input("width", default=768, min=64, max=nodes.MAX_RESOLUTION, step=32),
+                io.Int.Input("height", default=512, min=64, max=nodes.MAX_RESOLUTION, step=32),
+                io.Int.Input("length", default=97, min=9, max=nodes.MAX_RESOLUTION, step=8),
+                io.Int.Input("batch_size", default=1, min=1, max=4096),
+                io.Float.Input("strength", default=1.0, min=0.0, max=1.0),
             ],
             outputs=[
-                io.Conditioning.Output(id="positive_out", display_name="positive"),
-                io.Conditioning.Output(id="negative_out", display_name="negative"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
                 io.Latent.Output(display_name="latent"),
             ],
         )
@@ -390,13 +390,13 @@ class LTXVPreprocess(io.ComfyNode):
             node_id="LTXVPreprocess_V3",
             category="image",
             inputs=[
-                io.Image.Input(id="image"),
+                io.Image.Input("image"),
                 io.Int.Input(
                     id="img_compression", default=35, min=0, max=100, tooltip="Amount of compression to apply on image."
                 ),
             ],
             outputs=[
-                io.Image.Output(id="output_image", display_name="output_image"),
+                io.Image.Output(display_name="output_image"),
             ],
         )
 
@@ -415,9 +415,9 @@ class LTXVScheduler(io.ComfyNode):
             node_id="LTXVScheduler_V3",
             category="sampling/custom_sampling/schedulers",
             inputs=[
-                io.Int.Input(id="steps", default=20, min=1, max=10000),
-                io.Float.Input(id="max_shift", default=2.05, min=0.0, max=100.0, step=0.01),
-                io.Float.Input(id="base_shift", default=0.95, min=0.0, max=100.0, step=0.01),
+                io.Int.Input("steps", default=20, min=1, max=10000),
+                io.Float.Input("max_shift", default=2.05, min=0.0, max=100.0, step=0.01),
+                io.Float.Input("base_shift", default=0.95, min=0.0, max=100.0, step=0.01),
                 io.Boolean.Input(
                     id="stretch",
                     default=True,
@@ -431,7 +431,7 @@ class LTXVScheduler(io.ComfyNode):
                     step=0.01,
                     tooltip="The terminal value of the sigmas after stretching.",
                 ),
-                io.Latent.Input(id="latent", optional=True),
+                io.Latent.Input("latent", optional=True),
             ],
             outputs=[
                 io.Sigmas.Output(),
@@ -478,10 +478,10 @@ class ModelSamplingLTXV(io.ComfyNode):
             node_id="ModelSamplingLTXV_V3",
             category="advanced/model",
             inputs=[
-                io.Model.Input(id="model"),
-                io.Float.Input(id="max_shift", default=2.05, min=0.0, max=100.0, step=0.01),
-                io.Float.Input(id="base_shift", default=0.95, min=0.0, max=100.0, step=0.01),
-                io.Latent.Input(id="latent", optional=True),
+                io.Model.Input("model"),
+                io.Float.Input("max_shift", default=2.05, min=0.0, max=100.0, step=0.01),
+                io.Float.Input("base_shift", default=0.95, min=0.0, max=100.0, step=0.01),
+                io.Latent.Input("latent", optional=True),
             ],
             outputs=[
                 io.Model.Output(),

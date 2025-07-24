@@ -343,9 +343,9 @@ class GITSScheduler(io.ComfyNode):
             node_id="GITSScheduler_V3",
             category="sampling/custom_sampling/schedulers",
             inputs=[
-                io.Float.Input(id="coeff", default=1.20, min=0.80, max=1.50, step=0.05),
-                io.Int.Input(id="steps", default=10, min=2, max=1000),
-                io.Float.Input(id="denoise", default=1.0, min=0.0, max=1.0, step=0.01),
+                io.Float.Input("coeff", default=1.20, min=0.80, max=1.50, step=0.05),
+                io.Int.Input("steps", default=10, min=2, max=1000),
+                io.Float.Input("denoise", default=1.0, min=0.0, max=1.0, step=0.01),
             ],
             outputs=[
                 io.Sigmas.Output(),

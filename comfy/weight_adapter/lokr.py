@@ -3,7 +3,77 @@ from typing import Optional
 
 import torch
 import comfy.model_management
-from .base import WeightAdapterBase, weight_decompose
+from .base import (
+    WeightAdapterBase,
+    WeightAdapterTrainBase,
+    weight_decompose,
+    factorization,
+)
+
+
+class LokrDiff(WeightAdapterTrainBase):
+    def __init__(self, weights):
+        super().__init__()
+        (lokr_w1, lokr_w2, alpha, lokr_w1_a, lokr_w1_b, lokr_w2_a, lokr_w2_b, lokr_t2, dora_scale) = weights
+        self.use_tucker = False
+        if lokr_w1_a is not None:
+            _, rank_a = lokr_w1_a.shape[0], lokr_w1_a.shape[1]
+            rank_a, _ = lokr_w1_b.shape[0], lokr_w1_b.shape[1]
+            self.lokr_w1_a = torch.nn.Parameter(lokr_w1_a)
+            self.lokr_w1_b = torch.nn.Parameter(lokr_w1_b)
+            self.w1_rebuild = True
+            self.ranka = rank_a
+
+        if lokr_w2_a is not None:
+            _, rank_b = lokr_w2_a.shape[0], lokr_w2_a.shape[1]
+            rank_b, _ = lokr_w2_b.shape[0], lokr_w2_b.shape[1]
+            self.lokr_w2_a = torch.nn.Parameter(lokr_w2_a)
+            self.lokr_w2_b = torch.nn.Parameter(lokr_w2_b)
+            if lokr_t2 is not None:
+                self.use_tucker = True
+                self.lokr_t2 = torch.nn.Parameter(lokr_t2)
+            self.w2_rebuild = True
+            self.rankb = rank_b
+
+        if lokr_w1 is not None:
+            self.lokr_w1 = torch.nn.Parameter(lokr_w1)
+            self.w1_rebuild = False
+
+        if lokr_w2 is not None:
+            self.lokr_w2 = torch.nn.Parameter(lokr_w2)
+            self.w2_rebuild = False
+
+        self.alpha = torch.nn.Parameter(torch.tensor(alpha), requires_grad=False)
+
+    @property
+    def w1(self):
+        if self.w1_rebuild:
+            return (self.lokr_w1_a @ self.lokr_w1_b) * (self.alpha / self.ranka)
+        else:
+            return self.lokr_w1
+
+    @property
+    def w2(self):
+        if self.w2_rebuild:
+            if self.use_tucker:
+                w2 = torch.einsum(
+                    'i j k l, j r, i p -> p r k l',
+                    self.lokr_t2,
+                    self.lokr_w2_b,
+                    self.lokr_w2_a
+                )
+            else:
+                w2 = self.lokr_w2_a @ self.lokr_w2_b
+            return w2 * (self.alpha / self.rankb)
+        else:
+            return self.lokr_w2
+
+    def __call__(self, w):
+        diff = torch.kron(self.w1, self.w2)
+        return w + diff.reshape(w.shape).to(w)
+
+    def passive_memory_usage(self):
+        return sum(param.numel() * param.element_size() for param in self.parameters())
 
 
 class LoKrAdapter(WeightAdapterBase):
@@ -12,6 +82,20 @@ class LoKrAdapter(WeightAdapterBase):
     def __init__(self, loaded_keys, weights):
         self.loaded_keys = loaded_keys
         self.weights = weights
+
+    @classmethod
+    def create_train(cls, weight, rank=1, alpha=1.0):
+        out_dim = weight.shape[0]
+        in_dim = weight.shape[1:].numel()
+        out1, out2 = factorization(out_dim, rank)
+        in1, in2 = factorization(in_dim, rank)
+        mat1 = torch.empty(out1, in1, device=weight.device, dtype=weight.dtype)
+        mat2 = torch.empty(out2, in2, device=weight.device, dtype=weight.dtype)
+        torch.nn.init.kaiming_uniform_(mat2, a=5**0.5)
+        torch.nn.init.constant_(mat1, 0.0)
+        return LokrDiff(
+            (mat1, mat2, alpha, None, None, None, None, None, None)
+        )
 
     @classmethod
     def load(

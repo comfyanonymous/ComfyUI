@@ -23,12 +23,12 @@ class ImageRGBToYUV(io.ComfyNode):
             node_id="ImageRGBToYUV_V3",
             category="image/batch",
             inputs=[
-                io.Image.Input(id="image"),
+                io.Image.Input("image"),
             ],
             outputs=[
-                io.Image.Output(id="Y", display_name="Y"),
-                io.Image.Output(id="U", display_name="U"),
-                io.Image.Output(id="V", display_name="V"),
+                io.Image.Output(display_name="Y"),
+                io.Image.Output(display_name="U"),
+                io.Image.Output(display_name="V"),
             ],
         )
 
@@ -45,9 +45,9 @@ class ImageYUVToRGB(io.ComfyNode):
             node_id="ImageYUVToRGB_V3",
             category="image/batch",
             inputs=[
-                io.Image.Input(id="Y"),
-                io.Image.Input(id="U"),
-                io.Image.Input(id="V"),
+                io.Image.Input("Y"),
+                io.Image.Input("U"),
+                io.Image.Input("V"),
             ],
             outputs=[
                 io.Image.Output(),
@@ -68,9 +68,9 @@ class Morphology(io.ComfyNode):
             display_name="ImageMorphology _V3",
             category="image/postprocessing",
             inputs=[
-                io.Image.Input(id="image"),
-                io.Combo.Input(id="operation", options=["erode", "dilate", "open", "close", "gradient", "bottom_hat", "top_hat"]),
-                io.Int.Input(id="kernel_size", default=3, min=3, max=999, step=1),
+                io.Image.Input("image"),
+                io.Combo.Input("operation", options=["erode", "dilate", "open", "close", "gradient", "bottom_hat", "top_hat"]),
+                io.Int.Input("kernel_size", default=3, min=3, max=999, step=1),
             ],
             outputs=[
                 io.Image.Output(),

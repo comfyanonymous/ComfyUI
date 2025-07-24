@@ -13,7 +13,7 @@ class DifferentialDiffusion(io.ComfyNode):
             display_name="Differential Diffusion _V3",
             category="_for_testing",
             inputs=[
-                io.Model.Input(id="model"),
+                io.Model.Input("model"),
             ],
             outputs=[
                 io.Model.Output(),

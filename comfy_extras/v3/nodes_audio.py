@@ -19,14 +19,14 @@ class ConditioningStableAudio(io.ComfyNode):
             node_id="ConditioningStableAudio_V3",
             category="conditioning",
             inputs=[
-                io.Conditioning.Input(id="positive"),
-                io.Conditioning.Input(id="negative"),
-                io.Float.Input(id="seconds_start", default=0.0, min=0.0, max=1000.0, step=0.1),
-                io.Float.Input(id="seconds_total", default=47.0, min=0.0, max=1000.0, step=0.1),
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Float.Input("seconds_start", default=0.0, min=0.0, max=1000.0, step=0.1),
+                io.Float.Input("seconds_total", default=47.0, min=0.0, max=1000.0, step=0.1),
             ],
             outputs=[
-                io.Conditioning.Output(id="positive_out", display_name="positive"),
-                io.Conditioning.Output(id="negative_out", display_name="negative"),
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
             ],
         )
 
@@ -49,7 +49,7 @@ class EmptyLatentAudio(io.ComfyNode):
             node_id="EmptyLatentAudio_V3",
             category="latent/audio",
             inputs=[
-                io.Float.Input(id="seconds", default=47.6, min=1.0, max=1000.0, step=0.1),
+                io.Float.Input("seconds", default=47.6, min=1.0, max=1000.0, step=0.1),
                 io.Int.Input(
                     id="batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."
                 ),
@@ -200,8 +200,8 @@ class VAEDecodeAudio(io.ComfyNode):
             node_id="VAEDecodeAudio_V3",
             category="latent/audio",
             inputs=[
-                io.Latent.Input(id="samples"),
-                io.Vae.Input(id="vae"),
+                io.Latent.Input("samples"),
+                io.Vae.Input("vae"),
             ],
             outputs=[io.Audio.Output()],
         )
@@ -222,8 +222,8 @@ class VAEEncodeAudio(io.ComfyNode):
             node_id="VAEEncodeAudio_V3",
             category="latent/audio",
             inputs=[
-                io.Audio.Input(id="audio"),
-                io.Vae.Input(id="vae"),
+                io.Audio.Input("audio"),
+                io.Vae.Input("vae"),
             ],
             outputs=[io.Latent.Output()],
         )

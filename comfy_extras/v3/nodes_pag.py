@@ -17,8 +17,8 @@ class PerturbedAttentionGuidance(io.ComfyNode):
             node_id="PerturbedAttentionGuidance_V3",
             category="model_patches/unet",
             inputs=[
-                io.Model.Input(id="model"),
-                io.Float.Input(id="scale", default=3.0, min=0.0, max=100.0, step=0.01, round=0.01),
+                io.Model.Input("model"),
+                io.Float.Input("scale", default=3.0, min=0.0, max=100.0, step=0.01, round=0.01),
             ],
             outputs=[
                 io.Model.Output(),
