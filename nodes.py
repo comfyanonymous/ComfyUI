@@ -2350,7 +2350,9 @@ def init_builtin_extra_nodes():
         "v3/nodes_sdupscale.py",
         "v3/nodes_slg.py",
         "v3/nodes_stable_cascade.py",
+        "v3/nodes_upscale_model.py",
         "v3/nodes_video.py",
+        "v3/nodes_video_model.py",
         "v3/nodes_wan.py",
         "v3/nodes_webcam.py",
     ]
