@@ -24,7 +24,7 @@ from comfy.sd import StyleModel as StyleModel_
 from comfy_api.input import VideoInput
 from comfy_api.internal import (_ComfyNodeInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
-from comfy_api.v3.resources import Resources, ResourcesLocal
+from comfy_api.v3._resources import Resources, ResourcesLocal
 from comfy_execution.graph import ExecutionBlocker
 
 # from comfy_extras.nodes_images import SVG as SVG_ # NOTE: needs to be moved before can be imported due to circular reference
@@ -1502,5 +1502,76 @@ class _UIOutput(ABC):
     def as_dict(self) -> dict:
         ...
 
-class IO:
+
+class _IO:
     FolderType = FolderType
+    UploadType = UploadType
+    RemoteOptions = RemoteOptions
+    NumberDisplay = NumberDisplay
+    comfytype = staticmethod(comfytype)
+    Custom = staticmethod(Custom)
+    InputV3 = InputV3
+    WidgetInputV3 = WidgetInputV3
+    OutputV3 = OutputV3
+    ComfyTypeI = ComfyTypeI
+    ComfyTypeIO = ComfyTypeIO
+    Boolean = Boolean
+    Int = Int
+    Float = Float
+    String = String
+    Combo = Combo
+    MultiCombo = MultiCombo
+    Image = Image
+    WanCameraEmbedding = WanCameraEmbedding
+    Webcam = Webcam
+    Mask = Mask
+    Latent = Latent
+    Conditioning = Conditioning
+    Sampler = Sampler
+    Sigmas = Sigmas
+    Noise = Noise
+    Guider = Guider
+    Clip = Clip
+    ControlNet = ControlNet
+    Vae = Vae
+    Model = Model
+    ClipVision = ClipVision
+    ClipVisionOutput = ClipVisionOutput
+    StyleModel = StyleModel
+    Gligen = Gligen
+    UpscaleModel = UpscaleModel
+    Audio = Audio
+    Video = Video
+    SVG = SVG
+    LoraModel = LoraModel
+    LossMap = LossMap
+    Voxel = Voxel
+    Mesh = Mesh
+    Hooks = Hooks
+    HookKeyframes = HookKeyframes
+    TimestepsRange = TimestepsRange
+    LatentOperation = LatentOperation
+    FlowControl = FlowControl
+    Accumulation = Accumulation
+    Load3DCamera = Load3DCamera
+    Photomaker = Photomaker
+    Point = Point
+    FaceAnalysis = FaceAnalysis
+    BBOX = BBOX
+    SEGS = SEGS
+    AnyType = AnyType
+    MultiType = MultiType
+    DynamicInput = DynamicInput
+    DynamicOutput = DynamicOutput
+    AutogrowDynamic = AutogrowDynamic
+    ComboDynamicInput = ComboDynamicInput
+    MatchType = MatchType
+    HiddenHolder = HiddenHolder
+    Hidden = Hidden
+    NodeInfoV1 = NodeInfoV1
+    NodeInfoV3 = NodeInfoV3
+    Schema = Schema
+    ComfyNode = ComfyNode
+    NodeOutput = NodeOutput
+    add_to_dict_v1 = staticmethod(add_to_dict_v1)
+    add_to_dict_v3 = staticmethod(add_to_dict_v3)

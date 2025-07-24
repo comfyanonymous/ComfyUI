@@ -7,7 +7,6 @@ import comfy.utils
 import comfy.sd
 import asyncio
 
-
 @io.comfytype(io_type="XYZ")
 class XYZ(io.ComfyTypeIO):
     Type = tuple[int,str]

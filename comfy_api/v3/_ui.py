@@ -17,7 +17,7 @@ import folder_paths
 
 # used for image preview
 from comfy.cli_args import args
-from comfy_api.v3.io import ComfyNode, FolderType, Image, _UIOutput
+from comfy_api.v3._io import ComfyNode, FolderType, Image, _UIOutput
 
 
 class SavedResult(dict):
@@ -488,3 +488,17 @@ class PreviewText(_UIOutput):
 
     def as_dict(self):
         return {"text": (self.value,)}
+
+
+class _UI:
+    SavedResult = SavedResult
+    SavedImages = SavedImages
+    SavedAudios = SavedAudios
+    ImageSaveHelper = ImageSaveHelper
+    AudioSaveHelper = AudioSaveHelper
+    PreviewImage = PreviewImage
+    PreviewMask = PreviewMask
+    PreviewAudio = PreviewAudio
+    PreviewVideo = PreviewVideo
+    PreviewUI3D = PreviewUI3D
+    PreviewText = PreviewText

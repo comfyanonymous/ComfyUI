@@ -33,7 +33,7 @@ from comfy_execution.validation import validate_node_input
 from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler
 from comfy_execution.utils import CurrentNodeContext
 from comfy_api.internal import _ComfyNodeInternal, first_real_override, is_class, make_locked_method_func
-from comfy_api.v3 import io
+from comfy_api.v3 import io, resources
 
 
 class ExecutionResult(Enum):
@@ -259,7 +259,7 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                     # NOTE: this is a mock of resource management; for local, just stores ResourcesLocal on node instance
                     if hasattr(obj, "local_resources"):
                         if obj.local_resources is None:
-                            obj.local_resources = io.ResourcesLocal()
+                            obj.local_resources = resources.ResourcesLocal()
                         class_clone.resources = obj.local_resources
                 # TODO: delete this when done testing mocking dynamic inputs
                 for si in obj.SCHEMA.inputs:
