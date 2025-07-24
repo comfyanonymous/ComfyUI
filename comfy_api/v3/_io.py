@@ -29,7 +29,6 @@ from comfy_execution.graph import ExecutionBlocker
 
 # from comfy_extras.nodes_images import SVG as SVG_ # NOTE: needs to be moved before can be imported due to circular reference
 
-
 class FolderType(str, Enum):
     input = "input"
     output = "output"
@@ -1502,3 +1501,6 @@ class _UIOutput(ABC):
     @abstractmethod
     def as_dict(self) -> dict:
         ...
+
+class IO:
+    FolderType = FolderType
