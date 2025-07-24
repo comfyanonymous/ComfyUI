@@ -563,7 +563,7 @@ def _patch_motion_single(
 
     out_feature_full = torch.cat([vid[:, :1], mix_feature], dim=1) # C, T, H, W
     out_mask_full = torch.cat([torch.ones_like(out_weight[:1]), out_weight], dim=0)  # T, H, W
-    
+
     return out_mask_full[None].expand(vae_divide[0], -1, -1, -1), out_feature_full
 
 
@@ -575,11 +575,11 @@ def patch_motion(
     topk: int = 2,
 ):
     B = len(tracks)
-    
+
     # Process each batch separately
     out_masks = []
     out_features = []
-    
+
     for b in range(B):
         mask, feature = _patch_motion_single(
             tracks[b],  # (T, N, 4)
@@ -590,11 +590,11 @@ def patch_motion(
         )
         out_masks.append(mask)
         out_features.append(feature)
-    
+
     # Stack results: (B, C, T, H, W)
     out_mask_full = torch.stack(out_masks, dim=0)
     out_feature_full = torch.stack(out_features, dim=0)
-    
+
     return out_mask_full, out_feature_full
 
 class WanTrackToVideo:
@@ -646,7 +646,7 @@ class WanTrackToVideo:
 
             tracks_np = np.stack(arrs, axis=0)
             processed_tracks.append(process_tracks(tracks_np, (width, height), length - 1).unsqueeze(0))
-        
+
         if start_image is not None:
             start_image = comfy.utils.common_upscale(start_image[:batch_size].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
             videos = torch.ones((start_image.shape[0], length, height, width, start_image.shape[-1]), device=start_image.device, dtype=start_image.dtype) * 0.5
