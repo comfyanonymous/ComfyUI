@@ -286,6 +286,17 @@ For models compatible with Ascend Extension for PyTorch (torch_npu). To get star
 3. Next, install the necessary packages for torch-npu by adhering to the platform-specific instructions on the [Installation](https://ascend.github.io/docs/sources/pytorch/install.html#pytorch) page.
 4. Finally, adhere to the [ComfyUI manual installation](#manual-install-windows-linux) guide for Linux. Once all components are installed, you can run ComfyUI as described earlier.
 
+
+### UV (Package Manager)
+
+UV is an extremely fast Python package and project manager, written in Rust. For UV installation, checks [docs](https://docs.astral.sh/uv/). UV help isolation and reproducibility of the desired environment.
+
+```bash
+git clone https://github.com/comfyanonymous/ComfyUI.git # Clone this repo
+cd ComfyUI                                              # Move to created folder
+uv add --requirements requirements.txt                  # Add dependencies
+```
+
 #### Cambricon MLUs
 
 For models compatible with Cambricon Extension for PyTorch (torch_mlu). Here's a step-by-step guide tailored to your platform and installation method:
@@ -294,9 +305,21 @@ For models compatible with Cambricon Extension for PyTorch (torch_mlu). Here's a
 2. Next, install the PyTorch(torch_mlu) following the instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cambricon_pytorch_1.17.0/user_guide_1.9/index.html)
 3. Launch ComfyUI by running `python main.py`
 
+
 # Running
 
-```python main.py```
+```bash
+python main.py
+```
+
+If using **UV**:
+
+```bash
+uv run python main.py
+# or in case of activating the virtual env before
+source .venv/bin/activate
+python main.py
+```
 
 ### For AMD cards not officially supported by ROCm
 
