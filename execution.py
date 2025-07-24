@@ -256,11 +256,6 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                     type_obj = type(obj)
                     type_obj.VALIDATE_CLASS()
                     class_clone = type_obj.PREPARE_CLASS_CLONE(hidden_inputs)
-                    # NOTE: this is a mock of state management; for local, just stores NodeStateLocal on node instance
-                    if hasattr(obj, "local_state"):
-                        if obj.local_state is None:
-                            obj.local_state = io.NodeStateLocal(class_clone.hidden.unique_id)
-                        class_clone.state = obj.local_state
                     # NOTE: this is a mock of resource management; for local, just stores ResourcesLocal on node instance
                     if hasattr(obj, "local_resources"):
                         if obj.local_resources is None:
