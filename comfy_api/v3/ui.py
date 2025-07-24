@@ -479,7 +479,7 @@ class PreviewUI3D(_UIOutput):
         self.values = values
 
     def as_dict(self):
-        return {"3d": self.values}
+        return {"result": self.values}
 
 
 class PreviewText(_UIOutput):
