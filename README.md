@@ -299,9 +299,7 @@ For models compatible with Cambricon Extension for PyTorch (torch_mlu). Here's a
 For models compatible with Iluvatar Extension for PyTorch. Here's a step-by-step guide tailored to your platform and installation method:
 
 1. Install the Iluvatar Corex Toolkit by adhering to the platform-specific instructions on the [Installation](https://support.iluvatar.com/#/DocumentCentre?id=1&nameCenter=2&productId=520117912052801536)
-2. Launch ComfyUI by running `python main.py --disable-cuda-malloc`
-
-> **Note**: Due to limited support for cudaMallocAsync, so add `--disable-cuda-malloc` for compatibility.
+2. Launch ComfyUI by running `python main.py`
 
 # Running
 
