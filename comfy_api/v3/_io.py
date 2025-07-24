@@ -22,7 +22,7 @@ from comfy.samplers import CFGGuider, Sampler
 from comfy.sd import CLIP, VAE
 from comfy.sd import StyleModel as StyleModel_
 from comfy_api.input import VideoInput
-from comfy_api.internal import (_ComfyNodeInternal, classproperty, copy_class, first_real_override, is_class,
+from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
 from comfy_api.v3._resources import Resources, ResourcesLocal
 from comfy_execution.graph import ExecutionBlocker
@@ -1486,7 +1486,7 @@ class ComfyNode(_ComfyNodeBaseInternal):
         return ComfyNode
 
 
-class NodeOutput:
+class NodeOutput(_NodeOutputInternal):
     '''
     Standardized output of a node; can pass in any number of args and/or a UIOutput into 'ui' kwarg.
     '''

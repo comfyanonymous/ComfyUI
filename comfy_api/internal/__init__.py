@@ -36,6 +36,13 @@ class _ComfyNodeInternal:
         ...
 
 
+class _NodeOutputInternal:
+    """Class that all V3-based APIs inherit from for NodeOutput.
+
+    This is intended to only be referenced within execution.py, as it has to handle all V3 APIs going forward."""
+    ...
+
+
 def as_pruned_dict(dataclass_obj):
     '''Return dict of dataclass object with pruned None values.'''
     return prune_dict(asdict(dataclass_obj))

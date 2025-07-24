@@ -32,7 +32,7 @@ from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
 from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler
 from comfy_execution.utils import CurrentNodeContext
-from comfy_api.internal import _ComfyNodeInternal, first_real_override, is_class, make_locked_method_func
+from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
 from comfy_api.v3 import io, resources
 
 
@@ -358,7 +358,7 @@ def get_output_from_returns(return_values, obj):
                     result = tuple([result] * len(obj.RETURN_TYPES))
                 results.append(result)
                 subgraph_results.append((None, result))
-        elif isinstance(r, io.NodeOutput):
+        elif isinstance(r, _NodeOutputInternal):
             # V3
             if r.ui is not None:
                 if isinstance(r.ui, dict):
