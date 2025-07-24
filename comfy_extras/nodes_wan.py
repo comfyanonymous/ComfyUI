@@ -671,17 +671,11 @@ class WanTrackToVideo:
             concat_latent_image = comfy.latent_formats.Wan21().process_out(concat_latent_image)
             mask = -mask + 1.0  # Invert mask to match expected format
             positive = node_helpers.conditioning_set_values(positive,
-                                                            {"tracks": processed_tracks,
-                                                                "concat_mask": mask,
-                                                            "concat_latent_image": concat_latent_image,
-                                                            "ati_temperature": temperature,
-                                                                "ati_topk": topk})
+                                                            {"concat_mask": mask,
+                                                            "concat_latent_image": concat_latent_image})
             negative = node_helpers.conditioning_set_values(negative,
-                                                            {"tracks": processed_tracks,
-                                                                "concat_mask": mask,
-                                                            "concat_latent_image": concat_latent_image,
-                                                            "ati_temperature": temperature,
-                                                                "ati_topk": topk})
+                                                            {"concat_mask": mask,
+                                                            "concat_latent_image": concat_latent_image})
 
         if clip_vision_output is not None:
             positive = node_helpers.conditioning_set_values(positive, {"clip_vision_output": clip_vision_output})
