@@ -415,36 +415,6 @@ def parse_json_tracks(tracks):
         tracks_data = []
     return tracks_data
 
-def tracks_to_tensor(tracks_data, length, width, height, batch_size=1):
-    """Convert parsed track data to tensor format (B, T, N, 4)"""
-    if not tracks_data:
-        # Return empty tracks if no data
-        return torch.zeros((batch_size, length, 1, 4))
-
-    num_tracks = len(tracks_data)
-    tracks_tensor = torch.zeros((batch_size, length, num_tracks, 4))
-
-    for batch_idx in range(batch_size):
-        for track_idx, track in enumerate(tracks_data):
-            for frame_idx in range(min(length, len(track))):
-                point = track[frame_idx]
-                if isinstance(point, dict):
-                    x = point.get('x', 0)
-                    y = point.get('y', 0)
-                    # Normalize coordinates to [-1, 1] range
-                    x_norm = (x / width) * 2 - 1
-                    y_norm = (y / height) * 2 - 1
-                    visible = point.get('visible', 1)
-
-                    tracks_tensor[batch_idx, frame_idx, track_idx] = torch.tensor([
-                        track_idx,  # track_id
-                        x_norm,     # x coordinate
-                        y_norm,     # y coordinate
-                        visible     # visibility
-                    ])
-
-    return tracks_tensor
-
 def process_tracks(tracks_np: np.ndarray, frame_size: Tuple[int, int], num_frames, quant_multi: int = 8, **kwargs):
     # tracks: shape [t, h, w, 3] => samples align with 24 fps, model trained with 16 fps.
     # frame_size: tuple (W, H)
@@ -577,7 +547,7 @@ def _patch_motion_single(
 
     grid_mode = "bilinear"
     point_feature = torch.nn.functional.grid_sample(
-        vid[vae_divide[0]:].permute(1, 0, 2, 3)[:1],
+        vid.permute(1, 0, 2, 3)[:1],
         tracks_n[:, :1].type(vid.dtype),
         mode=grid_mode,
         padding_mode="zeros",
@@ -589,9 +559,9 @@ def _patch_motion_single(
     out_weight = vert_weight.sum(-1) # T - 1, H, W
 
     # out feature -> already soft weighted
-    mix_feature = out_feature + vid[vae_divide[0]:, 1:] * (1 - out_weight.clamp(0, 1))
+    mix_feature = out_feature + vid[:, 1:] * (1 - out_weight.clamp(0, 1))
 
-    out_feature_full = torch.cat([vid[vae_divide[0]:, :1], mix_feature], dim=1) # C, T, H, W
+    out_feature_full = torch.cat([vid[:, :1], mix_feature], dim=1) # C, T, H, W
     out_mask_full = torch.cat([torch.ones_like(out_weight[:1]), out_weight], dim=0)  # T, H, W
     
     return out_mask_full[None].expand(vae_divide[0], -1, -1, -1), out_feature_full
@@ -613,7 +583,7 @@ def patch_motion(
     for b in range(B):
         mask, feature = _patch_motion_single(
             tracks[b],  # (T, N, 4)
-            vid,        # (C, T, H, W)
+            vid[b],        # (C, T, H, W)
             temperature,
             vae_divide,
             topk
@@ -656,7 +626,6 @@ class WanTrackToVideo:
     def encode(self, positive, negative, vae, tracks, width, height, length, batch_size,
                temperature, topk, start_image=None, clip_vision_output=None):
 
-        # Parse tracks from JSON
         tracks_data = parse_json_tracks(tracks)
 
         if not tracks_data:
@@ -664,7 +633,7 @@ class WanTrackToVideo:
 
         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8],
                            device=comfy.model_management.intermediate_device())
-        # Convert tracks to tensor format
+
         if isinstance(tracks_data[0][0], dict):
             tracks_data = [tracks_data]
 
@@ -679,64 +648,41 @@ class WanTrackToVideo:
             processed_tracks.append(process_tracks(tracks_np, (width, height), length - 1).unsqueeze(0))
         
         if start_image is not None:
-            start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+            start_image = comfy.utils.common_upscale(start_image[:batch_size].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+            videos = torch.ones((start_image.shape[0], length, height, width, start_image.shape[-1]), device=start_image.device, dtype=start_image.dtype) * 0.5
+            for i in range(start_image.shape[0]):
+                videos[i, 0] = start_image[i]
 
-            lat_h = height // 8
-            lat_w = width // 8
+            latent_videos = []
+            videos = comfy.utils.resize_to_batch_size(videos, batch_size)
+            for i in range(batch_size):
+                latent_videos += [vae.encode(videos[i, :, :, :, :3])]
+            y = torch.cat(latent_videos, dim=0)
 
-            msk = torch.ones(1, length, lat_h, lat_w, device=start_image.device)
-            msk[:, 1:] = 0
-
-            # repeat first frame 4 times
-            msk = torch.concat([
-                torch.repeat_interleave(msk[:, 0:1], repeats=4, dim=1), msk[:, 1:]
-            ],
-                dim=1)
-
-            # Reshape mask into groups of 4 frames
-            msk = msk.view(1, msk.shape[1] // 4, 4, lat_h, lat_w)
-
-            # first batch
-            msk = msk.transpose(1, 2)
-
-            dummy_frames = torch.ones(3, length - 1, height, width) * .5
-
-            start_image = start_image.permute(3,0,1,2) # C, T, H, W
-            res = torch.concat([
-                    start_image.to(start_image.device),
-                    dummy_frames
-                ],
-                    dim=1).to(start_image.device)
-
-            res = res.permute(1,2,3,0)[:, :, :, :3]  # T, H, W, C
-
-            y = vae.encode(res)
             # Scale latent since patch_motion is non-linear
             y = comfy.latent_formats.Wan21().process_in(y)
-            c = torch.cat((msk, y), dim=1)
+
+            processed_tracks = comfy.utils.resize_list_to_batch_size(processed_tracks, batch_size)
             res = patch_motion(
-                processed_tracks, c[0], temperature=temperature, topk=topk, vae_divide=(4, 16)
+                processed_tracks, y, temperature=temperature, topk=topk, vae_divide=(4, 16)
             )
 
-            msk, y = res
-            y = comfy.latent_formats.Wan21().process_out(y)
-            
-            msk = -msk + 1.0  # Invert mask to match expected format
+            mask, concat_latent_image = res
+            concat_latent_image = comfy.latent_formats.Wan21().process_out(concat_latent_image)
+            mask = -mask + 1.0  # Invert mask to match expected format
             positive = node_helpers.conditioning_set_values(positive,
                                                             {"tracks": processed_tracks,
-                                                                "concat_mask": msk,
-                                                            "concat_latent_image": y,
+                                                                "concat_mask": mask,
+                                                            "concat_latent_image": concat_latent_image,
                                                             "ati_temperature": temperature,
                                                                 "ati_topk": topk})
             negative = node_helpers.conditioning_set_values(negative,
                                                             {"tracks": processed_tracks,
-                                                                "concat_mask": msk,
-                                                            "concat_latent_image": y,
+                                                                "concat_mask": mask,
+                                                            "concat_latent_image": concat_latent_image,
                                                             "ati_temperature": temperature,
                                                                 "ati_topk": topk})
 
-
-        # Handle clip vision output if provided
         if clip_vision_output is not None:
             positive = node_helpers.conditioning_set_values(positive, {"clip_vision_output": clip_vision_output})
             negative = node_helpers.conditioning_set_values(negative, {"clip_vision_output": clip_vision_output})
