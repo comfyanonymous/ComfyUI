@@ -475,11 +475,12 @@ class PreviewVideo(_UIOutput):
 
 
 class PreviewUI3D(_UIOutput):
-    def __init__(self, values: list[SavedResult | dict], **kwargs):
-        self.values = values
+    def __init__(self, model_file, camera_info, **kwargs):
+        self.model_file = model_file
+        self.camera_info = camera_info
 
     def as_dict(self):
-        return {"result": self.values}
+        return {"result": [self.model_file, self.camera_info]}
 
 
 class PreviewText(_UIOutput):

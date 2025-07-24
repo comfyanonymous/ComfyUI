@@ -148,7 +148,7 @@ class Preview3D(io.ComfyNode):
 
     @classmethod
     def execute(cls, model_file, camera_info=None):
-        return io.NodeOutput(ui=ui.PreviewUI3D([model_file, camera_info], cls=cls))
+        return io.NodeOutput(ui=ui.PreviewUI3D(model_file, camera_info, cls=cls))
 
 
 class Preview3DAnimation(io.ComfyNode):
@@ -169,7 +169,7 @@ class Preview3DAnimation(io.ComfyNode):
 
     @classmethod
     def execute(cls, model_file, camera_info=None):
-        return io.NodeOutput(ui=ui.PreviewUI3D([model_file, camera_info], cls=cls))
+        return io.NodeOutput(ui=ui.PreviewUI3D(model_file, camera_info, cls=cls))
 
 
 NODES_LIST = [
