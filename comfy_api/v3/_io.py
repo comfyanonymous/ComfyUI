@@ -156,7 +156,7 @@ class _IO_V3:
     def Type(self):
         return self.Parent.Type
 
-class InputV3(_IO_V3):
+class Input(_IO_V3):
     '''
     Base class for a V3 Input.
     '''
@@ -180,7 +180,7 @@ class InputV3(_IO_V3):
     def get_io_type(self):
         return _StringIOType(self.io_type)
 
-class WidgetInputV3(InputV3):
+class WidgetInput(Input):
     '''
     Base class for a V3 Input with widget.
     '''
@@ -205,7 +205,7 @@ class WidgetInputV3(InputV3):
         return self.widget_type if self.widget_type is not None else super().get_io_type()
 
 
-class OutputV3(_IO_V3):
+class Output(_IO_V3):
     def __init__(self, id: str=None, display_name: str=None, tooltip: str=None,
                  is_output_list=False):
         self.id = id
@@ -226,12 +226,12 @@ class OutputV3(_IO_V3):
 
 class ComfyTypeI(_ComfyType):
     '''ComfyType subclass that only has a default Input class - intended for types that only have Inputs.'''
-    class Input(InputV3):
+    class Input(Input):
         ...
 
 class ComfyTypeIO(ComfyTypeI):
     '''ComfyType subclass that has default Input and Output classes; useful for types with both Inputs and Outputs.'''
-    class Output(OutputV3):
+    class Output(Output):
         ...
 
 
@@ -239,7 +239,7 @@ class ComfyTypeIO(ComfyTypeI):
 class Boolean(ComfyTypeIO):
     Type = bool
 
-    class Input(WidgetInputV3):
+    class Input(WidgetInput):
         '''Boolean input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: bool=None, label_on: str=None, label_off: str=None,
@@ -259,7 +259,7 @@ class Boolean(ComfyTypeIO):
 class Int(ComfyTypeIO):
     Type = int
 
-    class Input(WidgetInputV3):
+    class Input(WidgetInput):
         '''Integer input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: int=None, min: int=None, max: int=None, step: int=None, control_after_generate: bool=None,
@@ -285,7 +285,7 @@ class Int(ComfyTypeIO):
 class Float(ComfyTypeIO):
     Type = float
 
-    class Input(WidgetInputV3):
+    class Input(WidgetInput):
         '''Float input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
@@ -311,7 +311,7 @@ class Float(ComfyTypeIO):
 class String(ComfyTypeIO):
     Type = str
 
-    class Input(WidgetInputV3):
+    class Input(WidgetInput):
         '''String input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     multiline=False, placeholder: str=None, default: str=None, dynamic_prompts: bool=None,
@@ -332,7 +332,7 @@ class String(ComfyTypeIO):
 @comfytype(io_type="COMBO")
 class Combo(ComfyTypeI):
     Type = str
-    class Input(WidgetInputV3):
+    class Input(WidgetInput):
         """Combo input (dropdown)."""
         Type = str
         def __init__(self, id: str, options: list[str]=None, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
@@ -397,7 +397,7 @@ class WanCameraEmbedding(ComfyTypeIO):
 class Webcam(ComfyTypeIO):
     Type = str
 
-    class Input(WidgetInputV3):
+    class Input(WidgetInput):
         """Webcam input."""
         Type = str
         def __init__(
@@ -714,14 +714,14 @@ class AnyType(ComfyTypeIO):
 @comfytype(io_type="COMFY_MULTITYPED_V3")
 class MultiType:
     Type = Any
-    class Input(InputV3):
+    class Input(Input):
         '''
         Input that permits more than one input type; if `id` is an instance of `ComfyType.Input`, then that input will be used to create a widget (if applicable) with overridden values.
         '''
-        def __init__(self, id: str | InputV3, types: list[type[_ComfyType] | _ComfyType], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+        def __init__(self, id: str | Input, types: list[type[_ComfyType] | _ComfyType], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
             # if id is an Input, then use that Input with overridden values
             self.input_override = None
-            if isinstance(id, InputV3):
+            if isinstance(id, Input):
                 self.input_override = copy.copy(id)
                 optional = id.optional if id.optional is True else optional
                 tooltip = id.tooltip if id.tooltip is not None else tooltip
@@ -729,13 +729,13 @@ class MultiType:
                 lazy = id.lazy if id.lazy is not None else lazy
                 id = id.id
                 # if is a widget input, make sure widget_type is set appropriately
-                if isinstance(self.input_override, WidgetInputV3):
+                if isinstance(self.input_override, WidgetInput):
                     self.input_override.widget_type = self.input_override.get_io_type()
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self._io_types = types
 
         @property
-        def io_types(self) -> list[type[InputV3]]:
+        def io_types(self) -> list[type[Input]]:
             '''
             Returns list of InputV3 class types permitted.
             '''
@@ -760,15 +760,15 @@ class MultiType:
             else:
                 return super().as_dict()
 
-class DynamicInput(InputV3, ABC):
+class DynamicInput(Input, ABC):
     '''
     Abstract class for dynamic input registration.
     '''
     @abstractmethod
-    def get_dynamic(self) -> list[InputV3]:
+    def get_dynamic(self) -> list[Input]:
         ...
 
-class DynamicOutput(OutputV3, ABC):
+class DynamicOutput(Output, ABC):
     '''
     Abstract class for dynamic output registration.
     '''
@@ -777,7 +777,7 @@ class DynamicOutput(OutputV3, ABC):
         super().__init__(id, display_name, tooltip, is_output_list)
 
     @abstractmethod
-    def get_dynamic(self) -> list[OutputV3]:
+    def get_dynamic(self) -> list[Output]:
         ...
 
 
@@ -785,7 +785,7 @@ class DynamicOutput(OutputV3, ABC):
 class AutogrowDynamic(ComfyTypeI):
     Type = list[Any]
     class Input(DynamicInput):
-        def __init__(self, id: str, template_input: InputV3, min: int=1, max: int=None,
+        def __init__(self, id: str, template_input: Input, min: int=1, max: int=None,
                      display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self.template_input = template_input
@@ -796,7 +796,7 @@ class AutogrowDynamic(ComfyTypeI):
             self.min = min
             self.max = max
 
-        def get_dynamic(self) -> list[InputV3]:
+        def get_dynamic(self) -> list[Input]:
             curr_count = 1
             new_inputs = []
             for i in range(self.min):
@@ -805,7 +805,7 @@ class AutogrowDynamic(ComfyTypeI):
                 if new_input.display_name is not None:
                     new_input.display_name = f"{new_input.display_name}{curr_count}"
                 new_input.optional = self.optional or new_input.optional
-                if isinstance(self.template_input, WidgetInputV3):
+                if isinstance(self.template_input, WidgetInput):
                     new_input.force_input = True
                 new_inputs.append(new_input)
                 curr_count += 1
@@ -816,7 +816,7 @@ class AutogrowDynamic(ComfyTypeI):
                 if new_input.display_name is not None:
                     new_input.display_name = f"{new_input.display_name}{curr_count}"
                 new_input.optional = True
-                if isinstance(self.template_input, WidgetInputV3):
+                if isinstance(self.template_input, WidgetInput):
                     new_input.force_input = True
                 new_inputs.append(new_input)
                 curr_count += 1
@@ -847,7 +847,7 @@ class MatchType(ComfyTypeIO):
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self.template = template
 
-        def get_dynamic(self) -> list[InputV3]:
+        def get_dynamic(self) -> list[Input]:
             return [self]
 
         def as_dict(self):
@@ -861,7 +861,7 @@ class MatchType(ComfyTypeIO):
             super().__init__(id, display_name, tooltip, is_output_list)
             self.template = template
 
-        def get_dynamic(self) -> list[OutputV3]:
+        def get_dynamic(self) -> list[Output]:
             return [self]
 
         def as_dict(self):
@@ -965,8 +965,8 @@ class Schema:
     """Display name of node."""
     category: str = "sd"
     """The category of the node, as per the "Add Node" menu."""
-    inputs: list[InputV3]=None
-    outputs: list[OutputV3]=None
+    inputs: list[Input]=None
+    outputs: list[Output]=None
     hidden: list[Hidden]=None
     description: str=""
     """Node description, shown as a tooltip when hovering over the node."""
@@ -1128,14 +1128,14 @@ class Schema:
         return info
 
 
-def add_to_dict_v1(i: InputV3, input: dict):
+def add_to_dict_v1(i: Input, input: dict):
     key = "optional" if i.optional else "required"
     as_dict = i.as_dict()
     # for v1, we don't want to include the optional key
     as_dict.pop("optional", None)
     input.setdefault(key, {})[i.id] = (i.get_io_type(), as_dict)
 
-def add_to_dict_v3(io: InputV3 | OutputV3, d: dict):
+def add_to_dict_v3(io: Input | Output, d: dict):
     d[io.id] = (io.get_io_type(), io.as_dict())
 
 
@@ -1536,9 +1536,9 @@ class _IO:
 
     comfytype = staticmethod(comfytype)
     Custom = staticmethod(Custom)
-    InputV3 = InputV3
-    WidgetInputV3 = WidgetInputV3
-    OutputV3 = OutputV3
+    Input = Input
+    WidgetInput = WidgetInput
+    Output = Output
     ComfyTypeI = ComfyTypeI
     ComfyTypeIO = ComfyTypeIO
     #---------------------------------
