@@ -20,7 +20,7 @@ import folder_paths
 import node_helpers
 from comfy.cli_args import args
 from comfy.comfy_types.node_typing import IO
-from comfy.weight_adapter import adapters
+from comfy.weight_adapter import adapters, adapter_maps
 
 
 def make_batch_extra_option_dict(d, indicies, full_size=None):
@@ -39,13 +39,13 @@ def make_batch_extra_option_dict(d, indicies, full_size=None):
 
 
 class TrainSampler(comfy.samplers.Sampler):
-
-    def __init__(self, loss_fn, optimizer, loss_callback=None, batch_size=1, total_steps=1, seed=0, training_dtype=torch.bfloat16):
+    def __init__(self, loss_fn, optimizer, loss_callback=None, batch_size=1, grad_acc=1, total_steps=1, seed=0, training_dtype=torch.bfloat16):
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.loss_callback = loss_callback
         self.batch_size = batch_size
         self.total_steps = total_steps
+        self.grad_acc = grad_acc
         self.seed = seed
         self.training_dtype = training_dtype
 
@@ -92,8 +92,9 @@ class TrainSampler(comfy.samplers.Sampler):
                 self.loss_callback(loss.item())
             pbar.set_postfix({"loss": f"{loss.item():.4f}"})
 
-            self.optimizer.step()
-            self.optimizer.zero_grad()
+            if (i+1) % self.grad_acc == 0:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
         torch.cuda.empty_cache()
         return torch.zeros_like(latent_image)
 
@@ -419,6 +420,16 @@ class TrainLoraNode:
                         "tooltip": "The batch size to use for training.",
                     },
                 ),
+                "grad_accumulation_steps": (
+                    IO.INT,
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 1024,
+                        "step": 1,
+                        "tooltip": "The number of gradient accumulation steps to use for training.",
+                    }
+                ),
                 "steps": (
                     IO.INT,
                     {
@@ -478,6 +489,17 @@ class TrainLoraNode:
                     ["bf16", "fp32"],
                     {"default": "bf16", "tooltip": "The dtype to use for lora."},
                 ),
+                "algorithm": (
+                    list(adapter_maps.keys()),
+                    {"default": list(adapter_maps.keys())[0], "tooltip": "The algorithm to use for training."},
+                ),
+                "gradient_checkpointing": (
+                    IO.BOOLEAN,
+                    {
+                        "default": True,
+                        "tooltip": "Use gradient checkpointing for training.",
+                    }
+                ),
                 "existing_lora": (
                     folder_paths.get_filename_list("loras") + ["[None]"],
                     {
@@ -501,6 +523,7 @@ class TrainLoraNode:
         positive,
         batch_size,
         steps,
+        grad_accumulation_steps,
         learning_rate,
         rank,
         optimizer,
@@ -508,6 +531,8 @@ class TrainLoraNode:
         seed,
         training_dtype,
         lora_dtype,
+        algorithm,
+        gradient_checkpointing,
         existing_lora,
     ):
         mp = model.clone()
@@ -558,10 +583,8 @@ class TrainLoraNode:
                                 if existing_adapter is not None:
                                     break
                             else:
-                                # If no existing adapter found, use LoRA
-                                # We will add algo option in the future
                                 existing_adapter = None
-                                adapter_cls = adapters[0]
+                                adapter_cls = adapter_maps[algorithm]
 
                             if existing_adapter is not None:
                                 train_adapter = existing_adapter.to_train().to(lora_dtype)
@@ -615,8 +638,9 @@ class TrainLoraNode:
                 criterion = torch.nn.SmoothL1Loss()
 
             # setup models
-            for m in find_all_highest_child_module_with_forward(mp.model.diffusion_model):
-                patch(m)
+            if gradient_checkpointing:
+                for m in find_all_highest_child_module_with_forward(mp.model.diffusion_model):
+                    patch(m)
             mp.model.requires_grad_(False)
             comfy.model_management.load_models_gpu([mp], memory_required=1e20, force_full_load=True)
 
@@ -629,7 +653,8 @@ class TrainLoraNode:
                 optimizer,
                 loss_callback=loss_callback,
                 batch_size=batch_size,
-                total_steps=steps,
+                grad_acc=grad_accumulation_steps,
+                total_steps=steps*grad_accumulation_steps,
                 seed=seed,
                 training_dtype=dtype
             )
