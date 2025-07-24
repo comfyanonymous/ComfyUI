@@ -20,41 +20,82 @@ import folder_paths
 import node_helpers
 from comfy.cli_args import args
 from comfy.comfy_types.node_typing import IO
-from comfy.weight_adapter import adapters
+from comfy.weight_adapter import adapters, adapter_maps
+
+
+def make_batch_extra_option_dict(d, indicies, full_size=None):
+    new_dict = {}
+    for k, v in d.items():
+        newv = v
+        if isinstance(v, dict):
+            newv = make_batch_extra_option_dict(v, indicies, full_size=full_size)
+        elif isinstance(v, torch.Tensor):
+            if full_size is None or v.size(0) == full_size:
+                newv = v[indicies]
+        elif isinstance(v, (list, tuple)) and len(v) == full_size:
+            newv = [v[i] for i in indicies]
+        new_dict[k] = newv
+    return new_dict
 
 
 class TrainSampler(comfy.samplers.Sampler):
-
-    def __init__(self, loss_fn, optimizer, loss_callback=None):
+    def __init__(self, loss_fn, optimizer, loss_callback=None, batch_size=1, grad_acc=1, total_steps=1, seed=0, training_dtype=torch.bfloat16):
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.loss_callback = loss_callback
+        self.batch_size = batch_size
+        self.total_steps = total_steps
+        self.grad_acc = grad_acc
+        self.seed = seed
+        self.training_dtype = training_dtype
 
     def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None, disable_pbar=False):
-        self.optimizer.zero_grad()
-        noise = model_wrap.inner_model.model_sampling.noise_scaling(sigmas, noise, latent_image, False)
-        latent = model_wrap.inner_model.model_sampling.noise_scaling(
-            torch.zeros_like(sigmas),
-            torch.zeros_like(noise, requires_grad=True),
-            latent_image,
-            False
-        )
+        cond = model_wrap.conds["positive"]
+        dataset_size = sigmas.size(0)
+        torch.cuda.empty_cache()
+        for i in (pbar:=tqdm.trange(self.total_steps, desc="Training LoRA", smoothing=0.01, disable=not comfy.utils.PROGRESS_BAR_ENABLED)):
+            noisegen = comfy_extras.nodes_custom_sampler.Noise_RandomNoise(self.seed + i * 1000)
+            indicies = torch.randperm(dataset_size)[:self.batch_size].tolist()
 
-        # Ensure model is in training mode and computing gradients
-        # x0 pred
-        denoised = model_wrap(noise, sigmas, **extra_args)
-        try:
-            loss = self.loss_fn(denoised, latent.clone())
-        except RuntimeError as e:
-            if "does not require grad and does not have a grad_fn" in str(e):
-                logging.info("WARNING: This is likely due to the model is loaded in inference mode.")
-        loss.backward()
-        if self.loss_callback:
-            self.loss_callback(loss.item())
+            batch_latent = torch.stack([latent_image[i] for i in indicies])
+            batch_noise = noisegen.generate_noise({"samples": batch_latent}).to(batch_latent.device)
+            batch_sigmas = [
+                model_wrap.inner_model.model_sampling.percent_to_sigma(
+                    torch.rand((1,)).item()
+                ) for _ in range(min(self.batch_size, dataset_size))
+            ]
+            batch_sigmas = torch.tensor(batch_sigmas).to(batch_latent.device)
 
-        self.optimizer.step()
-        # torch.cuda.memory._dump_snapshot("trainn.pickle")
-        # torch.cuda.memory._record_memory_history(enabled=None)
+            xt = model_wrap.inner_model.model_sampling.noise_scaling(
+                batch_sigmas,
+                batch_noise,
+                batch_latent,
+                False
+            )
+            x0 = model_wrap.inner_model.model_sampling.noise_scaling(
+                torch.zeros_like(batch_sigmas),
+                torch.zeros_like(batch_noise),
+                batch_latent,
+                False
+            )
+
+            model_wrap.conds["positive"] = [
+                cond[i] for i in indicies
+            ]
+            batch_extra_args = make_batch_extra_option_dict(extra_args, indicies, full_size=dataset_size)
+
+            with torch.autocast(xt.device.type, dtype=self.training_dtype):
+                x0_pred = model_wrap(xt, batch_sigmas, **batch_extra_args)
+                loss = self.loss_fn(x0_pred, x0)
+            loss.backward()
+            if self.loss_callback:
+                self.loss_callback(loss.item())
+            pbar.set_postfix({"loss": f"{loss.item():.4f}"})
+
+            if (i+1) % self.grad_acc == 0:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+        torch.cuda.empty_cache()
         return torch.zeros_like(latent_image)
 
 
@@ -75,7 +116,7 @@ class BiasDiff(torch.nn.Module):
         return self.passive_memory_usage()
 
 
-def load_and_process_images(image_files, input_dir, resize_method="None"):
+def load_and_process_images(image_files, input_dir, resize_method="None", w=None, h=None):
     """Utility function to load and process a list of images.
 
     Args:
@@ -90,7 +131,6 @@ def load_and_process_images(image_files, input_dir, resize_method="None"):
         raise ValueError("No valid images found in input")
 
     output_images = []
-    w, h = None, None
 
     for file in image_files:
         image_path = os.path.join(input_dir, file)
@@ -206,6 +246,103 @@ class LoadImageSetFromFolderNode:
         return (output_tensor,)
 
 
+class LoadImageTextSetFromFolderNode:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "folder": (folder_paths.get_input_subfolders(), {"tooltip": "The folder to load images from."}),
+                "clip": (IO.CLIP, {"tooltip": "The CLIP model used for encoding the text."}),
+            },
+            "optional": {
+                "resize_method": (
+                    ["None", "Stretch", "Crop", "Pad"],
+                    {"default": "None"},
+                ),
+                "width": (
+                    IO.INT,
+                    {
+                        "default": -1,
+                        "min": -1,
+                        "max": 10000,
+                        "step": 1,
+                        "tooltip": "The width to resize the images to. -1 means use the original width.",
+                    },
+                ),
+                "height": (
+                    IO.INT,
+                    {
+                        "default": -1,
+                        "min": -1,
+                        "max": 10000,
+                        "step": 1,
+                        "tooltip": "The height to resize the images to. -1 means use the original height.",
+                    },
+                )
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", IO.CONDITIONING,)
+    FUNCTION = "load_images"
+    CATEGORY = "loaders"
+    EXPERIMENTAL = True
+    DESCRIPTION = "Loads a batch of images and caption from a directory for training."
+
+    def load_images(self, folder, clip, resize_method, width=None, height=None):
+        if clip is None:
+            raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
+
+        logging.info(f"Loading images from folder: {folder}")
+
+        sub_input_dir = os.path.join(folder_paths.get_input_directory(), folder)
+        valid_extensions = [".png", ".jpg", ".jpeg", ".webp"]
+
+        image_files = []
+        for item in os.listdir(sub_input_dir):
+            path = os.path.join(sub_input_dir, item)
+            if any(item.lower().endswith(ext) for ext in valid_extensions):
+                image_files.append(path)
+            elif os.path.isdir(path):
+                # Support kohya-ss/sd-scripts folder structure
+                repeat = 1
+                if item.split("_")[0].isdigit():
+                    repeat = int(item.split("_")[0])
+                image_files.extend([
+                    os.path.join(path, f) for f in os.listdir(path) if any(f.lower().endswith(ext) for ext in valid_extensions)
+                ] * repeat)
+
+        caption_file_path = [
+            f.replace(os.path.splitext(f)[1], ".txt")
+            for f in image_files
+        ]
+        captions = []
+        for caption_file in caption_file_path:
+            caption_path = os.path.join(sub_input_dir, caption_file)
+            if os.path.exists(caption_path):
+                with open(caption_path, "r", encoding="utf-8") as f:
+                    caption = f.read().strip()
+                    captions.append(caption)
+            else:
+                captions.append("")
+
+        width = width if width != -1 else None
+        height = height if height != -1 else None
+        output_tensor = load_and_process_images(image_files, sub_input_dir, resize_method, width, height)
+
+        logging.info(f"Loaded {len(output_tensor)} images from {sub_input_dir}.")
+
+        logging.info(f"Encoding captions from {sub_input_dir}.")
+        conditions = []
+        empty_cond = clip.encode_from_tokens_scheduled(clip.tokenize(""))
+        for text in captions:
+            if text == "":
+                conditions.append(empty_cond)
+            tokens = clip.tokenize(text)
+            conditions.extend(clip.encode_from_tokens_scheduled(tokens))
+        logging.info(f"Encoded {len(conditions)} captions from {sub_input_dir}.")
+        return (output_tensor, conditions)
+
+
 def draw_loss_graph(loss_map, steps):
     width, height = 500, 300
     img = Image.new("RGB", (width, height), "white")
@@ -283,6 +420,16 @@ class TrainLoraNode:
                         "tooltip": "The batch size to use for training.",
                     },
                 ),
+                "grad_accumulation_steps": (
+                    IO.INT,
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 1024,
+                        "step": 1,
+                        "tooltip": "The number of gradient accumulation steps to use for training.",
+                    }
+                ),
                 "steps": (
                     IO.INT,
                     {
@@ -342,6 +489,17 @@ class TrainLoraNode:
                     ["bf16", "fp32"],
                     {"default": "bf16", "tooltip": "The dtype to use for lora."},
                 ),
+                "algorithm": (
+                    list(adapter_maps.keys()),
+                    {"default": list(adapter_maps.keys())[0], "tooltip": "The algorithm to use for training."},
+                ),
+                "gradient_checkpointing": (
+                    IO.BOOLEAN,
+                    {
+                        "default": True,
+                        "tooltip": "Use gradient checkpointing for training.",
+                    }
+                ),
                 "existing_lora": (
                     folder_paths.get_filename_list("loras") + ["[None]"],
                     {
@@ -365,6 +523,7 @@ class TrainLoraNode:
         positive,
         batch_size,
         steps,
+        grad_accumulation_steps,
         learning_rate,
         rank,
         optimizer,
@@ -372,6 +531,8 @@ class TrainLoraNode:
         seed,
         training_dtype,
         lora_dtype,
+        algorithm,
+        gradient_checkpointing,
         existing_lora,
     ):
         mp = model.clone()
@@ -381,6 +542,13 @@ class TrainLoraNode:
 
         latents = latents["samples"].to(dtype)
         num_images = latents.shape[0]
+        logging.info(f"Total Images: {num_images}, Total Captions: {len(positive)}")
+        if len(positive) == 1 and num_images > 1:
+            positive = positive * num_images
+        elif len(positive) != num_images:
+            raise ValueError(
+                f"Number of positive conditions ({len(positive)}) does not match number of images ({num_images})."
+            )
 
         with torch.inference_mode(False):
             lora_sd = {}
@@ -415,10 +583,8 @@ class TrainLoraNode:
                                 if existing_adapter is not None:
                                     break
                             else:
-                                # If no existing adapter found, use LoRA
-                                # We will add algo option in the future
                                 existing_adapter = None
-                                adapter_cls = adapters[0]
+                                adapter_cls = adapter_maps[algorithm]
 
                             if existing_adapter is not None:
                                 train_adapter = existing_adapter.to_train().to(lora_dtype)
@@ -472,45 +638,45 @@ class TrainLoraNode:
                 criterion = torch.nn.SmoothL1Loss()
 
             # setup models
-            for m in find_all_highest_child_module_with_forward(mp.model.diffusion_model):
-                patch(m)
+            if gradient_checkpointing:
+                for m in find_all_highest_child_module_with_forward(mp.model.diffusion_model):
+                    patch(m)
+            mp.model.requires_grad_(False)
             comfy.model_management.load_models_gpu([mp], memory_required=1e20, force_full_load=True)
 
             # Setup sampler and guider like in test script
             loss_map = {"loss": []}
             def loss_callback(loss):
                 loss_map["loss"].append(loss)
-                pbar.set_postfix({"loss": f"{loss:.4f}"})
             train_sampler = TrainSampler(
-                criterion, optimizer, loss_callback=loss_callback
+                criterion,
+                optimizer,
+                loss_callback=loss_callback,
+                batch_size=batch_size,
+                grad_acc=grad_accumulation_steps,
+                total_steps=steps*grad_accumulation_steps,
+                seed=seed,
+                training_dtype=dtype
             )
             guider = comfy_extras.nodes_custom_sampler.Guider_Basic(mp)
             guider.set_conds(positive)  # Set conditioning from input
-            ss = comfy_extras.nodes_custom_sampler.SamplerCustomAdvanced()
-
-            # yoland: this currently resize to the first image in the dataset
 
             # Training loop
-            torch.cuda.empty_cache()
             try:
-                for step in (pbar:=tqdm.trange(steps, desc="Training LoRA", smoothing=0.01, disable=not comfy.utils.PROGRESS_BAR_ENABLED)):
-                    # Generate random sigma
-                    sigma = mp.model.model_sampling.percent_to_sigma(
-                        torch.rand((1,)).item()
-                    )
-                    sigma = torch.tensor([sigma])
-
-                    noise = comfy_extras.nodes_custom_sampler.Noise_RandomNoise(step * 1000 + seed)
-
-                    indices = torch.randperm(num_images)[:batch_size]
-                    ss.sample(
-                        noise, guider, train_sampler, sigma, {"samples": latents[indices].clone()}
-                    )
+                # Generate dummy sigmas and noise
+                sigmas = torch.tensor(range(num_images))
+                noise = comfy_extras.nodes_custom_sampler.Noise_RandomNoise(seed)
+                guider.sample(
+                    noise.generate_noise({"samples": latents}),
+                    latents,
+                    train_sampler,
+                    sigmas,
+                    seed=noise.seed
+                )
             finally:
                 for m in mp.model.modules():
                     unpatch(m)
-            del ss, train_sampler, optimizer
-            torch.cuda.empty_cache()
+            del train_sampler, optimizer
 
             for adapter in all_weight_adapters:
                 adapter.requires_grad_(False)
@@ -697,6 +863,7 @@ NODE_CLASS_MAPPINGS = {
     "SaveLoRANode": SaveLoRA,
     "LoraModelLoader": LoraModelLoader,
     "LoadImageSetFromFolderNode": LoadImageSetFromFolderNode,
+    "LoadImageTextSetFromFolderNode": LoadImageTextSetFromFolderNode,
     "LossGraphNode": LossGraphNode,
 }
 
@@ -705,5 +872,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveLoRANode": "Save LoRA Weights",
     "LoraModelLoader": "Load LoRA Model",
     "LoadImageSetFromFolderNode": "Load Image Dataset from Folder",
+    "LoadImageTextSetFromFolderNode": "Load Image and Text Dataset from Folder",
     "LossGraphNode": "Plot Loss Graph",
 }

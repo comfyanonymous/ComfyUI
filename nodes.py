@@ -2283,6 +2283,7 @@ def init_builtin_extra_nodes():
         "nodes_string.py",
         "nodes_camera_trajectory.py",
         "nodes_edit_model.py",
+        "nodes_tcfg.py"
     ]
 
     import_failed = []
@@ -2309,6 +2310,7 @@ def init_builtin_api_nodes():
         "nodes_pika.py",
         "nodes_runway.py",
         "nodes_tripo.py",
+        "nodes_moonvalley.py",
         "nodes_rodin.py",
         "nodes_gemini.py",
     ]
