@@ -1533,6 +1533,7 @@ class _IO:
     UploadType = UploadType
     RemoteOptions = RemoteOptions
     NumberDisplay = NumberDisplay
+
     comfytype = staticmethod(comfytype)
     Custom = staticmethod(Custom)
     InputV3 = InputV3
@@ -1540,6 +1541,8 @@ class _IO:
     OutputV3 = OutputV3
     ComfyTypeI = ComfyTypeI
     ComfyTypeIO = ComfyTypeIO
+    #---------------------------------
+    # Supported Types
     Boolean = Boolean
     Int = Int
     Float = Float
@@ -1579,6 +1582,8 @@ class _IO:
     FlowControl = FlowControl
     Accumulation = Accumulation
     Load3DCamera = Load3DCamera
+    Load3D = Load3D
+    Load3DAnimation = Load3DAnimation
     Photomaker = Photomaker
     Point = Point
     FaceAnalysis = FaceAnalysis
@@ -1586,6 +1591,7 @@ class _IO:
     SEGS = SEGS
     AnyType = AnyType
     MultiType = MultiType
+    #---------------------------------
     DynamicInput = DynamicInput
     DynamicOutput = DynamicOutput
     AutogrowDynamic = AutogrowDynamic
