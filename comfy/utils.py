@@ -698,6 +698,26 @@ def resize_to_batch_size(tensor, batch_size):
 
     return output
 
+def resize_list_to_batch_size(l, batch_size):
+    in_batch_size = len(l)
+    if in_batch_size == batch_size or in_batch_size == 0:
+        return l
+
+    if batch_size <= 1:
+        return l[:batch_size]
+
+    output = []
+    if batch_size < in_batch_size:
+        scale = (in_batch_size - 1) / (batch_size - 1)
+        for i in range(batch_size):
+            output.append(l[min(round(i * scale), in_batch_size - 1)])
+    else:
+        scale = in_batch_size / batch_size
+        for i in range(batch_size):
+           output.append(l[min(math.floor((i + 0.5) * scale), in_batch_size - 1)])
+
+    return output
+
 def convert_sd_to(state_dict, dtype):
     keys = list(state_dict.keys())
     for k in keys:
