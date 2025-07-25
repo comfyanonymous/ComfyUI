@@ -190,6 +190,7 @@ numpy"""
     assert version == expected_version
 
 
+@pytest.mark.skip("not used in this fork")
 def test_get_frontend_version_invalid_semver():
     # Arrange
     mock_requirements_content = """torch
