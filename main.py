@@ -22,12 +22,6 @@ if __name__ == "__main__":
 
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
-# Handle --generate-api-stubs early
-if args.generate_api_stubs:
-    from comfy_api.generate_api_stubs import main as generate_stubs_main
-    generate_stubs_main()
-    sys.exit(0)
-
 def apply_custom_paths():
     # extra model paths
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
