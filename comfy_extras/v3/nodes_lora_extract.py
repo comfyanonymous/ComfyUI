@@ -133,6 +133,6 @@ class LoraSave(io.ComfyNode):
         return io.NodeOutput()
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     LoraSave,
 ]

@@ -131,9 +131,9 @@ class UNetTemporalAttentionMultiply(io.ComfyNode):
         return io.NodeOutput(m)
 
 
-NODES_LIST = [
-    UNetSelfAttentionMultiply,
-    UNetCrossAttentionMultiply,
+NODES_LIST: list[type[io.ComfyNode]] = [
     CLIPAttentionMultiply,
+    UNetCrossAttentionMultiply,
+    UNetSelfAttentionMultiply,
     UNetTemporalAttentionMultiply,
 ]

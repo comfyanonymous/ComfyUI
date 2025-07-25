@@ -6,33 +6,6 @@ import folder_paths
 from comfy_api.latest import io
 
 
-class CLIPTextEncodeHiDream(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="CLIPTextEncodeHiDream_V3",
-            category="advanced/conditioning",
-            inputs=[
-                io.Clip.Input("clip"),
-                io.String.Input("clip_l", multiline=True, dynamic_prompts=True),
-                io.String.Input("clip_g", multiline=True, dynamic_prompts=True),
-                io.String.Input("t5xxl", multiline=True, dynamic_prompts=True),
-                io.String.Input("llama", multiline=True, dynamic_prompts=True),
-            ],
-            outputs=[
-                io.Conditioning.Output(),
-            ]
-        )
-
-    @classmethod
-    def execute(cls, clip, clip_l, clip_g, t5xxl, llama):
-        tokens = clip.tokenize(clip_g)
-        tokens["l"] = clip.tokenize(clip_l)["l"]
-        tokens["t5xxl"] = clip.tokenize(t5xxl)["t5xxl"]
-        tokens["llama"] = clip.tokenize(llama)["llama"]
-        return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
-
-
 class QuadrupleCLIPLoader(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -65,7 +38,34 @@ class QuadrupleCLIPLoader(io.ComfyNode):
         )
 
 
-NODES_LIST = [
+class CLIPTextEncodeHiDream(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPTextEncodeHiDream_V3",
+            category="advanced/conditioning",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.String.Input("clip_l", multiline=True, dynamic_prompts=True),
+                io.String.Input("clip_g", multiline=True, dynamic_prompts=True),
+                io.String.Input("t5xxl", multiline=True, dynamic_prompts=True),
+                io.String.Input("llama", multiline=True, dynamic_prompts=True),
+            ],
+            outputs=[
+                io.Conditioning.Output(),
+            ]
+        )
+
+    @classmethod
+    def execute(cls, clip, clip_l, clip_g, t5xxl, llama):
+        tokens = clip.tokenize(clip_g)
+        tokens["l"] = clip.tokenize(clip_l)["l"]
+        tokens["t5xxl"] = clip.tokenize(t5xxl)["t5xxl"]
+        tokens["llama"] = clip.tokenize(llama)["llama"]
+        return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
+
+
+NODES_LIST: list[type[io.ComfyNode]] = [
     CLIPTextEncodeHiDream,
     QuadrupleCLIPLoader,
 ]

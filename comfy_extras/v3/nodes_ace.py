@@ -52,6 +52,6 @@ class EmptyAceStepLatentAudio(io.ComfyNode):
 
 
 NODES_LIST: list[type[io.ComfyNode]] = [
-    TextEncodeAceStepAudio,
     EmptyAceStepLatentAudio,
+    TextEncodeAceStepAudio,
 ]

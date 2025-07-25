@@ -131,6 +131,6 @@ class HypernetworkLoader(io.ComfyNode):
         return io.NodeOutput(model_hypernetwork)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     HypernetworkLoader,
 ]

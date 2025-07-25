@@ -212,6 +212,6 @@ class WanCameraEmbedding(io.ComfyNode):
         return io.NodeOutput(control_camera_video, width, height, length)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     WanCameraEmbedding,
 ]

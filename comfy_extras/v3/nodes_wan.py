@@ -425,7 +425,7 @@ class WanVaceToVideo(io.ComfyNode):
         return io.NodeOutput(positive, negative, out_latent, trim_latent)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     TrimVideoLatent,
     WanCameraImageToVideo,
     WanFirstLastFrameToVideo,

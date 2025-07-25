@@ -5,50 +5,6 @@ import torch
 from comfy_api.latest import io
 
 
-class CLIPTextEncodeLumina2(io.ComfyNode):
-    SYSTEM_PROMPT = {
-        "superior": "You are an assistant designed to generate superior images with the superior "
-            "degree of image-text alignment based on textual prompts or user prompts.",
-        "alignment": "You are an assistant designed to generate high-quality images with the "
-            "highest degree of image-text alignment based on textual prompts."
-    }
-    SYSTEM_PROMPT_TIP = "Lumina2 provide two types of system prompts:" \
-        "Superior: You are an assistant designed to generate superior images with the superior "\
-        "degree of image-text alignment based on textual prompts or user prompts. "\
-        "Alignment: You are an assistant designed to generate high-quality images with the highest "\
-        "degree of image-text alignment based on textual prompts."
-
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="CLIPTextEncodeLumina2_V3",
-            display_name="CLIP Text Encode for Lumina2 _V3",
-            category="conditioning",
-            description="Encodes a system prompt and a user prompt using a CLIP model into an embedding "
-                        "that can be used to guide the diffusion model towards generating specific images.",
-            inputs=[
-                io.Combo.Input("system_prompt", options=list(cls.SYSTEM_PROMPT.keys()), tooltip=cls.SYSTEM_PROMPT_TIP),
-                io.String.Input("user_prompt", multiline=True, dynamic_prompts=True, tooltip="The text to be encoded."),
-                io.Clip.Input("clip", tooltip="The CLIP model used for encoding the text."),
-            ],
-            outputs=[
-                io.Conditioning.Output(tooltip="A conditioning containing the embedded text used to guide the diffusion model."),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, system_prompt, user_prompt, clip):
-        if clip is None:
-            raise RuntimeError(
-                "ERROR: clip input is invalid: None\n\n"
-                "If the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model."
-            )
-        system_prompt = cls.SYSTEM_PROMPT[system_prompt]
-        prompt = f'{system_prompt} <Prompt Start> {user_prompt}'
-        tokens = clip.tokenize(prompt)
-        return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
-
-
 class RenormCFG(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -110,7 +66,51 @@ class RenormCFG(io.ComfyNode):
         return io.NodeOutput(m)
 
 
-NODES_LIST = [
+class CLIPTextEncodeLumina2(io.ComfyNode):
+    SYSTEM_PROMPT = {
+        "superior": "You are an assistant designed to generate superior images with the superior "
+            "degree of image-text alignment based on textual prompts or user prompts.",
+        "alignment": "You are an assistant designed to generate high-quality images with the "
+            "highest degree of image-text alignment based on textual prompts."
+    }
+    SYSTEM_PROMPT_TIP = "Lumina2 provide two types of system prompts:" \
+        "Superior: You are an assistant designed to generate superior images with the superior " \
+        "degree of image-text alignment based on textual prompts or user prompts. " \
+        "Alignment: You are an assistant designed to generate high-quality images with the highest " \
+        "degree of image-text alignment based on textual prompts."
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPTextEncodeLumina2_V3",
+            display_name="CLIP Text Encode for Lumina2 _V3",
+            category="conditioning",
+            description="Encodes a system prompt and a user prompt using a CLIP model into an embedding "
+                        "that can be used to guide the diffusion model towards generating specific images.",
+            inputs=[
+                io.Combo.Input("system_prompt", options=list(cls.SYSTEM_PROMPT.keys()), tooltip=cls.SYSTEM_PROMPT_TIP),
+                io.String.Input("user_prompt", multiline=True, dynamic_prompts=True, tooltip="The text to be encoded."),
+                io.Clip.Input("clip", tooltip="The CLIP model used for encoding the text."),
+            ],
+            outputs=[
+                io.Conditioning.Output(tooltip="A conditioning containing the embedded text used to guide the diffusion model."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, system_prompt, user_prompt, clip):
+        if clip is None:
+            raise RuntimeError(
+                "ERROR: clip input is invalid: None\n\n"
+                "If the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model."
+            )
+        system_prompt = cls.SYSTEM_PROMPT[system_prompt]
+        prompt = f'{system_prompt} <Prompt Start> {user_prompt}'
+        tokens = clip.tokenize(prompt)
+        return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
+
+
+NODES_LIST: list[type[io.ComfyNode]] = [
     CLIPTextEncodeLumina2,
     RenormCFG,
 ]

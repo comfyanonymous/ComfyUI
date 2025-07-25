@@ -29,6 +29,6 @@ class ReferenceLatent(io.ComfyNode):
         return io.NodeOutput(conditioning)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     ReferenceLatent,
 ]

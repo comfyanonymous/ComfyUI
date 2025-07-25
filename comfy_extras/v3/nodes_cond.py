@@ -54,7 +54,7 @@ class T5TokenizerOptions(io.ComfyNode):
         return io.NodeOutput(clip)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     CLIPTextEncodeControlnet,
     T5TokenizerOptions,
 ]

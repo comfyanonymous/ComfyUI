@@ -27,6 +27,6 @@ class Canny(io.ComfyNode):
         return io.NodeOutput(img_out)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     Canny,
 ]

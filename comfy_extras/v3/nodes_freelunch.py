@@ -125,7 +125,7 @@ class FreeU_V2(io.ComfyNode):
         return io.NodeOutput(m)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     FreeU,
     FreeU_V2,
 ]

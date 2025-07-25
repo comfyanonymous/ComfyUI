@@ -33,6 +33,6 @@ class EmptyMochiLatentVideo(io.ComfyNode):
         return io.NodeOutput({"samples": latent})
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     EmptyMochiLatentVideo,
 ]
