@@ -1,6 +1,6 @@
 import torch
 import time
-from comfy_api.v3 import io, ui, resources, _io
+from comfy_api.latest import io, ui, resources, _io
 import logging  # noqa
 import folder_paths
 import comfy.utils

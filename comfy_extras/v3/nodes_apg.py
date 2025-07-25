@@ -1,6 +1,6 @@
 import torch
 
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def project(v0, v1):

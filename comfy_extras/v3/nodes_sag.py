@@ -9,7 +9,7 @@ from torch import einsum
 
 import comfy.samplers
 from comfy.ldm.modules.attention import optimized_attention
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 # from comfy/ldm/modules/attention.py

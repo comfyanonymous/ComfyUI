@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import comfy.model_patcher
 import comfy.samplers
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 #Modified/simplified version of the node from: https://github.com/pamparamm/sd-perturbed-attention
 #If you want the one with more options see the above repo.

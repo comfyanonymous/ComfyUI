@@ -1,6 +1,7 @@
 from __future__ import annotations
 import torch
 
+
 import os
 import sys
 import json
@@ -26,7 +27,9 @@ import comfy.sd
 import comfy.utils
 import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
-from comfy_api.v3 import io
+from comfy_api.internal import register_versions, ComfyAPIWithVersion
+from comfy_api.version_list import supported_versions
+from comfy_api.latest import io
 
 import comfy.clip_vision
 
@@ -2102,7 +2105,7 @@ def get_module_name(module_path: str) -> str:
     return base_path
 
 
-def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes") -> bool:
+async def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes") -> bool:
     module_name = get_module_name(module_path)
     if os.path.isfile(module_path):
         sp = os.path.splitext(module_path)
@@ -2178,7 +2181,7 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
         logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
         return False
 
-def init_external_custom_nodes():
+async def init_external_custom_nodes():
     """
     Initializes the external custom nodes.
 
@@ -2204,7 +2207,7 @@ def init_external_custom_nodes():
                 logging.info(f"Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
                 continue
             time_before = time.perf_counter()
-            success = load_custom_node(module_path, base_node_names, module_parent="custom_nodes")
+            success = await load_custom_node(module_path, base_node_names, module_parent="custom_nodes")
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
 
     if len(node_import_times) > 0:
@@ -2217,7 +2220,7 @@ def init_external_custom_nodes():
             logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
         logging.info("")
 
-def init_builtin_extra_nodes():
+async def init_builtin_extra_nodes():
     """
     Initializes the built-in extra nodes in ComfyUI.
 
@@ -2363,13 +2366,13 @@ def init_builtin_extra_nodes():
 
     import_failed = []
     for node_file in extras_files:
-        if not load_custom_node(os.path.join(extras_dir, node_file), module_parent="comfy_extras"):
+        if not await load_custom_node(os.path.join(extras_dir, node_file), module_parent="comfy_extras"):
             import_failed.append(node_file)
 
     return import_failed
 
 
-def init_builtin_api_nodes():
+async def init_builtin_api_nodes():
     api_nodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_api_nodes")
     api_nodes_files = [
         "nodes_ideogram.py",
@@ -2390,26 +2393,35 @@ def init_builtin_api_nodes():
         "nodes_gemini.py",
     ]
 
-    if not load_custom_node(os.path.join(api_nodes_dir, "canary.py"), module_parent="comfy_api_nodes"):
+    if not await load_custom_node(os.path.join(api_nodes_dir, "canary.py"), module_parent="comfy_api_nodes"):
         return api_nodes_files
 
     import_failed = []
     for node_file in api_nodes_files:
-        if not load_custom_node(os.path.join(api_nodes_dir, node_file), module_parent="comfy_api_nodes"):
+        if not await load_custom_node(os.path.join(api_nodes_dir, node_file), module_parent="comfy_api_nodes"):
             import_failed.append(node_file)
 
     return import_failed
 
+async def init_public_apis():
+    register_versions([
+        ComfyAPIWithVersion(
+            version=getattr(v, "VERSION"),
+            api_class=v
+        ) for v in supported_versions
+    ])
 
-def init_extra_nodes(init_custom_nodes=True, init_api_nodes=True):
-    import_failed = init_builtin_extra_nodes()
+async def init_extra_nodes(init_custom_nodes=True, init_api_nodes=True):
+    await init_public_apis()
+
+    import_failed = await init_builtin_extra_nodes()
 
     import_failed_api = []
     if init_api_nodes:
-        import_failed_api = init_builtin_api_nodes()
+        import_failed_api = await init_builtin_api_nodes()
 
     if init_custom_nodes:
-        init_external_custom_nodes()
+        await init_external_custom_nodes()
     else:
         logging.info("Skipping loading of custom nodes")
 

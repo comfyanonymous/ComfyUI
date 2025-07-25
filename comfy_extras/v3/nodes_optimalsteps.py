@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 # from https://github.com/bebebe666/OptimalSteps
 

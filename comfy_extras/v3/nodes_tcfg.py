@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def score_tangential_damping(cond_score: torch.Tensor, uncond_score: torch.Tensor) -> torch.Tensor:

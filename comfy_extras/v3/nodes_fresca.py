@@ -5,7 +5,7 @@ from __future__ import annotations
 import torch
 import torch.fft as fft
 
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def Fourier_filter(x, scale_low=1.0, scale_high=1.5, freq_cutoff=20):

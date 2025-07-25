@@ -9,7 +9,7 @@ import torchaudio
 import comfy.model_management
 import folder_paths
 import node_helpers
-from comfy_api.v3 import io, ui
+from comfy_api.latest import io, ui
 
 
 class ConditioningStableAudio(io.ComfyNode):

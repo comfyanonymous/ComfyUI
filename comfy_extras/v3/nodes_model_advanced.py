@@ -7,7 +7,7 @@ import comfy.model_sampling
 import comfy.sd
 import node_helpers
 import nodes
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class LCM(comfy.model_sampling.EPS):

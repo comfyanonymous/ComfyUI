@@ -7,7 +7,7 @@ import math
 from einops import rearrange
 from torch import randint
 
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def random_divisor(value: int, min_value: int, /, max_options: int = 1) -> int:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import comfy.model_management
 import comfy.sd
 import folder_paths
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class CLIPTextEncodeHiDream(io.ComfyNode):

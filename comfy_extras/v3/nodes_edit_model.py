@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import node_helpers
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class ReferenceLatent(io.ComfyNode):

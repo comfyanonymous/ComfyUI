@@ -24,7 +24,7 @@ lint.select = [
   "F",
 ]
 lint.ignore = ["E501"]  # disable line-length checking
-exclude = ["*.ipynb"]
+exclude = ["*.ipynb", "**/generated/*.pyi"]
 
 [tool.ruff.lint.per-file-ignores]
 "!comfy_extras/v3/*" = ["E", "I"]  # enable these rules only for V3 nodes

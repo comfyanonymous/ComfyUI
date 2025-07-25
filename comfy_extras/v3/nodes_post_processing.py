@@ -10,7 +10,7 @@ from PIL import Image
 import comfy.model_management
 import comfy.utils
 import node_helpers
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def gaussian_kernel(kernel_size: int, sigma: float, device=None):

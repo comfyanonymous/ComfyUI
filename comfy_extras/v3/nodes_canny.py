@@ -3,7 +3,7 @@ from __future__ import annotations
 from kornia.filters import canny
 
 import comfy.model_management
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class Canny(io.ComfyNode):

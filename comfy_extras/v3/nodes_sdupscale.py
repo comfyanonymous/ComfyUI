@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 
 import comfy.utils
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class SD_4XUpscale_Conditioning(io.ComfyNode):

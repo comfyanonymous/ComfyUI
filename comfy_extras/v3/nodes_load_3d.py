@@ -6,7 +6,7 @@ from pathlib import Path
 import folder_paths
 import nodes
 from comfy_api.input_impl import VideoFromFile
-from comfy_api.v3 import io, ui
+from comfy_api.latest import io, ui
 
 
 def normalize_path(path):

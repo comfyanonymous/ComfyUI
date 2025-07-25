@@ -16,7 +16,7 @@ from comfy.ldm.lightricks.symmetric_patchifier import (
     SymmetricPatchifier,
     latent_to_pixel_coords,
 )
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def conditioning_get_any_value(conditioning, key, default=None):

@@ -5,7 +5,7 @@ from enum import Enum
 import torch
 
 import comfy.utils
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def resize_mask(mask, shape):

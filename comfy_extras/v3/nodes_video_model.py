@@ -8,7 +8,7 @@ import comfy_extras.nodes_model_merging
 import folder_paths
 import node_helpers
 import nodes
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class ConditioningSetAreaPercentageVideo(io.ComfyNode):

@@ -6,7 +6,7 @@ from einops import rearrange
 
 import comfy.model_management
 import nodes
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 CAMERA_DICT = {
     "base_T_norm": 1.5,

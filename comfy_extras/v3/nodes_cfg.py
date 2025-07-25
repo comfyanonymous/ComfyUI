@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import torch
 
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def optimized_scale(positive, negative):

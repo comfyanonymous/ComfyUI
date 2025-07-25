@@ -5,7 +5,7 @@ import torch
 import comfy.model_management
 import node_helpers
 import nodes
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 PROMPT_TEMPLATE_ENCODE_VIDEO_I2V = (
     "<|start_header_id|>system<|end_header_id|>\n\n<image>\nDescribe the video by detailing the following aspects according to the reference image: "

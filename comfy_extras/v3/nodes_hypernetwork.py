@@ -6,7 +6,7 @@ import torch
 
 import comfy.utils
 import folder_paths
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def load_hypernetwork_patch(path, strength):
