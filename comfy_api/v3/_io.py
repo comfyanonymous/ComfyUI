@@ -1592,11 +1592,6 @@ class _IO:
     AnyType = AnyType
     MultiType = MultiType
     #---------------------------------
-    DynamicInput = DynamicInput
-    DynamicOutput = DynamicOutput
-    AutogrowDynamic = AutogrowDynamic
-    ComboDynamicInput = ComboDynamicInput
-    MatchType = MatchType
     HiddenHolder = HiddenHolder
     Hidden = Hidden
     NodeInfoV1 = NodeInfoV1

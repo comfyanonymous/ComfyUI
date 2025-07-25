@@ -1,6 +1,6 @@
 import torch
 import time
-from comfy_api.v3 import io, ui, resources
+from comfy_api.v3 import io, ui, resources, _io
 import logging  # noqa
 import folder_paths
 import comfy.utils
@@ -143,8 +143,8 @@ class NInputsTest(io.ComfyNode):
             node_id="V3_NInputsTest",
             display_name="V3 N Inputs Test",
             inputs=[
-                io.AutogrowDynamic.Input("nmock", template_input=io.Image.Input("image"), min=1, max=3),
-                io.AutogrowDynamic.Input("nmock2", template_input=io.Int.Input("int"), optional=True, min=1, max=4),
+                _io.AutogrowDynamic.Input("nmock", template_input=io.Image.Input("image"), min=1, max=3),
+                _io.AutogrowDynamic.Input("nmock2", template_input=io.Int.Input("int"), optional=True, min=1, max=4),
             ],
             outputs=[
                 io.Image.Output(),

@@ -261,16 +261,6 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                         if obj.local_resources is None:
                             obj.local_resources = resources.ResourcesLocal()
                         class_clone.resources = obj.local_resources
-                # TODO: delete this when done testing mocking dynamic inputs
-                for si in obj.SCHEMA.inputs:
-                    if isinstance(si, io.AutogrowDynamic.Input):
-                        add_key = si.id
-                        dynamic_list = []
-                        real_inputs = {k: v for k, v in inputs.items()}
-                        for d in si.get_dynamic():
-                            dynamic_list.append(real_inputs.pop(d.id, None))
-                        dynamic_list = [x for x in dynamic_list if x is not None]
-                        inputs = {**real_inputs, add_key: dynamic_list}
                 f = make_locked_method_func(type_obj, func, class_clone)
             # V1
             else:
