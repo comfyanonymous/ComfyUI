@@ -9,7 +9,6 @@ import comfy.clip_vision
 import comfy.latent_formats
 import comfy.model_management
 import comfy.utils
-import nodes
 from comfy import node_helpers
 from comfy.nodes import base_nodes as nodes
 
