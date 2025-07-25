@@ -47,19 +47,23 @@ git clone https://github.com/ltdrdata/ComfyUI-Manager comfyui-manager
 cd /kaggle/ComfyUI
 
 # 2 安装 nunchaku
-# pip install facexlib
-# pip install onnxruntime
-# pip install insightface
-# pip install https://huggingface.co/mit-han-lab/nunchaku/resolve/main/nunchaku-0.3.1+torch2.6-cp311-cp311-linux_x86_64.whl
-# # wget -c https://huggingface.co/mit-han-lab/nunchaku-flux.1-kontext-dev/resolve/main/svdq-int4_r32-flux.1-kontext-dev.safetensors -P ./models/diffusion_models
-# cd /kaggle/ComfyUI
+pip install facexlib
+pip install onnxruntime
+pip install insightface
+pip install https://huggingface.co/mit-han-lab/nunchaku/resolve/main/nunchaku-0.3.1+torch2.6-cp311-cp311-linux_x86_64.whl
+# wget -c https://huggingface.co/mit-han-lab/nunchaku-flux.1-kontext-dev/resolve/main/svdq-int4_r32-flux.1-kontext-dev.safetensors -P ./models/diffusion_models
+cd /kaggle/ComfyUI
 
+cd custom_nodes
+git clone https://github.com/mit-han-lab/ComfyUI-nunchaku nunchaku_nodes
+cd /kaggle/ComfyUI
+
+# 3 ComfyUI-GGUF
+# wget -c https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/flux1-dev-Q3_K_S.gguf -P ./models/unet
 # cd custom_nodes
-# git clone https://github.com/mit-han-lab/ComfyUI-nunchaku nunchaku_nodes
-# cd /kaggle/ComfyUI
-
-# 将上面的 nunchaku自定义节点先注释掉，看看下面的 encrypt image是否就正常了
-
+# git clone https://github.com/city96/ComfyUI-GGUF
+# cd ComfyUI-GGUF
+# pip install --upgrade gguf
 
 # 4 encrypt image
 cd custom_nodes
@@ -67,25 +71,25 @@ git clone https://github.com/Vander-Bilt/comfyui-encrypt-image.git
 cd /kaggle/ComfyUI
 
 #5 Prompts Generator
-# cd custom_nodes
-# git clone https://github.com/fairy-root/Flux-Prompt-Generator.git
-# cd /kaggle/ComfyUI
+cd custom_nodes
+git clone https://github.com/fairy-root/Flux-Prompt-Generator.git
+cd /kaggle/ComfyUI
 
 
 # 6 Custom-Scripts
-# cd custom_nodes
-# git clone https://github.com/Vander-Bilt/ComfyUI-Custom-Scripts.git
-# cd /kaggle/ComfyUI
+cd custom_nodes
+git clone https://github.com/Vander-Bilt/ComfyUI-Custom-Scripts.git
+cd /kaggle/ComfyUI
 
 # 7 save2hf
-# cd custom_nodes
-# git clone https://github.com/Vander-Bilt/save2hf.git
-# cd save2hf
-# pip install -r requirements.txt
-# cd /kaggle/ComfyUI
+cd custom_nodes
+git clone https://github.com/Vander-Bilt/save2hf.git
+cd save2hf
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
 
 #class MyHTMLNode:
-# cd custom_nodes
-# git clone https://github.com/Vander-Bilt/MyHTMLNode.git
-# cd /kaggle/ComfyUI
+cd custom_nodes
+git clone https://github.com/Vander-Bilt/MyHTMLNode.git
+cd /kaggle/ComfyUI
 
