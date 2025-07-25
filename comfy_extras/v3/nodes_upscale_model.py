@@ -19,6 +19,35 @@ except Exception:
     pass
 
 
+class UpscaleModelLoader(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="UpscaleModelLoader_V3",
+            display_name="Load Upscale Model _V3",
+            category="loaders",
+            inputs=[
+                io.Combo.Input("model_name", options=folder_paths.get_filename_list("upscale_models")),
+            ],
+            outputs=[
+                io.UpscaleModel.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model_name):
+        model_path = folder_paths.get_full_path_or_raise("upscale_models", model_name)
+        sd = comfy.utils.load_torch_file(model_path, safe_load=True)
+        if "module.layers.0.residual_group.blocks.0.norm1.weight" in sd:
+            sd = comfy.utils.state_dict_prefix_replace(sd, {"module.":""})
+        out = ModelLoader().load_from_state_dict(sd).eval()
+
+        if not isinstance(out, ImageModelDescriptor):
+            raise Exception("Upscale model must be a single-image model.")
+
+        return io.NodeOutput(out)
+
+
 class ImageUpscaleWithModel(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -71,36 +100,7 @@ class ImageUpscaleWithModel(io.ComfyNode):
         return io.NodeOutput(s)
 
 
-class UpscaleModelLoader(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="UpscaleModelLoader_V3",
-            display_name="Load Upscale Model _V3",
-            category="loaders",
-            inputs=[
-                io.Combo.Input("model_name", options=folder_paths.get_filename_list("upscale_models")),
-            ],
-            outputs=[
-                io.UpscaleModel.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, model_name):
-        model_path = folder_paths.get_full_path_or_raise("upscale_models", model_name)
-        sd = comfy.utils.load_torch_file(model_path, safe_load=True)
-        if "module.layers.0.residual_group.blocks.0.norm1.weight" in sd:
-            sd = comfy.utils.state_dict_prefix_replace(sd, {"module.":""})
-        out = ModelLoader().load_from_state_dict(sd).eval()
-
-        if not isinstance(out, ImageModelDescriptor):
-            raise Exception("Upscale model must be a single-image model.")
-
-        return io.NodeOutput(out)
-
-
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     ImageUpscaleWithModel,
     UpscaleModelLoader,
 ]

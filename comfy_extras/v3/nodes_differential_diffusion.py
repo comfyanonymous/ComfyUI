@@ -45,6 +45,6 @@ class DifferentialDiffusion(io.ComfyNode):
         return (denoise_mask >= threshold).to(denoise_mask.dtype)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     DifferentialDiffusion,
 ]

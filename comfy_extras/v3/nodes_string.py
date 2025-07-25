@@ -5,6 +5,70 @@ import re
 from comfy_api.latest import io
 
 
+class StringConcatenate(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="StringConcatenate_V3",
+            display_name="Concatenate _V3",
+            category="utils/string",
+            inputs=[
+                io.String.Input("string_a", multiline=True),
+                io.String.Input("string_b", multiline=True),
+                io.String.Input("delimiter", multiline=False, default="")
+            ],
+            outputs=[
+                io.String.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, string_a, string_b, delimiter):
+        return io.NodeOutput(delimiter.join((string_a, string_b)))
+
+
+class StringSubstring(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="StringSubstring_V3",
+            display_name="Substring _V3",
+            category="utils/string",
+            inputs=[
+                io.String.Input("string", multiline=True),
+                io.Int.Input("start"),
+                io.Int.Input("end")
+            ],
+            outputs=[
+                io.String.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, string, start, end):
+        return io.NodeOutput(string[start:end])
+
+
+class StringLength(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="StringLength_V3",
+            display_name="Length _V3",
+            category="utils/string",
+            inputs=[
+                io.String.Input("string", multiline=True)
+            ],
+            outputs=[
+                io.Int.Output(display_name="length")
+            ]
+        )
+
+    @classmethod
+    def execute(cls, string):
+        return io.NodeOutput(len(string))
+
+
 class CaseConverter(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -33,6 +97,160 @@ class CaseConverter(io.ComfyNode):
             result = string.title()
         else:
             result = string
+
+        return io.NodeOutput(result)
+
+
+class StringTrim(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="StringTrim_V3",
+            display_name="Trim _V3",
+            category="utils/string",
+            inputs=[
+                io.String.Input("string", multiline=True),
+                io.Combo.Input("mode", options=["Both", "Left", "Right"])
+            ],
+            outputs=[
+                io.String.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, string, mode):
+        if mode == "Both":
+            result = string.strip()
+        elif mode == "Left":
+            result = string.lstrip()
+        elif mode == "Right":
+            result = string.rstrip()
+        else:
+            result = string
+
+        return io.NodeOutput(result)
+
+
+class StringReplace(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="StringReplace_V3",
+            display_name="Replace _V3",
+            category="utils/string",
+            inputs=[
+                io.String.Input("string", multiline=True),
+                io.String.Input("find", multiline=True),
+                io.String.Input("replace", multiline=True)
+            ],
+            outputs=[
+                io.String.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, string, find, replace):
+        return io.NodeOutput(string.replace(find, replace))
+
+
+class StringContains(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="StringContains_V3",
+            display_name="Contains _V3",
+            category="utils/string",
+            inputs=[
+                io.String.Input("string", multiline=True),
+                io.String.Input("substring", multiline=True),
+                io.Boolean.Input("case_sensitive", default=True)
+            ],
+            outputs=[
+                io.Boolean.Output(display_name="contains")
+            ]
+        )
+
+    @classmethod
+    def execute(cls, string, substring, case_sensitive):
+        if case_sensitive:
+            contains = substring in string
+        else:
+            contains = substring.lower() in string.lower()
+
+        return io.NodeOutput(contains)
+
+
+class StringCompare(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="StringCompare_V3",
+            display_name="Compare _V3",
+            category="utils/string",
+            inputs=[
+                io.String.Input("string_a", multiline=True),
+                io.String.Input("string_b", multiline=True),
+                io.Combo.Input("mode", options=["Starts With", "Ends With", "Equal"]),
+                io.Boolean.Input("case_sensitive", default=True)
+            ],
+            outputs=[
+                io.Boolean.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, string_a, string_b, mode, case_sensitive):
+        if case_sensitive:
+            a = string_a
+            b = string_b
+        else:
+            a = string_a.lower()
+            b = string_b.lower()
+
+        if mode == "Equal":
+            return io.NodeOutput(a == b)
+        elif mode == "Starts With":
+            return io.NodeOutput(a.startswith(b))
+        elif mode == "Ends With":
+            return io.NodeOutput(a.endswith(b))
+
+
+class RegexMatch(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="RegexMatch_V3",
+            display_name="Regex Match _V3",
+            category="utils/string",
+            inputs=[
+                io.String.Input("string", multiline=True),
+                io.String.Input("regex_pattern", multiline=True),
+                io.Boolean.Input("case_insensitive", default=True),
+                io.Boolean.Input("multiline", default=False),
+                io.Boolean.Input("dotall", default=False)
+            ],
+            outputs=[
+                io.Boolean.Output(display_name="matches")
+            ]
+        )
+
+    @classmethod
+    def execute(cls, string, regex_pattern, case_insensitive, multiline, dotall):
+        flags = 0
+
+        if case_insensitive:
+            flags |= re.IGNORECASE
+        if multiline:
+            flags |= re.MULTILINE
+        if dotall:
+            flags |= re.DOTALL
+
+        try:
+            match = re.search(regex_pattern, string, flags)
+            result = match is not None
+
+        except re.error:
+            result = False
 
         return io.NodeOutput(result)
 
@@ -111,46 +329,6 @@ class RegexExtract(io.ComfyNode):
         return io.NodeOutput(result)
 
 
-class RegexMatch(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="RegexMatch_V3",
-            display_name="Regex Match _V3",
-            category="utils/string",
-            inputs=[
-                io.String.Input("string", multiline=True),
-                io.String.Input("regex_pattern", multiline=True),
-                io.Boolean.Input("case_insensitive", default=True),
-                io.Boolean.Input("multiline", default=False),
-                io.Boolean.Input("dotall", default=False)
-            ],
-            outputs=[
-                io.Boolean.Output(display_name="matches")
-            ]
-        )
-
-    @classmethod
-    def execute(cls, string, regex_pattern, case_insensitive, multiline, dotall):
-        flags = 0
-
-        if case_insensitive:
-            flags |= re.IGNORECASE
-        if multiline:
-            flags |= re.MULTILINE
-        if dotall:
-            flags |= re.DOTALL
-
-        try:
-            match = re.search(regex_pattern, string, flags)
-            result = match is not None
-
-        except re.error:
-            result = False
-
-        return io.NodeOutput(result)
-
-
 class RegexReplace(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -187,185 +365,7 @@ class RegexReplace(io.ComfyNode):
         return io.NodeOutput(result)
 
 
-class StringCompare(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="StringCompare_V3",
-            display_name="Compare _V3",
-            category="utils/string",
-            inputs=[
-                io.String.Input("string_a", multiline=True),
-                io.String.Input("string_b", multiline=True),
-                io.Combo.Input("mode", options=["Starts With", "Ends With", "Equal"]),
-                io.Boolean.Input("case_sensitive", default=True)
-            ],
-            outputs=[
-                io.Boolean.Output()
-            ]
-        )
-
-    @classmethod
-    def execute(cls, string_a, string_b, mode, case_sensitive):
-        if case_sensitive:
-            a = string_a
-            b = string_b
-        else:
-            a = string_a.lower()
-            b = string_b.lower()
-
-        if mode == "Equal":
-            return io.NodeOutput(a == b)
-        elif mode == "Starts With":
-            return io.NodeOutput(a.startswith(b))
-        elif mode == "Ends With":
-            return io.NodeOutput(a.endswith(b))
-
-
-class StringConcatenate(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="StringConcatenate_V3",
-            display_name="Concatenate _V3",
-            category="utils/string",
-            inputs=[
-                io.String.Input("string_a", multiline=True),
-                io.String.Input("string_b", multiline=True),
-                io.String.Input("delimiter", multiline=False, default="")
-            ],
-            outputs=[
-                io.String.Output()
-            ]
-        )
-
-    @classmethod
-    def execute(cls, string_a, string_b, delimiter):
-        return io.NodeOutput(delimiter.join((string_a, string_b)))
-
-
-class StringContains(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="StringContains_V3",
-            display_name="Contains _V3",
-            category="utils/string",
-            inputs=[
-                io.String.Input("string", multiline=True),
-                io.String.Input("substring", multiline=True),
-                io.Boolean.Input("case_sensitive", default=True)
-            ],
-            outputs=[
-                io.Boolean.Output(display_name="contains")
-            ]
-        )
-
-    @classmethod
-    def execute(cls, string, substring, case_sensitive):
-        if case_sensitive:
-            contains = substring in string
-        else:
-            contains = substring.lower() in string.lower()
-
-        return io.NodeOutput(contains)
-
-
-class StringLength(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="StringLength_V3",
-            display_name="Length _V3",
-            category="utils/string",
-            inputs=[
-                io.String.Input("string", multiline=True)
-            ],
-            outputs=[
-                io.Int.Output(display_name="length")
-            ]
-        )
-
-    @classmethod
-    def execute(cls, string):
-        return io.NodeOutput(len(string))
-
-
-class StringReplace(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="StringReplace_V3",
-            display_name="Replace _V3",
-            category="utils/string",
-            inputs=[
-                io.String.Input("string", multiline=True),
-                io.String.Input("find", multiline=True),
-                io.String.Input("replace", multiline=True)
-            ],
-            outputs=[
-                io.String.Output()
-            ]
-        )
-
-    @classmethod
-    def execute(cls, string, find, replace):
-        return io.NodeOutput(string.replace(find, replace))
-
-
-class StringSubstring(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="StringSubstring_V3",
-            display_name="Substring _V3",
-            category="utils/string",
-            inputs=[
-                io.String.Input("string", multiline=True),
-                io.Int.Input("start"),
-                io.Int.Input("end")
-            ],
-            outputs=[
-                io.String.Output()
-            ]
-        )
-
-    @classmethod
-    def execute(cls, string, start, end):
-        return io.NodeOutput(string[start:end])
-
-
-class StringTrim(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="StringTrim_V3",
-            display_name="Trim _V3",
-            category="utils/string",
-            inputs=[
-                io.String.Input("string", multiline=True),
-                io.Combo.Input("mode", options=["Both", "Left", "Right"])
-            ],
-            outputs=[
-                io.String.Output()
-            ]
-        )
-
-    @classmethod
-    def execute(cls, string, mode):
-        if mode == "Both":
-            result = string.strip()
-        elif mode == "Left":
-            result = string.lstrip()
-        elif mode == "Right":
-            result = string.rstrip()
-        else:
-            result = string
-
-        return io.NodeOutput(result)
-
-
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     CaseConverter,
     RegexExtract,
     RegexMatch,

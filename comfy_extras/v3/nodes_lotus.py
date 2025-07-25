@@ -29,6 +29,6 @@ class LotusConditioning(io.ComfyNode):
         return io.NodeOutput(cond)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     LotusConditioning,
 ]

@@ -51,6 +51,6 @@ class InstructPixToPixConditioning(io.ComfyNode):
         return io.NodeOutput(out[0], out[1], out_latent)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     InstructPixToPixConditioning,
 ]

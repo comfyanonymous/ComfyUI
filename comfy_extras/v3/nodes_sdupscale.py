@@ -53,4 +53,6 @@ class SD_4XUpscale_Conditioning(io.ComfyNode):
         latent = torch.zeros([images.shape[0], 4, height // 4, width // 4])
         return io.NodeOutput(out_cp, out_cn, {"samples":latent})
 
-NODES_LIST = [SD_4XUpscale_Conditioning]
+NODES_LIST: list[type[io.ComfyNode]] = [
+    SD_4XUpscale_Conditioning,
+]

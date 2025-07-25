@@ -109,6 +109,6 @@ class PerpNegGuider(io.ComfyNode):
         return io.NodeOutput(guider)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     PerpNegGuider,
 ]

@@ -371,6 +371,6 @@ class GITSScheduler(io.ComfyNode):
         return io.NodeOutput(torch.FloatTensor(sigmas))
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     GITSScheduler,
 ]
