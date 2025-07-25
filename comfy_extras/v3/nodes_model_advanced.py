@@ -17,7 +17,7 @@ class LCM(comfy.model_sampling.EPS):
         x0 = model_input - model_output * sigma
 
         sigma_data = 0.5
-        scaled_timestep = timestep * 10.0 #timestep_scaling
+        scaled_timestep = timestep * 10.0 # timestep_scaling
 
         c_skip = sigma_data**2 / (scaled_timestep**2 + sigma_data**2)
         c_out = scaled_timestep / (scaled_timestep**2 + sigma_data**2) ** 0.5

@@ -127,12 +127,12 @@ class LTXVAddGuide(io.ComfyNode):
                 io.Vae.Input("vae"),
                 io.Latent.Input("latent"),
                 io.Image.Input(
-                    id="image",
+                    "image",
                     tooltip="Image or video to condition the latent video on. Must be 8*n + 1 frames. "
                             "If the video is not 8*n + 1 frames, it will be cropped to the nearest 8*n + 1 frames.",
                 ),
                 io.Int.Input(
-                    id="frame_idx",
+                    "frame_idx",
                     default=0,
                     min=-9999,
                     max=9999,

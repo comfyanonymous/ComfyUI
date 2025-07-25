@@ -51,7 +51,7 @@ class EmptyLatentAudio(io.ComfyNode):
             inputs=[
                 io.Float.Input("seconds", default=47.6, min=1.0, max=1000.0, step=0.1),
                 io.Int.Input(
-                    id="batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."
+                    "batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."
                 ),
             ],
             outputs=[io.Latent.Output()],
