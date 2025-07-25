@@ -75,52 +75,76 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
     comfy.sd.save_checkpoint(output_checkpoint, model, clip, vae, clip_vision, metadata=metadata, extra_keys=extra_keys)
 
 
-class CheckpointSave(io.ComfyNode):
+class ModelMergeSimple(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="CheckpointSave_V3",
-            display_name="Save Checkpoint _V3",
-            category="advanced/model_merging",
-            is_output_node=True,
-            inputs=[
-                io.Model.Input("model"),
-                io.Clip.Input("clip"),
-                io.Vae.Input("vae"),
-                io.String.Input("filename_prefix", default="checkpoints/ComfyUI")
-            ],
-            outputs=[],
-            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo]
-        )
-
-    @classmethod
-    def execute(cls, model, clip, vae, filename_prefix):
-        save_checkpoint(model, clip=clip, vae=vae, filename_prefix=filename_prefix, output_dir=folder_paths.get_output_directory(), prompt=cls.hidden.prompt, extra_pnginfo=cls.hidden.extra_pnginfo)
-        return io.NodeOutput()
-
-
-class CLIPAdd(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="CLIPMergeAdd_V3",
+            node_id="ModelMergeSimple_V3",
             category="advanced/model_merging",
             inputs=[
-                io.Clip.Input("clip1"),
-                io.Clip.Input("clip2")
+                io.Model.Input("model1"),
+                io.Model.Input("model2"),
+                io.Float.Input("ratio", default=1.0, min=0.0, max=1.0, step=0.01)
             ],
             outputs=[
-                io.Clip.Output()
+                io.Model.Output()
             ]
         )
 
     @classmethod
-    def execute(cls, clip1, clip2):
-        m = clip1.clone()
-        kp = clip2.get_key_patches()
+    def execute(cls, model1, model2, ratio):
+        m = model1.clone()
+        kp = model2.get_key_patches("diffusion_model.")
         for k in kp:
-            if k.endswith(".position_ids") or k.endswith(".logit_scale"):
-                continue
+            m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
+        return io.NodeOutput(m)
+
+
+class ModelSubtract(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelMergeSubtract_V3",
+            category="advanced/model_merging",
+            inputs=[
+                io.Model.Input("model1"),
+                io.Model.Input("model2"),
+                io.Float.Input("multiplier", default=1.0, min=-10.0, max=10.0, step=0.01)
+            ],
+            outputs=[
+                io.Model.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, model1, model2, multiplier):
+        m = model1.clone()
+        kp = model2.get_key_patches("diffusion_model.")
+        for k in kp:
+            m.add_patches({k: kp[k]}, - multiplier, multiplier)
+        return io.NodeOutput(m)
+
+
+class ModelAdd(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelMergeAdd_V3",
+            category="advanced/model_merging",
+            inputs=[
+                io.Model.Input("model1"),
+                io.Model.Input("model2")
+            ],
+            outputs=[
+                io.Model.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, model1, model2):
+        m = model1.clone()
+        kp = model2.get_key_patches("diffusion_model.")
+        for k in kp:
             m.add_patches({k: kp[k]}, 1.0, 1.0)
         return io.NodeOutput(m)
 
@@ -150,6 +174,121 @@ class CLIPMergeSimple(io.ComfyNode):
                 continue
             m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
         return io.NodeOutput(m)
+
+
+class CLIPSubtract(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPMergeSubtract_V3",
+            category="advanced/model_merging",
+            inputs=[
+                io.Clip.Input("clip1"),
+                io.Clip.Input("clip2"),
+                io.Float.Input("multiplier", default=1.0, min=-10.0, max=10.0, step=0.01)
+            ],
+            outputs=[
+                io.Clip.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, clip1, clip2, multiplier):
+        m = clip1.clone()
+        kp = clip2.get_key_patches()
+        for k in kp:
+            if k.endswith(".position_ids") or k.endswith(".logit_scale"):
+                continue
+            m.add_patches({k: kp[k]}, - multiplier, multiplier)
+        return io.NodeOutput(m)
+
+
+class CLIPAdd(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPMergeAdd_V3",
+            category="advanced/model_merging",
+            inputs=[
+                io.Clip.Input("clip1"),
+                io.Clip.Input("clip2")
+            ],
+            outputs=[
+                io.Clip.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, clip1, clip2):
+        m = clip1.clone()
+        kp = clip2.get_key_patches()
+        for k in kp:
+            if k.endswith(".position_ids") or k.endswith(".logit_scale"):
+                continue
+            m.add_patches({k: kp[k]}, 1.0, 1.0)
+        return io.NodeOutput(m)
+
+
+class ModelMergeBlocks(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelMergeBlocks_V3",
+            category="advanced/model_merging",
+            inputs=[
+                io.Model.Input("model1"),
+                io.Model.Input("model2"),
+                io.Float.Input("input", default=1.0, min=0.0, max=1.0, step=0.01),
+                io.Float.Input("middle", default=1.0, min=0.0, max=1.0, step=0.01),
+                io.Float.Input("out", default=1.0, min=0.0, max=1.0, step=0.01)
+            ],
+            outputs=[
+                io.Model.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, model1, model2, **kwargs):
+        m = model1.clone()
+        kp = model2.get_key_patches("diffusion_model.")
+        default_ratio = next(iter(kwargs.values()))
+
+        for k in kp:
+            ratio = default_ratio
+            k_unet = k[len("diffusion_model."):]
+
+            last_arg_size = 0
+            for arg in kwargs:
+                if k_unet.startswith(arg) and last_arg_size < len(arg):
+                    ratio = kwargs[arg]
+                    last_arg_size = len(arg)
+
+            m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
+        return io.NodeOutput(m)
+
+
+class CheckpointSave(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CheckpointSave_V3",
+            display_name="Save Checkpoint _V3",
+            category="advanced/model_merging",
+            is_output_node=True,
+            inputs=[
+                io.Model.Input("model"),
+                io.Clip.Input("clip"),
+                io.Vae.Input("vae"),
+                io.String.Input("filename_prefix", default="checkpoints/ComfyUI")
+            ],
+            outputs=[],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo]
+        )
+
+    @classmethod
+    def execute(cls, model, clip, vae, filename_prefix):
+        save_checkpoint(model, clip=clip, vae=vae, filename_prefix=filename_prefix, output_dir=folder_paths.get_output_directory(), prompt=cls.hidden.prompt, extra_pnginfo=cls.hidden.extra_pnginfo)
+        return io.NodeOutput()
 
 
 class CLIPSave(io.ComfyNode):
@@ -211,166 +350,6 @@ class CLIPSave(io.ComfyNode):
         return io.NodeOutput()
 
 
-class CLIPSubtract(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="CLIPMergeSubtract_V3",
-            category="advanced/model_merging",
-            inputs=[
-                io.Clip.Input("clip1"),
-                io.Clip.Input("clip2"),
-                io.Float.Input("multiplier", default=1.0, min=-10.0, max=10.0, step=0.01)
-            ],
-            outputs=[
-                io.Clip.Output()
-            ]
-        )
-
-    @classmethod
-    def execute(cls, clip1, clip2, multiplier):
-        m = clip1.clone()
-        kp = clip2.get_key_patches()
-        for k in kp:
-            if k.endswith(".position_ids") or k.endswith(".logit_scale"):
-                continue
-            m.add_patches({k: kp[k]}, - multiplier, multiplier)
-        return io.NodeOutput(m)
-
-
-class ModelAdd(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ModelMergeAdd_V3",
-            category="advanced/model_merging",
-            inputs=[
-                io.Model.Input("model1"),
-                io.Model.Input("model2")
-            ],
-            outputs=[
-                io.Model.Output()
-            ]
-        )
-
-    @classmethod
-    def execute(cls, model1, model2):
-        m = model1.clone()
-        kp = model2.get_key_patches("diffusion_model.")
-        for k in kp:
-            m.add_patches({k: kp[k]}, 1.0, 1.0)
-        return io.NodeOutput(m)
-
-
-class ModelMergeBlocks(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ModelMergeBlocks_V3",
-            category="advanced/model_merging",
-            inputs=[
-                io.Model.Input("model1"),
-                io.Model.Input("model2"),
-                io.Float.Input("input", default=1.0, min=0.0, max=1.0, step=0.01),
-                io.Float.Input("middle", default=1.0, min=0.0, max=1.0, step=0.01),
-                io.Float.Input("out", default=1.0, min=0.0, max=1.0, step=0.01)
-            ],
-            outputs=[
-                io.Model.Output()
-            ]
-        )
-
-    @classmethod
-    def execute(cls, model1, model2, **kwargs):
-        m = model1.clone()
-        kp = model2.get_key_patches("diffusion_model.")
-        default_ratio = next(iter(kwargs.values()))
-
-        for k in kp:
-            ratio = default_ratio
-            k_unet = k[len("diffusion_model."):]
-
-            last_arg_size = 0
-            for arg in kwargs:
-                if k_unet.startswith(arg) and last_arg_size < len(arg):
-                    ratio = kwargs[arg]
-                    last_arg_size = len(arg)
-
-            m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
-        return io.NodeOutput(m)
-
-
-class ModelMergeSimple(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ModelMergeSimple_V3",
-            category="advanced/model_merging",
-            inputs=[
-                io.Model.Input("model1"),
-                io.Model.Input("model2"),
-                io.Float.Input("ratio", default=1.0, min=0.0, max=1.0, step=0.01)
-            ],
-            outputs=[
-                io.Model.Output()
-            ]
-        )
-
-    @classmethod
-    def execute(cls, model1, model2, ratio):
-        m = model1.clone()
-        kp = model2.get_key_patches("diffusion_model.")
-        for k in kp:
-            m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
-        return io.NodeOutput(m)
-
-
-class ModelSave(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ModelSave_V3",
-            category="advanced/model_merging",
-            is_output_node=True,
-            inputs=[
-                io.Model.Input("model"),
-                io.String.Input("filename_prefix", default="diffusion_models/ComfyUI")
-            ],
-            outputs=[],
-            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo]
-        )
-
-    @classmethod
-    def execute(cls, model, filename_prefix):
-        save_checkpoint(model, filename_prefix=filename_prefix, output_dir=folder_paths.get_output_directory(), prompt=cls.hidden.prompt, extra_pnginfo=cls.hidden.extra_pnginfo)
-        return io.NodeOutput()
-
-
-class ModelSubtract(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ModelMergeSubtract_V3",
-            category="advanced/model_merging",
-            inputs=[
-                io.Model.Input("model1"),
-                io.Model.Input("model2"),
-                io.Float.Input("multiplier", default=1.0, min=-10.0, max=10.0, step=0.01)
-            ],
-            outputs=[
-                io.Model.Output()
-            ]
-        )
-
-    @classmethod
-    def execute(cls, model1, model2, multiplier):
-        m = model1.clone()
-        kp = model2.get_key_patches("diffusion_model.")
-        for k in kp:
-            m.add_patches({k: kp[k]}, - multiplier, multiplier)
-        return io.NodeOutput(m)
-
-
 class VAESave(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -407,7 +386,28 @@ class VAESave(io.ComfyNode):
         return io.NodeOutput()
 
 
-NODES_LIST = [
+class ModelSave(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelSave_V3",
+            category="advanced/model_merging",
+            is_output_node=True,
+            inputs=[
+                io.Model.Input("model"),
+                io.String.Input("filename_prefix", default="diffusion_models/ComfyUI")
+            ],
+            outputs=[],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo]
+        )
+
+    @classmethod
+    def execute(cls, model, filename_prefix):
+        save_checkpoint(model, filename_prefix=filename_prefix, output_dir=folder_paths.get_output_directory(), prompt=cls.hidden.prompt, extra_pnginfo=cls.hidden.extra_pnginfo)
+        return io.NodeOutput()
+
+
+NODES_LIST: list[type[io.ComfyNode]] = [
     CheckpointSave,
     CLIPAdd,
     CLIPMergeSimple,

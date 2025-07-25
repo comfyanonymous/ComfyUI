@@ -57,15 +57,16 @@ class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete)
         return log_sigma.exp().to(timestep.device)
 
 
-class ModelComputeDtype(io.ComfyNode):
+class ModelSamplingDiscrete(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="ModelComputeDtype_V3",
-            category="advanced/debug/model",
+            node_id="ModelSamplingDiscrete_V3",
+            category="advanced/model",
             inputs=[
                 io.Model.Input("model"),
-                io.Combo.Input("dtype", options=["default", "fp32", "fp16", "bf16"]),
+                io.Combo.Input("sampling", options=["eps", "v_prediction", "lcm", "x0", "img_to_img"]),
+                io.Boolean.Input("zsnr", default=False),
             ],
             outputs=[
                 io.Model.Output(),
@@ -73,9 +74,150 @@ class ModelComputeDtype(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model, dtype):
+    def execute(cls, model, sampling, zsnr):
         m = model.clone()
-        m.set_model_compute_dtype(node_helpers.string_to_torch_dtype(dtype))
+
+        sampling_base = comfy.model_sampling.ModelSamplingDiscrete
+        if sampling == "eps":
+            sampling_type = comfy.model_sampling.EPS
+        elif sampling == "v_prediction":
+            sampling_type = comfy.model_sampling.V_PREDICTION
+        elif sampling == "lcm":
+            sampling_type = LCM
+            sampling_base = ModelSamplingDiscreteDistilled
+        elif sampling == "x0":
+            sampling_type = comfy.model_sampling.X0
+        elif sampling == "img_to_img":
+            sampling_type = comfy.model_sampling.IMG_TO_IMG
+
+        class ModelSamplingAdvanced(sampling_base, sampling_type):
+            pass
+
+        model_sampling = ModelSamplingAdvanced(model.model.model_config, zsnr=zsnr)
+
+        m.add_object_patch("model_sampling", model_sampling)
+        return io.NodeOutput(m)
+
+
+class ModelSamplingStableCascade(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelSamplingStableCascade_V3",
+            category="advanced/model",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("shift", default=2.0, min=0.0, max=100.0, step=0.01),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, shift):
+        m = model.clone()
+
+        sampling_base = comfy.model_sampling.StableCascadeSampling
+        sampling_type = comfy.model_sampling.EPS
+
+        class ModelSamplingAdvanced(sampling_base, sampling_type):
+            pass
+
+        model_sampling = ModelSamplingAdvanced(model.model.model_config)
+        model_sampling.set_parameters(shift)
+        m.add_object_patch("model_sampling", model_sampling)
+        return io.NodeOutput(m)
+
+
+class ModelSamplingSD3(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelSamplingSD3_V3",
+            category="advanced/model",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("shift", default=3.0, min=0.0, max=100.0, step=0.01),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, shift, multiplier: int | float = 1000):
+        m = model.clone()
+
+        sampling_base = comfy.model_sampling.ModelSamplingDiscreteFlow
+        sampling_type = comfy.model_sampling.CONST
+
+        class ModelSamplingAdvanced(sampling_base, sampling_type):
+            pass
+
+        model_sampling = ModelSamplingAdvanced(model.model.model_config)
+        model_sampling.set_parameters(shift=shift, multiplier=multiplier)
+        m.add_object_patch("model_sampling", model_sampling)
+        return io.NodeOutput(m)
+
+
+class ModelSamplingAuraFlow(ModelSamplingSD3):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelSamplingAuraFlow_V3",
+            category="advanced/model",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("shift", default=1.73, min=0.0, max=100.0, step=0.01),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, shift, multiplier: int | float = 1.0):
+        return super().execute(model, shift, multiplier)
+
+
+class ModelSamplingFlux(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelSamplingFlux_V3",
+            category="advanced/model",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("max_shift", default=1.15, min=0.0, max=100.0, step=0.01),
+                io.Float.Input("base_shift", default=0.5, min=0.0, max=100.0, step=0.01),
+                io.Int.Input("width", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=8),
+                io.Int.Input("height", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=8),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, max_shift, base_shift, width, height):
+        m = model.clone()
+
+        x1 = 256
+        x2 = 4096
+        mm = (max_shift - base_shift) / (x2 - x1)
+        b = base_shift - mm * x1
+        shift = (width * height / (8 * 8 * 2 * 2)) * mm + b
+
+        sampling_base = comfy.model_sampling.ModelSamplingFlux
+        sampling_type = comfy.model_sampling.CONST
+
+        class ModelSamplingAdvanced(sampling_base, sampling_type):
+            pass
+
+        model_sampling = ModelSamplingAdvanced(model.model.model_config)
+        model_sampling.set_parameters(shift=shift)
+        m.add_object_patch("model_sampling", model_sampling)
         return io.NodeOutput(m)
 
 
@@ -165,170 +307,6 @@ class ModelSamplingContinuousV(io.ComfyNode):
         return io.NodeOutput(m)
 
 
-class ModelSamplingDiscrete(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ModelSamplingDiscrete_V3",
-            category="advanced/model",
-            inputs=[
-                io.Model.Input("model"),
-                io.Combo.Input("sampling", options=["eps", "v_prediction", "lcm", "x0", "img_to_img"]),
-                io.Boolean.Input("zsnr", default=False),
-            ],
-            outputs=[
-                io.Model.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, model, sampling, zsnr):
-        m = model.clone()
-
-        sampling_base = comfy.model_sampling.ModelSamplingDiscrete
-        if sampling == "eps":
-            sampling_type = comfy.model_sampling.EPS
-        elif sampling == "v_prediction":
-            sampling_type = comfy.model_sampling.V_PREDICTION
-        elif sampling == "lcm":
-            sampling_type = LCM
-            sampling_base = ModelSamplingDiscreteDistilled
-        elif sampling == "x0":
-            sampling_type = comfy.model_sampling.X0
-        elif sampling == "img_to_img":
-            sampling_type = comfy.model_sampling.IMG_TO_IMG
-
-        class ModelSamplingAdvanced(sampling_base, sampling_type):
-            pass
-
-        model_sampling = ModelSamplingAdvanced(model.model.model_config, zsnr=zsnr)
-
-        m.add_object_patch("model_sampling", model_sampling)
-        return io.NodeOutput(m)
-
-
-class ModelSamplingFlux(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ModelSamplingFlux_V3",
-            category="advanced/model",
-            inputs=[
-                io.Model.Input("model"),
-                io.Float.Input("max_shift", default=1.15, min=0.0, max=100.0, step=0.01),
-                io.Float.Input("base_shift", default=0.5, min=0.0, max=100.0, step=0.01),
-                io.Int.Input("width", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=8),
-                io.Int.Input("height", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=8),
-            ],
-            outputs=[
-                io.Model.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, model, max_shift, base_shift, width, height):
-        m = model.clone()
-
-        x1 = 256
-        x2 = 4096
-        mm = (max_shift - base_shift) / (x2 - x1)
-        b = base_shift - mm * x1
-        shift = (width * height / (8 * 8 * 2 * 2)) * mm + b
-
-        sampling_base = comfy.model_sampling.ModelSamplingFlux
-        sampling_type = comfy.model_sampling.CONST
-
-        class ModelSamplingAdvanced(sampling_base, sampling_type):
-            pass
-
-        model_sampling = ModelSamplingAdvanced(model.model.model_config)
-        model_sampling.set_parameters(shift=shift)
-        m.add_object_patch("model_sampling", model_sampling)
-        return io.NodeOutput(m)
-
-
-class ModelSamplingSD3(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ModelSamplingSD3_V3",
-            category="advanced/model",
-            inputs=[
-                io.Model.Input("model"),
-                io.Float.Input("shift", default=3.0, min=0.0, max=100.0, step=0.01),
-            ],
-            outputs=[
-                io.Model.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, model, shift, multiplier: int | float = 1000):
-        m = model.clone()
-
-        sampling_base = comfy.model_sampling.ModelSamplingDiscreteFlow
-        sampling_type = comfy.model_sampling.CONST
-
-        class ModelSamplingAdvanced(sampling_base, sampling_type):
-            pass
-
-        model_sampling = ModelSamplingAdvanced(model.model.model_config)
-        model_sampling.set_parameters(shift=shift, multiplier=multiplier)
-        m.add_object_patch("model_sampling", model_sampling)
-        return io.NodeOutput(m)
-
-
-class ModelSamplingAuraFlow(ModelSamplingSD3):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ModelSamplingAuraFlow_V3",
-            category="advanced/model",
-            inputs=[
-                io.Model.Input("model"),
-                io.Float.Input("shift", default=1.73, min=0.0, max=100.0, step=0.01),
-            ],
-            outputs=[
-                io.Model.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, model, shift, multiplier: int | float = 1.0):
-        return super().execute(model, shift, multiplier)
-
-
-class ModelSamplingStableCascade(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ModelSamplingStableCascade_V3",
-            category="advanced/model",
-            inputs=[
-                io.Model.Input("model"),
-                io.Float.Input("shift", default=2.0, min=0.0, max=100.0, step=0.01),
-            ],
-            outputs=[
-                io.Model.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, model, shift):
-        m = model.clone()
-
-        sampling_base = comfy.model_sampling.StableCascadeSampling
-        sampling_type = comfy.model_sampling.EPS
-
-        class ModelSamplingAdvanced(sampling_base, sampling_type):
-            pass
-
-        model_sampling = ModelSamplingAdvanced(model.model.model_config)
-        model_sampling.set_parameters(shift)
-        m.add_object_patch("model_sampling", model_sampling)
-        return io.NodeOutput(m)
-
-
 class RescaleCFG(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -374,7 +352,29 @@ class RescaleCFG(io.ComfyNode):
         return io.NodeOutput(m)
 
 
-NODES_LIST = [
+class ModelComputeDtype(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ModelComputeDtype_V3",
+            category="advanced/debug/model",
+            inputs=[
+                io.Model.Input("model"),
+                io.Combo.Input("dtype", options=["default", "fp32", "fp16", "bf16"]),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, dtype):
+        m = model.clone()
+        m.set_model_compute_dtype(node_helpers.string_to_torch_dtype(dtype))
+        return io.NodeOutput(m)
+
+
+NODES_LIST: list[type[io.ComfyNode]] = [
     ModelSamplingAuraFlow,
     ModelComputeDtype,
     ModelSamplingContinuousEDM,

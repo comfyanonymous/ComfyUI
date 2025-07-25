@@ -15,6 +15,108 @@ from comfy_api.latest import io, ui
 from comfy_api.util import VideoCodec, VideoComponents, VideoContainer
 
 
+class SaveWEBM(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SaveWEBM_V3",
+            category="image/video",
+            is_experimental=True,
+            inputs=[
+                io.Image.Input("images"),
+                io.String.Input("filename_prefix", default="ComfyUI"),
+                io.Combo.Input("codec", options=["vp9", "av1"]),
+                io.Float.Input("fps", default=24.0, min=0.01, max=1000.0, step=0.01),
+                io.Float.Input("crf", default=32.0, min=0, max=63.0, step=1, tooltip="Higher crf means lower quality with a smaller file size, lower crf means higher quality higher filesize."),
+            ],
+            outputs=[],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, images, codec, fps, filename_prefix, crf):
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
+        )
+
+        file = f"{filename}_{counter:05}_.webm"
+        container = av.open(os.path.join(full_output_folder, file), mode="w")
+
+        if cls.hidden.prompt is not None:
+            container.metadata["prompt"] = json.dumps(cls.hidden.prompt)
+
+        if cls.hidden.extra_pnginfo is not None:
+            for x in cls.hidden.extra_pnginfo:
+                container.metadata[x] = json.dumps(cls.hidden.extra_pnginfo[x])
+
+        codec_map = {"vp9": "libvpx-vp9", "av1": "libsvtav1"}
+        stream = container.add_stream(codec_map[codec], rate=Fraction(round(fps * 1000), 1000))
+        stream.width = images.shape[-2]
+        stream.height = images.shape[-3]
+        stream.pix_fmt = "yuv420p10le" if codec == "av1" else "yuv420p"
+        stream.bit_rate = 0
+        stream.options = {'crf': str(crf)}
+        if codec == "av1":
+            stream.options["preset"] = "6"
+
+        for frame in images:
+            frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :3] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgb24")
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        container.mux(stream.encode())
+        container.close()
+
+        return io.NodeOutput(ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
+
+
+class SaveVideo(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SaveVideo_V3",
+            display_name="Save Video _V3",
+            category="image/video",
+            description="Saves the input images to your ComfyUI output directory.",
+            inputs=[
+                io.Video.Input("video", tooltip="The video to save."),
+                io.String.Input("filename_prefix", default="video/ComfyUI", tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."),
+                io.Combo.Input("format", options=VideoContainer.as_input(), default="auto", tooltip="The format to save the video as."),
+                io.Combo.Input("codec", options=VideoCodec.as_input(), default="auto", tooltip="The codec to use for the video."),
+            ],
+            outputs=[],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, video: VideoInput, filename_prefix, format, codec):
+        width, height = video.get_dimensions()
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix,
+            folder_paths.get_output_directory(),
+            width,
+            height
+        )
+        saved_metadata = None
+        if not args.disable_metadata:
+            metadata = {}
+            if cls.hidden.extra_pnginfo is not None:
+                metadata.update(cls.hidden.extra_pnginfo)
+            if cls.hidden.prompt is not None:
+                metadata["prompt"] = cls.hidden.prompt
+            if len(metadata) > 0:
+                saved_metadata = metadata
+        file = f"{filename}_{counter:05}_.{VideoContainer.get_extension(format)}"
+        video.save_to(
+            os.path.join(full_output_folder, file),
+            format=format,
+            codec=codec,
+            metadata=saved_metadata
+        )
+        return io.NodeOutput(ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
+
+
 class CreateVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -35,13 +137,9 @@ class CreateVideo(io.ComfyNode):
 
     @classmethod
     def execute(cls, images: ImageInput, fps: float, audio: AudioInput = None):
-        return io.NodeOutput(VideoFromComponents(
-            VideoComponents(
-            images=images,
-            audio=audio,
-            frame_rate=Fraction(fps),
-            )
-        ))
+        return io.NodeOutput(
+            VideoFromComponents(VideoComponents(images=images, audio=audio, frame_rate=Fraction(fps)))
+        )
 
 
 class GetVideoComponents(io.ComfyNode):
@@ -105,106 +203,10 @@ class LoadVideo(io.ComfyNode):
         return True
 
 
-class SaveVideo(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="SaveVideo_V3",
-            display_name="Save Video _V3",
-            category="image/video",
-            description="Saves the input images to your ComfyUI output directory.",
-            inputs=[
-                io.Video.Input("video", tooltip="The video to save."),
-                io.String.Input("filename_prefix", default="video/ComfyUI", tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."),
-                io.Combo.Input("format", options=VideoContainer.as_input(), default="auto", tooltip="The format to save the video as."),
-                io.Combo.Input("codec", options=VideoCodec.as_input(), default="auto", tooltip="The codec to use for the video."),
-            ],
-            outputs=[],
-            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
-            is_output_node=True,
-        )
-
-    @classmethod
-    def execute(cls, video: VideoInput, filename_prefix, format, codec):
-        width, height = video.get_dimensions()
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
-            filename_prefix,
-            folder_paths.get_output_directory(),
-            width,
-            height
-        )
-        saved_metadata = None
-        if not args.disable_metadata:
-            metadata = {}
-            if cls.hidden.extra_pnginfo is not None:
-                metadata.update(cls.hidden.extra_pnginfo)
-            if cls.hidden.prompt is not None:
-                metadata["prompt"] = cls.hidden.prompt
-            if len(metadata) > 0:
-                saved_metadata = metadata
-        file = f"{filename}_{counter:05}_.{VideoContainer.get_extension(format)}"
-        video.save_to(
-            os.path.join(full_output_folder, file),
-            format=format,
-            codec=codec,
-            metadata=saved_metadata
-        )
-        return io.NodeOutput(ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
-
-
-class SaveWEBM(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="SaveWEBM_V3",
-            category="image/video",
-            is_experimental=True,
-            inputs=[
-                io.Image.Input("images"),
-                io.String.Input("filename_prefix", default="ComfyUI"),
-                io.Combo.Input("codec", options=["vp9", "av1"]),
-                io.Float.Input("fps", default=24.0, min=0.01, max=1000.0, step=0.01),
-                io.Float.Input("crf", default=32.0, min=0, max=63.0, step=1, tooltip="Higher crf means lower quality with a smaller file size, lower crf means higher quality higher filesize."),
-            ],
-            outputs=[],
-            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
-            is_output_node=True,
-        )
-
-    @classmethod
-    def execute(cls, images, codec, fps, filename_prefix, crf):
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
-            filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0]
-        )
-
-        file = f"{filename}_{counter:05}_.webm"
-        container = av.open(os.path.join(full_output_folder, file), mode="w")
-
-        if cls.hidden.prompt is not None:
-            container.metadata["prompt"] = json.dumps(cls.hidden.prompt)
-
-        if cls.hidden.extra_pnginfo is not None:
-            for x in cls.hidden.extra_pnginfo:
-                container.metadata[x] = json.dumps(cls.hidden.extra_pnginfo[x])
-
-        codec_map = {"vp9": "libvpx-vp9", "av1": "libsvtav1"}
-        stream = container.add_stream(codec_map[codec], rate=Fraction(round(fps * 1000), 1000))
-        stream.width = images.shape[-2]
-        stream.height = images.shape[-3]
-        stream.pix_fmt = "yuv420p10le" if codec == "av1" else "yuv420p"
-        stream.bit_rate = 0
-        stream.options = {'crf': str(crf)}
-        if codec == "av1":
-            stream.options["preset"] = "6"
-
-        for frame in images:
-            frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :3] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgb24")
-            for packet in stream.encode(frame):
-                container.mux(packet)
-        container.mux(stream.encode())
-        container.close()
-
-        return io.NodeOutput(ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
-
-
-NODES_LIST = [CreateVideo, GetVideoComponents, LoadVideo, SaveVideo, SaveWEBM]
+NODES_LIST: list[type[io.ComfyNode]] = [
+    CreateVideo,
+    GetVideoComponents,
+    LoadVideo,
+    SaveVideo,
+    SaveWEBM,
+]

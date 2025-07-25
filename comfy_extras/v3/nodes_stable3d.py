@@ -158,7 +158,7 @@ class SV3D_Conditioning(io.ComfyNode):
         return io.NodeOutput(positive, negative, {"samples":latent})
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     StableZero123_Conditioning,
     StableZero123_Conditioning_Batched,
     SV3D_Conditioning,

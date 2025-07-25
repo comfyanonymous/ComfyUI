@@ -13,13 +13,6 @@ import node_helpers
 from comfy_api.latest import io
 
 
-def gaussian_kernel(kernel_size: int, sigma: float, device=None):
-    x, y = torch.meshgrid(torch.linspace(-1, 1, kernel_size, device=device), torch.linspace(-1, 1, kernel_size, device=device), indexing="ij")
-    d = torch.sqrt(x * x + y * y)
-    g = torch.exp(-(d * d) / (2.0 * sigma * sigma))
-    return g / g.sum()
-
-
 class Blend(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -109,36 +102,11 @@ class Blur(io.ComfyNode):
         return io.NodeOutput(blurred.to(comfy.model_management.intermediate_device()))
 
 
-class ImageScaleToTotalPixels(io.ComfyNode):
-    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
-    crop_methods = ["disabled", "center"]
-
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ImageScaleToTotalPixels_V3",
-            category="image/upscaling",
-            inputs=[
-                io.Image.Input("image"),
-                io.Combo.Input("upscale_method", options=cls.upscale_methods),
-                io.Float.Input("megapixels", default=1.0, min=0.01, max=16.0, step=0.01),
-            ],
-            outputs=[
-                io.Image.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, image, upscale_method, megapixels):
-        samples = image.movedim(-1,1)
-        total = int(megapixels * 1024 * 1024)
-
-        scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
-        width = round(samples.shape[3] * scale_by)
-        height = round(samples.shape[2] * scale_by)
-
-        s = comfy.utils.common_upscale(samples, width, height, upscale_method, "disabled")
-        return io.NodeOutput(s.movedim(1,-1))
+def gaussian_kernel(kernel_size: int, sigma: float, device=None):
+    x, y = torch.meshgrid(torch.linspace(-1, 1, kernel_size, device=device), torch.linspace(-1, 1, kernel_size, device=device), indexing="ij")
+    d = torch.sqrt(x * x + y * y)
+    g = torch.exp(-(d * d) / (2.0 * sigma * sigma))
+    return g / g.sum()
 
 
 class Quantize(io.ComfyNode):
@@ -246,7 +214,39 @@ class Sharpen(io.ComfyNode):
         return io.NodeOutput(result.to(comfy.model_management.intermediate_device()))
 
 
-NODES_LIST = [
+class ImageScaleToTotalPixels(io.ComfyNode):
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
+    crop_methods = ["disabled", "center"]
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ImageScaleToTotalPixels_V3",
+            category="image/upscaling",
+            inputs=[
+                io.Image.Input("image"),
+                io.Combo.Input("upscale_method", options=cls.upscale_methods),
+                io.Float.Input("megapixels", default=1.0, min=0.01, max=16.0, step=0.01),
+            ],
+            outputs=[
+                io.Image.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, image, upscale_method, megapixels):
+        samples = image.movedim(-1,1)
+        total = int(megapixels * 1024 * 1024)
+
+        scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
+        width = round(samples.shape[3] * scale_by)
+        height = round(samples.shape[2] * scale_by)
+
+        s = comfy.utils.common_upscale(samples, width, height, upscale_method, "disabled")
+        return io.NodeOutput(s.movedim(1,-1))
+
+
+NODES_LIST: list[type[io.ComfyNode]] = [
     Blend,
     Blur,
     ImageScaleToTotalPixels,

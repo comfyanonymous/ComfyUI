@@ -10,6 +10,59 @@ from comfy_api.latest import io
 from comfy_extras.v3.nodes_slg import SkipLayerGuidanceDiT
 
 
+class TripleCLIPLoader(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="TripleCLIPLoader_V3",
+            category="advanced/loaders",
+            description="[Recipes]\n\nsd3: clip-l, clip-g, t5",
+            inputs=[
+                io.Combo.Input("clip_name1", options=folder_paths.get_filename_list("text_encoders")),
+                io.Combo.Input("clip_name2", options=folder_paths.get_filename_list("text_encoders")),
+                io.Combo.Input("clip_name3", options=folder_paths.get_filename_list("text_encoders")),
+            ],
+            outputs=[
+                io.Clip.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, clip_name1: str, clip_name2: str, clip_name3: str):
+        clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", clip_name1)
+        clip_path2 = folder_paths.get_full_path_or_raise("text_encoders", clip_name2)
+        clip_path3 = folder_paths.get_full_path_or_raise("text_encoders", clip_name3)
+        clip = comfy.sd.load_clip(
+            ckpt_paths=[clip_path1, clip_path2, clip_path3],
+            embedding_directory=folder_paths.get_folder_paths("embeddings"),
+        )
+        return io.NodeOutput(clip)
+
+
+class EmptySD3LatentImage(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="EmptySD3LatentImage_V3",
+            category="latent/sd3",
+            inputs=[
+                io.Int.Input("width", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input("height", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input("batch_size", default=1, min=1, max=4096),
+            ],
+            outputs=[
+                io.Latent.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, width: int, height: int, batch_size=1):
+        latent = torch.zeros(
+            [batch_size, 16, height // 8, width // 8], device=comfy.model_management.intermediate_device()
+        )
+        return io.NodeOutput({"samples":latent})
+
+
 class CLIPTextEncodeSD3(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -54,30 +107,6 @@ class CLIPTextEncodeSD3(io.ComfyNode):
         return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
 
 
-class EmptySD3LatentImage(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="EmptySD3LatentImage_V3",
-            category="latent/sd3",
-            inputs=[
-                io.Int.Input("width", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
-                io.Int.Input("height", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
-                io.Int.Input("batch_size", default=1, min=1, max=4096),
-            ],
-            outputs=[
-                io.Latent.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, width: int, height: int, batch_size=1):
-        latent = torch.zeros(
-            [batch_size, 16, height // 8, width // 8], device=comfy.model_management.intermediate_device()
-        )
-        return io.NodeOutput({"samples":latent})
-
-
 class SkipLayerGuidanceSD3(SkipLayerGuidanceDiT):
     """
     Enhance guidance towards detailed dtructure by having another set of CFG negative with skipped layers.
@@ -108,36 +137,7 @@ class SkipLayerGuidanceSD3(SkipLayerGuidanceDiT):
             model=model, scale=scale, start_percent=start_percent, end_percent=end_percent, double_layers=layers
         )
 
-
-class TripleCLIPLoader(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="TripleCLIPLoader_V3",
-            category="advanced/loaders",
-            description="[Recipes]\n\nsd3: clip-l, clip-g, t5",
-            inputs=[
-                io.Combo.Input("clip_name1", options=folder_paths.get_filename_list("text_encoders")),
-                io.Combo.Input("clip_name2", options=folder_paths.get_filename_list("text_encoders")),
-                io.Combo.Input("clip_name3", options=folder_paths.get_filename_list("text_encoders")),
-            ],
-            outputs=[
-                io.Clip.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, clip_name1: str, clip_name2: str, clip_name3: str):
-        clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", clip_name1)
-        clip_path2 = folder_paths.get_full_path_or_raise("text_encoders", clip_name2)
-        clip_path3 = folder_paths.get_full_path_or_raise("text_encoders", clip_name3)
-        clip = comfy.sd.load_clip(
-            ckpt_paths=[clip_path1, clip_path2, clip_path3],
-            embedding_directory=folder_paths.get_folder_paths("embeddings"),
-        )
-        return io.NodeOutput(clip)
-
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     CLIPTextEncodeSD3,
     EmptySD3LatentImage,
     SkipLayerGuidanceSD3,

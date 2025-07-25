@@ -11,40 +11,6 @@ import nodes
 from comfy_api.latest import io
 
 
-class ConditioningSetAreaPercentageVideo(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ConditioningSetAreaPercentageVideo_V3",
-            category="conditioning",
-            inputs=[
-                io.Conditioning.Input("conditioning"),
-                io.Float.Input("width", default=1.0, min=0, max=1.0, step=0.01),
-                io.Float.Input("height", default=1.0, min=0, max=1.0, step=0.01),
-                io.Float.Input("temporal", default=1.0, min=0, max=1.0, step=0.01),
-                io.Float.Input("x", default=0, min=0, max=1.0, step=0.01),
-                io.Float.Input("y", default=0, min=0, max=1.0, step=0.01),
-                io.Float.Input("z", default=0, min=0, max=1.0, step=0.01),
-                io.Float.Input("strength", default=1.0, min=0.0, max=10.0, step=0.01),
-            ],
-            outputs=[
-                io.Conditioning.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, conditioning, width, height, temporal, x, y, z, strength):
-        c = node_helpers.conditioning_set_values(
-            conditioning,
-            {
-                "area": ("percentage", temporal, height, width, z, y, x),
-                "strength": strength,
-                "set_area_to_bounds": False
-            ,}
-        )
-        return io.NodeOutput(c)
-
-
 class ImageOnlyCheckpointLoader(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -73,37 +39,6 @@ class ImageOnlyCheckpointLoader(io.ComfyNode):
             embedding_directory=folder_paths.get_folder_paths("embeddings"),
         )
         return io.NodeOutput(out[0], out[3], out[2])
-
-
-class ImageOnlyCheckpointSave(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="ImageOnlyCheckpointSave_V3",
-            category="advanced/model_merging",
-            inputs=[
-                io.Model.Input("model"),
-                io.ClipVision.Input("clip_vision"),
-                io.Vae.Input("vae"),
-                io.String.Input("filename_prefix", default="checkpoints/ComfyUI"),
-            ],
-            outputs=[],
-            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
-        )
-
-    @classmethod
-    def execute(cls, model, clip_vision, vae, filename_prefix):
-        output_dir = folder_paths.get_output_directory()
-        comfy_extras.nodes_model_merging.save_checkpoint(
-            model,
-            clip_vision=clip_vision,
-            vae=vae,
-            filename_prefix=filename_prefix,
-            output_dir=output_dir,
-            prompt=cls.hidden.prompt,
-            extra_pnginfo=cls.hidden.extra_pnginfo,
-        )
-        return io.NodeOutput()
 
 
 class SVD_img2vid_Conditioning(io.ComfyNode):
@@ -222,7 +157,72 @@ class VideoTriangleCFGGuidance(io.ComfyNode):
         return io.NodeOutput(m)
 
 
-NODES_LIST = [
+class ImageOnlyCheckpointSave(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ImageOnlyCheckpointSave_V3",
+            category="advanced/model_merging",
+            inputs=[
+                io.Model.Input("model"),
+                io.ClipVision.Input("clip_vision"),
+                io.Vae.Input("vae"),
+                io.String.Input("filename_prefix", default="checkpoints/ComfyUI"),
+            ],
+            outputs=[],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+        )
+
+    @classmethod
+    def execute(cls, model, clip_vision, vae, filename_prefix):
+        output_dir = folder_paths.get_output_directory()
+        comfy_extras.nodes_model_merging.save_checkpoint(
+            model,
+            clip_vision=clip_vision,
+            vae=vae,
+            filename_prefix=filename_prefix,
+            output_dir=output_dir,
+            prompt=cls.hidden.prompt,
+            extra_pnginfo=cls.hidden.extra_pnginfo,
+        )
+        return io.NodeOutput()
+
+
+class ConditioningSetAreaPercentageVideo(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ConditioningSetAreaPercentageVideo_V3",
+            category="conditioning",
+            inputs=[
+                io.Conditioning.Input("conditioning"),
+                io.Float.Input("width", default=1.0, min=0, max=1.0, step=0.01),
+                io.Float.Input("height", default=1.0, min=0, max=1.0, step=0.01),
+                io.Float.Input("temporal", default=1.0, min=0, max=1.0, step=0.01),
+                io.Float.Input("x", default=0, min=0, max=1.0, step=0.01),
+                io.Float.Input("y", default=0, min=0, max=1.0, step=0.01),
+                io.Float.Input("z", default=0, min=0, max=1.0, step=0.01),
+                io.Float.Input("strength", default=1.0, min=0.0, max=10.0, step=0.01),
+            ],
+            outputs=[
+                io.Conditioning.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, conditioning, width, height, temporal, x, y, z, strength):
+        c = node_helpers.conditioning_set_values(
+            conditioning,
+            {
+                "area": ("percentage", temporal, height, width, z, y, x),
+                "strength": strength,
+                "set_area_to_bounds": False
+            ,}
+        )
+        return io.NodeOutput(c)
+
+
+NODES_LIST: list[type[io.ComfyNode]] = [
     ConditioningSetAreaPercentageVideo,
     ImageOnlyCheckpointLoader,
     ImageOnlyCheckpointSave,
