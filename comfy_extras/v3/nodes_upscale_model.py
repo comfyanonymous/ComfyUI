@@ -8,7 +8,7 @@ from spandrel import ImageModelDescriptor, ModelLoader
 import comfy.utils
 import folder_paths
 from comfy import model_management
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 try:
     from spandrel import MAIN_REGISTRY

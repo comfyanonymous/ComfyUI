@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class CLIPTextEncodeControlnet(io.ComfyNode):

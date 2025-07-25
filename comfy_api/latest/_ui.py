@@ -17,7 +17,7 @@ import folder_paths
 
 # used for image preview
 from comfy.cli_args import args
-from comfy_api.v3._io import ComfyNode, FolderType, Image, _UIOutput
+from comfy_api.latest._io import ComfyNode, FolderType, Image, _UIOutput
 
 
 class SavedResult(dict):

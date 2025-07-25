@@ -18,7 +18,7 @@ import comfy_extras.nodes_custom_sampler
 import folder_paths
 import node_helpers
 from comfy.weight_adapter import adapter_maps, adapters
-from comfy_api.v3 import io, ui
+from comfy_api.latest import io, ui
 
 
 def make_batch_extra_option_dict(d, indicies, full_size=None):

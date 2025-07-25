@@ -9,7 +9,7 @@ import comfy.model_management
 import comfy.ops
 import comfy.utils
 import folder_paths
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 # code for model from:
 # https://github.com/TencentARC/PhotoMaker/blob/main/photomaker/model.py under Apache License Version 2.0

@@ -7,7 +7,7 @@ import torch
 import comfy.utils
 import node_helpers
 import nodes
-from comfy_api.v3 import io, ui
+from comfy_api.latest import io, ui
 
 
 def composite(destination, source, x, y, mask=None, multiplier=8, resize_source=False):

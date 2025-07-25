@@ -9,7 +9,7 @@ import torch
 import comfy.model_management
 import comfy.utils
 import folder_paths
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 CLAMP_QUANTILE = 0.99
 

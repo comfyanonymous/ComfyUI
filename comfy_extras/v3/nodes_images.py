@@ -9,7 +9,7 @@ import comfy.utils
 import folder_paths
 import node_helpers
 import nodes
-from comfy_api.v3 import io, ui
+from comfy_api.latest import io, ui
 from server import PromptServer
 
 

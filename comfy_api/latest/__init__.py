@@ -5,6 +5,9 @@ from comfy_api.internal import ComfyAPIBase
 from comfy_api.internal.singleton import ProxiedSingleton
 from comfy_api.internal.async_to_sync import create_sync_class
 from comfy_api.latest.input import ImageInput
+from comfy_api.latest._io import _IO as io  #noqa: F401
+from comfy_api.latest._ui import _UI as ui  #noqa: F401
+from comfy_api.latest._resources import _RESOURCES as resources  #noqa: F401
 from comfy_execution.utils import get_executing_context
 from comfy_execution.progress import get_progress_state
 from PIL import Image

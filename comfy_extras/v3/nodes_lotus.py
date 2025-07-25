@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 
 import comfy.model_management as mm
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class LotusConditioning(io.ComfyNode):

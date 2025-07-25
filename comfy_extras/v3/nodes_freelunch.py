@@ -6,7 +6,7 @@ import logging
 
 import torch
 
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def Fourier_filter(x, threshold, scale):

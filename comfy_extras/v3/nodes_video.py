@@ -12,7 +12,7 @@ from comfy.cli_args import args
 from comfy_api.input import AudioInput, ImageInput, VideoInput
 from comfy_api.input_impl import VideoFromComponents, VideoFromFile
 from comfy_api.util import VideoCodec, VideoComponents, VideoContainer
-from comfy_api.v3 import io, ui
+from comfy_api.latest import io, ui
 
 
 class CreateVideo(io.ComfyNode):

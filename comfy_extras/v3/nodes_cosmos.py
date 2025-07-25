@@ -6,7 +6,7 @@ import comfy.latent_formats
 import comfy.model_management
 import comfy.utils
 import nodes
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def vae_encode_with_padding(vae, image, width, height, length, padding=0):

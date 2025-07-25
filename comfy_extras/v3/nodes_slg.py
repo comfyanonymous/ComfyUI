@@ -4,7 +4,7 @@ import re
 
 import comfy.model_patcher
 import comfy.samplers
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class SkipLayerGuidanceDiT(io.ComfyNode):

@@ -7,7 +7,7 @@ from typing import Callable, Tuple
 
 import torch
 
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def do_nothing(x: torch.Tensor, mode:str=None):

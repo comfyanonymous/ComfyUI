@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from comfy_api.v3 import io, ui
+from comfy_api.latest import io, ui
 
 
 class PreviewAny(io.ComfyNode):

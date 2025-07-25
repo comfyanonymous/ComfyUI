@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class String(io.ComfyNode):

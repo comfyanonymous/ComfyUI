@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import nodes
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class CLIPTextEncodePixArtAlpha(io.ComfyNode):

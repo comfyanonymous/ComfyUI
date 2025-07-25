@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from comfy_api.torch_helpers import set_torch_compile_wrapper
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class TorchCompileModel(io.ComfyNode):

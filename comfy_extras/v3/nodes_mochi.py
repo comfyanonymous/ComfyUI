@@ -4,7 +4,7 @@ import torch
 
 import comfy.model_management
 import nodes
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class EmptyMochiLatentVideo(io.ComfyNode):

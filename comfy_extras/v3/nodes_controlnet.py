@@ -1,6 +1,6 @@
 import comfy.utils
 from comfy.cldm.control_types import UNION_CONTROLNET_TYPES
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class ControlNetApplyAdvanced(io.ComfyNode):

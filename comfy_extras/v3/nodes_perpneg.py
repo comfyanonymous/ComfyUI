@@ -9,7 +9,7 @@ import comfy.sampler_helpers
 import comfy.samplers
 import comfy.utils
 import node_helpers
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 def perp_neg(x, noise_pred_pos, noise_pred_neg, noise_pred_nocond, neg_scale, cond_scale):

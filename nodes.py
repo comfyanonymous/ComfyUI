@@ -29,7 +29,7 @@ import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
 from comfy_api.internal import register_versions, ComfyAPIWithVersion
 from comfy_api.version_list import supported_versions
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 import comfy.clip_vision
 

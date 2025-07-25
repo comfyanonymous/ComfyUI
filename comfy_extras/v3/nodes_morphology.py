@@ -13,7 +13,7 @@ from kornia.morphology import (
 )
 
 import comfy.model_management
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class ImageRGBToYUV(io.ComfyNode):

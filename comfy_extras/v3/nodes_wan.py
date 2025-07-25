@@ -8,7 +8,7 @@ import comfy.model_management
 import comfy.utils
 import node_helpers
 import nodes
-from comfy_api.v3 import io
+from comfy_api.latest import io
 
 
 class TrimVideoLatent(io.ComfyNode):

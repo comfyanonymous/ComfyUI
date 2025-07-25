@@ -6,7 +6,7 @@ import comfy.model_management
 import comfy.sd
 import folder_paths
 import nodes
-from comfy_api.v3 import io
+from comfy_api.latest import io
 from comfy_extras.v3.nodes_slg import SkipLayerGuidanceDiT
 
 
