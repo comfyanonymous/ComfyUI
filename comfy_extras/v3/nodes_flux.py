@@ -49,28 +49,6 @@ class CLIPTextEncodeFlux(io.ComfyNode):
 
         return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens, add_dict={"guidance": guidance}))
 
-
-class FluxDisableGuidance(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="FluxDisableGuidance_V3",
-            category="advanced/conditioning/flux",
-            description="This node completely disables the guidance embed on Flux and Flux like models",
-            inputs=[
-                io.Conditioning.Input("conditioning"),
-            ],
-            outputs=[
-                io.Conditioning.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, conditioning):
-        c = node_helpers.conditioning_set_values(conditioning, {"guidance": None})
-        return io.NodeOutput(c)
-
-
 class FluxGuidance(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -91,6 +69,25 @@ class FluxGuidance(io.ComfyNode):
         c = node_helpers.conditioning_set_values(conditioning, {"guidance": guidance})
         return io.NodeOutput(c)
 
+class FluxDisableGuidance(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="FluxDisableGuidance_V3",
+            category="advanced/conditioning/flux",
+            description="This node completely disables the guidance embed on Flux and Flux like models",
+            inputs=[
+                io.Conditioning.Input("conditioning"),
+            ],
+            outputs=[
+                io.Conditioning.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, conditioning):
+        c = node_helpers.conditioning_set_values(conditioning, {"guidance": None})
+        return io.NodeOutput(c)
 
 class FluxKontextImageScale(io.ComfyNode):
     @classmethod
@@ -117,7 +114,7 @@ class FluxKontextImageScale(io.ComfyNode):
         return io.NodeOutput(image)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     CLIPTextEncodeFlux,
     FluxDisableGuidance,
     FluxGuidance,

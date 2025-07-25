@@ -661,7 +661,7 @@ class VoxelToMeshBasic(io.ComfyNode):
         return io.NodeOutput(MESH(torch.stack(vertices), torch.stack(faces)))
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     EmptyLatentHunyuan3Dv2,
     Hunyuan3Dv2Conditioning,
     Hunyuan3Dv2ConditioningMultiView,

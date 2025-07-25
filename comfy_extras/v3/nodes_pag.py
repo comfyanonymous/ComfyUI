@@ -57,4 +57,6 @@ class PerturbedAttentionGuidance(io.ComfyNode):
         return io.NodeOutput(m)
 
 
-NODES_LIST = [PerturbedAttentionGuidance]
+NODES_LIST = [
+    PerturbedAttentionGuidance,
+]

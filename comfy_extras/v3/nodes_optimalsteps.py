@@ -59,4 +59,6 @@ class OptimalStepsScheduler(io.ComfyNode):
         return io.NodeOutput(torch.FloatTensor(sigmas))
 
 
-NODES_LIST = [OptimalStepsScheduler]
+NODES_LIST = [
+    OptimalStepsScheduler,
+]

@@ -172,7 +172,7 @@ class Preview3DAnimation(io.ComfyNode):
         return io.NodeOutput(ui=ui.PreviewUI3D(model_file, camera_info, cls=cls))
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     Load3D,
     Load3DAnimation,
     Preview3D,

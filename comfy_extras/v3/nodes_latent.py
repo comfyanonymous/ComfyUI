@@ -44,16 +44,15 @@ class LatentAdd(io.ComfyNode):
         return io.NodeOutput(samples_out)
 
 
-class LatentApplyOperation(io.ComfyNode):
+class LatentSubtract(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="LatentApplyOperation_V3",
-            category="latent/advanced/operations",
-            is_experimental=True,
+            node_id="LatentSubtract_V3",
+            category="latent/advanced",
             inputs=[
-                io.Latent.Input("samples"),
-                io.LatentOperation.Input("operation"),
+                io.Latent.Input("samples1"),
+                io.Latent.Input("samples2"),
             ],
             outputs=[
                 io.Latent.Output(),
@@ -61,44 +60,78 @@ class LatentApplyOperation(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, samples, operation):
-        samples_out = samples.copy()
+    def execute(cls, samples1, samples2):
+        samples_out = samples1.copy()
 
-        s1 = samples["samples"]
-        samples_out["samples"] = operation(latent=s1)
+        s1 = samples1["samples"]
+        s2 = samples2["samples"]
+
+        s2 = reshape_latent_to(s1.shape, s2)
+        samples_out["samples"] = s1 - s2
         return io.NodeOutput(samples_out)
 
 
-class LatentApplyOperationCFG(io.ComfyNode):
+class LatentMultiply(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="LatentApplyOperationCFG_V3",
-            category="latent/advanced/operations",
-            is_experimental=True,
+            node_id="LatentMultiply_V3",
+            category="latent/advanced",
             inputs=[
-                io.Model.Input("model"),
-                io.LatentOperation.Input("operation"),
+                io.Latent.Input("samples"),
+                io.Float.Input("multiplier", default=1.0, min=-10.0, max=10.0, step=0.01),
             ],
             outputs=[
-                io.Model.Output(),
+                io.Latent.Output(),
             ],
         )
 
     @classmethod
-    def execute(cls, model, operation):
-        m = model.clone()
+    def execute(cls, samples, multiplier):
+        samples_out = samples.copy()
 
-        def pre_cfg_function(args):
-            conds_out = args["conds_out"]
-            if len(conds_out) == 2:
-                conds_out[0] = operation(latent=(conds_out[0] - conds_out[1])) + conds_out[1]
-            else:
-                conds_out[0] = operation(latent=conds_out[0])
-            return conds_out
+        s1 = samples["samples"]
+        samples_out["samples"] = s1 * multiplier
+        return io.NodeOutput(samples_out)
 
-        m.set_model_sampler_pre_cfg_function(pre_cfg_function)
-        return io.NodeOutput(m)
+
+class LatentInterpolate(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LatentInterpolate_V3",
+            category="latent/advanced",
+            inputs=[
+                io.Latent.Input("samples1"),
+                io.Latent.Input("samples2"),
+                io.Float.Input("ratio", default=1.0, min=0.0, max=1.0, step=0.01),
+            ],
+            outputs=[
+                io.Latent.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, samples1, samples2, ratio):
+        samples_out = samples1.copy()
+
+        s1 = samples1["samples"]
+        s2 = samples2["samples"]
+
+        s2 = reshape_latent_to(s1.shape, s2)
+
+        m1 = torch.linalg.vector_norm(s1, dim=(1))
+        m2 = torch.linalg.vector_norm(s2, dim=(1))
+
+        s1 = torch.nan_to_num(s1 / m1)
+        s2 = torch.nan_to_num(s2 / m2)
+
+        t = (s1 * ratio + s2 * (1.0 - ratio))
+        mt = torch.linalg.vector_norm(t, dim=(1))
+        st = torch.nan_to_num(t / mt)
+
+        samples_out["samples"] = st * (m1 * ratio + m2 * (1.0 - ratio))
+        return io.NodeOutput(samples_out)
 
 
 class LatentBatch(io.ComfyNode):
@@ -159,54 +192,16 @@ class LatentBatchSeedBehavior(io.ComfyNode):
         return io.NodeOutput(samples_out)
 
 
-class LatentInterpolate(io.ComfyNode):
+class LatentApplyOperation(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="LatentInterpolate_V3",
-            category="latent/advanced",
-            inputs=[
-                io.Latent.Input("samples1"),
-                io.Latent.Input("samples2"),
-                io.Float.Input("ratio", default=1.0, min=0.0, max=1.0, step=0.01),
-            ],
-            outputs=[
-                io.Latent.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, samples1, samples2, ratio):
-        samples_out = samples1.copy()
-
-        s1 = samples1["samples"]
-        s2 = samples2["samples"]
-
-        s2 = reshape_latent_to(s1.shape, s2)
-
-        m1 = torch.linalg.vector_norm(s1, dim=(1))
-        m2 = torch.linalg.vector_norm(s2, dim=(1))
-
-        s1 = torch.nan_to_num(s1 / m1)
-        s2 = torch.nan_to_num(s2 / m2)
-
-        t = (s1 * ratio + s2 * (1.0 - ratio))
-        mt = torch.linalg.vector_norm(t, dim=(1))
-        st = torch.nan_to_num(t / mt)
-
-        samples_out["samples"] = st * (m1 * ratio + m2 * (1.0 - ratio))
-        return io.NodeOutput(samples_out)
-
-
-class LatentMultiply(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="LatentMultiply_V3",
-            category="latent/advanced",
+            node_id="LatentApplyOperation_V3",
+            category="latent/advanced/operations",
+            is_experimental=True,
             inputs=[
                 io.Latent.Input("samples"),
-                io.Float.Input("multiplier", default=1.0, min=-10.0, max=10.0, step=0.01),
+                io.LatentOperation.Input("operation"),
             ],
             outputs=[
                 io.Latent.Output(),
@@ -214,12 +209,79 @@ class LatentMultiply(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, samples, multiplier):
+    def execute(cls, samples, operation):
         samples_out = samples.copy()
 
         s1 = samples["samples"]
-        samples_out["samples"] = s1 * multiplier
+        samples_out["samples"] = operation(latent=s1)
         return io.NodeOutput(samples_out)
+
+
+class LatentApplyOperationCFG(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LatentApplyOperationCFG_V3",
+            category="latent/advanced/operations",
+            is_experimental=True,
+            inputs=[
+                io.Model.Input("model"),
+                io.LatentOperation.Input("operation"),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, operation):
+        m = model.clone()
+
+        def pre_cfg_function(args):
+            conds_out = args["conds_out"]
+            if len(conds_out) == 2:
+                conds_out[0] = operation(latent=(conds_out[0] - conds_out[1])) + conds_out[1]
+            else:
+                conds_out[0] = operation(latent=conds_out[0])
+            return conds_out
+
+        m.set_model_sampler_pre_cfg_function(pre_cfg_function)
+        return io.NodeOutput(m)
+
+
+class LatentOperationTonemapReinhard(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LatentOperationTonemapReinhard_V3",
+            category="latent/advanced/operations",
+            is_experimental=True,
+            inputs=[
+                io.Float.Input("multiplier", default=1.0, min=0.0, max=100.0, step=0.01),
+            ],
+            outputs=[
+                io.LatentOperation.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, multiplier):
+        def tonemap_reinhard(latent, **kwargs):
+            latent_vector_magnitude = (torch.linalg.vector_norm(latent, dim=(1)) + 0.0000000001)[:,None]
+            normalized_latent = latent / latent_vector_magnitude
+
+            mean = torch.mean(latent_vector_magnitude, dim=(1,2,3), keepdim=True)
+            std = torch.std(latent_vector_magnitude, dim=(1,2,3), keepdim=True)
+
+            top = (std * 5 + mean) * multiplier
+
+            #reinhard
+            latent_vector_magnitude *= (1.0 / top)
+            new_magnitude = latent_vector_magnitude / (latent_vector_magnitude + 1.0)
+            new_magnitude *= top
+
+            return normalized_latent * new_magnitude
+        return io.NodeOutput(tonemap_reinhard)
 
 
 class LatentOperationSharpen(io.ComfyNode):
@@ -264,69 +326,7 @@ class LatentOperationSharpen(io.ComfyNode):
         return io.NodeOutput(sharpen)
 
 
-class LatentOperationTonemapReinhard(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="LatentOperationTonemapReinhard_V3",
-            category="latent/advanced/operations",
-            is_experimental=True,
-            inputs=[
-                io.Float.Input("multiplier", default=1.0, min=0.0, max=100.0, step=0.01),
-            ],
-            outputs=[
-                io.LatentOperation.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, multiplier):
-        def tonemap_reinhard(latent, **kwargs):
-            latent_vector_magnitude = (torch.linalg.vector_norm(latent, dim=(1)) + 0.0000000001)[:,None]
-            normalized_latent = latent / latent_vector_magnitude
-
-            mean = torch.mean(latent_vector_magnitude, dim=(1,2,3), keepdim=True)
-            std = torch.std(latent_vector_magnitude, dim=(1,2,3), keepdim=True)
-
-            top = (std * 5 + mean) * multiplier
-
-            #reinhard
-            latent_vector_magnitude *= (1.0 / top)
-            new_magnitude = latent_vector_magnitude / (latent_vector_magnitude + 1.0)
-            new_magnitude *= top
-
-            return normalized_latent * new_magnitude
-        return io.NodeOutput(tonemap_reinhard)
-
-
-class LatentSubtract(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="LatentSubtract_V3",
-            category="latent/advanced",
-            inputs=[
-                io.Latent.Input("samples1"),
-                io.Latent.Input("samples2"),
-            ],
-            outputs=[
-                io.Latent.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, samples1, samples2):
-        samples_out = samples1.copy()
-
-        s1 = samples1["samples"]
-        s2 = samples2["samples"]
-
-        s2 = reshape_latent_to(s1.shape, s2)
-        samples_out["samples"] = s1 - s2
-        return io.NodeOutput(samples_out)
-
-
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     LatentAdd,
     LatentApplyOperation,
     LatentApplyOperationCFG,
