@@ -16,6 +16,7 @@ from ..api.components.schema.prompt_request import PromptRequest
 from ..api.paths.history.get.responses.response_200.content.application_json.schema import Schema as GetHistoryDict
 from ..api.schemas import immutabledict
 from ..component_model.file_output_path import file_output_path
+from ..component_model.outputs_types import OutputsDict
 
 
 class AsyncRemoteComfyClient:
@@ -122,9 +123,9 @@ class AsyncRemoteComfyClient:
             else:
                 raise RuntimeError(f"could not prompt: {response.status}: {await response.text()}")
 
-    async def queue_prompt_ui(self, prompt: PromptDict) -> dict[str, List[Path]]:
+    async def queue_prompt_ui(self, prompt: PromptDict) -> OutputsDict:
         """
-        Uses the comfyui UI API calls to retrieve a list of paths of output files
+        Uses the comfyui UI API calls to retrieve the outputs dictionary
         :param prompt:
         :return:
         """
@@ -158,17 +159,4 @@ class AsyncRemoteComfyClient:
 
         # images have filename, subfolder, type keys
         # todo: use the OpenAPI spec for this when I get around to updating it
-        outputs_by_node_id = history_json[prompt_id].outputs
-        res: dict[str, List[Path]] = {}
-        for node_id, output in outputs_by_node_id.items():
-            if 'images' in output:
-                images = []
-                image_dicts: List[dict] = output['images']
-                for image_file_output_dict in image_dicts:
-                    image_file_output_dict = defaultdict(None, image_file_output_dict)
-                    filename = image_file_output_dict['filename']
-                    subfolder = image_file_output_dict['subfolder']
-                    type = image_file_output_dict['type']
-                    images.append(Path(file_output_path(filename, subfolder=subfolder, type=type)))
-                res[node_id] = images
-        return res
+        return history_json[prompt_id].outputs

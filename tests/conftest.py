@@ -6,7 +6,9 @@ import subprocess
 import sys
 import time
 import urllib
-from typing import Tuple, List
+from contextvars import ContextVar
+from multiprocessing import Process
+from typing import List, Any, Generator
 
 import pytest
 import requests
@@ -24,12 +26,12 @@ logging.getLogger("aio_pika").setLevel(logging.CRITICAL + 1)
 
 
 def run_server(server_arguments: Configuration):
-    from comfy.cmd.main import main
+    from comfy.cmd.main import _start_comfyui
     from comfy.cli_args import args
     import asyncio
     for arg, value in server_arguments.items():
         args[arg] = value
-    asyncio.run(main())
+    asyncio.run(_start_comfyui())
 
 
 @pytest.fixture(scope="function", autouse=False)
@@ -134,9 +136,8 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers
 
 
 @pytest.fixture(scope="module", autouse=False)
-def comfy_background_server(tmp_path_factory) -> Tuple[Configuration, multiprocessing.Process]:
+def comfy_background_server(tmp_path_factory) -> Generator[tuple[Configuration, Process], Any, None]:
     tmp_path = tmp_path_factory.mktemp("comfy_background_server")
-    import torch
     # Start server
 
     configuration = Configuration()
@@ -144,6 +145,10 @@ def comfy_background_server(tmp_path_factory) -> Tuple[Configuration, multiproce
     configuration.output_directory = str(tmp_path)
     configuration.input_directory = str(tmp_path)
 
+    yield from comfy_background_server_from_config(configuration)
+
+
+def comfy_background_server_from_config(configuration):
     server_process = multiprocessing.Process(target=run_server, args=(configuration,))
     server_process.start()
     # wait for http url to be ready
@@ -161,6 +166,7 @@ def comfy_background_server(tmp_path_factory) -> Tuple[Configuration, multiproce
         raise Exception("Failed to start background server")
     yield configuration, server_process
     server_process.terminate()
+    import torch
     torch.cuda.empty_cache()
 
 
@@ -232,3 +238,13 @@ def use_temporary_input_directory(tmp_path: pathlib.Path):
     folder_paths.set_input_directory(tmp_path)
     yield tmp_path
     folder_paths.set_input_directory(orig_dir)
+
+
+current_test_name = ContextVar('current_test_name', default=None)
+
+
+@pytest.fixture(autouse=True)
+def set_test_name(request):
+    token = current_test_name.set(request.node.name)
+    yield
+    current_test_name.reset(token)

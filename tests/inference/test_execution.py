@@ -1,7 +1,6 @@
 import logging
 import time
 import uuid
-from contextvars import ContextVar
 from typing import Dict, Optional
 
 import numpy
@@ -17,15 +16,7 @@ from comfy.distributed.server_stub import ServerStub
 from comfy.execution_context import context_add_custom_nodes
 from comfy_execution.graph_utils import GraphBuilder, Node
 from comfy.nodes.package_typing import ExportedNodes
-
-current_test_name = ContextVar('current_test_name', default=None)
-
-
-@pytest.fixture(autouse=True)
-def set_test_name(request):
-    token = current_test_name.set(request.node.name)
-    yield
-    current_test_name.reset(token)
+from tests.conftest import current_test_name
 
 
 class RunResult:

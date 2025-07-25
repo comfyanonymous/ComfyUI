@@ -24,7 +24,7 @@ async def test_completes_prompt_with_ui(comfy_background_server):
         random_seed = random.randint(1, 4294967295)
         prompt = sdxl_workflow_with_refiner("test", inference_steps=1, seed=random_seed, refiner_steps=1)
         result_dict = await client.queue_prompt_ui(prompt)
-        # should contain one output
+    # should contain one output
     assert len(result_dict) == 1
 
 
