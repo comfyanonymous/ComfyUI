@@ -822,11 +822,11 @@ class AutogrowDynamic(ComfyTypeI):
                 curr_count += 1
             return new_inputs
 
-# io_type="COMFY_COMBODYNAMIC_V3"
-class ComboDynamicInput(DynamicInput):
-    def __init__(self, id: str):
-        pass
-
+@comfytype(io_type="COMFY_COMBODYNAMIC_V3")
+class ComboDynamic(ComfyTypeI):
+    class Input(DynamicInput):
+        def __init__(self, id: str):
+            pass
 
 @comfytype(io_type="COMFY_MATCHTYPE_V3")
 class MatchType(ComfyTypeIO):
