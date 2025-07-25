@@ -18,9 +18,24 @@ if model_management.xformers_enabled():
     import xformers.ops
 
 if model_management.sage_attention_enabled():
+    sage_attention_available = False
+    SAGE_ATTENTION_3_AVAILABLE = False
+    
     try:
-        from sageattention import sageattn
-    except ModuleNotFoundError as e:
+        from sageattn import sageattn_blackwell
+        SAGE_ATTENTION_3_AVAILABLE = True
+        sage_attention_available = True
+        print("Found SageAttention3 (sageattn package)")
+        
+    except ImportError:
+        try:
+            from sageattention import sageattn
+            sage_attention_available = True
+            print("Found SageAttention2 (sageattention package)")
+        except ModuleNotFoundError as e:
+            pass
+    
+    if not sage_attention_available:
         if e.name == "sageattention":
             logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
         else:
@@ -470,7 +485,6 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
             ).transpose(1, 2).reshape(-1, q.shape[2], heads * dim_head)
     return out
 
-
 def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
     if skip_reshape:
         b, _, _, dim_head = q.shape
@@ -493,7 +507,46 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
             mask = mask.unsqueeze(1)
 
     try:
-        out = sageattn(q, k, v, attn_mask=mask, is_causal=False, tensor_layout=tensor_layout)
+        if SAGE_ATTENTION_3_AVAILABLE and dim_head < 256:
+            # SageAttention3 expects tensor layout as (batch, heads, seq_len, head_dim)
+            if tensor_layout == "NHD":
+                q_sa3, k_sa3, v_sa3 = map(lambda t: t.transpose(1, 2), (q, k, v))
+            else:
+                q_sa3, k_sa3, v_sa3 = q, k, v
+            
+            out = sageattn_blackwell(q_sa3, k_sa3, v_sa3, attn_mask=mask, is_causal=False, per_block_mean=True)
+            
+            # Convert back to expected layout
+            if tensor_layout == "HND":
+                if not skip_output_reshape:
+                    out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+            else:
+                if skip_output_reshape:
+                    out = out.transpose(1, 2)
+                else:
+                    out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+        elif not SAGE_ATTENTION_3_AVAILABLE:
+            # Fall back to SageAttention2 if available
+            out = sageattn(q, k, v, attn_mask=mask, is_causal=False, tensor_layout=tensor_layout)
+            if tensor_layout == "HND":
+                if not skip_output_reshape:
+                    out = (
+                        out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+                    )
+            else:
+                if skip_output_reshape:
+                    out = out.transpose(1, 2)
+                else:
+                    out = out.reshape(b, -1, heads * dim_head)
+        else:
+            # SageAttention3 is available but head_dim >= 256, fall back to pytorch
+            logging.warning(f"SageAttention3 doesn't support head_dim >= 256 (got {dim_head}), falling back to pytorch attention")
+            if tensor_layout == "NHD":
+                q, k, v = map(
+                    lambda t: t.transpose(1, 2),
+                    (q, k, v),
+                )
+            return attention_pytorch(q, k, v, heads, mask=mask, skip_reshape=True, skip_output_reshape=skip_output_reshape)
     except Exception as e:
         logging.error("Error running sage attention: {}, using pytorch attention instead.".format(e))
         if tensor_layout == "NHD":
@@ -502,17 +555,6 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
                 (q, k, v),
             )
         return attention_pytorch(q, k, v, heads, mask=mask, skip_reshape=True, skip_output_reshape=skip_output_reshape)
-
-    if tensor_layout == "HND":
-        if not skip_output_reshape:
-            out = (
-                out.transpose(1, 2).reshape(b, -1, heads * dim_head)
-            )
-    else:
-        if skip_output_reshape:
-            out = out.transpose(1, 2)
-        else:
-            out = out.reshape(b, -1, heads * dim_head)
     return out
 
 
