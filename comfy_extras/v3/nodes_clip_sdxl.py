@@ -4,6 +4,31 @@ import nodes
 from comfy_api.latest import io
 
 
+class CLIPTextEncodeSDXLRefiner(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPTextEncodeSDXLRefiner_V3",
+            category="advanced/conditioning",
+            inputs=[
+                io.Float.Input("ascore", default=6.0, min=0.0, max=1000.0, step=0.01),
+                io.Int.Input("width", default=1024, min=0, max=nodes.MAX_RESOLUTION),
+                io.Int.Input("height", default=1024, min=0, max=nodes.MAX_RESOLUTION),
+                io.String.Input("text", multiline=True, dynamic_prompts=True),
+                io.Clip.Input("clip"),
+            ],
+            outputs=[io.Conditioning.Output()],
+        )
+
+    @classmethod
+    def execute(cls, ascore, width, height, text, clip) -> io.NodeOutput:
+        tokens = clip.tokenize(text)
+        conditioning = clip.encode_from_tokens_scheduled(
+            tokens, add_dict={"aesthetic_score": ascore, "width": width, "height": height}
+        )
+        return io.NodeOutput(conditioning)
+
+
 class CLIPTextEncodeSDXL(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -48,32 +73,7 @@ class CLIPTextEncodeSDXL(io.ComfyNode):
         return io.NodeOutput(conditioning)
 
 
-class CLIPTextEncodeSDXLRefiner(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="CLIPTextEncodeSDXLRefiner_V3",
-            category="advanced/conditioning",
-            inputs=[
-                io.Float.Input("ascore", default=6.0, min=0.0, max=1000.0, step=0.01),
-                io.Int.Input("width", default=1024, min=0, max=nodes.MAX_RESOLUTION),
-                io.Int.Input("height", default=1024, min=0, max=nodes.MAX_RESOLUTION),
-                io.String.Input("text", multiline=True, dynamic_prompts=True),
-                io.Clip.Input("clip"),
-            ],
-            outputs=[io.Conditioning.Output()],
-        )
-
-    @classmethod
-    def execute(cls, ascore, width, height, text, clip) -> io.NodeOutput:
-        tokens = clip.tokenize(text)
-        conditioning = clip.encode_from_tokens_scheduled(
-            tokens, add_dict={"aesthetic_score": ascore, "width": width, "height": height}
-        )
-        return io.NodeOutput(conditioning)
-
-
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     CLIPTextEncodeSDXL,
     CLIPTextEncodeSDXLRefiner,
 ]

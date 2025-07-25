@@ -9,6 +9,29 @@ import nodes
 from comfy_api.latest import io
 
 
+class EmptyCosmosLatentVideo(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="EmptyCosmosLatentVideo_V3",
+            category="latent/video",
+            inputs=[
+                io.Int.Input("width", default=1280, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input("height", default=704, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input("length", default=121, min=1, max=nodes.MAX_RESOLUTION, step=8),
+                io.Int.Input("batch_size", default=1, min=1, max=4096),
+            ],
+            outputs=[io.Latent.Output()],
+        )
+
+    @classmethod
+    def execute(cls, width, height, length, batch_size) -> io.NodeOutput:
+        latent = torch.zeros(
+            [batch_size, 16, ((length - 1) // 8) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device()
+        )
+        return io.NodeOutput({"samples": latent})
+
+
 def vae_encode_with_padding(vae, image, width, height, length, padding=0):
     pixels = comfy.utils.common_upscale(image[..., :3].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
     pixel_len = min(pixels.shape[0], length)
@@ -116,30 +139,7 @@ class CosmosPredict2ImageToVideoLatent(io.ComfyNode):
         return io.NodeOutput(out_latent)
 
 
-class EmptyCosmosLatentVideo(io.ComfyNode):
-    @classmethod
-    def define_schema(cls) -> io.Schema:
-        return io.Schema(
-            node_id="EmptyCosmosLatentVideo_V3",
-            category="latent/video",
-            inputs=[
-                io.Int.Input("width", default=1280, min=16, max=nodes.MAX_RESOLUTION, step=16),
-                io.Int.Input("height", default=704, min=16, max=nodes.MAX_RESOLUTION, step=16),
-                io.Int.Input("length", default=121, min=1, max=nodes.MAX_RESOLUTION, step=8),
-                io.Int.Input("batch_size", default=1, min=1, max=4096),
-            ],
-            outputs=[io.Latent.Output()],
-        )
-
-    @classmethod
-    def execute(cls, width, height, length, batch_size) -> io.NodeOutput:
-        latent = torch.zeros(
-            [batch_size, 16, ((length - 1) // 8) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device()
-        )
-        return io.NodeOutput({"samples": latent})
-
-
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     CosmosImageToVideoLatent,
     CosmosPredict2ImageToVideoLatent,
     EmptyCosmosLatentVideo,

@@ -13,6 +13,28 @@ import node_helpers
 from comfy_api.latest import io, ui
 
 
+class EmptyLatentAudio(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="EmptyLatentAudio_V3",
+            category="latent/audio",
+            inputs=[
+                io.Float.Input("seconds", default=47.6, min=1.0, max=1000.0, step=0.1),
+                io.Int.Input(
+                    "batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."
+                ),
+            ],
+            outputs=[io.Latent.Output()],
+        )
+
+    @classmethod
+    def execute(cls, seconds, batch_size) -> io.NodeOutput:
+        length = round((seconds * 44100 / 2048) / 2) * 2
+        latent = torch.zeros([batch_size, 64, length], device=comfy.model_management.intermediate_device())
+        return io.NodeOutput({"samples": latent, "type": "audio"})
+
+
 class ConditioningStableAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -43,26 +65,140 @@ class ConditioningStableAudio(io.ComfyNode):
         )
 
 
-class EmptyLatentAudio(io.ComfyNode):
+class VAEEncodeAudio(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="EmptyLatentAudio_V3",
+            node_id="VAEEncodeAudio_V3",
             category="latent/audio",
             inputs=[
-                io.Float.Input("seconds", default=47.6, min=1.0, max=1000.0, step=0.1),
-                io.Int.Input(
-                    "batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."
-                ),
+                io.Audio.Input("audio"),
+                io.Vae.Input("vae"),
             ],
             outputs=[io.Latent.Output()],
         )
 
     @classmethod
-    def execute(cls, seconds, batch_size) -> io.NodeOutput:
-        length = round((seconds * 44100 / 2048) / 2) * 2
-        latent = torch.zeros([batch_size, 64, length], device=comfy.model_management.intermediate_device())
-        return io.NodeOutput({"samples": latent, "type": "audio"})
+    def execute(cls, vae, audio) -> io.NodeOutput:
+        sample_rate = audio["sample_rate"]
+        if 44100 != sample_rate:
+            waveform = torchaudio.functional.resample(audio["waveform"], sample_rate, 44100)
+        else:
+            waveform = audio["waveform"]
+        return io.NodeOutput({"samples": vae.encode(waveform.movedim(1, -1))})
+
+
+class VAEDecodeAudio(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="VAEDecodeAudio_V3",
+            category="latent/audio",
+            inputs=[
+                io.Latent.Input("samples"),
+                io.Vae.Input("vae"),
+            ],
+            outputs=[io.Audio.Output()],
+        )
+
+    @classmethod
+    def execute(cls, vae, samples) -> io.NodeOutput:
+        audio = vae.decode(samples["samples"]).movedim(-1, 1)
+        std = torch.std(audio, dim=[1, 2], keepdim=True) * 5.0
+        std[std < 1.0] = 1.0
+        audio /= std
+        return io.NodeOutput({"waveform": audio, "sample_rate": 44100})
+
+
+class SaveAudio(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SaveAudio_V3",  # frontend expects "SaveAudio" to work
+            display_name="Save Audio _V3",  # frontend ignores "display_name" for this node
+            category="audio",
+            inputs=[
+                io.Audio.Input("audio"),
+                io.String.Input("filename_prefix", default="audio/ComfyUI"),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, audio, filename_prefix="ComfyUI", format="flac") -> io.NodeOutput:
+        return io.NodeOutput(
+            ui=ui.AudioSaveHelper.get_save_audio_ui(audio, filename_prefix=filename_prefix, cls=cls, format=format)
+        )
+
+
+class SaveAudioMP3(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SaveAudioMP3_V3",  # frontend expects "SaveAudioMP3" to work
+            display_name="Save Audio(MP3) _V3",  # frontend ignores "display_name" for this node
+            category="audio",
+            inputs=[
+                io.Audio.Input("audio"),
+                io.String.Input("filename_prefix", default="audio/ComfyUI"),
+                io.Combo.Input("quality", options=["V0", "128k", "320k"], default="V0"),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, audio, filename_prefix="ComfyUI", format="mp3", quality="V0") -> io.NodeOutput:
+        return io.NodeOutput(
+            ui=ui.AudioSaveHelper.get_save_audio_ui(
+                audio, filename_prefix=filename_prefix, cls=cls, format=format, quality=quality
+            )
+        )
+
+
+class SaveAudioOpus(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SaveAudioOpus_V3",  # frontend expects "SaveAudioOpus" to work
+            display_name="Save Audio(Opus) _V3",  # frontend ignores "display_name" for this node
+            category="audio",
+            inputs=[
+                io.Audio.Input("audio"),
+                io.String.Input("filename_prefix", default="audio/ComfyUI"),
+                io.Combo.Input("quality", options=["64k", "96k", "128k", "192k", "320k"], default="128k"),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, audio, filename_prefix="ComfyUI", format="opus", quality="128k") -> io.NodeOutput:
+        return io.NodeOutput(
+            ui=ui.AudioSaveHelper.get_save_audio_ui(
+                audio, filename_prefix=filename_prefix, cls=cls, format=format, quality=quality
+            )
+        )
+
+
+class PreviewAudio(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="PreviewAudio_V3",  # frontend expects "PreviewAudio" to work
+            display_name="Preview Audio _V3",  # frontend ignores "display_name" for this node
+            category="audio",
+            inputs=[
+                io.Audio.Input("audio"),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, audio) -> io.NodeOutput:
+        return io.NodeOutput(ui=ui.PreviewAudio(audio, cls=cls))
 
 
 class LoadAudio(io.ComfyNode):
@@ -141,150 +277,14 @@ class LoadAudio(io.ComfyNode):
         return True
 
 
-class PreviewAudio(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="PreviewAudio_V3",  # frontend expects "PreviewAudio" to work
-            display_name="Preview Audio _V3",  # frontend ignores "display_name" for this node
-            category="audio",
-            inputs=[
-                io.Audio.Input("audio"),
-            ],
-            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
-            is_output_node=True,
-        )
-
-    @classmethod
-    def execute(cls, audio) -> io.NodeOutput:
-        return io.NodeOutput(ui=ui.PreviewAudio(audio, cls=cls))
-
-
-class SaveAudioMP3(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="SaveAudioMP3_V3",  # frontend expects "SaveAudioMP3" to work
-            display_name="Save Audio(MP3) _V3",  # frontend ignores "display_name" for this node
-            category="audio",
-            inputs=[
-                io.Audio.Input("audio"),
-                io.String.Input("filename_prefix", default="audio/ComfyUI"),
-                io.Combo.Input("quality", options=["V0", "128k", "320k"], default="V0"),
-            ],
-            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
-            is_output_node=True,
-        )
-
-    @classmethod
-    def execute(cls, audio, filename_prefix="ComfyUI", format="mp3", quality="V0") -> io.NodeOutput:
-        return io.NodeOutput(
-            ui=ui.AudioSaveHelper.get_save_audio_ui(
-                audio, filename_prefix=filename_prefix, cls=cls, format=format, quality=quality
-            )
-        )
-
-
-class SaveAudioOpus(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="SaveAudioOpus_V3",  # frontend expects "SaveAudioOpus" to work
-            display_name="Save Audio(Opus) _V3",  # frontend ignores "display_name" for this node
-            category="audio",
-            inputs=[
-                io.Audio.Input("audio"),
-                io.String.Input("filename_prefix", default="audio/ComfyUI"),
-                io.Combo.Input("quality", options=["64k", "96k", "128k", "192k", "320k"], default="128k"),
-            ],
-            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
-            is_output_node=True,
-        )
-
-    @classmethod
-    def execute(cls, audio, filename_prefix="ComfyUI", format="opus", quality="128k") -> io.NodeOutput:
-        return io.NodeOutput(
-            ui=ui.AudioSaveHelper.get_save_audio_ui(
-                audio, filename_prefix=filename_prefix, cls=cls, format=format, quality=quality
-            )
-        )
-
-
-class SaveAudio(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="SaveAudio_V3",  # frontend expects "SaveAudio" to work
-            display_name="Save Audio _V3",  # frontend ignores "display_name" for this node
-            category="audio",
-            inputs=[
-                io.Audio.Input("audio"),
-                io.String.Input("filename_prefix", default="audio/ComfyUI"),
-            ],
-            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
-            is_output_node=True,
-        )
-
-    @classmethod
-    def execute(cls, audio, filename_prefix="ComfyUI", format="flac") -> io.NodeOutput:
-        return io.NodeOutput(
-            ui=ui.AudioSaveHelper.get_save_audio_ui(audio, filename_prefix=filename_prefix, cls=cls, format=format)
-        )
-
-
-class VAEDecodeAudio(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="VAEDecodeAudio_V3",
-            category="latent/audio",
-            inputs=[
-                io.Latent.Input("samples"),
-                io.Vae.Input("vae"),
-            ],
-            outputs=[io.Audio.Output()],
-        )
-
-    @classmethod
-    def execute(cls, vae, samples) -> io.NodeOutput:
-        audio = vae.decode(samples["samples"]).movedim(-1, 1)
-        std = torch.std(audio, dim=[1, 2], keepdim=True) * 5.0
-        std[std < 1.0] = 1.0
-        audio /= std
-        return io.NodeOutput({"waveform": audio, "sample_rate": 44100})
-
-
-class VAEEncodeAudio(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="VAEEncodeAudio_V3",
-            category="latent/audio",
-            inputs=[
-                io.Audio.Input("audio"),
-                io.Vae.Input("vae"),
-            ],
-            outputs=[io.Latent.Output()],
-        )
-
-    @classmethod
-    def execute(cls, vae, audio) -> io.NodeOutput:
-        sample_rate = audio["sample_rate"]
-        if 44100 != sample_rate:
-            waveform = torchaudio.functional.resample(audio["waveform"], sample_rate, 44100)
-        else:
-            waveform = audio["waveform"]
-        return io.NodeOutput({"samples": vae.encode(waveform.movedim(1, -1))})
-
-
 NODES_LIST: list[type[io.ComfyNode]] = [
     ConditioningStableAudio,
     EmptyLatentAudio,
     LoadAudio,
     PreviewAudio,
+    SaveAudio,
     SaveAudioMP3,
     SaveAudioOpus,
-    SaveAudio,
     VAEDecodeAudio,
     VAEEncodeAudio,
 ]

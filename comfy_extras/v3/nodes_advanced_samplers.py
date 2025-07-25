@@ -122,7 +122,7 @@ class SamplerEulerCFGpp(io.ComfyNode):
         return io.NodeOutput(sampler)
 
 
-NODES_LIST = [
-    SamplerLCMUpscale,
+NODES_LIST: list[type[io.ComfyNode]] = [
     SamplerEulerCFGpp,
+    SamplerLCMUpscale,
 ]
