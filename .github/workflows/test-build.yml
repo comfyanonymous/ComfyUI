@@ -10,6 +10,10 @@ on:
     paths:
       - "requirements.txt"
       - ".github/workflows/test-build.yml"
+  pull_request:
+    paths:
+      - "requirements.txt"
+      - ".github/workflows/test-build.yml"
 
 jobs:
   build:
