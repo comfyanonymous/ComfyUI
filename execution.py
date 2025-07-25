@@ -32,8 +32,8 @@ from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
 from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler
 from comfy_execution.utils import CurrentNodeContext
-from comfy_api.internal import _ComfyNodeInternal, first_real_override, is_class, make_locked_method_func
-from comfy_api.v3 import io
+from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
+from comfy_api.v3 import io, resources
 
 
 class ExecutionResult(Enum):
@@ -256,26 +256,11 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                     type_obj = type(obj)
                     type_obj.VALIDATE_CLASS()
                     class_clone = type_obj.PREPARE_CLASS_CLONE(hidden_inputs)
-                    # NOTE: this is a mock of state management; for local, just stores NodeStateLocal on node instance
-                    if hasattr(obj, "local_state"):
-                        if obj.local_state is None:
-                            obj.local_state = io.NodeStateLocal(class_clone.hidden.unique_id)
-                        class_clone.state = obj.local_state
                     # NOTE: this is a mock of resource management; for local, just stores ResourcesLocal on node instance
                     if hasattr(obj, "local_resources"):
                         if obj.local_resources is None:
-                            obj.local_resources = io.ResourcesLocal()
+                            obj.local_resources = resources.ResourcesLocal()
                         class_clone.resources = obj.local_resources
-                # TODO: delete this when done testing mocking dynamic inputs
-                for si in obj.SCHEMA.inputs:
-                    if isinstance(si, io.AutogrowDynamic.Input):
-                        add_key = si.id
-                        dynamic_list = []
-                        real_inputs = {k: v for k, v in inputs.items()}
-                        for d in si.get_dynamic():
-                            dynamic_list.append(real_inputs.pop(d.id, None))
-                        dynamic_list = [x for x in dynamic_list if x is not None]
-                        inputs = {**real_inputs, add_key: dynamic_list}
                 f = make_locked_method_func(type_obj, func, class_clone)
             # V1
             else:
@@ -363,7 +348,7 @@ def get_output_from_returns(return_values, obj):
                     result = tuple([result] * len(obj.RETURN_TYPES))
                 results.append(result)
                 subgraph_results.append((None, result))
-        elif isinstance(r, io.NodeOutput):
+        elif isinstance(r, _NodeOutputInternal):
             # V3
             if r.ui is not None:
                 if isinstance(r.ui, dict):

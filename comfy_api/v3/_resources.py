@@ -63,3 +63,10 @@ class ResourcesLocal(Resources):
         if default is not ...:
             return default
         raise Exception(f"Unsupported resource key type: {type(key)}")
+
+
+class _RESOURCES:
+    ResourceKey = ResourceKey
+    TorchDictFolderFilename = TorchDictFolderFilename
+    Resources = Resources
+    ResourcesLocal = ResourcesLocal
