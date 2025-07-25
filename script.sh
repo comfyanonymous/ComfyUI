@@ -67,25 +67,25 @@ git clone https://github.com/Vander-Bilt/comfyui-encrypt-image.git
 cd /kaggle/ComfyUI
 
 #5 Prompts Generator
-cd custom_nodes
-git clone https://github.com/fairy-root/Flux-Prompt-Generator.git
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/fairy-root/Flux-Prompt-Generator.git
+# cd /kaggle/ComfyUI
 
 
 # 6 Custom-Scripts
-cd custom_nodes
-git clone https://github.com/Vander-Bilt/ComfyUI-Custom-Scripts.git
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/Vander-Bilt/ComfyUI-Custom-Scripts.git
+# cd /kaggle/ComfyUI
 
 # 7 save2hf
-cd custom_nodes
-git clone https://github.com/Vander-Bilt/save2hf.git
-cd save2hf
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/Vander-Bilt/save2hf.git
+# cd save2hf
+# pip install -r requirements.txt
+# cd /kaggle/ComfyUI
 
 #class MyHTMLNode:
-cd custom_nodes
-git clone https://github.com/Vander-Bilt/MyHTMLNode.git
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/Vander-Bilt/MyHTMLNode.git
+# cd /kaggle/ComfyUI
 
