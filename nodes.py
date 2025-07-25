@@ -2316,7 +2316,7 @@ async def init_builtin_extra_nodes():
         "v3/nodes_cond.py",
         "v3/nodes_controlnet.py",
         "v3/nodes_cosmos.py",
-        # "v3/nodes_custom_sampler.py",
+        "v3/nodes_custom_sampler.py",
         "v3/nodes_differential_diffusion.py",
         "v3/nodes_edit_model.py",
         "v3/nodes_flux.py",
