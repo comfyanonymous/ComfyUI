@@ -66,9 +66,9 @@ cd /kaggle/ComfyUI
 # pip install --upgrade gguf
 
 # 4 encrypt image
-# cd custom_nodes
-# git clone https://github.com/Vander-Bilt/comfyui-encrypt-image.git
-# cd /kaggle/ComfyUI
+cd custom_nodes
+git clone https://github.com/Vander-Bilt/comfyui-encrypt-image.git
+cd /kaggle/ComfyUI
 
 #5 Prompts Generator
 cd custom_nodes
