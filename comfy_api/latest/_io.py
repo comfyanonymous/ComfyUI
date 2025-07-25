@@ -96,8 +96,8 @@ def comfytype(io_type: str, **kwargs):
 
     A ComfyType may have the following attributes:
     - Type = <type hint here>
-    - class Input(InputV3): ...
-    - class Output(OutputV3): ...
+    - class Input(Input): ...
+    - class Output(Output): ...
     '''
     def decorator(cls: T) -> T:
         if isinstance(cls, _ComfyType) or issubclass(cls, _ComfyType):
@@ -737,7 +737,7 @@ class MultiType:
         @property
         def io_types(self) -> list[type[Input]]:
             '''
-            Returns list of InputV3 class types permitted.
+            Returns list of Input class types permitted.
             '''
             io_types = []
             for x in self._io_types:
