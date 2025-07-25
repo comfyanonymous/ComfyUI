@@ -37,6 +37,7 @@ from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
 from .ldm.wan.vae import WanVAE
 from .lora_convert import convert_lora
 from .model_management import load_models_gpu
+from .model_patcher import ModelPatcher
 from .t2i_adapter import adapter
 from .taesd import taesd
 from .text_encoders import aura_t5
@@ -71,7 +72,7 @@ def load_lora_for_models(model, clip, _lora, strength_model, strength_clip):
     _lora = convert_lora(_lora)
     loaded = lora.load_lora(_lora, key_map)
     if model is not None:
-        new_modelpatcher = model.clone()
+        new_modelpatcher: ModelPatcher = model.clone()
         k = new_modelpatcher.add_patches(loaded, strength_model)
     else:
         k = ()

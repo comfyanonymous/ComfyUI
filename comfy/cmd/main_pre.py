@@ -49,6 +49,15 @@ logging.getLogger("alembic.runtime.migration").setLevel(logging.WARNING)
 
 from ..cli_args import args
 
+if args.default_device is not None:
+    default_dev = args.default_device
+    devices = list(range(32))
+    devices.remove(default_dev)
+    devices.insert(0, default_dev)
+    devices = ','.join(map(str, devices))
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(devices)
+    os.environ['HIP_VISIBLE_DEVICES'] = str(devices)
+
 if args.cuda_device is not None:
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
     os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)

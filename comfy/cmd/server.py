@@ -593,6 +593,7 @@ class PromptServer(ExecutorToClientProgress):
             ram_free = model_management.get_free_memory(cpu_device)
             vram_total, torch_vram_total = get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = get_free_memory(device, torch_free_too=True)
+            required_frontend_version = FrontendManager.get_required_frontend_version()
 
             system_stats = {
                 "system": {
@@ -600,6 +601,7 @@ class PromptServer(ExecutorToClientProgress):
                     "ram_total": ram_total,
                     "ram_free": ram_free,
                     "comfyui_version": __version__,
+                    "required_frontend_version": required_frontend_version,
                     "python_version": sys.version,
                     "pytorch_version": torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",

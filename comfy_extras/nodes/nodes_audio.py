@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import av
 import hashlib
 import io
 import json
 import os
 import random
+
+import av
 import torch
 
 import comfy.model_management
@@ -112,7 +113,6 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
     except ImportError as exc_info:
         raise TorchAudioNotFoundError()
 
-
     filename_prefix += self.prefix_append
     full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
     results: list[FileLocator] = []
@@ -178,13 +178,13 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
         elif format == "mp3":
             out_stream = output_container.add_stream("libmp3lame", rate=sample_rate)
             if quality == "V0":
-                #TODO i would really love to support V3 and V5 but there doesn't seem to be a way to set the qscale level, the property below is a bool
+                # TODO i would really love to support V3 and V5 but there doesn't seem to be a way to set the qscale level, the property below is a bool
                 out_stream.codec_context.qscale = 1
             elif quality == "128k":
                 out_stream.bit_rate = 128000
             elif quality == "320k":
                 out_stream.bit_rate = 320000
-        else: #format == "flac":
+        else:  # format == "flac":
             out_stream = output_container.add_stream("flac", rate=sample_rate)
 
         frame = av.AudioFrame.from_ndarray(waveform.movedim(0, 1).reshape(1, -1).float().numpy(), format='flt', layout='mono' if waveform.shape[0] == 1 else 'stereo')
@@ -212,6 +212,7 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
 
     return {"ui": {"audio": results}}
 
+
 class SaveAudio:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -220,9 +221,9 @@ class SaveAudio:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "audio": ("AUDIO", ),
-                            "filename_prefix": ("STRING", {"default": "audio/ComfyUI"}),
-                            },
+        return {"required": {"audio": ("AUDIO",),
+                             "filename_prefix": ("STRING", {"default": "audio/ComfyUI"}),
+                             },
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -236,6 +237,7 @@ class SaveAudio:
     def save_flac(self, audio, filename_prefix="ComfyUI", format="flac", prompt=None, extra_pnginfo=None):
         return save_audio(self, audio, filename_prefix, format, prompt, extra_pnginfo)
 
+
 class SaveAudioMP3:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -244,10 +246,10 @@ class SaveAudioMP3:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "audio": ("AUDIO", ),
-                            "filename_prefix": ("STRING", {"default": "audio/ComfyUI"}),
-                            "quality": (["V0", "128k", "320k"], {"default": "V0"}),
-                            },
+        return {"required": {"audio": ("AUDIO",),
+                             "filename_prefix": ("STRING", {"default": "audio/ComfyUI"}),
+                             "quality": (["V0", "128k", "320k"], {"default": "V0"}),
+                             },
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -261,6 +263,7 @@ class SaveAudioMP3:
     def save_mp3(self, audio, filename_prefix="ComfyUI", format="mp3", prompt=None, extra_pnginfo=None, quality="128k"):
         return save_audio(self, audio, filename_prefix, format, prompt, extra_pnginfo, quality)
 
+
 class SaveAudioOpus:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -269,10 +272,10 @@ class SaveAudioOpus:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "audio": ("AUDIO", ),
-                            "filename_prefix": ("STRING", {"default": "audio/ComfyUI"}),
-                            "quality": (["64k", "96k", "128k", "192k", "320k"], {"default": "128k"}),
-                            },
+        return {"required": {"audio": ("AUDIO",),
+                             "filename_prefix": ("STRING", {"default": "audio/ComfyUI"}),
+                             "quality": (["64k", "96k", "128k", "192k", "320k"], {"default": "128k"}),
+                             },
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -286,6 +289,7 @@ class SaveAudioOpus:
     def save_opus(self, audio, filename_prefix="ComfyUI", format="opus", prompt=None, extra_pnginfo=None, quality="V3"):
         return save_audio(self, audio, filename_prefix, format, prompt, extra_pnginfo, quality)
 
+
 class PreviewAudio(SaveAudio):
     def __init__(self):
         self.output_dir = folder_paths.get_temp_directory()
@@ -298,6 +302,44 @@ class PreviewAudio(SaveAudio):
                     {"audio": ("AUDIO",), },
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
+
+
+def f32_pcm(wav: torch.Tensor) -> torch.Tensor:
+    """Convert audio to float 32 bits PCM format."""
+    if wav.dtype.is_floating_point:
+        return wav
+    elif wav.dtype == torch.int16:
+        return wav.float() / (2 ** 15)
+    elif wav.dtype == torch.int32:
+        return wav.float() / (2 ** 31)
+    raise ValueError(f"Unsupported wav dtype: {wav.dtype}")
+
+
+def load(filepath: str) -> tuple[torch.Tensor, int]:
+    with av.open(filepath) as af:
+        if not af.streams.audio:
+            raise ValueError("No audio stream found in the file.")
+
+        stream = af.streams.audio[0]
+        sr = stream.codec_context.sample_rate
+        n_channels = stream.channels
+
+        frames = []
+        length = 0
+        for frame in af.decode(streams=stream.index):
+            buf = torch.from_numpy(frame.to_ndarray())
+            if buf.shape[0] != n_channels:
+                buf = buf.view(-1, n_channels).t()
+
+            frames.append(buf)
+            length += buf.shape[1]
+
+        if not frames:
+            raise ValueError("No audio frames decoded.")
+
+        wav = torch.cat(frames, dim=1)
+        wav = f32_pcm(wav)
+        return wav, sr
 
 
 class LoadAudio:
@@ -319,7 +361,7 @@ class LoadAudio:
             raise TorchAudioNotFoundError()
 
         audio_path = folder_paths.get_annotated_filepath(audio)
-        waveform, sample_rate = torchaudio.load(audio_path)
+        waveform, sample_rate = load(audio_path)
         audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
         return (audio,)
 

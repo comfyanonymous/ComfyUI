@@ -7,6 +7,7 @@ import os
 import re
 import tempfile
 import zipfile
+import importlib.metadata
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
@@ -22,10 +23,12 @@ REQUEST_TIMEOUT = 10  # seconds
 
 
 def check_frontend_version():
+    """the thing this does makes no sense, so it got cut"""
     return None
 
 
 def frontend_install_warning_message() -> str:
+    """the end user never needs to be messaged this"""
     return ""
 
 
@@ -134,6 +137,15 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 class FrontendManager:
     CUSTOM_FRONTENDS_ROOT = add_model_folder_path("web_custom_versions", extensions=set())
+
+    @classmethod
+    def get_required_frontend_version(cls) -> str:
+        """Get the required frontend package version."""
+        try:
+            # this isn't used the way it says
+            return importlib.metadata.version("comfyui_frontend_package")
+        except Exception as exc_info:
+            return "1.23.4"
 
     @classmethod
     def default_frontend_path(cls) -> str:

@@ -1,6 +1,6 @@
 [project]
 name = "comfyui"
-version = "0.3.44"
+version = "0.3.45"
 description = "An installable version of ComfyUI"
 readme = "README.md"
 authors = [
@@ -18,9 +18,9 @@ classifiers = [
 ]
 
 dependencies = [
-    "comfyui-frontend-package",
-    "comfyui-workflow-templates",
-    "comfyui-embedded-docs",
+    "comfyui-frontend-package>=1.23.4",
+    "comfyui-workflow-templates>=0.1.40",
+    "comfyui-embedded-docs>=0.2.4",
     "torch",
     "torchvision",
     "torchdiffeq>=0.2.3",

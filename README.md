@@ -42,6 +42,7 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
 - Image Editing Models
    - [Omnigen 2](https://comfyanonymous.github.io/ComfyUI_examples/omnigen/)
    - [Flux Kontext](https://comfyanonymous.github.io/ComfyUI_examples/flux/#flux-kontext-image-editing-model)
+   - [HiDream E1.1](https://comfyanonymous.github.io/ComfyUI_examples/hidream/#hidream-e11)
 - Video Models
     - [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
     - [Mochi](https://comfyanonymous.github.io/ComfyUI_examples/mochi/)
@@ -1573,6 +1574,14 @@ If you need to use the legacy frontend for any reason, you can access it using t
 ```
 
 This will use a snapshot of the legacy frontend preserved in the [ComfyUI Legacy Frontend repository](https://github.com/Comfy-Org/ComfyUI_legacy_frontend).
+
+### Iluvatar Corex
+
+For models compatible with Iluvatar Extension for PyTorch. Here's a step-by-step guide tailored to your platform and installation method:
+
+1. Install the Iluvatar Corex Toolkit by adhering to the platform-specific instructions on the [Installation](https://support.iluvatar.com/#/DocumentCentre?id=1&nameCenter=2&productId=520117912052801536)
+2. Launch ComfyUI by running `python main.py`
+
 
 ## Community
 
