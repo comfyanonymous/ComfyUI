@@ -514,7 +514,7 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
             else:
                 q_sa3, k_sa3, v_sa3 = q, k, v
             
-            out = sageattn_blackwell(q_sa3, k_sa3, v_sa3, attn_mask=mask, is_causal=False, per_block_mean=True)
+            out = sageattn_blackwell(q_sa3, k_sa3, v_sa3, attn_mask=mask, is_causal=False, per_block_mean=False)
             
             # Convert back to expected layout
             if tensor_layout == "HND":
