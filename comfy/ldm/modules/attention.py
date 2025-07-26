@@ -510,9 +510,9 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
                 q_sa3, k_sa3, v_sa3 = map(lambda t: t.transpose(1, 2), (q, k, v))
             else:
                 q_sa3, k_sa3, v_sa3 = q, k, v
-            
+
             out = sageattn_blackwell(q_sa3, k_sa3, v_sa3, attn_mask=mask, is_causal=False, per_block_mean=False)
-            
+
             # Convert back to expected layout
             if tensor_layout == "HND":
                 if not skip_output_reshape:
