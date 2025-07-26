@@ -159,9 +159,11 @@ sleep 3
 
 # Start frpc in the background
 echo "Starting frpc..."
-./frpc -c frpc.toml &
+./frpc -c frpc.toml
 
 echo "frp has been started."
 echo "Remote access URL: http://$SERVER_ADDR:$REMOTE_PORT/"
+
+sleep 8
 
 cd /kaggle/ComfyUI
