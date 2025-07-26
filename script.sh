@@ -125,5 +125,5 @@ else
   echo "Only 1 or 2 are supported."
   exit 1 # 退出并返回错误码
 fi
-sed -i '' "s/REMOTE_PORT/$TARGET_REMOTE_PORT/" "$FRP_CONFIG_FILE"
+sed -i "s/REMOTE_PORT/$TARGET_REMOTE_PORT/g" "$FRP_CONFIG_FILE"
 sleep 2
