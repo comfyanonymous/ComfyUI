@@ -27,6 +27,6 @@ class TorchCompileModel(io.ComfyNode):
         return io.NodeOutput(m)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     TorchCompileModel,
 ]

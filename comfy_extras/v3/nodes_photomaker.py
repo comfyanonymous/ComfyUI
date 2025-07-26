@@ -121,6 +121,32 @@ class PhotoMakerIDEncoder(comfy.clip_model.CLIPVisionModelProjection):
         return self.fuse_module(prompt_embeds, id_embeds, class_tokens_mask)
 
 
+class PhotoMakerLoader(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="PhotoMakerLoader_V3",
+            category="_for_testing/photomaker",
+            inputs=[
+                io.Combo.Input("photomaker_model_name", options=folder_paths.get_filename_list("photomaker")),
+            ],
+            outputs=[
+                io.Photomaker.Output(),
+            ],
+            is_experimental=True,
+        )
+
+    @classmethod
+    def execute(cls, photomaker_model_name):
+        photomaker_model_path = folder_paths.get_full_path_or_raise("photomaker", photomaker_model_name)
+        photomaker_model = PhotoMakerIDEncoder()
+        data = comfy.utils.load_torch_file(photomaker_model_path, safe_load=True)
+        if "id_encoder" in data:
+            data = data["id_encoder"]
+        photomaker_model.load_state_dict(data)
+        return io.NodeOutput(photomaker_model)
+
+
 class PhotoMakerEncode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -173,33 +199,7 @@ class PhotoMakerEncode(io.ComfyNode):
         return io.NodeOutput([[out, {"pooled_output": pooled}]])
 
 
-class PhotoMakerLoader(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="PhotoMakerLoader_V3",
-            category="_for_testing/photomaker",
-            inputs=[
-                io.Combo.Input("photomaker_model_name", options=folder_paths.get_filename_list("photomaker")),
-            ],
-            outputs=[
-                io.Photomaker.Output(),
-            ],
-            is_experimental=True,
-        )
-
-    @classmethod
-    def execute(cls, photomaker_model_name):
-        photomaker_model_path = folder_paths.get_full_path_or_raise("photomaker", photomaker_model_name)
-        photomaker_model = PhotoMakerIDEncoder()
-        data = comfy.utils.load_torch_file(photomaker_model_path, safe_load=True)
-        if "id_encoder" in data:
-            data = data["id_encoder"]
-        photomaker_model.load_state_dict(data)
-        return io.NodeOutput(photomaker_model)
-
-
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     PhotoMakerEncode,
     PhotoMakerLoader,
 ]

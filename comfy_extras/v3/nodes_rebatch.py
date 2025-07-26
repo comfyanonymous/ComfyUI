@@ -142,7 +142,7 @@ class LatentRebatch(io.ComfyNode):
         return io.NodeOutput(output_list)
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     ImageRebatch,
     LatentRebatch,
 ]

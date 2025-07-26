@@ -3,6 +3,33 @@ from comfy.cldm.control_types import UNION_CONTROLNET_TYPES
 from comfy_api.latest import io
 
 
+class SetUnionControlNetType(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SetUnionControlNetType_V3",
+            category="conditioning/controlnet",
+            inputs=[
+                io.ControlNet.Input("control_net"),
+                io.Combo.Input("type", options=["auto"] + list(UNION_CONTROLNET_TYPES.keys())),
+            ],
+            outputs=[
+                io.ControlNet.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, control_net, type) -> io.NodeOutput:
+        control_net = control_net.copy()
+        type_number = UNION_CONTROLNET_TYPES.get(type, -1)
+        if type_number >= 0:
+            control_net.set_extra_arg("control_type", [type_number])
+        else:
+            control_net.set_extra_arg("control_type", [])
+
+        return io.NodeOutput(control_net)
+
+
 class ControlNetApplyAdvanced(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -58,33 +85,6 @@ class ControlNetApplyAdvanced(io.ComfyNode):
                 c.append(n)
             out.append(c)
         return io.NodeOutput(out[0], out[1])
-
-
-class SetUnionControlNetType(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="SetUnionControlNetType_V3",
-            category="conditioning/controlnet",
-            inputs=[
-                io.ControlNet.Input("control_net"),
-                io.Combo.Input("type", options=["auto"] + list(UNION_CONTROLNET_TYPES.keys())),
-            ],
-            outputs=[
-                io.ControlNet.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, control_net, type) -> io.NodeOutput:
-        control_net = control_net.copy()
-        type_number = UNION_CONTROLNET_TYPES.get(type, -1)
-        if type_number >= 0:
-            control_net.set_extra_arg("control_type", [type_number])
-        else:
-            control_net.set_extra_arg("control_type", [])
-
-        return io.NodeOutput(control_net)
 
 
 class ControlNetInpaintingAliMamaApply(ControlNetApplyAdvanced):

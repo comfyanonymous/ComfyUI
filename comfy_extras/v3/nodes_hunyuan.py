@@ -7,16 +7,6 @@ import node_helpers
 import nodes
 from comfy_api.latest import io
 
-PROMPT_TEMPLATE_ENCODE_VIDEO_I2V = (
-    "<|start_header_id|>system<|end_header_id|>\n\n<image>\nDescribe the video by detailing the following aspects according to the reference image: "
-    "1. The main content and theme of the video."
-    "2. The color, shape, size, texture, quantity, text, and spatial relationships of the objects."
-    "3. Actions, events, behaviors temporal relationships, physical movement changes of the objects."
-    "4. background environment, light, style and atmosphere."
-    "5. camera angles, movements, and transitions used in the video:<|eot_id|>\n\n"
-    "<|start_header_id|>user<|end_header_id|>\n\n{}<|eot_id|>"
-    "<|start_header_id|>assistant<|end_header_id|>\n\n"
-)
 
 class CLIPTextEncodeHunyuanDiT(io.ComfyNode):
     @classmethod
@@ -66,6 +56,51 @@ class EmptyHunyuanLatentVideo(io.ComfyNode):
             device=comfy.model_management.intermediate_device(),
         )
         return io.NodeOutput({"samples":latent})
+
+
+PROMPT_TEMPLATE_ENCODE_VIDEO_I2V = (
+    "<|start_header_id|>system<|end_header_id|>\n\n<image>\nDescribe the video by detailing the following aspects according to the reference image: "
+    "1. The main content and theme of the video."
+    "2. The color, shape, size, texture, quantity, text, and spatial relationships of the objects."
+    "3. Actions, events, behaviors temporal relationships, physical movement changes of the objects."
+    "4. background environment, light, style and atmosphere."
+    "5. camera angles, movements, and transitions used in the video:<|eot_id|>\n\n"
+    "<|start_header_id|>user<|end_header_id|>\n\n{}<|eot_id|>"
+    "<|start_header_id|>assistant<|end_header_id|>\n\n"
+)
+
+
+class TextEncodeHunyuanVideo_ImageToVideo(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="TextEncodeHunyuanVideo_ImageToVideo_V3",
+            category="advanced/conditioning",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.ClipVisionOutput.Input("clip_vision_output"),
+                io.String.Input("prompt", multiline=True, dynamic_prompts=True),
+                io.Int.Input(
+                    "image_interleave",
+                    default=2,
+                    min=1,
+                    max=512,
+                    tooltip="How much the image influences things vs the text prompt. Higher number means more influence from the text prompt.",
+                ),
+            ],
+            outputs=[
+                io.Conditioning.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, clip, clip_vision_output, prompt, image_interleave):
+        tokens = clip.tokenize(
+            prompt, llama_template=PROMPT_TEMPLATE_ENCODE_VIDEO_I2V,
+            image_embeds=clip_vision_output.mm_projected,
+            image_interleave=image_interleave,
+        )
+        return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
 
 
 class HunyuanImageToVideo(io.ComfyNode):
@@ -126,40 +161,7 @@ class HunyuanImageToVideo(io.ComfyNode):
         return io.NodeOutput(positive, out_latent)
 
 
-class TextEncodeHunyuanVideo_ImageToVideo(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="TextEncodeHunyuanVideo_ImageToVideo_V3",
-            category="advanced/conditioning",
-            inputs=[
-                io.Clip.Input("clip"),
-                io.ClipVisionOutput.Input("clip_vision_output"),
-                io.String.Input("prompt", multiline=True, dynamic_prompts=True),
-                io.Int.Input(
-                    "image_interleave",
-                    default=2,
-                    min=1,
-                    max=512,
-                    tooltip="How much the image influences things vs the text prompt. Higher number means more influence from the text prompt.",
-                ),
-            ],
-            outputs=[
-                io.Conditioning.Output(),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, clip, clip_vision_output, prompt, image_interleave):
-        tokens = clip.tokenize(
-            prompt, llama_template=PROMPT_TEMPLATE_ENCODE_VIDEO_I2V,
-            image_embeds=clip_vision_output.mm_projected,
-            image_interleave=image_interleave,
-        )
-        return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
-
-
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     CLIPTextEncodeHunyuanDiT,
     EmptyHunyuanLatentVideo,
     HunyuanImageToVideo,

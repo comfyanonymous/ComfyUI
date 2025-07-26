@@ -5,6 +5,18 @@ import torch
 
 from comfy_api.latest import io
 
+
+def loglinear_interp(t_steps, num_steps):
+    """Performs log-linear interpolation of a given array of decreasing numbers."""
+    xs = np.linspace(0, 1, len(t_steps))
+    ys = np.log(t_steps[::-1])
+
+    new_xs = np.linspace(0, 1, num_steps)
+    new_ys = np.interp(new_xs, xs, ys)
+
+    return np.exp(new_ys)[::-1].copy()
+
+
 NOISE_LEVELS = {
     "SD1": [
         14.6146412293,
@@ -34,17 +46,6 @@ NOISE_LEVELS = {
     ],
     "SVD": [700.00, 54.5, 15.886, 7.977, 4.248, 1.789, 0.981, 0.403, 0.173, 0.034, 0.002],
 }
-
-
-def loglinear_interp(t_steps, num_steps):
-    """Performs log-linear interpolation of a given array of decreasing numbers."""
-    xs = np.linspace(0, 1, len(t_steps))
-    ys = np.log(t_steps[::-1])
-
-    new_xs = np.linspace(0, 1, num_steps)
-    new_ys = np.interp(new_xs, xs, ys)
-
-    return np.exp(new_ys)[::-1].copy()
 
 
 class AlignYourStepsScheduler(io.ComfyNode):
@@ -78,6 +79,6 @@ class AlignYourStepsScheduler(io.ComfyNode):
         return io.NodeOutput(torch.FloatTensor(sigmas))
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     AlignYourStepsScheduler,
 ]

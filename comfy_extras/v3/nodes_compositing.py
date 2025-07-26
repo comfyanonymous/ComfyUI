@@ -112,32 +112,6 @@ def porter_duff_composite(
     return out_image, out_alpha
 
 
-class JoinImageWithAlpha(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="JoinImageWithAlpha_V3",
-            display_name="Join Image with Alpha _V3",
-            category="mask/compositing",
-            inputs=[
-                io.Image.Input("image"),
-                io.Mask.Input("alpha"),
-            ],
-            outputs=[io.Image.Output()],
-        )
-
-    @classmethod
-    def execute(cls, image: torch.Tensor, alpha: torch.Tensor) -> io.NodeOutput:
-        batch_size = min(len(image), len(alpha))
-        out_images = []
-
-        alpha = 1.0 - resize_mask(alpha, image.shape[1:])
-        for i in range(batch_size):
-            out_images.append(torch.cat((image[i][:, :, :3], alpha[i].unsqueeze(2)), dim=2))
-
-        return io.NodeOutput(torch.stack(out_images))
-
-
 class PorterDuffImageComposite(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -219,7 +193,33 @@ class SplitImageWithAlpha(io.ComfyNode):
         return io.NodeOutput(torch.stack(out_images), 1.0 - torch.stack(out_alphas))
 
 
-NODES_LIST = [
+class JoinImageWithAlpha(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="JoinImageWithAlpha_V3",
+            display_name="Join Image with Alpha _V3",
+            category="mask/compositing",
+            inputs=[
+                io.Image.Input("image"),
+                io.Mask.Input("alpha"),
+            ],
+            outputs=[io.Image.Output()],
+        )
+
+    @classmethod
+    def execute(cls, image: torch.Tensor, alpha: torch.Tensor) -> io.NodeOutput:
+        batch_size = min(len(image), len(alpha))
+        out_images = []
+
+        alpha = 1.0 - resize_mask(alpha, image.shape[1:])
+        for i in range(batch_size):
+            out_images.append(torch.cat((image[i][:, :, :3], alpha[i].unsqueeze(2)), dim=2))
+
+        return io.NodeOutput(torch.stack(out_images))
+
+
+NODES_LIST: list[type[io.ComfyNode]] = [
     JoinImageWithAlpha,
     PorterDuffImageComposite,
     SplitImageWithAlpha,

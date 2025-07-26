@@ -28,6 +28,6 @@ class CLIPTextEncodePixArtAlpha(io.ComfyNode):
         return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens, add_dict={"width": width, "height": height}))
 
 
-NODES_LIST = [
+NODES_LIST: list[type[io.ComfyNode]] = [
     CLIPTextEncodePixArtAlpha,
 ]

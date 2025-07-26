@@ -162,57 +162,6 @@ def load_and_process_images(image_files, input_dir, resize_method="None", w=None
     return torch.cat(output_images, dim=0)
 
 
-def draw_loss_graph(loss_map, steps):
-    width, height = 500, 300
-    img = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(img)
-
-    min_loss, max_loss = min(loss_map.values()), max(loss_map.values())
-    scaled_loss = [(l_v - min_loss) / (max_loss - min_loss) for l_v in loss_map.values()]
-
-    prev_point = (0, height - int(scaled_loss[0] * height))
-    for i, l_v in enumerate(scaled_loss[1:], start=1):
-        x = int(i / (steps - 1) * width)
-        y = height - int(l_v * height)
-        draw.line([prev_point, (x, y)], fill="blue", width=2)
-        prev_point = (x, y)
-
-    return img
-
-
-def find_all_highest_child_module_with_forward(model: torch.nn.Module, result = None, name = None):
-    if result is None:
-        result = []
-    elif hasattr(model, "forward") and not isinstance(model, (torch.nn.ModuleList, torch.nn.Sequential, torch.nn.ModuleDict)):
-        result.append(model)
-        logging.debug(f"Found module with forward: {name} ({model.__class__.__name__})")
-        return result
-    name = name or "root"
-    for next_name, child in model.named_children():
-        find_all_highest_child_module_with_forward(child, result, f"{name}.{next_name}")
-    return result
-
-
-def patch(m):
-    if not hasattr(m, "forward"):
-        return
-    org_forward = m.forward
-    def fwd(args, kwargs):
-        return org_forward(*args, **kwargs)
-    def checkpointing_fwd(*args, **kwargs):
-        return torch.utils.checkpoint.checkpoint(
-            fwd, args, kwargs, use_reentrant=False
-        )
-    m.org_forward = org_forward
-    m.forward = checkpointing_fwd
-
-
-def unpatch(m):
-    if hasattr(m, "org_forward"):
-        m.forward = m.org_forward
-        del m.org_forward
-
-
 class LoadImageSetFromFolderNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -328,126 +277,55 @@ class LoadImageTextSetFromFolderNode(io.ComfyNode):
         return io.NodeOutput(output_tensor, conditions)
 
 
-class LoraModelLoader(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="LoraModelLoader_V3",
-            display_name="Load LoRA Model _V3",
-            category="loaders",
-            description="Load Trained LoRA weights from Train LoRA node.",
-            is_experimental=True,
-            inputs=[
-                io.Model.Input("model", tooltip="The diffusion model the LoRA will be applied to."),
-                io.LoraModel.Input("lora", tooltip="The LoRA model to apply to the diffusion model."),
-                io.Float.Input("strength_model", default=1.0, min=-100.0, max=100.0, step=0.01, tooltip="How strongly to modify the diffusion model. This value can be negative."),
-            ],
-            outputs=[
-                io.Model.Output(tooltip="The modified diffusion model."),
-            ],
+def draw_loss_graph(loss_map, steps):
+    width, height = 500, 300
+    img = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(img)
+
+    min_loss, max_loss = min(loss_map.values()), max(loss_map.values())
+    scaled_loss = [(l_v - min_loss) / (max_loss - min_loss) for l_v in loss_map.values()]
+
+    prev_point = (0, height - int(scaled_loss[0] * height))
+    for i, l_v in enumerate(scaled_loss[1:], start=1):
+        x = int(i / (steps - 1) * width)
+        y = height - int(l_v * height)
+        draw.line([prev_point, (x, y)], fill="blue", width=2)
+        prev_point = (x, y)
+
+    return img
+
+
+def find_all_highest_child_module_with_forward(model: torch.nn.Module, result = None, name = None):
+    if result is None:
+        result = []
+    elif hasattr(model, "forward") and not isinstance(model, (torch.nn.ModuleList, torch.nn.Sequential, torch.nn.ModuleDict)):
+        result.append(model)
+        logging.debug(f"Found module with forward: {name} ({model.__class__.__name__})")
+        return result
+    name = name or "root"
+    for next_name, child in model.named_children():
+        find_all_highest_child_module_with_forward(child, result, f"{name}.{next_name}")
+    return result
+
+
+def patch(m):
+    if not hasattr(m, "forward"):
+        return
+    org_forward = m.forward
+    def fwd(args, kwargs):
+        return org_forward(*args, **kwargs)
+    def checkpointing_fwd(*args, **kwargs):
+        return torch.utils.checkpoint.checkpoint(
+            fwd, args, kwargs, use_reentrant=False
         )
-
-    @classmethod
-    def execute(cls, model, lora, strength_model):
-        if strength_model == 0:
-            return io.NodeOutput(model)
-
-        model_lora, _ = comfy.sd.load_lora_for_models(model, None, lora, strength_model, 0)
-        return io.NodeOutput(model_lora)
+    m.org_forward = org_forward
+    m.forward = checkpointing_fwd
 
 
-class LossGraphNode(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="LossGraphNode_V3",
-            display_name="Plot Loss Graph _V3",
-            category="training",
-            description="Plots the loss graph and saves it to the output directory.",
-            is_experimental=True,
-            is_output_node=True,
-            inputs=[
-                io.LossMap.Input("loss"),  # TODO: original V1 node has also `default={}` parameter
-                io.String.Input("filename_prefix", default="loss_graph"),
-            ],
-            outputs=[],
-            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
-        )
-
-    @classmethod
-    def execute(cls, loss, filename_prefix):
-        loss_values = loss["loss"]
-        width, height = 800, 480
-        margin = 40
-
-        img = Image.new(
-            "RGB", (width + margin, height + margin), "white"
-        )  # Extend canvas
-        draw = ImageDraw.Draw(img)
-
-        min_loss, max_loss = min(loss_values), max(loss_values)
-        scaled_loss = [(l_v - min_loss) / (max_loss - min_loss) for l_v in loss_values]
-
-        steps = len(loss_values)
-
-        prev_point = (margin, height - int(scaled_loss[0] * height))
-        for i, l_v in enumerate(scaled_loss[1:], start=1):
-            x = margin + int(i / steps * width)  # Scale X properly
-            y = height - int(l_v * height)
-            draw.line([prev_point, (x, y)], fill="blue", width=2)
-            prev_point = (x, y)
-
-        draw.line([(margin, 0), (margin, height)], fill="black", width=2)  # Y-axis
-        draw.line(
-            [(margin, height), (width + margin, height)], fill="black", width=2
-        )  # X-axis
-
-        try:
-            font = ImageFont.truetype("arial.ttf", 12)
-        except IOError:
-            font = ImageFont.load_default()
-
-        # Add axis labels
-        draw.text((5, height // 2), "Loss", font=font, fill="black")
-        draw.text((width // 2, height + 10), "Steps", font=font, fill="black")
-
-        # Add min/max loss values
-        draw.text((margin - 30, 0), f"{max_loss:.2f}", font=font, fill="black")
-        draw.text(
-            (margin - 30, height - 10), f"{min_loss:.2f}", font=font, fill="black"
-        )
-        return io.NodeOutput(ui=ui.PreviewImage(img, cls=cls))
-
-
-class SaveLoRA(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="SaveLoRA_V3",
-            display_name="Save LoRA Weights _V3",
-            category="loaders",
-            is_experimental=True,
-            is_output_node=True,
-            inputs=[
-                io.LoraModel.Input("lora", tooltip="The LoRA model to save. Do not use the model with LoRA layers."),
-                io.String.Input("prefix", default="loras/ComfyUI_trained_lora", tooltip="The prefix to use for the saved LoRA file."),
-                io.Int.Input("steps", tooltip="Optional: The number of steps to LoRA has been trained for, used to name the saved file.", optional=True),
-            ],
-            outputs=[],
-        )
-
-    @classmethod
-    def execute(cls, lora, prefix, steps=None):
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
-            prefix, folder_paths.get_output_directory()
-        )
-        if steps is None:
-            output_checkpoint = f"{filename}_{counter:05}_.safetensors"
-        else:
-            output_checkpoint = f"{filename}_{steps}_steps_{counter:05}_.safetensors"
-        output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
-        safetensors.torch.save_file(lora, output_checkpoint)
-        return io.NodeOutput()
+def unpatch(m):
+    if hasattr(m, "org_forward"):
+        m.forward = m.org_forward
+        del m.org_forward
 
 
 class TrainLoraNode(io.ComfyNode):
@@ -656,7 +534,129 @@ class TrainLoraNode(io.ComfyNode):
             return io.NodeOutput(mp, lora_sd, loss_map, steps + existing_steps)
 
 
-NODES_LIST = [
+class LoraModelLoader(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LoraModelLoader_V3",
+            display_name="Load LoRA Model _V3",
+            category="loaders",
+            description="Load Trained LoRA weights from Train LoRA node.",
+            is_experimental=True,
+            inputs=[
+                io.Model.Input("model", tooltip="The diffusion model the LoRA will be applied to."),
+                io.LoraModel.Input("lora", tooltip="The LoRA model to apply to the diffusion model."),
+                io.Float.Input("strength_model", default=1.0, min=-100.0, max=100.0, step=0.01, tooltip="How strongly to modify the diffusion model. This value can be negative."),
+            ],
+            outputs=[
+                io.Model.Output(tooltip="The modified diffusion model."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, lora, strength_model):
+        if strength_model == 0:
+            return io.NodeOutput(model)
+
+        model_lora, _ = comfy.sd.load_lora_for_models(model, None, lora, strength_model, 0)
+        return io.NodeOutput(model_lora)
+
+
+class SaveLoRA(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SaveLoRA_V3",
+            display_name="Save LoRA Weights _V3",
+            category="loaders",
+            is_experimental=True,
+            is_output_node=True,
+            inputs=[
+                io.LoraModel.Input("lora", tooltip="The LoRA model to save. Do not use the model with LoRA layers."),
+                io.String.Input("prefix", default="loras/ComfyUI_trained_lora", tooltip="The prefix to use for the saved LoRA file."),
+                io.Int.Input("steps", tooltip="Optional: The number of steps to LoRA has been trained for, used to name the saved file.", optional=True),
+            ],
+            outputs=[],
+        )
+
+    @classmethod
+    def execute(cls, lora, prefix, steps=None):
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            prefix, folder_paths.get_output_directory()
+        )
+        if steps is None:
+            output_checkpoint = f"{filename}_{counter:05}_.safetensors"
+        else:
+            output_checkpoint = f"{filename}_{steps}_steps_{counter:05}_.safetensors"
+        output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
+        safetensors.torch.save_file(lora, output_checkpoint)
+        return io.NodeOutput()
+
+
+class LossGraphNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LossGraphNode_V3",
+            display_name="Plot Loss Graph _V3",
+            category="training",
+            description="Plots the loss graph and saves it to the output directory.",
+            is_experimental=True,
+            is_output_node=True,
+            inputs=[
+                io.LossMap.Input("loss"),  # TODO: original V1 node has also `default={}` parameter
+                io.String.Input("filename_prefix", default="loss_graph"),
+            ],
+            outputs=[],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+        )
+
+    @classmethod
+    def execute(cls, loss, filename_prefix):
+        loss_values = loss["loss"]
+        width, height = 800, 480
+        margin = 40
+
+        img = Image.new(
+            "RGB", (width + margin, height + margin), "white"
+        )  # Extend canvas
+        draw = ImageDraw.Draw(img)
+
+        min_loss, max_loss = min(loss_values), max(loss_values)
+        scaled_loss = [(l_v - min_loss) / (max_loss - min_loss) for l_v in loss_values]
+
+        steps = len(loss_values)
+
+        prev_point = (margin, height - int(scaled_loss[0] * height))
+        for i, l_v in enumerate(scaled_loss[1:], start=1):
+            x = margin + int(i / steps * width)  # Scale X properly
+            y = height - int(l_v * height)
+            draw.line([prev_point, (x, y)], fill="blue", width=2)
+            prev_point = (x, y)
+
+        draw.line([(margin, 0), (margin, height)], fill="black", width=2)  # Y-axis
+        draw.line(
+            [(margin, height), (width + margin, height)], fill="black", width=2
+        )  # X-axis
+
+        try:
+            font = ImageFont.truetype("arial.ttf", 12)
+        except IOError:
+            font = ImageFont.load_default()
+
+        # Add axis labels
+        draw.text((5, height // 2), "Loss", font=font, fill="black")
+        draw.text((width // 2, height + 10), "Steps", font=font, fill="black")
+
+        # Add min/max loss values
+        draw.text((margin - 30, 0), f"{max_loss:.2f}", font=font, fill="black")
+        draw.text(
+            (margin - 30, height - 10), f"{min_loss:.2f}", font=font, fill="black"
+        )
+        return io.NodeOutput(ui=ui.PreviewImage(img, cls=cls))
+
+
+NODES_LIST: list[type[io.ComfyNode]] = [
     LoadImageSetFromFolderNode,
     LoadImageTextSetFromFolderNode,
     LoraModelLoader,
