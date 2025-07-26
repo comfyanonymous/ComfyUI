@@ -25,13 +25,13 @@ if model_management.sage_attention_enabled():
         from sageattn import sageattn_blackwell
         SAGE_ATTENTION_3_AVAILABLE = True
         sage_attention_available = True
-        print("Found SageAttention3 (sageattn package)")
+        logging.info("Found SageAttention3 (sageattn package)")
 
     except ImportError:
         try:
             from sageattention import sageattn
             sage_attention_available = True
-            print("Found SageAttention2 (sageattention package)")
+            logging.info("Found SageAttention2 (sageattention package)")
         except ModuleNotFoundError as e:
             pass
 
