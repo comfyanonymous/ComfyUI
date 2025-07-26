@@ -33,3 +33,11 @@ if TYPE_CHECKING:
 
     ComfyAPISync: Type[ComfyAPISyncStub]
 ComfyAPISync = create_sync_class(ComfyAPIAdapter_v0_0_2)
+
+__all__ = [
+    "ComfyAPI",
+    "ComfyAPISync",
+    "Input",
+    "InputImpl",
+    "Types",
+]

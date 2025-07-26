@@ -97,3 +97,10 @@ if TYPE_CHECKING:
     ComfyAPISync: Type[comfy_api.latest.generated.ComfyAPISyncStub.ComfyAPISyncStub]
 ComfyAPISync = create_sync_class(ComfyAPI_latest)
 
+__all__ = [
+    "ComfyAPI",
+    "ComfyAPISync",
+    "Input",
+    "InputImpl",
+    "Types",
+]

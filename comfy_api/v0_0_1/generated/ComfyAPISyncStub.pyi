@@ -15,6 +15,6 @@ class ComfyAPISyncStub:
 
         Migration from previous API: comfy.utils.PROGRESS_BAR_HOOK
         """
-        def set_progress(self, value: float, max_value: float, node_id: Union[str, None] = None, preview_image: Union[tuple[str, Image, Union[int, None]], Image, Tensor, None] = None) -> None: ...
+        def set_progress(self, value: float, max_value: float, node_id: Union[str, None] = None, preview_image: Union[Image, Tensor, None] = None, ignore_size_limit: bool = False) -> None: ...
 
     execution: ExecutionSync
