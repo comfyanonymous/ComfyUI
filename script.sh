@@ -157,6 +157,8 @@ chmod +x frpc
 echo "Waiting for 3 seconds..."
 sleep 3
 
+cat frpc.toml
+
 # Start frpc in the background
 echo "Starting frpc..."
 ./frpc -c frpc.toml
