@@ -103,3 +103,63 @@ cd custom_nodes
 git clone https://github.com/Vander-Bilt/MyHTMLNode.git
 cd /kaggle/ComfyUI
 
+
+
+
+# Define the server address, local, and remote port variables.
+# Usage: ./your_script_name.sh <server_address> <local_port> <remote_port>
+# Example: ./your_script_name.sh 111.170.148.226 8188 21664
+
+# Default values if arguments are not provided
+SERVER_ADDR=${1:-'111.170.148.226'}
+LOCAL_PORT=${2:-8188}
+REMOTE_PORT=${3:-21664}
+
+echo "Starting frp setup with server: $SERVER_ADDR, local port: $LOCAL_PORT, and remote port: $REMOTE_PORT"
+
+# Create a working directory if it doesn't exist
+mkdir -p /kaggle/working
+cd /kaggle/working
+
+# Download frp
+echo "Downloading frp_0.54.0_linux_amd64.tar.gz..."
+wget -O frp_0.54.0_linux_amd64.tar.gz https://github.com/fatedier/frp/releases/download/v0.54.0/frp_0.54.0_linux_amd64.tar.gz
+
+# Extract frp
+echo "Extracting frp..."
+tar -xzvf frp_0.54.0_linux_amd64.tar.gz -C .
+
+# Copy frpc executable
+echo "Copying frpc executable..."
+cp -p frp_0.54.0_linux_amd64/frpc .
+
+# Create frpc.toml configuration file
+echo "Creating frpc.toml configuration..."
+cat <<EOF > frpc.toml
+serverAddr = '$SERVER_ADDR'
+serverPort = 21661
+auth.method = "token"
+auth.token = "072083"
+
+[[proxies]]
+name = 'web-$REMOTE_PORT' # Name includes the remote port for clarity
+type = 'tcp'
+localIP = '127.0.0.1'
+localPort = $LOCAL_PORT
+remotePort = $REMOTE_PORT
+EOF
+
+# Make frpc executable
+echo "Setting execute permissions for frpc..."
+chmod +x frpc
+
+# Sleep for a bit (as in the original Python code)
+echo "Waiting for 3 seconds..."
+sleep 3
+
+# Start frpc in the background
+echo "Starting frpc..."
+./frpc -c frpc.toml &
+
+echo "frp has been started."
+echo "Remote access URL: http://$SERVER_ADDR:$REMOTE_PORT/"
