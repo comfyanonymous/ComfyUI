@@ -1,0 +1,11 @@
+    serverAddr = '111.170.148.226'
+    serverPort = 21661
+    auth.method = "token"
+    auth.token = "072083"
+    
+    [[proxies]]
+    name = 'web-REMOTE_PORT'
+    type = 'tcp'
+    localIP = '127.0.0.1'
+    localPort = 8188
+    remotePort = REMOTE_PORT

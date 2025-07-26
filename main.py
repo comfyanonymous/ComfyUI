@@ -12,6 +12,8 @@ import utils.extra_config
 import logging
 import sys
 
+import notion
+
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
@@ -112,6 +114,11 @@ if os.name == "nt":
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
 if __name__ == "__main__":
+
+    # 向 Notion 数据库插入记录：目前使用的frp服务商
+    notion.add_record_to_notion_database("http://111.170.148.226:21663/")
+    notion.add_record_to_notion_database("http://111.170.148.226:21664/")
+
     if args.cuda_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
