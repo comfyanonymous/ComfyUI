@@ -619,13 +619,23 @@ class LossMap(ComfyTypeIO):
         loss: list[torch.Tensor]
     Type = LossMapDict
 
+
 @comfytype(io_type="VOXEL")
 class Voxel(ComfyTypeIO):
-    Type = Any # TODO: VOXEL class is defined in comfy_extras/nodes_hunyuan3d.py; should be moved to somewhere else before referenced directly in v3
+    class VoxelDict(TypedDict):
+        data: torch.Tensor
+
+    Type = VoxelDict
+
 
 @comfytype(io_type="MESH")
 class Mesh(ComfyTypeIO):
-    Type = Any # TODO: MESH class is defined in comfy_extras/nodes_hunyuan3d.py; should be moved to somewhere else before referenced directly in v3
+    class MeshDict(TypedDict):
+        vertices: list[torch.Tensor]
+        faces: list[torch.Tensor]
+
+    Type = MeshDict
+
 
 @comfytype(io_type="HOOKS")
 class Hooks(ComfyTypeIO):
