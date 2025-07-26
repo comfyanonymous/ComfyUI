@@ -1,5 +1,7 @@
 import hashlib
+import json
 import os
+import re
 
 import numpy as np
 import torch
@@ -708,6 +710,77 @@ class SaveImage(io.ComfyNode):
         )
 
 
+class SaveSVGNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SaveSVGNode_V3",
+            display_name="Save SVG _V3",
+            description="Save SVG files on disk.",
+            category="image/save",
+            inputs=[
+                io.SVG.Input("svg"),
+                io.String.Input(
+                    "filename_prefix",
+                    default="svg/ComfyUI",
+                    tooltip="The prefix for the file to save. This may include formatting information such as "
+                            "%date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes.",
+                ),
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, svg: io.SVG.Data, filename_prefix="svg/ComfyUI") -> io.NodeOutput:
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix, folder_paths.get_output_directory()
+        )
+        results = []
+
+        # Prepare metadata JSON
+        metadata_dict = {}
+        if cls.hidden.prompt is not None:
+            metadata_dict["prompt"] = cls.hidden.prompt
+        if cls.hidden.extra_pnginfo is not None:
+            metadata_dict.update(cls.hidden.extra_pnginfo)
+
+        # Convert metadata to JSON string
+        metadata_json = json.dumps(metadata_dict, indent=2) if metadata_dict else None
+        for batch_number, svg_bytes in enumerate(svg.data):
+            filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
+            file = f"{filename_with_batch_num}_{counter:05}_.svg"
+
+            # Read SVG content
+            svg_bytes.seek(0)
+            svg_content = svg_bytes.read().decode('utf-8')
+
+            # Inject metadata if available
+            if metadata_json:
+                # Create metadata element with CDATA section
+                metadata_element = f"""  <metadata>
+                <![CDATA[
+            {metadata_json}
+                ]]>
+            </metadata>
+            """
+                # Insert metadata after opening svg tag using regex with a replacement function
+                def replacement(match):
+                    # match.group(1) contains the captured <svg> tag
+                    return match.group(1) + '\n' + metadata_element
+
+                # Apply the substitution
+                svg_content = re.sub(r'(<svg[^>]*>)', replacement, svg_content, flags=re.UNICODE)
+
+            # Write the modified SVG to file
+            with open(os.path.join(full_output_folder, file), 'wb') as svg_file:
+                svg_file.write(svg_content.encode('utf-8'))
+
+            results.append(ui.SavedResult(file, subfolder, io.FolderType.output))
+            counter += 1
+        return io.NodeOutput(ui={"images": results})
+
+
 NODES_LIST: list[type[io.ComfyNode]] = [
     GetImageSize,
     ImageAddNoise,
@@ -724,4 +797,5 @@ NODES_LIST: list[type[io.ComfyNode]] = [
     SaveAnimatedPNG,
     SaveAnimatedWEBP,
     SaveImage,
+    SaveSVGNode,
 ]
