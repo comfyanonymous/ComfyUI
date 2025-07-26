@@ -20,13 +20,13 @@ if model_management.xformers_enabled():
 if model_management.sage_attention_enabled():
     sage_attention_available = False
     SAGE_ATTENTION_3_AVAILABLE = False
-    
+
     try:
         from sageattn import sageattn_blackwell
         SAGE_ATTENTION_3_AVAILABLE = True
         sage_attention_available = True
         print("Found SageAttention3 (sageattn package)")
-        
+
     except ImportError:
         try:
             from sageattention import sageattn
@@ -34,12 +34,9 @@ if model_management.sage_attention_enabled():
             print("Found SageAttention2 (sageattention package)")
         except ModuleNotFoundError as e:
             pass
-    
+
     if not sage_attention_available:
-        if e.name == "sageattention":
-            logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
-        else:
-            raise e
+        logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
         exit(-1)
 
 if model_management.flash_attention_enabled():
