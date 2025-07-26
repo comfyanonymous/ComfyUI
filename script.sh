@@ -166,6 +166,6 @@ echo "Starting frpc..."
 echo "frp has been started."
 echo "Remote access URL: http://$SERVER_ADDR:$REMOTE_PORT/"
 
-sleep 8
+sleep 1
 
 cd /kaggle/ComfyUI
