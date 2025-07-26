@@ -32,7 +32,7 @@ if model_management.sage_attention_enabled():
             from sageattention import sageattn
             sage_attention_available = True
             logging.info("Found SageAttention2 (sageattention package)")
-        except ModuleNotFoundError as e:
+        except ModuleNotFoundError:
             pass
 
     if not sage_attention_available:
