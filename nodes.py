@@ -993,20 +993,30 @@ class CLIPVisionLoader:
 class CLIPVisionEncode:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_vision": ("CLIP_VISION",),
-                              "image": ("IMAGE",),
-                              "crop": (["center", "none"],)
-                             }}
+        return {
+            "required": {
+                "clip_vision": ("CLIP_VISION",),
+                "image": ("IMAGE",),
+                "crop": (["center", "none", "recenter"],),
+            },
+            "optional": {
+                "border_ratio": ("FLOAT", {"default": 0.15, "min": 0.0, "max": 0.5, "step": 0.01, "visible_if": {"crop": "recenter"},}),
+            }
+        }
+    
     RETURN_TYPES = ("CLIP_VISION_OUTPUT",)
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
 
-    def encode(self, clip_vision, image, crop):
-        crop_image = True
-        if crop != "center":
-            crop_image = False
-        output = clip_vision.encode_image(image, crop=crop_image)
+    def encode(self, clip_vision, image, crop, border_ratio):
+        crop_image = crop == "center"
+
+        if crop == "recenter":
+            crop_image = True
+        else: border_ratio = None
+
+        output = clip_vision.encode_image(image, crop=crop_image, border_ratio = border_ratio)
         return (output,)
 
 class StyleModelLoader:

@@ -31,7 +31,21 @@ class LayerScale(torch.nn.Module):
     def forward(self, x):
         return x * comfy.model_management.cast_to_device(self.lambda1, x.device, x.dtype)
 
+class Dinov2MLP(torch.nn.Module):
+    def __init__(self, hidden_size: int, dtype, device, operations):
+        super().__init__()
+        
+        mlp_ratio = 4
+        hidden_features = int(hidden_size * mlp_ratio)
+        self.fc1 = operations.Linear(hidden_size, hidden_features, bias = True, device=device, dtype=dtype)
+        self.fc2 = operations.Linear(hidden_features, hidden_size, bias = True, device=device, dtype=dtype)
 
+    def forward(self, hidden_state: torch.Tensor) -> torch.Tensor:
+        hidden_state = self.fc1(hidden_state)
+        hidden_state = torch.nn.functional.gelu(hidden_state)
+        hidden_state = self.fc2(hidden_state)
+        return hidden_state
+    
 class SwiGLUFFN(torch.nn.Module):
     def __init__(self, dim, dtype, device, operations):
         super().__init__()
@@ -50,12 +64,14 @@ class SwiGLUFFN(torch.nn.Module):
 
 
 class Dino2Block(torch.nn.Module):
-    def __init__(self, dim, num_heads, layer_norm_eps, dtype, device, operations):
+    def __init__(self, dim, num_heads, layer_norm_eps, dtype, device, operations, use_swiglu_ffn):
         super().__init__()
         self.attention = Dino2AttentionBlock(dim, num_heads, layer_norm_eps, dtype, device, operations)
         self.layer_scale1 = LayerScale(dim, dtype, device, operations)
         self.layer_scale2 = LayerScale(dim, dtype, device, operations)
-        self.mlp = SwiGLUFFN(dim, dtype, device, operations)
+        if use_swiglu_ffn:
+            self.mlp = SwiGLUFFN(dim, dtype, device, operations)
+        else: self.mlp = Dinov2MLP(dim, dtype, device, operations)
         self.norm1 = operations.LayerNorm(dim, eps=layer_norm_eps, dtype=dtype, device=device)
         self.norm2 = operations.LayerNorm(dim, eps=layer_norm_eps, dtype=dtype, device=device)
 
@@ -66,9 +82,10 @@ class Dino2Block(torch.nn.Module):
 
 
 class Dino2Encoder(torch.nn.Module):
-    def __init__(self, dim, num_heads, layer_norm_eps, num_layers, dtype, device, operations):
+    def __init__(self, dim, num_heads, layer_norm_eps, num_layers, dtype, device, operations, use_swiglu_ffn):
         super().__init__()
-        self.layer = torch.nn.ModuleList([Dino2Block(dim, num_heads, layer_norm_eps, dtype, device, operations) for _ in range(num_layers)])
+        self.layer = torch.nn.ModuleList([Dino2Block(dim, num_heads, layer_norm_eps, dtype, device, operations, use_swiglu_ffn = use_swiglu_ffn)
+                                          for _ in range(num_layers)])
 
     def forward(self, x, intermediate_output=None):
         optimized_attention = optimized_attention_for_device(x.device, False, small_input=True)
@@ -128,9 +145,10 @@ class Dinov2Model(torch.nn.Module):
         dim = config_dict["hidden_size"]
         heads = config_dict["num_attention_heads"]
         layer_norm_eps = config_dict["layer_norm_eps"]
+        use_swiglu_ffn = config_dict["use_swiglu_ffn"]
 
         self.embeddings = Dino2Embeddings(dim, dtype, device, operations)
-        self.encoder = Dino2Encoder(dim, heads, layer_norm_eps, num_layers, dtype, device, operations)
+        self.encoder = Dino2Encoder(dim, heads, layer_norm_eps, num_layers, dtype, device, operations, use_swiglu_ffn = use_swiglu_ffn)
         self.layernorm = operations.LayerNorm(dim, eps=layer_norm_eps, dtype=dtype, device=device)
 
     def forward(self, pixel_values, attention_mask=None, intermediate_output=None):
