@@ -530,7 +530,7 @@ class AsyncToSyncConverter:
     ) -> str:
         """Generate a complete method signature for stub files."""
         sig = inspect.signature(method)
-        
+
         # Try to get evaluated type hints to resolve string annotations
         try:
             from typing import get_type_hints
@@ -574,7 +574,7 @@ class AsyncToSyncConverter:
             if module:
                 # Check if module has __all__ defined
                 module_all = getattr(module, "__all__", None)
-                
+
                 for name, obj in sorted(inspect.getmembers(module)):
                     if isinstance(obj, type):
                         # Skip if __all__ is defined and this name isn't in it
@@ -583,7 +583,7 @@ class AsyncToSyncConverter:
                             # Check if this type was actually used in annotations
                             if name not in type_tracker.discovered_types:
                                 continue
-                        
+
                         # Check for NamedTuple
                         if issubclass(obj, tuple) and hasattr(obj, "_fields"):
                             additional_types.append(name)
@@ -662,14 +662,14 @@ class AsyncToSyncConverter:
             try:
                 init_method = getattr(attr, "__init__")
                 init_sig = inspect.signature(init_method)
-                
+
                 # Try to get type hints
                 try:
                     from typing import get_type_hints
                     init_hints = get_type_hints(init_method)
                 except Exception:
                     init_hints = {}
-                
+
                 # Format parameters
                 params_str = cls._format_method_parameters(
                     init_sig, type_hints=init_hints, type_tracker=type_tracker
@@ -824,14 +824,14 @@ class AsyncToSyncConverter:
             try:
                 init_method = async_class.__init__
                 init_signature = inspect.signature(init_method)
-                
+
                 # Try to get type hints for __init__
                 try:
                     from typing import get_type_hints
                     init_hints = get_type_hints(init_method)
                 except Exception:
                     init_hints = {}
-                
+
                 # Format parameters
                 params_str = cls._format_method_parameters(
                     init_signature, type_hints=init_hints, type_tracker=type_tracker
@@ -918,7 +918,7 @@ class AsyncToSyncConverter:
                 for class_name, class_type in class_attributes:
                     # If the class type matches the annotated type
                     if (
-                        attr_type == class_type 
+                        attr_type == class_type
                         or (hasattr(attr_type, "__name__") and attr_type.__name__ == class_name)
                         or (isinstance(attr_type, str) and attr_type == class_name)
                     ):
