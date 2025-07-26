@@ -2324,7 +2324,7 @@ async def init_builtin_extra_nodes():
         "v3/nodes_fresca.py",
         "v3/nodes_gits.py",
         "v3/nodes_hidream.py",
-        # "v3/nodes_hooks.py",
+        "v3/nodes_hooks.py",
         "v3/nodes_hunyuan.py",
         "v3/nodes_hunyuan3d.py",
         "v3/nodes_hypernetwork.py",
