@@ -1,6 +1,7 @@
 from __future__ import annotations
 import torch
 
+
 import os
 import sys
 import json
@@ -26,6 +27,9 @@ import comfy.sd
 import comfy.utils
 import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
+from comfy_api.internal import register_versions, ComfyAPIWithVersion
+from comfy_api.version_list import supported_versions
+from comfy_api.latest import io
 
 import comfy.clip_vision
 
@@ -2101,7 +2105,7 @@ def get_module_name(module_path: str) -> str:
     return base_path
 
 
-def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes") -> bool:
+async def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes") -> bool:
     module_name = get_module_name(module_path)
     if os.path.isfile(module_path):
         sp = os.path.splitext(module_path)
@@ -2149,6 +2153,7 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
             if os.path.isdir(web_dir):
                 EXTENSION_WEB_DIRS[module_name] = web_dir
 
+        # V1 node definition
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
             for name, node_cls in module.NODE_CLASS_MAPPINGS.items():
                 if name not in ignore:
@@ -2157,15 +2162,26 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
             return True
+        # V3 node definition
+        elif getattr(module, "NODES_LIST", None) is not None:
+            for node_cls in module.NODES_LIST:
+                node_cls: io.ComfyNode
+                schema = node_cls.GET_SCHEMA()
+                if schema.node_id not in ignore:
+                    NODE_CLASS_MAPPINGS[schema.node_id] = node_cls
+                    node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
+                if schema.display_name is not None:
+                    NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name
+            return True
         else:
-            logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
+            logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS or NODES_LIST (need one).")
             return False
     except Exception as e:
         logging.warning(traceback.format_exc())
         logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
         return False
 
-def init_external_custom_nodes():
+async def init_external_custom_nodes():
     """
     Initializes the external custom nodes.
 
@@ -2191,7 +2207,7 @@ def init_external_custom_nodes():
                 logging.info(f"Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
                 continue
             time_before = time.perf_counter()
-            success = load_custom_node(module_path, base_node_names, module_parent="custom_nodes")
+            success = await load_custom_node(module_path, base_node_names, module_parent="custom_nodes")
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
 
     if len(node_import_times) > 0:
@@ -2204,7 +2220,7 @@ def init_external_custom_nodes():
             logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
         logging.info("")
 
-def init_builtin_extra_nodes():
+async def init_builtin_extra_nodes():
     """
     Initializes the built-in extra nodes in ComfyUI.
 
@@ -2283,18 +2299,88 @@ def init_builtin_extra_nodes():
         "nodes_string.py",
         "nodes_camera_trajectory.py",
         "nodes_edit_model.py",
-        "nodes_tcfg.py"
+        "nodes_tcfg.py",
+        "nodes_v3_test.py",
+        "nodes_v1_test.py",
+        "v3/nodes_ace.py",
+        "v3/nodes_advanced_samplers.py",
+        "v3/nodes_align_your_steps.py",
+        "v3/nodes_apg.py",
+        "v3/nodes_attention_multiply.py",
+        "v3/nodes_audio.py",
+        "v3/nodes_camera_trajectory.py",
+        "v3/nodes_canny.py",
+        "v3/nodes_cfg.py",
+        "v3/nodes_clip_sdxl.py",
+        "v3/nodes_compositing.py",
+        "v3/nodes_cond.py",
+        "v3/nodes_controlnet.py",
+        "v3/nodes_cosmos.py",
+        "v3/nodes_custom_sampler.py",
+        "v3/nodes_differential_diffusion.py",
+        "v3/nodes_edit_model.py",
+        "v3/nodes_flux.py",
+        "v3/nodes_freelunch.py",
+        "v3/nodes_fresca.py",
+        "v3/nodes_gits.py",
+        "v3/nodes_hidream.py",
+        # "v3/nodes_hooks.py",
+        "v3/nodes_hunyuan.py",
+        "v3/nodes_hunyuan3d.py",
+        "v3/nodes_hypernetwork.py",
+        "v3/nodes_hypertile.py",
+        "v3/nodes_images.py",
+        "v3/nodes_ip2p.py",
+        "v3/nodes_latent.py",
+        "v3/nodes_load_3d.py",
+        "v3/nodes_lora_extract.py",
+        "v3/nodes_lotus.py",
+        "v3/nodes_lt.py",
+        "v3/nodes_lumina2.py",
+        "v3/nodes_mahiro.py",
+        "v3/nodes_mask.py",
+        "v3/nodes_mochi.py",
+        "v3/nodes_model_advanced.py",
+        "v3/nodes_model_downscale.py",
+        "v3/nodes_model_merging.py",
+        "v3/nodes_model_merging_model_specific.py",
+        "v3/nodes_morphology.py",
+        "v3/nodes_optimalsteps.py",
+        "v3/nodes_pag.py",
+        "v3/nodes_perpneg.py",
+        "v3/nodes_photomaker.py",
+        "v3/nodes_pixart.py",
+        "v3/nodes_post_processing.py",
+        "v3/nodes_preview_any.py",
+        "v3/nodes_primitive.py",
+        "v3/nodes_rebatch.py",
+        "v3/nodes_sag.py",
+        "v3/nodes_sd3.py",
+        "v3/nodes_sdupscale.py",
+        "v3/nodes_slg.py",
+        "v3/nodes_stable3d.py",
+        "v3/nodes_stable_cascade.py",
+        "v3/nodes_string.py",
+        "v3/nodes_tcfg.py",
+        "v3/nodes_tomesd.py",
+        "v3/nodes_torch_compile.py",
+        "v3/nodes_train.py",
+        "v3/nodes_upscale_model.py",
+        "v3/nodes_video.py",
+        "v3/nodes_video_model.py",
+        "v3/nodes_wan.py",
+        "v3/nodes_webcam.py",
     ]
 
     import_failed = []
     for node_file in extras_files:
-        if not load_custom_node(os.path.join(extras_dir, node_file), module_parent="comfy_extras"):
+        if not await load_custom_node(os.path.join(extras_dir, node_file), module_parent="comfy_extras"):
             import_failed.append(node_file)
 
     return import_failed
 
 
-def init_builtin_api_nodes():
+async def init_builtin_api_nodes():
     api_nodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_api_nodes")
     api_nodes_files = [
         "nodes_ideogram.py",
@@ -2315,26 +2401,35 @@ def init_builtin_api_nodes():
         "nodes_gemini.py",
     ]
 
-    if not load_custom_node(os.path.join(api_nodes_dir, "canary.py"), module_parent="comfy_api_nodes"):
+    if not await load_custom_node(os.path.join(api_nodes_dir, "canary.py"), module_parent="comfy_api_nodes"):
         return api_nodes_files
 
     import_failed = []
     for node_file in api_nodes_files:
-        if not load_custom_node(os.path.join(api_nodes_dir, node_file), module_parent="comfy_api_nodes"):
+        if not await load_custom_node(os.path.join(api_nodes_dir, node_file), module_parent="comfy_api_nodes"):
             import_failed.append(node_file)
 
     return import_failed
 
+async def init_public_apis():
+    register_versions([
+        ComfyAPIWithVersion(
+            version=getattr(v, "VERSION"),
+            api_class=v
+        ) for v in supported_versions
+    ])
 
-def init_extra_nodes(init_custom_nodes=True, init_api_nodes=True):
-    import_failed = init_builtin_extra_nodes()
+async def init_extra_nodes(init_custom_nodes=True, init_api_nodes=True):
+    await init_public_apis()
+
+    import_failed = await init_builtin_extra_nodes()
 
     import_failed_api = []
     if init_api_nodes:
-        import_failed_api = init_builtin_api_nodes()
+        import_failed_api = await init_builtin_api_nodes()
 
     if init_custom_nodes:
-        init_external_custom_nodes()
+        await init_external_custom_nodes()
     else:
         logging.info("Skipping loading of custom nodes")
 

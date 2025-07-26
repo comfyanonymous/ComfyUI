@@ -1,7 +1,7 @@
-from .video_types import VideoContainer, VideoCodec, VideoComponents
+# This file only exists for backwards compatibility.
+from comfy_api.latest._util import VideoContainer, VideoCodec, VideoComponents
 
 __all__ = [
-    # Utility Types
     "VideoContainer",
     "VideoCodec",
     "VideoComponents",

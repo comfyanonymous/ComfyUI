@@ -12,6 +12,8 @@ documentation = "https://docs.comfy.org/"
 
 [tool.ruff]
 lint.select = [
+  "E",    # pycodestyle errors
+  "I",    # isort
   "N805", # invalid-first-argument-name-for-method
   "S307", # suspicious-eval-usage
   "S102", # exec
@@ -21,4 +23,8 @@ lint.select = [
   # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
   "F",
 ]
-exclude = ["*.ipynb"]
+lint.ignore = ["E501"]  # disable line-length checking
+exclude = ["*.ipynb", "**/generated/*.pyi"]
+
+[tool.ruff.lint.per-file-ignores]
+"!comfy_extras/v3/*" = ["E", "I"]  # enable these rules only for V3 nodes
