@@ -121,6 +121,18 @@ class VideoFromFile(VideoInput):
 
         raise ValueError(f"Could not determine duration for file '{self.__file}'")
 
+    def get_container_format(self) -> str:
+        """
+        Returns the container format of the video (e.g., 'mp4', 'mov', 'avi').
+
+        Returns:
+            Container format as string
+        """
+        if isinstance(self.__file, io.BytesIO):
+            self.__file.seek(0)
+        with av.open(self.__file, mode='r') as container:
+            return container.format.name
+
     def get_components_internal(self, container: InputContainer) -> VideoComponents:
         # Get video frames
         frames = []
