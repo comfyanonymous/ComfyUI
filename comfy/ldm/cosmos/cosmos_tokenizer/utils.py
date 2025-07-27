@@ -58,7 +58,8 @@ def is_odd(n: int) -> bool:
 
 
 def nonlinearity(x):
-    return x * torch.sigmoid(x)
+    # x * sigmoid(x)
+    return torch.nn.functional.silu(x)
 
 
 def Normalize(in_channels, num_groups=32):
