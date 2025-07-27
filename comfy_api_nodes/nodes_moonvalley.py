@@ -5,7 +5,6 @@ import torch
 from comfy_api_nodes.util.validation_utils import (
     get_image_dimensions,
     validate_image_dimensions,
-    validate_video_dimensions,
 )
 
 
@@ -514,7 +513,6 @@ class MoonvalleyImg2VideoNode(BaseMoonvalleyVideoNode):
         image = kwargs.get("image", None)
         if image is None:
             raise MoonvalleyApiError("image is required")
-        total_frames = get_total_frames_from_length()
 
         validate_input_image(image, True)
         validate_prompts(prompt, negative_prompt, MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
@@ -525,7 +523,7 @@ class MoonvalleyImg2VideoNode(BaseMoonvalleyVideoNode):
             steps=kwargs.get("steps"),
             seed=kwargs.get("seed"),
             guidance_scale=kwargs.get("prompt_adherence"),
-            num_frames=total_frames,
+            num_frames=128,
             width=width_height.get("width"),
             height=width_height.get("height"),
             use_negative_prompts=True,
@@ -580,7 +578,7 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
                     MoonvalleyVideoToVideoInferenceParams,
                     "negative_prompt",
                     multiline=True,
-                    default="gopro, bright, contrast, static, overexposed, bright, vignette, artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, flare, saturation, distorted, warped, wide angle, contrast, saturated, vibrant, glowing, cross dissolve, texture, videogame, saturation, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, blown out, horrible, blurry, worst quality, bad, transition, dissolve, cross-dissolve, melt, fade in, fade out, wobbly, weird, low quality, plastic, stock footage, video camera, boring, static",
+                    default="low-poly, flat shader, bad rigging, stiff animation, uncanny eyes, low-quality textures, looping glitch, cheap effect, overbloom, bloom spam, default lighting, game asset, stiff face, ugly specular, AI artifacts"
                 ),
                 "seed": model_field_to_node_input(IO.INT,MoonvalleyVideoToVideoInferenceParams, "seed", default=random.randint(0, 2**32 - 1), min=0, max=4294967295, step=1, display="number", tooltip="Random seed value", control_after_generate=True),
             },
