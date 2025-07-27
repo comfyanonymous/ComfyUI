@@ -86,7 +86,7 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Smart memory management: can automatically run large models on GPUs with as low as 1GB vram with smart offloading.
 - Works even if you don't have a GPU with: ```--cpu``` (slow)
-- Can load ckpt and safetensors. Standalone diffusion models, VAEs and CLIP models.
+- Can load ckpt and safetensors: All in one checkpoints or standalone diffusion models, VAEs and CLIP models.
 - Safe loading of ckpt, pt, pth, etc.. files.
 - Embeddings/Textual inversion
 - [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
