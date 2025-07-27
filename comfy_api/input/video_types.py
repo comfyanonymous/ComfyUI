@@ -2,6 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional, Union
 import io
+import av
 from comfy_api.util import VideoContainer, VideoCodec, VideoComponents
 
 class VideoInput(ABC):
@@ -70,3 +71,15 @@ class VideoInput(ABC):
         components = self.get_components()
         frame_count = components.images.shape[0]
         return float(frame_count / components.frame_rate)
+
+    def get_container_format(self) -> str:
+        """
+        Returns the container format of the video (e.g., 'mp4', 'mov', 'avi').
+
+        Returns:
+            Container format as string
+        """
+        # Default implementation - subclasses should override for better performance
+        source = self.get_stream_source()
+        with av.open(source, mode="r") as container:
+            return container.format.name
