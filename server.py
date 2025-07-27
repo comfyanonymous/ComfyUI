@@ -748,6 +748,127 @@ class PromptServer():
 
             return web.Response(status=200)
 
+        @routes.get("/custom_nodes")
+        async def get_custom_nodes(request):
+            """
+            {
+                "custom_nodes": [
+                    {
+                        "project_name": "node_1",
+                        "status": "loaded|failed|skipped|loading",
+                        "node_count": 5,
+                        "nodes": ["NodeClass1", "NodeClass2"],
+                        "error": "error message if failed"
+                    }
+                ],
+                "total_count": 10,
+                "loaded_count": 8,
+                "failed_count": 1,
+                "skipped_count": 1
+            }
+            """
+            try:
+                custom_nodes_list = []
+                loaded_count = 0
+                failed_count = 0
+                skipped_count = 0
+
+                for project_name, node_info in nodes.LOADED_CUSTOM_NODES.items():
+                    node_data = {
+                        "project_name": node_info.get("project_name", project_name),
+                        "status": node_info.get("status", "unknown")
+                    }
+
+                    if node_info.get("status") == "loaded":
+                        node_data.update({
+                            "node_count": node_info.get("node_count", 0),
+                            "nodes": node_info.get("nodes", [])
+                        })
+                        loaded_count += 1
+                    elif node_info.get("status") == "failed":
+                        node_data["error"] = node_info.get("error", "Unknown error")
+                        failed_count += 1
+                    elif node_info.get("status") == "skipped":
+                        node_data["error"] = node_info.get("error", "No NODE_CLASS_MAPPINGS found")
+                        skipped_count += 1
+
+                    custom_nodes_list.append(node_data)
+
+                response_data = {
+                    "custom_nodes": custom_nodes_list,
+                    "total_count": len(custom_nodes_list),
+                    "loaded_count": loaded_count,
+                    "failed_count": failed_count,
+                    "skipped_count": skipped_count
+                }
+
+                return web.json_response(response_data)
+
+            except Exception as e:
+                logging.error(f"Error in get_custom_nodes: {e}")
+                logging.error(traceback.format_exc())
+                return web.json_response({
+                    "error": f"Failed to get custom nodes: {str(e)}",
+                    "custom_nodes": [],
+                    "total_count": 0,
+                    "loaded_count": 0,
+                    "failed_count": 0,
+                    "skipped_count": 0
+                }, status=500)
+
+        @routes.get("/custom_node/{project_name}")
+        async def get_custom_node_by_name(request):
+            try:
+                project_name = request.match_info["project_name"]
+
+                if not project_name:
+                    return web.json_response({
+                        "error": "Project name is required",
+                        "message": "Please provide a valid project name in the URL path"
+                    }, status=400)
+
+                import urllib.parse
+                project_name = urllib.parse.unquote(project_name)
+
+                if project_name not in nodes.LOADED_CUSTOM_NODES:
+                    return web.json_response({
+                        "error": f"Custom node '{project_name}' not found",
+                        "message": f"The custom node '{project_name}' is not loaded or does not exist"
+                    }, status=404)
+
+                node_info = nodes.LOADED_CUSTOM_NODES[project_name]
+
+                response_data = {
+                    "project_name": node_info.get("project_name", project_name),
+                    "status": node_info.get("status", "unknown")
+                }
+
+                if node_info.get("status") == "loaded":
+                    response_data.update({
+                        "node_count": node_info.get("node_count", 0),
+                        "nodes": node_info.get("nodes", [])
+                    })
+                elif node_info.get("status") in ["failed", "skipped"]:
+                    response_data["error"] = node_info.get("error", "Unknown error")
+
+                return web.json_response(response_data)
+
+            except KeyError as e:
+                logging.error(f"Missing parameter in get_custom_node_by_name: {e}")
+                return web.json_response({
+                    "error": "Invalid request",
+                    "message": "Required parameter is missing from the request"
+                }, status=400)
+
+            except Exception as e:
+                logging.error(f"Error in get_custom_node_by_name: {e}")
+                logging.error(traceback.format_exc())
+                return web.json_response({
+                    "error": f"Failed to get custom node information: {str(e)}",
+                    "message": "An internal error occurred while retrieving the custom node information"
+                }, status=500)
+
+
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
         self.client_session = aiohttp.ClientSession(timeout=timeout)
