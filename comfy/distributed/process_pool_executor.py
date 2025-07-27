@@ -2,6 +2,7 @@ import concurrent.futures
 import contextvars
 import multiprocessing
 import pickle
+import logging
 from functools import partial
 from typing import Callable, Any
 
@@ -9,6 +10,7 @@ from pebble import ProcessPool, ProcessFuture
 
 from ..component_model.executor_types import Executor
 
+logger = logging.getLogger(__name__)
 
 def _wrap_with_context(context_data: bytes, func: Callable, *args, **kwargs) -> Any:
     new_ctx: contextvars.Context = pickle.loads(context_data)
@@ -22,8 +24,9 @@ class ProcessPoolExecutor(ProcessPool, Executor):
                  initializer: Callable = None,
                  initargs: list | tuple = (),
                  context: multiprocessing.context.BaseContext = None):
-        if context is None:
-            context = multiprocessing.get_context('spawn')
+        if context is not None:
+            logger.warning(f"A context was passed to a ProcessPoolExecutor when only spawn is supported (context={context})")
+        context = multiprocessing.get_context('spawn')
         super().__init__(max_workers=max_workers, max_tasks=max_tasks, initializer=initializer, initargs=initargs, context=context)
 
     def shutdown(self, wait=True, *, cancel_futures=False):
