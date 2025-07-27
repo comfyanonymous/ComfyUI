@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 import torch
+import pebble.common.types
 
 from comfy.cli_args_types import Configuration
 from comfy.client.embedded_comfy_client import Comfy
@@ -156,7 +157,7 @@ async def test_panic_on_exception_with_executor(executor_cls, executor_kwargs):
             async with Comfy(configuration=config, executor=executor) as client:
                 # Queue our failing workflow
                 await client.queue_prompt(create_failing_workflow())
-        except SystemExit:
+        except (SystemExit, pebble.common.types.ProcessExpired):
             sys_exit_called = True
         except UnrecoverableError:
             # We expect the exception to be raised here
