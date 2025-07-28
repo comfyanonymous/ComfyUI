@@ -29,6 +29,7 @@ from typing import Callable, Optional
 import torch
 import torch.nn
 from humanize import naturalsize
+from natsort import natsorted
 
 from . import model_management, lora
 from . import patcher_extension
@@ -118,6 +119,7 @@ def wipe_lowvram_weight(m):
 
     if hasattr(m, "bias_function"):
         m.bias_function = []
+
 
 def move_weight_functions(m, device):
     if device is None:
@@ -289,7 +291,7 @@ class ModelPatcher(ModelManageable):
         return self._force_cast_weights
 
     @force_cast_weights.setter
-    def force_cast_weights(self, value:bool) -> None:
+    def force_cast_weights(self, value: bool) -> None:
         self._force_cast_weights = value
 
     def lowvram_patch_counter(self):
@@ -475,7 +477,7 @@ class ModelPatcher(ModelManageable):
         self.add_object_patch("manual_cast_dtype", dtype)
         if dtype is not None:
             self.force_cast_weights = True
-        self.patches_uuid = uuid.uuid4() #TODO: optimize by preventing a full model reload for this
+        self.patches_uuid = uuid.uuid4()  # TODO: optimize by preventing a full model reload for this
 
     def add_weight_wrapper(self, name, function):
         self.weight_wrapper_patches[name] = self.weight_wrapper_patches.get(name, []) + [function]
@@ -630,7 +632,6 @@ class ModelPatcher(ModelManageable):
         else:
             set_func(out_weight, inplace_update=inplace_update, seed=string_to_seed(key))
 
-
     def _load_list(self) -> list[LoadingListItem]:
         loading = []
         for n, m in self.model.named_modules():
@@ -715,6 +716,7 @@ class ModelPatcher(ModelManageable):
                 mem_counter += move_weight_functions(m, device_to)
 
             load_completely.sort(reverse=True)
+            models_loaded_regularly: list[str] = []
             for x in load_completely:
                 n = x.name
                 m = x.module
@@ -726,17 +728,17 @@ class ModelPatcher(ModelManageable):
                 for param in params:
                     self.patch_weight_to_device("{}.{}".format(n, param), device_to=device_to)
 
-                logger.debug("lowvram: loaded module regularly {} {}".format(n, m))
+                models_loaded_regularly.append("name={} module={}".format(n, m))
                 m.comfy_patched_weights = True
-
+            logger.debug("lowvram: loaded module regularly: {}".format(", ".join(models_loaded_regularly)))
             for x in load_completely:
                 x.module.to(device_to)
 
             if lowvram_counter > 0:
-                logger.debug("loaded partially {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), patch_counter))
+                logger.debug("loaded partially lowvram_model_memory={}MB mem_counter={}MB patch_counter={}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), patch_counter))
                 self._memory_measurements.model_lowvram = True
             else:
-                logger.debug("loaded completely {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
+                logger.debug("loaded completely lowvram_model_memory={}MB mem_counter={}MB full_load={}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
                 self._memory_measurements.model_lowvram = False
                 if full_load:
                     self.model.to(device_to)
@@ -812,6 +814,7 @@ class ModelPatcher(ModelManageable):
         self.object_patches_backup.clear()
 
     def partially_unload(self, device_to, memory_to_free=0):
+        freed_layers: list[str] = []
         with self.use_ejected():
             hooks_unpatched = False
             memory_freed = 0
@@ -867,7 +870,9 @@ class ModelPatcher(ModelManageable):
                             m.comfy_cast_weights = True
                         m.comfy_patched_weights = False
                         memory_freed += module_mem
-                        logging.debug("freed {}".format(n))
+                        freed_layers.append(n)
+
+            logger.debug("freed {}".format(natsorted(freed_layers)))
 
             self._memory_measurements.model_lowvram = True
             self._memory_measurements.lowvram_patch_counter += patch_counter
@@ -1190,7 +1195,7 @@ class ModelPatcher(ModelManageable):
                     model_sd_keys_set = set(model_sd_keys)
                     for key in cached_weights:
                         if key not in model_sd_keys:
-                            logging.warning(f"Cached hook could not patch. Key does not exist in model: {key}")
+                            logger.warning(f"Cached hook could not patch. Key does not exist in model: {key}")
                             continue
                         self.patch_cached_hook_weights(cached_weights=cached_weights, key=key, memory_counter=memory_counter)
                         model_sd_keys_set.remove(key)
@@ -1203,7 +1208,7 @@ class ModelPatcher(ModelManageable):
                         original_weights = self.get_key_patches()
                     for key in relevant_patches:
                         if key not in model_sd_keys:
-                            logging.warning(f"Cached hook would not patch. Key does not exist in model: {key}")
+                            logger.warning(f"Cached hook would not patch. Key does not exist in model: {key}")
                             continue
                         self.patch_hook_weight_to_device(hooks=hooks, combined_patches=relevant_patches, key=key, original_weights=original_weights,
                                                          memory_counter=memory_counter)
@@ -1265,7 +1270,7 @@ class ModelPatcher(ModelManageable):
         del out_weight
         del weight
 
-    def unpatch_hooks(self, whitelist_keys_set: set[str]=None) -> None:
+    def unpatch_hooks(self, whitelist_keys_set: set[str] = None) -> None:
         with self.use_ejected():
             if len(self.hook_backup) == 0:
                 self.current_hooks = None

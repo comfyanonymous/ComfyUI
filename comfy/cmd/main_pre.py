@@ -18,7 +18,7 @@ from .. import options
 from ..app import logger
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
-os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+os.environ["HF_XET_HIGH_PERFORMANCE"] = "True"
 os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
 os.environ["TORCHINDUCTOR_AUTOGRAD_CACHE"] = "1"
 os.environ["BITSANDBYTES_NOWELCOME"] = "1"

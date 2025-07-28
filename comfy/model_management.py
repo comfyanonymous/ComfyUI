@@ -742,7 +742,6 @@ def _load_models_gpu(models: Sequence[ModelManageable], memory_required: int = 0
 
         loaded_model.model_load(lowvram_model_memory, force_patch_weights=force_patch_weights)
         current_loaded_models.insert(0, loaded_model)
-        logger.debug(f"Loaded {loaded_model}")
 
     span = get_current_span()
     span.set_attribute("models_to_load", list(map(str, models_to_load)))

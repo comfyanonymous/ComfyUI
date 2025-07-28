@@ -15,7 +15,7 @@ import requests
 
 os.environ['OTEL_METRICS_EXPORTER'] = 'none'
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
-os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+os.environ["HF_XET_HIGH_PERFORMANCE"] = "True"
 # fixes issues with running the testcontainers rabbitmqcontainer on Windows
 os.environ["TC_HOST"] = "localhost"
 

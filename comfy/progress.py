@@ -7,9 +7,10 @@ from PIL import Image
 from tqdm import tqdm
 from typing_extensions import override
 
+from .component_model.executor_types import ExecutorToClientProgress
 from .component_model.module_property import create_module_properties
 from .execution_context import current_execution_context
-from .progress_types import AbstractProgressRegistry
+from .progress_types import AbstractProgressRegistry, PreviewImageMetadata
 
 if TYPE_CHECKING:
     from comfy_execution.graph import DynamicPrompt
@@ -157,7 +158,7 @@ class WebUIProgressHandler(ProgressHandler):
     Handler that sends progress updates to the WebUI via WebSockets.
     """
 
-    def __init__(self, server_instance):
+    def __init__(self, server_instance: ExecutorToClientProgress):
         super().__init__("webui")
         self.server_instance = server_instance
 
@@ -216,7 +217,7 @@ class WebUIProgressHandler(ProgressHandler):
                     self.server_instance.client_id,
                     "supports_preview_metadata",
             ):
-                metadata = {
+                metadata: PreviewImageMetadata = {
                     "node_id": node_id,
                     "prompt_id": prompt_id,
                     "display_node_id": self.registry.dynprompt.get_display_node_id(
@@ -327,7 +328,7 @@ class ProgressRegistry(AbstractProgressRegistry):
 
 # Global registry instance
 @_module_properties.getter
-def _global_progress_registry() -> ProgressRegistry:
+def _global_progress_registry() -> AbstractProgressRegistry | None:
     return current_execution_context().progress_registry
 
 

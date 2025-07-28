@@ -43,7 +43,8 @@ def get_connection_feature(
 def supports_feature(
     sockets_metadata: Dict[str, Dict[str, Any]],
     sid: str,
-    feature_name: str
+    feature_name: str,
+    force=True,
 ) -> bool:
     """
     Check if a connection supports a specific feature.
@@ -52,10 +53,13 @@ def supports_feature(
         sockets_metadata: Dictionary of socket metadata
         sid: Session ID of the connection
         feature_name: Name of the feature to check
+        force (bool): If it cannot be determined, assume True
 
     Returns:
         Boolean indicating if feature is supported
     """
+    if sockets_metadata is None or "__unimplemented" in sockets_metadata:
+        return force
     return get_connection_feature(sockets_metadata, sid, feature_name, False) is True
 
 

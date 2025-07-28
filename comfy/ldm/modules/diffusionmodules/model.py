@@ -10,6 +10,8 @@ from .... import ops
 
 ops = ops.disable_weight_init
 
+logger = logging.getLogger(__name__)
+
 if model_management.xformers_enabled_vae():
     import xformers  # pylint: disable=import-error
     import xformers.ops  # pylint: disable=import-error
@@ -242,7 +244,7 @@ def slice_attention(q, k, v):
             steps *= 2
             if steps > 128:
                 raise e
-            logging.warning("out of memory error, increasing steps and trying again {}".format(steps))
+            logger.warning("out of memory error, increasing steps and trying again {}".format(steps))
 
     return r1
 
@@ -296,20 +298,20 @@ def pytorch_attention(q, k, v):
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
         out = out.transpose(2, 3).reshape(orig_shape)
     except model_management.OOM_EXCEPTION:
-        logging.warning("scaled_dot_product_attention OOMed: switched to slice attention")
+        logger.warning("scaled_dot_product_attention OOMed: switched to slice attention")
         out = slice_attention(q.view(B, -1, C), k.view(B, -1, C).transpose(1, 2), v.view(B, -1, C).transpose(1, 2)).reshape(orig_shape)
     return out
 
 
 def vae_attention():
     if model_management.xformers_enabled_vae():
-        logging.debug("Using xformers attention in VAE")
+        logger.debug("Using xformers attention in VAE")
         return xformers_attention
     elif model_management.pytorch_attention_enabled_vae():
-        logging.debug("Using pytorch attention in VAE")
+        logger.debug("Using pytorch attention in VAE")
         return pytorch_attention
     else:
-        logging.debug("Using split attention in VAE")
+        logger.debug("Using split attention in VAE")
         return normal_attention
 
 
@@ -650,7 +652,7 @@ class Decoder(nn.Module):
         block_in = ch * ch_mult[self.num_resolutions - 1]
         curr_res = resolution // 2 ** (self.num_resolutions - 1)
         self.z_shape = (1, z_channels, curr_res, curr_res)
-        logging.debug("Working with z of shape {} = {} dimensions.".format(
+        logger.debug("Working with z of shape {} = {} dimensions.".format(
             self.z_shape, np.prod(self.z_shape)))
 
         # z to block_in

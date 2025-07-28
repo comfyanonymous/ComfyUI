@@ -41,23 +41,23 @@ from .model_management import load_models_gpu
 from .model_patcher import ModelPatcher
 from .t2i_adapter import adapter
 from .taesd import taesd
+from .text_encoders import ace
 from .text_encoders import aura_t5
-from .text_encoders import hidream
 from .text_encoders import cosmos
 from .text_encoders import flux
 from .text_encoders import genmo
+from .text_encoders import hidream
 from .text_encoders import hunyuan_video
 from .text_encoders import hydit
 from .text_encoders import long_clipl
 from .text_encoders import lt
 from .text_encoders import lumina2
+from .text_encoders import omnigen2
 from .text_encoders import pixart_t5
 from .text_encoders import sa_t5
 from .text_encoders import sd2_clip
 from .text_encoders import sd3_clip
 from .text_encoders import wan
-from .text_encoders import ace
-from .text_encoders import omnigen2
 from .utils import ProgressBar
 
 logger = logging.getLogger(__name__)
@@ -280,7 +280,9 @@ class CLIP:
 
 
 class VAE:
-    def __init__(self, sd=None, device=None, config=None, dtype=None, metadata=None):
+    def __init__(self, sd=None, device=None, config=None, dtype=None, metadata=None, no_init=False):
+        if no_init:
+            return
         if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys():  # diffusers format
             sd = diffusers_convert.convert_vae_state_dict(sd)
 
@@ -469,7 +471,7 @@ class VAE:
                 ddconfig = {"embed_dim": 64, "num_freqs": 8, "include_pi": False, "heads": 16, "width": 1024, "num_decoder_layers": 16, "qkv_bias": False, "qk_norm": True, "geo_decoder_mlp_expand_ratio": mlp_expand, "geo_decoder_downsample_ratio": downsample_ratio, "geo_decoder_ln_post": ln_post}
                 self.first_stage_model = ShapeVAE(**ddconfig)
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
-            elif "vocoder.backbone.channel_layers.0.0.bias" in sd: #Ace Step Audio
+            elif "vocoder.backbone.channel_layers.0.0.bias" in sd:  # Ace Step Audio
                 self.first_stage_model = MusicDCAE(source_sample_rate=44100)
                 self.memory_used_encode = lambda shape, dtype: (shape[2] * 330) * model_management.dtype_size(dtype)
                 self.memory_used_decode = lambda shape, dtype: (shape[2] * shape[3] * 87000) * model_management.dtype_size(dtype)
@@ -510,6 +512,29 @@ class VAE:
 
         self.patcher = model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
         logger.debug("VAE load device: {}, offload device: {}, dtype: {}".format(self.device, offload_device, self.vae_dtype))
+
+    def clone(self):
+        n = VAE(no_init=True)
+        n.memory_used_encode = self.memory_used_encode
+        n.memory_used_decode = self.memory_used_decode
+        n.downscale_ratio = self.downscale_ratio
+        n.upscale_ratio = self.upscale_ratio
+        n.latent_channels = self.latent_channels
+        n.latent_dim = self.latent_dim
+        n.output_channels = self.output_channels
+        n.process_input = self.process_input
+        n.process_output = self.process_output
+        n.working_dtypes = self.working_dtypes.copy()
+        n.disable_offload = self.disable_offload
+        n.downscale_index_formula = self.downscale_index_formula
+        n.upscale_index_formula = self.upscale_index_formula
+        n.extra_1d_channel = self.extra_1d_channel
+        n.first_stage_model = self.first_stage_model
+        n.device = self.device
+        n.vae_dtype = self.vae_dtype
+        n.output_device = self.output_device
+        n.patcher = self.patcher.clone()
+        return n
 
     def throw_exception_if_invalid(self):
         if self.first_stage_model is None:
@@ -920,7 +945,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
             elif clip_type == CLIPType.HIDREAM:
                 clip_target.clip = hidream.hidream_clip(**t5xxl_detect(clip_data),
-                                                                        clip_l=False, clip_g=False, t5=True, llama=False, dtype_llama=None, llama_scaled_fp8=None)
+                                                        clip_l=False, clip_g=False, t5=True, llama=False, dtype_llama=None, llama_scaled_fp8=None)
                 clip_target.tokenizer = hidream.HiDreamTokenizer
             else:  # CLIPType.MOCHI
                 clip_target.clip = genmo.mochi_te(**t5xxl_detect(clip_data))
@@ -945,7 +970,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
         elif te_model == TEModel.LLAMA3_8:
             clip_target.clip = hidream.hidream_clip(**llama_detect(clip_data),
-                                                                        clip_l=False, clip_g=False, t5=False, llama=True, dtype_t5=None, t5xxl_scaled_fp8=None)
+                                                    clip_l=False, clip_g=False, t5=False, llama=True, dtype_t5=None, t5xxl_scaled_fp8=None)
             clip_target.tokenizer = hidream.HiDreamTokenizer
         elif te_model == TEModel.QWEN25_3B:
             clip_target.clip = omnigen2.te(**llama_detect(clip_data))
@@ -1033,6 +1058,7 @@ def model_detection_error_hint(path, state_dict):
         return "\nHINT: This seems to be a Lora file and Lora files should be put in the lora folder and loaded with a lora loader node.."
     return ""
 
+
 def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_clip=True, embedding_directory=None, state_dict=None, config=None):
     logger.warning("Warning: The load checkpoint with config function is deprecated and will eventually be removed, please use the other one.")
     model, clip, vae, _ = load_checkpoint_guess_config(ckpt_path, output_vae=output_vae, output_clip=output_clip, output_clipvision=False, embedding_directory=embedding_directory, output_model=True)
@@ -1096,7 +1122,6 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
         if diffusion_model is None:
             return None
         return (diffusion_model, None, VAE(sd={}), None)  # The VAE object is there to throw an exception if it's actually used'
-
 
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
     if model_config.scaled_fp8 is not None:

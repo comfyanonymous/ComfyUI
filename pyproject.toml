@@ -57,7 +57,7 @@ dependencies = [
     "pyjwt[crypto]",
     "kornia>=0.7.0",
     "mpmath>=1.0,!=1.4.0a0",
-    "huggingface_hub[hf_transfer]>0.20",
+    "huggingface_hub[hf_xet]>=0.32.0",
     "lazy-object-proxy",
     "lazy_loader>=0.3",
     "can_ada",
@@ -76,7 +76,8 @@ dependencies = [
     "wrapt>=1.16.0",
     "certifi",
     "spandrel>=0.3.4",
-    "numpy>=1.24.4",
+    # https://github.com/conda-forge/numba-feedstock/issues/158 until numba is released with support for a later version of numpy
+    "numpy>=1.24.4,<2.3",
     "soundfile",
     "watchdog",
     "PySoundFile",

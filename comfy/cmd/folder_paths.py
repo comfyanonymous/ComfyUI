@@ -86,6 +86,9 @@ def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optio
     if "HF_HUB_CACHE" in os.environ:
         hf_cache_paths.additional_absolute_directory_paths.append(os.environ.get("HF_HUB_CACHE"))
 
+    hf_xet = ModelPaths(["xet"], supported_extensions=set())
+    if "HF_XET_CACHE" in os.environ:
+        hf_xet.additional_absolute_directory_paths.append(os.environ.get("HF_XET_CACHE"))
     model_paths_to_add = [
         ModelPaths(["checkpoints"], supported_extensions=set(supported_pt_extensions)),
         ModelPaths(["configs"], additional_absolute_directory_paths=[get_package_as_path("comfy.configs")], supported_extensions={".yaml"}),
@@ -107,6 +110,7 @@ def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optio
         ModelPaths(["classifiers"], supported_extensions=set()),
         ModelPaths(["huggingface"], supported_extensions=set()),
         hf_cache_paths,
+        hf_xet,
     ]
     for model_paths in model_paths_to_add:
         if replace_existing:

@@ -41,6 +41,7 @@ from einops import rearrange
 from torch.nn.functional import interpolate
 from tqdm import tqdm
 
+from comfy_api import feature_flags
 from . import interruption, checkpoint_pickle
 from .cli_args import args
 from .component_model import files
@@ -48,6 +49,7 @@ from .component_model.deprecation import _deprecate_method
 from .component_model.executor_types import ExecutorToClientProgress, ProgressMessage
 from .component_model.queue_types import BinaryEventTypes
 from .execution_context import current_execution_context
+from .progress import get_progress_state
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
@@ -1106,21 +1108,22 @@ def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap=8, upscale_amou
     return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=output_device, pbar=pbar)
 
 
-def _progress_bar_update(value: float, total: float, preview_image_or_data: Optional[Any] = None, client_id: Optional[str] = None, server: Optional[ExecutorToClientProgress] = None, node_id: str = None):
-    server = server or current_execution_context().server
-    # todo: this should really be from the context. right now the server is behaving like a context
-    client_id = client_id or server.client_id
+def _progress_bar_update(value: float, total: float, preview_image_or_data: Optional[Any] = None, client_id: Optional[str] = None, server: Optional[ExecutorToClientProgress] = None, node_id: str = None, prompt_id: str = None):
+    context = current_execution_context()
+    server = server or context.server
+    executing_context = context
+    prompt_id = prompt_id or executing_context.task_id or server.last_prompt_id
+    node_id = node_id or executing_context.node_id or server.last_node_id
     interruption.throw_exception_if_processing_interrupted()
-    progress: ProgressMessage = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": node_id or server.last_node_id}
+
+    progress: ProgressMessage = {"value": value, "max": total, "prompt_id": prompt_id, "node": node_id}
+    # todo: is this still necessary?
     if isinstance(preview_image_or_data, dict):
         progress["output"] = preview_image_or_data
 
+    # this is responsible for encoding the image
+    get_progress_state().update_progress(node_id, value, total, preview_image_or_data)
     server.send_sync("progress", progress, client_id)
-
-    # todo: investigate a better way to send the image data, since it needs the node ID
-    if preview_image_or_data is not None and not isinstance(preview_image_or_data, dict):
-        server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image_or_data, client_id)
-
 
 def set_progress_bar_enabled(enabled: bool):
     warnings.warn(

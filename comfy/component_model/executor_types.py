@@ -1,10 +1,11 @@
 from __future__ import annotations  # for Python 3.7-3.9
 
-import PIL.Image
 import concurrent.futures
 import typing
 from enum import Enum
 from typing import Optional, Literal, Protocol, Union, NamedTuple, List
+
+import PIL.Image
 from typing_extensions import NotRequired, TypedDict
 
 from .encode_text_for_progress import encode_text_for_progress
@@ -79,11 +80,39 @@ class DependencyExecutionErrorMessage(TypedDict):
     current_inputs: list[typing.Never]
 
 
+class ActiveNodeProgressState(TypedDict, total=True):
+    value: float
+    max: float
+    # a string value from the NodeState enum
+    state: Literal["pending", "running", "finished", "error"]
+    node_id: str
+    prompt_id: str
+    display_node_id: str
+    parent_node_id: str
+    real_node_id: str
+
+
+class ProgressStateMessage(TypedDict, total=True):
+    prompt_id: str
+    nodes: dict[str, ActiveNodeProgressState]
+
+
 ExecutedMessage = ExecutingMessage
 
-SendSyncEvent = Union[Literal["status", "execution_error", "executing", "progress", "executed"], BinaryEventTypes, None]
+SendSyncEvent = Union[Literal["status", "execution_error", "executing", "progress", "executed", "progress_state"], BinaryEventTypes, None]
 
-SendSyncData = Union[StatusMessage, ExecutingMessage, DependencyExecutionErrorMessage, ExecutionErrorMessage, ExecutionInterruptedMessage, ProgressMessage, UnencodedPreviewImageMessage, tuple[UnencodedPreviewImageMessage, PreviewImageMetadata], bytes, bytearray, str, None]
+SendSyncData = Union[ProgressStateMessage, StatusMessage, ExecutingMessage, DependencyExecutionErrorMessage, ExecutionErrorMessage, ExecutionInterruptedMessage, ProgressMessage, UnencodedPreviewImageMessage, tuple[PIL.Image.Image, PreviewImageMetadata], bytes, bytearray, str, None]
+
+
+class SocketsMetadata(TypedDict, total=True):
+    feature_flags: dict[str, typing.Any]
+
+
+class DefaultSocketsMetadata(TypedDict, total=True):
+    __unimplemented: Literal[True]
+
+
+SocketsMetadataType = dict[str, SocketsMetadata] | DefaultSocketsMetadata
 
 
 class ExecutorToClientProgress(Protocol):
@@ -107,6 +136,10 @@ class ExecutorToClientProgress(Protocol):
         :return:
         """
         return False
+
+    @property
+    def sockets_metadata(self) -> SocketsMetadataType:
+        return {"__unimplemented": True}
 
     def send_sync(self,
                   event: SendSyncEvent,

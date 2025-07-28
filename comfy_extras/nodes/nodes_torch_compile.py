@@ -11,6 +11,7 @@ from comfy import model_management
 from comfy.language.transformers_model_management import TransformersManagedModel
 from comfy.model_patcher import ModelPatcher
 from comfy.nodes.package_typing import CustomNode, InputTypes
+from comfy.sd import VAE
 from comfy_api.torch_helpers import set_torch_compile_wrapper
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ def write_atomic(
 
 
 torch._inductor.codecache.write_atomic = write_atomic
+# torch._inductor.utils.is_big_gpu = lambda *args: True
 
 
 class TorchCompileModel(CustomNode):
@@ -52,10 +54,10 @@ class TorchCompileModel(CustomNode):
     def INPUT_TYPES(s):
         return {
             "required": {
-                "model": ("MODEL",),
+                "model": ("MODEL,VAE",),
             },
             "optional": {
-                "object_patch": ("STRING", {"default": DIFFUSION_MODEL}),
+                "object_patch": ("STRING", {"default": ""}),
                 "fullgraph": ("BOOLEAN", {"default": False}),
                 "dynamic": ("BOOLEAN", {"default": False}),
                 "backend": (TORCH_COMPILE_BACKENDS, {"default": "inductor"}),
@@ -64,15 +66,14 @@ class TorchCompileModel(CustomNode):
             }
         }
 
-    RETURN_TYPES = ("MODEL",)
+    RETURN_TYPES = ("MODEL,VAE",)
     FUNCTION = "patch"
+    RETURN_NAMES = ("model or vae",)
 
     CATEGORY = "_for_testing"
     EXPERIMENTAL = True
 
-    def patch(self, model: ModelPatcher, object_patch: str | None = DIFFUSION_MODEL, fullgraph: bool = False, dynamic: bool = False, backend: str = "inductor", mode: str = "max-autotune", torch_tensorrt_optimization_level: int = 3) -> tuple[Callable]:
-        if object_patch is None:
-            object_patch = DIFFUSION_MODEL
+    def patch(self, model: ModelPatcher | VAE | torch.nn.Module, object_patch: str | None = "", fullgraph: bool = False, dynamic: bool = False, backend: str = "inductor", mode: str = "max-autotune", torch_tensorrt_optimization_level: int = 3) -> tuple[Callable]:
         compile_kwargs = {
             "fullgraph": fullgraph,
             "dynamic": dynamic,
@@ -99,17 +100,26 @@ class TorchCompileModel(CustomNode):
                 }
                 move_to_gpu = True
                 del compile_kwargs["mode"]
-            if isinstance(model, ModelPatcher) or isinstance(model, TransformersManagedModel):
-                m = model.clone()
+            if isinstance(model, (ModelPatcher, TransformersManagedModel, VAE)):
+                to_return = model.clone()
+                object_patches = [p.strip() for p in object_patch.split(",")]
+                patcher: ModelPatcher
+                if isinstance(to_return, VAE):
+                    patcher = to_return.patcher
+                    object_patches = ["encoder", "decoder"]
+                else:
+                    patcher = to_return
+                if object_patch is None or len(object_patches) == 0:
+                    object_patches = [DIFFUSION_MODEL]
                 if move_to_gpu:
                     model_management.unload_all_models()
-                    model_management.load_models_gpu([m])
-                set_torch_compile_wrapper(m, object_patch=object_patch, **compile_kwargs)
-                m.add_object_patch(object_patch, torch.compile(model=m.get_model_object(object_patch), **compile_kwargs))
+                    model_management.load_models_gpu([patcher])
+                set_torch_compile_wrapper(patcher, keys=object_patches, **compile_kwargs)
+                # m.add_object_patch(object_patch, torch.compile(model=m.get_model_object(object_patch), **compile_kwargs))
                 # todo: do we want to move something back off the GPU?
                 # if move_to_gpu:
                 #     model_management.unload_all_models()
-                return m,
+                return to_return,
             elif isinstance(model, torch.nn.Module):
                 if move_to_gpu:
                     model_management.unload_all_models()
@@ -119,7 +129,7 @@ class TorchCompileModel(CustomNode):
                     model.to(device=model_management.unet_offload_device())
                 return res,
             else:
-                logging.warning("Encountered a model that cannot be compiled")
+                logger.warning("Encountered a model that cannot be compiled")
                 return model,
         except OSError as os_error:
             try:
@@ -132,7 +142,7 @@ class TorchCompileModel(CustomNode):
                 torch._inductor.utils.clear_inductor_caches()  # pylint: disable=no-member
             except Exception:
                 pass
-            logging.error(f"An exception occurred while trying to compile {str(model)}, gracefully skipping compilation", exc_info=exc_info)
+            logger.error(f"An exception occurred while trying to compile {str(model)}, gracefully skipping compilation", exc_info=exc_info)
             return model,
 
 
@@ -160,7 +170,7 @@ class QuantizeModel(CustomNode):
     RETURN_TYPES = ("MODEL",)
 
     def warn_in_place(self, model: ModelPatcher):
-        logging.warning(f"Quantizing {model} this way quantizes it in place, making it insuitable for cloning. All uses of this model will be quantized.")
+        logger.warning(f"Quantizing {model} this way quantizes it in place, making it insuitable for cloning. All uses of this model will be quantized.")
 
     def execute(self, model: ModelPatcher, strategy: str = _QUANTIZATION_STRATEGIES[0]) -> tuple[ModelPatcher]:
         model = model.clone()
@@ -179,7 +189,7 @@ class QuantizeModel(CustomNode):
             "final_layer",
         }
         if strategy == "quanto":
-            logging.warning(f"Quantizing {model} will produce poor results due to Optimum's limitations")
+            logger.warning(f"Quantizing {model} will produce poor results due to Optimum's limitations")
             self.warn_in_place(model)
             from optimum.quanto import quantize, qint8  # pylint: disable=import-error
             exclusion_list = [

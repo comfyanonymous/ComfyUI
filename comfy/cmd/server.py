@@ -221,7 +221,7 @@ class PromptServer(ExecutorToClientProgress):
                                                     handler_args={'max_field_size': 16380},
                                                     middlewares=middlewares)
         self.sockets = dict()
-        self.sockets_metadata = dict()
+        self._sockets_metadata = dict()
         self.web_root = (
             FrontendManager.init_frontend(args.front_end_version)
             if args.front_end_root is None
@@ -278,16 +278,16 @@ class PromptServer(ExecutorToClientProgress):
                                     sid,
                                 )
 
-                                logging.info(
+                                logger.info(
                                     f"Feature flags negotiated for client {sid}: {client_flags}"
                                 )
                             first_message = False
                         except json.JSONDecodeError:
-                            logging.warning(
+                            logger.warning(
                                 f"Invalid JSON received from client {sid}: {msg.data}"
                             )
                         except Exception as e:
-                            logging.error(f"Error processing WebSocket message: {e}")
+                            logger.error(f"Error processing WebSocket message: {e}")
             finally:
                 self.sockets.pop(sid, None)
                 self.sockets_metadata.pop(sid, None)
@@ -1236,3 +1236,11 @@ class PromptServer(ExecutorToClientProgress):
         message = encode_text_for_progress(node_id, text)
 
         self.send_sync(BinaryEventTypes.TEXT, message, sid)
+
+    @property
+    def sockets_metadata(self):
+        return self._sockets_metadata
+
+    @sockets_metadata.setter
+    def sockets_metadata(self, value):
+        self._sockets_metadata = value

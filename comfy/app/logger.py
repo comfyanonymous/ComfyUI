@@ -84,7 +84,7 @@ def setup_logger(log_level: str = 'INFO', capacity: int = 300, use_stdout: bool 
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(logging.Formatter(
-        "%(asctime)s [%(name)s] [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s",
+        "%(asctime)s [%(levelname)s] [%(name)s] [%(filename)s:%(lineno)d] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     ))
 

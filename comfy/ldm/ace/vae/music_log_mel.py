@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 try:
     from torchaudio.transforms import MelScale  # pylint: disable=import-error
 except:
-    logger.warning("torchaudio missing, ACE model will be broken")
+    logger.debug("torchaudio missing, ACE model will be broken")
 
 from .... import model_management
 

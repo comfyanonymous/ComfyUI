@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 try:
     import torchaudio  # pylint: disable=import-error
 except:
-    logger.warning("torchaudio missing, ACE model will be broken")
+    logger.debug("torchaudio missing, ACE model will be broken")
 
 import torchvision.transforms as transforms
 from .music_vocoder import ADaMoSHiFiGANV1

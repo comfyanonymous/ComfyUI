@@ -16,12 +16,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import math
-
 import logging
-import torch
+import math
 from enum import Enum
 from typing import TypeVar, Type, Protocol, Any, Optional
+
+import torch
 
 from . import conds
 from . import latent_formats
@@ -50,15 +50,17 @@ from .ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
 from .ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
 from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
+from .ldm.omnigen.omnigen2 import OmniGen2Transformer2DModel
 from .ldm.pixart.pixartms import PixArtMS
 from .ldm.wan.model import WanModel, VaceWanModel, CameraWanModel
-from .ldm.omnigen.omnigen2 import OmniGen2Transformer2DModel
 from .model_management_types import ModelManageable
 from .model_sampling import CONST, ModelSamplingDiscreteFlow, ModelSamplingFlux, IMG_TO_IMG
 from .model_sampling import StableCascadeSampling, COSMOS_RFLOW, ModelSamplingCosmosRFlow, V_PREDICTION, \
     ModelSamplingContinuousEDM, ModelSamplingDiscrete, EPS, EDM, ModelSamplingContinuousV
 from .ops import Operations
 from .patcher_extension import WrapperExecutor, WrappersMP, get_all_wrappers
+
+logger = logging.getLogger(__name__)
 
 
 class ModelType(Enum):
@@ -149,8 +151,8 @@ class BaseModel(torch.nn.Module):
             self.diffusion_model = unet_model(**unet_config, device=device, operations=operations)
             if model_management.force_channels_last():
                 self.diffusion_model.to(memory_format=torch.channels_last)
-                logging.debug("using channels last mode for diffusion model")
-            logging.debug("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
+                logger.debug("using channels last mode for diffusion model")
+            logger.debug("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
         else:
             self.operations = None
         self.model_type = model_type
@@ -161,8 +163,8 @@ class BaseModel(torch.nn.Module):
             self.adm_channels = 0
 
         self.concat_keys = ()
-        logging.debug("model_type {}".format(model_type.name))
-        logging.debug("adm {}".format(self.adm_channels))
+        logger.debug("model_type {}".format(model_type.name))
+        logger.debug("adm {}".format(self.adm_channels))
         self.memory_usage_factor = model_config.memory_usage_factor
         self.memory_usage_factor_conds = ()
         self.training = False
@@ -310,10 +312,10 @@ class BaseModel(torch.nn.Module):
         to_load = self.model_config.process_unet_state_dict(to_load)
         m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
         if len(m) > 0:
-            logging.warning("unet missing: {}".format(m))
+            logger.warning("unet missing: {}".format(m))
 
         if len(u) > 0:
-            logging.warning("unet unexpected: {}".format(u))
+            logger.warning("unet unexpected: {}".format(u))
         del to_load
         return self
 
@@ -1227,6 +1229,7 @@ class WAN21_Camera(WAN21):
             out['camera_conditions'] = conds.CONDRegular(camera_conditions)
         return out
 
+
 class WAN22(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=WanModel)
@@ -1251,6 +1254,7 @@ class WAN22(BaseModel):
 
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image
+
 
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
@@ -1320,6 +1324,7 @@ class ACEStep(BaseModel):
         out['speaker_embeds'] = conds.CONDRegular(torch.zeros(noise.shape[0], 512, device=noise.device, dtype=noise.dtype))
         out['lyrics_strength'] = conds.CONDConstant(kwargs.get("lyrics_strength", 1.0))
         return out
+
 
 class Omnigen2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
