@@ -3,11 +3,11 @@ import torch
 from . import diffusers_convert
 from . import latent_formats
 from . import model_base
+from . import model_management
 from . import sd1_clip
 from . import sdxl_clip
 from . import supported_models_base
 from . import utils
-from . import model_management
 from .text_encoders import ace
 from .text_encoders import aura_t5
 from .text_encoders import cosmos
@@ -17,12 +17,12 @@ from .text_encoders import hunyuan_video
 from .text_encoders import hydit
 from .text_encoders import lt
 from .text_encoders import lumina2
+from .text_encoders import omnigen2
 from .text_encoders import pixart_t5
 from .text_encoders import sa_t5
 from .text_encoders import sd2_clip
 from .text_encoders import sd3_clip
 from .text_encoders import wan
-from .text_encoders import omnigen2
 
 
 class SD15(supported_models_base.BASE):
@@ -1143,6 +1143,20 @@ class WAN21_Vace(WAN21_T2V):
         return out
 
 
+class WAN22_T2V(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "t2v",
+        "out_dim": 48,
+    }
+
+    latent_format = latent_formats.Wan22
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.WAN22(self, image_to_video=True, device=device)
+        return out
+
+
 class Hunyuan3Dv2(supported_models_base.BASE):
     unet_config = {
         "image_model": "hunyuan3d2",
@@ -1313,6 +1327,6 @@ class Omnigen2(supported_models_base.BASE):
         return supported_models_base.ClipTarget(omnigen2.Omnigen2Tokenizer, omnigen2.te(**hunyuan_detect))
 
 
-models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, Lumina2, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, Hunyuan3Dv2mini, Hunyuan3Dv2, HiDream, Chroma, ACEStep, Omnigen2]
+models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, Lumina2, WAN22_T2V, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, Hunyuan3Dv2mini, Hunyuan3Dv2, HiDream, Chroma, ACEStep, Omnigen2]
 
 models += [SVD_img2vid]
