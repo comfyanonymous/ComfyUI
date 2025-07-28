@@ -201,8 +201,10 @@ class WanAttentionBlock(nn.Module):
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
         """
         # assert e.dtype == torch.float32
-
-        e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device) + e).chunk(6, dim=1)
+        if e.ndim < 4:
+            e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device) + e).chunk(6, dim=1)
+        else:
+            e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device).unsqueeze(0) + e).unbind(2)
         # assert e[0].dtype == torch.float32
 
         # self-attention
@@ -325,7 +327,10 @@ class Head(nn.Module):
             e(Tensor): Shape [B, C]
         """
         # assert e.dtype == torch.float32
-        e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device) + e.unsqueeze(1)).chunk(2, dim=1)
+        if e.ndim < 3:
+            e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device) + e.unsqueeze(1)).chunk(2, dim=1)
+        else:
+            e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device).unsqueeze(0) + e.unsqueeze(2)).unbind(2)
         x = (self.head(self.norm(x) * (1 + e[1]) + e[0]))
         return x
 
@@ -506,8 +511,9 @@ class WanModel(torch.nn.Module):
 
         # time embeddings
         e = self.time_embedding(
-            sinusoidal_embedding_1d(self.freq_dim, t).to(dtype=x[0].dtype))
-        e0 = self.time_projection(e).unflatten(1, (6, self.dim))
+            sinusoidal_embedding_1d(self.freq_dim, t.flatten()).to(dtype=x[0].dtype))
+        e = e.reshape(t.shape[0], -1, e.shape[-1])
+        e0 = self.time_projection(e).unflatten(2, (6, self.dim))
 
         # context
         context = self.text_embedding(context)
