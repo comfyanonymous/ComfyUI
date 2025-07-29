@@ -553,6 +553,7 @@ class PromptServer():
             ram_free = comfy.model_management.get_free_memory(cpu_device)
             vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
+            required_frontend_version = FrontendManager.get_required_frontend_version()
 
             system_stats = {
                 "system": {
@@ -560,6 +561,7 @@ class PromptServer():
                     "ram_total": ram_total,
                     "ram_free": ram_free,
                     "comfyui_version": __version__,
+                    "required_frontend_version": required_frontend_version,
                     "python_version": sys.version,
                     "pytorch_version": comfy.model_management.torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
@@ -678,7 +680,7 @@ class PromptServer():
 
             if "prompt" in json_data:
                 prompt = json_data["prompt"]
-                prompt_id = str(uuid.uuid4())
+                prompt_id = str(json_data.get("prompt_id", uuid.uuid4()))
                 valid = await execution.validate_prompt(prompt_id, prompt)
                 extra_data = {}
                 if "extra_data" in json_data:

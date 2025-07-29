@@ -31,6 +31,7 @@ from einops import rearrange
 from comfy.cli_args import args
 
 MMAP_TORCH_FILES = args.mmap_torch_files
+DISABLE_MMAP = args.disable_mmap
 
 ALWAYS_SAFE_LOAD = False
 if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in pytorch 2.4, the unsafe path should be removed once earlier versions are deprecated
@@ -58,7 +59,10 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
             with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
                 sd = {}
                 for k in f.keys():
-                    sd[k] = f.get_tensor(k)
+                    tensor = f.get_tensor(k)
+                    if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
+                        tensor = tensor.to(device=device, copy=True)
+                    sd[k] = tensor
                 if return_metadata:
                     metadata = f.metadata()
         except Exception as e:
@@ -691,6 +695,26 @@ def resize_to_batch_size(tensor, batch_size):
         scale = in_batch_size / batch_size
         for i in range(batch_size):
             output[i] = tensor[min(math.floor((i + 0.5) * scale), in_batch_size - 1)]
+
+    return output
+
+def resize_list_to_batch_size(l, batch_size):
+    in_batch_size = len(l)
+    if in_batch_size == batch_size or in_batch_size == 0:
+        return l
+
+    if batch_size <= 1:
+        return l[:batch_size]
+
+    output = []
+    if batch_size < in_batch_size:
+        scale = (in_batch_size - 1) / (batch_size - 1)
+        for i in range(batch_size):
+            output.append(l[min(round(i * scale), in_batch_size - 1)])
+    else:
+        scale = in_batch_size / batch_size
+        for i in range(batch_size):
+           output.append(l[min(math.floor((i + 0.5) * scale), in_batch_size - 1)])
 
     return output
 

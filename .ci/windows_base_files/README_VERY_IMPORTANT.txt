@@ -4,6 +4,9 @@ if you have a NVIDIA gpu:
 
 run_nvidia_gpu.bat
 
+if you want to enable the fast fp16 accumulation (faster for fp16 models with slightly less quality):
+
+run_nvidia_gpu_fast_fp16_accumulation.bat
 
 
 To run it in slow CPU mode:

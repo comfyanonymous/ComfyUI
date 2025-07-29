@@ -52,15 +52,6 @@ class RMS_norm(nn.Module):
             x, dim=(1 if self.channel_first else -1)) * self.scale * self.gamma.to(x) + (self.bias.to(x) if self.bias is not None else 0)
 
 
-class Upsample(nn.Upsample):
-
-    def forward(self, x):
-        """
-        Fix bfloat16 support for nearest neighbor interpolation.
-        """
-        return super().forward(x.float()).type_as(x)
-
-
 class Resample(nn.Module):
 
     def __init__(self, dim, mode):
@@ -73,11 +64,11 @@ class Resample(nn.Module):
         # layers
         if mode == 'upsample2d':
             self.resample = nn.Sequential(
-                Upsample(scale_factor=(2., 2.), mode='nearest-exact'),
+                nn.Upsample(scale_factor=(2., 2.), mode='nearest-exact'),
                 ops.Conv2d(dim, dim // 2, 3, padding=1))
         elif mode == 'upsample3d':
             self.resample = nn.Sequential(
-                Upsample(scale_factor=(2., 2.), mode='nearest-exact'),
+                nn.Upsample(scale_factor=(2., 2.), mode='nearest-exact'),
                 ops.Conv2d(dim, dim // 2, 3, padding=1))
             self.time_conv = CausalConv3d(
                 dim, dim * 2, (3, 1, 1), padding=(1, 0, 0))
@@ -156,29 +147,6 @@ class Resample(nn.Module):
                     feat_cache[idx] = cache_x
                     feat_idx[0] += 1
         return x
-
-    def init_weight(self, conv):
-        conv_weight = conv.weight
-        nn.init.zeros_(conv_weight)
-        c1, c2, t, h, w = conv_weight.size()
-        one_matrix = torch.eye(c1, c2)
-        init_matrix = one_matrix
-        nn.init.zeros_(conv_weight)
-        #conv_weight.data[:,:,-1,1,1] = init_matrix * 0.5
-        conv_weight.data[:, :, 1, 0, 0] = init_matrix  #* 0.5
-        conv.weight.data.copy_(conv_weight)
-        nn.init.zeros_(conv.bias.data)
-
-    def init_weight2(self, conv):
-        conv_weight = conv.weight.data
-        nn.init.zeros_(conv_weight)
-        c1, c2, t, h, w = conv_weight.size()
-        init_matrix = torch.eye(c1 // 2, c2)
-        #init_matrix = repeat(init_matrix, 'o ... -> (o 2) ...').permute(1,0,2).contiguous().reshape(c1,c2)
-        conv_weight[:c1 // 2, :, -1, 0, 0] = init_matrix
-        conv_weight[c1 // 2:, :, -1, 0, 0] = init_matrix
-        conv.weight.data.copy_(conv_weight)
-        nn.init.zeros_(conv.bias.data)
 
 
 class ResidualBlock(nn.Module):
@@ -494,12 +462,6 @@ class WanVAE(nn.Module):
         self.decoder = Decoder3d(dim, z_dim, dim_mult, num_res_blocks,
                                  attn_scales, self.temperal_upsample, dropout)
 
-    def forward(self, x):
-        mu, log_var = self.encode(x)
-        z = self.reparameterize(mu, log_var)
-        x_recon = self.decode(z)
-        return x_recon, mu, log_var
-
     def encode(self, x):
         self.clear_cache()
         ## cache
@@ -544,18 +506,6 @@ class WanVAE(nn.Module):
                 out = torch.cat([out, out_], 2)
         self.clear_cache()
         return out
-
-    def reparameterize(self, mu, log_var):
-        std = torch.exp(0.5 * log_var)
-        eps = torch.randn_like(std)
-        return eps * std + mu
-
-    def sample(self, imgs, deterministic=False):
-        mu, log_var = self.encode(imgs)
-        if deterministic:
-            return mu
-        std = torch.exp(0.5 * log_var.clamp(-30.0, 20.0))
-        return mu + std * torch.randn_like(std)
 
     def clear_cache(self):
         self._conv_num = count_conv3d(self.decoder)

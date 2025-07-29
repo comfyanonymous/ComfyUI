@@ -301,6 +301,35 @@ class ExtendIntermediateSigmas:
 
         return (extended_sigmas,)
 
+
+class SamplingPercentToSigma:
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypeDict:
+        return {
+            "required": {
+                "model": (IO.MODEL, {}),
+                "sampling_percent": (IO.FLOAT, {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.0001}),
+                "return_actual_sigma": (IO.BOOLEAN, {"default": False, "tooltip": "Return the actual sigma value instead of the value used for interval checks.\nThis only affects results at 0.0 and 1.0."}),
+            }
+        }
+
+    RETURN_TYPES = (IO.FLOAT,)
+    RETURN_NAMES = ("sigma_value",)
+    CATEGORY = "sampling/custom_sampling/sigmas"
+
+    FUNCTION = "get_sigma"
+
+    def get_sigma(self, model, sampling_percent, return_actual_sigma):
+        model_sampling = model.get_model_object("model_sampling")
+        sigma_val = model_sampling.percent_to_sigma(sampling_percent)
+        if return_actual_sigma:
+            if sampling_percent == 0.0:
+                sigma_val = model_sampling.sigma_max.item()
+            elif sampling_percent == 1.0:
+                sigma_val = model_sampling.sigma_min.item()
+        return (sigma_val,)
+
+
 class KSamplerSelect:
     @classmethod
     def INPUT_TYPES(s):
@@ -683,9 +712,10 @@ class CFGGuider:
         return (guider,)
 
 class Guider_DualCFG(comfy.samplers.CFGGuider):
-    def set_cfg(self, cfg1, cfg2):
+    def set_cfg(self, cfg1, cfg2, nested=False):
         self.cfg1 = cfg1
         self.cfg2 = cfg2
+        self.nested = nested
 
     def set_conds(self, positive, middle, negative):
         middle = node_helpers.conditioning_set_values(middle, {"prompt_type": "negative"})
@@ -695,14 +725,20 @@ class Guider_DualCFG(comfy.samplers.CFGGuider):
         negative_cond = self.conds.get("negative", None)
         middle_cond = self.conds.get("middle", None)
         positive_cond = self.conds.get("positive", None)
-        if model_options.get("disable_cfg1_optimization", False) == False:
-            if math.isclose(self.cfg2, 1.0):
-                negative_cond = None
-                if math.isclose(self.cfg1, 1.0):
-                    middle_cond = None
 
-        out = comfy.samplers.calc_cond_batch(self.inner_model, [negative_cond, middle_cond, positive_cond], x, timestep, model_options)
-        return comfy.samplers.cfg_function(self.inner_model, out[1], out[0], self.cfg2, x, timestep, model_options=model_options, cond=middle_cond, uncond=negative_cond) + (out[2] - out[1]) * self.cfg1
+        if self.nested:
+            out = comfy.samplers.calc_cond_batch(self.inner_model, [negative_cond, middle_cond, positive_cond], x, timestep, model_options)
+            pred_text = comfy.samplers.cfg_function(self.inner_model, out[2], out[1], self.cfg1, x, timestep, model_options=model_options, cond=positive_cond, uncond=middle_cond)
+            return out[0] + self.cfg2 * (pred_text - out[0])
+        else:
+            if model_options.get("disable_cfg1_optimization", False) == False:
+                if math.isclose(self.cfg2, 1.0):
+                    negative_cond = None
+                    if math.isclose(self.cfg1, 1.0):
+                        middle_cond = None
+
+            out = comfy.samplers.calc_cond_batch(self.inner_model, [negative_cond, middle_cond, positive_cond], x, timestep, model_options)
+            return comfy.samplers.cfg_function(self.inner_model, out[1], out[0], self.cfg2, x, timestep, model_options=model_options, cond=middle_cond, uncond=negative_cond) + (out[2] - out[1]) * self.cfg1
 
 class DualCFGGuider:
     @classmethod
@@ -714,6 +750,7 @@ class DualCFGGuider:
                     "negative": ("CONDITIONING", ),
                     "cfg_conds": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
                     "cfg_cond2_negative": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
+                    "style": (["regular", "nested"],),
                      }
                 }
 
@@ -722,10 +759,10 @@ class DualCFGGuider:
     FUNCTION = "get_guider"
     CATEGORY = "sampling/custom_sampling/guiders"
 
-    def get_guider(self, model, cond1, cond2, negative, cfg_conds, cfg_cond2_negative):
+    def get_guider(self, model, cond1, cond2, negative, cfg_conds, cfg_cond2_negative, style):
         guider = Guider_DualCFG(model)
         guider.set_conds(cond1, cond2, negative)
-        guider.set_cfg(cfg_conds, cfg_cond2_negative)
+        guider.set_cfg(cfg_conds, cfg_cond2_negative, nested=(style == "nested"))
         return (guider,)
 
 class DisableNoise:
@@ -879,6 +916,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipSigmas": FlipSigmas,
     "SetFirstSigma": SetFirstSigma,
     "ExtendIntermediateSigmas": ExtendIntermediateSigmas,
+    "SamplingPercentToSigma": SamplingPercentToSigma,
 
     "CFGGuider": CFGGuider,
     "DualCFGGuider": DualCFGGuider,

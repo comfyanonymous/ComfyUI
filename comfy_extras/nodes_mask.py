@@ -247,7 +247,7 @@ class MaskComposite:
         visible_width, visible_height = (right - left, bottom - top,)
 
         source_portion = source[:, :visible_height, :visible_width]
-        destination_portion = destination[:, top:bottom, left:right]
+        destination_portion = output[:, top:bottom, left:right]
 
         if operation == "multiply":
             output[:, top:bottom, left:right] = destination_portion * source_portion
