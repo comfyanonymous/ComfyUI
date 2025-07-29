@@ -13,7 +13,7 @@ from typing import Any, NamedTuple, Optional, Iterable
 
 from .platform_path import construct_path
 
-supported_pt_extensions = frozenset(['.ckpt', '.pt', '.pt2', '.bin', '.pth', '.safetensors', '.pkl', '.sft' ".index.json"])
+supported_pt_extensions = frozenset(['.ckpt', '.pt', '.pt2', '.bin', '.pth', '.safetensors', '.pkl', '.sft' ".index.json", ".gguf"])
 extension_mimetypes_cache = {
     "webp": "image",
     "fbx": "model",

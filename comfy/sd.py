@@ -23,6 +23,7 @@ from . import model_sampling
 from . import sd1_clip
 from . import sdxl_clip
 from . import utils
+from .component_model.deprecation import _deprecate_method
 from .hooks import EnumHookMode
 from .ldm.ace.vae.music_dcae_pipeline import MusicDCAE
 from .ldm.audio.autoencoder import AudioOobleckVAE
@@ -58,7 +59,7 @@ from .text_encoders import sa_t5
 from .text_encoders import sd2_clip
 from .text_encoders import sd3_clip
 from .text_encoders import wan
-from .utils import ProgressBar
+from .utils import ProgressBar, FileMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -1098,7 +1099,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     return out
 
 
-def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options=None, te_model_options=None, metadata: Optional[str | dict] = None, ckpt_path=""):
+def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options=None, te_model_options=None, metadata: Optional[FileMetadata] = None, ckpt_path=""):
     if te_model_options is None:
         te_model_options = {}
     if model_options is None:
@@ -1182,7 +1183,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
     return (_model_patcher, clip, vae, clipvision)
 
 
-def load_diffusion_model_state_dict(sd, model_options: dict = None, ckpt_path: Optional[str] = ""):  # load unet in diffusers or regular format
+def load_diffusion_model_state_dict(sd, model_options: dict = None, ckpt_path: Optional[str] = "", metadata: Optional[FileMetadata] = None):  # load unet in diffusers or regular format
     """
     Loads a UNet diffusion model from a state dictionary, supporting both diffusers and regular formats.
 
@@ -1192,6 +1193,7 @@ def load_diffusion_model_state_dict(sd, model_options: dict = None, ckpt_path: O
             - dtype: Override model data type
             - custom_operations: Custom model operations
             - fp8_optimizations: Enable FP8 optimizations
+        metadata: file metadata
 
     Returns:
         ModelPatcher: A wrapped model instance that handles device management and weight loading.
@@ -1217,14 +1219,14 @@ def load_diffusion_model_state_dict(sd, model_options: dict = None, ckpt_path: O
     parameters = utils.calculate_parameters(sd)
     weight_dtype = utils.weight_dtype(sd)
     load_device = model_management.get_torch_device()
-    model_config = model_detection.model_config_from_unet(sd, "")
+    model_config = model_detection.model_config_from_unet(sd, "", metadata=metadata)
 
     if model_config is not None:
         new_sd = sd
     else:
         new_sd = model_detection.convert_diffusers_mmdit(sd, "")
         if new_sd is not None:  # diffusers mmdit
-            model_config = model_detection.model_config_from_unet(new_sd, "")
+            model_config = model_detection.model_config_from_unet(new_sd, "", metadata=metadata)
             if model_config is None:
                 return None
         else:  # diffusers unet
@@ -1269,21 +1271,21 @@ def load_diffusion_model_state_dict(sd, model_options: dict = None, ckpt_path: O
 def load_diffusion_model(unet_path, model_options: dict = None):
     if model_options is None:
         model_options = {}
-    sd = utils.load_torch_file(unet_path)
-    model = load_diffusion_model_state_dict(sd, model_options=model_options, ckpt_path=unet_path)
+    sd, metadata = utils.load_torch_file(unet_path, return_metadata=True)
+    model = load_diffusion_model_state_dict(sd, model_options=model_options, ckpt_path=unet_path, metadata=metadata)
     if model is None:
         logger.error("ERROR UNSUPPORTED DIFFUSION MODEL {}".format(unet_path))
         raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(unet_path, model_detection_error_hint(unet_path, sd)))
     return model
 
 
+@_deprecate_method(message="The load_unet function has been deprecated and will be removed please switch to: load_diffusion_model", version="*")
 def load_unet(unet_path, dtype=None):
-    logging.warning("The load_unet function has been deprecated and will be removed please switch to: load_diffusion_model")
     return load_diffusion_model(unet_path, model_options={"dtype": dtype})
 
 
+@_deprecate_method(message="The load_unet_state_dict function has been deprecated and will be removed please switch to: load_diffusion_model_state_dict", version="*")
 def load_unet_state_dict(sd, dtype=None):
-    logging.warning("The load_unet_state_dict function has been deprecated and will be removed please switch to: load_diffusion_model_state_dict")
     return load_diffusion_model_state_dict(sd, model_options={"dtype": dtype})
 
 

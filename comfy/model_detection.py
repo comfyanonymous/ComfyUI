@@ -1,11 +1,13 @@
 import json
 import logging
 import math
+from typing import Optional
 
 import torch
 
 from . import supported_models, utils
 from . import supported_models_base
+from .gguf import GGMLOps
 
 
 def count_blocks(state_dict_keys, prefix_string):
@@ -620,7 +622,7 @@ def model_config_from_unet_config(unet_config, state_dict=None):
     return None
 
 
-def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False, metadata=None):
+def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False, metadata:Optional[dict]=None):
     unet_config = detect_unet_config(state_dict, unet_key_prefix, metadata=metadata)
     if unet_config is None:
         return None
@@ -638,6 +640,9 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
             model_config.optimizations["fp8"] = False
         else:
             model_config.optimizations["fp8"] = True
+
+    if metadata is not None and "format" in metadata and metadata["format"] == "gguf":
+        model_config.custom_operations = GGMLOps
 
     return model_config
 

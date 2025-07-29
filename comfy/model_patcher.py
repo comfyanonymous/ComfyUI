@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import collections
 import copy
+import dataclasses
 import inspect
 import logging
 import typing
@@ -37,6 +38,7 @@ from . import utils
 from .comfy_types import UnetWrapperFunction
 from .component_model.deprecation import _deprecate_method
 from .float import stochastic_rounding
+from .gguf import move_patch_to_device, is_torch_compatible, is_quantized, GGMLOps
 from .hooks import EnumHookMode, _HookRef, HookGroup, EnumHookType, WeightHook, create_transformer_options_from_hooks
 from .lora_types import PatchDict, PatchDictKey, PatchTuple, PatchWeightTuple, ModelPatchesDictValue
 from .model_base import BaseModel
@@ -221,6 +223,13 @@ class MemoryCounter:
         self.value -= used
 
 
+@dataclasses.dataclass
+class GGUFQuantization:
+    loaded_from_gguf: bool = False
+    mmap_released: bool = False
+    patch_on_device: bool = False
+
+
 class ModelPatcher(ModelManageable):
     def __init__(self, model: BaseModel | torch.nn.Module, load_device: torch.device, offload_device: torch.device, size=0, weight_inplace_update=False, ckpt_name: Optional[str] = None):
         self.size = size
@@ -257,6 +266,9 @@ class ModelPatcher(ModelManageable):
         self.forced_hooks: Optional[HookGroup] = None  # NOTE: only used for CLIP at this time
         self.is_clip = False
         self.hook_mode = EnumHookMode.MaxSpeed
+        self.gguf = GGUFQuantization()
+        if isinstance(model, BaseModel) and model.operations == GGMLOps:
+            self.gguf.loaded_from_gguf = True
 
     @property
     def model_options(self) -> ModelOptions:
@@ -361,6 +373,9 @@ class ModelPatcher(ModelManageable):
         n.forced_hooks = self.forced_hooks.clone() if self.forced_hooks else self.forced_hooks
         n.is_clip = self.is_clip
         n.hook_mode = self.hook_mode
+        n.gguf = copy.copy(self.gguf)
+        # todo: when is this set back to False? when would it make sense to?
+        n.gguf.mmap_released = False
 
         for callback in self.get_all_callbacks(CallbacksMP.ON_CLONE):
             callback(self, n)
@@ -612,6 +627,19 @@ class ModelPatcher(ModelManageable):
         weight, set_func, convert_func = get_key_weight(self.model, key)
         inplace_update = self.weight_inplace_update or inplace_update
 
+        # from gguf
+        if is_quantized(weight):
+            out_weight = weight.to(device_to)
+            patches = move_patch_to_device(self.patches[key], self.load_device if self.patch_on_device else self.offload_device)
+            # TODO: do we ever have legitimate duplicate patches? (i.e. patch on top of patched weight)
+            out_weight.patches = [(patches, key)]
+            if inplace_update:
+                utils.copy_to_param(self.model, key, out_weight)
+            else:
+                utils.set_attr_param(self.model, key, out_weight)
+                return
+        # end gguf
+
         if key not in self.backup:
             self.backup[key] = collections.namedtuple('Dimension', ['weight', 'inplace_update'])(weight.to(device=self.offload_device, copy=inplace_update), inplace_update)
 
@@ -648,6 +676,9 @@ class ModelPatcher(ModelManageable):
         return loading
 
     def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
+        if self.gguf.loaded_from_gguf:
+            force_patch_weights = True
+
         with self.use_ejected():
             self.unpatch_hooks()
             mem_counter = 0
@@ -744,6 +775,28 @@ class ModelPatcher(ModelManageable):
                     self.model.to(device_to)
                     mem_counter = self.model_size()
 
+            if self.gguf.loaded_from_gguf and not self.gguf.mmap_released:
+                # todo: when is mmap_released set to True?
+                linked = []
+                if lowvram_model_memory > 0:
+                    for n, m in self.model.named_modules():
+                        if hasattr(m, "weight"):
+                            device = getattr(m.weight, "device", None)
+                            if device == self.offload_device:
+                                linked.append((n, m))
+                                continue
+                        if hasattr(m, "bias"):
+                            device = getattr(m.bias, "device", None)
+                            if device == self.offload_device:
+                                linked.append((n, m))
+                                continue
+                if linked and self.load_device != self.offload_device:
+                    logger.info(f"gguf attempting to release mmap ({len(linked)})")
+                    for n, m in linked:
+                        # TODO: possible to OOM, find better way to detach
+                        m.to(self.load_device).to(self.offload_device)
+                self.gguf.mmap_released = True
+
         self._memory_measurements.lowvram_patch_counter += patch_counter
 
         self.model_device = device_to
@@ -774,6 +827,13 @@ class ModelPatcher(ModelManageable):
 
     def unpatch_model(self, device_to=None, unpatch_weights=True):
         self.eject_model()
+        if self.gguf.loaded_from_gguf and unpatch_weights:
+            for p in self.model.parameters():
+                if is_torch_compatible(p):
+                    continue
+                patches = self.patches
+                if len(patches) > 0:
+                    p.patches = []
         if unpatch_weights:
             self.unpatch_hooks()
             if self._memory_measurements.model_lowvram:

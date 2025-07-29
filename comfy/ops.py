@@ -503,7 +503,7 @@ def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_
             weight_dtype == torch.float16 and
             (compute_dtype == torch.float16 or compute_dtype is None)
     ):
-        logging.info("Using cublas ops")
+        logger.info("Using cublas ops")
         return cublas_ops
 
     if compute_dtype is None or weight_dtype == compute_dtype:

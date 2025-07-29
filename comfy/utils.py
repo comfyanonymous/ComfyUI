@@ -31,7 +31,7 @@ import warnings
 from contextlib import contextmanager
 from pathlib import Path
 from pickle import UnpicklingError
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 
 import numpy as np
 import safetensors.torch
@@ -40,15 +40,15 @@ from PIL import Image
 from einops import rearrange
 from torch.nn.functional import interpolate
 from tqdm import tqdm
+from typing_extensions import TypedDict, NotRequired
 
-from comfy_api import feature_flags
 from . import interruption, checkpoint_pickle
 from .cli_args import args
 from .component_model import files
 from .component_model.deprecation import _deprecate_method
 from .component_model.executor_types import ExecutorToClientProgress, ProgressMessage
-from .component_model.queue_types import BinaryEventTypes
 from .execution_context import current_execution_context
+from .gguf import gguf_sd_loader
 from .progress import get_progress_state
 
 MMAP_TORCH_FILES = args.mmap_torch_files
@@ -89,12 +89,17 @@ def _get_progress_bar_enabled():
 setattr(sys.modules[__name__], 'PROGRESS_BAR_ENABLED', property(_get_progress_bar_enabled))
 
 
-def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=False):
+class FileMetadata(TypedDict):
+    format: NotRequired[Literal["gguf"]]
+
+
+def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=False) -> dict[str, torch.Tensor] | tuple[dict[str, torch.Tensor], Optional[FileMetadata]]:
     if device is None:
         device = torch.device("cpu")
     if ckpt is None:
         raise FileNotFoundError("the checkpoint was not found")
-    metadata = None
+    metadata: Optional[dict[str, str]] = None
+    sd: dict[str, torch.Tensor] = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
             with safetensors.safe_open(Path(ckpt).resolve(strict=True), framework="pt", device=device.type) as f:
@@ -128,6 +133,10 @@ def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=Fal
         sd: dict[str, torch.Tensor] = {}
         for checkpoint_file in checkpoint_files:
             sd.update(safetensors.torch.load_file(str(checkpoint_file), device=device.type))
+    elif ckpt.lower().endswith(".gguf"):
+        # from gguf
+        sd = gguf_sd_loader(ckpt)
+        metadata = {"format": "gguf"}
     else:
         try:
             torch_args = {}
@@ -138,7 +147,7 @@ def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=Fal
                 pl_sd = torch.load(ckpt, map_location=device, weights_only=True, **torch_args)
             else:
                 logging.warning("WARNING: loading {} unsafely, upgrade your pytorch to 2.4 or newer to load this file safely.".format(ckpt))
-            pl_sd = torch.load(ckpt, map_location=device, pickle_module=checkpoint_pickle)
+                pl_sd = torch.load(ckpt, map_location=device, pickle_module=checkpoint_pickle)
             if "state_dict" in pl_sd:
                 sd = pl_sd["state_dict"]
             else:
@@ -153,14 +162,14 @@ def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=Fal
             try:
                 # wrong extension is most likely, try to load as safetensors anyway
                 sd = safetensors.torch.load_file(Path(ckpt).resolve(strict=True), device=device.type)
-                return sd
             except Exception:
                 msg = f"The checkpoint at {ckpt} could not be loaded as a safetensor nor a torch checkpoint. The file at the path is corrupted or unexpected. Try deleting it and downloading it again"
                 if hasattr(exc_info, "add_note"):
                     exc_info.add_note(msg)
                 else:
                     logger.error(msg, exc_info=exc_info)
-            raise exc_info
+            if sd is None:
+                raise exc_info
     return (sd, metadata) if return_metadata else sd
 
 
@@ -1124,6 +1133,7 @@ def _progress_bar_update(value: float, total: float, preview_image_or_data: Opti
     # this is responsible for encoding the image
     get_progress_state().update_progress(node_id, value, total, preview_image_or_data)
     server.send_sync("progress", progress, client_id)
+
 
 def set_progress_bar_enabled(enabled: bool):
     warnings.warn(

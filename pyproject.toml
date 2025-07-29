@@ -107,6 +107,7 @@ dependencies = [
     "setuptools",
     "alembic",
     "SQLAlchemy",
+    "gguf",
 ]
 
 [build-system]
