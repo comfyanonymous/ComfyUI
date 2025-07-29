@@ -2078,6 +2078,7 @@ EXTENSION_WEB_DIRS = {}
 # Dictionary of successfully loaded module names and associated directories.
 LOADED_MODULE_DIRS = {}
 
+LOADED_CUSTOM_NODES = {}
 
 def get_module_name(module_path: str) -> str:
     """
@@ -2103,12 +2104,23 @@ def get_module_name(module_path: str) -> str:
 
 def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes") -> bool:
     module_name = get_module_name(module_path)
+    project_name = module_name
+
     if os.path.isfile(module_path):
         sp = os.path.splitext(module_path)
         module_name = sp[0]
         sys_module_name = module_name
     elif os.path.isdir(module_path):
         sys_module_name = module_path.replace(".", "_x_")
+
+    is_custom_node = module_parent == "custom_nodes"
+
+    if is_custom_node:
+        LOADED_CUSTOM_NODES[project_name] = {
+            "project_name": project_name,
+            "status": "loading",
+            "error": None
+        }
 
     try:
         logging.debug("Trying to load custom node {}".format(module_path))
@@ -2130,14 +2142,20 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
 
             project_config = config_parser.extract_node_configuration(module_path)
 
+            project_name_from_config = project_config.project.name
+
+            if is_custom_node and project_name_from_config != project_name:
+                LOADED_CUSTOM_NODES[project_name_from_config] = LOADED_CUSTOM_NODES.pop(project_name)
+                LOADED_CUSTOM_NODES[project_name_from_config]["project_name"] = project_name_from_config
+
+            project_name = project_name_from_config
+
             web_dir_name = project_config.tool_comfy.web
 
             if web_dir_name:
                 web_dir_path = os.path.join(module_path, web_dir_name)
 
                 if os.path.isdir(web_dir_path):
-                    project_name = project_config.project.name
-
                     EXTENSION_WEB_DIRS[project_name] = web_dir_path
 
                     logging.info("Automatically register web folder {} for {}".format(web_dir_name, project_name))
@@ -2150,17 +2168,39 @@ def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes
                 EXTENSION_WEB_DIRS[module_name] = web_dir
 
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
+            node_count = 0
             for name, node_cls in module.NODE_CLASS_MAPPINGS.items():
                 if name not in ignore:
                     NODE_CLASS_MAPPINGS[name] = node_cls
                     node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
+                    node_count += 1
+
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
+
+            if is_custom_node:
+                LOADED_CUSTOM_NODES[project_name].update({
+                    "status": "loaded",
+                    "node_count": node_count,
+                    "nodes": list(module.NODE_CLASS_MAPPINGS.keys())
+                })
+                logging.info(f"Successfully loaded custom node: {project_name} with {node_count} nodes")
+
             return True
         else:
+            if is_custom_node:
+                LOADED_CUSTOM_NODES[project_name].update({
+                    "status": "skipped",
+                    "error": "No NODE_CLASS_MAPPINGS found"
+                })
             logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
             return False
     except Exception as e:
+        if is_custom_node:
+            LOADED_CUSTOM_NODES[project_name].update({
+                "status": "failed",
+                "error": str(e)
+            })
         logging.warning(traceback.format_exc())
         logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
         return False
