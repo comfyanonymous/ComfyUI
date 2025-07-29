@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import Type, TYPE_CHECKING
 from comfy_api.internal import ComfyAPIBase
 from comfy_api.internal.singleton import ProxiedSingleton
@@ -75,6 +76,19 @@ class ComfyAPI_latest(ComfyAPIBase):
 
     execution: Execution
 
+class ComfyExtension(ABC):
+    async def on_load(self) -> None:
+        """
+        Called when an extension is loaded.
+        This should be used to initialize any global resources neeeded by the extension.
+        """
+
+    @abstractmethod
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        """
+        Returns a list of nodes that this extension provides.
+        """
+
 class Input:
     Image = ImageInput
     Audio = AudioInput
@@ -106,4 +120,5 @@ __all__ = [
     "Input",
     "InputImpl",
     "Types",
+    "ComfyExtension",
 ]

@@ -1,11 +1,12 @@
 import torch
 import time
-from comfy_api.latest import io, ui, resources, _io
+from comfy_api.latest import io, ui, resources, _io, ComfyExtension
 import logging  # noqa
 import folder_paths
 import comfy.utils
 import comfy.sd
 import asyncio
+from typing_extensions import override
 
 @io.comfytype(io_type="XYZ")
 class XYZ(io.ComfyTypeIO):
@@ -273,7 +274,6 @@ class V3DummyEndInherit(V3DummyEnd):
         logging.info(f"V3DummyEndInherit: {cls.COOL_VALUE}")
         return super().execute(xyz)
 
-
 NODES_LIST: list[type[io.ComfyNode]] = [
     V3TestNode,
     V3LoraLoader,
@@ -283,3 +283,11 @@ NODES_LIST: list[type[io.ComfyNode]] = [
     V3DummyEnd,
     V3DummyEndInherit,
 ]
+
+class v3TestExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return NODES_LIST
+
+async def comfy_entrypoint() -> v3TestExtension:
+    return v3TestExtension()

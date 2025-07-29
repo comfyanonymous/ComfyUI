@@ -6,6 +6,7 @@ import os
 import sys
 import json
 import hashlib
+import inspect
 import traceback
 import math
 import time
@@ -2162,6 +2163,35 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
             return True
+        # V3 Extension Definition
+        elif hasattr(module, "comfy_entrypoint"):
+            entrypoint = getattr(module, "comfy_entrypoint")
+            if not callable(entrypoint):
+                logging.warning(f"comfy_entrypoint in {module_path} is not callable, skipping.")
+                return False
+            try:
+                if inspect.iscoroutinefunction(entrypoint):
+                    extension = await entrypoint()
+                else:
+                    extension = entrypoint()
+                if not isinstance(extension, io.ComfyExtension):
+                    logging.warning(f"comfy_entrypoint in {module_path} did not return a ComfyExtension, skipping.")
+                    return False
+                node_list = await extension.get_node_list()
+                if not isinstance(node_list, list):
+                    logging.warning(f"comfy_entrypoint in {module_path} did not return a list of nodes, skipping.")
+                    return False
+                for node_cls in node_list:
+                    node_cls: io.ComfyNode
+                    schema = node_cls.GET_SCHEMA()
+                    if schema.node_id not in ignore:
+                        NODE_CLASS_MAPPINGS[schema.node_id] = node_cls
+                        node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
+                    if schema.display_name is not None:
+                        NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name
+            except Exception as e:
+                logging.warning(f"Error while calling comfy_entrypoint in {module_path}: {e}")
+                return False
         # V3 node definition
         elif getattr(module, "NODES_LIST", None) is not None:
             for node_cls in module.NODES_LIST:
