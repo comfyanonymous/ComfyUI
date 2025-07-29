@@ -529,6 +529,8 @@ WINDOWS = any(platform.win32_ver())
 EXTRA_RESERVED_VRAM = 400 * 1024 * 1024
 if WINDOWS:
     EXTRA_RESERVED_VRAM = 600 * 1024 * 1024 #Windows is higher because of the shared vram issue
+    if total_vram > (15 * 1024):  # more extra reserved vram on 16GB+ cards
+        EXTRA_RESERVED_VRAM += 100 * 1024 * 1024
 
 if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
