@@ -42,6 +42,7 @@ def get_installed_frontend_version():
     frontend_version_str = version("comfyui-frontend-package")
     return frontend_version_str
 
+
 def get_required_frontend_version():
     """Get the required frontend version from requirements.txt."""
     try:
@@ -62,6 +63,7 @@ def get_required_frontend_version():
     except Exception as e:
         logging.error(f"Error reading requirements.txt: {e}")
         return None
+
 
 def check_frontend_version():
     """Check if the frontend version is up to date."""
@@ -202,6 +204,37 @@ class FrontendManager:
     def get_required_frontend_version(cls) -> str:
         """Get the required frontend package version."""
         return get_required_frontend_version()
+
+    @classmethod
+    def get_installed_templates_version(cls) -> str:
+        """Get the currently installed workflow templates package version."""
+        try:
+            templates_version_str = version("comfyui-workflow-templates")
+            return templates_version_str
+        except Exception:
+            return None
+
+    @classmethod
+    def get_required_templates_version(cls) -> str:
+        """Get the required workflow templates version from requirements.txt."""
+        try:
+            with open(requirements_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("comfyui-workflow-templates=="):
+                        version_str = line.split("==")[-1]
+                        if not is_valid_version(version_str):
+                            logging.error(f"Invalid templates version format in requirements.txt: {version_str}")
+                            return None
+                        return version_str
+                logging.error("comfyui-workflow-templates not found in requirements.txt")
+                return None
+        except FileNotFoundError:
+            logging.error("requirements.txt not found. Cannot determine required templates version.")
+            return None
+        except Exception as e:
+            logging.error(f"Error reading requirements.txt: {e}")
+            return None
 
     @classmethod
     def default_frontend_path(cls) -> str:
