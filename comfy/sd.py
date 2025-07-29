@@ -14,6 +14,7 @@ import comfy.ldm.genmo.vae.model
 import comfy.ldm.lightricks.vae.causal_video_autoencoder
 import comfy.ldm.cosmos.vae
 import comfy.ldm.wan.vae
+import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
 import yaml
@@ -420,17 +421,30 @@ class VAE:
                 self.memory_used_encode = lambda shape, dtype: (50 * (round((shape[2] + 7) / 8) * 8) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
                 self.working_dtypes = [torch.bfloat16, torch.float32]
             elif "decoder.middle.0.residual.0.gamma" in sd:
-                self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
-                self.upscale_index_formula = (4, 8, 8)
-                self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
-                self.downscale_index_formula = (4, 8, 8)
-                self.latent_dim = 3
-                self.latent_channels = 16
-                ddconfig = {"dim": 96, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
-                self.first_stage_model = comfy.ldm.wan.vae.WanVAE(**ddconfig)
-                self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
-                self.memory_used_encode = lambda shape, dtype: 6000 * shape[3] * shape[4] * model_management.dtype_size(dtype)
-                self.memory_used_decode = lambda shape, dtype: 7000 * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
+                if "decoder.upsamples.0.upsamples.0.residual.2.weight" in sd:  # Wan 2.2 VAE
+                    self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 16, 16)
+                    self.upscale_index_formula = (4, 16, 16)
+                    self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 16, 16)
+                    self.downscale_index_formula = (4, 16, 16)
+                    self.latent_dim = 3
+                    self.latent_channels = 48
+                    ddconfig = {"dim": 160, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
+                    self.first_stage_model = comfy.ldm.wan.vae2_2.WanVAE(**ddconfig)
+                    self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+                    self.memory_used_encode = lambda shape, dtype: 3300 * shape[3] * shape[4] * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: 8000 * shape[3] * shape[4] * (16 * 16) * model_management.dtype_size(dtype)
+                else:  # Wan 2.1 VAE
+                    self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
+                    self.upscale_index_formula = (4, 8, 8)
+                    self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
+                    self.downscale_index_formula = (4, 8, 8)
+                    self.latent_dim = 3
+                    self.latent_channels = 16
+                    ddconfig = {"dim": 96, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
+                    self.first_stage_model = comfy.ldm.wan.vae.WanVAE(**ddconfig)
+                    self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+                    self.memory_used_encode = lambda shape, dtype: 6000 * shape[3] * shape[4] * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: 7000 * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
             elif "geo_decoder.cross_attn_decoder.ln_1.bias" in sd:
                 self.latent_dim = 1
                 ln_post = "geo_decoder.ln_post.weight" in sd

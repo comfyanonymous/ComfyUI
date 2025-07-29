@@ -392,6 +392,8 @@ def get_torch_device_name(device):
             except:
                 allocator_backend = ""
             return "{} {} : {}".format(device, torch.cuda.get_device_name(device), allocator_backend)
+        elif device.type == "xpu":
+            return "{} {}".format(device, torch.xpu.get_device_name(device))
         else:
             return "{}".format(device.type)
     elif is_intel_xpu():
@@ -527,6 +529,8 @@ WINDOWS = any(platform.win32_ver())
 EXTRA_RESERVED_VRAM = 400 * 1024 * 1024
 if WINDOWS:
     EXTRA_RESERVED_VRAM = 600 * 1024 * 1024 #Windows is higher because of the shared vram issue
+    if total_vram > (15 * 1024):  # more extra reserved vram on 16GB+ cards
+        EXTRA_RESERVED_VRAM += 100 * 1024 * 1024
 
 if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
