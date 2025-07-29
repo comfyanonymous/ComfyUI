@@ -101,7 +101,7 @@ if args.directml is not None:
     lowvram_available = False #TODO: need to find a way to get free memory in directml before this can be enabled by default.
 
 try:
-    import intel_extension_for_pytorch as ipex
+    import intel_extension_for_pytorch as ipex  # noqa: F401
     _ = torch.xpu.device_count()
     xpu_available = xpu_available or torch.xpu.is_available()
 except:
@@ -128,6 +128,11 @@ try:
 except:
     mlu_available = False
 
+try:
+    ixuca_available = hasattr(torch, "corex")
+except:
+    ixuca_available = False
+
 if args.cpu:
     cpu_state = CPUState.CPU
 
@@ -148,6 +153,12 @@ def is_ascend_npu():
 def is_mlu():
     global mlu_available
     if mlu_available:
+        return True
+    return False
+
+def is_ixuca():
+    global ixuca_available
+    if ixuca_available:
         return True
     return False
 
@@ -186,8 +197,9 @@ def get_total_memory(dev=None, torch_total_too=False):
         elif is_intel_xpu():
             stats = torch.xpu.memory_stats(dev)
             mem_reserved = stats['reserved_bytes.all.current']
+            mem_total_xpu = torch.xpu.get_device_properties(dev).total_memory
             mem_total_torch = mem_reserved
-            mem_total = torch.xpu.get_device_properties(dev).total_memory
+            mem_total = mem_total_xpu
         elif is_ascend_npu():
             stats = torch.npu.memory_stats(dev)
             mem_reserved = stats['reserved_bytes.all.current']
@@ -288,7 +300,7 @@ try:
         if torch_version_numeric[0] >= 2:
             if ENABLE_PYTORCH_ATTENTION == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
                 ENABLE_PYTORCH_ATTENTION = True
-    if is_intel_xpu() or is_ascend_npu() or is_mlu():
+    if is_intel_xpu() or is_ascend_npu() or is_mlu() or is_ixuca():
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             ENABLE_PYTORCH_ATTENTION = True
 except:
@@ -307,7 +319,10 @@ try:
         logging.info("ROCm version: {}".format(rocm_version))
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
-                if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx1201 and gfx950
+                if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
+                    ENABLE_PYTORCH_ATTENTION = True
+            if torch_version_numeric >= (2, 8):
+                if any((a in arch) for a in ["gfx1201"]):
                     ENABLE_PYTORCH_ATTENTION = True
         if torch_version_numeric >= (2, 7) and rocm_version >= (6, 4):
             if any((a in arch) for a in ["gfx1201", "gfx942", "gfx950"]):  # TODO: more arches
@@ -377,6 +392,8 @@ def get_torch_device_name(device):
             except:
                 allocator_backend = ""
             return "{} {} : {}".format(device, torch.cuda.get_device_name(device), allocator_backend)
+        elif device.type == "xpu":
+            return "{} {}".format(device, torch.xpu.get_device_name(device))
         else:
             return "{}".format(device.type)
     elif is_intel_xpu():
@@ -512,6 +529,8 @@ WINDOWS = any(platform.win32_ver())
 EXTRA_RESERVED_VRAM = 400 * 1024 * 1024
 if WINDOWS:
     EXTRA_RESERVED_VRAM = 600 * 1024 * 1024 #Windows is higher because of the shared vram issue
+    if total_vram > (15 * 1024):  # more extra reserved vram on 16GB+ cards
+        EXTRA_RESERVED_VRAM += 100 * 1024 * 1024
 
 if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
@@ -876,6 +895,7 @@ def vae_dtype(device=None, allowed_dtypes=[]):
             return d
 
         # NOTE: bfloat16 seems to work on AMD for the VAE but is extremely slow in some cases compared to fp32
+        # slowness still a problem on pytorch nightly 2.9.0.dev20250720+rocm6.4 tested on RDNA3
         if d == torch.bfloat16 and (not is_amd()) and should_use_bf16(device):
             return d
 
@@ -929,7 +949,7 @@ def device_supports_non_blocking(device):
     if is_device_mps(device):
         return False #pytorch bug? mps doesn't support non blocking
     if is_intel_xpu():
-        return False
+        return True
     if args.deterministic: #TODO: figure out why deterministic breaks non blocking from gpu to cpu (previews)
         return False
     if directml_enabled:
@@ -968,12 +988,23 @@ def get_offload_stream(device):
         stream_counter = (stream_counter + 1) % len(ss)
         if is_device_cuda(device):
             ss[stream_counter].wait_stream(torch.cuda.current_stream())
+        elif is_device_xpu(device):
+            ss[stream_counter].wait_stream(torch.xpu.current_stream())
         stream_counters[device] = stream_counter
         return s
     elif is_device_cuda(device):
         ss = []
         for k in range(NUM_STREAMS):
             ss.append(torch.cuda.Stream(device=device, priority=0))
+        STREAMS[device] = ss
+        s = ss[stream_counter]
+        stream_counter = (stream_counter + 1) % len(ss)
+        stream_counters[device] = stream_counter
+        return s
+    elif is_device_xpu(device):
+        ss = []
+        for k in range(NUM_STREAMS):
+            ss.append(torch.xpu.Stream(device=device, priority=0))
         STREAMS[device] = ss
         s = ss[stream_counter]
         stream_counter = (stream_counter + 1) % len(ss)
@@ -986,6 +1017,8 @@ def sync_stream(device, stream):
         return
     if is_device_cuda(device):
         torch.cuda.current_stream().wait_stream(stream)
+    elif is_device_xpu(device):
+        torch.xpu.current_stream().wait_stream(stream)
 
 def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, stream=None):
     if device is None or weight.device == device:
@@ -1027,6 +1060,8 @@ def xformers_enabled():
         return False
     if is_mlu():
         return False
+    if is_ixuca():
+        return False
     if directml_enabled:
         return False
     return XFORMERS_IS_AVAILABLE
@@ -1062,6 +1097,8 @@ def pytorch_attention_flash_attention():
             return True
         if is_amd():
             return True #if you have pytorch attention enabled on AMD it probably supports at least mem efficient attention
+        if is_ixuca():
+            return True
     return False
 
 def force_upcast_attention_dtype():
@@ -1092,8 +1129,8 @@ def get_free_memory(dev=None, torch_free_too=False):
             stats = torch.xpu.memory_stats(dev)
             mem_active = stats['active_bytes.all.current']
             mem_reserved = stats['reserved_bytes.all.current']
-            mem_free_torch = mem_reserved - mem_active
             mem_free_xpu = torch.xpu.get_device_properties(dev).total_memory - mem_reserved
+            mem_free_torch = mem_reserved - mem_active
             mem_free_total = mem_free_xpu + mem_free_torch
         elif is_ascend_npu():
             stats = torch.npu.memory_stats(dev)
@@ -1142,6 +1179,9 @@ def is_device_cpu(device):
 def is_device_mps(device):
     return is_device_type(device, 'mps')
 
+def is_device_xpu(device):
+    return is_device_type(device, 'xpu')
+
 def is_device_cuda(device):
     return is_device_type(device, 'cuda')
 
@@ -1173,12 +1213,18 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
         return False
 
     if is_intel_xpu():
-        return True
+        if torch_version_numeric < (2, 3):
+            return True
+        else:
+            return torch.xpu.get_device_properties(device).has_fp16
 
     if is_ascend_npu():
         return True
 
     if is_mlu():
+        return True
+
+    if is_ixuca():
         return True
 
     if torch.version.hip:
@@ -1236,9 +1282,15 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
         return False
 
     if is_intel_xpu():
-        return True
+        if torch_version_numeric < (2, 6):
+            return True
+        else:
+            return torch.xpu.get_device_capability(device)['has_bfloat16_conversions']
 
     if is_ascend_npu():
+        return True
+
+    if is_ixuca():
         return True
 
     if is_amd():

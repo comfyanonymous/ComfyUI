@@ -74,7 +74,8 @@ if not args.cuda_malloc:
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
                 version = module.__version__
-        if int(version[0]) >= 2: #enable by default for torch version 2.0 and up
+
+        if int(version[0]) >= 2 and "+cu" in version: #enable by default for torch version 2.0 and up only on cuda torch
             args.cuda_malloc = cuda_malloc_supported()
     except:
         pass

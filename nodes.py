@@ -2197,6 +2197,9 @@ def init_external_custom_nodes():
             module_path = os.path.join(custom_node_path, possible_module)
             if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
             if module_path.endswith(".disabled"): continue
+            if args.disable_all_custom_nodes and possible_module not in args.whitelist_custom_nodes:
+                logging.info(f"Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
+                continue
             time_before = time.perf_counter()
             success = load_custom_node(module_path, base_node_names, module_parent="custom_nodes")
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
@@ -2290,6 +2293,7 @@ def init_builtin_extra_nodes():
         "nodes_string.py",
         "nodes_camera_trajectory.py",
         "nodes_edit_model.py",
+        "nodes_tcfg.py"
     ]
 
     import_failed = []
@@ -2316,6 +2320,7 @@ def init_builtin_api_nodes():
         "nodes_pika.py",
         "nodes_runway.py",
         "nodes_tripo.py",
+        "nodes_moonvalley.py",
         "nodes_rodin.py",
         "nodes_gemini.py",
     ]

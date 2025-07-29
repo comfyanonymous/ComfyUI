@@ -11,6 +11,9 @@ import itertools
 import utils.extra_config
 import logging
 import sys
+from comfy_execution.progress import get_progress_state
+from comfy_execution.utils import get_executing_context
+from comfy_api import feature_flags
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
@@ -55,6 +58,9 @@ def apply_custom_paths():
 
 
 def execute_prestartup_script():
+    if args.disable_all_custom_nodes and len(args.whitelist_custom_nodes) == 0:
+        return
+
     def execute_script(script_path):
         module_name = os.path.splitext(script_path)[0]
         try:
@@ -65,9 +71,6 @@ def execute_prestartup_script():
         except Exception as e:
             logging.error(f"Failed to execute startup-script: {script_path} / {e}")
         return False
-
-    if args.disable_all_custom_nodes:
-        return
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     for custom_node_path in node_paths:
@@ -81,6 +84,9 @@ def execute_prestartup_script():
 
             script_path = os.path.join(module_path, "prestartup_script.py")
             if os.path.exists(script_path):
+                if args.disable_all_custom_nodes and possible_module not in args.whitelist_custom_nodes:
+                    logging.info(f"Prestartup Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
+                    continue
                 time_before = time.perf_counter()
                 success = execute_script(script_path)
                 node_prestartup_times.append((time.perf_counter() - time_before, module_path, success))
@@ -109,6 +115,15 @@ if os.name == "nt":
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
 if __name__ == "__main__":
+    if args.default_device is not None:
+        default_dev = args.default_device
+        devices = list(range(32))
+        devices.remove(default_dev)
+        devices.insert(0, default_dev)
+        devices = ','.join(map(str, devices))
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(devices)
+        os.environ['HIP_VISIBLE_DEVICES'] = str(devices)
+
     if args.cuda_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
@@ -124,11 +139,14 @@ if __name__ == "__main__":
 
     import cuda_malloc
 
+if 'torch' in sys.modules:
+    logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
+
 import comfy.utils
 
 import execution
 import server
-from server import BinaryEventTypes
+from protocol import BinaryEventTypes
 import nodes
 import comfy.model_management
 import comfyui_version
@@ -224,15 +242,34 @@ async def run(server_instance, address='', port=8188, verbose=True, call_on_star
         server_instance.start_multi_address(addresses, call_on_start, verbose), server_instance.publish_loop()
     )
 
-
 def hijack_progress(server_instance):
-    def hook(value, total, preview_image):
+    def hook(value, total, preview_image, prompt_id=None, node_id=None):
+        executing_context = get_executing_context()
+        if prompt_id is None and executing_context is not None:
+            prompt_id = executing_context.prompt_id
+        if node_id is None and executing_context is not None:
+            node_id = executing_context.node_id
         comfy.model_management.throw_exception_if_processing_interrupted()
-        progress = {"value": value, "max": total, "prompt_id": server_instance.last_prompt_id, "node": server_instance.last_node_id}
+        if prompt_id is None:
+            prompt_id = server_instance.last_prompt_id
+        if node_id is None:
+            node_id = server_instance.last_node_id
+        progress = {"value": value, "max": total, "prompt_id": prompt_id, "node": node_id}
+        get_progress_state().update_progress(node_id, value, total, preview_image)
 
         server_instance.send_sync("progress", progress, server_instance.client_id)
         if preview_image is not None:
-            server_instance.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server_instance.client_id)
+            # Only send old method if client doesn't support preview metadata
+            if not feature_flags.supports_feature(
+                server_instance.sockets_metadata,
+                server_instance.client_id,
+                "supports_preview_metadata",
+            ):
+                server_instance.send_sync(
+                    BinaryEventTypes.UNENCODED_PREVIEW_IMAGE,
+                    preview_image,
+                    server_instance.client_id,
+                )
 
     comfy.utils.set_progress_bar_global_hook(hook)
 
@@ -276,7 +313,10 @@ def start_comfyui(asyncio_loop=None):
     prompt_server = server.PromptServer(asyncio_loop)
 
     hook_breaker_ac10a0.save_functions()
-    nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes, init_api_nodes=not args.disable_api_nodes)
+    nodes.init_extra_nodes(
+        init_custom_nodes=(not args.disable_all_custom_nodes) or len(args.whitelist_custom_nodes) > 0,
+        init_api_nodes=not args.disable_api_nodes
+    )
     hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()
