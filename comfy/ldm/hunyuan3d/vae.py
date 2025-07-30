@@ -46,7 +46,8 @@ def fps(src: torch.Tensor, batch: torch.Tensor, sampling_ratio: float, start_ran
         # select a random start point
         if start_random:
             farthest = torch.randint(0, num_points, (1,), device = src.device)
-        else: farthest = torch.tensor([0], device = src.device, dtype = torch.long)
+        else: 
+            farthest = torch.tensor([0], device = src.device, dtype = torch.long)
 
         for i in range(num_samples):
             selected[i] = farthest
@@ -147,7 +148,8 @@ class PointCrossAttention(nn.Module):
             sharpedge_input_pc = torch.zeros(B, 0, D, dtype = random_input_pc.dtype).to(point_cloud.device)
             sharpedge_query_pc = torch.zeros(B, 0, D, dtype= random_query_pc.dtype).to(point_cloud.device)
 
-        else: sharpedge_query_pc, sharpedge_input_pc, sharpedge_idx_pc, sharpedge_idx_query = \
+        else: 
+            sharpedge_query_pc, sharpedge_input_pc, sharpedge_idx_pc, sharpedge_idx_query = \
             self.subsample(pc = sharpedge_pc, num_query = num_sharpedge_query, input_pc_size = input_sharpedge_pc_size)
         
         # concat the random and sharpedges
@@ -252,33 +254,6 @@ class PointCrossAttention(nn.Module):
                                                                  flattent_input_features.shape[-1])
         
         return input_surface_features, query_features
-    
-    def forward(self, pc, feats):
-        """
-
-        Args:
-            pc (torch.FloatTensor): [B, N, 3]
-            feats (torch.FloatTensor or None): [B, N, C]
-
-        Returns:
-
-        """
-
-        query, data = self.sample_points_and_latents(pc, feats)
-
-        query = self.input_proj(query)
-        query = query
-        data = self.input_proj(data)
-        data = data
-
-        latents = self.cross_attn(query, data)
-        if self.self_attn is not None:
-            latents = self.self_attn(latents)
-
-        if self.ln_post is not None:
-            latents = self.ln_post(latents)
-
-        return latents
 
 def normalize_mesh(mesh, scale = 0.9999):
     """Normalize mesh to fit in [-scale, scale]. Translate mesh so its center is [0,0,0]"""
@@ -428,27 +403,6 @@ class SharpEdgeSurfaceLoader:
             return combined
         
         return mesh
-
-class FourierEmbedder(nn.Module):
-    def __init__(self, num_freq: int = 8, input_dim: int = 3, include_pi: bool = False):
-        super().__init__()
-
-        frequencies = 2.0 ** torch.arange(
-            num_freq,
-            dtype = torch.float32
-        )
-
-        if include_pi:
-            frequencies *= torch.pi
-
-        self.register_buffer("frequencies", frequencies, persistent = False)
-
-        self.out_dim = input_dim * (num_freq * 2 + 1)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        
-        embed = (x[..., None].contiguous() * self.frequencies).view(*x.shape[:-1], -1)
-        return torch.cat((x, embed.sin(), embed.cos()), dim = -1)
     
 class DiagonalGaussianDistribution:
     def __init__(self, params: torch.Tensor, feature_dim: int = -1):
@@ -489,7 +443,7 @@ class VanillaVolumeDecoder():
         grid_size = [int(octree_resolution) + 1, int(octree_resolution) + 1, int(octree_resolution) + 1]
 
         batch_logits = []
-        for start in tqdm(range(0, xyz.shape[0], num_chunks), desc=f"Volume Decoding",
+        for start in tqdm(range(0, xyz.shape[0], num_chunks), desc="Volume Decoding",
                           disable=not enable_pbar):
             
             chunk_queries = xyz[start: start + num_chunks, :]
@@ -908,7 +862,7 @@ class CrossAttentionDecoder(nn.Module):
         self.query_proj = ops.Linear(self.fourier_embedder.out_dim, width)
         if self.downsample_ratio != 1:
             self.latents_proj = ops.Linear(width * downsample_ratio, width)
-        if self.enable_ln_post == False:
+        if not self.enable_ln_post:
             qk_norm = False
         self.cross_attn_decoder = ResidualCrossAttentionBlock(
             width=width,

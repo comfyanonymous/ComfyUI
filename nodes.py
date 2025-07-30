@@ -1014,7 +1014,8 @@ class CLIPVisionEncode:
 
         if crop == "recenter":
             crop_image = True
-        else: border_ratio = None
+        else: 
+            border_ratio = None
 
         output = clip_vision.encode_image(image, crop=crop_image, border_ratio = border_ratio)
         return (output,)

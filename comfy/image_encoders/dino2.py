@@ -71,7 +71,8 @@ class Dino2Block(torch.nn.Module):
         self.layer_scale2 = LayerScale(dim, dtype, device, operations)
         if use_swiglu_ffn:
             self.mlp = SwiGLUFFN(dim, dtype, device, operations)
-        else: self.mlp = Dinov2MLP(dim, dtype, device, operations)
+        else: 
+            self.mlp = Dinov2MLP(dim, dtype, device, operations)
         self.norm1 = operations.LayerNorm(dim, eps=layer_norm_eps, dtype=dtype, device=device)
         self.norm2 = operations.LayerNorm(dim, eps=layer_norm_eps, dtype=dtype, device=device)
 
@@ -95,8 +96,8 @@ class Dino2Encoder(torch.nn.Module):
                 intermediate_output = len(self.layer) + intermediate_output
 
         intermediate = None
-        for i, l in enumerate(self.layer):
-            x = l(x, optimized_attention)
+        for i, layer in enumerate(self.layer):
+            x = layer(x, optimized_attention)
             if i == intermediate_output:
                 intermediate = x.clone()
         return x, intermediate

@@ -213,9 +213,6 @@ class Timesteps(nn.Module):
 
         x = timesteps.float().unsqueeze(1) * self.inv_freq.to(timesteps.device).unsqueeze(0)
         
-        # scale factor
-        if self.scale != 1.0:
-            emb = emb * self.scale
 
         # fused CUDA kernels for sin and cos
         sin_emb = x.sin()
@@ -223,6 +220,10 @@ class Timesteps(nn.Module):
 
         emb = torch.cat([sin_emb, cos_emb], dim = 1)
 
+        # scale factor
+        if self.scale != 1.0:
+            emb = emb * self.scale
+            
         # If we padded inv_freq for odd, emb is already wide enough; otherwise:
         if emb.shape[1] > self.num_channels:
             emb = emb[:, :self.num_channels]
@@ -371,7 +372,8 @@ class Attention(nn.Module):
 
         if use_fp16: 
             eps = 1.0 / 65504
-        else: eps = 1e-6
+        else: 
+            eps = 1e-6
 
         self.q_norm = norm_layer(self.head_dim, elementwise_affine=True, eps = eps) if qk_norm else nn.Identity()
         self.k_norm = norm_layer(self.head_dim, elementwise_affine=True, eps = eps) if qk_norm else nn.Identity()
@@ -434,7 +436,8 @@ class HunYuanDiTBlock(nn.Module):
         # eps can't be 1e-6 in fp16 mode because of numerical stability issues
         if use_fp16: 
             eps = 1.0 / 65504
-        else: eps = 1e-6
+        else: 
+            eps = 1e-6
         
         self.norm1 = norm_layer(hidden_size, elementwise_affine = True, eps = eps)
 
@@ -509,7 +512,8 @@ class FinalLayer(nn.Module):
 
         if use_fp16: 
             eps = 1.0 / 65504
-        else: eps = 1e-6
+        else: 
+            eps = 1e-6
 
         self.norm_final = nn.LayerNorm(final_hidden_size, elementwise_affine = True, eps = eps)
         self.linear = nn.Linear(final_hidden_size, out_channels, bias = True)
@@ -641,68 +645,3 @@ class HunYuanDiTPlain(nn.Module):
         
         cond_emb, uncond_emb = output.chunk(2, dim = 0)
         return torch.cat([uncond_emb, cond_emb])
-    
-def get_diffusion_checkpoint():
-    import requests
-
-    url = "https://huggingface.co/tencent/Hunyuan3D-2.1/resolve/main/hunyuan3d-dit-v2-1/model.fp16.ckpt"
-    output_path = "hunyuan3dv2_1.ckpt"
-    
-    response = requests.get(url, stream=True)
-    response.raise_for_status() 
-    
-    with open(output_path, "wb") as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                f.write(chunk)
-    
-    print(f"Downloaded to: {output_path}")
-
-def load_dit(dit: HunYuanDiTPlain):
-
-    DEBUG = False
-    checkpoint = torch.load("model.fp16.ckpt")
-    missing, unexpected = dit.load_state_dict(checkpoint["model"], strict = not DEBUG)
-    
-    if DEBUG:
-        print(f"Missing {len(missing)}", missing)
-        print(f"Unexpected {len(unexpected)}", unexpected)
-
-    return dit
-
-if __name__ == "__main__":
-
-    torch.manual_seed(2025)
-    torch.set_default_device("cpu")
-    torch.set_default_dtype(torch.bfloat16)
-
-    import time
-
-    timings = {}
-    
-    start = time.time()
-    
-    model = HunYuanDiTPlain(depth = 10)
-
-    timings["model_initialization"] = time.time() - start
-
-    batch_size = 2
-    seq_len = 1370
-    in_channels = 64
-    context_dim = 1024
-
-    # Random inputs
-    x = torch.randn(batch_size, seq_len, in_channels)
-    t = torch.randint(0, seq_len, (batch_size,))
-    contexts = {
-        'main': torch.randn(batch_size, seq_len, context_dim)
-    }
-
-    # Forward pass
-    start = time.time()
-    output = model(x, t, contexts)
-    timings["forward_timing"] = time.time() - start
-
-    print("\n=== Timing Summary ===")
-    for key, value in timings.items():
-        print(f"{key}: {value:.3f} seconds")
