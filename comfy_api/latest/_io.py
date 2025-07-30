@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
 from comfy_api.latest._resources import Resources, ResourcesLocal
-from comfy_execution.graph import ExecutionBlocker
+from comfy_execution.graph_utils import ExecutionBlocker
 
 # from comfy_extras.nodes_images import SVG as SVG_ # NOTE: needs to be moved before can be imported due to circular reference
 
