@@ -1124,6 +1124,144 @@ class PromptQueue:
             else:
                 return {}
 
+    def get_ordered_history(self, max_items=None, offset=0):
+        """
+        Retrieves execution history in chronological order with pagination support.
+        Returns a lightweight list of history objects.
+        Used by the /history_v2.
+
+        API Output Structure:
+        {
+            "history": [
+                {
+                    "prompt_id": str,          # Unique identifier for this execution
+                    "outputs": dict,           # Node outputs {node_id: ui_data}
+                    "meta": dict,              # Node metadata {node_id: {node_id, display_node, parent_node, real_node_id}}
+                    "prompt": {
+                        "priority": int,       # Execution priority
+                        "prompt_id": str,      # Same as root prompt_id
+                        "extra_data": dict     # Additional metadata (workflow removed from extra_pnginfo)
+                    } | None,                  # None if no prompt data available
+                    "status": {
+                        "status_str": str,     # "success" | "error"
+                        "messages": [          # Filtered execution event messages
+                            (event_name: str, event_data: dict)
+                        ]
+                    } | None                   # None if no status recorded
+                },
+                # ... more history items
+            ]
+        }
+
+        Parameters:
+        - max_items: Maximum number of items to return (None = all)
+        - offset: Starting index (0-based, negative values calculated from end)
+        """
+        with self.mutex:
+            history_keys = list(self.history.keys())
+
+            if offset < 0 and max_items is not None:
+                offset = max(0, len(history_keys) - max_items)
+
+            end_index = offset + max_items if max_items is not None else None
+            selected_keys = history_keys[offset:end_index]
+
+            history_items = []
+            for key in selected_keys:
+                history_entry = self.history[key]
+
+                filtered_prompt = None
+                if "prompt" in history_entry:
+                    priority, prompt_id, _, extra_data, _ = history_entry["prompt"]
+
+                    filtered_extra_data = {}
+                    for k, v in extra_data.items():
+                        if k == "extra_pnginfo":
+                            filtered_extra_data[k] = {
+                                pk: pv for pk, pv in v.items()
+                                if pk != "workflow"
+                            }
+                        else:
+                            filtered_extra_data[k] = v
+
+                    filtered_prompt = {
+                        "priority": priority,
+                        "prompt_id": prompt_id,
+                        "extra_data": filtered_extra_data
+                    }
+
+                status = None
+                if history_entry.get("status"):
+                    status = {
+                        "status_str": history_entry["status"]["status_str"],
+                        "messages": [(e, {k: v for k, v in d.items() if k != "nodes"})
+                                    if e == "execution_cached" else (e, d)
+                                    for e, d in history_entry["status"]["messages"]]
+                    }
+
+                item = {
+                    "prompt_id": key,
+                    "outputs": history_entry.get("outputs", {}),
+                    "meta": history_entry.get("meta", {}),
+                    "prompt": filtered_prompt,
+                    "status": status
+                }
+
+                history_items.append(item)
+
+            return {"history": history_items}
+
+    def get_history_v2(self, prompt_id):
+        """
+        Retrieves execution history for a specific prompt ID.
+        Used by /history_v2/:prompt_id
+
+        API Output Structure:
+        {
+            "<prompt_id>": {
+                "prompt": {
+                    "priority": int,           # Execution priority
+                    "prompt_id": str,          # Same as the key
+                    "prompt": dict,            # The workflow/node data
+                    "extra_data": dict,        # Additional metadata (client_id, etc.)
+                    "outputs_to_execute": list # Node IDs to execute
+                },
+                "outputs": dict,               # Node outputs {node_id: ui_data}
+                "meta": dict,                  # Node metadata {node_id: {node_id, display_node, parent_node, real_node_id}}
+                "status": {
+                    "status_str": str,         # "success" | "error"
+                    "completed": bool,         # Whether execution finished
+                    "messages": list           # Execution event messages
+                } | None                       # None if no status recorded
+            }
+        }
+
+        Returns empty dict {} if prompt_id not found.
+        """
+        with self.mutex:
+            if prompt_id in self.history:
+                history_entry = self.history[prompt_id]
+
+                new_entry = {}
+
+                if "prompt" in history_entry:
+                    priority, prompt_id_inner, prompt_data, extra_data, outputs_to_execute = history_entry["prompt"]
+                    new_entry["prompt"] = {
+                        "priority": priority,
+                        "prompt_id": prompt_id_inner,
+                        "prompt": prompt_data,
+                        "extra_data": extra_data,
+                        "outputs_to_execute": outputs_to_execute
+                    }
+
+                for key, value in history_entry.items():
+                    if key != "prompt":
+                        new_entry[key] = value
+
+                return {prompt_id: new_entry}
+            else:
+                return {}
+
     def wipe_history(self):
         with self.mutex:
             self.history = {}
