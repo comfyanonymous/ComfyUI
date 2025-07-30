@@ -34,7 +34,7 @@ class LayerScale(torch.nn.Module):
 class Dinov2MLP(torch.nn.Module):
     def __init__(self, hidden_size: int, dtype, device, operations):
         super().__init__()
-        
+
         mlp_ratio = 4
         hidden_features = int(hidden_size * mlp_ratio)
         self.fc1 = operations.Linear(hidden_size, hidden_features, bias = True, device=device, dtype=dtype)
@@ -45,7 +45,7 @@ class Dinov2MLP(torch.nn.Module):
         hidden_state = torch.nn.functional.gelu(hidden_state)
         hidden_state = self.fc2(hidden_state)
         return hidden_state
-    
+
 class SwiGLUFFN(torch.nn.Module):
     def __init__(self, dim, dtype, device, operations):
         super().__init__()
@@ -71,7 +71,7 @@ class Dino2Block(torch.nn.Module):
         self.layer_scale2 = LayerScale(dim, dtype, device, operations)
         if use_swiglu_ffn:
             self.mlp = SwiGLUFFN(dim, dtype, device, operations)
-        else: 
+        else:
             self.mlp = Dinov2MLP(dim, dtype, device, operations)
         self.norm1 = operations.LayerNorm(dim, eps=layer_norm_eps, dtype=dtype, device=device)
         self.norm2 = operations.LayerNorm(dim, eps=layer_norm_eps, dtype=dtype, device=device)

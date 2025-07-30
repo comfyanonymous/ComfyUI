@@ -1224,7 +1224,7 @@ class Hunyuan3Dv2(BaseModel):
         if guidance is not None:
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
-    
+
 class Hunyuan3Dv2_1(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hunyuan3dv2_1.hunyuandit.HunYuanDiTPlain)

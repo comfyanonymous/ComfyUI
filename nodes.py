@@ -1003,7 +1003,7 @@ class CLIPVisionEncode:
                 "border_ratio": ("FLOAT", {"default": 0.15, "min": 0.0, "max": 0.5, "step": 0.01, "visible_if": {"crop": "recenter"},}),
             }
         }
-    
+
     RETURN_TYPES = ("CLIP_VISION_OUTPUT",)
     FUNCTION = "encode"
 
@@ -1014,7 +1014,7 @@ class CLIPVisionEncode:
 
         if crop == "recenter":
             crop_image = True
-        else: 
+        else:
             border_ratio = None
 
         output = clip_vision.encode_image(image, crop=crop_image, border_ratio = border_ratio)

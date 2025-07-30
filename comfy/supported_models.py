@@ -1101,7 +1101,7 @@ class Hunyuan3Dv2(supported_models_base.BASE):
 
     def clip_target(self, state_dict={}):
         return None
-    
+
 class Hunyuan3Dv2_1(Hunyuan3Dv2):
     unet_config = {
         "image_model": "hunyuan3d2_1",

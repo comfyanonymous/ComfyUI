@@ -14,7 +14,7 @@ class GELU(nn.Module):
 
         if gate.device.type == "mps":
             return F.gelu(gate.to(dtype = torch.float32)).to(dtype = gate.dtype)
-        
+
         return F.gelu(gate)
 
     def forward(self, hidden_states):
@@ -28,7 +28,7 @@ class FeedForward(nn.Module):
 
     def __init__(self, dim: int, dim_out = None, mult: int = 4,
                 dropout: float = 0.0, inner_dim = None):
-        
+
         super().__init__()
         if inner_dim is None:
             inner_dim = int(dim * mult)
@@ -53,11 +53,11 @@ class AddAuxLoss(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, loss):
         # do nothing in forward (no computation)
-        ctx.requires_aux_loss = loss.requires_grad  
+        ctx.requires_aux_loss = loss.requires_grad
         ctx.dtype = loss.dtype
 
         return x
-    
+
     @staticmethod
     def backward(ctx, grad_output):
         # add the aux loss gradients
@@ -68,7 +68,7 @@ class AddAuxLoss(torch.autograd.Function):
             grad_loss = torch.ones(1, dtype = ctx.dtype, device = grad_output.device)
 
         return grad_output, grad_loss
-    
+
 class MoEGate(nn.Module):
 
     def __init__(self, embed_dim, num_experts=16, num_experts_per_tok=2, aux_loss_alpha=0.01):
@@ -133,13 +133,13 @@ class MoEBlock(nn.Module):
 
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
         flat_topk_idx = topk_idx.view(-1)
-        
+
         if self.training:
 
             hidden_states = hidden_states.repeat_interleave(self.moe_top_k, dim = 0)
             y = torch.empty_like(hidden_states, dtype = hidden_states.dtype)
 
-            for i, expert in enumerate(self.experts): 
+            for i, expert in enumerate(self.experts):
                 tmp = expert(hidden_states[flat_topk_idx == i])
                 y[flat_topk_idx == i] = tmp.to(hidden_states.dtype)
 
@@ -156,14 +156,14 @@ class MoEBlock(nn.Module):
 
     @torch.no_grad()
     def moe_infer(self, x, flat_expert_indices, flat_expert_weights):
-        
-        expert_cache = torch.zeros_like(x) 
+
+        expert_cache = torch.zeros_like(x)
         idxs = flat_expert_indices.argsort()
 
         # no need for .numpy().cpu() here
         tokens_per_expert = flat_expert_indices.bincount().cumsum(0)
-        token_idxs = idxs // self.moe_top_k 
-        
+        token_idxs = idxs // self.moe_top_k
+
         for i, end_idx in enumerate(tokens_per_expert):
 
             start_idx = 0 if i == 0 else tokens_per_expert[i-1]
@@ -177,7 +177,7 @@ class MoEBlock(nn.Module):
             expert_tokens = x[exp_token_idx]
             expert_out = expert(expert_tokens)
 
-            expert_out.mul_(flat_expert_weights[idxs[start_idx:end_idx]]) 
+            expert_out.mul_(flat_expert_weights[idxs[start_idx:end_idx]])
 
             # use index_add_ with a 1-D index tensor directly avoids building a large [N, D] index map and extra memcopy required by scatter_reduce_
             # + avoid dtype conversion
@@ -198,7 +198,7 @@ class Timesteps(nn.Module):
             half_dim, dtype=torch.float32
         ) / (half_dim - downscale_freq_shift)
 
-        inv_freq = torch.exp(exponent) 
+        inv_freq = torch.exp(exponent)
 
         # pad
         if num_channels % 2 == 1:
@@ -212,7 +212,7 @@ class Timesteps(nn.Module):
     def forward(self, timesteps: torch.Tensor):
 
         x = timesteps.float().unsqueeze(1) * self.inv_freq.to(timesteps.device).unsqueeze(0)
-        
+
 
         # fused CUDA kernels for sin and cos
         sin_emb = x.sin()
@@ -223,7 +223,7 @@ class Timesteps(nn.Module):
         # scale factor
         if self.scale != 1.0:
             emb = emb * self.scale
-            
+
         # If we padded inv_freq for odd, emb is already wide enough; otherwise:
         if emb.shape[1] > self.num_channels:
             emb = emb[:, :self.num_channels]
@@ -232,8 +232,8 @@ class Timesteps(nn.Module):
 
 class TimestepEmbedder(nn.Module):
     def __init__(self, hidden_size, frequency_embedding_size = 256, cond_proj_dim = None):
-        super().__init__()  
-    
+        super().__init__()
+
         self.mlp = nn.Sequential(
             nn.Linear(hidden_size, frequency_embedding_size, bias=True),
             nn.GELU(),
@@ -257,8 +257,8 @@ class TimestepEmbedder(nn.Module):
         time_conditioned = self.mlp(timestep_embed.to(self.mlp[0].weight.device))
 
         # for broadcasting with image tokens
-        return time_conditioned.unsqueeze(1) 
-    
+        return time_conditioned.unsqueeze(1)
+
 class MLP(nn.Module):
     def __init__(self, *, width: int):
         super().__init__()
@@ -269,7 +269,7 @@ class MLP(nn.Module):
 
     def forward(self, x):
         return self.fc2(self.gelu(self.fc1(x)))
-    
+
 class CrossAttention(nn.Module):
     def __init__(
         self,
@@ -285,10 +285,10 @@ class CrossAttention(nn.Module):
         super().__init__()
         self.qdim = qdim
         self.kdim = kdim
-        
+
         self.num_heads = num_heads
         self.head_dim = self.qdim // num_heads
-        
+
         self.scale = self.head_dim ** -0.5
 
         self.to_q = nn.Linear(qdim, qdim, bias=qkv_bias)
@@ -307,11 +307,11 @@ class CrossAttention(nn.Module):
         self.q_norm = norm_layer(self.head_dim, elementwise_affine=True, eps = eps) if qk_norm else nn.Identity()
         self.k_norm = norm_layer(self.head_dim, elementwise_affine=True, eps = eps) if qk_norm else nn.Identity()
         self.out_proj = nn.Linear(qdim, qdim, bias=True)
-        
+
     def forward(self, x, y):
 
-        b, s1, _ = x.shape  
-        _, s2, _ = y.shape 
+        b, s1, _ = x.shape
+        _, s2, _ = y.shape
 
         y = y.to(next(self.to_k.parameters()).dtype)
 
@@ -325,9 +325,9 @@ class CrossAttention(nn.Module):
         kv = kv.view(1, -1, self.num_heads, split_size * 2)
         k, v = torch.split(kv, split_size, dim=-1)
 
-        q = q.view(b, s1, self.num_heads, self.head_dim)  
-        k = k.view(b, s2, self.num_heads, self.head_dim) 
-        v = v.view(b, s2, self.num_heads, self.head_dim) 
+        q = q.view(b, s1, self.num_heads, self.head_dim)
+        k = k.view(b, s2, self.num_heads, self.head_dim)
+        v = v.view(b, s2, self.num_heads, self.head_dim)
 
         q = self.q_norm(q)
         k = self.k_norm(k)
@@ -348,7 +348,7 @@ class CrossAttention(nn.Module):
         out = self.out_proj(context)
 
         return out
-    
+
 class Attention(nn.Module):
 
     def __init__(
@@ -370,9 +370,9 @@ class Attention(nn.Module):
         self.to_k = nn.Linear(dim, dim, bias = qkv_bias)
         self.to_v = nn.Linear(dim, dim, bias = qkv_bias)
 
-        if use_fp16: 
+        if use_fp16:
             eps = 1.0 / 65504
-        else: 
+        else:
             eps = 1e-6
 
         self.q_norm = norm_layer(self.head_dim, elementwise_affine=True, eps = eps) if qk_norm else nn.Identity()
@@ -392,8 +392,8 @@ class Attention(nn.Module):
         qkv = qkv_combined.view(1, -1, self.num_heads, split_size * 3)
         query, key, value = torch.split(qkv, split_size, dim=-1)
 
-        query = query.reshape(B, N, self.num_heads, self.head_dim).transpose(1, 2) 
-        key = key.reshape(B, N, self.num_heads, self.head_dim).transpose(1, 2)  
+        query = query.reshape(B, N, self.num_heads, self.head_dim).transpose(1, 2)
+        key = key.reshape(B, N, self.num_heads, self.head_dim).transpose(1, 2)
         value = value.reshape(B, N, self.num_heads, self.head_dim).transpose(1, 2)
 
         query = self.q_norm(query)
@@ -412,7 +412,7 @@ class Attention(nn.Module):
 
         x = self.out_proj(x)
         return x
-    
+
 class HunYuanDiTBlock(nn.Module):
     def __init__(
         self,
@@ -434,11 +434,11 @@ class HunYuanDiTBlock(nn.Module):
         super().__init__()
 
         # eps can't be 1e-6 in fp16 mode because of numerical stability issues
-        if use_fp16: 
+        if use_fp16:
             eps = 1.0 / 65504
-        else: 
+        else:
             eps = 1e-6
-        
+
         self.norm1 = norm_layer(hidden_size, elementwise_affine = True, eps = eps)
 
         self.attn1 = Attention(hidden_size, num_heads=num_heads, qkv_bias=qkv_bias, qk_norm=qk_norm,
@@ -455,7 +455,7 @@ class HunYuanDiTBlock(nn.Module):
 
         self.attn2 = CrossAttention(hidden_size, text_states_dim, num_heads=num_heads, qkv_bias=qkv_bias,
                                     qk_norm=qk_norm, norm_layer=qk_norm_layer, use_fp16 = use_fp16)
-        
+
         self.norm3 = norm_layer(hidden_size, elementwise_affine = True, eps = eps)
 
         if skip_connection:
@@ -504,15 +504,15 @@ class HunYuanDiTBlock(nn.Module):
             hidden_states = hidden_states + self.mlp(mlp_input)
 
         return hidden_states
-    
+
 class FinalLayer(nn.Module):
 
     def __init__(self, final_hidden_size, out_channels, use_fp16: bool = False):
         super().__init__()
 
-        if use_fp16: 
+        if use_fp16:
             eps = 1.0 / 65504
-        else: 
+        else:
             eps = 1e-6
 
         self.norm_final = nn.LayerNorm(final_hidden_size, elementwise_affine = True, eps = eps)
@@ -525,7 +525,7 @@ class FinalLayer(nn.Module):
         return x
 
 class HunYuanDiTPlain(nn.Module):
-    
+
     # init with the defaults values from https://huggingface.co/tencent/Hunyuan3D-2.1/blob/main/hunyuan3d-dit-v2-1/config.yaml
     def __init__(
         self,
@@ -642,6 +642,6 @@ class HunYuanDiTPlain(nn.Module):
 
         output = self.final_layer(combined)
         output =  output.movedim(-2, -1) * (-1.0)
-        
+
         cond_emb, uncond_emb = output.chunk(2, dim = 0)
         return torch.cat([uncond_emb, cond_emb])

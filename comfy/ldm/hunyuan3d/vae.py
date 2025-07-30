@@ -46,7 +46,7 @@ def fps(src: torch.Tensor, batch: torch.Tensor, sampling_ratio: float, start_ran
         # select a random start point
         if start_random:
             farthest = torch.randint(0, num_points, (1,), device = src.device)
-        else: 
+        else:
             farthest = torch.tensor([0], device = src.device, dtype = torch.long)
 
         for i in range(num_samples):
@@ -134,24 +134,24 @@ class PointCrossAttention(nn.Module):
         # Split random and sharpedge surface points
         random_pc, sharpedge_pc = torch.split(point_cloud, [self.pc_size, self.pc_sharpedge_size], dim=1)
 
-        # assert statements 
+        # assert statements
         assert random_pc.shape[1] <= self.pc_size, "Random surface points size must be less than or equal to pc_size"
         assert sharpedge_pc.shape[1] <= self.pc_sharpedge_size, "Sharpedge surface points size must be less than or equal to pc_sharpedge_size"
 
         input_random_pc_size = int(num_random_query * self.downsample_ratio)
         random_query_pc, random_input_pc, random_idx_pc, random_idx_query = \
             self.subsample(pc = random_pc, num_query = num_random_query, input_pc_size = input_random_pc_size)
-        
+
         input_sharpedge_pc_size = int(num_sharpedge_query * self.downsample_ratio)
 
         if input_sharpedge_pc_size == 0:
             sharpedge_input_pc = torch.zeros(B, 0, D, dtype = random_input_pc.dtype).to(point_cloud.device)
             sharpedge_query_pc = torch.zeros(B, 0, D, dtype= random_query_pc.dtype).to(point_cloud.device)
 
-        else: 
+        else:
             sharpedge_query_pc, sharpedge_input_pc, sharpedge_idx_pc, sharpedge_idx_query = \
             self.subsample(pc = sharpedge_pc, num_query = num_sharpedge_query, input_pc_size = input_sharpedge_pc_size)
-        
+
         # concat the random and sharpedges
         query_pc = torch.cat([random_query_pc, sharpedge_query_pc], dim = 1)
         input_pc = torch.cat([random_input_pc, sharpedge_input_pc], dim = 1)
@@ -165,11 +165,11 @@ class PointCrossAttention(nn.Module):
             input_random_surface_features, query_random_features = \
                 self.handle_features(features = random_surface_features, idx_pc = random_idx_pc, batch_size = B,
                                      input_pc_size = input_random_pc_size, idx_query = random_idx_query)
-            
+
             if input_sharpedge_pc_size == 0:
                 input_sharpedge_surface_features = torch.zeros(B, 0, self.point_feats,
                                                                dtype = input_random_surface_features.dtype, device = point_cloud.device)
-                
+
                 query_sharpedge_features = torch.zeros(B, 0, self.point_feats,
                                                        dtype = query_random_features.dtype, device = point_cloud.device)
             else:
@@ -197,7 +197,7 @@ class PointCrossAttention(nn.Module):
         return query.view(B, -1, query.shape[-1]), data.view(B, -1, data.shape[-1])
 
     def forward(self, point_cloud: torch.Tensor, features: torch.Tensor):
-        
+
         query, data = self.sample_points_and_latents(point_cloud = point_cloud, features = features)
 
         # apply projections
@@ -243,16 +243,16 @@ class PointCrossAttention(nn.Module):
         query_pc = flattent_input_pc[idx_query].view(B, -1, D)
 
         return query_pc, input_pc, idx_pc, idx_query
-    
+
     def handle_features(self, features, idx_pc, input_pc_size, batch_size: int, idx_query):
 
         B = batch_size
 
         input_surface_features = features[:, idx_pc, :]
         flattent_input_features = input_surface_features.view(B * input_pc_size, -1)
-        query_features = flattent_input_features[idx_query].view(B, -1, 
+        query_features = flattent_input_features[idx_query].view(B, -1,
                                                                  flattent_input_features.shape[-1])
-        
+
         return input_surface_features, query_features
 
 def normalize_mesh(mesh, scale = 0.9999):
@@ -361,7 +361,7 @@ def load_surface_sharpedge(mesh, num_points=4096, num_sharp_points=4096, sharped
     surface = assemble_tensor(torch.cat([surf_pts.to(device), fill_pts.to(device)], dim=0),
                               torch.cat([surf_normals.to(device), fill_normals.to(device)], dim=0),
                               label = 0 if sharpedge_flag else None)
-    
+
     sharp_surface = assemble_tensor(torch.from_numpy(sharp_pts), torch.from_numpy(sharp_normals),
                                     label = 1 if sharpedge_flag else None)
 
@@ -401,9 +401,9 @@ class SharpEdgeSurfaceLoader:
             for obj in mesh.geometry.values():
                 combined = obj if combined is None else combined + obj
             return combined
-        
+
         return mesh
-    
+
 class DiagonalGaussianDistribution:
     def __init__(self, params: torch.Tensor, feature_dim: int = -1):
 
@@ -428,7 +428,7 @@ class VanillaVolumeDecoder():
     @torch.no_grad()
     def __call__(self, latents: torch.Tensor, geo_decoder: callable, octree_resolution: int, bounds = 1.01,
                  num_chunks: int = 10_000, enable_pbar: bool = True, **kwargs):
-        
+
         if isinstance(bounds, float):
             bounds = [-bounds, -bounds, -bounds, bounds, bounds, bounds]
 
@@ -445,7 +445,7 @@ class VanillaVolumeDecoder():
         batch_logits = []
         for start in tqdm(range(0, xyz.shape[0], num_chunks), desc="Volume Decoding",
                           disable=not enable_pbar):
-            
+
             chunk_queries = xyz[start: start + num_chunks, :]
             chunk_queries = chunk_queries.unsqueeze(0).repeat(latents.shape[0], 1, 1)
             logits = geo_decoder(queries = chunk_queries, latents = latents)
@@ -929,7 +929,7 @@ class ShapeVAE(nn.Module):
                                     width = width,
                                     point_feats = point_feats,
                                     fourier_embedder = self.fourier_embedder,
-                                    pc_sharpedge_size = pc_sharpedge_size) 
+                                    pc_sharpedge_size = pc_sharpedge_size)
 
         self.post_kl = ops.Linear(embed_dim, width)
 
@@ -974,7 +974,7 @@ class ShapeVAE(nn.Module):
 
         pc, feats = surface[:, :, :3], surface[:, :, 3:]
         latents = self.encoder(pc, feats)
-        
+
         moments = self.pre_kl(latents)
         posterior = DiagonalGaussianDistribution(moments, feature_dim = -1)
 

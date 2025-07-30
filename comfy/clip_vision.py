@@ -36,7 +36,7 @@ def get_indices_weights(in_size, out_size, scale):
     x0 = x.floor().long()
     dx = x.unsqueeze(1) - (x0.unsqueeze(1) + torch.arange(-1, 3))
 
-    weights = cubic_kernel(dx) 
+    weights = cubic_kernel(dx)
     weights = weights / weights.sum(dim=1, keepdim=True)
 
     indices = x0.unsqueeze(1) + torch.arange(-1, 3)
@@ -52,12 +52,12 @@ def resize_cubic_1d(x, out_size, dim):
     indices, weights = get_indices_weights(in_size, out_size, scale)
 
     if dim == 2:
-        x = x.permute(0, 1, 3, 2)  
-        x = x.reshape(-1, h)  
+        x = x.permute(0, 1, 3, 2)
+        x = x.reshape(-1, h)
     else:
-        x = x.reshape(-1, w)  
+        x = x.reshape(-1, w)
 
-    gathered = x[:, indices]  
+    gathered = x[:, indices]
     out = (gathered * weights.unsqueeze(0)).sum(dim=2)
 
     if dim == 2:
@@ -77,7 +77,7 @@ def resize_cubic(img: torch.Tensor, size: tuple) -> torch.Tensor:
         img = img.unsqueeze(0)
 
     img = img.permute(0, 3, 1, 2)
-        
+
     out_h, out_w = size
     img = resize_cubic_1d(img, out_h, dim=2)
     img = resize_cubic_1d(img, out_w, dim=3)
@@ -121,7 +121,7 @@ def resize_area(img: torch.Tensor, size: tuple) -> torch.Tensor:
     # We will build the weighted sums by iterating over contributing input pixels once
     output = torch.zeros((B, C, out_h, out_w), dtype=torch.float32, device=device)
     area = torch.zeros((out_h, out_w), dtype=torch.float32, device=device)
-    
+
     max_kernel_h = int(torch.max(y_end_int - y_start_int).item())
     max_kernel_w = int(torch.max(x_end_int - x_start_int).item())
 
@@ -129,8 +129,8 @@ def resize_area(img: torch.Tensor, size: tuple) -> torch.Tensor:
         for dx in range(max_kernel_w):
             # compute the weights for this offset for all output pixels
 
-            y_idx = y_start_int.unsqueeze(1) + dy  
-            x_idx = x_start_int.unsqueeze(0) + dx  
+            y_idx = y_start_int.unsqueeze(1) + dy
+            x_idx = x_start_int.unsqueeze(0) + dx
 
             # clamp indices to image boundaries
             y_idx_clamped = torch.clamp(y_idx, 0, H - 1)
@@ -186,10 +186,10 @@ def recenter(image, border_ratio: float = 0.2):
 
     h = x_max - x_min
     w = y_max - y_min
-    
+
     if h == 0 or w == 0:
         raise ValueError('input image is empty')
-    
+
     desired_size = int(size * (1 - border_ratio))
     scale = desired_size / max(h, w)
 
@@ -213,31 +213,31 @@ def recenter(image, border_ratio: float = 0.2):
     mask = mask * 255
     result = result.clip(0, 255).to(torch.uint8)
     mask = mask.clip(0, 255).to(torch.uint8)
-    
+
     return result
 
 def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711],
                     crop=True, value_range = (-1, 1), border_ratio: float = None, recenter_size: int = 512):
 
     if border_ratio is not None:
-        
+
         image = (image * 255).clamp(0, 255).to(torch.uint8)
         image = [recenter(img, border_ratio = border_ratio) for img in image]
-        
+
         image = torch.stack(image, dim = 0)
         image = resize_cubic(image, size = (recenter_size, recenter_size))
-        
+
         image = image / 255 * 2 - 1
         low, high = value_range
-        
+
         image = (image - low) / (high - low)
         image = image.permute(0, 2, 3, 1)
-    
+
     image = image[:, :, :, :3] if image.shape[3] > 3 else image
-    
+
     mean = torch.tensor(mean, device=image.device, dtype=image.dtype)
     std = torch.tensor(std, device=image.device, dtype=image.dtype)
-    
+
     image = image.movedim(-1, 1)
     if not (image.shape[2] == size and image.shape[3] == size):
         if crop:
@@ -341,7 +341,7 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
                 json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl_336.json")
         else:
             json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl.json")
-    
+
     # Dinov2
     elif 'encoder.layer.39.layer_scale2.lambda1' in sd:
         json_config = os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "image_encoders"), "dino2_giant.json")

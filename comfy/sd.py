@@ -459,11 +459,11 @@ class VAE:
 
                 # better memory estimations
                 self.memory_used_encode = lambda shape, dtype, num_layers = 8, kv_cache_multiplier = 0:\
-                    estimate_memory(shape, dtype, num_layers, kv_cache_multiplier) 
+                    estimate_memory(shape, dtype, num_layers, kv_cache_multiplier)
 
                 self.memory_used_decode = lambda shape, dtype, num_layers = 16, kv_cache_multiplier = 2: \
                     estimate_memory(shape, dtype, num_layers, kv_cache_multiplier)
-                
+
                 self.first_stage_model = comfy.ldm.hunyuan3d.vae.ShapeVAE()
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
 
@@ -1051,7 +1051,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
     if isinstance(sd, dict) and all(k in sd for k in ["model", "vae", "conditioner"]):
         from collections import OrderedDict
         import gc
-        
+
         merged_sd = OrderedDict()
 
         for k, v in sd["model"].items():
