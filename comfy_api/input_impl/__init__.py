@@ -1,7 +1,7 @@
-from .video_types import VideoFromFile, VideoFromComponents
+# This file only exists for backwards compatibility.
+from comfy_api.latest._input_impl import VideoFromFile, VideoFromComponents
 
 __all__ = [
-    # Implementations
     "VideoFromFile",
     "VideoFromComponents",
 ]
