@@ -1202,7 +1202,7 @@ class WAN22(BaseModel):
     def process_timestep(self, timestep, x, denoise_mask=None, **kwargs):
         if denoise_mask is None:
             return timestep
-        temp_ts = (torch.mean(denoise_mask[:, :, :, ::2, ::2], dim=1, keepdim=True) * timestep.view([timestep.shape[0]] + [1] * (denoise_mask.ndim - 1))).reshape(timestep.shape[0], -1)
+        temp_ts = (torch.mean(denoise_mask[:, :, :, :, :], dim=(1, 3, 4), keepdim=True) * timestep.view([timestep.shape[0]] + [1] * (denoise_mask.ndim - 1))).reshape(timestep.shape[0], -1)
         return temp_ts
 
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
