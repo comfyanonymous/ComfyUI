@@ -8,10 +8,10 @@ from typing import Optional
 from comfy.comfy_types.node_typing import IO, ComfyNodeABC
 from comfy_api.input_impl.video_types import VideoFromFile
 from comfy_api_nodes.apis import (
-    Veo2GenVidRequest,
-    Veo2GenVidResponse,
-    Veo2GenVidPollRequest,
-    Veo2GenVidPollResponse
+    VeoGenVidRequest,
+    VeoGenVidResponse,
+    VeoGenVidPollRequest,
+    VeoGenVidPollResponse
 )
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
@@ -35,7 +35,7 @@ def convert_image_to_base64(image: torch.Tensor):
     return tensor_to_base64_string(scaled_image)
 
 
-def get_video_url_from_response(poll_response: Veo2GenVidPollResponse) -> Optional[str]:
+def get_video_url_from_response(poll_response: VeoGenVidPollResponse) -> Optional[str]:
     if (
         poll_response.response
         and hasattr(poll_response.response, "videos")
@@ -52,11 +52,10 @@ def get_video_url_from_response(poll_response: Veo2GenVidPollResponse) -> Option
 
 class VeoVideoGenerationNode(ComfyNodeABC):
     """
-    Generates videos from text prompts using Google's Veo API.
+    Generates videos from text prompts using Google's Veo 2 API.
 
     Supported models:
     - veo-2.0-generate-001
-    - veo-3.0-generate-preview
 
     This node can create videos from text descriptions and optional image inputs,
     with control over parameters like aspect ratio, duration, and more.
@@ -137,9 +136,9 @@ class VeoVideoGenerationNode(ComfyNodeABC):
                 "model": (
                     IO.COMBO,
                     {
-                        "options": ["veo-2.0-generate-001", "veo-3.0-generate-preview"],
+                        "options": ["veo-2.0-generate-001"],
                         "default": "veo-2.0-generate-001",
-                        "tooltip": "Model to use for video generation. Defaults to veo 2.0",
+                        "tooltip": "Veo 2 model to use for video generation",
                     },
                 ),
             },
@@ -153,7 +152,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
     RETURN_TYPES = (IO.VIDEO,)
     FUNCTION = "generate_video"
     CATEGORY = "api node/video/Veo"
-    DESCRIPTION = "Generates videos from text prompts using Google's Veo API"
+    DESCRIPTION = "Generates videos from text prompts using Google's Veo 2 API"
     API_NODE = True
 
     def generate_video(
@@ -167,6 +166,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         seed=0,
         image=None,
         model="veo-2.0-generate-001",
+        generate_audio=False,
         unique_id: Optional[str] = None,
         **kwargs,
     ):
@@ -201,16 +201,19 @@ class VeoVideoGenerationNode(ComfyNodeABC):
             parameters["negativePrompt"] = negative_prompt
         if seed > 0:
             parameters["seed"] = seed
+        # Only add generateAudio for Veo 3 models
+        if "veo-3.0" in model:
+            parameters["generateAudio"] = generate_audio
 
         # Initial request to start video generation
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=f"/proxy/veo/{model}/generate",
                 method=HttpMethod.POST,
-                request_model=Veo2GenVidRequest,
-                response_model=Veo2GenVidResponse
+                request_model=VeoGenVidRequest,
+                response_model=VeoGenVidResponse
             ),
-            request=Veo2GenVidRequest(
+            request=VeoGenVidRequest(
                 instances=instances,
                 parameters=parameters
             ),
@@ -238,14 +241,14 @@ class VeoVideoGenerationNode(ComfyNodeABC):
             poll_endpoint=ApiEndpoint(
                 path=f"/proxy/veo/{model}/poll",
                 method=HttpMethod.POST,
-                request_model=Veo2GenVidPollRequest,
-                response_model=Veo2GenVidPollResponse
+                request_model=VeoGenVidPollRequest,
+                response_model=VeoGenVidPollResponse
             ),
             completed_statuses=["completed"],
             failed_statuses=[],  # No failed statuses, we'll handle errors after polling
             status_extractor=status_extractor,
             progress_extractor=progress_extractor,
-            request=Veo2GenVidPollRequest(
+            request=VeoGenVidPollRequest(
                 operationName=operation_name
             ),
             auth_kwargs=kwargs,
@@ -311,11 +314,64 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         return (VideoFromFile(video_io),)
 
 
-# Register the node
+class Veo3VideoGenerationNode(VeoVideoGenerationNode):
+    """
+    Generates videos from text prompts using Google's Veo 3 API.
+
+    Supported models:
+    - veo-3.0-generate-001
+    - veo-3.0-fast-generate-001
+
+    This node extends the base Veo node with Veo 3 specific features including
+    audio generation and fixed 8-second duration.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        parent_input = super().INPUT_TYPES()
+
+        # Update model options for Veo 3
+        parent_input["optional"]["model"] = (
+            IO.COMBO,
+            {
+                "options": ["veo-3.0-generate-001", "veo-3.0-fast-generate-001"],
+                "default": "veo-3.0-generate-001",
+                "tooltip": "Veo 3 model to use for video generation",
+            },
+        )
+
+        # Add generateAudio parameter
+        parent_input["optional"]["generate_audio"] = (
+            IO.BOOLEAN,
+            {
+                "default": False,
+                "tooltip": "Generate audio for the video. Supported by all Veo 3 models.",
+            }
+        )
+
+        # Update duration constraints for Veo 3 (only 8 seconds supported)
+        parent_input["optional"]["duration_seconds"] = (
+            IO.INT,
+            {
+                "default": 8,
+                "min": 8,
+                "max": 8,
+                "step": 1,
+                "display": "number",
+                "tooltip": "Duration of the output video in seconds (Veo 3 only supports 8 seconds)",
+            },
+        )
+
+        return parent_input
+
+
+# Register the nodes
 NODE_CLASS_MAPPINGS = {
     "VeoVideoGenerationNode": VeoVideoGenerationNode,
+    "Veo3VideoGenerationNode": Veo3VideoGenerationNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "VeoVideoGenerationNode": "Google Veo Video Generation",
+    "VeoVideoGenerationNode": "Google Veo 2 Video Generation",
+    "Veo3VideoGenerationNode": "Google Veo 3 Video Generation",
 }
