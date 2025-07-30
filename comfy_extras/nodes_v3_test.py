@@ -2,9 +2,7 @@ import torch
 import time
 from comfy_api.latest import io, ui, _io
 import logging  # noqa
-import folder_paths
 import comfy.utils
-import comfy.sd
 import asyncio
 
 @io.comfytype(io_type="XYZ")
