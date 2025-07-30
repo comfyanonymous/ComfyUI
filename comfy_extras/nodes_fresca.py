@@ -71,8 +71,11 @@ class FreSca:
     DESCRIPTION = "Applies frequency-dependent scaling to the guidance"
     def patch(self, model, scale_low, scale_high, freq_cutoff):
         def custom_cfg_function(args):
-            cond = args["conds_out"][0]
-            uncond = args["conds_out"][1]
+            conds_out = args["conds_out"]
+            if len(conds_out) <= 1 or None in args["conds"][:2]:
+                return conds_out
+            cond = conds_out[0]
+            uncond = conds_out[1]
 
             guidance = cond - uncond
             filtered_guidance = Fourier_filter(
@@ -83,7 +86,7 @@ class FreSca:
             )
             filtered_cond = filtered_guidance + uncond
 
-            return [filtered_cond, uncond]
+            return [filtered_cond, uncond] + conds_out[2:]
 
         m = model.clone()
         m.set_model_sampler_pre_cfg_function(custom_cfg_function)

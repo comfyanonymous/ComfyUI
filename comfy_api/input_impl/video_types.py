@@ -64,6 +64,15 @@ class VideoFromFile(VideoInput):
         """
         self.__file = file
 
+    def get_stream_source(self) -> str | io.BytesIO:
+        """
+        Return the underlying file source for efficient streaming.
+        This avoids unnecessary memory copies when the source is already a file path.
+        """
+        if isinstance(self.__file, io.BytesIO):
+            self.__file.seek(0)
+        return self.__file
+
     def get_dimensions(self) -> tuple[int, int]:
         """
         Returns the dimensions of the video input.
@@ -111,6 +120,18 @@ class VideoFromFile(VideoInput):
                     return float(frame_count / video_stream.average_rate)
 
         raise ValueError(f"Could not determine duration for file '{self.__file}'")
+
+    def get_container_format(self) -> str:
+        """
+        Returns the container format of the video (e.g., 'mp4', 'mov', 'avi').
+
+        Returns:
+            Container format as string
+        """
+        if isinstance(self.__file, io.BytesIO):
+            self.__file.seek(0)
+        with av.open(self.__file, mode='r') as container:
+            return container.format.name
 
     def get_components_internal(self, container: InputContainer) -> VideoComponents:
         # Get video frames
