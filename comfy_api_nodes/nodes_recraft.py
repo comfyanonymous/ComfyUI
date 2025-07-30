@@ -2,7 +2,6 @@ from __future__ import annotations
 from inspect import cleandoc
 from typing import Optional
 from comfy.utils import ProgressBar
-from comfy_extras.nodes_images import SVG # Added
 from comfy.comfy_types.node_typing import IO
 from comfy_api_nodes.apis.recraft_api import (
     RecraftImageGenerationRequest,
@@ -35,6 +34,7 @@ from server import PromptServer
 import torch
 from io import BytesIO
 from PIL import UnidentifiedImageError
+from comfy_api.latest import io
 
 
 def handle_recraft_file_request(
@@ -833,7 +833,7 @@ class RecraftTextToVectorNode:
                 )
             svg_data.append(download_url_to_bytesio(data.url, timeout=1024))
 
-        return (SVG(svg_data),)
+        return (io.SVG.Data(svg_data),)
 
 
 class RecraftVectorizeImageNode:
@@ -875,10 +875,10 @@ class RecraftVectorizeImageNode:
                 path="/proxy/recraft/images/vectorize",
                 auth_kwargs=kwargs,
             )
-            svgs.append(SVG(sub_bytes))
+            svgs.append(io.SVG.Data(sub_bytes))
             pbar.update(1)
 
-        return (SVG.combine_all(svgs), )
+        return (io.SVG.combine_all(svgs), )
 
 
 class RecraftReplaceBackgroundNode:

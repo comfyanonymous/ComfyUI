@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from collections import Counter
 from dataclasses import asdict, dataclass
 from enum import Enum
+from io import BytesIO
 from typing import Any, Callable, Literal, TypedDict, TypeVar
 
 # used for type hinting
@@ -27,7 +28,6 @@ from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classpr
 from comfy_api.latest._resources import Resources, ResourcesLocal
 from comfy_execution.graph import ExecutionBlocker
 
-# from comfy_extras.nodes_images import SVG as SVG_ # NOTE: needs to be moved before can be imported due to circular reference
 
 class FolderType(str, Enum):
     input = "input"
@@ -605,9 +605,24 @@ class Audio(ComfyTypeIO):
 class Video(ComfyTypeIO):
     Type = VideoInput
 
+
 @comfytype(io_type="SVG")
 class SVG(ComfyTypeIO):
-    Type = Any # TODO: SVG class is defined in comfy_extras/nodes_images.py, causing circular reference; should be moved to somewhere else before referenced directly in v3
+    class Data:
+        """Stores SVG representations via a list of BytesIO objects."""
+
+        def __init__(self, data: list[BytesIO]):
+            self.data = data
+
+    @staticmethod
+    def combine_all(svgs: list['SVG.Data']) -> 'SVG.Data':
+        all_svgs_list: list[BytesIO] = []
+        for svg_item in svgs:
+            all_svgs_list.extend(svg_item.data)
+        return SVG.Data(all_svgs_list)
+
+    Type = Data
+
 
 @comfytype(io_type="LORA_MODEL")
 class LoraModel(ComfyTypeIO):
