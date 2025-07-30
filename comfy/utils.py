@@ -27,6 +27,7 @@ from PIL import Image
 import logging
 import itertools
 from torch.nn.functional import interpolate
+from torch.nn import DataParallel
 from einops import rearrange
 from comfy.cli_args import args
 
@@ -898,20 +899,29 @@ def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
     return rows * cols
 
 @torch.inference_mode()
-def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_amount=4, out_channels=3, output_device="cpu", downscale=False, index_formulas=None, pbar=None):
+def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_amount=4,
+                         out_channels=3, output_device="cpu", downscale=False,
+                         index_formulas=None, pbar=None):
     dims = len(tile)
-
-    if not (isinstance(upscale_amount, (tuple, list))):
+    if not isinstance(upscale_amount, (tuple, list)):
         upscale_amount = [upscale_amount] * dims
-
-    if not (isinstance(overlap, (tuple, list))):
+    if not isinstance(overlap, (tuple, list)):
         overlap = [overlap] * dims
-
     if index_formulas is None:
         index_formulas = upscale_amount
-
-    if not (isinstance(index_formulas, (tuple, list))):
+    if not isinstance(index_formulas, (tuple, list)):
         index_formulas = [index_formulas] * dims
+
+    def pad_to_size(tensor, target_size):
+        c, h, w = tensor.shape[-3:]
+        pad_h = max(target_size[0] - h, 0)
+        pad_w = max(target_size[1] - w, 0)
+        if pad_h == 0 and pad_w == 0:
+            return tensor, (0, 0, 0, 0)  # (left, right, top, bottom)
+
+        padding = [0, pad_w, 0, pad_h]  # [left, right, top, bottom]
+        padded = torch.nn.functional.pad(tensor, padding, mode='constant', value=0)
+        return padded, (0, pad_w, 0, pad_h)  # 明确返回 (left, right, top, bottom)
 
     def get_upscale(dim, val):
         up = upscale_amount[dim]
@@ -954,58 +964,137 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
             out.append(round(get_scale(i, a[i])))
         return out
 
-    output = torch.empty([samples.shape[0], out_channels] + mult_list_upscale(samples.shape[2:]), device=output_device)
+    output = torch.empty([samples.shape[0], out_channels] + mult_list_upscale(samples.shape[2:]),
+                         device=output_device)
+    is_data_parallel = isinstance(function, DataParallel)
 
     for b in range(samples.shape[0]):
-        s = samples[b:b+1]
+        s = samples[b:b + 1]
+        if all(s.shape[d + 2] <= tile[d] for d in range(dims)):
+            with torch.no_grad():
+                output[b:b + 1] = function(s).to(output_device)
+                if pbar is not None:
+                    pbar.update(1)
+                continue
 
-        # handle entire input fitting in a single tile
-        if all(s.shape[d+2] <= tile[d] for d in range(dims)):
-            output[b:b+1] = function(s).to(output_device)
-            if pbar is not None:
-                pbar.update(1)
-            continue
+        out = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]),
+                          device=output_device)
+        out_div = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]),
+                              device=output_device)
 
-        out = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
-        out_div = torch.zeros([s.shape[0], out_channels] + mult_list_upscale(s.shape[2:]), device=output_device)
+        positions = [range(0, s.shape[d + 2] - overlap[d], tile[d] - overlap[d])
+                     if s.shape[d + 2] > tile[d] else [0] for d in range(dims)]
+        all_positions = list(itertools.product(*positions))
 
-        positions = [range(0, s.shape[d+2] - overlap[d], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
+        if is_data_parallel:
+            target_tile_size = (tile[0], tile[1])  # H, W
 
-        for it in itertools.product(*positions):
-            s_in = s
-            upscaled = []
+            tile_inputs = []
+            positions_list = []
+            pad_info_list = []
 
-            for d in range(dims):
-                pos = max(0, min(s.shape[d + 2] - overlap[d], it[d]))
-                l = min(tile[d], s.shape[d + 2] - pos)
-                s_in = s_in.narrow(d + 2, pos, l)
-                upscaled.append(round(get_pos(d, pos)))
+            for it in all_positions:
+                s_in = s
+                upscaled = []
+                for d in range(dims):
+                    pos = max(0, min(s.shape[d + 2] - overlap[d], it[d]))
+                    l = min(tile[d], s.shape[d + 2] - pos)
+                    s_in = s_in.narrow(d + 2, pos, l)
+                    upscaled.append(round(get_pos(d, pos)))
 
-            ps = function(s_in).to(output_device)
-            mask = torch.ones_like(ps)
+                padded_s_in, pad_info = pad_to_size(s_in, target_tile_size)
+                tile_inputs.append(padded_s_in)
+                positions_list.append(upscaled)
+                pad_info_list.append(pad_info)
 
-            for d in range(2, dims + 2):
-                feather = round(get_scale(d - 2, overlap[d - 2]))
-                if feather >= mask.shape[d]:
-                    continue
-                for t in range(feather):
-                    a = (t + 1) / feather
-                    mask.narrow(d, t, 1).mul_(a)
-                    mask.narrow(d, mask.shape[d] - 1 - t, 1).mul_(a)
+            with torch.amp.autocast(device_type='cuda', enabled=(samples.device.type == 'cuda')):
+                batched_input = torch.cat(tile_inputs, dim=0)
+                batched_output = function(batched_input).to(output_device)
 
-            o = out
-            o_d = out_div
-            for d in range(dims):
-                o = o.narrow(d + 2, upscaled[d], mask.shape[d + 2])
-                o_d = o_d.narrow(d + 2, upscaled[d], mask.shape[d + 2])
+            for idx, upscaled in enumerate(positions_list):
+                ps = batched_output[idx:idx+1]
+                left_pad, right_pad, top_pad, bottom_pad = pad_info_list[idx]
 
-            o.add_(ps * mask)
-            o_d.add_(mask)
+                if any(x > 0 for x in (left_pad, right_pad, top_pad, bottom_pad)):
+                    ps = ps[...,
+                          top_pad:ps.shape[-2] - bottom_pad,
+                          left_pad:ps.shape[-1] - right_pad]
 
-            if pbar is not None:
-                pbar.update(1)
+                mask = torch.ones_like(ps)
 
-        output[b:b+1] = out/out_div
+                for d in range(2, dims + 2):
+                    feather = round(get_scale(d - 2, overlap[d - 2]))
+                    if feather >= mask.shape[d]:
+                        continue
+                    for t in range(feather):
+                        a = (t + 1) / feather
+                        mask.narrow(d, t, 1).mul_(a)
+                        mask.narrow(d, mask.shape[d] - 1 - t, 1).mul_(a)
+                o = out
+                o_d = out_div
+                ps_cropped = ps
+
+                for d in range(dims):
+                    dim_size = o.shape[d + 2]
+                    start = upscaled[d]
+                    length = mask.shape[d + 2]
+
+                    if start + length > dim_size:
+                        length = dim_size - start
+                        if length <= 0:
+                            continue
+                        o = o.narrow(d + 2, start, length)
+                        o_d = o_d.narrow(d + 2, start, length)
+                        ps_cropped = ps_cropped.narrow(d + 2, 0, length)
+                        mask = mask.narrow(d + 2, 0, length)
+                    else:
+                        o = o.narrow(d + 2, start, length)
+                        o_d = o_d.narrow(d + 2, start, length)
+
+                o.add_(ps_cropped * mask)
+                o_d.add_(mask)
+
+                if pbar is not None:
+                    pbar.update(1)
+
+            output[b:b + 1] = out / out_div
+        else:
+            for it in all_positions:
+                s_in = s
+                upscaled = []
+                for d in range(dims):
+                    pos = max(0, min(s.shape[d + 2] - overlap[d], it[d]))
+                    l = min(tile[d], s.shape[d + 2] - pos)
+                    s_in = s_in.narrow(d + 2, pos, l)
+                    upscaled.append(round(get_pos(d, pos)))
+
+                with torch.amp.autocast(device_type='cuda', enabled=(samples.device.type == 'cuda')):
+                    ps = function(s_in).to(output_device)
+
+                mask = torch.ones_like(ps)
+
+                for d in range(2, dims + 2):
+                    feather = round(get_scale(d - 2, overlap[d - 2]))
+                    if feather >= mask.shape[d]:
+                        continue
+                    for t in range(feather):
+                        a = (t + 1) / feather
+                        mask.narrow(d, t, 1).mul_(a)
+                        mask.narrow(d, mask.shape[d] - 1 - t, 1).mul_(a)
+
+                o = out
+                o_d = out_div
+                for d in range(dims):
+                    o = o.narrow(d + 2, upscaled[d], mask.shape[d + 2])
+                    o_d = o_d.narrow(d + 2, upscaled[d], mask.shape[d + 2])
+
+                o.add_(ps * mask)
+                o_d.add_(mask)
+
+                if pbar is not None:
+                    pbar.update(1)
+            output[b:b + 1] = out / out_div
+
     return output
 
 def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
