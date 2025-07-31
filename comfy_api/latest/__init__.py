@@ -10,7 +10,7 @@ from comfy_api.latest._input_impl import VideoFromFile, VideoFromComponents
 from comfy_api.latest._util import VideoCodec, VideoContainer, VideoComponents
 from comfy_api.latest._io import _IO as io  #noqa: F401
 from comfy_api.latest._ui import _UI as ui  #noqa: F401
-from comfy_api.latest._resources import _RESOURCES as resources  #noqa: F401
+# from comfy_api.latest._resources import _RESOURCES as resources  #noqa: F401
 from comfy_execution.utils import get_executing_context
 from comfy_execution.progress import get_progress_state, PreviewImageTuple
 from PIL import Image

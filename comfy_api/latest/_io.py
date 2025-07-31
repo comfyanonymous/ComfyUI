@@ -6,26 +6,27 @@ from abc import ABC, abstractmethod
 from collections import Counter
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any, Callable, Literal, TypedDict, TypeVar
+from typing import Any, Callable, Literal, TypedDict, TypeVar, TYPE_CHECKING
+from typing_extensions import NotRequired, final
 
 # used for type hinting
 import torch
-from spandrel import ImageModelDescriptor
-from typing_extensions import NotRequired, final
 
-from comfy.clip_vision import ClipVisionModel
-from comfy.clip_vision import Output as ClipVisionOutput_
-from comfy.controlnet import ControlNet
-from comfy.hooks import HookGroup, HookKeyframeGroup
-from comfy.model_patcher import ModelPatcher
-from comfy.samplers import CFGGuider, Sampler
-from comfy.sd import CLIP, VAE
-from comfy.sd import StyleModel as StyleModel_
-from comfy_api.input import VideoInput
+if TYPE_CHECKING:
+    from spandrel import ImageModelDescriptor
+    from comfy.clip_vision import ClipVisionModel
+    from comfy.clip_vision import Output as ClipVisionOutput_
+    from comfy.controlnet import ControlNet
+    from comfy.hooks import HookGroup, HookKeyframeGroup
+    from comfy.model_patcher import ModelPatcher
+    from comfy.samplers import CFGGuider, Sampler
+    from comfy.sd import CLIP, VAE
+    from comfy.sd import StyleModel as StyleModel_
+    from comfy_api.input import VideoInput
 from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
 from comfy_api.latest._resources import Resources, ResourcesLocal
-from comfy_execution.graph import ExecutionBlocker
+from comfy_execution.graph_utils import ExecutionBlocker
 
 # from comfy_extras.nodes_images import SVG as SVG_ # NOTE: needs to be moved before can be imported due to circular reference
 
@@ -543,7 +544,8 @@ class Conditioning(ComfyTypeIO):
 
 @comfytype(io_type="SAMPLER")
 class Sampler(ComfyTypeIO):
-    Type = Sampler
+    if TYPE_CHECKING:
+        Type = Sampler
 
 @comfytype(io_type="SIGMAS")
 class Sigmas(ComfyTypeIO):
@@ -555,44 +557,54 @@ class Noise(ComfyTypeIO):
 
 @comfytype(io_type="GUIDER")
 class Guider(ComfyTypeIO):
-    Type = CFGGuider
+    if TYPE_CHECKING:
+        Type = CFGGuider
 
 @comfytype(io_type="CLIP")
 class Clip(ComfyTypeIO):
-    Type = CLIP
+    if TYPE_CHECKING:
+        Type = CLIP
 
 @comfytype(io_type="CONTROL_NET")
 class ControlNet(ComfyTypeIO):
-    Type = ControlNet
+    if TYPE_CHECKING:
+        Type = ControlNet
 
 @comfytype(io_type="VAE")
 class Vae(ComfyTypeIO):
-    Type = VAE
+    if TYPE_CHECKING:
+        Type = VAE
 
 @comfytype(io_type="MODEL")
 class Model(ComfyTypeIO):
-    Type = ModelPatcher
+    if TYPE_CHECKING:
+        Type = ModelPatcher
 
 @comfytype(io_type="CLIP_VISION")
 class ClipVision(ComfyTypeIO):
-    Type = ClipVisionModel
+    if TYPE_CHECKING:
+        Type = ClipVisionModel
 
 @comfytype(io_type="CLIP_VISION_OUTPUT")
 class ClipVisionOutput(ComfyTypeIO):
-    Type = ClipVisionOutput_
+    if TYPE_CHECKING:
+        Type = ClipVisionOutput_
 
 @comfytype(io_type="STYLE_MODEL")
 class StyleModel(ComfyTypeIO):
-    Type = StyleModel_
+    if TYPE_CHECKING:
+        Type = StyleModel_
 
 @comfytype(io_type="GLIGEN")
 class Gligen(ComfyTypeIO):
     '''ModelPatcher that wraps around a 'Gligen' model.'''
-    Type = ModelPatcher
+    if TYPE_CHECKING:
+        Type = ModelPatcher
 
 @comfytype(io_type="UPSCALE_MODEL")
 class UpscaleModel(ComfyTypeIO):
-    Type = ImageModelDescriptor
+    if TYPE_CHECKING:
+        Type = ImageModelDescriptor
 
 @comfytype(io_type="AUDIO")
 class Audio(ComfyTypeIO):
@@ -603,7 +615,8 @@ class Audio(ComfyTypeIO):
 
 @comfytype(io_type="VIDEO")
 class Video(ComfyTypeIO):
-    Type = VideoInput
+    if TYPE_CHECKING:
+        Type = VideoInput
 
 @comfytype(io_type="SVG")
 class SVG(ComfyTypeIO):
@@ -629,11 +642,13 @@ class Mesh(ComfyTypeIO):
 
 @comfytype(io_type="HOOKS")
 class Hooks(ComfyTypeIO):
-    Type = HookGroup
+    if TYPE_CHECKING:
+        Type = HookGroup
 
 @comfytype(io_type="HOOK_KEYFRAMES")
 class HookKeyframes(ComfyTypeIO):
-    Type = HookKeyframeGroup
+    if TYPE_CHECKING:
+        Type = HookKeyframeGroup
 
 @comfytype(io_type="TIMESTEPS_RANGE")
 class TimestepsRange(ComfyTypeIO):
