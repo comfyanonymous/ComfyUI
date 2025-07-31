@@ -36,7 +36,7 @@ def get_timestep_embedding(timesteps, embedding_dim):
 
 def nonlinearity(x):
     # swish
-    return x*torch.sigmoid(x)
+    return torch.nn.functional.silu(x)
 
 
 def Normalize(in_channels, num_groups=32):

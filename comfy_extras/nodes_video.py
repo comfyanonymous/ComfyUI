@@ -8,9 +8,7 @@ import json
 from typing import Optional, Literal
 from fractions import Fraction
 from comfy.comfy_types import IO, FileLocator, ComfyNodeABC
-from comfy_api.input import ImageInput, AudioInput, VideoInput
-from comfy_api.util import VideoContainer, VideoCodec, VideoComponents
-from comfy_api.input_impl import VideoFromFile, VideoFromComponents
+from comfy_api.latest import Input, InputImpl, Types
 from comfy.cli_args import args
 
 class SaveWEBM:
@@ -91,8 +89,8 @@ class SaveVideo(ComfyNodeABC):
             "required": {
                 "video": (IO.VIDEO, {"tooltip": "The video to save."}),
                 "filename_prefix": ("STRING", {"default": "video/ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."}),
-                "format": (VideoContainer.as_input(), {"default": "auto", "tooltip": "The format to save the video as."}),
-                "codec": (VideoCodec.as_input(), {"default": "auto", "tooltip": "The codec to use for the video."}),
+                "format": (Types.VideoContainer.as_input(), {"default": "auto", "tooltip": "The format to save the video as."}),
+                "codec": (Types.VideoCodec.as_input(), {"default": "auto", "tooltip": "The codec to use for the video."}),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -108,7 +106,7 @@ class SaveVideo(ComfyNodeABC):
     CATEGORY = "image/video"
     DESCRIPTION = "Saves the input images to your ComfyUI output directory."
 
-    def save_video(self, video: VideoInput, filename_prefix, format, codec, prompt=None, extra_pnginfo=None):
+    def save_video(self, video: Input.Video, filename_prefix, format, codec, prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         width, height = video.get_dimensions()
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
@@ -127,7 +125,7 @@ class SaveVideo(ComfyNodeABC):
                 metadata["prompt"] = prompt
             if len(metadata) > 0:
                 saved_metadata = metadata
-        file = f"{filename}_{counter:05}_.{VideoContainer.get_extension(format)}"
+        file = f"{filename}_{counter:05}_.{Types.VideoContainer.get_extension(format)}"
         video.save_to(
             os.path.join(full_output_folder, file),
             format=format,
@@ -163,9 +161,9 @@ class CreateVideo(ComfyNodeABC):
     CATEGORY = "image/video"
     DESCRIPTION = "Create a video from images."
 
-    def create_video(self, images: ImageInput, fps: float, audio: Optional[AudioInput] = None):
-        return (VideoFromComponents(
-            VideoComponents(
+    def create_video(self, images: Input.Image, fps: float, audio: Optional[Input.Audio] = None):
+        return (InputImpl.VideoFromComponents(
+            Types.VideoComponents(
             images=images,
             audio=audio,
             frame_rate=Fraction(fps),
@@ -187,7 +185,7 @@ class GetVideoComponents(ComfyNodeABC):
     CATEGORY = "image/video"
     DESCRIPTION = "Extracts all components from a video: frames, audio, and framerate."
 
-    def get_components(self, video: VideoInput):
+    def get_components(self, video: Input.Video):
         components = video.get_components()
 
         return (components.images, components.audio, float(components.frame_rate))
@@ -208,7 +206,7 @@ class LoadVideo(ComfyNodeABC):
     FUNCTION = "load_video"
     def load_video(self, file):
         video_path = folder_paths.get_annotated_filepath(file)
-        return (VideoFromFile(video_path),)
+        return (InputImpl.VideoFromFile(video_path),)
 
     @classmethod
     def IS_CHANGED(cls, file):
@@ -239,3 +237,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GetVideoComponents": "Get Video Components",
     "LoadVideo": "Load Video",
 }
+

@@ -463,6 +463,25 @@ class TestParallelSleep(ComfyNodeABC):
             "expand": g.finalize(),
         }
 
+class TestOutputNodeWithSocketOutput:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "value": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0}),
+            },
+        }
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "process"
+    CATEGORY = "_for_testing"
+    OUTPUT_NODE = True
+
+    def process(self, image, value):
+        # Apply value scaling and return both as output and socket
+        result = image * value
+        return (result,)
+
 TEST_NODE_CLASS_MAPPINGS = {
     "TestLazyMixImages": TestLazyMixImages,
     "TestVariadicAverage": TestVariadicAverage,
@@ -478,6 +497,7 @@ TEST_NODE_CLASS_MAPPINGS = {
     "TestSamplingInExpansion": TestSamplingInExpansion,
     "TestSleep": TestSleep,
     "TestParallelSleep": TestParallelSleep,
+    "TestOutputNodeWithSocketOutput": TestOutputNodeWithSocketOutput,
 }
 
 TEST_NODE_DISPLAY_NAME_MAPPINGS = {
@@ -495,4 +515,5 @@ TEST_NODE_DISPLAY_NAME_MAPPINGS = {
     "TestSamplingInExpansion": "Sampling In Expansion",
     "TestSleep": "Test Sleep",
     "TestParallelSleep": "Test Parallel Sleep",
+    "TestOutputNodeWithSocketOutput": "Test Output Node With Socket Output",
 }
