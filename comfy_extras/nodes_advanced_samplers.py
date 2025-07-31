@@ -1,5 +1,6 @@
 import comfy.samplers
 import comfy.utils
+from comfy.k_diffusion.sampling import default_noise_sampler
 import torch
 import numpy as np
 from tqdm.auto import trange
@@ -54,6 +55,70 @@ class SamplerLCMUpscale:
             scale_steps = None
         sampler = comfy.samplers.KSAMPLER(sample_lcm_upscale, extra_options={"total_upscale": scale_ratio, "upscale_steps": scale_steps, "upscale_method": upscale_method})
         return (sampler, )
+    
+
+@torch.no_grad()
+def sample_lcm_scalewise(model, x, sigmas, extra_args=None, callback=None, disable=None, upscales=None, upscale_method="bicubic"):
+    extra_args = {} if extra_args is None else extra_args
+    seed = extra_args.get("seed", None)
+
+    if upscales is not None:
+        # Resolution is increased on each step except the last one
+        assert len(upscales) == len(sigmas) - 2
+   
+    orig_shape = x.size()
+    s_in = x.new_ones([x.shape[0]])
+    for i in trange(len(sigmas) - 1, disable=disable):
+        denoised = model(x, sigmas[i] * s_in, **extra_args)
+        if callback is not None:
+            callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+
+        x = denoised
+        if i < len(upscales):
+            x = comfy.utils.common_upscale(x, round(orig_shape[-1] * upscales[i]), round(orig_shape[-2] * upscales[i]), upscale_method, "disabled")
+
+        if sigmas[i + 1] > 0:
+            # Since the size of noise if changing, noise_sampler has to be redefined each time
+            noise_sampler = default_noise_sampler(x, seed=seed)
+            # Noise using the model's scheduler
+            x = model.inner_model.inner_model.model_sampling.noise_scaling(sigmas[i + 1], noise_sampler(sigmas[i], sigmas[i + 1]), x)
+    return x
+
+
+class SamplerLCMScalewise:
+    upscale_methods = ["bicubic", "bilinear", "nearest-exact"]
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required":
+            {
+                "upscales": ("STRING", {"default": ""}),
+                "upscale_method": (s.upscale_methods,),
+            }
+        }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def _validate_upscales(self, upscales):
+        if not upscales:
+            return
+        
+        for i in range(1, len(upscales)):
+            if upscales[i] < upscales[i-1]:
+                raise ValueError("`upscales` is expected to be non-decreasing sequence of numbers")
+
+    def get_sampler(self, upscales, upscale_method):
+        # Turn comma-separated list into string
+        upscales = [float(value) for value in upscales.split(',')]
+        self._validate_upscales(upscales)
+        if len(upscales) == 0:
+            upscales = None
+        sampler = comfy.samplers.KSAMPLER(sample_lcm_scalewise, extra_options={"upscales": upscales, "upscale_method": upscale_method})
+        return (sampler, )
+
 
 from comfy.k_diffusion.sampling import to_d
 import comfy.model_patcher
@@ -103,6 +168,7 @@ class SamplerEulerCFGpp:
 
 NODE_CLASS_MAPPINGS = {
     "SamplerLCMUpscale": SamplerLCMUpscale,
+    "SamplerLCMScalewise": SamplerLCMScalewise,
     "SamplerEulerCFGpp": SamplerEulerCFGpp,
 }
 
