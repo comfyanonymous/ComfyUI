@@ -7,7 +7,7 @@ import subprocess
 
 from pytest import fixture
 from comfy_execution.graph_utils import GraphBuilder
-from tests.inference.test_execution import ComfyClient
+from tests.inference.test_execution import ComfyClient, run_warmup
 
 
 @pytest.mark.execution
@@ -24,6 +24,7 @@ class TestAsyncNodes:
             '--listen', args_pytest["listen"],
             '--port', str(args_pytest["port"]),
             '--extra-model-paths-config', 'tests/inference/extra_model_paths.yaml',
+            '--cpu',
         ]
         use_lru, lru_size = request.param
         if use_lru:
@@ -82,6 +83,9 @@ class TestAsyncNodes:
 
     def test_multiple_async_parallel_execution(self, client: ComfyClient, builder: GraphBuilder):
         """Test that multiple async nodes execute in parallel."""
+        # Warmup execution to ensure server is fully initialized
+        run_warmup(client)
+
         g = builder
         image = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
 
@@ -148,6 +152,9 @@ class TestAsyncNodes:
 
     def test_async_lazy_evaluation(self, client: ComfyClient, builder: GraphBuilder):
         """Test async nodes with lazy evaluation."""
+        # Warmup execution to ensure server is fully initialized
+        run_warmup(client, prefix="warmup_lazy")
+
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         input2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
@@ -305,6 +312,9 @@ class TestAsyncNodes:
 
     def test_async_caching_behavior(self, client: ComfyClient, builder: GraphBuilder):
         """Test that async nodes are properly cached."""
+        # Warmup execution to ensure server is fully initialized
+        run_warmup(client, prefix="warmup_cache")
+
         g = builder
         image = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         sleep_node = g.node("TestSleep", value=image.out(0), seconds=0.2)
@@ -324,6 +334,9 @@ class TestAsyncNodes:
 
     def test_async_with_dynamic_prompts(self, client: ComfyClient, builder: GraphBuilder):
         """Test async nodes within dynamically generated prompts."""
+        # Warmup execution to ensure server is fully initialized
+        run_warmup(client, prefix="warmup_dynamic")
+
         g = builder
         image1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         image2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
