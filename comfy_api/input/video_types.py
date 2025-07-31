@@ -19,6 +19,21 @@ class VideoInput(ABC):
         pass
 
     @abstractmethod
+    def get_video_data(
+        self,
+        format: VideoContainer = VideoContainer.AUTO,
+        codec: VideoCodec = VideoCodec.AUTO,
+        metadata: Optional[dict] = None
+    ) -> bytes:
+        """
+        Abstract method to get the video data as bytes.
+
+        Returns:
+            Video data as bytes
+        """
+        pass
+
+    @abstractmethod
     def save_to(
         self,
         path: str,

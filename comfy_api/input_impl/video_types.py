@@ -159,6 +159,16 @@ class VideoFromFile(VideoInput):
             return self.get_components_internal(container)
         raise ValueError(f"No video stream found in file '{self.__file}'")
 
+    def get_video_data(
+        self,
+        format: VideoContainer = VideoContainer.AUTO,
+        codec: VideoCodec = VideoCodec.AUTO,
+        metadata: Optional[dict] = None
+    ) -> bytes:
+        buffer = io.BytesIO()
+        self.save_to(buffer, format, codec, metadata)
+        return buffer.getvalue()
+
     def save_to(
         self,
         path: str | io.BytesIO,
@@ -218,6 +228,15 @@ class VideoFromFile(VideoInput):
                         output_container.mux(packet)
 
 class VideoFromComponents(VideoInput):
+    def get_video_data(
+        self,
+        format: VideoContainer = VideoContainer.AUTO,
+        codec: VideoCodec = VideoCodec.AUTO,
+        metadata: Optional[dict] = None
+    ) -> bytes:
+        buffer = io.BytesIO()
+        self.save_to(buffer, format, codec, metadata)
+        return buffer.getvalue()
     """
     Class representing video input from tensors.
     """
@@ -234,7 +253,7 @@ class VideoFromComponents(VideoInput):
 
     def save_to(
         self,
-        path: str,
+        path: str | io.BytesIO,
         format: VideoContainer = VideoContainer.AUTO,
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None

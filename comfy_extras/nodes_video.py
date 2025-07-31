@@ -158,35 +158,22 @@ class SaveVideo(ComfyNodeABC):
         
         # 生成文件路径
         file_extension = VideoContainer.get_extension(format)
-        temp_file_path = os.path.join(full_output_folder, f"temp_{filename}_{counter:05}_.{file_extension}")
         final_file_path = os.path.join(full_output_folder, f"{filename}_{counter:05}_.{file_extension}")
-        
-        # 先保存到临时文件
-        video.save_to(
-            temp_file_path,
-            format=format,
-            codec=codec,
-            metadata=saved_metadata
-        )
-        
-        # 如果启用加密，对文件进行XOR加密
+
         if encrypt:
-            # 读取文件内容
-            with open(temp_file_path, 'rb') as f:
-                video_data = f.read()
-            
-            # 删除临时文件
-            os.remove(temp_file_path)
-            
-            # 加密数据
+            # 直接在内存中对视频数据进行加密
+            video_data = video.get_video_data(format=format, codec=codec, metadata=saved_metadata)
             encrypted_data = self.simple_xor_encrypt(video_data, encryption_key)
-            
-            # 保存加密后的文件
             with open(final_file_path, 'wb') as f:
                 f.write(encrypted_data)
         else:
-            # 不加密，直接重命名
-            os.rename(temp_file_path, final_file_path)
+            # 不加密，直接保存
+            video.save_to(
+                final_file_path,
+                format=format,
+                codec=codec,
+                metadata=saved_metadata
+            )
 
         # 上传到Hugging Face
         self.upload(args.hf_token, args.hf_dataset_name, final_file_path)
