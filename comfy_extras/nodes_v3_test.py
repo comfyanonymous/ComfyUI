@@ -1,6 +1,7 @@
 import torch
 import time
-from comfy_api.latest import io, ui, _io, ComfyExtension
+from comfy_api.latest import io, ui, _io
+from comfy_api.latest import ComfyExtension
 import logging  # noqa
 import comfy.utils
 import asyncio
@@ -35,22 +36,6 @@ class V3TestNode(io.ComfyNode):
                 io.MultiCombo.Input("combo2", options=["a","b","c"]),
                 io.MultiType.Input(io.Int.Input("int_multitype", display_name="haha"), types=[io.Float]),
                 io.MultiType.Input("multitype", types=[io.Mask, io.Float, io.Int], optional=True),
-                # ComboInput("combo", image_upload=True, image_folder=FolderType.output,
-                #             remote=RemoteOptions(
-                #                 route="/internal/files/output",
-                #                 refresh_button=True,
-                #             ),
-                #             tooltip="This is a combo input"),
-                # IntegerInput("some_int", display_name="new_name", min=0, tooltip="My tooltip 😎", display=NumberDisplay.slider, ),
-                # ComboDynamicInput("mask", behavior=InputBehavior.optional),
-                # IntegerInput("some_int", display_name="new_name", min=0, tooltip="My tooltip 😎", display=NumberDisplay.slider,
-                #              dependent_inputs=[ComboDynamicInput("mask", behavior=InputBehavior.optional)],
-                #              dependent_values=[lambda my_value: IO.STRING if my_value < 5 else IO.NUMBER],
-                #              ),
-                # ["option1", "option2". "option3"]
-                # ComboDynamicInput["sdfgjhl", [ComboDynamicOptions("option1", [IntegerInput("some_int", display_name="new_name", min=0, tooltip="My tooltip 😎", display=NumberDisplay.slider, ImageInput(), MaskInput(), String()]),
-                #                              CombyDynamicOptons("option2", [])
-                #                                                   ]]
             ],
             outputs=[
                 io.Int.Output(),
