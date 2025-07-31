@@ -25,6 +25,11 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/login-action@v3
+        with:
+          registry: nvcr.io
+          username: "$oauthtoken"
+          password: ${{ secrets.NVCR_NGC_TOKEN }}
       - name: Build and push CUDA (NVIDIA) image
         uses: docker/build-push-action@v6
         with:

@@ -630,7 +630,7 @@ class ModelPatcher(ModelManageable):
         # from gguf
         if is_quantized(weight):
             out_weight = weight.to(device_to)
-            patches = move_patch_to_device(self.patches[key], self.load_device if self.patch_on_device else self.offload_device)
+            patches = move_patch_to_device(self.patches[key], self.load_device if self.gguf.patch_on_device else self.offload_device)
             # TODO: do we ever have legitimate duplicate patches? (i.e. patch on top of patched weight)
             out_weight.patches = [(patches, key)]
             if inplace_update:

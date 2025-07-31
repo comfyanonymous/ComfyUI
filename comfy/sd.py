@@ -15,7 +15,6 @@ import yaml
 from . import clip_vision
 from . import diffusers_convert
 from . import gligen
-from . import lora
 from . import model_detection
 from . import model_management
 from . import model_patcher
@@ -37,6 +36,7 @@ from .ldm.lightricks.vae import causal_video_autoencoder as lightricks
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
 from .ldm.wan import vae as wan_vae
 from .ldm.wan import vae2_2 as wan_vae2_2
+from .lora import load_lora, model_lora_keys_unet, model_lora_keys_clip
 from .lora_convert import convert_lora
 from .model_management import load_models_gpu
 from .model_patcher import ModelPatcher
@@ -64,15 +64,15 @@ from .utils import ProgressBar, FileMetadata
 logger = logging.getLogger(__name__)
 
 
-def load_lora_for_models(model, clip, _lora, strength_model, strength_clip):
+def load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_name=None):
     key_map = {}
     if model is not None:
-        key_map = lora.model_lora_keys_unet(model.model, key_map)
+        key_map = model_lora_keys_unet(model.model, key_map)
     if clip is not None:
-        key_map = lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
+        key_map = model_lora_keys_clip(clip.cond_stage_model, key_map)
 
-    _lora = convert_lora(_lora)
-    loaded = lora.load_lora(_lora, key_map)
+    lora = convert_lora(lora)
+    loaded = load_lora(lora, key_map, lora_name=lora_name)
     if model is not None:
         new_modelpatcher: ModelPatcher = model.clone()
         k = new_modelpatcher.add_patches(loaded, strength_model)
@@ -90,7 +90,7 @@ def load_lora_for_models(model, clip, _lora, strength_model, strength_clip):
     k1 = set(k1)
     for x in loaded:
         if (x not in k) and (x not in k1):
-            logger.warning("NOT LOADED {}".format(x))
+            logger.warning(f"[{lora_name}] clip keys not loaded {x}".format(x))
 
     return (new_modelpatcher, new_clip)
 

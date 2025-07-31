@@ -717,7 +717,7 @@ class LoraModelLoader:
         if strength_model == 0:
             return (model, )
 
-        model_lora, _ = comfy.sd.load_lora_for_models(model, None, lora, strength_model, 0)
+        model_lora, _ = comfy.sd.load_lora_for_models(model, None, lora, strength_model, 0, None)
         return (model_lora, )
 
 

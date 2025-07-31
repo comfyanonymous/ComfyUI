@@ -939,16 +939,16 @@ def get_torch_compiler_disable_decorator():
     from packaging import version
 
     if not chained_hasattr(torch, "compiler.disable"):
-        logger.info("ComfyUI-GGUF: Torch too old for torch.compile - bypassing")
+        logger.debug("ComfyUI-GGUF: Torch too old for torch.compile - bypassing")
         return dummy_decorator  # torch too old
     elif version.parse(torch.__version__) >= version.parse("2.8"):
-        logger.info("ComfyUI-GGUF: Allowing full torch compile")
+        logger.debug("ComfyUI-GGUF: Allowing full torch compile")
         return dummy_decorator  # torch compile works
     if chained_hasattr(torch, "_dynamo.config.nontraceable_tensor_subclasses"):
-        logger.info("ComfyUI-GGUF: Allowing full torch compile (nightly)")
+        logger.debug("ComfyUI-GGUF: Allowing full torch compile (nightly)")
         return dummy_decorator  # torch compile works, nightly before 2.8 release
     else:
-        logger.info("ComfyUI-GGUF: Partial torch compile only, consider updating pytorch")
+        logger.debug("ComfyUI-GGUF: Partial torch compile only, consider updating pytorch")
         return torch.compiler.disable
 
 

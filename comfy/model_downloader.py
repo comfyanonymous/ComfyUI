@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from itertools import chain
-from os.path import join
-
 import collections
 import logging
 import operator
@@ -10,6 +7,8 @@ import os
 import shutil
 from collections.abc import Sequence, MutableSequence
 from functools import reduce
+from itertools import chain
+from os.path import join
 from pathlib import Path
 from typing import List, Optional, Final, Set
 
@@ -66,28 +65,38 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
     filename = canonicalize_path(filename)
     path = folder_paths.get_full_path(folder_name, filename)
 
+    candidate_str_match = False
+    candidate_filename_match = False
+    candidate_alternate_filenames_match = False
+    candidate_save_filename_match = False
     if path is None and not args.disable_known_models:
         try:
             # todo: should this be the first or last path?
             this_model_directory = folder_paths.get_folder_paths(folder_name)[0]
             known_file: Optional[HuggingFile | CivitFile] = None
             for candidate in known_files:
-                if (canonicalize_path(str(candidate)) == filename
-                        or canonicalize_path(candidate.filename) == filename
-                        or filename in list(map(canonicalize_path, candidate.alternate_filenames))
-                        or filename == canonicalize_path(candidate.save_with_filename)):
+                candidate_str_match = canonicalize_path(str(candidate)) == filename
+                candidate_filename_match = canonicalize_path(candidate.filename) == filename
+                candidate_alternate_filenames_match = filename in list(map(canonicalize_path, candidate.alternate_filenames))
+                candidate_save_filename_match = filename == canonicalize_path(candidate.save_with_filename)
+                if (candidate_str_match
+                        or candidate_filename_match
+                        or candidate_alternate_filenames_match
+                        or candidate_save_filename_match):
                     known_file = candidate
                     break
             if known_file is None:
+                logger.debug(f"get_or_download could not find {filename} in {folder_name}, known_files={known_files}")
                 return path
             with comfy_tqdm():
                 if isinstance(known_file, HuggingFile):
+                    symlinks_supported = are_symlinks_supported()
                     if known_file.save_with_filename is not None:
                         linked_filename = known_file.save_with_filename
                     elif not known_file.force_save_in_repo_id and os.path.basename(known_file.filename) != known_file.filename:
                         linked_filename = os.path.basename(known_file.filename)
                     else:
-                        linked_filename = None
+                        linked_filename = known_file.filename
 
                     if known_file.force_save_in_repo_id or linked_filename is not None and os.path.dirname(known_file.filename) == "":
                         # if the known file has an overridden linked name, save it into a repo_id sub directory
@@ -112,8 +121,6 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
 
                     cache_hit = False
                     try:
-                        if not are_symlinks_supported():
-                            raise PermissionError("no symlink support")
                         # always retrieve this from the cache if it already exists there
                         path = hf_hub_download(repo_id=known_file.repo_id,
                                                filename=known_file.filename,
@@ -121,19 +128,20 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                                                revision=known_file.revision,
                                                local_files_only=True,
                                                )
-                        logger.info(f"hf_hub_download cache hit for {known_file.repo_id}/{known_file.filename}")
-                        if linked_filename is None:
-                            linked_filename = known_file.filename
+                        logger.debug(f"hf_hub_download cache hit for {known_file.repo_id}/{known_file.filename}")
                         cache_hit = True
-                    except (LocalEntryNotFoundError, PermissionError):
-                        path = hf_hub_download(repo_id=known_file.repo_id,
-                                               filename=known_file.filename,
-                                               local_dir=hf_destination_dir,
-                                               repo_type=known_file.repo_type,
-                                               revision=known_file.revision,
-                                               )
+                    except LocalEntryNotFoundError:
+                        try:
+                            logger.debug(f"{folder_name}/{filename} is being downloaded from {known_file.repo_id}/{known_file.filename} candidate_str_match={candidate_str_match} candidate_filename_match={candidate_filename_match} candidate_alternate_filenames_match={candidate_alternate_filenames_match} candidate_save_filename_match={candidate_save_filename_match}")
+                            path = hf_hub_download(repo_id=known_file.repo_id,
+                                                   filename=known_file.filename,
+                                                   repo_type=known_file.repo_type,
+                                                   revision=known_file.revision,
+                                                   )
+                        except IOError as exc_info:
+                            logger.error(f"cannot reach huggingface {known_file.repo_id}/{known_file.filename}", exc_info=exc_info)
 
-                    if known_file.convert_to_16_bit and file_size is not None and file_size != 0:
+                    if path is not None and known_file.convert_to_16_bit and file_size is not None and file_size != 0:
                         tensors = {}
                         with safe_open(path, framework="pt") as f:
                             with tqdm.tqdm(total=len(f.keys())) as pb:
@@ -151,20 +159,23 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                         logger.info(f"Converted {path} to 16 bit, size is {os.stat(path, follow_symlinks=True).st_size}")
 
                     link_successful = True
-                    if linked_filename is not None:
+                    if path is not None:
                         destination_link = os.path.join(this_model_directory, linked_filename)
-                        try:
-                            os.makedirs(this_model_directory, exist_ok=True)
-                            os.symlink(path, destination_link)
-                        except Exception as exc_info:
-                            logger.error("error while symbolic linking", exc_info=exc_info)
+                        if Path(destination_link).is_file():
+                            logger.warning(f"{known_file.repo_id}/{known_file.filename} could not link to {destination_link} because the path already exists, which is unexpected")
+                        else:
                             try:
-                                os.link(path, destination_link)
-                            except Exception as hard_link_exc:
-                                logger.error("error while hard linking", exc_info=hard_link_exc)
-                                if cache_hit:
-                                    shutil.copyfile(path, destination_link)
-                                link_successful = False
+                                os.makedirs(this_model_directory, exist_ok=True)
+                                os.symlink(path, destination_link)
+                            except Exception as exc_info:
+                                logger.error("error while symbolic linking", exc_info=exc_info)
+                                try:
+                                    os.link(path, destination_link)
+                                except Exception as hard_link_exc:
+                                    logger.error("error while hard linking", exc_info=hard_link_exc)
+                                    if cache_hit:
+                                        shutil.copyfile(path, destination_link)
+                                    link_successful = False
 
                     if not link_successful:
                         logger.error(f"Failed to link file with alternative download save name in a way that is compatible with Hugging Face caching {repr(known_file)}. If cache_hit={cache_hit} is True, the file was copied into the destination.", exc_info=exc_info)
@@ -558,7 +569,9 @@ KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/Wan_2.2_ComfyUI_Repackaged", "split_files/diffusion_models/wan2.2_ti2v_5B_fp16.safetensors"),
     HuggingFile("lodestones/Chroma", "chroma-unlocked-v37.safetensors"),
     HuggingFile("QuantStack/Wan2.2-T2V-A14B-GGUF", "HighNoise/Wan2.2-T2V-A14B-HighNoise-Q8_0.gguf"),
+    HuggingFile("QuantStack/Wan2.2-T2V-A14B-GGUF", "HighNoise/Wan2.2-T2V-A14B-HighNoise-Q4_K_M.gguf"),
     HuggingFile("QuantStack/Wan2.2-T2V-A14B-GGUF", "LowNoise/Wan2.2-T2V-A14B-LowNoise-Q8_0.gguf"),
+    HuggingFile("QuantStack/Wan2.2-T2V-A14B-GGUF", "LowNoise/Wan2.2-T2V-A14B-LowNoise-Q4_K_M.gguf"),
 ], folder_names=["diffusion_models", "unet"])
 
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([

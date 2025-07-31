@@ -674,7 +674,7 @@ class LoraLoader:
             lora = utils.load_torch_file(lora_path, safe_load=True)
             self.loaded_lora = (lora_path, lora)
 
-        model_lora, clip_lora = sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+        model_lora, clip_lora = sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip, lora_name=lora_name)
         return (model_lora, clip_lora)
 
 class LoraLoaderModelOnly(LoraLoader):

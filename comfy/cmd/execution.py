@@ -19,15 +19,14 @@ from typing import List, Optional, Tuple, Literal
 import torch
 from opentelemetry.trace import get_current_span, StatusCode, Status
 
-# order matters
-from .main_pre import tracer
-
 from comfy_execution.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID, \
     DependencyAwareCache, \
     BasicCache
 from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
 from comfy_execution.graph_utils import is_link, GraphBuilder
 from comfy_execution.utils import CurrentNodeContext
+# order matters
+from .main_pre import tracer
 from .. import interruption
 from .. import model_management
 from ..cli_args import args
@@ -38,7 +37,8 @@ from ..component_model.executor_types import ExecutorToClientProgress, Validatio
     HistoryResultDict, ExecutionErrorMessage, ExecutionInterruptedMessage
 from ..component_model.files import canonicalize_path
 from ..component_model.module_property import create_module_properties
-from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus, ExecutionStatusAsDict
+from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus, \
+    ExecutionStatusAsDict
 from ..execution_context import context_execute_node, context_execute_prompt
 from ..execution_ext import should_panic_on_exception
 from ..nodes.package_typing import InputTypeSpec, FloatSpecOptions, IntSpecOptions, CustomNode
@@ -48,6 +48,7 @@ from ..progress import get_progress_state, reset_progress_state, add_progress_ha
 from ..validation import validate_node_input
 
 _module_properties = create_module_properties()
+logger = logging.getLogger(__name__)
 
 
 @_module_properties.getter
@@ -100,12 +101,12 @@ class CacheSet:
     def __init__(self, cache_type=None, cache_size=None):
         if cache_type == CacheType.DEPENDENCY_AWARE:
             self.init_dependency_aware_cache()
-            logging.info("Disabling intermediate node cache.")
+            logger.info("Disabling intermediate node cache.")
         elif cache_type == CacheType.LRU:
             if cache_size is None:
                 cache_size = 0
             self.init_lru_cache(cache_size)
-            logging.info("Using LRU cache")
+            logger.info("Using LRU cache")
         else:
             self.init_classic_cache()
 
@@ -571,7 +572,7 @@ async def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra
             return RecursiveExecutionTuple(ExecutionResult.PENDING, None, None)
         caches.outputs.set(unique_id, output_data)
     except interruption.InterruptProcessingException as iex:
-        logging.info("Processing interrupted")
+        logger.info("Processing interrupted")
 
         # skip formatting inputs/outputs
         error_details: RecursiveExecutionErrorDetailsInterrupted = {
@@ -588,13 +589,13 @@ async def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra
             for name, inputs in input_data_all.items():
                 input_data_formatted[name] = [format_value(x) for x in inputs]
 
-        logging.error("An error occurred while executing a workflow", exc_info=ex)
-        logging.error(traceback.format_exc())
+        logger.error("An error occurred while executing a workflow", exc_info=ex)
+        logger.error(traceback.format_exc())
         tips = ""
 
         if isinstance(ex, model_management.OOM_EXCEPTION):
             tips = "This error means you ran out of memory on your GPU.\n\nTIPS: If the workflow worked before you might have accidentally set the batch_size to a large number."
-            logging.error("Got an OOM, unloading all loaded models.")
+            logger.error("Got an OOM, unloading all loaded models.")
             model_management.unload_all_models()
 
         error_details: RecursiveExecutionErrorDetails = {
@@ -606,7 +607,7 @@ async def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra
         }
 
         if should_panic_on_exception(ex, args.panic_when):
-            logging.error(f"The exception {ex} was configured as unrecoverable, scheduling an exit")
+            logger.error(f"The exception {ex} was configured as unrecoverable, scheduling an exit")
 
             def sys_exit(*args):
                 sys.exit(1)
@@ -1120,11 +1121,11 @@ async def _validate_prompt(prompt_id: typing.Any, prompt: typing.Mapping[str, ty
         if valid is True:
             good_outputs.add(o)
         else:
-            logging.error(f"Failed to validate prompt for output {o}:")
+            logger.error(f"Failed to validate prompt for output {o}:")
             if len(reasons) > 0:
-                logging.error("* (prompt):")
+                logger.error("* (prompt):")
                 for reason in reasons:
-                    logging.error(f"  - {reason['message']}: {reason['details']}")
+                    logger.error(f"  - {reason['message']}: {reason['details']}")
             errors += [(o, reasons)]
             for node_id, result in validated.items():
                 valid = result[0]
@@ -1140,11 +1141,11 @@ async def _validate_prompt(prompt_id: typing.Any, prompt: typing.Mapping[str, ty
                             "dependent_outputs": [],
                             "class_type": class_type
                         }
-                        logging.error(f"* {class_type} {node_id}:")
+                        logger.error(f"* {class_type} {node_id}:")
                         for reason in reasons:
-                            logging.error(f"  - {reason['message']}: {reason['details']}")
+                            logger.error(f"  - {reason['message']}: {reason['details']}")
                     node_errors[node_id]["dependent_outputs"].append(o)
-            logging.error("Output will be ignored")
+            logger.error("Output will be ignored")
 
     if len(good_outputs) == 0:
         errors_list = []

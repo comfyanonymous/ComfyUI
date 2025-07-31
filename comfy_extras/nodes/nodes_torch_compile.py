@@ -80,7 +80,6 @@ class TorchCompileModel(CustomNode):
             "backend": backend,
             "mode": mode,
         }
-        move_to_gpu = True
         try:
             if backend == "torch_tensorrt":
                 try:
@@ -98,7 +97,6 @@ class TorchCompileModel(CustomNode):
                     "enable_weight_streaming": True,
                     "make_refittable": True,
                 }
-                move_to_gpu = True
                 del compile_kwargs["mode"]
             if isinstance(model, (ModelPatcher, TransformersManagedModel, VAE)):
                 to_return = model.clone()
@@ -109,27 +107,18 @@ class TorchCompileModel(CustomNode):
                     object_patches = ["encoder", "decoder"]
                 else:
                     patcher = to_return
-                if object_patch is None or len(object_patches) == 0:
+                if object_patch is None or len(object_patches) == 0 or len(object_patches) == 1 and object_patches[0].strip() == "":
                     object_patches = [DIFFUSION_MODEL]
-                if move_to_gpu:
-                    model_management.unload_all_models()
-                    model_management.load_models_gpu([patcher])
                 set_torch_compile_wrapper(patcher, keys=object_patches, **compile_kwargs)
-                # m.add_object_patch(object_patch, torch.compile(model=m.get_model_object(object_patch), **compile_kwargs))
-                # todo: do we want to move something back off the GPU?
-                # if move_to_gpu:
-                #     model_management.unload_all_models()
                 return to_return,
             elif isinstance(model, torch.nn.Module):
-                if move_to_gpu:
-                    model_management.unload_all_models()
-                    model.to(device=model_management.get_torch_device())
+                model_management.unload_all_models()
+                model.to(device=model_management.get_torch_device())
                 res = torch.compile(model=model, **compile_kwargs),
-                if move_to_gpu:
-                    model.to(device=model_management.unet_offload_device())
+                model.to(device=model_management.unet_offload_device())
                 return res,
             else:
-                logger.warning("Encountered a model that cannot be compiled")
+                logger.warning(f"Encountered a model {model} that cannot be compiled")
                 return model,
         except OSError as os_error:
             try:
@@ -174,7 +163,8 @@ class QuantizeModel(CustomNode):
 
     def execute(self, model: ModelPatcher, strategy: str = _QUANTIZATION_STRATEGIES[0]) -> tuple[ModelPatcher]:
         model = model.clone()
-        unet = model.get_model_object("diffusion_model")
+        model.patch_model(force_patch_weights=True)
+        unet = model.diffusion_model
         # todo: quantize quantizes in place, which is not desired
 
         # default exclusions
@@ -209,7 +199,7 @@ class QuantizeModel(CustomNode):
             if "autoquant" in strategy:
                 _in_place_fixme = autoquant(unet, error_on_unseen=False)
             else:
-                quantize_(unet, int8_dynamic_activation_int8_weight(), device=model_management.get_torch_device())
+                quantize_(unet, int8_dynamic_activation_int8_weight(), device=model_management.get_torch_device(), filter_fn=filter)
                 _in_place_fixme = unet
             unwrap_tensor_subclass(_in_place_fixme)
         else:

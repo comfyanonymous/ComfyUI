@@ -171,6 +171,16 @@ class Comfy:
     def task_count(self) -> int:
         return self._task_count
 
+    def __enter__(self):
+        self._is_running = True
+        return self
+
+    def __exit__(self, *args):
+        get_event_loop().run_in_executor(self._executor, _cleanup)
+        self._executor.shutdown(wait=True)
+        self._is_running = False
+
+
     async def __aenter__(self):
         self._is_running = True
         return self

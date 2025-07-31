@@ -93,7 +93,7 @@ def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optio
         ModelPaths(["checkpoints"], supported_extensions=set(supported_pt_extensions)),
         ModelPaths(["configs"], additional_absolute_directory_paths=[get_package_as_path("comfy.configs")], supported_extensions={".yaml"}),
         ModelPaths(["vae"], supported_extensions=set(supported_pt_extensions)),
-        ModelPaths(folder_names=["clip", "text_encoders"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(folder_names=["text_encoders", "clip"], supported_extensions=set(supported_pt_extensions)),
         ModelPaths(["loras"], supported_extensions=set(supported_pt_extensions)),
         ModelPaths(folder_names=["diffusion_models", "unet"], supported_extensions=set(supported_pt_extensions), folder_names_are_relative_directory_paths_too=True),
         ModelPaths(["clip_vision"], supported_extensions=set(supported_pt_extensions)),

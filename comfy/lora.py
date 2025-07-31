@@ -24,8 +24,10 @@ import torch
 from . import model_base
 from . import model_management
 from . import utils
-from .lora_types import PatchDict, PatchOffset, PatchConversionFunction, PatchType, ModelPatchesDictValue
 from . import weight_adapter
+from .lora_types import PatchDict, PatchOffset, PatchConversionFunction, PatchType, ModelPatchesDictValue
+
+logger = logging.getLogger(__name__)
 
 LORA_CLIP_MAP = {
     "mlp.fc1": "mlp_fc1",
@@ -37,7 +39,7 @@ LORA_CLIP_MAP = {
 }
 
 
-def load_lora(lora, to_load, log_missing=True) -> PatchDict:
+def load_lora(lora, to_load, log_missing=True, lora_name=None) -> PatchDict:
     patch_dict: PatchDict = {}
     loaded_keys = set()
     for x in to_load:
@@ -91,9 +93,10 @@ def load_lora(lora, to_load, log_missing=True) -> PatchDict:
             loaded_keys.add(set_weight_name)
 
     if log_missing:
-        for x in lora.keys():
-            if x not in loaded_keys:
-                logging.warning("lora key not loaded: {}".format(x))
+        not_loaded_keys = [x for x in lora.keys() if x not in loaded_keys]
+        n_not_loaded_keys = len(not_loaded_keys)
+        if n_not_loaded_keys > 0:
+            logger.warning(f"[{lora_name}] lora keys not loaded ({n_not_loaded_keys} / {len(loaded_keys) + n_not_loaded_keys}): {not_loaded_keys}")
 
     return patch_dict
 
@@ -293,12 +296,12 @@ def model_lora_keys_unet(model, key_map=None):
             if k.startswith("diffusion_model."):
                 if k.endswith(".weight"):
                     key_lora = k[len("diffusion_model."):-len(".weight")]
-                    key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = k #SimpleTuner lycoris format
-                    key_map["transformer.{}".format(key_lora)] = k #SimpleTuner regular format
+                    key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = k  # SimpleTuner lycoris format
+                    key_map["transformer.{}".format(key_lora)] = k  # SimpleTuner regular format
 
     if isinstance(model, model_base.ACEStep):
         for k in sdk:
-            if k.startswith("diffusion_model.") and k.endswith(".weight"): #Official ACE step lora format
+            if k.startswith("diffusion_model.") and k.endswith(".weight"):  # Official ACE step lora format
                 key_lora = k[len("diffusion_model."):-len(".weight")]
                 key_map["{}".format(key_lora)] = k
 
@@ -364,7 +367,7 @@ def calculate_weight(patches: ModelPatchesDictValue, weight, key, intermediate_d
         if isinstance(v, weight_adapter.WeightAdapterBase):
             output = v.calculate_weight(weight, key, strength, strength_model, offset, function, intermediate_dtype, original_weights)
             if output is None:
-                logging.warning("Calculate Weight Failed: {} {}".format(v.name, key))
+                logger.warning("Calculate Weight Failed: {} {}".format(v.name, key))
             else:
                 weight = output
                 if old_weight is not None:
@@ -382,12 +385,12 @@ def calculate_weight(patches: ModelPatchesDictValue, weight, key, intermediate_d
             # An extra flag to pad the weight if the diff's shape is larger than the weight
             do_pad_weight = len(v) > 1 and v[1]['pad_weight']
             if do_pad_weight and diff.shape != weight.shape:
-                logging.info("Pad weight {} from {} to shape: {}".format(key, weight.shape, diff.shape))
+                logger.info("Pad weight {} from {} to shape: {}".format(key, weight.shape, diff.shape))
                 weight = pad_tensor_to_shape(weight, diff.shape)
 
             if strength != 0.0:
                 if diff.shape != weight.shape:
-                    logging.warning("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, diff.shape, weight.shape))
+                    logger.warning("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, diff.shape, weight.shape))
                 else:
                     weight += function(strength * model_management.cast_to_device(diff, weight.device, weight.dtype))
         elif patch_type == "set":
@@ -398,7 +401,7 @@ def calculate_weight(patches: ModelPatchesDictValue, weight, key, intermediate_d
                           model_management.cast_to_device(original_weights[key][0][0], weight.device, intermediate_dtype)
             weight += function(strength * model_management.cast_to_device(diff_weight, weight.device, weight.dtype))
         else:
-            logging.warning("patch type not recognized {} {}".format(patch_type, key))
+            logger.warning("patch type not recognized {} {}".format(patch_type, key))
 
         if old_weight is not None:
             weight = old_weight

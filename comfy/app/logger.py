@@ -55,7 +55,7 @@ def on_flush(callback):
 
 class StackTraceLogger(logging.Logger):
     def _log(self, level, msg, args, exc_info=None, extra=None, stack_info=False, stacklevel=1):
-        if level >= logging.WARNING:
+        if level >= logging.ERROR:
             stack_info = True
         super()._log(level, msg, args, exc_info, extra, stack_info, stacklevel=stacklevel + 1)
 
