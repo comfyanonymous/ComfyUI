@@ -1,6 +1,7 @@
 import torch
 import time
-from comfy_api.latest import io, ui, _io, ComfyExtension
+from comfy_api.latest import io, ui, _io
+from comfy_api.latest import ComfyExtension
 import logging  # noqa
 import comfy.utils
 import asyncio

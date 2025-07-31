@@ -30,7 +30,7 @@ import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
 from comfy_api.internal import register_versions, ComfyAPIWithVersion
 from comfy_api.version_list import supported_versions
-from comfy_api.latest import io
+from comfy_api.latest import io, ComfyExtension
 
 import comfy.clip_vision
 
@@ -2174,7 +2174,7 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
                     extension = await entrypoint()
                 else:
                     extension = entrypoint()
-                if not isinstance(extension, io.ComfyExtension):
+                if not isinstance(extension, ComfyExtension):
                     logging.warning(f"comfy_entrypoint in {module_path} did not return a ComfyExtension, skipping.")
                     return False
                 node_list = await extension.get_node_list()
@@ -2189,20 +2189,10 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
                         node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
                     if schema.display_name is not None:
                         NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name
+                return True
             except Exception as e:
                 logging.warning(f"Error while calling comfy_entrypoint in {module_path}: {e}")
                 return False
-        # V3 node definition
-        elif getattr(module, "NODES_LIST", None) is not None:
-            for node_cls in module.NODES_LIST:
-                node_cls: io.ComfyNode
-                schema = node_cls.GET_SCHEMA()
-                if schema.node_id not in ignore:
-                    NODE_CLASS_MAPPINGS[schema.node_id] = node_cls
-                    node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
-                if schema.display_name is not None:
-                    NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name
-            return True
         else:
             logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS or NODES_LIST (need one).")
             return False
