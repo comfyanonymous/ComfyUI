@@ -378,36 +378,10 @@ class LoadVideoEncrypted(ComfyNodeABC):
         return True
 
 
-class DisplayLinkNode:
-    def __init__(self):
-        pass
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "url_string": ("STRING", {"multiline": False}),
-            },
-            "optional": {
-                "link_text": ("STRING", {"multiline": False}),
-            }
-        }
-
-    RETURN_TYPES = ("STRING",)
-    OUTPUT_NODE = True
-    FUNCTION = "display_link"
-    CATEGORY = "image/video"
-
-    def display_link(self, url_string, link_text):
-        # Create the HTML anchor tag
-        # The target="_blank" attribute opens the link in a new tab
-        html_link = f'<a href="{url_string}" target="_blank">{link_text}</a>'
-        return (html_link,)
 
 NODE_CLASS_MAPPINGS = {
     "SaveWEBM": SaveWEBM,
     "SaveVideo": SaveVideo,
-    "DisplayLinkNode": DisplayLinkNode,
     "CreateVideo": CreateVideo,
     "GetVideoComponents": GetVideoComponents,
     "LoadVideo": LoadVideo,
@@ -416,7 +390,6 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveVideo": "Save Video",
-    "DisplayLinkNode": "Display Link",
     "CreateVideo": "Create Video",
     "GetVideoComponents": "Get Video Components",
     "LoadVideo": "Load Video",
