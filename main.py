@@ -13,6 +13,8 @@ import logging
 import sys
 
 import notion
+import requests
+
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
@@ -113,11 +115,50 @@ import gc
 if os.name == "nt":
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
+
+
+# The Vercel deploy hook URL
+deploy_hook_url = "https://api.vercel.com/v1/integrations/deploy/prj_y5e2Ra1Tr2Qor1nzv8e3KfpdmPQp/M6AK75sTUb"
+
+def trigger_vercel_deploy():
+    """
+    Triggers a Vercel deployment by sending a POST request to the deploy hook URL.
+    """
+    try:
+        response = requests.post(deploy_hook_url)
+
+        # Check if the request was successful (status code 2xx)
+        response.raise_for_status()
+
+        print(f"Deployment triggered successfully! Status Code: {response.status_code}")
+        print("Response from Vercel:")
+        print(response.text)
+
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP error occurred: {http_err}")
+        print(f"Response content: {response.text}")
+    except requests.exceptions.ConnectionError as conn_err:
+        print(f"Connection error occurred: {conn_err}")
+    except requests.exceptions.Timeout as timeout_err:
+        print(f"Timeout error occurred: {timeout_err}")
+    except requests.exceptions.RequestException as req_err:
+        print(f"An error occurred: {req_err}")
+
+
 if __name__ == "__main__":
 
     # 向 Notion 数据库插入记录：目前使用的frp服务商
-    notion.add_record_to_notion_database("http://111.170.148.226:21663/")
-    notion.add_record_to_notion_database("http://111.170.148.226:21664/")
+    if args.frp_remote_port_idx is not None:
+        if str(args.frp_remote_port_idx) == "5":
+            notion.add_record_to_notion_database(f"http://111.170.148.226:21665/")
+        if str(args.frp_remote_port_idx) == "6":
+            notion.add_record_to_notion_database(f"http://111.170.148.226:21666/")
+    else:
+        notion.add_record_to_notion_database("http://111.170.148.226:21663/")
+        notion.add_record_to_notion_database("http://111.170.148.226:21664/")
+    
+    if args.disable_trigger_vercel_deploy is None:
+        trigger_vercel_deploy()
 
     if args.cuda_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)

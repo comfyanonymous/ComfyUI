@@ -32,6 +32,9 @@ ln -s /kaggle/input/t5xxl-fp8-e4m3fn-scaled/t5xxl_fp8_e4m3fn_scaled.safetensors 
 #Flux dev
 ln -s /kaggle/input/flux1-dev-fp8/flux1-dev-fp8.safetensors ./models/checkpoints/flux1-dev-fp8.safetensors
 
+# kontext turnaround sheet lora
+wget -c https://huggingface.co/reverentelusarca/kontext-turnaround-sheet-lora-v1/resolve/main/kontext-turnaround-sheet-v1.safetensors -P ./models/loras
+
 #nunchaku
 ln -s /kaggle/input/svdq-int4-r32-flux-1-kontext-dev/svdq-int4_r32-flux.1-kontext-dev.safetensors -P ./models/diffusion_models
 
@@ -79,9 +82,9 @@ cd /kaggle/ComfyUI
 # pip install --upgrade gguf
 
 # 4 encrypt image
-cd custom_nodes
-git clone https://github.com/Vander-Bilt/comfyui-encrypt-image.git
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/Vander-Bilt/comfyui-encrypt-image.git
+# cd /kaggle/ComfyUI
 
 #5 Prompts Generator
 cd custom_nodes
