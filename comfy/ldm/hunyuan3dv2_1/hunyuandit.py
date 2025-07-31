@@ -80,7 +80,7 @@ class MoEGate(nn.Module):
         self.alpha = aux_loss_alpha
 
         self.gating_dim = embed_dim
-        self.weight = nn.Parameter(torch.empty((self.n_routed_experts, self.gating_dim)), device = device, dtype = dtype)
+        self.weight = nn.Parameter(torch.empty((self.n_routed_experts, self.gating_dim), device = device, dtype = dtype))
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
 
