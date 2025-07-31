@@ -58,6 +58,10 @@ def get_full_path_or_raise(folder_name: str, filename: str) -> str:
     return res
 
 
+def get_full_path(folder_name: str, filename: str) -> Optional[str]:
+    return get_or_download(folder_name, filename)
+
+
 def get_or_download(folder_name: str, filename: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> Optional[str]:
     if known_files is None:
         known_files = _get_known_models_for_folder_name(folder_name)

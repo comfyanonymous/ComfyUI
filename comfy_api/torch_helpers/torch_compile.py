@@ -1,38 +1,46 @@
 from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable, Optional
+
 import torch
 
 import comfy.utils
+from comfy import model_management
 from comfy.patcher_extension import WrappersMP
-from typing import TYPE_CHECKING, Callable, Optional
+
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
     from comfy.patcher_extension import WrapperExecutor
-
 
 COMPILE_KEY = "torch.compile"
 TORCH_COMPILE_KWARGS = "torch_compile_kwargs"
 
 
-def apply_torch_compile_factory(compiled_module_dict: dict[str, Callable]) -> Callable:
+def apply_torch_compile_factory(compiled_module_dict: dict[str, Callable], model_patcher: Optional[ModelPatcher] = None) -> Callable:
     '''
     Create a wrapper that will refer to the compiled_diffusion_model.
     '''
+
     def apply_torch_compile_wrapper(executor: WrapperExecutor, *args, **kwargs):
         try:
             orig_modules = {}
             for key, value in compiled_module_dict.items():
                 orig_modules[key] = comfy.utils.get_attr(executor.class_obj, key)
                 comfy.utils.set_attr(executor.class_obj, key, value)
+            # todo: compilation has to patch all weights
+            if model_patcher is not None:
+                model_patcher.patch_model(device_to=model_management.get_torch_device(), force_patch_weights=True)
             return executor(*args, **kwargs)
         finally:
             for key, value in orig_modules.items():
                 comfy.utils.set_attr(executor.class_obj, key, value)
+
     return apply_torch_compile_wrapper
 
 
-def set_torch_compile_wrapper(model: ModelPatcher, backend: str, options: Optional[dict[str,str]]=None,
-                              mode: Optional[str]=None, fullgraph=False, dynamic: Optional[bool]=None,
-                              keys: list[str]=["diffusion_model"], *args, **kwargs):
+def set_torch_compile_wrapper(model: ModelPatcher, backend: str, options: Optional[dict[str, str]] = None,
+                              mode: Optional[str] = None, fullgraph=False, dynamic: Optional[bool] = None,
+                              keys: list[str] = ["diffusion_model"], *args, **kwargs):
     '''
     Perform torch.compile that will be applied at sample time for either the whole model or specific params of the BaseModel instance.
 
@@ -56,12 +64,13 @@ def set_torch_compile_wrapper(model: ModelPatcher, backend: str, options: Option
     compiled_modules = {}
     for key in keys:
         compiled_modules[key] = torch.compile(
-                model=model.get_model_object(key),
-                **compile_kwargs,
-            )
+            model=model.get_model_object(key),
+            **compile_kwargs,
+        )
     # add torch.compile wrapper
     wrapper_func = apply_torch_compile_factory(
         compiled_module_dict=compiled_modules,
+        model_patcher=model,
     )
     # store wrapper to run on BaseModel's apply_model function
     model.add_wrapper_with_key(WrappersMP.APPLY_MODEL, COMPILE_KEY, wrapper_func)

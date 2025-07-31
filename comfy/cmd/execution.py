@@ -1145,7 +1145,6 @@ async def _validate_prompt(prompt_id: typing.Any, prompt: typing.Mapping[str, ty
                         for reason in reasons:
                             logger.error(f"  - {reason['message']}: {reason['details']}")
                     node_errors[node_id]["dependent_outputs"].append(o)
-            logger.error("Output will be ignored")
 
     if len(good_outputs) == 0:
         errors_list = []
