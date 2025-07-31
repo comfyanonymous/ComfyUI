@@ -769,8 +769,7 @@ class CameraWanModel(WanModel):
         # embeddings
         x = self.patch_embedding(x.float()).to(x.dtype)
         if self.control_adapter is not None and camera_conditions is not None:
-            x_camera = self.control_adapter(camera_conditions).to(x.dtype)
-            x = x + x_camera
+            x = x + self.control_adapter(camera_conditions).to(x.dtype)
         grid_sizes = x.shape[2:]
         x = x.flatten(2).transpose(1, 2)
 
