@@ -403,54 +403,6 @@ class PreviewMask(PreviewImage):
         super().__init__(preview, animated, cls, **kwargs)
 
 
-# class UILatent(_UIOutput):
-#     def __init__(self, values: list[SavedResult | dict], **kwargs):
-#         output_dir = folder_paths.get_temp_directory()
-#         type = "temp"
-#         prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
-#         compress_level = 1
-#         filename_prefix = "ComfyUI"
-
-
-#         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
-
-#         # support save metadata for latent sharing
-#         prompt_info = ""
-#         if prompt is not None:
-#             prompt_info = json.dumps(prompt)
-
-#         metadata = None
-#         if not args.disable_metadata:
-#             metadata = {"prompt": prompt_info}
-#             if extra_pnginfo is not None:
-#                 for x in extra_pnginfo:
-#                     metadata[x] = json.dumps(extra_pnginfo[x])
-
-#         file = f"{filename}_{counter:05}_.latent"
-
-#         results: list[FileLocator] = []
-#         results.append({
-#             "filename": file,
-#             "subfolder": subfolder,
-#             "type": "output"
-#         })
-
-#         file = os.path.join(full_output_folder, file)
-
-#         output = {}
-#         output["latent_tensor"] = samples["samples"].contiguous()
-#         output["latent_format_version_0"] = torch.tensor([])
-
-#         comfy.utils.save_torch_file(output, file, metadata=metadata)
-
-#         self.values = values
-
-#     def as_dict(self):
-#         return {
-#             "latents": self.values,
-#         }
-
-
 class PreviewAudio(_UIOutput):
     def __init__(self, audio: dict, cls: Type[ComfyNode] = None, **kwargs):
         self.values = AudioSaveHelper.save_audio(
