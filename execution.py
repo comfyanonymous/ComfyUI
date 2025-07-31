@@ -7,7 +7,7 @@ import threading
 import time
 import traceback
 from enum import Enum
-from typing import List, Literal, NamedTuple, Optional
+from typing import List, Literal, NamedTuple, Optional, Union
 import asyncio
 
 import torch
@@ -891,7 +891,7 @@ def full_type_name(klass):
         return klass.__qualname__
     return module + '.' + klass.__qualname__
 
-async def validate_prompt(prompt_id, prompt):
+async def validate_prompt(prompt_id, prompt, partial_execution_list: Union[list[str], None]):
     outputs = set()
     for x in prompt:
         if 'class_type' not in prompt[x]:
@@ -915,7 +915,8 @@ async def validate_prompt(prompt_id, prompt):
             return (False, error, [], {})
 
         if hasattr(class_, 'OUTPUT_NODE') and class_.OUTPUT_NODE is True:
-            outputs.add(x)
+            if partial_execution_list is None or x in partial_execution_list:
+                outputs.add(x)
 
     if len(outputs) == 0:
         error = {
