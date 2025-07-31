@@ -157,6 +157,7 @@ if __name__ == "__main__":
         notion.add_record_to_notion_database("http://111.170.148.226:21663/")
         notion.add_record_to_notion_database("http://111.170.148.226:21664/")
     
+    print("disable_trigger_vercel_deploy: ", args.disable_trigger_vercel_deploy)
     if args.disable_trigger_vercel_deploy is None:
         trigger_vercel_deploy()
 

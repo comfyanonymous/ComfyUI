@@ -525,30 +525,30 @@ class PromptServer():
                             return web.Response(body=alpha_buffer.read(), content_type='image/png',
                                                 headers={"Content-Disposition": f"filename=\"{filename}\""})
                     
-                    # elif channel == 'rgba':
-                    #     with Image.open(file) as img:
-                    #         # 确保图像是 RGBA 模式
-                    #         if img.mode != 'RGBA':
-                    #             if img.mode == 'RGB':
-                    #                 # RGB -> RGBA（Alpha=255）
-                    #                 new_img = img.convert('RGBA')
-                    #             else:
-                    #                 # 其他模式（如 L/LA/P）-> RGBA
-                    #                 new_img = Image.new('RGBA', img.size, (0, 0, 0, 255))
-                    #                 new_img.paste(img, (0, 0), img)  # 保留原图的 Alpha（如果有）
+                    elif channel == 'rgba':
+                        with Image.open(file) as img:
+                            # 确保图像是 RGBA 模式
+                            if img.mode != 'RGBA':
+                                if img.mode == 'RGB':
+                                    # RGB -> RGBA（Alpha=255）
+                                    new_img = img.convert('RGBA')
+                                else:
+                                    # 其他模式（如 L/LA/P）-> RGBA
+                                    new_img = Image.new('RGBA', img.size, (0, 0, 0, 255))
+                                    new_img.paste(img, (0, 0), img)  # 保留原图的 Alpha（如果有）
 
-                    #         else:
-                    #             new_img = img  # 已经是 RGBA，无需转换
+                            else:
+                                new_img = img  # 已经是 RGBA，无需转换
 
-                    #         # 保存为 PNG 并返回
-                    #         buffer = BytesIO()
-                    #         new_img.save(buffer, format='PNG')
-                    #         buffer.seek(0)
-                    #         return web.Response(
-                    #             body=buffer.read(),
-                    #             content_type='image/png',
-                    #             headers={"Content-Disposition": f"filename=\"{filename}\""}
-                    #         )
+                            # 保存为 PNG 并返回
+                            buffer = BytesIO()
+                            new_img.save(buffer, format='PNG')
+                            buffer.seek(0)
+                            return web.Response(
+                                body=buffer.read(),
+                                content_type='image/png',
+                                headers={"Content-Disposition": f"filename=\"{filename}\""}
+                            )
                     
                     else:
                         # Get content type from mimetype, defaulting to 'application/octet-stream'
