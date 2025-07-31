@@ -258,11 +258,24 @@ class VideoFromComponents(VideoInput):
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None
     ):
-        if format != VideoContainer.AUTO and format != VideoContainer.MP4:
+        if format == VideoContainer.AUTO:
+            format = VideoContainer.MP4
+        if codec == VideoCodec.AUTO:
+            codec = VideoCodec.H264
+
+        if format != VideoContainer.MP4:
             raise ValueError("Only MP4 format is supported for now")
-        if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
+        if codec != VideoCodec.H264:
             raise ValueError("Only H264 codec is supported for now")
-        with av.open(path, mode='w', options={'movflags': 'use_metadata_tags'}) as output:
+
+        open_kwargs = {
+            'mode': 'w',
+            'options': {'movflags': 'use_metadata_tags'}
+        }
+        if isinstance(path, io.BytesIO):
+            open_kwargs['format'] = format.lower()
+
+        with av.open(path, **open_kwargs) as output:
             # Add metadata before writing any streams
             if metadata is not None:
                 for key, value in metadata.items():
