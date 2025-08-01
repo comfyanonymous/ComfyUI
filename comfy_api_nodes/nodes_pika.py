@@ -122,7 +122,7 @@ class PikaNodeBase(ComfyNodeABC):
     FUNCTION = "api_call"
     RETURN_TYPES = ("VIDEO",)
 
-    def poll_for_task_status(
+    async def poll_for_task_status(
         self,
         task_id: str,
         auth_kwargs: Optional[dict[str, str]] = None,
@@ -152,9 +152,9 @@ class PikaNodeBase(ComfyNodeABC):
             node_id=node_id,
             estimated_duration=60
         )
-        return polling_operation.execute()
+        return await polling_operation.execute()
 
-    def execute_task(
+    async def execute_task(
         self,
         initial_operation: SynchronousOperation[R, PikaGenerateResponse],
         auth_kwargs: Optional[dict[str, str]] = None,
@@ -169,14 +169,14 @@ class PikaNodeBase(ComfyNodeABC):
         Returns:
             A tuple containing the video file as a VIDEO output.
         """
-        initial_response = initial_operation.execute()
+        initial_response = await initial_operation.execute()
         if not is_valid_initial_response(initial_response):
             error_msg = f"Pika initial request failed. Code: {initial_response.code}, Message: {initial_response.message}, Data: {initial_response.data}"
             logging.error(error_msg)
             raise PikaApiError(error_msg)
 
         task_id = initial_response.video_id
-        final_response = self.poll_for_task_status(task_id, auth_kwargs)
+        final_response = await self.poll_for_task_status(task_id, auth_kwargs)
         if not is_valid_video_response(final_response):
             error_msg = (
                 f"Pika task {task_id} succeeded but no video data found in response."
@@ -187,7 +187,7 @@ class PikaNodeBase(ComfyNodeABC):
         video_url = str(final_response.url)
         logging.info("Pika task %s succeeded. Video URL: %s", task_id, video_url)
 
-        return (download_url_to_video_output(video_url),)
+        return (await download_url_to_video_output(video_url),)
 
 
 class PikaImageToVideoV2_2(PikaNodeBase):
@@ -212,7 +212,7 @@ class PikaImageToVideoV2_2(PikaNodeBase):
 
     DESCRIPTION = "Sends an image and prompt to the Pika API v2.2 to generate a video."
 
-    def api_call(
+    async def api_call(
         self,
         image: torch.Tensor,
         prompt_text: str,
@@ -251,7 +251,7 @@ class PikaImageToVideoV2_2(PikaNodeBase):
             auth_kwargs=kwargs,
         )
 
-        return self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
+        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
 
 class PikaTextToVideoNodeV2_2(PikaNodeBase):
@@ -281,7 +281,7 @@ class PikaTextToVideoNodeV2_2(PikaNodeBase):
 
     DESCRIPTION = "Sends a text prompt to the Pika API v2.2 to generate a video."
 
-    def api_call(
+    async def api_call(
         self,
         prompt_text: str,
         negative_prompt: str,
@@ -311,7 +311,7 @@ class PikaTextToVideoNodeV2_2(PikaNodeBase):
             content_type="application/x-www-form-urlencoded",
         )
 
-        return self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
+        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
 
 class PikaScenesV2_2(PikaNodeBase):
@@ -361,7 +361,7 @@ class PikaScenesV2_2(PikaNodeBase):
 
     DESCRIPTION = "Combine your images to create a video with the objects in them. Upload multiple images as ingredients and generate a high-quality video that incorporates all of them."
 
-    def api_call(
+    async def api_call(
         self,
         prompt_text: str,
         negative_prompt: str,
@@ -420,7 +420,7 @@ class PikaScenesV2_2(PikaNodeBase):
             auth_kwargs=kwargs,
         )
 
-        return self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
+        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
 
 class PikAdditionsNode(PikaNodeBase):
@@ -462,7 +462,7 @@ class PikAdditionsNode(PikaNodeBase):
 
     DESCRIPTION = "Add any object or image into your video. Upload a video and specify what you'd like to add to create a seamlessly integrated result."
 
-    def api_call(
+    async def api_call(
         self,
         video: VideoInput,
         image: torch.Tensor,
@@ -481,10 +481,10 @@ class PikAdditionsNode(PikaNodeBase):
         image_bytes_io = tensor_to_bytesio(image)
         image_bytes_io.seek(0)
 
-        pika_files = [
-            ("video", ("video.mp4", video_bytes_io, "video/mp4")),
-            ("image", ("image.png", image_bytes_io, "image/png")),
-        ]
+        pika_files = {
+            "video": ("video.mp4", video_bytes_io, "video/mp4"),
+            "image": ("image.png", image_bytes_io, "image/png"),
+        }
 
         # Prepare non-file data
         pika_request_data = PikaBodyGeneratePikadditionsGeneratePikadditionsPost(
@@ -506,7 +506,7 @@ class PikAdditionsNode(PikaNodeBase):
             auth_kwargs=kwargs,
         )
 
-        return self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
+        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
 
 class PikaSwapsNode(PikaNodeBase):
@@ -558,7 +558,7 @@ class PikaSwapsNode(PikaNodeBase):
     DESCRIPTION = "Swap out any object or region of your video with a new image or object. Define areas to replace either with a mask or coordinates."
     RETURN_TYPES = ("VIDEO",)
 
-    def api_call(
+    async def api_call(
         self,
         video: VideoInput,
         image: torch.Tensor,
@@ -587,11 +587,11 @@ class PikaSwapsNode(PikaNodeBase):
         image_bytes_io = tensor_to_bytesio(image)
         image_bytes_io.seek(0)
 
-        pika_files = [
-            ("video", ("video.mp4", video_bytes_io, "video/mp4")),
-            ("image", ("image.png", image_bytes_io, "image/png")),
-            ("modifyRegionMask", ("mask.png", mask_bytes_io, "image/png")),
-        ]
+        pika_files = {
+            "video": ("video.mp4", video_bytes_io, "video/mp4"),
+            "image": ("image.png", image_bytes_io, "image/png"),
+            "modifyRegionMask": ("mask.png", mask_bytes_io, "image/png"),
+        }
 
         # Prepare non-file data
         pika_request_data = PikaBodyGeneratePikaswapsGeneratePikaswapsPost(
@@ -613,7 +613,7 @@ class PikaSwapsNode(PikaNodeBase):
             auth_kwargs=kwargs,
         )
 
-        return self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
+        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
 
 class PikaffectsNode(PikaNodeBase):
@@ -664,7 +664,7 @@ class PikaffectsNode(PikaNodeBase):
 
     DESCRIPTION = "Generate a video with a specific Pikaffect. Supported Pikaffects: Cake-ify, Crumble, Crush, Decapitate, Deflate, Dissolve, Explode, Eye-pop, Inflate, Levitate, Melt, Peel, Poke, Squish, Ta-da, Tear"
 
-    def api_call(
+    async def api_call(
         self,
         image: torch.Tensor,
         pikaffect: str,
@@ -693,7 +693,7 @@ class PikaffectsNode(PikaNodeBase):
             auth_kwargs=kwargs,
         )
 
-        return self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
+        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
 
 class PikaStartEndFrameNode2_2(PikaNodeBase):
@@ -718,7 +718,7 @@ class PikaStartEndFrameNode2_2(PikaNodeBase):
 
     DESCRIPTION = "Generate a video by combining your first and last frame. Upload two images to define the start and end points, and let the AI create a smooth transition between them."
 
-    def api_call(
+    async def api_call(
         self,
         image_start: torch.Tensor,
         image_end: torch.Tensor,
@@ -732,10 +732,7 @@ class PikaStartEndFrameNode2_2(PikaNodeBase):
     ) -> tuple[VideoFromFile]:
 
         pika_files = [
-            (
-                "keyFrames",
-                ("image_start.png", tensor_to_bytesio(image_start), "image/png"),
-            ),
+            ("keyFrames", ("image_start.png", tensor_to_bytesio(image_start), "image/png")),
             ("keyFrames", ("image_end.png", tensor_to_bytesio(image_end), "image/png")),
         ]
 
@@ -758,7 +755,7 @@ class PikaStartEndFrameNode2_2(PikaNodeBase):
             auth_kwargs=kwargs,
         )
 
-        return self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
+        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
 
 NODE_CLASS_MAPPINGS = {

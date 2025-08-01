@@ -228,12 +228,13 @@ class ApiClient:
                 form.add_field(k, str(v) if not isinstance(v, (bytes, bytearray)) else v)
 
         if files:
-            for field_name, file_obj in files.items():
+            file_iter = files if isinstance(files, list) else files.items()
+            for field_name, file_obj in file_iter:
                 if file_obj is None:
                     continue  # aiohttp fails to serialize "None" values
                 # file_obj can be (filename, bytes/io.BytesIO, content_type) tuple
                 if isinstance(file_obj, tuple):
-                    file_value, filename, content_type = self._unpack_tuple(file_obj)
+                    filename, file_value, content_type = self._unpack_tuple(file_obj)
                 else:
                     file_value = file_obj
                     filename = getattr(file_obj, "name", field_name)
@@ -313,7 +314,7 @@ class ApiClient:
         path: str,
         params: Optional[Dict[str, Any]] = None,
         data: Optional[Dict[str, Any]] = None,
-        files: Optional[Dict[str, Any]] = None,
+        files: Optional[Dict[str, Any] | list[tuple[str, Any]]] = None,
         headers: Optional[Dict[str, str]] = None,
         content_type: str = "application/json",
         multipart_parser: Callable | None = None,
@@ -607,13 +608,13 @@ class ApiClient:
 
     @staticmethod
     def _unpack_tuple(t):
-        """Helper to normalise (file, filename, content_type) tuples."""
+        """Helper to normalise (filename, file, content_type) tuples."""
         if len(t) == 3:
             return t
         elif len(t) == 2:
             return t[0], t[1], "application/octet-stream"
         else:
-            raise ValueError("files tuple must be (file, filename[, content_type])")
+            raise ValueError("files tuple must be (filename, file[, content_type])")
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -668,7 +669,7 @@ class SynchronousOperation(Generic[T, R]):
         self,
         endpoint: ApiEndpoint[T, R],
         request: T,
-        files: Optional[Dict[str, Any]] = None,
+        files: Optional[Dict[str, Any] | list[tuple[str, Any]]] = None,
         api_base: str | None = None,
         auth_token: Optional[str] = None,
         comfy_api_key: Optional[str] = None,
