@@ -149,6 +149,7 @@ class WanFirstLastFrameToVideo:
         positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
         negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
 
+        clip_vision_output = None
         if clip_vision_start_image is not None:
             clip_vision_output = clip_vision_start_image
 
