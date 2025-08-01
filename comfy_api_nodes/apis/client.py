@@ -479,8 +479,12 @@ class ApiClient:
             retry_backoff_factor: Multiplier for the delay after each retry
         """
         headers: Dict[str, str] = {}
+        skip_auto_headers: set[str] = set()
         if content_type:
             headers["Content-Type"] = content_type
+        else:
+            # tell aiohttp not to add Content-Type that will break the request signature and result in a 403 status.
+            skip_auto_headers.add("Content-Type")
 
         # Extract file bytes
         if isinstance(file, io.BytesIO):
@@ -506,7 +510,9 @@ class ApiClient:
             try:
                 timeout = aiohttp.ClientTimeout(total=None)  # honour server side timeouts
                 async with aiohttp.ClientSession(timeout=timeout) as session:
-                    async with session.put(upload_url, data=data, headers=headers) as resp:
+                    async with session.put(
+                        upload_url, data=data, headers=headers, skip_auto_headers=skip_auto_headers,
+                    ) as resp:
                         resp.raise_for_status()
                         request_logger.log_request_response(
                             operation_id=operation_id,
