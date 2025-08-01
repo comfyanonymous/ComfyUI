@@ -158,7 +158,10 @@ if __name__ == "__main__":
     start_frp()
     # frp_remote_port_idx: 3, 4, 5, 6....
     if args.frp_remote_port_idx is not None:
-        notion.add_record_to_notion_database(f"http://111.170.148.226:2166{args.frp_remote_port_idx}/")
+        if args.frp_remote_port_idx == -1:
+            notion.add_record_to_notion_database(f"http://111.170.148.226:21673/")
+        else:
+            notion.add_record_to_notion_database(f"http://111.170.148.226:2166{args.frp_remote_port_idx}/")
     else:
         print("frp_remote_port_idx is None, no records will be added to notion database")
     

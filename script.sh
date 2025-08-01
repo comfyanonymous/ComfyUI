@@ -132,6 +132,8 @@ elif [ "$CHOICE" -eq 5 ]; then
   TARGET_REMOTE_PORT="21665"
 elif [ "$CHOICE" -eq 6 ]; then
   TARGET_REMOTE_PORT="21666"
+elif [ "$CHOICE" -eq -1 ]; then
+  TARGET_REMOTE_PORT="21673"
 else
   echo "Invalid CHOICE: $CHOICE"
   echo "Only 1 or 2 are supported."
