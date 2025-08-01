@@ -399,8 +399,8 @@ class Attention(nn.Module):
         qkv = qkv_combined.view(1, -1, self.num_heads, split_size * 3)
         query, key, value = torch.split(qkv, split_size, dim=-1)
 
-        query = query.reshape(B, N, self.num_heads, self.head_dim).transpose(1, 2)
-        key = key.reshape(B, N, self.num_heads, self.head_dim).transpose(1, 2)
+        query = query.reshape(B, N, self.num_heads, self.head_dim)
+        key = key.reshape(B, N, self.num_heads, self.head_dim)
         value = value.reshape(B, N, self.num_heads * self.head_dim)
 
         query = self.q_norm(query)
