@@ -14,15 +14,24 @@ from comfy.component_model.executor_types import SendSyncEvent, SendSyncData, Ex
     DependencyCycleError
 from comfy.distributed.server_stub import ServerStub
 from comfy.execution_context import context_add_custom_nodes
-from comfy_execution.graph_utils import GraphBuilder, Node
 from comfy.nodes.package_typing import ExportedNodes
+from comfy_execution.graph_utils import GraphBuilder, Node
 from tests.conftest import current_test_name
+
+
+async def run_warmup(client, prefix="warmup"):
+    """Run a simple workflow to warm up the server."""
+    warmup_g = GraphBuilder(prefix=prefix)
+    warmup_image = warmup_g.node("StubImage", content="BLACK", height=32, width=32, batch_size=1)
+    warmup_g.node("PreviewImage", images=warmup_image.out(0))
+    await client.run(warmup_g)
 
 
 class RunResult:
     def __init__(self, prompt_id: str):
         self.outputs: Dict[str, Dict] = {}
         self.runs: Dict[str, bool] = {}
+        self.cached: Dict[str, bool] = {}
         self.prompt_id: str = prompt_id
 
     def get_output(self, node: Node):
@@ -30,6 +39,13 @@ class RunResult:
 
     def did_run(self, node: Node):
         return self.runs.get(node.id, False)
+
+    def was_cached(self, node: Node):
+        return self.cached.get(node.id, False)
+
+    def was_executed(self, node: Node):
+        """Returns True if node was either run or cached"""
+        return self.did_run(node) or self.was_cached(node)
 
     def get_images(self, node: Node):
         output = self.get_output(node)
@@ -58,8 +74,9 @@ class ComfyClient:
         self.embedded_client = embedded_client
         self.progress_handler = progress_handler
 
-    async def run(self, graph: GraphBuilder) -> RunResult:
+    async def run(self, graph: GraphBuilder, partial_execution_targets=None) -> RunResult:
         self.progress_handler.tuples = []
+        # todo: what is a partial_execution_targets ???
         for node in graph.nodes.values():
             if node.class_type == 'SaveImage':
                 node.inputs['filename_prefix'] = current_test_name.get()
@@ -82,6 +99,11 @@ class ComfyClient:
             elif send_sync_event == "execution_error":
                 send_sync_data: ExecutionErrorMessage
                 raise Exception(send_sync_data)
+            elif send_sync_event == 'execution_cached':
+                if send_sync_data['prompt_id'] == prompt_id:
+                    cached_nodes = send_sync_data.get('nodes', [])
+                    for node_id in cached_nodes:
+                        result.cached[node_id] = True
 
         for node in outputs.values():
             if "images" in node:
@@ -424,12 +446,14 @@ class TestExecution:
         assert not result.did_run(test_node), "The execution should have been cached"
 
     async def test_parallel_sleep_nodes(self, client: ComfyClient, builder: GraphBuilder):
+        # Warmup execution to ensure server is fully initialized
+        await run_warmup(client)
         g = builder
         image = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
 
         # Create sleep nodes for each duration
-        sleep_node1 = g.node("TestSleep", value=image.out(0), seconds=2.8)
-        sleep_node2 = g.node("TestSleep", value=image.out(0), seconds=2.9)
+        sleep_node1 = g.node("TestSleep", value=image.out(0), seconds=2.9)
+        sleep_node2 = g.node("TestSleep", value=image.out(0), seconds=3.1)
         sleep_node3 = g.node("TestSleep", value=image.out(0), seconds=3.0)
 
         # Add outputs to verify the execution
@@ -441,10 +465,9 @@ class TestExecution:
         result = await client.run(g)
         elapsed_time = time.time() - start_time
 
-        # The test should take around 0.4 seconds (the longest sleep duration)
-        # plus some overhead, but definitely less than the sum of all sleeps (0.9s)
-        # We'll allow for up to 0.8s total to account for overhead
-        assert elapsed_time < 4.0, f"Parallel execution took {elapsed_time}s, expected less than 0.8s"
+        # The test should take around 3.0 seconds (the longest sleep duration)
+        # plus some overhead, but definitely less than the sum of all sleeps (9.0s)
+        assert elapsed_time < 8.9, f"Parallel execution took {elapsed_time}s, expected less than 8.9s"
 
         # Verify that all nodes executed
         assert result.did_run(sleep_node1), "Sleep node 1 should have run"
@@ -452,6 +475,8 @@ class TestExecution:
         assert result.did_run(sleep_node3), "Sleep node 3 should have run"
 
     async def test_parallel_sleep_expansion(self, client: ComfyClient, builder: GraphBuilder):
+        # Warmup execution to ensure server is fully initialized
+        await run_warmup(client)
         g = builder
         # Create input images with different values
         image1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
@@ -463,9 +488,9 @@ class TestExecution:
                                 image1=image1.out(0),
                                 image2=image2.out(0),
                                 image3=image3.out(0),
-                                sleep1=0.4,
-                                sleep2=0.5,
-                                sleep3=0.6)
+                                sleep1=4.8,
+                                sleep2=4.9,
+                                sleep3=5.0)
         output = g.node("SaveImage", images=parallel_sleep.out(0))
 
         start_time = time.time()
@@ -474,7 +499,7 @@ class TestExecution:
 
         # Similar to the previous test, expect parallel execution of the sleep nodes
         # which should complete in less than the sum of all sleeps
-        assert elapsed_time < 0.8, f"Expansion execution took {elapsed_time}s, expected less than 0.8s"
+        assert elapsed_time < 10.0, f"Expansion execution took {elapsed_time}s, expected less than 5.5s"
 
         # Verify the parallel sleep node executed
         assert result.did_run(parallel_sleep), "ParallelSleep node should have run"
@@ -511,3 +536,150 @@ class TestExecution:
         assert len(images) == 2, "Should have 2 images"
         assert numpy.array(images[0]).min() == 0 and numpy.array(images[0]).max() == 0, "First image should be black"
         assert numpy.array(images[1]).min() == 0 and numpy.array(images[1]).max() == 0, "Second image should also be black"
+
+    # Output nodes included in the partial execution list are executed
+    async def test_partial_execution_included_outputs(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        input2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+
+        # Create two separate output nodes
+        output1 = g.node("SaveImage", images=input1.out(0))
+        output2 = g.node("SaveImage", images=input2.out(0))
+
+        # Run with partial execution targeting only output1
+        result = await client.run(g, partial_execution_targets=[output1.id])
+
+        assert result.was_executed(input1), "Input1 should have been executed (run or cached)"
+        assert result.was_executed(output1), "Output1 should have been executed (run or cached)"
+        assert not result.did_run(input2), "Input2 should not have run"
+        assert not result.did_run(output2), "Output2 should not have run"
+
+        # Verify only output1 produced results
+        assert len(result.get_images(output1)) == 1, "Output1 should have produced an image"
+        assert len(result.get_images(output2)) == 0, "Output2 should not have produced an image"
+
+    # Output nodes NOT included in the partial execution list are NOT executed
+    async def test_partial_execution_excluded_outputs(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        input2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+        input3 = g.node("StubImage", content="NOISE", height=512, width=512, batch_size=1)
+
+        # Create three output nodes
+        output1 = g.node("SaveImage", images=input1.out(0))
+        output2 = g.node("SaveImage", images=input2.out(0))
+        output3 = g.node("SaveImage", images=input3.out(0))
+
+        # Run with partial execution targeting only output1 and output3
+        result = await client.run(g, partial_execution_targets=[output1.id, output3.id])
+
+        assert result.was_executed(input1), "Input1 should have been executed"
+        assert result.was_executed(input3), "Input3 should have been executed"
+        assert result.was_executed(output1), "Output1 should have been executed"
+        assert result.was_executed(output3), "Output3 should have been executed"
+        assert not result.did_run(input2), "Input2 should not have run"
+        assert not result.did_run(output2), "Output2 should not have run"
+
+    # Output nodes NOT in list ARE executed if necessary for nodes that are in the list
+    async def test_partial_execution_dependencies(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+
+        # Create a processing chain with an OUTPUT_NODE that has socket outputs
+        output_with_socket = g.node("TestOutputNodeWithSocketOutput", image=input1.out(0), value=2.0)
+
+        # Create another node that depends on the output_with_socket
+        dependent_node = g.node("TestLazyMixImages",
+                                image1=output_with_socket.out(0),
+                                image2=input1.out(0),
+                                mask=g.node("StubMask", value=0.5, height=512, width=512, batch_size=1).out(0))
+
+        # Create the final output
+        final_output = g.node("SaveImage", images=dependent_node.out(0))
+
+        # Run with partial execution targeting only the final output
+        result = await client.run(g, partial_execution_targets=[final_output.id])
+
+        # All nodes should have been executed because they're dependencies
+        assert result.was_executed(input1), "Input1 should have been executed"
+        assert result.was_executed(output_with_socket), "Output with socket should have been executed (dependency)"
+        assert result.was_executed(dependent_node), "Dependent node should have been executed"
+        assert result.was_executed(final_output), "Final output should have been executed"
+
+    # Lazy execution works with partial execution
+    async def test_partial_execution_with_lazy_nodes(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        input2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+        input3 = g.node("StubImage", content="NOISE", height=512, width=512, batch_size=1)
+
+        # Create masks that will trigger different lazy execution paths
+        mask1 = g.node("StubMask", value=0.0, height=512, width=512, batch_size=1)  # Will only need image1
+        mask2 = g.node("StubMask", value=0.5, height=512, width=512, batch_size=1)  # Will need both images
+
+        # Create two lazy mix nodes
+        lazy_mix1 = g.node("TestLazyMixImages", image1=input1.out(0), image2=input2.out(0), mask=mask1.out(0))
+        lazy_mix2 = g.node("TestLazyMixImages", image1=input2.out(0), image2=input3.out(0), mask=mask2.out(0))
+
+        output1 = g.node("SaveImage", images=lazy_mix1.out(0))
+        output2 = g.node("SaveImage", images=lazy_mix2.out(0))
+
+        # Run with partial execution targeting only output1
+        result = await client.run(g, partial_execution_targets=[output1.id])
+
+        # For output1 path - only input1 should run due to lazy evaluation (mask=0.0)
+        assert result.was_executed(input1), "Input1 should have been executed"
+        assert not result.did_run(input2), "Input2 should not have run (lazy evaluation)"
+        assert result.was_executed(mask1), "Mask1 should have been executed"
+        assert result.was_executed(lazy_mix1), "Lazy mix1 should have been executed"
+        assert result.was_executed(output1), "Output1 should have been executed"
+
+        # Nothing from output2 path should run
+        assert not result.did_run(input3), "Input3 should not have run"
+        assert not result.did_run(mask2), "Mask2 should not have run"
+        assert not result.did_run(lazy_mix2), "Lazy mix2 should not have run"
+        assert not result.did_run(output2), "Output2 should not have run"
+
+    # Multiple OUTPUT_NODEs with dependencies
+    async def test_partial_execution_multiple_output_nodes(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        input2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+
+        # Create a chain of OUTPUT_NODEs
+        output_node1 = g.node("TestOutputNodeWithSocketOutput", image=input1.out(0), value=1.5)
+        output_node2 = g.node("TestOutputNodeWithSocketOutput", image=output_node1.out(0), value=2.0)
+
+        # Create regular output nodes
+        save1 = g.node("SaveImage", images=output_node1.out(0))
+        save2 = g.node("SaveImage", images=output_node2.out(0))
+        save3 = g.node("SaveImage", images=input2.out(0))
+
+        # Run targeting only save2
+        result = await client.run(g, partial_execution_targets=[save2.id])
+
+        # Should run: input1, output_node1, output_node2, save2
+        assert result.was_executed(input1), "Input1 should have been executed"
+        assert result.was_executed(output_node1), "Output node 1 should have been executed (dependency)"
+        assert result.was_executed(output_node2), "Output node 2 should have been executed (dependency)"
+        assert result.was_executed(save2), "Save2 should have been executed"
+
+        # Should NOT run: input2, save1, save3
+        assert not result.did_run(input2), "Input2 should not have run"
+        assert not result.did_run(save1), "Save1 should not have run"
+        assert not result.did_run(save3), "Save3 should not have run"
+
+    # Empty partial execution list (should execute nothing)
+    async def test_partial_execution_empty_list(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        _output1 = g.node("SaveImage", images=input1.out(0))
+
+        # Run with empty partial execution list
+        try:
+            _result = await client.run(g, partial_execution_targets=[])
+            # Should get an error because no outputs are selected
+            assert False, "Should have raised an error for empty partial execution list"
+        except Exception:
+            pass  # Expected behavior

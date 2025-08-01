@@ -14,11 +14,11 @@ from opentelemetry import context, propagate
 from opentelemetry.context import Context, attach, detach
 from opentelemetry.trace import Status, StatusCode
 
-from ..cmd.main_pre import tracer
 from .client_types import V1QueuePromptResponse
 from ..api.components.schema.prompt import PromptDict
 from ..cli_args_types import Configuration
 from ..cmd.folder_paths import init_default_paths  # pylint: disable=import-error
+from ..cmd.main_pre import tracer
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.make_mutable import make_mutable
 from ..distributed.executors import ContextVarExecutor
@@ -35,7 +35,8 @@ def _execute_prompt(
         client_id: str,
         span_context: dict,
         progress_handler: ExecutorToClientProgress | None,
-        configuration: Configuration | None) -> dict:
+        configuration: Configuration | None,
+        partial_execution_targets: Optional[list[str]] = None) -> dict:
     configuration = copy.deepcopy(configuration) if configuration is not None else None
     execution_context = current_execution_context()
     if len(execution_context.folder_names_and_paths) == 0 or configuration is not None:
@@ -45,7 +46,7 @@ def _execute_prompt(
     try:
         # there is never an event loop running on a thread or process pool thread here
         # this also guarantees nodes will be able to successfully call await
-        return asyncio.run(__execute_prompt(prompt, prompt_id, client_id, span_context, progress_handler, configuration))
+        return asyncio.run(__execute_prompt(prompt, prompt_id, client_id, span_context, progress_handler, configuration, partial_execution_targets))
     finally:
         detach(token)
 
@@ -56,7 +57,8 @@ async def __execute_prompt(
         client_id: str,
         span_context: Context,
         progress_handler: ExecutorToClientProgress | None,
-        configuration: Configuration | None) -> dict:
+        configuration: Configuration | None,
+        partial_execution_targets: list[str] | None) -> dict:
     from .. import options
     from ..cmd.execution import PromptExecutor
 
@@ -82,7 +84,7 @@ async def __execute_prompt(
         try:
             prompt_mut = make_mutable(prompt)
             from ..cmd.execution import validate_prompt
-            validation_tuple = await validate_prompt(prompt_id, prompt_mut)
+            validation_tuple = await validate_prompt(prompt_id, prompt_mut, partial_execution_targets)
             if not validation_tuple.valid:
                 if validation_tuple.node_errors is not None and len(validation_tuple.node_errors) > 0:
                     validation_error_dict = validation_tuple.node_errors
@@ -98,7 +100,7 @@ async def __execute_prompt(
                 prompt_executor.server = progress_handler
 
             await prompt_executor.execute_async(prompt_mut, prompt_id, {"client_id": client_id},
-                                    execute_outputs=validation_tuple.good_output_node_ids)
+                                                execute_outputs=validation_tuple.good_output_node_ids)
             return prompt_executor.outputs_ui
         except Exception as exc_info:
             span.set_status(Status(StatusCode.ERROR))
@@ -180,7 +182,6 @@ class Comfy:
         self._executor.shutdown(wait=True)
         self._is_running = False
 
-
     async def __aenter__(self):
         self._is_running = True
         return self
@@ -214,7 +215,8 @@ class Comfy:
     async def queue_prompt(self,
                            prompt: PromptDict | dict,
                            prompt_id: Optional[str] = None,
-                           client_id: Optional[str] = None) -> dict:
+                           client_id: Optional[str] = None,
+                           partial_execution_targets: Optional[list[str]] = None) -> dict:
         with self._task_count_lock:
             self._task_count += 1
         prompt_id = prompt_id or str(uuid.uuid4())
@@ -233,6 +235,7 @@ class Comfy:
                 # todo: a proxy object or something more sophisticated will have to be done here to restore progress notifications for ProcessPoolExecutors
                 None if isinstance(self._executor, ProcessPoolExecutor) else self._progress_handler,
                 self._configuration,
+                partial_execution_targets,
             )
         finally:
             with self._task_count_lock:

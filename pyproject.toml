@@ -1,6 +1,6 @@
 [project]
 name = "comfyui"
-version = "0.3.46"
+version = "0.3.47"
 description = "An installable version of ComfyUI"
 readme = "README.md"
 authors = [
@@ -272,7 +272,7 @@ lint.select = [
     "W", # pycodestyle Warnings
     "F", # Pyflakes
 ]
-exclude = ["*.ipynb"]
+exclude = ["*.ipynb", "**/generated/*.pyi"]
 
 [tool.hatch.metadata]
 allow-direct-references = true

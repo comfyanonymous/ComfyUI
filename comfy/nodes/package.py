@@ -11,13 +11,17 @@ from importlib.metadata import entry_points
 
 from opentelemetry.trace import Span, Status, StatusCode
 
-from ..cmd.main_pre import tracer
+from comfy_api.internal import register_versions, ComfyAPIWithVersion
+from comfy_api.version_list import supported_versions
+from .comfyui_v3_package_imports import _comfy_entrypoint_upstream_v3_imports
 from .package_typing import ExportedNodes
+from ..cmd.main_pre import tracer
 from ..component_model.files import get_package_as_path
 
 _nodes_available_at_startup: ExportedNodes = ExportedNodes()
 
 logger = logging.getLogger(__name__)
+
 
 def _import_nodes_in_module(exported_nodes: ExportedNodes, module: types.ModuleType):
     node_class_mappings = getattr(module, 'NODE_CLASS_MAPPINGS', None)
@@ -37,7 +41,10 @@ def _import_nodes_in_module(exported_nodes: ExportedNodes, module: types.ModuleT
         if not os.path.isdir(abs_web_directory):
             raise ImportError(path=abs_web_directory)
         exported_nodes.EXTENSION_WEB_DIRS[module.__name__] = abs_web_directory
+    exported_nodes.update(_comfy_entrypoint_upstream_v3_imports(module))
     return node_class_mappings and len(node_class_mappings) > 0 or web_directory
+
+
 
 
 def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
@@ -51,16 +58,16 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
         time_before = time.perf_counter()
         full_name = module.__name__
         try:
-            module_decl = _import_nodes_in_module(exported_nodes, module)
+            any_content_in_module = _import_nodes_in_module(exported_nodes, module)
             span.set_attribute("full_name", full_name)
             timings.append((time.perf_counter() - time_before, full_name, True, exported_nodes))
         except Exception as exc:
-            module_decl = None
+            any_content_in_module = None
             logger.error(f"{full_name} import failed", exc_info=exc)
             span.set_status(Status(StatusCode.ERROR))
             span.record_exception(exc)
             exceptions.append(exc)
-    if module_decl is None or not module_decl:
+    if any_content_in_module is None or not any_content_in_module:
         # Iterate through all the submodules
         for _, name, is_pkg in pkgutil.iter_modules(module.__path__):
             span: Span
@@ -107,6 +114,14 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
 def import_all_nodes_in_workspace(vanilla_custom_nodes=True, raise_on_failure=False) -> ExportedNodes:
     # now actually import the nodes, to improve control of node loading order
     from ..cli_args import args
+
+    # todo: this is some truly braindead stuff
+    register_versions([
+        ComfyAPIWithVersion(
+            version=getattr(v, "VERSION"),
+            api_class=v
+        ) for v in supported_versions
+    ])
 
     # only load these nodes once
     if len(_nodes_available_at_startup) == 0:

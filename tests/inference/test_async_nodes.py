@@ -1,21 +1,17 @@
 import time
-import urllib.error
 from typing import Any, AsyncGenerator
 
 import numpy as np
 import pytest
-import torch
 from pytest import fixture
 
 from comfy.cli_args import default_configuration
-from comfy.cli_args_types import Configuration
 from comfy.client.embedded_comfy_client import Comfy
 from comfy.execution_context import context_add_custom_nodes
 from comfy.nodes.package_typing import ExportedNodes
 from comfy_execution.graph_utils import GraphBuilder
-from tests.inference.test_execution import ComfyClient
+from tests.inference.test_execution import run_warmup
 from .test_execution import ComfyClient, _ProgressHandler
-from ..conftest import comfy_background_server_from_config
 
 
 @pytest.mark.execution
@@ -36,7 +32,7 @@ class TestAsyncNodes:
         with context_add_custom_nodes(ExportedNodes(NODE_CLASS_MAPPINGS=NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS=NODE_DISPLAY_NAME_MAPPINGS)):
             async with Comfy(configuration, progress_handler=progress_handler) as embedded_client:
                 yield ComfyClient(embedded_client, progress_handler)
-    
+
     @fixture
     async def client(self, shared_client: ComfyClient, request, set_test_name):
         yield shared_client
@@ -67,6 +63,9 @@ class TestAsyncNodes:
 
     async def test_multiple_async_parallel_execution(self, client: ComfyClient, builder: GraphBuilder):
         """Test that multiple async nodes execute in parallel."""
+        # Warmup execution to ensure server is fully initialized
+        await run_warmup(client)
+
         g = builder
         image = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
 
@@ -133,6 +132,9 @@ class TestAsyncNodes:
 
     async def test_async_lazy_evaluation(self, client: ComfyClient, builder: GraphBuilder):
         """Test async nodes with lazy evaluation."""
+        # Warmup execution to ensure server is fully initialized
+        await run_warmup(client, prefix="warmup_lazy")
+
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         input2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
@@ -288,6 +290,9 @@ class TestAsyncNodes:
 
     async def test_async_caching_behavior(self, client: ComfyClient, builder: GraphBuilder):
         """Test that async nodes are properly cached."""
+        # Warmup execution to ensure server is fully initialized
+        await run_warmup(client, prefix="warmup_cache")
+
         g = builder
         image = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         sleep_node = g.node("TestSleep", value=image.out(0), seconds=0.2)
@@ -307,6 +312,9 @@ class TestAsyncNodes:
 
     async def test_async_with_dynamic_prompts(self, client: ComfyClient, builder: GraphBuilder):
         """Test async nodes within dynamically generated prompts."""
+        # Warmup execution to ensure server is fully initialized
+        await run_warmup(client, prefix="warmup_dynamic")
+
         g = builder
         image1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         image2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)

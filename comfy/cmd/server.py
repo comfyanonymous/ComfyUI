@@ -30,6 +30,8 @@ from aiohttp import web
 from can_ada import URL, parse as urlparse  # pylint: disable=no-name-in-module
 from typing_extensions import NamedTuple
 
+from comfy_api import feature_flags
+from comfy_api.internal import _ComfyNodeInternal
 from .latent_preview_image_encoding import encode_preview_image
 from .. import __version__
 from .. import interruption, model_management
@@ -58,8 +60,6 @@ from ..nodes.package_typing import ExportedNodes
 from ..progress_types import PreviewImageMetadata
 
 logger = logging.getLogger(__name__)
-
-from comfy_api import feature_flags
 
 
 class HeuristicPath(NamedTuple):
@@ -631,6 +631,8 @@ class PromptServer(ExecutorToClientProgress):
 
         def node_info(node_class):
             obj_class = self.nodes.NODE_CLASS_MAPPINGS[node_class]
+            if issubclass(obj_class, _ComfyNodeInternal):
+                return obj_class.GET_NODE_INFO_V1()
             info = {}
             info['input'] = obj_class.INPUT_TYPES()
             info['input_order'] = {key: list(value.keys()) for (key, value) in obj_class.INPUT_TYPES().items()}
@@ -720,7 +722,12 @@ class PromptServer(ExecutorToClientProgress):
             if "prompt" in json_data:
                 prompt = json_data["prompt"]
                 prompt_id = str(json_data.get("prompt_id", uuid.uuid4()))
-                valid = await execution.validate_prompt(prompt_id, prompt)
+
+                partial_execution_targets = None
+                if "partial_execution_targets" in json_data:
+                    partial_execution_targets = json_data["partial_execution_targets"]
+
+                valid = await execution.validate_prompt(prompt_id, prompt, partial_execution_targets)
                 extra_data = {}
                 if "extra_data" in json_data:
                     extra_data = json_data["extra_data"]

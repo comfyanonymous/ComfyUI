@@ -13,6 +13,7 @@ from os.path import join, basename, dirname, isdir, isfile, exists, abspath, spl
 from typing import Dict, Iterable
 
 from . import base_nodes
+from .comfyui_v3_package_imports import _comfy_entrypoint_upstream_v3_imports
 from .package_typing import ExportedNodes
 from ..cmd import folder_paths
 from ..component_model.plugins import prompt_server_instance_routes
@@ -192,13 +193,13 @@ def _vanilla_load_custom_nodes_1(module_path, ignore=set()) -> ExportedNodes:
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module,
                                                                          "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 exported_nodes.NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
-            return exported_nodes
         else:
             logger.error(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
-            return exported_nodes
+
+        exported_nodes.update(_comfy_entrypoint_upstream_v3_imports(module))
     except Exception as e:
         logger.error(f"Cannot import {module_path} module for custom nodes:", exc_info=e)
-        return exported_nodes
+    return exported_nodes
 
 
 def _vanilla_load_custom_nodes_2(node_paths: Iterable[str]) -> ExportedNodes:

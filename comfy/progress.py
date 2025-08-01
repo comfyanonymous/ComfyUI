@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from abc import ABC
 from enum import Enum
 from typing import TYPE_CHECKING
-from typing import TypedDict, Dict, Optional
+from typing import TypedDict, Dict, Optional, Tuple
 
 from PIL import Image
 from tqdm import tqdm
@@ -18,6 +20,8 @@ from .cmd.protocol import BinaryEventTypes
 from comfy_api import feature_flags
 
 _module_properties = create_module_properties()
+
+PreviewImageTuple = Tuple[str, Image.Image, Optional[int]]
 
 
 class NodeState(Enum):
@@ -61,7 +65,7 @@ class ProgressHandler(ABC):
             max_value: float,
             state: NodeProgressState,
             prompt_id: str,
-            image: Optional[Image.Image] = None,
+            image: PreviewImageTuple | None = None,
     ):
         """Called when a node's progress is updated"""
         pass
@@ -112,7 +116,7 @@ class CLIProgressHandler(ProgressHandler):
             max_value: float,
             state: NodeProgressState,
             prompt_id: str,
-            image: Optional[Image.Image] = None,
+            image: PreviewImageTuple | None = None,
     ):
         # Handle case where start_handler wasn't called
         if node_id not in self.progress_bars:
@@ -205,7 +209,7 @@ class WebUIProgressHandler(ProgressHandler):
             max_value: float,
             state: NodeProgressState,
             prompt_id: str,
-            image: Optional[Image.Image] = None,
+            image: PreviewImageTuple | None = None,
     ):
         # Send progress state of all nodes
         if self.registry:
@@ -294,7 +298,7 @@ class ProgressRegistry(AbstractProgressRegistry):
                 handler.start_handler(node_id, entry, self.prompt_id)
 
     def update_progress(
-            self, node_id: str, value: float, max_value: float, image: Optional[Image.Image]
+            self, node_id: str, value: float, max_value: float, image: PreviewImageTuple | None = None
     ) -> None:
         """Update progress for a node"""
         entry = self.ensure_entry(node_id)
