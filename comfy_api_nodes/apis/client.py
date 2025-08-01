@@ -351,6 +351,8 @@ class ApiClient:
             request_headers.update(headers)
         if files:
             request_headers.pop("Content-Type", None)
+        if params:
+            params = {k: v for k, v in params.items() if v is not None}  # aiohttp fails to serialize None values
 
         logging.debug(f"[DEBUG] Request Headers: {request_headers}")
         logging.debug(f"[DEBUG] Files: {files}")
