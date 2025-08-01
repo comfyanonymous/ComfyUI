@@ -22,7 +22,6 @@ from server import PromptServer
 
 import numpy as np
 from PIL import Image
-import requests
 import torch
 import math
 import base64
@@ -208,9 +207,9 @@ async def download_url_to_image_tensor(url: str, timeout: int = None) -> torch.T
     return bytesio_to_image_tensor(image_bytesio)
 
 
-def process_image_response(response: requests.Response) -> torch.Tensor:
+def process_image_response(response_content: bytes | str) -> torch.Tensor:
     """Uses content from a Response object and converts it to a torch.Tensor"""
-    return bytesio_to_image_tensor(BytesIO(response.content))
+    return bytesio_to_image_tensor(BytesIO(response_content))
 
 
 def _tensor_to_pil(image: torch.Tensor, total_pixels: int = 2048 * 2048) -> Image.Image:
