@@ -112,7 +112,7 @@ cd /kaggle/ComfyUI
 
 REMOTE_PORT="$1"
 
-# 传入参数1,2...  这样便于扩展，如果以后用了其他的frp，也好调整。
+# 传入参数3,4,5,...  这样便于扩展，如果以后用了其他的frp，也好调整。
 
 # frp execution binary only. 这里放frpc执行文件，如果版本有变也好改。配置文件模版，也在项目中, 模版文件名为template_frpc
 wget -O  /kaggle/working/frp_0.54.0_linux_amd64.tar.gz https://github.com/fatedier/frp/releases/download/v0.54.0/frp_0.54.0_linux_amd64.tar.gz
@@ -123,9 +123,9 @@ cp -p /kaggle/ComfyUI/template_frpc /kaggle/working/frpc.toml
 # 1, 2 主要是为了兼容之前的comfyUI notebook（不想一个一个的去修改了）
 FRP_CONFIG_FILE="/kaggle/working/frpc.toml"
 CHOICE="$1"
-if [ "$CHOICE" -eq 1 ]; then
+if [ "$CHOICE" -eq 3 ]; then
   TARGET_REMOTE_PORT="21663"
-elif [ "$CHOICE" -eq 2 ]; then
+elif [ "$CHOICE" -eq 4 ]; then
   TARGET_REMOTE_PORT="21664"
 
 elif [ "$CHOICE" -eq 5 ]; then

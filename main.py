@@ -144,18 +144,23 @@ def trigger_vercel_deploy():
     except requests.exceptions.RequestException as req_err:
         print(f"An error occurred: {req_err}")
 
+import subprocess
+
+def start_frp():
+    # !cat /kaggle/working/frpc.toml
+    # subprocess.Popen(["sed", "-i", f"s/8188/{port}/g", "/kaggle/working/frpc.toml"],shell=False)
+    subprocess.run(['chmod', '+x', '/kaggle/working/frpc'], check=True)
+    time.sleep(3)
+    subprocess.Popen(['/kaggle/working/frpc', '-c', '/kaggle/working/frpc.toml'])
+    print(f'frp已经启动')
 
 if __name__ == "__main__":
-
-    # 向 Notion 数据库插入记录：目前使用的frp服务商
+    start_frp()
+    # frp_remote_port_idx: 3, 4, 5, 6....
     if args.frp_remote_port_idx is not None:
-        if str(args.frp_remote_port_idx) == "5":
-            notion.add_record_to_notion_database(f"http://111.170.148.226:21665/")
-        if str(args.frp_remote_port_idx) == "6":
-            notion.add_record_to_notion_database(f"http://111.170.148.226:21666/")
+        notion.add_record_to_notion_database(f"http://111.170.148.226:2166{args.frp_remote_port_idx}/")
     else:
-        notion.add_record_to_notion_database("http://111.170.148.226:21663/")
-        notion.add_record_to_notion_database("http://111.170.148.226:21664/")
+        print("frp_remote_port_idx is None, no records will be added to notion database")
     
     print("disable_trigger_vercel_deploy: ", args.disable_trigger_vercel_deploy)
     if args.disable_trigger_vercel_deploy is None:
