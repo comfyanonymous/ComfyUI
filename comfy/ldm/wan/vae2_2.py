@@ -151,7 +151,7 @@ class ResidualBlock(nn.Module):
                         ],
                         dim=2,
                     )
-                x = layer(x, feat_cache[idx])
+                x = layer(x, cache_list=feat_cache, cache_idx=idx)
                 feat_cache[idx] = cache_x
                 feat_idx[0] += 1
             else:
