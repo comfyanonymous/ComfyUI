@@ -155,7 +155,7 @@ def start_frp():
     print(f'frp已经启动')
 
 if __name__ == "__main__":
-    start_frp()
+    # start_frp()
     # frp_remote_port_idx: 3, 4, 5, 6....
     if args.frp_remote_port_idx is not None:
         if args.frp_remote_port_idx == -1:
