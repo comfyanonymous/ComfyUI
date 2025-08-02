@@ -171,12 +171,12 @@ class BaseModel(torch.nn.Module):
             dtype = self.manual_cast_dtype
 
         xc = xc.to(dtype)
+        device = xc.device
         t = self.model_sampling.timestep(t).float()
         if context is not None:
-            context = context.to(dtype)
+            context = context.to(dtype=dtype, device=device)
 
         extra_conds = {}
-        device = xc.device
         for o in kwargs:
             extra = kwargs[o]
 
