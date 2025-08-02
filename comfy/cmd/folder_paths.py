@@ -438,7 +438,6 @@ def filter_files_content_types(files: list[str], content_types: list[Literal["im
         files = os.listdir(folder_paths.get_input_directory())
         filter_files_content_types(files, ["image", "audio", "video"])
     """
-    extension_mimetypes_cache = _extension_mimetypes_cache()
     result = []
     for file in files:
         extension = file.split('.')[-1]

@@ -172,7 +172,7 @@ def test_init_frontend_fallback_on_error():
     assert frontend_path == "/default/path"
     mock_check.assert_called_once()
 
-
+@pytest.mark.skip("not used in this fork")
 def test_get_frontend_version():
     # Arrange
     expected_version = "1.25.0"

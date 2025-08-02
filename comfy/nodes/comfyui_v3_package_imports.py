@@ -2,7 +2,7 @@ import asyncio
 import inspect
 import logging
 
-from comfy.nodes.package_typing import ExportedNodes
+from .package_typing import ExportedNodes
 from comfy_api.latest import ComfyExtension
 
 logger = logging.getLogger(__name__)

@@ -42,14 +42,14 @@ from torch.nn.functional import interpolate
 from tqdm import tqdm
 from typing_extensions import TypedDict, NotRequired
 
+from comfy_execution.progress import get_progress_state
 from . import interruption, checkpoint_pickle
 from .cli_args import args
 from .component_model import files
 from .component_model.deprecation import _deprecate_method
 from .component_model.executor_types import ExecutorToClientProgress, ProgressMessage
-from .execution_context import current_execution_context
+from .execution_context import current_execution_context, ExecutionContext
 from .gguf import gguf_sd_loader
-from .progress import get_progress_state
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
@@ -1202,13 +1202,13 @@ def comfy_tqdm():
     context = contextvars.copy_context()
     try:
         def __init(self, *args, **kwargs):
-            _original_init(self, *args, **kwargs)
-            self._progress_bar = ProgressBar(self.total)
+            context.run(lambda: _original_init(self, *args, **kwargs))
+            self._progress_bar = context.run(lambda: ProgressBar(self.total))
 
         def __update(self, n=1):
             assert self._progress_bar is not None
-            _original_update(self, n)
-            self._progress_bar.update(n)
+            context.run(lambda: _original_update(self, n))
+            context.run(lambda: self._progress_bar.update(n))
 
         def __call(self, *args, **kwargs):
             # When TQDM is called to wrap an iterable, ensure the instance is created

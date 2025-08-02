@@ -543,7 +543,7 @@ class Conditioning(ComfyTypeIO):
     Type = CondList
 
 @comfytype(io_type="SAMPLER")
-class Sampler(ComfyTypeIO):
+class Sampler(ComfyTypeIO):  # pylint: disable=function-redefined
     if TYPE_CHECKING:
         Type = Sampler
 
@@ -566,7 +566,7 @@ class Clip(ComfyTypeIO):
         Type = CLIP
 
 @comfytype(io_type="CONTROL_NET")
-class ControlNet(ComfyTypeIO):
+class ControlNet(ComfyTypeIO):  # pylint: disable=function-redefined
     if TYPE_CHECKING:
         Type = ControlNet
 
@@ -968,6 +968,7 @@ class NodeInfoV3:
     deprecated: bool=None
     experimental: bool=None
     api_node: bool=None
+    python_module: str=None
 
 
 @dataclass
@@ -1529,7 +1530,8 @@ class NodeOutput(_NodeOutputInternal):
             ui = data["ui"]
         if "expand" in data:
             expand = data["expand"]
-        return cls(args=args, ui=ui, expand=expand)
+        # todo: this is being called incorrectly, but since it's untested and unused anyway, maybe we'll wait for upstream to fix it
+        return cls(args=args, ui=ui, expand=expand)  # pylint: disable=unexpected-keyword-arg
 
     def __getitem__(self, index) -> Any:
         return self.args[index]

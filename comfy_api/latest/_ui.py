@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import random
 from io import BytesIO
@@ -9,20 +10,20 @@ from typing import Type
 import av
 import numpy as np
 import torch
-import torchaudio
 from PIL import Image as PILImage
 from PIL.PngImagePlugin import PngInfo
 
-import folder_paths
-
 # used for image preview
 from comfy.cli_args import args
+from comfy.cmd import folder_paths
 from comfy_api.latest._io import ComfyNode, FolderType, Image, _UIOutput
+
+logger = logging.getLogger(__name__)
 
 
 class SavedResult(dict):
     def __init__(self, filename: str, subfolder: str, type: FolderType):
-        super().__init__(filename=filename, subfolder=subfolder,type=type.value)
+        super().__init__(filename=filename, subfolder=subfolder, type=type.value)
 
     @property
     def filename(self) -> str:
@@ -39,6 +40,7 @@ class SavedResult(dict):
 
 class SavedImages(_UIOutput):
     """A UI output class to represent one or more saved images, potentially animated."""
+
     def __init__(self, results: list[SavedResult], is_animated: bool = False):
         super().__init__()
         self.results = results
@@ -53,6 +55,7 @@ class SavedImages(_UIOutput):
 
 class SavedAudios(_UIOutput):
     """UI wrapper around one or more audio files on disk (FLAC / MP3 / Opus)."""
+
     def __init__(self, results: list[SavedResult]):
         super().__init__()
         self.results = results
@@ -132,7 +135,7 @@ class ImageSaveHelper:
 
     @staticmethod
     def save_images(
-        images, filename_prefix: str, folder_type: FolderType, cls: Type[ComfyNode] | None, compress_level = 4,
+            images, filename_prefix: str, folder_type: FolderType, cls: Type[ComfyNode] | None, compress_level=4,
     ) -> list[SavedResult]:
         """Saves a batch of images as individual PNG files."""
         full_output_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
@@ -153,7 +156,7 @@ class ImageSaveHelper:
     def get_save_images_ui(images, filename_prefix: str, cls: Type[ComfyNode] | None, compress_level=4) -> SavedImages:
         """Saves a batch of images and returns a UI object for the node output."""
         return SavedImages(
-                ImageSaveHelper.save_images(
+            ImageSaveHelper.save_images(
                 images,
                 filename_prefix=filename_prefix,
                 folder_type=FolderType.output,
@@ -164,7 +167,7 @@ class ImageSaveHelper:
 
     @staticmethod
     def save_animated_png(
-        images, filename_prefix: str, folder_type: FolderType, cls: Type[ComfyNode] | None, fps: float, compress_level: int
+            images, filename_prefix: str, folder_type: FolderType, cls: Type[ComfyNode] | None, fps: float, compress_level: int
     ) -> SavedResult:
         """Saves a batch of images as a single animated PNG."""
         full_output_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
@@ -186,7 +189,7 @@ class ImageSaveHelper:
 
     @staticmethod
     def get_save_animated_png_ui(
-        images, filename_prefix: str, cls: Type[ComfyNode] | None, fps: float, compress_level: int
+            images, filename_prefix: str, cls: Type[ComfyNode] | None, fps: float, compress_level: int
     ) -> SavedImages:
         """Saves an animated PNG and returns a UI object for the node output."""
         result = ImageSaveHelper.save_animated_png(
@@ -201,14 +204,14 @@ class ImageSaveHelper:
 
     @staticmethod
     def save_animated_webp(
-        images,
-        filename_prefix: str,
-        folder_type: FolderType,
-        cls: Type[ComfyNode] | None,
-        fps: float,
-        lossless: bool,
-        quality: int,
-        method: int,
+            images,
+            filename_prefix: str,
+            folder_type: FolderType,
+            cls: Type[ComfyNode] | None,
+            fps: float,
+            lossless: bool,
+            quality: int,
+            method: int,
     ) -> SavedResult:
         """Saves a batch of images as a single animated WebP."""
         full_output_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
@@ -231,13 +234,13 @@ class ImageSaveHelper:
 
     @staticmethod
     def get_save_animated_webp_ui(
-        images,
-        filename_prefix: str,
-        cls: Type[ComfyNode] | None,
-        fps: float,
-        lossless: bool,
-        quality: int,
-        method: int,
+            images,
+            filename_prefix: str,
+            cls: Type[ComfyNode] | None,
+            fps: float,
+            lossless: bool,
+            quality: int,
+            method: int,
     ) -> SavedImages:
         """Saves an animated WebP and returns a UI object for the node output."""
         result = ImageSaveHelper.save_animated_webp(
@@ -259,12 +262,12 @@ class AudioSaveHelper:
 
     @staticmethod
     def save_audio(
-        audio: dict,
-        filename_prefix: str,
-        folder_type: FolderType,
-        cls: Type[ComfyNode] | None,
-        format: str = "flac",
-        quality: str = "128k",
+            audio: dict,
+            filename_prefix: str,
+            folder_type: FolderType,
+            cls: Type[ComfyNode] | None,
+            format: str = "flac",
+            quality: str = "128k",
     ) -> list[SavedResult]:
         full_output_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
             filename_prefix, _get_directory_by_folder_type(folder_type)
@@ -302,7 +305,11 @@ class AudioSaveHelper:
 
                 # Resample if necessary
                 if sample_rate != audio["sample_rate"]:
-                    waveform = torchaudio.functional.resample(waveform, audio["sample_rate"], sample_rate)
+                    try:
+                        import torchaudio  # pylint: disable=import-error
+                        waveform = torchaudio.functional.resample(waveform, audio["sample_rate"], sample_rate)
+                    except (ImportError, ModuleNotFoundError):
+                        logger.warning("could not resample because torchaudio not found")
 
             # Create output with specified format
             output_buffer = BytesIO()
@@ -364,7 +371,7 @@ class AudioSaveHelper:
 
     @staticmethod
     def get_save_audio_ui(
-        audio, filename_prefix: str, cls: Type[ComfyNode] | None, format: str = "flac", quality: str = "128k",
+            audio, filename_prefix: str, cls: Type[ComfyNode] | None, format: str = "flac", quality: str = "128k",
     ) -> SavedAudios:
         """Save and instantly wrap for UI."""
         return SavedAudios(
@@ -398,7 +405,7 @@ class PreviewImage(_UIOutput):
 
 
 class PreviewMask(PreviewImage):
-    def __init__(self, mask: PreviewMask.Type, animated: bool=False, cls: ComfyNode=None, **kwargs):
+    def __init__(self, mask: PreviewMask.Type, animated: bool = False, cls: ComfyNode = None, **kwargs):
         preview = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])).movedim(1, -1).expand(-1, -1, -1, 3)
         super().__init__(preview, animated, cls, **kwargs)
 

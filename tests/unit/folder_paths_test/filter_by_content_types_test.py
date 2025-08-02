@@ -3,8 +3,6 @@ import tempfile
 
 import pytest
 
-from comfy.cmd.folder_paths import filter_files_content_types
-from comfy.component_model.folder_path_types import extension_mimetypes_cache
 from unittest.mock import patch
 
 @pytest.fixture(scope="module")
@@ -29,16 +27,21 @@ def mock_dir(file_extensions):
 
 @pytest.fixture
 def patched_mimetype_cache(file_extensions):
+    from comfy.component_model.folder_path_types import extension_mimetypes_cache
+
     # Mock model file extensions since they may not be in the test-runner system's mimetype cache
     new_cache = extension_mimetypes_cache.copy()
-    for extension in file_extensions["model"]:
-        new_cache[extension] = "model"
+    new_cache.update({
+        v: k for (k, ext) in file_extensions.items() for v in ext
+    })
 
-    with patch("folder_paths.extension_mimetypes_cache", new_cache):
+
+    with patch("comfy.component_model.folder_path_types.extension_mimetypes_cache", new_cache):
         yield
 
 
 def test_categorizes_all_correctly(mock_dir, file_extensions, patched_mimetype_cache):
+    from comfy.cmd.folder_paths import filter_files_content_types
     files = os.listdir(mock_dir)
     for content_type, extensions in file_extensions.items():
         filtered_files = filter_files_content_types(files, [content_type])
@@ -47,6 +50,8 @@ def test_categorizes_all_correctly(mock_dir, file_extensions, patched_mimetype_c
 
 
 def test_categorizes_all_uniquely(mock_dir, file_extensions, patched_mimetype_cache):
+    from comfy.cmd.folder_paths import filter_files_content_types
+
     files = os.listdir(mock_dir)
     for content_type, extensions in file_extensions.items():
         filtered_files = filter_files_content_types(files, [content_type])
@@ -54,15 +59,21 @@ def test_categorizes_all_uniquely(mock_dir, file_extensions, patched_mimetype_ca
 
 
 def test_handles_bad_extensions():
+    from comfy.cmd.folder_paths import filter_files_content_types
+
     files = ["file1.txt", "file2.py", "file3.example", "file4.pdf", "file5.ini", "file6.doc", "file7.md"]
     assert filter_files_content_types(files, ["image", "audio", "video"]) == []
 
 
 def test_handles_no_extension():
+    from comfy.cmd.folder_paths import filter_files_content_types
+
     files = ["file1", "file2", "file3", "file4", "file5", "file6", "file7"]
     assert filter_files_content_types(files, ["image", "audio", "video"]) == []
 
 
 def test_handles_no_files():
+    from comfy.cmd.folder_paths import filter_files_content_types
+
     files = []
     assert filter_files_content_types(files, ["image", "audio", "video"]) == []

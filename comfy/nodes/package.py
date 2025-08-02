@@ -11,11 +11,11 @@ from importlib.metadata import entry_points
 
 from opentelemetry.trace import Span, Status, StatusCode
 
+from ..cmd.main_pre import tracer
 from comfy_api.internal import register_versions, ComfyAPIWithVersion
 from comfy_api.version_list import supported_versions
 from .comfyui_v3_package_imports import _comfy_entrypoint_upstream_v3_imports
 from .package_typing import ExportedNodes
-from ..cmd.main_pre import tracer
 from ..component_model.files import get_package_as_path
 
 _nodes_available_at_startup: ExportedNodes = ExportedNodes()

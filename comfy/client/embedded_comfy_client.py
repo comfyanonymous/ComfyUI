@@ -14,11 +14,11 @@ from opentelemetry import context, propagate
 from opentelemetry.context import Context, attach, detach
 from opentelemetry.trace import Status, StatusCode
 
+from ..cmd.main_pre import tracer
 from .client_types import V1QueuePromptResponse
 from ..api.components.schema.prompt import PromptDict
 from ..cli_args_types import Configuration
 from ..cmd.folder_paths import init_default_paths  # pylint: disable=import-error
-from ..cmd.main_pre import tracer
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.make_mutable import make_mutable
 from ..distributed.executors import ContextVarExecutor

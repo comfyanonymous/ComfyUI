@@ -83,7 +83,7 @@ class ComfyClient:
 
         prompt_id = str(uuid.uuid4())
         try:
-            outputs = await self.embedded_client.queue_prompt(graph.finalize(), prompt_id=prompt_id)
+            outputs = await self.embedded_client.queue_prompt(graph.finalize(), prompt_id=prompt_id, partial_execution_targets=partial_execution_targets)
         except (RuntimeError, DependencyCycleError) as exc_info:
             logging.warning("error when queueing prompt", exc_info=exc_info)
             outputs = {}

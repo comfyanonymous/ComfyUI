@@ -1,6 +1,6 @@
 from __future__ import annotations
 from av.container import InputContainer
-from av.subtitles.stream import SubtitleStream
+from av.subtitles.stream import SubtitleStream  # pylint: disable=no-name-in-module
 from fractions import Fraction
 from typing import Optional
 from comfy_api.latest._input import AudioInput, VideoInput

@@ -8,7 +8,7 @@ from typing import NamedTuple
 
 import requests
 
-from ..cmd.folder_paths import init_default_paths, folder_names_and_paths
+from ..cmd.folder_paths import init_default_paths, folder_names_and_paths  # pylint: disable=import-error
 # experimental workarounds for colab
 from ..cmd.main import _start_comfyui
 from ..execution_context import *

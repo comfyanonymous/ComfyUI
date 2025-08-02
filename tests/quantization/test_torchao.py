@@ -39,21 +39,21 @@ def model_patcher_obj(request) -> ModelPatcher:
         model_management.soft_empty_cache(force=True)
 
 
-@pytest.mark.forked
+# @pytest.mark.forked
 @pytest.mark.skipif(not has_torchao, reason="torchao not installed")
 @pytest.mark.skipif(True, reason="wip")
 async def test_unit_torchao(model_patcher_obj):
     quantize_(model_patcher_obj.diffusion_model, int8_dynamic_activation_int8_weight(), device=model_management.get_torch_device())
 
 
-@pytest.mark.forked
+# @pytest.mark.forked
 @pytest.mark.parametrize("strategy", ["torchao", "torchao-autoquant"])
 @pytest.mark.skipif(True, reason="wip")
 async def test_torchao_node(model_patcher_obj, strategy):
     QuantizeModel().execute(model_patcher_obj, strategy=strategy)
 
 
-@pytest.mark.forked
+# @pytest.mark.forked
 @pytest.mark.skipif(True, reason="wip")
 async def test_tensorrt(model_patcher_obj):
     STATIC_TRT_MODEL_CONVERSION().convert(model_patcher_obj, "test", 1, 1024, 1024, 1, 14)

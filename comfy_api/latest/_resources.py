@@ -1,6 +1,6 @@
 from __future__ import annotations
 import comfy.utils
-import folder_paths
+from comfy.cmd import folder_paths
 import logging
 from abc import ABC, abstractmethod
 from typing import Any

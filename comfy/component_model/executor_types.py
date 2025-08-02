@@ -137,6 +137,10 @@ class ExecutorToClientProgress(Protocol):
         """
         return False
 
+    @receive_all_progress_notifications.setter
+    def receive_all_progress_notifications(self, value: bool):
+        pass
+
     @property
     def sockets_metadata(self) -> SocketsMetadataType:
         return {"__unimplemented": True}

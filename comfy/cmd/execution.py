@@ -46,7 +46,7 @@ from ..execution_context import context_execute_node, context_execute_prompt
 from ..execution_ext import should_panic_on_exception
 from ..nodes.package_typing import InputTypeSpec, FloatSpecOptions, IntSpecOptions, CustomNode
 from ..nodes_context import get_nodes
-from ..progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler, \
+from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler, \
     ProgressRegistry
 from ..validation import validate_node_input
 
@@ -1197,11 +1197,11 @@ async def _validate_prompt(prompt_id: typing.Any, prompt: typing.Mapping[str, ty
         if valid is True:
             good_outputs.add(o)
         else:
-            logger.error(f"Failed to validate prompt for output {o}:")
+            msgs: list[str] = [f"Failed to validate prompt for output {o}:"]
             if len(reasons) > 0:
-                logger.error("* (prompt):")
+                msgs.append("* (prompt):")
                 for reason in reasons:
-                    logger.error(f"  - {reason['message']}: {reason['details']}")
+                    msgs.append(f"  - {reason['message']}: {reason['details']}")
             errors += [(o, reasons)]
             for node_id, result in validated.items():
                 valid = result[0]
@@ -1217,10 +1217,11 @@ async def _validate_prompt(prompt_id: typing.Any, prompt: typing.Mapping[str, ty
                             "dependent_outputs": [],
                             "class_type": class_type
                         }
-                        logger.error(f"* {class_type} {node_id}:")
+                        msgs.append(f"* {class_type} {node_id}:")
                         for reason in reasons:
-                            logger.error(f"  - {reason['message']}: {reason['details']}")
+                            msgs.append(f"  - {reason['message']}: {reason['details']}")
                     node_errors[node_id]["dependent_outputs"].append(o)
+            logger.info(' '.join(msgs))
 
     if len(good_outputs) == 0:
         errors_list = []

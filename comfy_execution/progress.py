@@ -9,14 +9,14 @@ from PIL import Image
 from tqdm import tqdm
 from typing_extensions import override
 
-from .component_model.executor_types import ExecutorToClientProgress
-from .component_model.module_property import create_module_properties
-from .execution_context import current_execution_context
-from .progress_types import AbstractProgressRegistry, PreviewImageMetadata
+from comfy.component_model.executor_types import ExecutorToClientProgress
+from comfy.component_model.module_property import create_module_properties
+from comfy.execution_context import current_execution_context
+from comfy.progress_types import AbstractProgressRegistry, PreviewImageMetadata
 
 if TYPE_CHECKING:
     from comfy_execution.graph import DynamicPrompt
-from .cmd.protocol import BinaryEventTypes
+from comfy.cmd.protocol import BinaryEventTypes
 from comfy_api import feature_flags
 
 _module_properties = create_module_properties()

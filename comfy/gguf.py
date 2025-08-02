@@ -714,6 +714,8 @@ def gguf_sd_loader(path, handle_prefix="model.diffusion_model.", return_arch=Fal
         prefix_len = len(handle_prefix)
         tensor_names = set(tensor.name for tensor in reader.tensors)
         has_prefix = any(s.startswith(handle_prefix) for s in tensor_names)
+    else:
+        prefix_len = 0
 
     tensors = []
     for tensor in reader.tensors:
@@ -1074,10 +1076,6 @@ class GGMLLayer(torch.nn.Module):
             destination[prefix + "temp.weight"] = temp
 
         return
-        # This would return the dequantized state dict
-        destination[prefix + "weight"] = self.get_weight(self.weight)
-        if bias is not None:
-            destination[prefix + "bias"] = self.get_weight(self.bias)
 
     def get_weight(self, tensor, dtype):
         if tensor is None:
@@ -1130,7 +1128,8 @@ class GGMLLayer(torch.nn.Module):
         if self.is_ggml_quantized():
             out = self.forward_ggml_cast_weights(input, *args, **kwargs)
         else:
-            out = super().forward_comfy_cast_weights(input, *args, **kwargs)
+            # this is from the mixin
+            out = super().forward_comfy_cast_weights(input, *args, **kwargs)  # pylint: disable=no-member
 
         # non-ggml forward might still propagate custom tensor class
         if isinstance(out, GGMLTensor):

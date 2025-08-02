@@ -187,8 +187,13 @@ class AsyncToSyncConverter:
         future.result()  # Wait for completion
 
         # Re-raise any exception that occurred in the thread
-        if result_container["exception"] is not None:
-            raise result_container["exception"]
+        exception_ = result_container["exception"]
+        if exception_ is not None:
+            if isinstance(exception_, Exception):
+                assert exception_ is not None
+                raise exception_  # pylint: disable=raising-bad-type
+            else:
+                raise ValueError(exception_)
 
         return result_container["result"]
 
