@@ -14,6 +14,10 @@ import urllib.request
 import urllib.parse
 import urllib.error
 from comfy_execution.graph_utils import GraphBuilder, Node
+import os
+import sys
+
+PYTHON_EXECUTABLE_PATH = os.path.realpath(sys.executable)
 
 def run_warmup(client, prefix="warmup"):
     """Run a simple workflow to warm up the server."""
@@ -145,7 +149,7 @@ class TestExecution:
     def _server(self, args_pytest, request):
         # Start server
         pargs = [
-            'python','main.py',
+            PYTHON_EXECUTABLE_PATH,'main.py',
             '--output-directory', args_pytest["output_dir"],
             '--listen', args_pytest["listen"],
             '--port', str(args_pytest["port"]),
