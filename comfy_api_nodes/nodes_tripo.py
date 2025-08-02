@@ -37,8 +37,8 @@ from comfy_api_nodes.apinode_utils import (
 )
 
 
-def upload_image_to_tripo(image, **kwargs):
-    urls = upload_images_to_comfyapi(image, max_images=1, auth_kwargs=kwargs)
+async def upload_image_to_tripo(image, **kwargs):
+    urls = await upload_images_to_comfyapi(image, max_images=1, auth_kwargs=kwargs)
     return TripoFileReference(TripoUrlReference(url=urls[0], type="jpeg"))
 
 def get_model_url_from_response(response: TripoTaskResponse) -> str:
@@ -49,7 +49,7 @@ def get_model_url_from_response(response: TripoTaskResponse) -> str:
     raise RuntimeError(f"Failed to get model url from response: {response}")
 
 
-def poll_until_finished(
+async def poll_until_finished(
     kwargs: dict[str, str],
     response: TripoTaskResponse,
 ) -> tuple[str, str]:
@@ -57,7 +57,7 @@ def poll_until_finished(
     if response.code != 0:
         raise RuntimeError(f"Failed to generate mesh: {response.error}")
     task_id = response.data.task_id
-    response_poll = PollingOperation(
+    response_poll = await PollingOperation(
         poll_endpoint=ApiEndpoint(
             path=f"/proxy/tripo/v2/openapi/task/{task_id}",
             method=HttpMethod.GET,
@@ -80,13 +80,14 @@ def poll_until_finished(
     ).execute()
     if response_poll.data.status == TripoTaskStatus.SUCCESS:
         url = get_model_url_from_response(response_poll)
-        bytesio = download_url_to_bytesio(url)
+        bytesio = await download_url_to_bytesio(url)
         # Save the downloaded model file
         model_file = f"tripo_model_{task_id}.glb"
         with open(os.path.join(get_output_directory(), model_file), "wb") as f:
             f.write(bytesio.getvalue())
         return model_file, task_id
     raise RuntimeError(f"Failed to generate mesh: {response_poll}")
+
 
 class TripoTextToModelNode:
     """
@@ -126,11 +127,11 @@ class TripoTextToModelNode:
     API_NODE = True
     OUTPUT_NODE = True
 
-    def generate_mesh(self, prompt, negative_prompt=None, model_version=None, style=None, texture=None, pbr=None, image_seed=None, model_seed=None, texture_seed=None, texture_quality=None, face_limit=None, quad=None, **kwargs):
+    async def generate_mesh(self, prompt, negative_prompt=None, model_version=None, style=None, texture=None, pbr=None, image_seed=None, model_seed=None, texture_seed=None, texture_quality=None, face_limit=None, quad=None, **kwargs):
         style_enum = None if style == "None" else style
         if not prompt:
             raise RuntimeError("Prompt is required")
-        response = SynchronousOperation(
+        response = await SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/tripo/v2/openapi/task",
                 method=HttpMethod.POST,
@@ -155,7 +156,8 @@ class TripoTextToModelNode:
             ),
             auth_kwargs=kwargs,
         ).execute()
-        return poll_until_finished(kwargs, response)
+        return await poll_until_finished(kwargs, response)
+
 
 class TripoImageToModelNode:
     """
@@ -195,12 +197,12 @@ class TripoImageToModelNode:
     API_NODE = True
     OUTPUT_NODE = True
 
-    def generate_mesh(self, image, model_version=None, style=None, texture=None, pbr=None, model_seed=None, orientation=None, texture_alignment=None, texture_seed=None, texture_quality=None, face_limit=None, quad=None, **kwargs):
+    async def generate_mesh(self, image, model_version=None, style=None, texture=None, pbr=None, model_seed=None, orientation=None, texture_alignment=None, texture_seed=None, texture_quality=None, face_limit=None, quad=None, **kwargs):
         style_enum = None if style == "None" else style
         if image is None:
             raise RuntimeError("Image is required")
-        tripo_file = upload_image_to_tripo(image, **kwargs)
-        response = SynchronousOperation(
+        tripo_file = await upload_image_to_tripo(image, **kwargs)
+        response = await SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/tripo/v2/openapi/task",
                 method=HttpMethod.POST,
@@ -225,7 +227,8 @@ class TripoImageToModelNode:
             ),
             auth_kwargs=kwargs,
         ).execute()
-        return poll_until_finished(kwargs, response)
+        return await poll_until_finished(kwargs, response)
+
 
 class TripoMultiviewToModelNode:
     """
@@ -267,7 +270,7 @@ class TripoMultiviewToModelNode:
     API_NODE = True
     OUTPUT_NODE = True
 
-    def generate_mesh(self, image, image_left=None, image_back=None, image_right=None, model_version=None, orientation=None, texture=None, pbr=None, model_seed=None, texture_seed=None, texture_quality=None, texture_alignment=None, face_limit=None, quad=None, **kwargs):
+    async def generate_mesh(self, image, image_left=None, image_back=None, image_right=None, model_version=None, orientation=None, texture=None, pbr=None, model_seed=None, texture_seed=None, texture_quality=None, texture_alignment=None, face_limit=None, quad=None, **kwargs):
         if image is None:
             raise RuntimeError("front image for multiview is required")
         images = []
@@ -282,11 +285,11 @@ class TripoMultiviewToModelNode:
         for image_name in ["image", "image_left", "image_back", "image_right"]:
             image_ = image_dict[image_name]
             if image_ is not None:
-                tripo_file = upload_image_to_tripo(image_, **kwargs)
+                tripo_file = await upload_image_to_tripo(image_, **kwargs)
                 images.append(tripo_file)
             else:
                 images.append(TripoFileEmptyReference())
-        response = SynchronousOperation(
+        response = await SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/tripo/v2/openapi/task",
                 method=HttpMethod.POST,
@@ -309,7 +312,8 @@ class TripoMultiviewToModelNode:
             ),
             auth_kwargs=kwargs,
         ).execute()
-        return poll_until_finished(kwargs, response)
+        return await poll_until_finished(kwargs, response)
+
 
 class TripoTextureNode:
     @classmethod
@@ -340,8 +344,8 @@ class TripoTextureNode:
     OUTPUT_NODE = True
     AVERAGE_DURATION = 80
 
-    def generate_mesh(self, model_task_id, texture=None, pbr=None, texture_seed=None, texture_quality=None, texture_alignment=None, **kwargs):
-        response = SynchronousOperation(
+    async def generate_mesh(self, model_task_id, texture=None, pbr=None, texture_seed=None, texture_quality=None, texture_alignment=None, **kwargs):
+        response = await SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/tripo/v2/openapi/task",
                 method=HttpMethod.POST,
@@ -358,7 +362,7 @@ class TripoTextureNode:
             ),
             auth_kwargs=kwargs,
         ).execute()
-        return poll_until_finished(kwargs, response)
+        return await poll_until_finished(kwargs, response)
 
 
 class TripoRefineNode:
@@ -387,8 +391,8 @@ class TripoRefineNode:
     OUTPUT_NODE = True
     AVERAGE_DURATION = 240
 
-    def generate_mesh(self, model_task_id, **kwargs):
-        response = SynchronousOperation(
+    async def generate_mesh(self, model_task_id, **kwargs):
+        response = await SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/tripo/v2/openapi/task",
                 method=HttpMethod.POST,
@@ -400,7 +404,7 @@ class TripoRefineNode:
             ),
             auth_kwargs=kwargs,
         ).execute()
-        return poll_until_finished(kwargs, response)
+        return await poll_until_finished(kwargs, response)
 
 
 class TripoRigNode:
@@ -425,8 +429,8 @@ class TripoRigNode:
     OUTPUT_NODE = True
     AVERAGE_DURATION = 180
 
-    def generate_mesh(self, original_model_task_id, **kwargs):
-        response = SynchronousOperation(
+    async def generate_mesh(self, original_model_task_id, **kwargs):
+        response = await SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/tripo/v2/openapi/task",
                 method=HttpMethod.POST,
@@ -440,7 +444,8 @@ class TripoRigNode:
             ),
             auth_kwargs=kwargs,
         ).execute()
-        return poll_until_finished(kwargs, response)
+        return await poll_until_finished(kwargs, response)
+
 
 class TripoRetargetNode:
     @classmethod
@@ -475,8 +480,8 @@ class TripoRetargetNode:
     OUTPUT_NODE = True
     AVERAGE_DURATION = 30
 
-    def generate_mesh(self, animation, original_model_task_id, **kwargs):
-        response = SynchronousOperation(
+    async def generate_mesh(self, animation, original_model_task_id, **kwargs):
+        response = await SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/tripo/v2/openapi/task",
                 method=HttpMethod.POST,
@@ -491,7 +496,8 @@ class TripoRetargetNode:
             ),
             auth_kwargs=kwargs,
         ).execute()
-        return poll_until_finished(kwargs, response)
+        return await poll_until_finished(kwargs, response)
+
 
 class TripoConversionNode:
     @classmethod
@@ -529,10 +535,10 @@ class TripoConversionNode:
     OUTPUT_NODE = True
     AVERAGE_DURATION = 30
 
-    def generate_mesh(self, original_model_task_id, format, quad, face_limit, texture_size, texture_format, **kwargs):
+    async def generate_mesh(self, original_model_task_id, format, quad, face_limit, texture_size, texture_format, **kwargs):
         if not original_model_task_id:
             raise RuntimeError("original_model_task_id is required")
-        response = SynchronousOperation(
+        response = await SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/tripo/v2/openapi/task",
                 method=HttpMethod.POST,
@@ -549,7 +555,8 @@ class TripoConversionNode:
             ),
             auth_kwargs=kwargs,
         ).execute()
-        return poll_until_finished(kwargs, response)
+        return await poll_until_finished(kwargs, response)
+
 
 NODE_CLASS_MAPPINGS = {
     "TripoTextToModelNode": TripoTextToModelNode,

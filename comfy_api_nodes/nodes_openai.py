@@ -163,7 +163,7 @@ class OpenAIDalle2(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
-    def api_call(
+    async def api_call(
         self,
         prompt,
         seed=0,
@@ -233,9 +233,9 @@ class OpenAIDalle2(ComfyNodeABC):
             auth_kwargs=kwargs,
         )
 
-        response = operation.execute()
+        response = await operation.execute()
 
-        img_tensor = validate_and_cast_response(response, node_id=unique_id)
+        img_tensor = await validate_and_cast_response(response, node_id=unique_id)
         return (img_tensor,)
 
 
@@ -311,7 +311,7 @@ class OpenAIDalle3(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
-    def api_call(
+    async def api_call(
         self,
         prompt,
         seed=0,
@@ -343,9 +343,9 @@ class OpenAIDalle3(ComfyNodeABC):
             auth_kwargs=kwargs,
         )
 
-        response = operation.execute()
+        response = await operation.execute()
 
-        img_tensor = validate_and_cast_response(response, node_id=unique_id)
+        img_tensor = await validate_and_cast_response(response, node_id=unique_id)
         return (img_tensor,)
 
 
@@ -446,7 +446,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
-    def api_call(
+    async def api_call(
         self,
         prompt,
         seed=0,
@@ -537,9 +537,9 @@ class OpenAIGPTImage1(ComfyNodeABC):
             auth_kwargs=kwargs,
         )
 
-        response = operation.execute()
+        response = await operation.execute()
 
-        img_tensor = validate_and_cast_response(response, node_id=unique_id)
+        img_tensor = await validate_and_cast_response(response, node_id=unique_id)
         return (img_tensor,)
 
 
@@ -623,7 +623,7 @@ class OpenAIChatNode(OpenAITextNode):
 
     DESCRIPTION = "Generate text responses from an OpenAI model."
 
-    def get_result_response(
+    async def get_result_response(
         self,
         response_id: str,
         include: Optional[list[Includable]] = None,
@@ -639,7 +639,7 @@ class OpenAIChatNode(OpenAITextNode):
                 creation above for more information.
 
         """
-        return PollingOperation(
+        return await PollingOperation(
             poll_endpoint=ApiEndpoint(
                 path=f"{RESPONSES_ENDPOINT}/{response_id}",
                 method=HttpMethod.GET,
@@ -784,7 +784,7 @@ class OpenAIChatNode(OpenAITextNode):
 
         self.history[session_id] = new_history
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         persist_context: bool,
@@ -815,7 +815,7 @@ class OpenAIChatNode(OpenAITextNode):
             previous_response_id = None
 
         # Create response
-        create_response = SynchronousOperation(
+        create_response = await SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=RESPONSES_ENDPOINT,
                 method=HttpMethod.POST,
@@ -848,7 +848,7 @@ class OpenAIChatNode(OpenAITextNode):
         response_id = create_response.id
 
         # Get result output
-        result_response = self.get_result_response(response_id, auth_kwargs=kwargs)
+        result_response = await self.get_result_response(response_id, auth_kwargs=kwargs)
         output_text = self.parse_output_text_from_response(result_response)
 
         # Update history

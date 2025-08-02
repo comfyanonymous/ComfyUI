@@ -99,14 +99,14 @@ def validate_input_image(image: torch.Tensor) -> bool:
     return image.shape[2] < 8000 and image.shape[1] < 8000
 
 
-def poll_until_finished(
+async def poll_until_finished(
     auth_kwargs: dict[str, str],
     api_endpoint: ApiEndpoint[Any, TaskStatusResponse],
     estimated_duration: Optional[int] = None,
     node_id: Optional[str] = None,
 ) -> TaskStatusResponse:
     """Polls the Runway API endpoint until the task reaches a terminal state, then returns the response."""
-    return PollingOperation(
+    return await PollingOperation(
         poll_endpoint=api_endpoint,
         completed_statuses=[
             TaskStatus.SUCCEEDED.value,
@@ -115,7 +115,7 @@ def poll_until_finished(
             TaskStatus.FAILED.value,
             TaskStatus.CANCELLED.value,
         ],
-        status_extractor=lambda response: (response.status.value),
+        status_extractor=lambda response: response.status.value,
         auth_kwargs=auth_kwargs,
         result_url_extractor=get_video_url_from_task_status,
         estimated_duration=estimated_duration,
@@ -167,11 +167,11 @@ class RunwayVideoGenNode(ComfyNodeABC):
             )
         return True
 
-    def get_response(
+    async def get_response(
         self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
     ) -> RunwayImageToVideoResponse:
         """Poll the task status until it is finished then get the response."""
-        return poll_until_finished(
+        return await poll_until_finished(
             auth_kwargs,
             ApiEndpoint(
                 path=f"{PATH_GET_TASK_STATUS}/{task_id}",
@@ -183,7 +183,7 @@ class RunwayVideoGenNode(ComfyNodeABC):
             node_id=node_id,
         )
 
-    def generate_video(
+    async def generate_video(
         self,
         request: RunwayImageToVideoRequest,
         auth_kwargs: dict[str, str],
@@ -200,15 +200,15 @@ class RunwayVideoGenNode(ComfyNodeABC):
             auth_kwargs=auth_kwargs,
         )
 
-        initial_response = initial_operation.execute()
+        initial_response = await initial_operation.execute()
         self.validate_task_created(initial_response)
         task_id = initial_response.id
 
-        final_response = self.get_response(task_id, auth_kwargs, node_id)
+        final_response = await self.get_response(task_id, auth_kwargs, node_id)
         self.validate_response(final_response)
 
         video_url = get_video_url_from_task_status(final_response)
-        return (download_url_to_video_output(video_url),)
+        return (await download_url_to_video_output(video_url),)
 
 
 class RunwayImageToVideoNodeGen3a(RunwayVideoGenNode):
@@ -250,7 +250,7 @@ class RunwayImageToVideoNodeGen3a(RunwayVideoGenNode):
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         start_frame: torch.Tensor,
@@ -265,7 +265,7 @@ class RunwayImageToVideoNodeGen3a(RunwayVideoGenNode):
         validate_input_image(start_frame)
 
         # Upload image
-        download_urls = upload_images_to_comfyapi(
+        download_urls = await upload_images_to_comfyapi(
             start_frame,
             max_images=1,
             mime_type="image/png",
@@ -274,7 +274,7 @@ class RunwayImageToVideoNodeGen3a(RunwayVideoGenNode):
         if len(download_urls) != 1:
             raise RunwayApiError("Failed to upload one or more images to comfy api.")
 
-        return self.generate_video(
+        return await self.generate_video(
             RunwayImageToVideoRequest(
                 promptText=prompt,
                 seed=seed,
@@ -333,7 +333,7 @@ class RunwayImageToVideoNodeGen4(RunwayVideoGenNode):
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         start_frame: torch.Tensor,
@@ -348,7 +348,7 @@ class RunwayImageToVideoNodeGen4(RunwayVideoGenNode):
         validate_input_image(start_frame)
 
         # Upload image
-        download_urls = upload_images_to_comfyapi(
+        download_urls = await upload_images_to_comfyapi(
             start_frame,
             max_images=1,
             mime_type="image/png",
@@ -357,7 +357,7 @@ class RunwayImageToVideoNodeGen4(RunwayVideoGenNode):
         if len(download_urls) != 1:
             raise RunwayApiError("Failed to upload one or more images to comfy api.")
 
-        return self.generate_video(
+        return await self.generate_video(
             RunwayImageToVideoRequest(
                 promptText=prompt,
                 seed=seed,
@@ -382,10 +382,10 @@ class RunwayFirstLastFrameNode(RunwayVideoGenNode):
 
     DESCRIPTION = "Upload first and last keyframes, draft a prompt, and generate a video. More complex transitions, such as cases where the Last frame is completely different from the First frame, may benefit from the longer 10s duration. This would give the generation more time to smoothly transition between the two inputs. Before diving in, review these best practices to ensure that your input selections will set your generation up for success: https://help.runwayml.com/hc/en-us/articles/34170748696595-Creating-with-Keyframes-on-Gen-3."
 
-    def get_response(
+    async def get_response(
         self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
     ) -> RunwayImageToVideoResponse:
-        return poll_until_finished(
+        return await poll_until_finished(
             auth_kwargs,
             ApiEndpoint(
                 path=f"{PATH_GET_TASK_STATUS}/{task_id}",
@@ -437,7 +437,7 @@ class RunwayFirstLastFrameNode(RunwayVideoGenNode):
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         start_frame: torch.Tensor,
@@ -455,7 +455,7 @@ class RunwayFirstLastFrameNode(RunwayVideoGenNode):
 
         # Upload images
         stacked_input_images = image_tensor_pair_to_batch(start_frame, end_frame)
-        download_urls = upload_images_to_comfyapi(
+        download_urls = await upload_images_to_comfyapi(
             stacked_input_images,
             max_images=2,
             mime_type="image/png",
@@ -464,7 +464,7 @@ class RunwayFirstLastFrameNode(RunwayVideoGenNode):
         if len(download_urls) != 2:
             raise RunwayApiError("Failed to upload one or more images to comfy api.")
 
-        return self.generate_video(
+        return await self.generate_video(
             RunwayImageToVideoRequest(
                 promptText=prompt,
                 seed=seed,
@@ -543,11 +543,11 @@ class RunwayTextToImageNode(ComfyNodeABC):
             )
         return True
 
-    def get_response(
+    async def get_response(
         self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
     ) -> TaskStatusResponse:
         """Poll the task status until it is finished then get the response."""
-        return poll_until_finished(
+        return await poll_until_finished(
             auth_kwargs,
             ApiEndpoint(
                 path=f"{PATH_GET_TASK_STATUS}/{task_id}",
@@ -559,7 +559,7 @@ class RunwayTextToImageNode(ComfyNodeABC):
             node_id=node_id,
         )
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         ratio: str,
@@ -574,7 +574,7 @@ class RunwayTextToImageNode(ComfyNodeABC):
         reference_images = None
         if reference_image is not None:
             validate_input_image(reference_image)
-            download_urls = upload_images_to_comfyapi(
+            download_urls = await upload_images_to_comfyapi(
                 reference_image,
                 max_images=1,
                 mime_type="image/png",
@@ -605,19 +605,19 @@ class RunwayTextToImageNode(ComfyNodeABC):
             auth_kwargs=kwargs,
         )
 
-        initial_response = initial_operation.execute()
+        initial_response = await initial_operation.execute()
         self.validate_task_created(initial_response)
         task_id = initial_response.id
 
         # Poll for completion
-        final_response = self.get_response(
+        final_response = await self.get_response(
             task_id, auth_kwargs=kwargs, node_id=unique_id
         )
         self.validate_response(final_response)
 
         # Download and return image
         image_url = get_image_url_from_task_status(final_response)
-        return (download_url_to_image_tensor(image_url),)
+        return (await download_url_to_image_tensor(image_url),)
 
 
 NODE_CLASS_MAPPINGS = {
