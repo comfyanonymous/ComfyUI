@@ -1,11 +1,14 @@
 #from: https://research.nvidia.com/labs/toronto-ai/AlignYourSteps/howto.html
+
 import numpy as np
 import torch
+from typing_extensions import override
+
+from comfy_api.latest import ComfyExtension, io
+
 
 def loglinear_interp(t_steps, num_steps):
-    """
-    Performs log-linear interpolation of a given array of decreasing numbers.
-    """
+    """Performs log-linear interpolation of a given array of decreasing numbers."""
     xs = np.linspace(0, 1, len(t_steps))
     ys = np.log(t_steps[::-1])
 
@@ -19,25 +22,26 @@ NOISE_LEVELS = {"SD1": [14.6146412293, 6.4745760956,  3.8636745985,  2.694615152
                 "SDXL":[14.6146412293, 6.3184485287,  3.7681790315,  2.1811480769, 1.3405244945,  0.8620721141,  0.5550693289,  0.3798540708, 0.2332364134,  0.1114188177,  0.0291671582],
                 "SVD": [700.00, 54.5, 15.886, 7.977, 4.248, 1.789, 0.981, 0.403, 0.173, 0.034, 0.002]}
 
-class AlignYourStepsScheduler:
+class AlignYourStepsScheduler(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"model_type": (["SD1", "SDXL", "SVD"], ),
-                     "steps": ("INT", {"default": 10, "min": 1, "max": 10000}),
-                     "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                      }
-               }
-    RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling/schedulers"
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="AlignYourStepsScheduler",
+            category="sampling/custom_sampling/schedulers",
+            inputs=[
+                io.Combo.Input("model_type", options=["SD1", "SDXL", "SVD"]),
+                io.Int.Input("steps", default=10, min=1, max=10000),
+                io.Float.Input("denoise", default=1.0, min=0.0, max=1.0, step=0.01),
+            ],
+            outputs=[io.Sigmas.Output()],
+        )
 
-    FUNCTION = "get_sigmas"
-
-    def get_sigmas(self, model_type, steps, denoise):
+    @classmethod
+    def execute(cls, model_type, steps, denoise) -> io.NodeOutput:
         total_steps = steps
         if denoise < 1.0:
             if denoise <= 0.0:
-                return (torch.FloatTensor([]),)
+                return io.NodeOutput(torch.FloatTensor([]))
             total_steps = round(steps * denoise)
 
         sigmas = NOISE_LEVELS[model_type][:]
@@ -46,8 +50,17 @@ class AlignYourStepsScheduler:
 
         sigmas = sigmas[-(total_steps + 1):]
         sigmas[-1] = 0
-        return (torch.FloatTensor(sigmas), )
+        return io.NodeOutput(torch.FloatTensor(sigmas))
 
-NODE_CLASS_MAPPINGS = {
-    "AlignYourStepsScheduler": AlignYourStepsScheduler,
-}
+
+NODES_LIST: list[type[io.ComfyNode]] = [
+    AlignYourStepsScheduler,
+]
+
+class AlignYourStepsExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return NODES_LIST
+
+async def comfy_entrypoint() -> AlignYourStepsExtension:
+    return AlignYourStepsExtension()
