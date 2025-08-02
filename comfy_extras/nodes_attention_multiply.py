@@ -1,3 +1,7 @@
+from typing_extensions import override
+
+from comfy_api.latest import ComfyExtension, io
+
 
 def attention_multiply(attn, model, q, k, v, out):
     m = model.clone()
@@ -16,57 +20,69 @@ def attention_multiply(attn, model, q, k, v, out):
     return m
 
 
-class UNetSelfAttentionMultiply:
+class UNetSelfAttentionMultiply(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "q": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "k": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "v": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "out": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "patch"
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="UNetSelfAttentionMultiply",
+            category="_for_testing/attention_experiments",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("q", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("k", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("v", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("out", default=1.0, min=0.0, max=10.0, step=0.01),
+            ],
+            outputs=[io.Model.Output()],
+            is_experimental=True,
+        )
 
-    CATEGORY = "_for_testing/attention_experiments"
-
-    def patch(self, model, q, k, v, out):
-        m = attention_multiply("attn1", model, q, k, v, out)
-        return (m, )
-
-class UNetCrossAttentionMultiply:
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "q": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "k": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "v": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "out": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "patch"
+    def execute(cls, model, q, k, v, out) -> io.NodeOutput:
+        return io.NodeOutput(attention_multiply("attn1", model, q, k, v, out))
 
-    CATEGORY = "_for_testing/attention_experiments"
 
-    def patch(self, model, q, k, v, out):
-        m = attention_multiply("attn2", model, q, k, v, out)
-        return (m, )
-
-class CLIPAttentionMultiply:
+class UNetCrossAttentionMultiply(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "clip": ("CLIP",),
-                              "q": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "k": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "v": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "out": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("CLIP",)
-    FUNCTION = "patch"
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="UNetCrossAttentionMultiply",
+            category="_for_testing/attention_experiments",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("q", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("k", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("v", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("out", default=1.0, min=0.0, max=10.0, step=0.01),
+            ],
+            outputs=[io.Model.Output()],
+            is_experimental=True,
+        )
 
-    CATEGORY = "_for_testing/attention_experiments"
+    @classmethod
+    def execute(cls, model, q, k, v, out) -> io.NodeOutput:
+        return io.NodeOutput(attention_multiply("attn2", model, q, k, v, out))
 
-    def patch(self, clip, q, k, v, out):
+
+class CLIPAttentionMultiply(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="CLIPAttentionMultiply",
+            category="_for_testing/attention_experiments",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.Float.Input("q", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("k", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("v", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("out", default=1.0, min=0.0, max=10.0, step=0.01),
+            ],
+            outputs=[io.Clip.Output()],
+            is_experimental=True,
+        )
+
+    @classmethod
+    def execute(cls, clip, q, k, v, out) -> io.NodeOutput:
         m = clip.clone()
         sd = m.patcher.model_state_dict()
 
@@ -79,23 +95,28 @@ class CLIPAttentionMultiply:
                 m.add_patches({key: (None,)}, 0.0, v)
             if key.endswith("self_attn.out_proj.weight") or key.endswith("self_attn.out_proj.bias"):
                 m.add_patches({key: (None,)}, 0.0, out)
-        return (m, )
+        return io.NodeOutput(m)
 
-class UNetTemporalAttentionMultiply:
+
+class UNetTemporalAttentionMultiply(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "self_structural": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "self_temporal": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "cross_structural": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "cross_temporal": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "patch"
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="UNetTemporalAttentionMultiply",
+            category="_for_testing/attention_experiments",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("self_structural", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("self_temporal", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("cross_structural", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("cross_temporal", default=1.0, min=0.0, max=10.0, step=0.01),
+            ],
+            outputs=[io.Model.Output()],
+            is_experimental=True,
+        )
 
-    CATEGORY = "_for_testing/attention_experiments"
-
-    def patch(self, model, self_structural, self_temporal, cross_structural, cross_temporal):
+    @classmethod
+    def execute(cls, model, self_structural, self_temporal, cross_structural, cross_temporal) -> io.NodeOutput:
         m = model.clone()
         sd = model.model_state_dict()
 
@@ -110,11 +131,20 @@ class UNetTemporalAttentionMultiply:
                     m.add_patches({k: (None,)}, 0.0, cross_temporal)
                 else:
                     m.add_patches({k: (None,)}, 0.0, cross_structural)
-        return (m, )
+        return io.NodeOutput(m)
 
-NODE_CLASS_MAPPINGS = {
-    "UNetSelfAttentionMultiply": UNetSelfAttentionMultiply,
-    "UNetCrossAttentionMultiply": UNetCrossAttentionMultiply,
-    "CLIPAttentionMultiply": CLIPAttentionMultiply,
-    "UNetTemporalAttentionMultiply": UNetTemporalAttentionMultiply,
-}
+
+NODES_LIST: list[type[io.ComfyNode]] = [
+    UNetSelfAttentionMultiply,
+    UNetCrossAttentionMultiply,
+    CLIPAttentionMultiply,
+    UNetTemporalAttentionMultiply,
+]
+
+class AttentionMultiplyExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return NODES_LIST
+
+async def comfy_entrypoint() -> AttentionMultiplyExtension:
+    return AttentionMultiplyExtension()
