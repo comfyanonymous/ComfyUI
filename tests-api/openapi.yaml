@@ -1,0 +1,1147 @@
+openapi: 3.1.0
+info:
+  title: ComfyUI API
+  description: 'API for ComfyUI - A powerful and modular UI for Stable Diffusion.
+
+
+    This API allows you to interact with ComfyUI programmatically, including:
+
+    - Submitting workflows for execution
+
+    - Managing the execution queue
+
+    - Retrieving generated images
+
+    - Managing models
+
+    - Retrieving node information
+
+    '
+  version: 1.0.0
+  license:
+    name: GNU General Public License v3.0
+    url: https://github.com/comfyanonymous/ComfyUI/blob/master/LICENSE
+servers:
+- url: /
+  description: Default ComfyUI server
+tags:
+- name: workflow
+  description: Workflow execution and management
+- name: queue
+  description: Queue management
+- name: image
+  description: Image handling
+- name: node
+  description: Node information
+- name: model
+  description: Model management
+- name: system
+  description: System information
+- name: internal
+  description: Internal API routes
+paths:
+  /api/prompt:
+    get:
+      tags:
+      - workflow
+      summary: Get information about current prompt execution
+      description: Returns information about the current prompt in the execution queue
+      operationId: getPromptInfo
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+      - workflow
+      summary: Submit a workflow for execution
+      description: 'Submit a workflow to be executed by the backend.
+
+        The workflow is a JSON object describing the nodes and their connections.
+
+        '
+      operationId: executePrompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+      responses:
+        '200':
+          description: Success - Prompt accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptResponse'
+        '400':
+          description: Invalid prompt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/queue:
+    get:
+      tags:
+      - queue
+      summary: Get queue information
+      description: Returns information about running and pending items in the queue
+      operationId: getQueueInfo
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+      - queue
+      summary: Manage queue
+      description: Clear the queue or delete specific items
+      operationId: manageQueue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueueManageRequest'
+      responses:
+        '200':
+          description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/interrupt:
+    post:
+      tags:
+      - workflow
+      summary: Interrupt the current execution
+      description: Interrupts the currently running workflow execution
+      operationId: interruptExecution
+      responses:
+        '200':
+          description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/free:
+    post:
+      tags:
+      - system
+      summary: Free resources
+      description: Unload models and/or free memory
+      operationId: freeResources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FreeResourcesRequest'
+      responses:
+        '200':
+          description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/history:
+    get:
+      tags:
+      - workflow
+      summary: Get execution history
+      description: Returns the history of executed workflows
+      operationId: getHistory
+      parameters:
+      - name: max_items
+        in: query
+        description: Maximum number of history items to return
+        required: false
+        schema:
+          type: integer
+          format: int32
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HistoryItem'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+      - workflow
+      summary: Manage history
+      description: Clear history or delete specific items
+      operationId: manageHistory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HistoryManageRequest'
+      responses:
+        '200':
+          description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/history/{prompt_id}:
+    get:
+      tags:
+      - workflow
+      summary: Get specific history item
+      description: Returns a specific history item by ID
+      operationId: getHistoryItem
+      parameters:
+      - name: prompt_id
+        in: path
+        description: ID of the prompt to retrieve
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryItem'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/object_info:
+    get:
+      tags:
+      - node
+      summary: Get all node information
+      description: Returns information about all available nodes
+      operationId: getNodeInfo
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/NodeInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/object_info/{node_class}:
+    get:
+      tags:
+      - node
+      summary: Get specific node information
+      description: Returns information about a specific node class
+      operationId: getNodeClassInfo
+      parameters:
+      - name: node_class
+        in: path
+        description: Name of the node class
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/NodeInfo'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/upload/image:
+    post:
+      tags:
+      - image
+      summary: Upload an image
+      description: Uploads an image to the server
+      operationId: uploadImage
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - image
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: The image file to upload
+                overwrite:
+                  type: string
+                  enum:
+                    - "true"
+                    - "false"
+                  description: Whether to overwrite if file exists
+                type:
+                  type: string
+                  enum:
+                  - input
+                  - temp
+                  - output
+                  default: input
+                  description: Type of directory to store the image in
+                subfolder:
+                  type: string
+                  default: ""
+                  description: Subfolder to store the image in
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/upload/mask:
+    post:
+      tags:
+      - image
+      summary: Upload a mask for an image
+      description: Uploads a mask image and applies it to a referenced original image
+      operationId: uploadMask
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - image
+                - original_ref
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: The mask image file to upload
+                original_ref:
+                  type: string
+                  description: JSON string containing reference to the original image
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/view:
+    get:
+      tags:
+      - image
+      summary: View an image
+      description: Retrieves an image from the server
+      operationId: viewImage
+      parameters:
+      - name: filename
+        in: query
+        description: Name of the file to retrieve
+        required: true
+        schema:
+          type: string
+      - name: type
+        in: query
+        description: Type of directory to retrieve from
+        required: false
+        schema:
+          type: string
+          enum:
+          - input
+          - temp
+          - output
+          default: output
+      - name: subfolder
+        in: query
+        description: Subfolder to retrieve from
+        required: false
+        schema:
+          type: string
+      - name: preview
+        in: query
+        description: Preview options (format;quality)
+        required: false
+        schema:
+          type: string
+      - name: channel
+        in: query
+        description: Channel to retrieve (rgb, a, rgba)
+        required: false
+        schema:
+          type: string
+          enum:
+          - rgb
+          - a
+          - rgba
+          default: rgba
+      responses:
+        '200':
+          description: Success
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Bad request
+        '404':
+          description: File not found
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/view_metadata/{folder_name}:
+    get:
+      tags:
+      - model
+      summary: View model metadata
+      description: Retrieves metadata from a safetensors file
+      operationId: viewModelMetadata
+      parameters:
+      - name: folder_name
+        in: path
+        description: Name of the model folder
+        required: true
+        schema:
+          type: string
+      - name: filename
+        in: query
+        description: Name of the safetensors file
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelMetadata'
+        '404':
+          description: File not found
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/models:
+    get:
+      tags:
+      - model
+      summary: Get model types
+      description: Returns a list of available model types
+      operationId: getModelTypes
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/models/{folder}:
+    get:
+      tags:
+      - model
+      summary: Get models of a specific type
+      description: Returns a list of available models of a specific type
+      operationId: getModels
+      parameters:
+      - name: folder
+        in: path
+        description: Model type folder
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        '404':
+          description: Folder not found
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/embeddings:
+    get:
+      tags:
+      - model
+      summary: Get embeddings
+      description: Returns a list of available embeddings
+      operationId: getEmbeddings
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/extensions:
+    get:
+      tags:
+      - system
+      summary: Get extensions
+      description: Returns a list of available extensions
+      operationId: getExtensions
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/system_stats:
+    get:
+      tags:
+      - system
+      summary: Get system statistics
+      description: Returns system information including RAM, VRAM, and ComfyUI version
+      operationId: getSystemStats
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStats'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/ws:
+    get:
+      tags:
+      - workflow
+      summary: WebSocket connection
+      description: 'Establishes a WebSocket connection for real-time communication.
+
+        This endpoint is used for receiving progress updates, status changes, and
+        results from workflow executions.
+
+        '
+      operationId: webSocketConnect
+      parameters:
+      - name: clientId
+        in: query
+        description: Optional client ID for reconnection
+        required: false
+        schema:
+          type: string
+      responses:
+        '101':
+          description: Switching Protocols to WebSocket
+  /api/features:
+    get:
+      tags:
+      - system
+      summary: Get server feature flags
+      description: Returns the server's feature flags and capabilities
+      operationId: getFeatures
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerFeatures'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /internal/logs:
+    get:
+      tags:
+      - internal
+      summary: Get logs
+      description: Returns system logs as a single string
+      operationId: getLogs
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /internal/logs/raw:
+    get:
+      tags:
+      - internal
+      summary: Get raw logs
+      description: Returns raw system logs with terminal size information
+      operationId: getRawLogs
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RawLogsResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /internal/logs/subscribe:
+    patch:
+      tags:
+      - internal
+      summary: Subscribe to logs
+      description: Subscribe or unsubscribe to log updates
+      operationId: subscribeToLogs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogsSubscribeRequest'
+      responses:
+        '200':
+          description: Success
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /internal/folder_paths:
+    get:
+      tags:
+      - internal
+      summary: Get folder paths
+      description: Returns a map of folder names to their paths
+      operationId: getFolderPaths
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /internal/files/{directory_type}:
+    get:
+      tags:
+      - internal
+      summary: Get files
+      description: Returns a list of files in a specific directory type
+      operationId: getFiles
+      parameters:
+      - name: directory_type
+        in: path
+        description: Type of directory (output, input, temp)
+        required: true
+        schema:
+          type: string
+          enum:
+          - output
+          - input
+          - temp
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        '400':
+          description: Invalid directory type
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    PromptRequest:
+      type: object
+      required:
+      - prompt
+      properties:
+        prompt:
+          type: object
+          description: The workflow graph to execute
+          additionalProperties: true
+        number:
+          type: number
+          description: Priority number for the queue (lower numbers have higher priority)
+        front:
+          type: boolean
+          description: If true, adds the prompt to the front of the queue
+        extra_data:
+          type: object
+          description: Extra data to be associated with the prompt
+          additionalProperties: true
+        client_id:
+          type: string
+          description: Client ID for attribution of the prompt
+    PromptResponse:
+      type: object
+      properties:
+        prompt_id:
+          type: string
+          format: uuid
+          description: Unique identifier for the prompt execution
+        number:
+          type: number
+          description: Priority number in the queue
+        node_errors:
+          type: object
+          description: Any errors in the nodes of the prompt
+          additionalProperties: true
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            type:
+              type: string
+              description: Error type
+            message:
+              type: string
+              description: Error message
+            details:
+              type: string
+              description: Detailed error information
+            extra_info:
+              type: object
+              description: Additional error information
+              additionalProperties: true
+        node_errors:
+          type: object
+          description: Node-specific errors
+          additionalProperties: true
+    PromptInfo:
+      type: object
+      properties:
+        exec_info:
+          type: object
+          properties:
+            queue_remaining:
+              type: integer
+              description: Number of items remaining in the queue
+    QueueInfo:
+      type: object
+      properties:
+        queue_running:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueueItem'
+        queue_pending:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueueItem'
+    HistoryItem:
+      type: object
+      properties:
+        prompt_id:
+          type: string
+          format: uuid
+          description: Unique identifier for the prompt
+        prompt:
+          type: object
+          description: The workflow graph that was executed
+          additionalProperties: true
+        extra_data:
+          type: object
+          description: Additional data associated with the execution
+          additionalProperties: true
+        outputs:
+          type: object
+          description: Output data from the execution
+          additionalProperties: true
+    NodeInfo:
+      type: object
+      properties:
+        input:
+          type: object
+          description: Input specifications for the node
+          additionalProperties: true
+        input_order:
+          type: object
+          description: Order of inputs for display
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        output:
+          type: array
+          items:
+            type: string
+          description: Output types of the node
+        output_is_list:
+          type: array
+          items:
+            type: boolean
+          description: Whether each output is a list
+        output_name:
+          type: array
+          items:
+            type: string
+          description: Names of the outputs
+        name:
+          type: string
+          description: Internal name of the node
+        display_name:
+          type: string
+          description: Display name of the node
+        description:
+          type: string
+          description: Description of the node
+        python_module:
+          type: string
+          description: Python module implementing the node
+        category:
+          type: string
+          description: Category of the node
+        output_node:
+          type: boolean
+          description: Whether this is an output node
+        output_tooltips:
+          type: array
+          items:
+            type: string
+          description: Tooltips for outputs
+        deprecated:
+          type: boolean
+          description: Whether the node is deprecated
+        experimental:
+          type: boolean
+          description: Whether the node is experimental
+        api_node:
+          type: boolean
+          description: Whether this is an API node
+    SystemStats:
+      type: object
+      properties:
+        system:
+          type: object
+          properties:
+            os:
+              type: string
+              description: Operating system
+            ram_total:
+              type: number
+              description: Total system RAM in bytes
+            ram_free:
+              type: number
+              description: Free system RAM in bytes
+            comfyui_version:
+              type: string
+              description: ComfyUI version
+            python_version:
+              type: string
+              description: Python version
+            pytorch_version:
+              type: string
+              description: PyTorch version
+            embedded_python:
+              type: boolean
+              description: Whether using embedded Python
+            argv:
+              type: array
+              items:
+                type: string
+              description: Command line arguments
+        devices:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                description: Device name
+              type:
+                type: string
+                description: Device type
+              index:
+                type: integer
+                description: Device index (may be omitted for CPU devices)
+              vram_total:
+                type: number
+                description: Total VRAM in bytes
+              vram_free:
+                type: number
+                description: Free VRAM in bytes
+              torch_vram_total:
+                type: number
+                description: Total VRAM as reported by PyTorch
+              torch_vram_free:
+                type: number
+                description: Free VRAM as reported by PyTorch
+    QueueManageRequest:
+      type: object
+      properties:
+        clear:
+          type: boolean
+          description: If true, clears the entire queue
+        delete:
+          type: array
+          description: Array of prompt IDs to delete from the queue
+          items:
+            type: string
+            format: uuid
+    FreeResourcesRequest:
+      type: object
+      properties:
+        unload_models:
+          type: boolean
+          description: If true, unloads models from memory
+        free_memory:
+          type: boolean
+          description: If true, frees GPU memory
+    HistoryManageRequest:
+      type: object
+      properties:
+        clear:
+          type: boolean
+          description: If true, clears the entire history
+        delete:
+          type: array
+          description: Array of prompt IDs to delete from history
+          items:
+            type: string
+            format: uuid
+    UploadResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Filename of the uploaded file
+        subfolder:
+          type: string
+          description: Subfolder where the file was stored
+        type:
+          type: string
+          description: Type of directory the file was stored in
+    ServerFeatures:
+      type: object
+      properties:
+        supports_preview_metadata:
+          type: boolean
+          description: Whether the server supports preview metadata
+        max_upload_size:
+          type: integer
+          description: Maximum file upload size in bytes
+    RawLogsResponse:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogEntry'
+        size:
+          $ref: '#/components/schemas/TerminalSize'
+    LogEntry:
+      type: object
+      properties:
+        t:
+          type: string
+          description: Timestamp
+        m:
+          type: string
+          description: Message
+    TerminalSize:
+      type: object
+      properties:
+        cols:
+          type: integer
+          description: Terminal columns
+        rows:
+          type: integer
+          description: Terminal rows
+    LogsSubscribeRequest:
+      type: object
+      required:
+        - clientId
+        - enabled
+      properties:
+        clientId:
+          type: string
+          description: Client ID
+        enabled:
+          type: boolean
+          description: Whether to enable or disable subscription
+    ModelMetadata:
+      type: object
+      description: Model metadata from safetensors files
+      properties:
+        modelspec.date:
+          type: string
+          description: Model creation date
+        modelspec.architecture:
+          type: string
+          description: Model architecture (e.g., stable-diffusion-v1)
+        modelspec.title:
+          type: string
+          description: Model title
+        modelspec.description:
+          type: string
+          description: Model description
+        modelspec.sai_model_spec:
+          type: string
+          description: SAI model specification version
+        format:
+          type: string
+          description: Model format (e.g., pt, safetensors)
+        modelspec.implementation:
+          type: string
+          description: Implementation URL or reference
+        modelspec.license:
+          type: string
+          description: Model license
+        modelspec.author:
+          type: string
+          description: Model author(s)
+        modelspec.thumbnail:
+          type: string
+          description: Base64-encoded thumbnail image
+      additionalProperties:
+        type: string
+        description: Additional metadata fields
+    QueueItem:
+      type: array
+      description: Queue item containing execution details as a 5-element tuple [position, prompt_id, prompt, extra_data, outputs_to_execute]
+      prefixItems:
+        - type: number
+          description: Queue position number (lower numbers have higher priority)
+        - type: string
+          format: uuid
+          description: Unique prompt identifier
+        - type: object
+          description: Workflow graph with nodes and connections
+          additionalProperties: true
+        - type: object
+          description: Extra metadata (auth tokens, client info, etc.)
+          additionalProperties: true
+        - type: array
+          description: Array of output node IDs
+          items:
+            type: string
+      minItems: 5
+      maxItems: 5
