@@ -1,13 +1,13 @@
-comfyui-frontend-package==1.21.3
-comfyui-workflow-templates==0.1.25
-comfyui-embedded-docs==0.2.0
+comfyui-frontend-package==1.23.4
+comfyui-workflow-templates==0.1.47
+comfyui-embedded-docs==0.2.4
 torch
 torchsde
 torchvision
 torchaudio
 numpy>=1.25.0
 einops
-transformers>=4.28.1
+transformers>=4.37.2
 tokenizers>=0.13.3
 sentencepiece
 safetensors>=0.4.2
@@ -28,3 +28,4 @@ spandrel
 soundfile
 av>=14.2.0
 pydantic~=2.0
+pydantic-settings~=2.0

@@ -1,0 +1,108 @@
+name: Release Webhook
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  send-webhook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send release webhook
+        env:
+          WEBHOOK_URL: ${{ secrets.RELEASE_GITHUB_WEBHOOK_URL }}
+          WEBHOOK_SECRET: ${{ secrets.RELEASE_GITHUB_WEBHOOK_SECRET }}
+        run: |
+          # Generate UUID for delivery ID
+          DELIVERY_ID=$(uuidgen)
+          HOOK_ID="release-webhook-$(date +%s)"
+          
+          # Create webhook payload matching GitHub release webhook format
+          PAYLOAD=$(cat <<EOF
+          {
+            "action": "published",
+            "release": {
+              "id": ${{ github.event.release.id }},
+              "node_id": "${{ github.event.release.node_id }}",
+              "url": "${{ github.event.release.url }}",
+              "html_url": "${{ github.event.release.html_url }}",
+              "assets_url": "${{ github.event.release.assets_url }}",
+              "upload_url": "${{ github.event.release.upload_url }}",
+              "tag_name": "${{ github.event.release.tag_name }}",
+              "target_commitish": "${{ github.event.release.target_commitish }}",
+              "name": ${{ toJSON(github.event.release.name) }},
+              "body": ${{ toJSON(github.event.release.body) }},
+              "draft": ${{ github.event.release.draft }},
+              "prerelease": ${{ github.event.release.prerelease }},
+              "created_at": "${{ github.event.release.created_at }}",
+              "published_at": "${{ github.event.release.published_at }}",
+              "author": {
+                "login": "${{ github.event.release.author.login }}",
+                "id": ${{ github.event.release.author.id }},
+                "node_id": "${{ github.event.release.author.node_id }}",
+                "avatar_url": "${{ github.event.release.author.avatar_url }}",
+                "url": "${{ github.event.release.author.url }}",
+                "html_url": "${{ github.event.release.author.html_url }}",
+                "type": "${{ github.event.release.author.type }}",
+                "site_admin": ${{ github.event.release.author.site_admin }}
+              },
+              "tarball_url": "${{ github.event.release.tarball_url }}",
+              "zipball_url": "${{ github.event.release.zipball_url }}",
+              "assets": ${{ toJSON(github.event.release.assets) }}
+            },
+            "repository": {
+              "id": ${{ github.event.repository.id }},
+              "node_id": "${{ github.event.repository.node_id }}",
+              "name": "${{ github.event.repository.name }}",
+              "full_name": "${{ github.event.repository.full_name }}",
+              "private": ${{ github.event.repository.private }},
+              "owner": {
+                "login": "${{ github.event.repository.owner.login }}",
+                "id": ${{ github.event.repository.owner.id }},
+                "node_id": "${{ github.event.repository.owner.node_id }}",
+                "avatar_url": "${{ github.event.repository.owner.avatar_url }}",
+                "url": "${{ github.event.repository.owner.url }}",
+                "html_url": "${{ github.event.repository.owner.html_url }}",
+                "type": "${{ github.event.repository.owner.type }}",
+                "site_admin": ${{ github.event.repository.owner.site_admin }}
+              },
+              "html_url": "${{ github.event.repository.html_url }}",
+              "clone_url": "${{ github.event.repository.clone_url }}",
+              "git_url": "${{ github.event.repository.git_url }}",
+              "ssh_url": "${{ github.event.repository.ssh_url }}",
+              "url": "${{ github.event.repository.url }}",
+              "created_at": "${{ github.event.repository.created_at }}",
+              "updated_at": "${{ github.event.repository.updated_at }}",
+              "pushed_at": "${{ github.event.repository.pushed_at }}",
+              "default_branch": "${{ github.event.repository.default_branch }}",
+              "fork": ${{ github.event.repository.fork }}
+            },
+            "sender": {
+              "login": "${{ github.event.sender.login }}",
+              "id": ${{ github.event.sender.id }},
+              "node_id": "${{ github.event.sender.node_id }}",
+              "avatar_url": "${{ github.event.sender.avatar_url }}",
+              "url": "${{ github.event.sender.url }}",
+              "html_url": "${{ github.event.sender.html_url }}",
+              "type": "${{ github.event.sender.type }}",
+              "site_admin": ${{ github.event.sender.site_admin }}
+            }
+          }
+          EOF
+          )
+          
+          # Generate HMAC-SHA256 signature
+          SIGNATURE=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" -hex | cut -d' ' -f2)
+          
+          # Send webhook with required headers
+          curl -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Event: release" \
+            -H "X-GitHub-Delivery: $DELIVERY_ID" \
+            -H "X-GitHub-Hook-ID: $HOOK_ID" \
+            -H "X-Hub-Signature-256: sha256=$SIGNATURE" \
+            -H "User-Agent: GitHub-Actions-Webhook/1.0" \
+            -d "$PAYLOAD" \
+            --fail --silent --show-error
+          
+          echo "✅ Release webhook sent successfully"

@@ -43,7 +43,6 @@ if TYPE_CHECKING:
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
     current_batch_size = tensor.shape[0]
-    #print(current_batch_size, target_batch_size)
     if current_batch_size == 1:
         return tensor
 
@@ -390,8 +389,9 @@ class ControlLora(ControlNet):
                 pass
 
         for k in self.control_weights:
-            if k not in {"lora_controlnet"}:
-                comfy.utils.set_attr_param(self.control_model, k, self.control_weights[k].to(dtype).to(comfy.model_management.get_torch_device()))
+            if (k not in {"lora_controlnet"}):
+                if (k.endswith(".up") or k.endswith(".down") or k.endswith(".weight") or k.endswith(".bias")) and ("__" not in k):
+                    comfy.utils.set_attr_param(self.control_model, k, self.control_weights[k].to(dtype).to(comfy.model_management.get_torch_device()))
 
     def copy(self):
         c = ControlLora(self.control_weights, global_average_pooling=self.global_average_pooling)

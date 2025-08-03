@@ -462,7 +462,7 @@ class SDTokenizer:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path, **tokenizer_args)
         self.max_length = tokenizer_data.get("{}_max_length".format(embedding_key), max_length)
-        self.min_length = min_length
+        self.min_length = tokenizer_data.get("{}_min_length".format(embedding_key), min_length)
         self.end_token = None
         self.min_padding = min_padding
 
@@ -482,7 +482,8 @@ class SDTokenizer:
             if end_token is not None:
                 self.end_token = end_token
             else:
-                self.end_token = empty[0]
+                if has_end_token:
+                    self.end_token = empty[0]
 
         if pad_token is not None:
             self.pad_token = pad_token

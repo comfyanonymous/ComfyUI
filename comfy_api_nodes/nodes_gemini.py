@@ -2,6 +2,8 @@
 API Nodes for Gemini Multimodal LLM Usage via Remote API
 See: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference
 """
+from __future__ import annotations
+
 
 import os
 from enum import Enum
@@ -406,7 +408,7 @@ class GeminiInputFiles(ComfyNodeABC):
 
     def create_file_part(self, file_path: str) -> GeminiPart:
         mime_type = (
-            GeminiMimeType.pdf
+            GeminiMimeType.application_pdf
             if file_path.endswith(".pdf")
             else GeminiMimeType.text_plain
         )

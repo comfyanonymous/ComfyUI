@@ -23,9 +23,7 @@ except ImportError as e:
         f"""
 ------------------------------------------------------------------------
 Error importing dependencies: {e}
-
 {get_missing_requirements_message()}
-
 This error is happening because ComfyUI now uses a local sqlite database.
 ------------------------------------------------------------------------
 """.strip()
@@ -85,7 +83,9 @@ def init_db():
     script = ScriptDirectory.from_config(config)
     target_rev = script.get_current_head()
 
-    if current_rev != target_rev:
+    if target_rev is None:
+        logging.warning("No target revision found.")
+    elif current_rev != target_rev:
         # Backup the database pre upgrade
         backup_path = db_path + ".bkp"
         if db_exists:
@@ -101,7 +101,7 @@ def init_db():
                 # Restore the database from backup if upgrade fails
                 shutil.copy(backup_path, db_path)
                 os.remove(backup_path)
-            logging.error(f"Error upgrading database: {e}")
+            logging.exception("Error upgrading database: ")
             raise e
 
     global Session

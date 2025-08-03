@@ -16,7 +16,8 @@ from inspect import cleandoc
 import torch
 import comfy.utils
 
-from comfy.comfy_types import FileLocator
+from comfy.comfy_types import FileLocator, IO
+from server import PromptServer
 
 MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
@@ -303,10 +304,23 @@ Optional spacing can be added between images.
                 image2.movedim(-1, 1), target_w, target_h, "lanczos", "disabled"
             ).movedim(1, -1)
 
+        color_map = {
+            "white": 1.0,
+            "black": 0.0,
+            "red": (1.0, 0.0, 0.0),
+            "green": (0.0, 1.0, 0.0),
+            "blue": (0.0, 0.0, 1.0),
+        }
+
+        color_val = color_map[spacing_color]
+
         # When not matching sizes, pad to align non-concat dimensions
         if not match_image_size:
             h1, w1 = image1.shape[1:3]
             h2, w2 = image2.shape[1:3]
+            pad_value = 0.0
+            if not isinstance(color_val, tuple):
+                pad_value = color_val
 
             if direction in ["left", "right"]:
                 # For horizontal concat, pad heights to match
@@ -315,11 +329,11 @@ Optional spacing can be added between images.
                     if h1 < target_h:
                         pad_h = target_h - h1
                         pad_top, pad_bottom = pad_h // 2, pad_h - pad_h // 2
-                        image1 = torch.nn.functional.pad(image1, (0, 0, 0, 0, pad_top, pad_bottom), mode='constant', value=0.0)
+                        image1 = torch.nn.functional.pad(image1, (0, 0, 0, 0, pad_top, pad_bottom), mode='constant', value=pad_value)
                     if h2 < target_h:
                         pad_h = target_h - h2
                         pad_top, pad_bottom = pad_h // 2, pad_h - pad_h // 2
-                        image2 = torch.nn.functional.pad(image2, (0, 0, 0, 0, pad_top, pad_bottom), mode='constant', value=0.0)
+                        image2 = torch.nn.functional.pad(image2, (0, 0, 0, 0, pad_top, pad_bottom), mode='constant', value=pad_value)
             else:  # up, down
                 # For vertical concat, pad widths to match
                 if w1 != w2:
@@ -327,11 +341,11 @@ Optional spacing can be added between images.
                     if w1 < target_w:
                         pad_w = target_w - w1
                         pad_left, pad_right = pad_w // 2, pad_w - pad_w // 2
-                        image1 = torch.nn.functional.pad(image1, (0, 0, pad_left, pad_right), mode='constant', value=0.0)
+                        image1 = torch.nn.functional.pad(image1, (0, 0, pad_left, pad_right), mode='constant', value=pad_value)
                     if w2 < target_w:
                         pad_w = target_w - w2
                         pad_left, pad_right = pad_w // 2, pad_w - pad_w // 2
-                        image2 = torch.nn.functional.pad(image2, (0, 0, pad_left, pad_right), mode='constant', value=0.0)
+                        image2 = torch.nn.functional.pad(image2, (0, 0, pad_left, pad_right), mode='constant', value=pad_value)
 
         # Ensure same number of channels
         if image1.shape[-1] != image2.shape[-1]:
@@ -364,15 +378,6 @@ Optional spacing can be added between images.
         # Add spacing if specified
         if spacing_width > 0:
             spacing_width = spacing_width + (spacing_width % 2)  # Ensure even
-
-            color_map = {
-                "white": 1.0,
-                "black": 0.0,
-                "red": (1.0, 0.0, 0.0),
-                "green": (0.0, 1.0, 0.0),
-                "blue": (0.0, 0.0, 1.0),
-            }
-            color_val = color_map[spacing_color]
 
             if direction in ["left", "right"]:
                 spacing_shape = (
@@ -409,6 +414,62 @@ Optional spacing can be added between images.
         concat_dim = 2 if direction in ["left", "right"] else 1
         return (torch.cat(images, dim=concat_dim),)
 
+class ResizeAndPadImage:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "target_width": ("INT", {
+                    "default": 512,
+                    "min": 1,
+                    "max": MAX_RESOLUTION,
+                    "step": 1
+                }),
+                "target_height": ("INT", {
+                    "default": 512,
+                    "min": 1,
+                    "max": MAX_RESOLUTION,
+                    "step": 1
+                }),
+                "padding_color": (["white", "black"],),
+                "interpolation": (["area", "bicubic", "nearest-exact", "bilinear", "lanczos"],),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "resize_and_pad"
+    CATEGORY = "image/transform"
+
+    def resize_and_pad(self, image, target_width, target_height, padding_color, interpolation):
+        batch_size, orig_height, orig_width, channels = image.shape
+
+        scale_w = target_width / orig_width
+        scale_h = target_height / orig_height
+        scale = min(scale_w, scale_h)
+
+        new_width = int(orig_width * scale)
+        new_height = int(orig_height * scale)
+
+        image_permuted = image.permute(0, 3, 1, 2)
+
+        resized = comfy.utils.common_upscale(image_permuted, new_width, new_height, interpolation, "disabled")
+
+        pad_value = 0.0 if padding_color == "black" else 1.0
+        padded = torch.full(
+            (batch_size, channels, target_height, target_width),
+            pad_value,
+            dtype=image.dtype,
+            device=image.device
+        )
+
+        y_offset = (target_height - new_height) // 2
+        x_offset = (target_width - new_width) // 2
+
+        padded[:, :, y_offset:y_offset + new_height, x_offset:x_offset + new_width] = resized
+
+        output = padded.permute(0, 2, 3, 1)
+        return (output,)
 
 class SaveSVGNode:
     """
@@ -491,6 +552,80 @@ class SaveSVGNode:
             counter += 1
         return { "ui": { "images": results } }
 
+class GetImageSize:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": (IO.IMAGE,),
+            },
+            "hidden": {
+                "unique_id": "UNIQUE_ID",
+            }
+        }
+
+    RETURN_TYPES = (IO.INT, IO.INT, IO.INT)
+    RETURN_NAMES = ("width", "height", "batch_size")
+    FUNCTION = "get_size"
+
+    CATEGORY = "image"
+    DESCRIPTION = """Returns width and height of the image, and passes it through unchanged."""
+
+    def get_size(self, image, unique_id=None) -> tuple[int, int]:
+        height = image.shape[1]
+        width = image.shape[2]
+        batch_size = image.shape[0]
+
+        # Send progress text to display size on the node
+        if unique_id:
+            PromptServer.instance.send_progress_text(f"width: {width}, height: {height}\n batch size: {batch_size}", unique_id)
+
+        return width, height, batch_size
+
+class ImageRotate:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": (IO.IMAGE,),
+                              "rotation": (["none", "90 degrees", "180 degrees", "270 degrees"],),
+                              }}
+    RETURN_TYPES = (IO.IMAGE,)
+    FUNCTION = "rotate"
+
+    CATEGORY = "image/transform"
+
+    def rotate(self, image, rotation):
+        rotate_by = 0
+        if rotation.startswith("90"):
+            rotate_by = 1
+        elif rotation.startswith("180"):
+            rotate_by = 2
+        elif rotation.startswith("270"):
+            rotate_by = 3
+
+        image = torch.rot90(image, k=rotate_by, dims=[2, 1])
+        return (image,)
+
+class ImageFlip:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": (IO.IMAGE,),
+                              "flip_method": (["x-axis: vertically", "y-axis: horizontally"],),
+                              }}
+    RETURN_TYPES = (IO.IMAGE,)
+    FUNCTION = "flip"
+
+    CATEGORY = "image/transform"
+
+    def flip(self, image, flip_method):
+        if flip_method.startswith("x"):
+            image = torch.flip(image, dims=[1])
+        elif flip_method.startswith("y"):
+            image = torch.flip(image, dims=[2])
+
+        return (image,)
+
+
 NODE_CLASS_MAPPINGS = {
     "ImageCrop": ImageCrop,
     "RepeatImageBatch": RepeatImageBatch,
@@ -500,4 +635,8 @@ NODE_CLASS_MAPPINGS = {
     "SaveAnimatedPNG": SaveAnimatedPNG,
     "SaveSVGNode": SaveSVGNode,
     "ImageStitch": ImageStitch,
+    "ResizeAndPadImage": ResizeAndPadImage,
+    "GetImageSize": GetImageSize,
+    "ImageRotate": ImageRotate,
+    "ImageFlip": ImageFlip,
 }

@@ -4,6 +4,7 @@ import comfy.sampler_helpers
 import comfy.samplers
 import comfy.utils
 import node_helpers
+import math
 
 def perp_neg(x, noise_pred_pos, noise_pred_neg, noise_pred_nocond, neg_scale, cond_scale):
     pos = noise_pred_pos - noise_pred_nocond
@@ -69,8 +70,23 @@ class Guider_PerpNeg(comfy.samplers.CFGGuider):
         negative_cond = self.conds.get("negative", None)
         empty_cond = self.conds.get("empty_negative_prompt", None)
 
-        (noise_pred_pos, noise_pred_neg, noise_pred_empty) = \
-            comfy.samplers.calc_cond_batch(self.inner_model, [positive_cond, negative_cond, empty_cond], x, timestep, model_options)
+        if model_options.get("disable_cfg1_optimization", False) == False:
+            if math.isclose(self.neg_scale, 0.0):
+                negative_cond = None
+                if math.isclose(self.cfg, 1.0):
+                    empty_cond = None
+
+        conds = [positive_cond, negative_cond, empty_cond]
+
+        out = comfy.samplers.calc_cond_batch(self.inner_model, conds, x, timestep, model_options)
+
+        # Apply pre_cfg_functions since sampling_function() is skipped
+        for fn in model_options.get("sampler_pre_cfg_function", []):
+            args = {"conds":conds, "conds_out": out, "cond_scale": self.cfg, "timestep": timestep,
+                    "input": x, "sigma": timestep, "model": self.inner_model, "model_options": model_options}
+            out = fn(args)
+
+        noise_pred_pos, noise_pred_neg, noise_pred_empty = out
         cfg_result = perp_neg(x, noise_pred_pos, noise_pred_neg, noise_pred_empty, self.neg_scale, self.cfg)
 
         # normally this would be done in cfg_function, but we skipped
@@ -82,6 +98,7 @@ class Guider_PerpNeg(comfy.samplers.CFGGuider):
                 "denoised": cfg_result,
                 "cond": positive_cond,
                 "uncond": negative_cond,
+                "cond_scale": self.cfg,
                 "model": self.inner_model,
                 "uncond_denoised": noise_pred_neg,
                 "cond_denoised": noise_pred_pos,

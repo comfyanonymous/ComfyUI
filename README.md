@@ -6,6 +6,7 @@
 
 [![Website][website-shield]][website-url]
 [![Dynamic JSON Badge][discord-shield]][discord-url]
+[![Twitter][twitter-shield]][twitter-url]
 [![Matrix][matrix-shield]][matrix-url]
 <br>
 [![][github-release-shield]][github-release-link]
@@ -20,6 +21,8 @@
 <!-- Workaround to display total user from https://github.com/badges/shields/issues/4500#issuecomment-2060079995 -->
 [discord-shield]: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2Fcomfyorg%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&logo=discord&logoColor=white&label=Discord&color=green&suffix=%20total
 [discord-url]: https://www.comfy.org/discord
+[twitter-shield]: https://img.shields.io/twitter/follow/ComfyUI
+[twitter-url]: https://x.com/ComfyUI
 
 [github-release-shield]: https://img.shields.io/github/v/release/comfyanonymous/ComfyUI?style=flat&sort=semver
 [github-release-link]: https://github.com/comfyanonymous/ComfyUI/releases
@@ -52,7 +55,7 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
 - Image Models
-   - SD1.x, SD2.x,
+   - SD1.x, SD2.x ([unCLIP](https://comfyanonymous.github.io/ComfyUI_examples/unclip/))
    - [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
    - [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/)
    - [SD3 and SD3.5](https://comfyanonymous.github.io/ComfyUI_examples/sd3/)
@@ -62,13 +65,19 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
    - [Lumina Image 2.0](https://comfyanonymous.github.io/ComfyUI_examples/lumina2/)
    - [HiDream](https://comfyanonymous.github.io/ComfyUI_examples/hidream/)
+   - [Cosmos Predict2](https://comfyanonymous.github.io/ComfyUI_examples/cosmos_predict2/)
+- Image Editing Models
+   - [Omnigen 2](https://comfyanonymous.github.io/ComfyUI_examples/omnigen/)
+   - [Flux Kontext](https://comfyanonymous.github.io/ComfyUI_examples/flux/#flux-kontext-image-editing-model)
+   - [HiDream E1.1](https://comfyanonymous.github.io/ComfyUI_examples/hidream/#hidream-e11)
 - Video Models
    - [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
    - [Mochi](https://comfyanonymous.github.io/ComfyUI_examples/mochi/)
    - [LTX-Video](https://comfyanonymous.github.io/ComfyUI_examples/ltxv/)
    - [Hunyuan Video](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_video/)
-   - [Nvidia Cosmos](https://comfyanonymous.github.io/ComfyUI_examples/cosmos/)
+   - [Nvidia Cosmos](https://comfyanonymous.github.io/ComfyUI_examples/cosmos/) and [Cosmos Predict2](https://comfyanonymous.github.io/ComfyUI_examples/cosmos_predict2/)
    - [Wan 2.1](https://comfyanonymous.github.io/ComfyUI_examples/wan/)
+   - [Wan 2.2](https://comfyanonymous.github.io/ComfyUI_examples/wan22/)
 - Audio Models
    - [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
    - [ACE Step](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
@@ -76,9 +85,10 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [Hunyuan3D 2.0](https://docs.comfy.org/tutorials/3d/hunyuan3D-2)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
-- Smart memory management: can automatically run models on GPUs with as low as 1GB vram.
+- Smart memory management: can automatically run large models on GPUs with as low as 1GB vram with smart offloading.
 - Works even if you don't have a GPU with: ```--cpu``` (slow)
-- Can load ckpt, safetensors and diffusers models/checkpoints. Standalone VAEs and CLIP models.
+- Can load ckpt and safetensors: All in one checkpoints or standalone diffusion models, VAEs and CLIP models.
+- Safe loading of ckpt, pt, pth, etc.. files.
 - Embeddings/Textual inversion
 - [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
 - [Hypernetworks](https://comfyanonymous.github.io/ComfyUI_examples/hypernetworks/)
@@ -89,20 +99,19 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
 - [Inpainting](https://comfyanonymous.github.io/ComfyUI_examples/inpaint/) with both regular and inpainting models.
 - [ControlNet and T2I-Adapter](https://comfyanonymous.github.io/ComfyUI_examples/controlnet/)
 - [Upscale Models (ESRGAN, ESRGAN variants, SwinIR, Swin2SR, etc...)](https://comfyanonymous.github.io/ComfyUI_examples/upscale_models/)
-- [unCLIP Models](https://comfyanonymous.github.io/ComfyUI_examples/unclip/)
 - [GLIGEN](https://comfyanonymous.github.io/ComfyUI_examples/gligen/)
 - [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
 - [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
 - Latent previews with [TAESD](#how-to-show-high-quality-previews)
-- Starts up very fast.
-- Works fully offline: will never download anything.
+- Works fully offline: core will never download anything unless you want to.
+- Optional API nodes to use paid models from external providers through the online [Comfy API](https://docs.comfy.org/tutorials/api-nodes/overview).
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 
 ## Release Process
 
-ComfyUI follows a weekly release cycle every Friday, with three interconnected repositories:
+ComfyUI follows a weekly release cycle targeting Friday but this regularly changes because of model releases or large changes to the codebase. There are three interconnected repositories:
 
 1. **[ComfyUI Core](https://github.com/comfyanonymous/ComfyUI)**
    - Releases a new stable version (e.g., v0.7.0)
@@ -170,10 +179,6 @@ If you have trouble extracting it, right click the file -> properties -> unblock
 
 See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
 
-## Jupyter Notebook
-
-To run it on services like paperspace, kaggle or colab you can use my [Jupyter Notebook](notebooks/comfyui_colab.ipynb)
-
 
 ## [comfy-cli](https://docs.comfy.org/comfy-cli/getting-started)
 
@@ -235,7 +240,7 @@ Nvidia users should install stable pytorch using this command:
 
 This is the command to install pytorch nightly instead which might have performance improvements.
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu129```
 
 #### Troubleshooting
 
@@ -268,6 +273,8 @@ You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS ve
 
 #### DirectML (AMD Cards on Windows)
 
+This is very badly supported and is not recommended. There are some unofficial builds of pytorch ROCm on windows that exist that will give you a much better experience than this. This readme will be updated once official pytorch ROCm builds for windows come out.
+
 ```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
 
 #### Ascend NPUs
@@ -286,6 +293,13 @@ For models compatible with Cambricon Extension for PyTorch (torch_mlu). Here's a
 1. Install the Cambricon CNToolkit by adhering to the platform-specific instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cntoolkit_3.7.2/cntoolkit_install_3.7.2/index.html)
 2. Next, install the PyTorch(torch_mlu) following the instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cambricon_pytorch_1.17.0/user_guide_1.9/index.html)
 3. Launch ComfyUI by running `python main.py`
+
+#### Iluvatar Corex
+
+For models compatible with Iluvatar Extension for PyTorch. Here's a step-by-step guide tailored to your platform and installation method:
+
+1. Install the Iluvatar Corex Toolkit by adhering to the platform-specific instructions on the [Installation](https://support.iluvatar.com/#/DocumentCentre?id=1&nameCenter=2&productId=520117912052801536)
+2. Launch ComfyUI by running `python main.py`
 
 # Running
 
