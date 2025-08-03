@@ -44,17 +44,21 @@ for /f "tokens=2 delims=." %%a in ('python -c "import sys; print(sys.version)"')
 )
 :version_detected
 
-if "%PY_MINOR%"=="10" (
-    echo  ::  %time:~0,8%  ::  - Python 3.10 detected, installing triton for 3.10
-    pip install https://github.com/lshqqytiger/triton/releases/download/3d100376/triton-3.3.0+git3d100376-cp310-cp310-win_amd64.whl --quiet
+if "%PY_MINOR%"=="12" (
+    echo  ::  %time:~0,8%  ::  - Python 3.12 detected, installing triton for 3.12
+    pip install --force-reinstall https://github.com/lshqqytiger/triton/releases/download/a9c80202/triton-3.4.0+gita9c80202-cp312-cp312-win_amd64.whl
 ) else if "%PY_MINOR%"=="11" (
     echo  ::  %time:~0,8%  ::  - Python 3.11 detected, installing triton for 3.11
-    pip install https://github.com/lshqqytiger/triton/releases/download/3d100376/triton-3.3.0+git3d100376-cp311-cp311-win_amd64.whl --quiet
+    pip install --force-reinstall https://github.com/lshqqytiger/triton/releases/download/a9c80202/triton-3.4.0+gita9c80202-cp311-cp311-win_amd64.whl
 ) else (
     echo  ::  %time:~0,8%  ::  - WARNING: Unsupported Python version 3.%PY_MINOR%, skipping triton installation
-    echo  ::  %time:~0,8%  ::  - Full version string: 
+    echo  ::  %time:~0,8%  ::  - Full version string:
     python -c "import sys; print(sys.version)"
 )
+
+:: patching triton
+pip install --force-reinstall pypatch-url --quiet
+pypatch-url apply https://raw.githubusercontent.com/sfinktah/amd-torch/refs/heads/main/patches/triton-3.4.0+gita9c80202-cp311-cp311-win_amd64.patch -p 4 triton
 
 echo  ::  %time:~0,8%  ::  - Installing flash-attention
 
@@ -65,8 +69,8 @@ del fa.zip
 del flash_attn-2.7.4.post1-py3-none-any.whl
 copy comfy\customzluda\fa\distributed.py %VIRTUAL_ENV%\Lib\site-packages\flash_attn\utils\distributed.py /y >NUL
 
+echo  ::  %time:~0,8%  ::  - Installing and patching sage-attention
 pip install sageattention --quiet
-echo  ::  %time:~0,8%  ::  - Patching sage-attention
 copy comfy\customzluda\sa\quant_per_block.py %VIRTUAL_ENV%\Lib\site-packages\sageattention\quant_per_block.py /y >NUL
 copy comfy\customzluda\sa\attn_qk_int8_per_block_causal.py %VIRTUAL_ENV%\Lib\site-packages\sageattention\attn_qk_int8_per_block_causal.py /y >NUL
 copy comfy\customzluda\sa\attn_qk_int8_per_block.py %VIRTUAL_ENV%\Lib\site-packages\sageattention\attn_qk_int8_per_block.py /y >NUL
@@ -84,6 +88,15 @@ git clone https://github.com/ltdrdata/ComfyUI-Manager.git --quiet
 echo  ::  %time:~0,8%  ::  - Installing ComfyUI-deepcache
 git clone https://github.com/styler00dollar/ComfyUI-deepcache.git --quiet
 cd ..
+
+echo  ::  %time:~0,8%  ::  - Copying python libs
+xcopy /E /I /Y "%LocalAppData%\Programs\Python\Python3%PY_MINOR%\libs" "venv\libs"
+set ERRLEVEL=%errorlevel%
+if %ERRLEVEL% neq 0 (
+    echo "Failed to copy Python3%PY_MINOR%\libs to virtual environment."
+    exit /b %ERRLEVEL%
+)
+
 echo. 
 echo  ::  %time:~0,8%  ::  - Patching ZLUDA
 :: Download ZLUDA version 3.9.5 nightly
@@ -123,3 +136,4 @@ set FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
 set MIOPEN_FIND_MODE=2
 set MIOPEN_LOG_LEVEL=3
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
+
