@@ -82,9 +82,9 @@ cd /kaggle/ComfyUI
 # pip install --upgrade gguf
 
 # 4 encrypt image
-# cd custom_nodes
-# git clone https://github.com/Vander-Bilt/comfyui-encrypt-image.git
-# cd /kaggle/ComfyUI
+cd custom_nodes
+git clone https://github.com/Vander-Bilt/comfyui-encrypt-image.git
+cd /kaggle/ComfyUI
 
 #5 Prompts Generator
 cd custom_nodes
@@ -105,12 +105,12 @@ pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
 #class MyHTMLNode:
-cd custom_nodes
-git clone https://github.com/Vander-Bilt/MyHTMLNode.git
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/Vander-Bilt/MyHTMLNode.git
+# cd /kaggle/ComfyUI
 
 
-REMOTE_PORT="$1"
+# REMOTE_PORT="$1"
 
 # 传入参数3,4,5,...  这样便于扩展，如果以后用了其他的frp，也好调整。
 
