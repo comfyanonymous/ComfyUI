@@ -1,7 +1,7 @@
-    serverAddr = '111.170.148.226'
-    serverPort = 21661
+    serverAddr = '117.72.185.137'
+    serverPort = 27000
     auth.method = "token"
-    auth.token = "072083"
+    auth.token = "xF5kJa#v"
     
     [[proxies]]
     name = 'web-REMOTE_PORT'

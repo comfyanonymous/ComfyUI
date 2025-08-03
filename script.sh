@@ -121,23 +121,23 @@ cp -p /kaggle/working/frp_0.54.0_linux_amd64/frpc /kaggle/working/frpc
 cp -p /kaggle/ComfyUI/template_frpc /kaggle/working/frpc.toml
 
 # 1, 2 主要是为了兼容之前的comfyUI notebook（不想一个一个的去修改了）
-FRP_CONFIG_FILE="/kaggle/working/frpc.toml"
-CHOICE="$1"
-if [ "$CHOICE" -eq 3 ]; then
-  TARGET_REMOTE_PORT="21663"
-elif [ "$CHOICE" -eq 4 ]; then
-  TARGET_REMOTE_PORT="21664"
+# FRP_CONFIG_FILE="/kaggle/working/frpc.toml"
+# CHOICE="$1"
+# if [ "$CHOICE" -eq 3 ]; then
+#   TARGET_REMOTE_PORT="21663"
+# elif [ "$CHOICE" -eq 4 ]; then
+#   TARGET_REMOTE_PORT="21664"
 
-elif [ "$CHOICE" -eq 5 ]; then
-  TARGET_REMOTE_PORT="21665"
-elif [ "$CHOICE" -eq 6 ]; then
-  TARGET_REMOTE_PORT="21666"
-elif [ "$CHOICE" -eq -1 ]; then
-  TARGET_REMOTE_PORT="21673"
-else
-  echo "Invalid CHOICE: $CHOICE"
-  echo "Only 1 or 2 are supported."
-  exit 1 # 退出并返回错误码
-fi
-sed -i "s/REMOTE_PORT/$TARGET_REMOTE_PORT/g" "$FRP_CONFIG_FILE"
-sleep 2
+# elif [ "$CHOICE" -eq 5 ]; then
+#   TARGET_REMOTE_PORT="21665"
+# elif [ "$CHOICE" -eq 6 ]; then
+#   TARGET_REMOTE_PORT="21666"
+# elif [ "$CHOICE" -eq -1 ]; then
+#   TARGET_REMOTE_PORT="21673"
+# else
+#   echo "Invalid CHOICE: $CHOICE"
+#   echo "Only 1 or 2 are supported."
+#   exit 1 # 退出并返回错误码
+# fi
+# sed -i "s/REMOTE_PORT/$TARGET_REMOTE_PORT/g" "$FRP_CONFIG_FILE"
+# sleep 2
