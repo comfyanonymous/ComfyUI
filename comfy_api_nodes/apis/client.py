@@ -527,6 +527,15 @@ class ApiClient:
                         )
                         return resp
             except (ClientError, asyncio.TimeoutError) as e:
+                request_logger.log_request_response(
+                    operation_id=operation_id,
+                    request_method="PUT",
+                    request_url=upload_url,
+                    response_status_code=e.status if hasattr(e, "status") else None,
+                    response_headers=dict(e.headers) if getattr(e, "headers") else None,
+                    response_content=None,
+                    error_message=f"{type(e).__name__}: {str(e)}",
+                )
                 if attempt < max_retries:
                     logging.warning(
                         "Upload failed (%s/%s). Retrying in %.2fs. %s", attempt + 1, max_retries, delay, str(e)
