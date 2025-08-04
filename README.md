@@ -141,27 +141,15 @@ patchzluda.bat
 - Problems with triton , try this : Remove visual studio 2022 (if you have already installed it and getting errors) and install "https://aka.ms/vs/17/release/vs_BuildTools.exe" , and then use  "Developer Command Prompt" to run comfyui. This option shouldn't be needed for many but nevertheless try.
 - `CUDA device detected: None` , if seeing this error with the new install-n , make sure you are NOT using the amd driver 25.5.1 . Use a previous driver, it has problems with zluda.
 - `RuntimeError: CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR: cudnnFinalize FailedmiopenStatusInternalError cudnn_status: miopenStatusUnknownError` , if this is encountered at the end, while vae-decoding, use tiled-vae decoding either from official comfy nodes or from Tiled-Diffussion (my preference). Also vae-decoding is overall better with tiled-vae decoding. 
-- If you installed miopen-triton setup with install.n.bat , getting ":: Triton core imported successfully , :: Running Triton kernel test... , :: Triton test failed , :: Triton available but failed verification" Do this to fix it :
-   * Copy "libs" folder from python install directory under(C:\Users\username\AppData\Local\Programs\Python\Python310) Or 311 , whatever python you are using, to under "comfyui-zluda\venv" so ,
-   * For example : "C:\Users\username\AppData\Local\Programs\Python\Python310\libs" to "d:\Comfyui-Zluda\venv\* Beware, there are two similar folders under venv , "Lib" and "Library" , so this would be a similarly named folder , don't mistake them.
-  Then try running comfy again.
 - DO NOT use non-english characters as folder names to put comfyui-zluda under.
-- Wipe your pip cache "C:\Users\USERNAME\AppData\Local\pip\cache" You can also do this when venv is active with :
-  `pip cache purge`
-- `xformers` isn't usable with zluda so any nodes / packages that require it doesn't work. `Flash attention`
-  doesn't work.
-- Have the latest drivers installed for your amd gpu. **Also, Remove Any Nvidia Drivers** you might have from previous
-  nvidia gpu's.
-- If for some reason you can't solve with these and want to start from zero, delete "venv" folder and re-run
-  `install.bat`
-- If you can't git pull to the latest version, run these commands, `git fetch --all` and then
-  `git reset --hard origin/master` now you can git pull
-- Problems with `caffe2_nvrtc.dll`: if you are sure you properly installed hip and can see it on path, please DON'T use
-  python from windows store, use the link provided or 3.11 from the official website. After uninstalling python from
+- Wipe your pip cache "C:\Users\USERNAME\AppData\Local\pip\cache" You can also do this when venv is active with :  `pip cache purge`
+- `xformers` isn't usable with zluda so any nodes / packages that require it doesn't work. `Flash attention`  doesn't work.
+- Have the latest drivers installed for your amd gpu. **Also, Remove Any Nvidia Drivers** you might have from previous nvidia gpu's.
+- If for some reason you can't solve with these and want to start from zero, delete "venv" folder and re-run  `install.bat`
+- If you can't git pull to the latest version, run these commands, `git fetch --all` and then `git reset --hard origin/master` now you can git pull
+- Problems with `caffe2_nvrtc.dll`: if you are sure you properly installed hip and can see it on path, please DON'T use python from windows store, use the link provided or 3.11 from the official website. After uninstalling python from
   windows store and installing the one from the website, be sure the delete venv folder, and run install.bat once again.
-- `rocBLAS`-error: If you have an integrated GPU by AMD (e.g. AMD Radeon(TM) Graphics) you need to add `HIP_VISIBLE_DEVICES=1` to your
-  environment variables. Other possible variables to use : `ROCR_VISIBLE_DEVICES=1` `HCC_AMDGPU_TARGET=1` . This basically tells it to use 1st gpu -this number could be different if you have multiple gpu's-
-  Otherwise it will default to using your iGPU, which will most likely not work. This behavior is caused by a bug in the ROCm-driver.
+- `rocBLAS`-error: If you have an integrated GPU by AMD (e.g. AMD Radeon(TM) Graphics) you need to add `HIP_VISIBLE_DEVICES=1` to your environment variables. Other possible variables to use : `ROCR_VISIBLE_DEVICES=1` `HCC_AMDGPU_TARGET=1` . This basically tells it to use 1st gpu -this number could be different if you have multiple gpu's- otherwise it will default to using your iGPU, which will most likely not work. This behavior is caused by a bug in the ROCm-driver.
 - Lots of other problems were encountered and solved by users so check the issues if you can't find your problem here.
 
 ## Examples
