@@ -162,7 +162,7 @@ class BaseModel(torch.nn.Module):
         xc = self.model_sampling.calculate_input(sigma, x)
 
         if c_concat is not None:
-            xc = torch.cat([xc] + [c_concat], dim=1)
+            xc = torch.cat([xc] + [comfy.model_management.cast_to_device(c_concat, xc.device, xc.dtype)], dim=1)
 
         context = c_crossattn
         dtype = self.get_dtype()
