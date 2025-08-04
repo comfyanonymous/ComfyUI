@@ -1,6 +1,7 @@
 import torch
 import math
 import comfy.utils
+import logging
 
 
 class CONDRegular:
@@ -15,6 +16,9 @@ class CONDRegular:
 
     def can_concat(self, other):
         if self.cond.shape != other.cond.shape:
+            return False
+        if self.cond.device != other.cond.device:
+            logging.warning("WARNING: conds not on same device, skipping concat.")
             return False
         return True
 
@@ -51,6 +55,9 @@ class CONDCrossAttn(CONDRegular):
             diff = mult_min // min(s1[1], s2[1])
             if diff > 4: #arbitrary limit on the padding because it's probably going to impact performance negatively if it's too much
                 return False
+        if self.cond.device != other.cond.device:
+            logging.warning("WARNING: conds not on same device: skipping concat.")
+            return False
         return True
 
     def concat(self, others):
