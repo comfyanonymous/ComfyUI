@@ -409,7 +409,7 @@ def sdxl_pooled(args, noise_augmentor):
     if "unclip_conditioning" in args:
         return unclip_adm(args.get("unclip_conditioning", None), args["device"], noise_augmentor, seed=args.get("seed", 0) - 10)[:,:1280]
     else:
-        return args["pooled_output"].to(device=args["device"])
+        return args["pooled_output"]
 
 class SDXLRefiner(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None):
