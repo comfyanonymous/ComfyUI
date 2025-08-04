@@ -56,9 +56,10 @@ if "%PY_MINOR%"=="12" (
     python -c "import sys; print(sys.version)"
 )
 
-:: patching triton
+:: patching triton & torch (from sfinktah ; https://github.com/sfinktah/amd-torch )
 pip install --force-reinstall pypatch-url --quiet
 pypatch-url apply https://raw.githubusercontent.com/sfinktah/amd-torch/refs/heads/main/patches/triton-3.4.0+gita9c80202-cp311-cp311-win_amd64.patch -p 4 triton
+pypatch-url apply https://raw.githubusercontent.com/sfinktah/amd-torch/refs/heads/main/patches/torch-2.7.0+cu118-cp311-cp311-win_amd64.patch -p 4 torch
 
 echo  ::  %time:~0,8%  ::  - Installing flash-attention
 
@@ -136,4 +137,5 @@ set FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
 set MIOPEN_FIND_MODE=2
 set MIOPEN_LOG_LEVEL=3
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
+
 
