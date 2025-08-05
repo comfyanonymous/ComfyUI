@@ -29,6 +29,7 @@ import comfy.model_detection
 import comfy.model_patcher
 import comfy.ops
 import comfy.latent_formats
+import comfy.model_base
 
 import comfy.cldm.cldm
 import comfy.t2i_adapter.adapter
@@ -44,7 +45,6 @@ if TYPE_CHECKING:
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
     current_batch_size = tensor.shape[0]
-    #print(current_batch_size, target_batch_size)
     if current_batch_size == 1:
         return tensor
 
@@ -300,12 +300,12 @@ class ControlNet(ControlBase):
         for c in self.extra_conds:
             temp = cond.get(c, None)
             if temp is not None:
-                extra[c] = temp.to(dtype)
+                extra[c] = comfy.model_base.convert_tensor(temp, dtype, x_noisy.device)
 
         timestep = self.model_sampling_current.timestep(t)
         x_noisy = self.model_sampling_current.calculate_input(t, x_noisy)
 
-        control = self.control_model(x=x_noisy.to(dtype), hint=self.cond_hint, timesteps=timestep.to(dtype), context=context.to(dtype), **extra)
+        control = self.control_model(x=x_noisy.to(dtype), hint=self.cond_hint, timesteps=timestep.to(dtype), context=comfy.model_management.cast_to_device(context, x_noisy.device, dtype), **extra)
         return self.control_merge(control, control_prev, output_dtype=None)
 
     def copy(self):
