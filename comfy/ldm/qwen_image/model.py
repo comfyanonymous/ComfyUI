@@ -8,7 +8,7 @@ from einops import repeat
 from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
 from comfy.ldm.modules.attention import optimized_attention_masked
 from comfy.ldm.flux.layers import EmbedND
-
+import comfy.ldm.common_dit
 
 class GELU(nn.Module):
     def __init__(self, dim_in: int, dim_out: int, approximate: str = "none", bias: bool = True, dtype=None, device=None, operations=None):
@@ -364,8 +364,9 @@ class QwenImageTransformer2DModel(nn.Module):
 
         image_rotary_emb = self.pos_embeds(x, context)
 
-        orig_shape = x.shape
-        hidden_states = x.view(orig_shape[0], orig_shape[1], orig_shape[-2] // 2, 2, orig_shape[-1] // 2, 2)
+        hidden_states = comfy.ldm.common_dit.pad_to_patch_size(x, (1, self.patch_size, self.patch_size))
+        orig_shape = hidden_states.shape
+        hidden_states = hidden_states.view(orig_shape[0], orig_shape[1], orig_shape[-2] // 2, 2, orig_shape[-1] // 2, 2)
         hidden_states = hidden_states.permute(0, 2, 4, 1, 3, 5)
         hidden_states = hidden_states.reshape(orig_shape[0], (orig_shape[-2] // 2) * (orig_shape[-1] // 2), orig_shape[1] * 4)
 
@@ -396,4 +397,4 @@ class QwenImageTransformer2DModel(nn.Module):
 
         hidden_states = hidden_states.view(orig_shape[0], orig_shape[-2] // 2, orig_shape[-1] // 2, orig_shape[1], 2, 2)
         hidden_states = hidden_states.permute(0, 3, 1, 4, 2, 5)
-        return hidden_states.reshape(orig_shape)
+        return hidden_states.reshape(orig_shape)[:, :, :, :x.shape[-2], :x.shape[-1]]

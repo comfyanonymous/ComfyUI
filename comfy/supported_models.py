@@ -1237,7 +1237,7 @@ class QwenImage(supported_models_base.BASE):
 
     sampling_settings = {
         "multiplier": 1.0,
-        "shift": 2.6,
+        "shift": 1.15,
     }
 
     memory_usage_factor = 1.8 #TODO
