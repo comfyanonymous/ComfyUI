@@ -56,6 +56,11 @@ def apply_custom_paths():
         logging.info(f"Setting user directory to: {user_dir}")
         folder_paths.set_user_directory(user_dir)
 
+    if args.models_directory:
+        models_dir = os.path.abspath(args.models_directory)
+        logging.info(f"Setting models directory to: {models_dir}")
+        folder_paths.set_models_directory(models_dir)
+
 
 def execute_prestartup_script():
     if args.disable_all_custom_nodes and len(args.whitelist_custom_nodes) == 0:
