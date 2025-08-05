@@ -42,6 +42,7 @@ import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
+import comfy.ldm.qwen_image.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1307,4 +1308,15 @@ class Omnigen2(BaseModel):
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+        return out
+
+class QwenImage(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.qwen_image.model.QwenImageTransformer2DModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
