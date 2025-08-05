@@ -1,6 +1,27 @@
 from __future__ import annotations
 from comfy_api.latest import ComfyExtension, io
 import comfy.context_windows
+import comfy.patcher_extension
+import torch
+
+
+def _prepare_sampling_wrapper(executor, model, noise_shape: torch.Tensor, *args, **kwargs):
+    # TODO: handle various dims instead of defaulting to 0th
+    # limit noise_shape length to context_length for more accurate vram use estimation
+    model_options = kwargs.get("model_options", None)
+    if model_options is None:
+        raise Exception("model_options not found in prepare_sampling_wrapper; this should never happen, something went wrong.")
+    handler: comfy.context_windows.IndexListContextHandler = model_options.get("context_handler", None)
+    if handler is not None:
+        noise_shape = [min(noise_shape[0], handler.context_length)] + list(noise_shape[1:])
+    return executor(model, noise_shape, *args, **kwargs)
+
+
+def create_prepare_sampling_wrapper(model_options: dict):
+    comfy.patcher_extension.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.PREPARE_SAMPLING,
+                                                 "ContextWindows_prepare_sampling",
+                                                 _prepare_sampling_wrapper,
+                                                 model_options, is_model_options=True)
 
 
 class ContextWindowsNode(io.ComfyNode):
@@ -37,6 +58,7 @@ class ContextWindowsNode(io.ComfyNode):
             context_length=context_length,
             context_overlap=context_overlap,
             dim=dim)
+        create_prepare_sampling_wrapper(model.model_options)
         return io.NodeOutput(model)
 
 
