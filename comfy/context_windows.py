@@ -56,28 +56,16 @@ class IndexListContextWindow(ContextWindowABC):
     def get_tensor(self, full: torch.Tensor, device=None, dim=None) -> torch.Tensor:
         if dim is None:
             dim = self.dim
-        if dim == 0:
-            if full.shape[dim] == 1:
-                return full
-            return full[self.index_list].to(device)
-        elif dim == 1:
-            return full[:, self.index_list].to(device)
-        elif dim == 2:
-            return full[:, :, self.index_list].to(device)
-        else:
-            raise ValueError(f"Invalid dimension: {dim}")
+        if dim == 0 and full.shape[dim] == 1:
+            return full
+        idx = [slice(None)] * dim + [self.index_list]
+        return full[idx].to(device)
 
     def add_window(self, full: torch.Tensor, to_window: torch.Tensor, dim=None) -> torch.Tensor:
         if dim is None:
             dim = self.dim
-        if dim == 0:
-            full[self.index_list] += to_window
-        elif dim == 1:
-            full[:, self.index_list] += to_window
-        elif dim == 2:
-            full[:, :, self.index_list] += to_window
-        else:
-            raise ValueError(f"Invalid dimension: {dim}")
+        idx = [slice(None)] * dim + [self.index_list]
+        full[idx] += to_window
         return full
 
 
