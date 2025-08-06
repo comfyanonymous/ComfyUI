@@ -154,6 +154,7 @@ patchzluda.bat
 
 ## Examples
 
+* A Wan 2.2 workflow that uses everything the new install method presents is uploaded. note: It is designed for 16 vram + 32 gb system ram, read the notes and probably something like 12gb vram maybe even 8gb vram (with low resolution and framecount) could be possible. BUT system ram becomes more important in those usecases. 
 * There are some example workflows in cfz folder.
 * Flux Guide [HERE](fluxguide.md)
 
