@@ -2,6 +2,7 @@ from __future__ import annotations
 from comfy_api.latest import ComfyExtension, io
 import comfy.context_windows
 import comfy.patcher_extension
+import comfy.samplers
 import torch
 
 
@@ -13,7 +14,8 @@ def _prepare_sampling_wrapper(executor, model, noise_shape: torch.Tensor, *args,
         raise Exception("model_options not found in prepare_sampling_wrapper; this should never happen, something went wrong.")
     handler: comfy.context_windows.IndexListContextHandler = model_options.get("context_handler", None)
     if handler is not None:
-        noise_shape = [min(noise_shape[0], handler.context_length)] + list(noise_shape[1:])
+        noise_shape = list(noise_shape)
+        noise_shape[handler.dim] = min(noise_shape[handler.dim], handler.context_length)
     return executor(model, noise_shape, *args, **kwargs)
 
 
@@ -21,6 +23,35 @@ def create_prepare_sampling_wrapper(model_options: dict):
     comfy.patcher_extension.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.PREPARE_SAMPLING,
                                                  "ContextWindows_prepare_sampling",
                                                  _prepare_sampling_wrapper,
+                                                 model_options, is_model_options=True)
+
+def _outer_sample_wrapper(executor, *args, **kwargs):
+    guider: comfy.samplers.CFGGuider = executor.class_obj
+    handler: comfy.context_windows.IndexListContextHandler = guider.model_options.get("context_handler", None)
+    if handler is not None:
+        args = list(args)
+        noise: torch.Tensor = args[0]
+        length = noise.shape[handler.dim]
+        window = comfy.context_windows.IndexListContextWindow(list(range(handler.context_length)))
+        noise = window.get_tensor(noise, dim=handler.dim)
+        cat_count = (length // handler.context_length) + 1
+        noise = torch.cat([noise] * cat_count, dim=handler.dim)
+        if handler.dim == 0:
+            noise = noise[:length]
+        elif handler.dim == 1:
+            noise = noise[:, :length]
+        elif handler.dim == 2:
+            noise = noise[:, :, :length]
+        else:
+            pass
+        args[0] = noise
+        args = tuple(args)
+    return executor(*args, **kwargs)
+
+def create_outer_sampler_wrapper(model_options: dict):
+    comfy.patcher_extension.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE,
+                                                 "ContextWindows_outer_sample",
+                                                 _outer_sample_wrapper,
                                                  model_options, is_model_options=True)
 
 
@@ -41,7 +72,7 @@ class ContextWindowsNode(io.ComfyNode):
                     comfy.context_windows.ContextSchedules.BATCHED,
                     ], tooltip="The stride of the context window."),
                 io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethod.LIST_STATIC,default=comfy.context_windows.ContextFuseMethod.PYRAMID, tooltip="The method to use to fuse the context windows."),
-                io.Int.Input("dim", min=0, max=1, default=0, tooltip="The dimension to apply the context windows to."),
+                io.Int.Input("dim", min=0, max=2, default=0, tooltip="The dimension to apply the context windows to."),
             ],
             outputs=[
                 io.Model.Output(tooltip="The model with context windows applied during sampling."),
@@ -59,7 +90,19 @@ class ContextWindowsNode(io.ComfyNode):
             context_overlap=context_overlap,
             dim=dim)
         create_prepare_sampling_wrapper(model.model_options)
+        #create_outer_sampler_wrapper(model.model_options)
         return io.NodeOutput(model)
+
+
+class WanContextWindowsNode(ContextWindowsNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        schema = super().define_schema()
+        schema.node_id = "WanContextWindowsTest"
+        schema.display_name = "Wan Context Windows Test"
+        schema.description = "Test node for context windows (WAN)"
+        schema.inputs.append(io.Int.Input("dim", min=0, max=2, default=0, tooltip="The dimension to apply the context windows to."))
+        return schema
 
 
 class ContextWindowsExtension(ComfyExtension):
