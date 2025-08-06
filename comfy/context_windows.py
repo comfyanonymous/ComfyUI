@@ -80,6 +80,14 @@ class IndexListContextWindow(ContextWindowABC):
             raise ValueError(f"Invalid dimension: {dim}")
         return full
 
+
+class IndexListCallbacks:
+    EVALUATE_CONTEXT_WINDOWS = "evaluate_context_windows"
+
+    def init_callbacks(self):
+        return {}
+
+
 ContextResults = collections.namedtuple("ContextResults", ['window_idx', 'sub_conds_out', 'sub_conds', 'window'])
 class IndexListContextHandler(ContextHandlerABC):
     def __init__(self, context_schedule: str, fuse_method: str, context_length: int=1, context_overlap: int=0, dim=0):
@@ -91,6 +99,8 @@ class IndexListContextHandler(ContextHandlerABC):
         self.closed_loop = False
         self.step = 0  # TODO: get from model options
         self.dim = dim
+
+        self.callbacks = {}
 
     def should_use_context(self, model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep: torch.Tensor, model_options: dict[str]) -> bool:
         # for now, assume first dim is batch - should have stored on BaseModel in actual implementation
@@ -221,10 +231,11 @@ class IndexListContextHandler(ContextHandlerABC):
             # for motion_models in motion_models_devices:
             #     motion_models.set_sub_idxs(ctx_idxs)
             #     motion_models.set_video_length(len(ctx_idxs), ADGS.params.full_length)
+
+            # TODO: add callback here
+
             # update exposed params
             model_options["transformer_options"]["context_window"] = window
-            # model_options["transformer_options"]["ad_params"]["sub_idxs"] = ctx_idxs
-            # model_options["transformer_options"]["ad_params"]["context_length"] = len(ctx_idxs)
             # get subsections of x, timestep, conds
             sub_x = window.get_tensor(x_in, device)
             sub_timestep = window.get_tensor(timestep, device, dim=0)
