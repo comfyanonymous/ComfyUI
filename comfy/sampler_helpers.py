@@ -158,8 +158,8 @@ def prepare_model_patcher(model: ModelPatcher, conds, model_options: dict):
     for k in conds:
         get_hooks_from_cond(conds[k], hooks)
     # add wrappers and callbacks from ModelPatcher to transformer_options
-    comfy.patcher_extension.merge_nested_dicts(model_options["transformer_options"].setdefault("wrappers", {}), model.wrappers)
-    comfy.patcher_extension.merge_nested_dicts(model_options["transformer_options"].setdefault("callbacks", {}), model.callbacks)
+    comfy.patcher_extension.merge_nested_dicts(model_options["transformer_options"].setdefault("wrappers", {}), model.wrappers, copy_dict1=False)
+    comfy.patcher_extension.merge_nested_dicts(model_options["transformer_options"].setdefault("callbacks", {}), model.callbacks, copy_dict1=False)
     # begin registering hooks
     registered = comfy.hooks.HookGroup()
     target_dict = comfy.hooks.create_target_dict(comfy.hooks.EnumWeightTarget.Model)
