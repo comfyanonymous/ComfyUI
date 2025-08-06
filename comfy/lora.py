@@ -293,6 +293,15 @@ def model_lora_keys_unet(model, key_map={}):
                 key_lora = k[len("diffusion_model."):-len(".weight")]
                 key_map["{}".format(key_lora)] = k
 
+    if isinstance(model, comfy.model_base.QwenImage):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"): #QwenImage lora format
+                key_lora = k[len("diffusion_model."):-len(".weight")]
+                # Direct mapping for transformer_blocks format (QwenImage LoRA format)
+                key_map["{}".format(key_lora)] = k
+                # Support transformer prefix format
+                key_map["transformer.{}".format(key_lora)] = k
+
     return key_map
 
 
