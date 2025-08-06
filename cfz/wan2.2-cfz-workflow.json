@@ -184,7 +184,7 @@
       "flags": {
         "collapsed": false
       },
-      "order": 9,
+      "order": 7,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -223,7 +223,7 @@
         146
       ],
       "flags": {},
-      "order": 11,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -533,7 +533,7 @@
         82
       ],
       "flags": {},
-      "order": 10,
+      "order": 8,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1048,15 +1048,15 @@
       "id": 474,
       "type": "WanVideoTorchCompileSettings",
       "pos": [
-        -1579.502685546875,
-        -621.357421875
+        -1584.37353515625,
+        -600.2503051757812
       ],
       "size": [
         282.74609375,
         202
       ],
       "flags": {},
-      "order": 3,
+      "order": 11,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1100,7 +1100,7 @@
       "flags": {
         "collapsed": false
       },
-      "order": 12,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -1213,7 +1213,7 @@
         652.6221313476562
       ],
       "flags": {},
-      "order": 5,
+      "order": 4,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -1238,7 +1238,7 @@
         154
       ],
       "flags": {},
-      "order": 4,
+      "order": 3,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1279,7 +1279,7 @@
         650.9985961914062
       ],
       "flags": {},
-      "order": 8,
+      "order": 6,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -1301,10 +1301,10 @@
       ],
       "size": [
         398.26617431640625,
-        150
+        200
       ],
       "flags": {},
-      "order": 6,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
@@ -1338,7 +1338,8 @@
         "wan\\lightx\\Wan2.2-Lightning_T2V-A14B-4steps-lora_HIGH_fp16.safetensors",
         1,
         false,
-        false
+        false,
+        "<details><summary><b>Metadata</b></summary><table border='0' cellpadding='3'><tr><td colspan='2'><b>Metadata</b></td></tr><tr><td><b>format</b></td><td>pt</td></tr></table></details>"
       ],
       "color": "#2a363b",
       "bgcolor": "#3f5159"
@@ -1347,15 +1348,15 @@
       "id": 506,
       "type": "WanVideoLoraSelect",
       "pos": [
-        -1664.1102294921875,
-        -350.4385070800781
+        -1694.9591064453125,
+        -283.8699645996094
       ],
       "size": [
         396.6425476074219,
         150
       ],
       "flags": {},
-      "order": 7,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -1412,7 +1413,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "-----------------------------WAN 2.2 TEXT TO VIDEO WORKFLOW------------------------- \n(OR IMAGE IF YOU SET THE NUM_FRAMES TO 1 AND OUTPUT TO A SAVE IMAGE INSTEAD OF VIDEO) \n\nTHIS WORKS WITH THE NEW-INSTALL METHOD (INSTALL-N.BAT) , SAGE-ATTENTION AND TORCH-\nCOMPILE (IF USED WITH THE RECOMMENDED MODELS) GIVE SPEED BOOSTS EACH.\n\nTHIS IS MAINLY MADE FOR A 16 GB GPU (RX 6800 IN MY CASE) SO FOR 12 OR 8 GB TRY LOWERING - RAISING THE VALUES. IT MIGHT WORK BUT IN THAT CASE YOU WOULD NEED LOTS OF SYSTEM RAM. I HAVE 32 GB SYSTEM RAM AND COMBINED , I CAN GENERATE 832X480X81 VIDEO WITHOUT PROBLEMS. 720 KEPT GIVING OOM, MAYBE IT COULD BE DONE WITH MORE SYSTEM RAM AND INSANE BLOCK SWAPPING. BUT IT WOULD TAKE FOREVER , WHICH I DON'T LIKE TO WAIT A LOT.\n"
+        "-----------------------------WAN 2.2 TEXT TO VIDEO WORKFLOW (KIJAI'S WRAPPER NODES)------------------------- \n(OR IMAGE IF YOU SET THE NUM_FRAMES TO 1 AND OUTPUT TO A SAVE IMAGE INSTEAD OF VIDEO) \n\nTHIS WORKS WITH THE NEW-INSTALL METHOD (INSTALL-N.BAT) , SAGE-ATTENTION AND TORCH-\nCOMPILE (IF USED WITH THE RECOMMENDED MODELS) GIVE SPEED BOOSTS EACH.\n\nTHIS IS MAINLY MADE FOR A 16 GB GPU (RX 6800 IN MY CASE) SO FOR 12 OR 8 GB TRY LOWERING - RAISING THE VALUES. IT MIGHT WORK BUT IN THAT CASE YOU WOULD NEED LOTS OF SYSTEM RAM. I HAVE 32 GB SYSTEM RAM AND COMBINED , I CAN GENERATE 832X480X81 VIDEO WITHOUT PROBLEMS. 720 KEPT GIVING OOM, MAYBE IT COULD BE DONE WITH MORE SYSTEM RAM AND INSANE BLOCK SWAPPING. BUT IT WOULD TAKE FOREVER , WHICH I DON'T LIKE TO WAIT A LOT.\n\nyou would need these node packs besides the native :\n\nhttps://github.com/kijai/ComfyUI-WanVideoWrapper\nhttps://github.com/kijai/ComfyUI-KJNodes\nhttps://github.com/Kosinkadink/ComfyUI-VideoHelperSuite\n"
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -1664,8 +1665,8 @@
     "ds": {
       "scale": 0.6159067356192479,
       "offset": [
-        2392.5445899362917,
-        987.1540906214982
+        3298.52591426614,
+        761.4705707615542
       ]
     },
     "frontendVersion": "1.25.5",
