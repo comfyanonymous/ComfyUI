@@ -424,7 +424,7 @@ class BaseMoonvalleyVideoNode:
                     MoonvalleyTextToVideoInferenceParams,
                     "negative_prompt",
                     multiline=True,
-                    default="low-poly, flat shader, bad rigging, stiff animation, uncanny eyes, low-quality textures, looping glitch, cheap effect, overbloom, bloom spam, default lighting, game asset, stiff face, ugly specular, AI artifacts",
+                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, bright, vignette, artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, flare, saturation, distorted, warped, wide angle, contrast, saturated, vibrant, glowing, cross dissolve, texture, videogame, saturation, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, blown out, horrible, blurry, worst quality, bad, transition, dissolve, cross-dissolve, melt, fade in, fade out, wobbly, weird, low quality, plastic, stock footage, video camera, boring, static",
                 ),
                 "resolution": (
                     IO.COMBO,
@@ -441,12 +441,11 @@ class BaseMoonvalleyVideoNode:
                         "tooltip": "Resolution of the output video",
                     },
                 ),
-                # "length": (IO.COMBO,{"options":['5s','10s'], "default": '5s'}),
                 "prompt_adherence": model_field_to_node_input(
                     IO.FLOAT,
                     MoonvalleyTextToVideoInferenceParams,
                     "guidance_scale",
-                    default=7.0,
+                    default=13.0,
                     step=1,
                     min=1,
                     max=20,
@@ -455,13 +454,12 @@ class BaseMoonvalleyVideoNode:
                     IO.INT,
                     MoonvalleyTextToVideoInferenceParams,
                     "seed",
-                    default=random.randint(0, 2**32 - 1),
+                    default=9,
                     min=0,
                     max=4294967295,
                     step=1,
                     display="number",
                     tooltip="Random seed value",
-                    control_after_generate=True,
                 ),
                 "steps": model_field_to_node_input(
                     IO.INT,
@@ -578,9 +576,18 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
                     MoonvalleyVideoToVideoInferenceParams,
                     "negative_prompt",
                     multiline=True,
-                    default="low-poly, flat shader, bad rigging, stiff animation, uncanny eyes, low-quality textures, looping glitch, cheap effect, overbloom, bloom spam, default lighting, game asset, stiff face, ugly specular, AI artifacts"
+                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, bright, vignette, artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, flare, saturation, distorted, warped, wide angle, contrast, saturated, vibrant, glowing, cross dissolve, texture, videogame, saturation, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, blown out, horrible, blurry, worst quality, bad, transition, dissolve, cross-dissolve, melt, fade in, fade out, wobbly, weird, low quality, plastic, stock footage, video camera, boring, static"
                 ),
-                "seed": model_field_to_node_input(IO.INT,MoonvalleyVideoToVideoInferenceParams, "seed", default=random.randint(0, 2**32 - 1), min=0, max=4294967295, step=1, display="number", tooltip="Random seed value", control_after_generate=True),
+                "seed": model_field_to_node_input(IO.INT,MoonvalleyVideoToVideoInferenceParams, "seed", default=9, min=0, max=4294967295, step=1, display="number", tooltip="Random seed value", control_after_generate=False),
+                "prompt_adherence": model_field_to_node_input(
+                    IO.FLOAT,
+                    MoonvalleyVideoToVideoInferenceParams,
+                    "guidance_scale",
+                    default=10.0,
+                    step=1,
+                    min=1,
+                    max=20,
+                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
