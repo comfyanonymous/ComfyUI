@@ -11,7 +11,8 @@ Call "%VIRTUAL_ENV%\Scripts\activate.bat"
 
 cls
 pip uninstall torch torchvision torchaudio -y
-pip install torch==2.2.1 torchvision==0.17.1 torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu118
+pip install --force-reinstall torch==2.2.1 torchvision==0.17.1 torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu118
+pip install --force-reinstall transformers==4.51.3 safetensors==0.5.3
 echo ..................................................... 
 echo *** "Patching ZLUDA Again"
 echo.
@@ -30,3 +31,4 @@ echo .....................................................
 echo *** Installation is done. --
 echo .....................................................
 echo.
+
