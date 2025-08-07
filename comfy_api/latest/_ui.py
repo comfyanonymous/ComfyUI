@@ -9,7 +9,11 @@ from typing import Type
 import av
 import numpy as np
 import torch
-import torchaudio
+try:
+    import torchaudio
+    TORCH_AUDIO_AVAILABLE = True
+except ImportError:
+    TORCH_AUDIO_AVAILABLE = False
 from PIL import Image as PILImage
 from PIL.PngImagePlugin import PngInfo
 
@@ -302,6 +306,8 @@ class AudioSaveHelper:
 
                 # Resample if necessary
                 if sample_rate != audio["sample_rate"]:
+                    if not TORCH_AUDIO_AVAILABLE:
+                        raise Exception("torchaudio is not available; cannot resample audio.")
                     waveform = torchaudio.functional.resample(waveform, audio["sample_rate"], sample_rate)
 
             # Create output with specified format
