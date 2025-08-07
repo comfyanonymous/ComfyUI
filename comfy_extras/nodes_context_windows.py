@@ -70,10 +70,14 @@ class ContextWindowsNode(io.ComfyNode):
                 io.Int.Input("context_overlap", min=0, default=0, tooltip="The overlap of the context window."),
                 io.Combo.Input("context_schedule", options=[
                     comfy.context_windows.ContextSchedules.STATIC_STANDARD,
+                    comfy.context_windows.ContextSchedules.UNIFORM_STANDARD,
+                    comfy.context_windows.ContextSchedules.UNIFORM_LOOPED,
                     comfy.context_windows.ContextSchedules.BATCHED,
                     ], tooltip="The stride of the context window."),
-                io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethod.LIST_STATIC,default=comfy.context_windows.ContextFuseMethod.PYRAMID, tooltip="The method to use to fuse the context windows."),
-                io.Int.Input("dim", min=0, max=2, default=0, tooltip="The dimension to apply the context windows to."),
+                io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window."),
+                io.Boolean.Input("closed_loop", default=False, tooltip="Whether to close the context window loop."),
+                io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethods.LIST_STATIC, default=comfy.context_windows.ContextFuseMethods.PYRAMID, tooltip="The method to use to fuse the context windows."),
+                io.Int.Input("dim", min=0, max=5, default=0, tooltip="The dimension to apply the context windows to."),
             ],
             outputs=[
                 io.Model.Output(tooltip="The model with context windows applied during sampling."),
@@ -82,13 +86,15 @@ class ContextWindowsNode(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, fuse_method: str, dim: int) -> io.Model:
+    def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, context_stride: int, closed_loop: bool, fuse_method: str, dim: int) -> io.Model:
         model = model.clone()
         model.model_options["context_handler"] = comfy.context_windows.IndexListContextHandler(
-            context_schedule=context_schedule,
-            fuse_method=fuse_method,
+            context_schedule=comfy.context_windows.get_matching_context_schedule(context_schedule),
+            fuse_method=comfy.context_windows.get_matching_fuse_method(fuse_method),
             context_length=context_length,
             context_overlap=context_overlap,
+            context_stride=context_stride,
+            closed_loop=closed_loop,
             dim=dim)
         create_prepare_sampling_wrapper(model.model_options)
         #create_outer_sampler_wrapper(model.model_options)
@@ -116,10 +122,10 @@ class WanContextWindowsNode(ContextWindowsNode):
         return schema
 
     @classmethod
-    def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, fuse_method: str) -> io.Model:
+    def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, context_stride: int, closed_loop: bool, fuse_method: str) -> io.Model:
         context_length = max(((context_length - 1) // 4) + 1, 1)  # at least length 1
         context_overlap = max(((context_overlap - 1) // 4) + 1, 0)  # at least overlap 0
-        return super().execute(model, context_length, context_overlap, context_schedule, fuse_method, 2)
+        return super().execute(model, context_length, context_overlap, context_schedule, context_stride, closed_loop, fuse_method, 2)
 
 class ContextWindowsExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Callable
 import torch
 import numpy as np
 import collections
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
 import logging
 import comfy.model_management
@@ -76,17 +77,27 @@ class IndexListCallbacks:
         return {}
 
 
+@dataclass
+class ContextSchedule:
+    name: str
+    func: Callable
+
+@dataclass
+class ContextFuseMethod:
+    name: str
+    func: Callable
+
 ContextResults = collections.namedtuple("ContextResults", ['window_idx', 'sub_conds_out', 'sub_conds', 'window'])
 class IndexListContextHandler(ContextHandlerABC):
-    def __init__(self, context_schedule: str, fuse_method: str, context_length: int=1, context_overlap: int=0, dim=0):
+    def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1, closed_loop=False, dim=0):
         self.context_schedule = context_schedule
         self.fuse_method = fuse_method
         self.context_length = context_length
         self.context_overlap = context_overlap
-        self.context_stride = 1
-        self.closed_loop = False
-        self.step = 0  # TODO: get from model options
+        self.context_stride = context_stride
+        self.closed_loop = closed_loop
         self.dim = dim
+        self._step = 0
 
         self.callbacks = {}
 
@@ -98,8 +109,6 @@ class IndexListContextHandler(ContextHandlerABC):
         return False
 
     def prepare_control_objects(self, control: ControlBase, device=None) -> ControlBase:
-        if device is not None:
-            control = control.get_instance_for_device(device)
         if control.previous_controlnet is not None:
             self.prepare_control_objects(control.previous_controlnet, device)
         return control
@@ -149,22 +158,29 @@ class IndexListContextHandler(ContextHandlerABC):
             resized_cond.append(resized_actual_cond)
         return resized_cond
 
+    def set_step(self, timestep: torch.Tensor, model_options: dict[str]):
+        indexes = torch.where(model_options["transformer_options"]["sample_sigmas"] == timestep[0])
+        self._step = int(indexes[0])
+
     def get_context_windows(self, model: BaseModel, x_in: torch.Tensor, model_options: dict[str]) -> list[IndexListContextWindow]:
         full_length = x_in.size(self.dim) # TODO: choose dim based on model
-        context_windows = get_context_windows(full_length, self, model_options)
+        context_windows = self.context_schedule.func(full_length, self, model_options)
         context_windows = [IndexListContextWindow(window, dim=self.dim) for window in context_windows]
         return context_windows
 
     def execute(self, calc_cond_batch: Callable, model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep: torch.Tensor, model_options: dict[str]):
+        self.set_step(timestep, model_options)
         context_windows = self.get_context_windows(model, x_in, model_options)
         enumerated_context_windows = list(enumerate(context_windows))
 
         conds_final = [torch.zeros_like(x_in) for _ in conds]
-        if self.fuse_method == ContextFuseMethod.RELATIVE:
+        if self.fuse_method.name == ContextFuseMethods.RELATIVE:
             counts_final = [torch.ones(get_shape_for_dim(x_in, self.dim), device=x_in.device) for _ in conds]
         else:
             counts_final = [torch.zeros(get_shape_for_dim(x_in, self.dim), device=x_in.device) for _ in conds]
         biases_final = [([0.0] * x_in.shape[self.dim]) for _ in conds]
+
+        # TODO: add callback here
 
         for enum_window in enumerated_context_windows:
             results = self.evaluate_context_windows(calc_cond_batch, model, x_in, conds, timestep, [enum_window], model_options)
@@ -172,7 +188,7 @@ class IndexListContextHandler(ContextHandlerABC):
                 self.combine_context_window_results(x_in, result.sub_conds_out, result.sub_conds, result.window, result.window_idx, len(enumerated_context_windows), timestep,
                                             conds_final, counts_final, biases_final)
         # finalize conds
-        if self.fuse_method == ContextFuseMethod.RELATIVE:
+        if self.fuse_method.name == ContextFuseMethods.RELATIVE:
             # relative is already normalized, so return as is
             del counts_final
             return conds_final
@@ -189,36 +205,6 @@ class IndexListContextHandler(ContextHandlerABC):
         for window_idx, window in enumerated_context_windows:
             # allow processing to end between context window executions for faster Cancel
             comfy.model_management.throw_exception_if_processing_interrupted()
-            # if device is None:
-            #     # non-MultiGPU execution
-            #     comfy.model_management.throw_exception_if_processing_interrupted()
-            # elif first_device == device:
-            #     # MultiGPU execution
-            #     try:
-            #         comfy.model_management.throw_exception_if_processing_interrupted()
-            #         if ADGS.is_processing_interrupted():
-            #             break
-            #     except comfy.model_management.InterruptProcessingException:
-            #         ADGS.interrupt_processing()
-            #         break
-            # else:
-            #     # MultiGPU execution
-            #     if ADGS.is_processing_interrupted():
-            #         break
-            # ADGS.params.sub_idxs = ctx_idxs
-
-            # if device is None:
-            #     motion_models_devices = ADGS.motion_models_devices.values()
-            # else:
-            #     motion_models_devices = ADGS.motion_models_devices.get(device, None)
-            #     if motion_models_devices is None:
-            #         motion_models_devices = []
-            #     else:
-            #         motion_models_devices = [motion_models_devices]
-            #     model = ADGS.model_patcher_devices[device].model
-            # for motion_models in motion_models_devices:
-            #     motion_models.set_sub_idxs(ctx_idxs)
-            #     motion_models.set_video_length(len(ctx_idxs), ADGS.params.full_length)
 
             # TODO: add callback here
 
@@ -240,7 +226,7 @@ class IndexListContextHandler(ContextHandlerABC):
 
     def combine_context_window_results(self, x_in: torch.Tensor, sub_conds_out, sub_conds, window: IndexListContextWindow, window_idx: int, total_windows: int, timestep: torch.Tensor,
                                     conds_final: list[torch.Tensor], counts_final: list[torch.Tensor], biases_final: list[torch.Tensor]):
-        if self.fuse_method == ContextFuseMethod.RELATIVE:
+        if self.fuse_method.name == ContextFuseMethods.RELATIVE:
             for pos, idx in enumerate(window.index_list):
                 # bias is the influence of a specific index in relation to the whole context window
                 bias = 1 - abs(idx - (window.index_list[0] + window.index_list[-1]) / 2) / ((window.index_list[-1] - window.index_list[0] + 1e-2) / 2)
@@ -260,10 +246,8 @@ class IndexListContextHandler(ContextHandlerABC):
             for i in range(len(sub_conds_out)):
                 window.add_window(conds_final[i], sub_conds_out[i] * weights_tensor)
                 window.add_window(counts_final[i], weights_tensor)
-        # # handle NaiveReuse
-        # NAIVE.cache_first_context_results(window_idx, ctx_idxs, sub_conds, conds_final, counts_final)
-        # # handle ContextRef
-        # CREF.finalize_step()
+
+        # TODO: add callback here
 
 def match_weights_to_dim(weights: list[float], x_in: torch.Tensor, dim: int, device=None) -> torch.Tensor:
     total_dims = len(x_in.shape)
@@ -301,9 +285,9 @@ def create_windows_uniform_looped(num_frames: int, handler: IndexListContextHand
     context_stride = min(handler.context_stride, int(np.ceil(np.log2(num_frames / handler.context_length))) + 1)
     # obtain uniform windows as normal, looping and all
     for context_step in 1 << np.arange(context_stride):
-        pad = int(round(num_frames * ordered_halving(handler.step)))
+        pad = int(round(num_frames * ordered_halving(handler._step)))
         for j in range(
-            int(ordered_halving(handler.step) * context_step) + pad,
+            int(ordered_halving(handler._step) * context_step) + pad,
             num_frames + pad + (0 if handler.closed_loop else -handler.context_overlap),
             (handler.context_length * context_step - handler.context_overlap),
         ):
@@ -323,9 +307,9 @@ def create_windows_uniform_standard(num_frames: int, handler: IndexListContextHa
     context_stride = min(handler.context_stride, int(np.ceil(np.log2(num_frames / handler.context_length))) + 1)
     # first, obtain uniform windows as normal, looping and all
     for context_step in 1 << np.arange(context_stride):
-        pad = int(round(num_frames * ordered_halving(handler.step)))
+        pad = int(round(num_frames * ordered_halving(handler._step)))
         for j in range(
-            int(ordered_halving(handler.step) * context_step) + pad,
+            int(ordered_halving(handler._step) * context_step) + pad,
             num_frames + pad + (-handler.context_overlap),
             (handler.context_length * context_step - handler.context_overlap),
         ):
@@ -395,13 +379,6 @@ def create_windows_default(num_frames: int, handler: IndexListContextHandler):
     return [list(range(num_frames))]
 
 
-def get_context_windows(num_frames: int, handler: IndexListContextHandler, model_options: dict[str]) -> list[list[int]]:
-    context_func = CONTEXT_MAPPING.get(handler.context_schedule, None)
-    if not context_func:
-        raise ValueError(f"Unknown context_schedule '{handler.context_schedule}'.")
-    return context_func(num_frames, handler, model_options)
-
-
 CONTEXT_MAPPING = {
     ContextSchedules.UNIFORM_LOOPED: create_windows_uniform_looped,
     ContextSchedules.UNIFORM_STANDARD: create_windows_uniform_standard,
@@ -409,11 +386,16 @@ CONTEXT_MAPPING = {
     ContextSchedules.BATCHED: create_windows_batched,
 }
 
+
+def get_matching_context_schedule(context_schedule: str) -> ContextSchedule:
+    func = CONTEXT_MAPPING.get(context_schedule, None)
+    if func is None:
+        raise ValueError(f"Unknown context_schedule '{context_schedule}'.")
+    return ContextSchedule(context_schedule, func)
+
+
 def get_context_weights(length: int, full_length: int, idxs: list[int], handler: IndexListContextHandler, sigma: torch.Tensor=None):
-    weights_func = FUSE_MAPPING.get(handler.fuse_method, None)
-    if not weights_func:
-        raise ValueError(f"Unknown fuse_method '{handler.fuse_method}'.")
-    return weights_func(length, sigma=sigma, handler=handler, full_length=full_length, idxs=idxs)
+    return handler.fuse_method.func(length, sigma=sigma, handler=handler, full_length=full_length, idxs=idxs)
 
 
 def create_weights_flat(length: int, **kwargs) -> list[float]:
@@ -445,7 +427,7 @@ def create_weights_overlap_linear(length: int, full_length: int, idxs: list[int]
         weights_torch[-handler.context_overlap:] = ramp_down
     return weights_torch
 
-class ContextFuseMethod:
+class ContextFuseMethods:
     FLAT = "flat"
     PYRAMID = "pyramid"
     RELATIVE = "relative"
@@ -456,11 +438,17 @@ class ContextFuseMethod:
 
 
 FUSE_MAPPING = {
-    ContextFuseMethod.FLAT: create_weights_flat,
-    ContextFuseMethod.PYRAMID: create_weights_pyramid,
-    ContextFuseMethod.RELATIVE: create_weights_pyramid,
-    ContextFuseMethod.OVERLAP_LINEAR: create_weights_overlap_linear,
+    ContextFuseMethods.FLAT: create_weights_flat,
+    ContextFuseMethods.PYRAMID: create_weights_pyramid,
+    ContextFuseMethods.RELATIVE: create_weights_pyramid,
+    ContextFuseMethods.OVERLAP_LINEAR: create_weights_overlap_linear,
 }
+
+def get_matching_fuse_method(fuse_method: str) -> ContextFuseMethod:
+    func = FUSE_MAPPING.get(fuse_method, None)
+    if func is None:
+        raise ValueError(f"Unknown fuse_method '{fuse_method}'.")
+    return ContextFuseMethod(fuse_method, func)
 
 # Returns fraction that has denominator that is a power of 2
 def ordered_halving(val):
