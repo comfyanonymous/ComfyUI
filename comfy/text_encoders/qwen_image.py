@@ -1,22 +1,28 @@
-from transformers import Qwen2Tokenizer
-from comfy import sd1_clip
-import comfy.text_encoders.llama
-import os
-import torch
 import numbers
+import torch
+from transformers import Qwen2Tokenizer
+
+from .llama import Qwen25_7BVLI
+from .. import sd1_clip
+from ..component_model import files
+
 
 class Qwen25_7BVLITokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
-        tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "qwen25_tokenizer")
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = {}
+        tokenizer_path = files.get_package_as_path("comfy.text_encoders.qwen25_tokenizer")
         super().__init__(tokenizer_path, pad_with_end=False, embedding_size=3584, embedding_key='qwen25_7b', tokenizer_class=Qwen2Tokenizer, has_start_token=False, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, pad_token=151643, tokenizer_data=tokenizer_data)
 
 
 class QwenImageTokenizer(sd1_clip.SD1Tokenizer):
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = {}
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, name="qwen25_7b", tokenizer=Qwen25_7BVLITokenizer)
         self.llama_template = "<|im_start|>system\nDescribe the image by detailing the color, shape, size, texture, quantity, text, spatial relationships of the objects and background:<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
 
-    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None,**kwargs):
+    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, **kwargs):
         if llama_template is None:
             llama_text = self.llama_template.format(text)
         else:
@@ -25,18 +31,23 @@ class QwenImageTokenizer(sd1_clip.SD1Tokenizer):
 
 
 class Qwen25_7BVLIModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Qwen25_7BVLI, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=True, model_options=None):
+        if model_options is None:
+            model_options = {}
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=Qwen25_7BVLI, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
 
 class QwenImageTEModel(sd1_clip.SD1ClipModel):
-    def __init__(self, device="cpu", dtype=None, model_options={}):
+    def __init__(self, device="cpu", dtype=None, model_options=None):
+        if model_options is None:
+            model_options = {}
         super().__init__(device=device, dtype=dtype, name="qwen25_7b", clip_model=Qwen25_7BVLIModel, model_options=model_options)
 
     def encode_token_weights(self, token_weight_pairs):
         out, pooled, extra = super().encode_token_weights(token_weight_pairs)
         tok_pairs = token_weight_pairs["qwen25_7b"][0]
         count_im_start = 0
+        template_end = 0
         for i, v in enumerate(tok_pairs):
             elem = v[0]
             if not torch.is_tensor(elem):
@@ -61,11 +72,14 @@ class QwenImageTEModel(sd1_clip.SD1ClipModel):
 
 def te(dtype_llama=None, llama_scaled_fp8=None):
     class QwenImageTEModel_(QwenImageTEModel):
-        def __init__(self, device="cpu", dtype=None, model_options={}):
+        def __init__(self, device="cpu", dtype=None, model_options=None):
+            if model_options is None:
+                model_options = {}
             if llama_scaled_fp8 is not None and "scaled_fp8" not in model_options:
                 model_options = model_options.copy()
                 model_options["scaled_fp8"] = llama_scaled_fp8
             if dtype_llama is not None:
                 dtype = dtype_llama
             super().__init__(device=device, dtype=dtype, model_options=model_options)
+
     return QwenImageTEModel_

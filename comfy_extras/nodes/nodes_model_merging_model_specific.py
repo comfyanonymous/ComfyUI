@@ -322,7 +322,7 @@ class ModelMergeCosmosPredict2_14B(nodes_model_merging.ModelMergeBlocks):
 
         return {"required": arg_dict}
 
-class ModelMergeQwenImage(comfy_extras.nodes_model_merging.ModelMergeBlocks):
+class ModelMergeQwenImage(nodes_model_merging.ModelMergeBlocks):
     CATEGORY = "advanced/model_merging/model_specific"
 
     @classmethod

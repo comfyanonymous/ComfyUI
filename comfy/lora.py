@@ -305,7 +305,7 @@ def model_lora_keys_unet(model, key_map=None):
                 key_lora = k[len("diffusion_model."):-len(".weight")]
                 key_map["{}".format(key_lora)] = k
 
-    if isinstance(model, comfy.model_base.QwenImage):
+    if isinstance(model, model_base.QwenImage):
         for k in sdk:
             if k.startswith("diffusion_model.") and k.endswith(".weight"): #QwenImage lora format
                 key_lora = k[len("diffusion_model."):-len(".weight")]

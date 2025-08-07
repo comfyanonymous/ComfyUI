@@ -2,13 +2,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Tuple
 from einops import repeat
+from typing import Optional, Tuple
 
-from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
-from comfy.ldm.modules.attention import optimized_attention_masked
-from comfy.ldm.flux.layers import EmbedND
-import comfy.ldm.common_dit
+from ..common_dit import pad_to_patch_size
+from ..flux.layers import EmbedND
+from ..lightricks.model import TimestepEmbedding, Timesteps
+from ..modules.attention import optimized_attention_masked
+
 
 class GELU(nn.Module):
     def __init__(self, dim_in: int, dim_out: int, approximate: str = "none", bias: bool = True, dtype=None, device=None, operations=None):
@@ -24,14 +25,14 @@ class GELU(nn.Module):
 
 class FeedForward(nn.Module):
     def __init__(
-        self,
-        dim: int,
-        dim_out: Optional[int] = None,
-        mult: int = 4,
-        dropout: float = 0.0,
-        inner_dim=None,
-        bias: bool = True,
-        dtype=None, device=None, operations=None
+            self,
+            dim: int,
+            dim_out: Optional[int] = None,
+            mult: int = 4,
+            dropout: float = 0.0,
+            inner_dim=None,
+            bias: bool = True,
+            dtype=None, device=None, operations=None
     ):
         super().__init__()
         if inner_dim is None:
@@ -78,19 +79,19 @@ class QwenTimestepProjEmbeddings(nn.Module):
 
 class Attention(nn.Module):
     def __init__(
-        self,
-        query_dim: int,
-        dim_head: int = 64,
-        heads: int = 8,
-        dropout: float = 0.0,
-        bias: bool = False,
-        eps: float = 1e-5,
-        out_bias: bool = True,
-        out_dim: int = None,
-        out_context_dim: int = None,
-        dtype=None,
-        device=None,
-        operations=None
+            self,
+            query_dim: int,
+            dim_head: int = 64,
+            heads: int = 8,
+            dropout: float = 0.0,
+            bias: bool = False,
+            eps: float = 1e-5,
+            out_bias: bool = True,
+            out_dim: int = None,
+            out_context_dim: int = None,
+            dtype=None,
+            device=None,
+            operations=None
     ):
         super().__init__()
         self.inner_dim = out_dim if out_dim is not None else dim_head * heads
@@ -125,12 +126,12 @@ class Attention(nn.Module):
         self.to_add_out = operations.Linear(self.inner_dim, self.out_context_dim, bias=out_bias, dtype=dtype, device=device)
 
     def forward(
-        self,
-        hidden_states: torch.FloatTensor,  # Image stream
-        encoder_hidden_states: torch.FloatTensor = None,  # Text stream
-        encoder_hidden_states_mask: torch.FloatTensor = None,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        image_rotary_emb: Optional[torch.Tensor] = None,
+            self,
+            hidden_states: torch.FloatTensor,  # Image stream
+            encoder_hidden_states: torch.FloatTensor = None,  # Text stream
+            encoder_hidden_states_mask: torch.FloatTensor = None,
+            attention_mask: Optional[torch.FloatTensor] = None,
+            image_rotary_emb: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         seq_txt = encoder_hidden_states.shape[1]
 
@@ -172,14 +173,14 @@ class Attention(nn.Module):
 
 class QwenImageTransformerBlock(nn.Module):
     def __init__(
-        self,
-        dim: int,
-        num_attention_heads: int,
-        attention_head_dim: int,
-        eps: float = 1e-6,
-        dtype=None,
-        device=None,
-        operations=None
+            self,
+            dim: int,
+            num_attention_heads: int,
+            attention_head_dim: int,
+            eps: float = 1e-6,
+            dtype=None,
+            device=None,
+            operations=None
     ):
         super().__init__()
         self.dim = dim
@@ -219,12 +220,12 @@ class QwenImageTransformerBlock(nn.Module):
         return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1), gate.unsqueeze(1)
 
     def forward(
-        self,
-        hidden_states: torch.Tensor,
-        encoder_hidden_states: torch.Tensor,
-        encoder_hidden_states_mask: torch.Tensor,
-        temb: torch.Tensor,
-        image_rotary_emb: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+            self,
+            hidden_states: torch.Tensor,
+            encoder_hidden_states: torch.Tensor,
+            encoder_hidden_states_mask: torch.Tensor,
+            temb: torch.Tensor,
+            image_rotary_emb: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         img_mod_params = self.img_mod(temb)
         txt_mod_params = self.txt_mod(temb)
@@ -259,13 +260,13 @@ class QwenImageTransformerBlock(nn.Module):
 
 class LastLayer(nn.Module):
     def __init__(
-        self,
-        embedding_dim: int,
-        conditioning_embedding_dim: int,
-        elementwise_affine=False,
-        eps=1e-6,
-        bias=True,
-        dtype=None, device=None, operations=None
+            self,
+            embedding_dim: int,
+            conditioning_embedding_dim: int,
+            elementwise_affine=False,
+            eps=1e-6,
+            bias=True,
+            dtype=None, device=None, operations=None
     ):
         super().__init__()
         self.silu = nn.SiLU()
@@ -281,21 +282,21 @@ class LastLayer(nn.Module):
 
 class QwenImageTransformer2DModel(nn.Module):
     def __init__(
-        self,
-        patch_size: int = 2,
-        in_channels: int = 64,
-        out_channels: Optional[int] = 16,
-        num_layers: int = 60,
-        attention_head_dim: int = 128,
-        num_attention_heads: int = 24,
-        joint_attention_dim: int = 3584,
-        pooled_projection_dim: int = 768,
-        guidance_embeds: bool = False,
-        axes_dims_rope: Tuple[int, int, int] = (16, 56, 56),
-        image_model=None,
-        dtype=None,
-        device=None,
-        operations=None,
+            self,
+            patch_size: int = 2,
+            in_channels: int = 64,
+            out_channels: Optional[int] = 16,
+            num_layers: int = 60,
+            attention_head_dim: int = 128,
+            num_attention_heads: int = 24,
+            joint_attention_dim: int = 3584,
+            pooled_projection_dim: int = 768,
+            guidance_embeds: bool = False,
+            axes_dims_rope: Tuple[int, int, int] = (16, 56, 56),
+            image_model=None,
+            dtype=None,
+            device=None,
+            operations=None,
     ):
         super().__init__()
         self.dtype = dtype
@@ -350,13 +351,13 @@ class QwenImageTransformer2DModel(nn.Module):
         return self.pe_embedder(ids).squeeze(1).unsqueeze(2).to(x.dtype)
 
     def forward(
-        self,
-        x,
-        timesteps,
-        context,
-        attention_mask=None,
-        guidance: torch.Tensor = None,
-        **kwargs
+            self,
+            x,
+            timesteps,
+            context,
+            attention_mask=None,
+            guidance: torch.Tensor = None,
+            **kwargs
     ):
         timestep = timesteps
         encoder_hidden_states = context
@@ -364,7 +365,7 @@ class QwenImageTransformer2DModel(nn.Module):
 
         image_rotary_emb = self.pos_embeds(x, context)
 
-        hidden_states = comfy.ldm.common_dit.pad_to_patch_size(x, (1, self.patch_size, self.patch_size))
+        hidden_states = pad_to_patch_size(x, (1, self.patch_size, self.patch_size))
         orig_shape = hidden_states.shape
         hidden_states = hidden_states.view(orig_shape[0], orig_shape[1], orig_shape[-2] // 2, 2, orig_shape[-1] // 2, 2)
         hidden_states = hidden_states.permute(0, 2, 4, 1, 3, 5)

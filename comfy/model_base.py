@@ -1370,5 +1370,5 @@ class QwenImage(BaseModel):
         out = super().extra_conds(**kwargs)
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
-            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+            out['c_crossattn'] = conds.CONDRegular(cross_attn)
         return out
