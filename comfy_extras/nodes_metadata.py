@@ -1,14 +1,15 @@
 import os
 import numpy as np
 import folder_paths
+import av
+from fractions import Fraction
+import torch
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from comfy.cli_args import args
 import json
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
-
-io_Metadata_Type = io.Custom(io_type="Metadata")
 
 class GetWorkflowMetadata(io.ComfyNode):
 
@@ -24,7 +25,7 @@ class GetWorkflowMetadata(io.ComfyNode):
                 io.Hidden.extra_pnginfo
             ],
             outputs=[
-                io_Metadata_Type.Output("metadata", display_name="workflow")
+                io.Metadata.Output("metadata", display_name="workflow")
             ],
         )
     @classmethod
@@ -46,7 +47,7 @@ class EmptyMetadata(io.ComfyNode):
             description="Create a blank / empty metadata to add upon.",
             inputs=[],
             outputs=[
-                io_Metadata_Type.Output("metadata", display_name="metadata")
+                io.Metadata.Output("metadata", display_name="metadata")
             ],
         )
     @classmethod
@@ -65,10 +66,10 @@ class AddMetadataValue(io.ComfyNode):
             inputs=[
                 io.String.Input("key", tooltip="Key to save the value at."),
                 io.String.Input("value", tooltip="What to add to the metadata."),
-                io_Metadata_Type.Input("metadata", display_name="metadata")
-            ],  
+                io.Metadata.Input("metadata", display_name="metadata")
+            ],
             outputs=[
-                io_Metadata_Type.Output("modified_metadata", display_name="metadata")
+                io.Metadata.Output("modified_metadata", display_name="metadata")
             ],
         )
     @classmethod
@@ -89,8 +90,8 @@ class SaveImageCustomMetadata(io.ComfyNode):
             inputs=[
                 io.Image.Input("images", tooltip="The images to save."),
                 io.String.Input("filename_prefix", default="ComfyUI", tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."),
-                io_Metadata_Type.Input("metadata", display_name="metadata", tooltip="Metadata to save with the image.", optional=True)
-            ],  
+                io.Metadata.Input("metadata", display_name="metadata", tooltip="Metadata to save with the image.", optional=True)
+            ],
             outputs=[],
             is_output_node=True,
         )
@@ -111,8 +112,64 @@ class SaveImageCustomMetadata(io.ComfyNode):
             })
             counter += 1
 
-        return io.NodeOutput(ui={ "images": results })
-    
+        return io.NodeOutput(ui = {"images": results})
+
+class SaveWEBMCustomMetadata(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SaveWebmCustomMetadata",
+            category="image/video",
+            display_name="Save Webm With Custom Metadata",
+            inputs=[
+                io.Image.Input("images", tooltip="The images to save."),
+                io.String.Input("filename_prefix", default="ComfyUI"),
+                io.Combo.Input("codec", ["vp9", "av1"]),
+                io.Float.Input("fps", default=24.0, min=0.01, max=1000.0, step=0.01),
+                io.Float.Input("crf", default=32.0, min=0.0, max=63.0, step=1.0, tooltip="Higher crf means lower quality with a smaller file size, lower crf means higher quality higher filesize."),
+                io.Metadata.Input("metadata", display_name="metadata", tooltip="Metadata to save with the image.", optional=True)
+            ],
+            outputs=[],
+            is_experimental=True,
+            is_output_node=True
+        )
+
+    @classmethod
+    def execute(self, images, codec, fps, filename_prefix, crf, metadata=None):
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory(), images[0].shape[1], images[0].shape[0])
+
+        file = f"{filename}_{counter:05}_.webm"
+        container = av.open(os.path.join(full_output_folder, file), mode="w")
+
+        if metadata is not None:
+            for x in metadata:
+                container.metadata[x] = json.dumps(metadata[x])
+
+        codec_map = {"vp9": "libvpx-vp9", "av1": "libsvtav1"}
+        stream = container.add_stream(codec_map[codec], rate=Fraction(round(fps * 1000), 1000))
+        stream.width = images.shape[-2]
+        stream.height = images.shape[-3]
+        stream.pix_fmt = "yuv420p10le" if codec == "av1" else "yuv420p"
+        stream.bit_rate = 0
+        stream.options = {'crf': str(crf)}
+        if codec == "av1":
+            stream.options["preset"] = "6"
+
+        for frame in images:
+            frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :3] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgb24")
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        container.mux(stream.encode())
+        container.close()
+
+        results = [{
+            "filename": file,
+            "subfolder": subfolder,
+            "type": "output"
+        }]
+
+        return io.NodeOutput(ui = {"images": results, "animated": (True,)})
+
 
 class MetadataExtension(ComfyExtension):
     @override
@@ -121,7 +178,8 @@ class MetadataExtension(ComfyExtension):
             GetWorkflowMetadata,
             EmptyMetadata,
             AddMetadataValue,
-            SaveImageCustomMetadata
+            SaveImageCustomMetadata,
+            SaveWEBMCustomMetadata
         ]
 
 async def comfy_entrypoint() -> MetadataExtension:
