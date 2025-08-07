@@ -3,6 +3,7 @@ from comfy_api.latest import ComfyExtension, io
 import comfy.context_windows
 import comfy.patcher_extension
 import comfy.samplers
+import nodes
 import torch
 
 
@@ -101,14 +102,30 @@ class WanContextWindowsNode(ContextWindowsNode):
         schema.node_id = "WanContextWindowsTest"
         schema.display_name = "Wan Context Windows Test"
         schema.description = "Test node for context windows (WAN)"
-        schema.inputs.append(io.Int.Input("dim", min=0, max=2, default=0, tooltip="The dimension to apply the context windows to."))
+        # remove dim input; will always be 2
+        schema.inputs = [x for x in schema.inputs if x.id != "dim"]
+        # replace context_length input; should be in steps of 4
+        context_length_idx = -1
+        for idx, x in enumerate(schema.inputs):
+            if x.id == "context_length":
+                context_length_idx = idx
+                break
+        if context_length_idx == -1:
+            raise Exception("Context length input not found in schema; did something change?")
+        schema.inputs[context_length_idx] = io.Int.Input("context_length", min=1, max=nodes.MAX_RESOLUTION, step=4, default=81, tooltip="The length of the context window.")
         return schema
 
+    @classmethod
+    def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, fuse_method: str) -> io.Model:
+        context_length = max(((context_length - 1) // 4) + 1, 1)  # at least length 1
+        context_overlap = max(((context_overlap - 1) // 4) + 1, 0)  # at least overlap 0
+        return super().execute(model, context_length, context_overlap, context_schedule, fuse_method, 2)
 
 class ContextWindowsExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             ContextWindowsNode,
+            WanContextWindowsNode,
         ]
 
 def comfy_entrypoint():
