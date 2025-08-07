@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 import logging
 import comfy.model_management
+import comfy.patcher_extension
 if TYPE_CHECKING:
     from comfy.model_base import BaseModel
+    from comfy.model_patcher import ModelPatcher
     from comfy.controlnet import ControlBase
 
 
@@ -248,6 +250,27 @@ class IndexListContextHandler(ContextHandlerABC):
                 window.add_window(counts_final[i], weights_tensor)
 
         # TODO: add callback here
+
+
+def _prepare_sampling_wrapper(executor, model, noise_shape: torch.Tensor, *args, **kwargs):
+    # limit noise_shape length to context_length for more accurate vram use estimation
+    model_options = kwargs.get("model_options", None)
+    if model_options is None:
+        raise Exception("model_options not found in prepare_sampling_wrapper; this should never happen, something went wrong.")
+    handler: IndexListContextHandler = model_options.get("context_handler", None)
+    if handler is not None:
+        noise_shape = list(noise_shape)
+        noise_shape[handler.dim] = min(noise_shape[handler.dim], handler.context_length)
+    return executor(model, noise_shape, *args, **kwargs)
+
+
+def create_prepare_sampling_wrapper(model: ModelPatcher):
+    model.add_wrapper_with_key(
+        comfy.patcher_extension.WrappersMP.PREPARE_SAMPLING,
+        "ContextWindows_prepare_sampling",
+        _prepare_sampling_wrapper
+    )
+
 
 def match_weights_to_dim(weights: list[float], x_in: torch.Tensor, dim: int, device=None) -> torch.Tensor:
     total_dims = len(x_in.shape)
