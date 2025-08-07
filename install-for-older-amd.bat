@@ -29,12 +29,13 @@ echo  ::  %time:~0,8%  ::  - Installing required packages (it will be detailed s
 pip install -r requirements.txt
 echo  ::  %time:~0,8%  ::  - Installing torch for AMD GPUs (it will be detailed so you can pinpoint any problems)
 pip uninstall torch torchvision torchaudio -y --quiet
-pip install torch==2.2.1 torchvision==0.17.1 torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu118
+pip install torch==2.2.1 torchvision==0.17.1 torchaudio==2.2.1 --index-url https://download.pytorch.org/whl/cu118 --quiet
 echo  ::  %time:~0,8%  ::  - Installing onnxruntime (required by some nodes)
 pip install onnxruntime --quiet
 echo  ::  %time:~0,8%  ::  - (temporary numpy fix)
-pip uninstall numpy -y --quiet
-pip install numpy==1.26.4 --quiet
+pip install --force-reinstall numpy==1.26.4 --quiet
+echo  ::  %time:~0,8%  ::  -  Installing older transformers & safetensors for older torch.
+pip install --force-reinstall transformers==4.51.3 safetensors==0.5.3 --quiet
 echo.
 echo  ::  %time:~0,8%  ::  Custom node(s) installation ...
 echo. 
@@ -67,3 +68,4 @@ echo.
 echo *** Starting the Comfyui-ZLUDA for the first time, please be patient...
 echo.
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
+
