@@ -94,7 +94,6 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                 return path
             with comfy_tqdm():
                 if isinstance(known_file, HuggingFile):
-                    symlinks_supported = are_symlinks_supported()
                     if known_file.save_with_filename is not None:
                         linked_filename = known_file.save_with_filename
                     elif not known_file.force_save_in_repo_id and os.path.basename(known_file.filename) != known_file.filename:
@@ -122,6 +121,8 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                         file_size = None
                     if os.path.isfile(path) and file_size == known_file.size:
                         return path
+                    # at this point, the file was not found with its candidate name
+                    path = None
 
                     cache_hit = False
                     try:
@@ -131,6 +132,7 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                                                repo_type=known_file.repo_type,
                                                revision=known_file.revision,
                                                local_files_only=True,
+                                               local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
                                                )
                         logger.debug(f"hf_hub_download cache hit for {known_file.repo_id}/{known_file.filename}")
                         cache_hit = True
@@ -141,6 +143,7 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                                                    filename=known_file.filename,
                                                    repo_type=known_file.repo_type,
                                                    revision=known_file.revision,
+                                                   local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
                                                    )
                         except IOError as exc_info:
                             logger.error(f"cannot reach huggingface {known_file.repo_id}/{known_file.filename}", exc_info=exc_info)
