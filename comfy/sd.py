@@ -6,11 +6,10 @@ import logging
 import math
 import os
 import os.path
-from enum import Enum
-from typing import Any, Optional
-
 import torch
 import yaml
+from enum import Enum
+from typing import Any, Optional
 
 from . import clip_vision
 from . import diffusers_convert
@@ -55,6 +54,7 @@ from .text_encoders import lt
 from .text_encoders import lumina2
 from .text_encoders import omnigen2
 from .text_encoders import pixart_t5
+from .text_encoders import qwen_image
 from .text_encoders import sa_t5
 from .text_encoders import sd2_clip
 from .text_encoders import sd3_clip
@@ -817,6 +817,7 @@ class CLIPType(Enum):
     CHROMA = 15
     ACE = 16
     OMNIGEN2 = 17
+    QWEN_IMAGE = 18
 
 
 @dataclasses.dataclass
@@ -847,6 +848,7 @@ class TEModel(Enum):
     T5_XXL_OLD = 8
     GEMMA_2_2B = 9
     QWEN25_3B = 10
+    QWEN25_7B = 11
 
 
 def detect_te_model(sd):
@@ -869,7 +871,11 @@ def detect_te_model(sd):
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
         return TEModel.GEMMA_2_2B
     if 'model.layers.0.self_attn.k_proj.bias' in sd:
-        return TEModel.QWEN25_3B
+        weight = sd['model.layers.0.self_attn.k_proj.bias']
+        if weight.shape[0] == 256:
+            return TEModel.QWEN25_3B
+        if weight.shape[0] == 512:
+            return TEModel.QWEN25_7B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
         return TEModel.LLAMA3_8
     return None
@@ -976,6 +982,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.QWEN25_3B:
             clip_target.clip = omnigen2.te(**llama_detect(clip_data))
             clip_target.tokenizer = omnigen2.Omnigen2Tokenizer
+        elif te_model == TEModel.QWEN25_7B:
+            clip_target.clip = qwen_image.te(**llama_detect(clip_data))
+            clip_target.tokenizer = qwen_image.QwenImageTokenizer
         else:
             # clip_l
             if clip_type == CLIPType.SD3:

@@ -18,10 +18,9 @@
 
 import logging
 import math
+import torch
 from enum import Enum
 from typing import TypeVar, Type, Protocol, Any, Optional
-
-import torch
 
 from . import conds
 from . import latent_formats
@@ -52,6 +51,7 @@ from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmenta
 from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
 from .ldm.omnigen.omnigen2 import OmniGen2Transformer2DModel
 from .ldm.pixart.pixartms import PixArtMS
+from .ldm.qwen_image.model import QwenImageTransformer2DModel
 from .ldm.wan.model import WanModel, VaceWanModel, CameraWanModel
 from .model_management_types import ModelManageable
 from .model_sampling import CONST, ModelSamplingDiscreteFlow, ModelSamplingFlux, IMG_TO_IMG
@@ -1359,4 +1359,16 @@ class Omnigen2(BaseModel):
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+        return out
+
+
+class QwenImage(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=QwenImageTransformer2DModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out

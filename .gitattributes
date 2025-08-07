@@ -1,2 +1,3 @@
 /comfy/web/assets/** linguist-generated
 /comfy/web/** linguist-vendored
+comfy_api_nodes/apis/__init__.py linguist-generated
