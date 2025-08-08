@@ -8,10 +8,10 @@ class ContextWindowsManualNode(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
-            node_id="ContexWindowsTest",
-            display_name="Context Windows Test",
+            node_id="ContextWindowsManual",
+            display_name="Context Windows (Manual)",
             category="context",
-            description="Test node for context windows",
+            description="Manually set context windows.",
             inputs=[
                 io.Model.Input("model", tooltip="The model to apply context windows to during sampling."),
                 io.Int.Input("context_length", min=1, default=1, tooltip="The length of the context window."),
@@ -48,13 +48,13 @@ class ContextWindowsManualNode(io.ComfyNode):
         comfy.context_windows.create_prepare_sampling_wrapper(model)
         return io.NodeOutput(model)
 
-class WanContextWindowsNode(ContextWindowsManualNode):
+class WanContextWindowsManualNode(ContextWindowsManualNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         schema = super().define_schema()
-        schema.node_id = "WanContextWindowsTest"
-        schema.display_name = "Wan Context Windows Test"
-        schema.description = "Test node for context windows (WAN)"
+        schema.node_id = "WanContextWindowsManual"
+        schema.display_name = "WAN Context Windows (Manual)"
+        schema.description = "Manually set context windows for WAN-like models (dim=2)."
         # remove dim input; will always be 2
         schema.inputs = [x for x in schema.inputs if x.id != "dim"]
         # replace context_length input; should be in steps of 4
@@ -79,7 +79,7 @@ class ContextWindowsExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             ContextWindowsManualNode,
-            WanContextWindowsNode,
+            WanContextWindowsManualNode,
         ]
 
 def comfy_entrypoint():
