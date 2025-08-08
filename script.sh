@@ -22,6 +22,9 @@ ln -s /kaggle/input/umt5-xxl-fp16/umt5_xxl_fp16.safetensors ./models/text_encode
 # wget -c https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_vace_14B_fp16.safetensors -P ./models/diffusion_models
 # ln -s /kaggle/input/wan21-causvid-14b-t2v-lora-rank32/Wan21_CausVid_14B_T2V_lora_rank32.safetensors ./models/loras/Wan21_CausVid_14B_T2V_lora_rank32.safetensors
 
+# wan lora: dabaichui
+wget -c https://huggingface.co/Heng365/dabaichui/resolve/main/dabaichui.safetensors -P ./models/loras
+
 
 #Flux kontext
 ln -s /kaggle/input/flux-ae/flux-ae.safetensors ./models/vae/ae.safetensors
@@ -108,6 +111,70 @@ cd /kaggle/ComfyUI
 # cd custom_nodes
 # git clone https://github.com/Vander-Bilt/MyHTMLNode.git
 # cd /kaggle/ComfyUI
+
+
+cd custom_nodes
+git clone https://github.com/kijai/ComfyUI-KJNodes.git
+cd ComfyUI-KJNodes
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+cd custom_nodes
+git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git
+cd ComfyUI-VideoHelperSuite
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+
+cd custom_nodes
+git clone https://github.com/Smirnov75/ComfyUI-mxToolkit.git
+cd /kaggle/ComfyUI
+
+cd custom_nodes
+git clone https://github.com/facok/ComfyUI-HunyuanVideoMultiLora.git
+cd /kaggle/ComfyUI
+
+
+cd custom_nodes
+git clone https://github.com/rgthree/rgthree-comfy.git
+cd /kaggle/ComfyUI
+
+cd custom_nodes
+git clone https://github.com/Fannovel16/ComfyUI-Frame-Interpolation.git
+cd ComfyUI-Frame-Interpolation
+python install.py
+cd /kaggle/ComfyUI
+
+
+cd custom_nodes
+git clone https://github.com/WASasquatch/was-node-suite-comfyui.git
+cd was-node-suite-comfyui
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+cd custom_nodes
+git clone https://github.com/kijai/ComfyUI-Florence2.git
+cd ComfyUI-Florence2
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+
+cd custom_nodes
+git clone https://github.com/yuvraj108c/ComfyUI-Upscaler-Tensorrt.git
+cd ComfyUI-Upscaler-Tensorrt
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+cd custom_nodes
+git clone https://github.com/pollockjj/ComfyUI-MultiGPU.git
+cd /kaggle/ComfyUI
+
+
+cd custom_nodes
+git clone https://github.com/chflame163/ComfyUI_LayerStyle.git
+cd ComfyUI_LayerStyle
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
 
 
 # REMOTE_PORT="$1"
