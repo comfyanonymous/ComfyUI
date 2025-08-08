@@ -212,7 +212,7 @@ V3_RESOLUTIONS= [
     "1536x640"
 ]
 
-def download_and_process_images(image_urls):
+async def download_and_process_images(image_urls):
     """Helper function to download and process multiple images from URLs"""
 
     # Initialize list to store image tensors
@@ -220,7 +220,7 @@ def download_and_process_images(image_urls):
 
     for image_url in image_urls:
         # Using functions from apinode_utils.py to handle downloading and processing
-        image_bytesio = download_url_to_bytesio(image_url)  # Download image content to BytesIO
+        image_bytesio = await download_url_to_bytesio(image_url)  # Download image content to BytesIO
         img_tensor = bytesio_to_image_tensor(image_bytesio, mode="RGB")  # Convert to torch.Tensor with RGB mode
         image_tensors.append(img_tensor)
 
@@ -328,7 +328,7 @@ class IdeogramV1(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
-    def api_call(
+    async def api_call(
         self,
         prompt,
         turbo=False,
@@ -367,7 +367,7 @@ class IdeogramV1(ComfyNodeABC):
             auth_kwargs=kwargs,
         )
 
-        response = operation.execute()
+        response = await operation.execute()
 
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")
@@ -378,7 +378,7 @@ class IdeogramV1(ComfyNodeABC):
             raise Exception("No image URLs were generated in the response")
 
         display_image_urls_on_node(image_urls, unique_id)
-        return (download_and_process_images(image_urls),)
+        return (await download_and_process_images(image_urls),)
 
 
 class IdeogramV2(ComfyNodeABC):
@@ -487,7 +487,7 @@ class IdeogramV2(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
-    def api_call(
+    async def api_call(
         self,
         prompt,
         turbo=False,
@@ -543,7 +543,7 @@ class IdeogramV2(ComfyNodeABC):
             auth_kwargs=kwargs,
         )
 
-        response = operation.execute()
+        response = await operation.execute()
 
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")
@@ -554,7 +554,7 @@ class IdeogramV2(ComfyNodeABC):
             raise Exception("No image URLs were generated in the response")
 
         display_image_urls_on_node(image_urls, unique_id)
-        return (download_and_process_images(image_urls),)
+        return (await download_and_process_images(image_urls),)
 
 class IdeogramV3(ComfyNodeABC):
     """
@@ -653,7 +653,7 @@ class IdeogramV3(ComfyNodeABC):
     DESCRIPTION = cleandoc(__doc__ or "")
     API_NODE = True
 
-    def api_call(
+    async def api_call(
         self,
         prompt,
         image=None,
@@ -774,7 +774,7 @@ class IdeogramV3(ComfyNodeABC):
             )
 
         # Execute the operation and process response
-        response = operation.execute()
+        response = await operation.execute()
 
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")
@@ -785,7 +785,7 @@ class IdeogramV3(ComfyNodeABC):
             raise Exception("No image URLs were generated in the response")
 
         display_image_urls_on_node(image_urls, unique_id)
-        return (download_and_process_images(image_urls),)
+        return (await download_and_process_images(image_urls),)
 
 
 NODE_CLASS_MAPPINGS = {
