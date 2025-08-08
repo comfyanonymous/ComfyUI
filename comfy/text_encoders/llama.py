@@ -44,6 +44,23 @@ class Qwen25_3BConfig:
     qkv_bias = True
 
 @dataclass
+class Qwen25_7BVLI_Config:
+    vocab_size: int = 152064
+    hidden_size: int = 3584
+    intermediate_size: int = 18944
+    num_hidden_layers: int = 28
+    num_attention_heads: int = 28
+    num_key_value_heads: int = 4
+    max_position_embeddings: int = 128000
+    rms_norm_eps: float = 1e-6
+    rope_theta: float = 1000000.0
+    transformer_type: str = "llama"
+    head_dim = 128
+    rms_norm_add = False
+    mlp_activation = "silu"
+    qkv_bias = True
+
+@dataclass
 class Gemma2_2B_Config:
     vocab_size: int = 256000
     hidden_size: int = 2304
@@ -343,6 +360,15 @@ class Qwen25_3B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen25_3BConfig(**config_dict)
+        self.num_layers = config.num_hidden_layers
+
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
+
+class Qwen25_7BVLI(BaseLlama, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Qwen25_7BVLI_Config(**config_dict)
         self.num_layers = config.num_hidden_layers
 
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
