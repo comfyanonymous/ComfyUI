@@ -177,6 +177,19 @@ pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
 
+cd custom_nodes
+git clone https://github.com/yolain/ComfyUI-Easy-Use
+cd ComfyUI-Easy-Use
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+cd custom_nodes
+git clone https://github.com/Fannovel16/comfyui_controlnet_aux/
+cd comfyui_controlnet_aux
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+
 # REMOTE_PORT="$1"
 
 # 传入参数3,4,5,...  这样便于扩展，如果以后用了其他的frp，也好调整。
