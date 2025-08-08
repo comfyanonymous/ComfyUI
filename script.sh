@@ -57,6 +57,7 @@ wget -c https://huggingface.co/datasets/Heng365/mydataset/resolve/main/iniverseM
 # wget -c https://huggingface.co/UmeAiRT/ComfyUI-Auto_installer/resolve/main/models/unet/WAN/Wan2.1-VACE-14B-Q5_K_S.gguf -P ./models/diffusion_models
 
 wget -c https://huggingface.co/UmeAiRT/ComfyUI-Auto_installer/resolve/main/models/unet/WAN/Wan2.1-VACE-14B-Q4_K_S.gguf -P ./models/diffusion_models
+wget -c https://huggingface.co/schwgHao/RealESRGAN_x4plus/resolve/main/RealESRGAN_x4plus.pth -P ./models/upscale_models
 
 ln -s /kaggle/input/clip-vision-h/clip_vision_h.safetensors ./models/clip_vision/clip_vision_h.safetensors
 
