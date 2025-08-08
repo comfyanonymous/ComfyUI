@@ -124,7 +124,7 @@ class StabilityStableImageUltraNode:
             },
         }
 
-    def api_call(self, prompt: str, aspect_ratio: str, style_preset: str, seed: int,
+    async def api_call(self, prompt: str, aspect_ratio: str, style_preset: str, seed: int,
                  negative_prompt: str=None, image: torch.Tensor = None, image_denoise: float=None,
                  **kwargs):
         validate_string(prompt, strip_whitespace=False)
@@ -163,7 +163,7 @@ class StabilityStableImageUltraNode:
             content_type="multipart/form-data",
             auth_kwargs=kwargs,
         )
-        response_api = operation.execute()
+        response_api = await operation.execute()
 
         if response_api.finish_reason != "SUCCESS":
             raise Exception(f"Stable Image Ultra generation failed: {response_api.finish_reason}.")
@@ -257,7 +257,7 @@ class StabilityStableImageSD_3_5Node:
             },
         }
 
-    def api_call(self, model: str, prompt: str, aspect_ratio: str, style_preset: str, seed: int, cfg_scale: float,
+    async def api_call(self, model: str, prompt: str, aspect_ratio: str, style_preset: str, seed: int, cfg_scale: float,
                  negative_prompt: str=None, image: torch.Tensor = None, image_denoise: float=None,
                  **kwargs):
         validate_string(prompt, strip_whitespace=False)
@@ -302,7 +302,7 @@ class StabilityStableImageSD_3_5Node:
             content_type="multipart/form-data",
             auth_kwargs=kwargs,
         )
-        response_api = operation.execute()
+        response_api = await operation.execute()
 
         if response_api.finish_reason != "SUCCESS":
             raise Exception(f"Stable Diffusion 3.5 Image generation failed: {response_api.finish_reason}.")
@@ -374,7 +374,7 @@ class StabilityUpscaleConservativeNode:
             },
         }
 
-    def api_call(self, image: torch.Tensor, prompt: str, creativity: float, seed: int, negative_prompt: str=None,
+    async def api_call(self, image: torch.Tensor, prompt: str, creativity: float, seed: int, negative_prompt: str=None,
                  **kwargs):
         validate_string(prompt, strip_whitespace=False)
         image_binary = tensor_to_bytesio(image, total_pixels=1024*1024).read()
@@ -403,7 +403,7 @@ class StabilityUpscaleConservativeNode:
             content_type="multipart/form-data",
             auth_kwargs=kwargs,
         )
-        response_api = operation.execute()
+        response_api = await operation.execute()
 
         if response_api.finish_reason != "SUCCESS":
             raise Exception(f"Stability Upscale Conservative generation failed: {response_api.finish_reason}.")
@@ -480,7 +480,7 @@ class StabilityUpscaleCreativeNode:
             },
         }
 
-    def api_call(self, image: torch.Tensor, prompt: str, creativity: float, style_preset: str, seed: int, negative_prompt: str=None,
+    async def api_call(self, image: torch.Tensor, prompt: str, creativity: float, style_preset: str, seed: int, negative_prompt: str=None,
                  **kwargs):
         validate_string(prompt, strip_whitespace=False)
         image_binary = tensor_to_bytesio(image, total_pixels=1024*1024).read()
@@ -512,7 +512,7 @@ class StabilityUpscaleCreativeNode:
             content_type="multipart/form-data",
             auth_kwargs=kwargs,
         )
-        response_api = operation.execute()
+        response_api = await operation.execute()
 
         operation = PollingOperation(
             poll_endpoint=ApiEndpoint(
@@ -527,7 +527,7 @@ class StabilityUpscaleCreativeNode:
             status_extractor=lambda x: get_async_dummy_status(x),
             auth_kwargs=kwargs,
         )
-        response_poll: StabilityResultsGetResponse = operation.execute()
+        response_poll: StabilityResultsGetResponse = await operation.execute()
 
         if response_poll.finish_reason != "SUCCESS":
             raise Exception(f"Stability Upscale Creative generation failed: {response_poll.finish_reason}.")
@@ -563,8 +563,7 @@ class StabilityUpscaleFastNode:
             },
         }
 
-    def api_call(self, image: torch.Tensor,
-                 **kwargs):
+    async def api_call(self, image: torch.Tensor, **kwargs):
         image_binary = tensor_to_bytesio(image, total_pixels=4096*4096).read()
 
         files = {
@@ -583,7 +582,7 @@ class StabilityUpscaleFastNode:
             content_type="multipart/form-data",
             auth_kwargs=kwargs,
         )
-        response_api = operation.execute()
+        response_api = await operation.execute()
 
         if response_api.finish_reason != "SUCCESS":
             raise Exception(f"Stability Upscale Fast failed: {response_api.finish_reason}.")

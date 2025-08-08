@@ -1,7 +1,7 @@
 import io
 import logging
 import base64
-import requests
+import aiohttp
 import torch
 from typing import Optional
 
@@ -152,7 +152,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
     DESCRIPTION = "Generates videos from text prompts using Google's Veo 2 API"
     API_NODE = True
 
-    def generate_video(
+    async def generate_video(
         self,
         prompt,
         aspect_ratio="16:9",
@@ -217,7 +217,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
             auth_kwargs=kwargs,
         )
 
-        initial_response = initial_operation.execute()
+        initial_response = await initial_operation.execute()
         operation_name = initial_response.name
 
         logging.info(f"Veo generation started with operation name: {operation_name}")
@@ -256,7 +256,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         )
 
         # Execute the polling operation
-        poll_response = poll_operation.execute()
+        poll_response = await poll_operation.execute()
 
         # Now check for errors in the final response
         # Check for error in poll response
@@ -281,7 +281,6 @@ class VeoVideoGenerationNode(ComfyNodeABC):
             raise Exception(error_message)
 
         # Extract video data
-        video_data = None
         if poll_response.response and hasattr(poll_response.response, 'videos') and poll_response.response.videos and len(poll_response.response.videos) > 0:
             video = poll_response.response.videos[0]
 
@@ -291,9 +290,9 @@ class VeoVideoGenerationNode(ComfyNodeABC):
                 video_data = base64.b64decode(video.bytesBase64Encoded)
             elif hasattr(video, 'gcsUri') and video.gcsUri:
                 # Download from URL
-                video_url = video.gcsUri
-                video_response = requests.get(video_url)
-                video_data = video_response.content
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(video.gcsUri) as video_response:
+                        video_data = await video_response.content.read()
             else:
                 raise Exception("Video returned but no data or URL was provided")
         else:
