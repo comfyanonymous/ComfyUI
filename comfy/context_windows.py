@@ -26,7 +26,7 @@ class ContextWindowABC(ABC):
         raise NotImplementedError("Not implemented.")
 
     @abstractmethod
-    def add_window(self, full: torch.Tensor, to_window: torch.Tensor) -> torch.Tensor:
+    def add_window(self, full: torch.Tensor, to_add: torch.Tensor) -> torch.Tensor:
         """
         Apply torch.Tensor of window to the full tensor, in place. Returns reference to updated full tensor, not a copy.
         """
@@ -64,16 +64,19 @@ class IndexListContextWindow(ContextWindowABC):
         idx = [slice(None)] * dim + [self.index_list]
         return full[idx].to(device)
 
-    def add_window(self, full: torch.Tensor, to_window: torch.Tensor, dim=None) -> torch.Tensor:
+    def add_window(self, full: torch.Tensor, to_add: torch.Tensor, dim=None) -> torch.Tensor:
         if dim is None:
             dim = self.dim
         idx = [slice(None)] * dim + [self.index_list]
-        full[idx] += to_window
+        full[idx] += to_add
         return full
 
 
 class IndexListCallbacks:
     EVALUATE_CONTEXT_WINDOWS = "evaluate_context_windows"
+    COMBINE_CONTEXT_WINDOW_RESULTS = "combine_context_window_results"
+    EXECUTE_START = "execute_start"
+    EXECUTE_CLEANUP = "execute_cleanup"
 
     def init_callbacks(self):
         return {}
@@ -182,24 +185,29 @@ class IndexListContextHandler(ContextHandlerABC):
             counts_final = [torch.zeros(get_shape_for_dim(x_in, self.dim), device=x_in.device) for _ in conds]
         biases_final = [([0.0] * x_in.shape[self.dim]) for _ in conds]
 
-        # TODO: add callback here
+        for callback in comfy.patcher_extension.get_all_callbacks(IndexListCallbacks.EXECUTE_START, self.callbacks):
+            callback(self, model, x_in, conds, timestep, model_options)
 
         for enum_window in enumerated_context_windows:
             results = self.evaluate_context_windows(calc_cond_batch, model, x_in, conds, timestep, [enum_window], model_options)
             for result in results:
                 self.combine_context_window_results(x_in, result.sub_conds_out, result.sub_conds, result.window, result.window_idx, len(enumerated_context_windows), timestep,
                                             conds_final, counts_final, biases_final)
-        # finalize conds
-        if self.fuse_method.name == ContextFuseMethods.RELATIVE:
-            # relative is already normalized, so return as is
-            del counts_final
-            return conds_final
-        else:
-            # normalize conds via division by context usage counts
-            for i in range(len(conds_final)):
-                conds_final[i] /= counts_final[i]
-            del counts_final
-            return conds_final
+        try:
+            # finalize conds
+            if self.fuse_method.name == ContextFuseMethods.RELATIVE:
+                # relative is already normalized, so return as is
+                del counts_final
+                return conds_final
+            else:
+                # normalize conds via division by context usage counts
+                for i in range(len(conds_final)):
+                    conds_final[i] /= counts_final[i]
+                del counts_final
+                return conds_final
+        finally:
+            for callback in comfy.patcher_extension.get_all_callbacks(IndexListCallbacks.EXECUTE_CLEANUP, self.callbacks):
+                callback(self, model, x_in, conds, timestep, model_options)
 
     def evaluate_context_windows(self, calc_cond_batch: Callable, model: BaseModel, x_in: torch.Tensor, conds, timestep: torch.Tensor, enumerated_context_windows: list[tuple[int, IndexListContextWindow]],
                                 model_options, device=None, first_device=None):
@@ -208,7 +216,8 @@ class IndexListContextHandler(ContextHandlerABC):
             # allow processing to end between context window executions for faster Cancel
             comfy.model_management.throw_exception_if_processing_interrupted()
 
-            # TODO: add callback here
+            for callback in comfy.patcher_extension.get_all_callbacks(IndexListCallbacks.EVALUATE_CONTEXT_WINDOWS, self.callbacks):
+                callback(self, model, x_in, conds, timestep, model_options, window_idx, window, model_options, device, first_device)
 
             # update exposed params
             model_options["transformer_options"]["context_window"] = window
@@ -217,7 +226,6 @@ class IndexListContextHandler(ContextHandlerABC):
             sub_timestep = window.get_tensor(timestep, device, dim=0)
             sub_conds = [self.get_resized_cond(cond, x_in, window, device) for cond in conds]
 
-            # CREF.prepare_referencecn(ctx_idxs, window_idx, model_options)
             sub_conds_out = calc_cond_batch(model, sub_conds, sub_x, sub_timestep, model_options)
             if device is not None:
                 for i in range(len(sub_conds_out)):
@@ -238,18 +246,22 @@ class IndexListContextHandler(ContextHandlerABC):
                     bias_total = biases_final[i][idx]
                     prev_weight = (bias_total / (bias_total + bias))
                     new_weight = (bias / (bias_total + bias))
-                    # TODO: account for dim not being 0
-                    conds_final[i][idx] = conds_final[i][idx] * prev_weight + sub_conds_out[i][pos] * new_weight
+                    # account for dims of tensors
+                    idx_window = [slice(None)] * self.dim + [idx]
+                    pos_window = [slice(None)] * self.dim + [pos]
+                    # apply new values
+                    conds_final[i][idx_window] = conds_final[i][idx_window] * prev_weight + sub_conds_out[i][pos_window] * new_weight
                     biases_final[i][idx] = bias_total + bias
         else:
-            # add conds and counts based on weights of fuse method; TODO: account for dim not being 0
+            # add conds and counts based on weights of fuse method
             weights = get_context_weights(window.context_length, x_in.shape[self.dim], window.index_list, self, sigma=timestep)
             weights_tensor = match_weights_to_dim(weights, x_in, self.dim, device=x_in.device)
             for i in range(len(sub_conds_out)):
                 window.add_window(conds_final[i], sub_conds_out[i] * weights_tensor)
                 window.add_window(counts_final[i], weights_tensor)
 
-        # TODO: add callback here
+        for callback in comfy.patcher_extension.get_all_callbacks(IndexListCallbacks.COMBINE_CONTEXT_WINDOW_RESULTS, self.callbacks):
+            callback(self, x_in, sub_conds_out, sub_conds, window, window_idx, total_windows, timestep, conds_final, counts_final, biases_final)
 
 
 def _prepare_sampling_wrapper(executor, model, noise_shape: torch.Tensor, *args, **kwargs):
