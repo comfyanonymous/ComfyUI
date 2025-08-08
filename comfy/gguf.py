@@ -36,8 +36,8 @@ REARRANGE_THRESHOLD = 512
 MAX_TENSOR_NAME_LENGTH = 127
 MAX_TENSOR_DIMS = 4
 TORCH_COMPATIBLE_QTYPES = (None, gguf.GGMLQuantizationType.F32, gguf.GGMLQuantizationType.F16)
-IMG_ARCH_LIST = {"flux", "sd1", "sdxl", "sd3", "aura", "hidream", "cosmos", "ltxv", "hyvid", "wan"}
-TXT_ARCH_LIST = {"t5", "t5encoder", "llama"}
+IMG_ARCH_LIST = {"flux", "sd1", "sdxl", "sd3", "aura", "hidream", "cosmos", "ltxv", "hyvid", "wan", "qwen_image"}
+TXT_ARCH_LIST = {"t5", "t5encoder", "llama", "qwen2vl"}
 
 
 class ModelTemplate:
@@ -739,9 +739,9 @@ def gguf_sd_loader(path, handle_prefix="model.diffusion_model.", return_arch=Fal
         except Exception as e:
             raise ValueError(f"This model is not currently supported - ({e})")
     elif arch_str not in TXT_ARCH_LIST and is_text_model:
-        raise ValueError(f"Unexpected text model architecture type in GGUF file: {arch_str!r}")
+        logger.warning(f"Unexpected text model architecture type in GGUF file: {arch_str!r}")
     elif arch_str not in IMG_ARCH_LIST and not is_text_model:
-        raise ValueError(f"Unexpected architecture type in GGUF file: {arch_str!r}")
+        logger.warning(f"Unexpected architecture type in GGUF file: {arch_str!r}")
 
     if compat:
         logger.warning(f"Warning: This gguf model file is loaded in compatibility mode '{compat}' [arch:{arch_str}]")
@@ -903,7 +903,7 @@ def gguf_clip_loader(path):
             logger.warning(f"Dequantizing {temb_key} to prevent runtime OOM.")
             sd[temb_key] = dequantize_tensor(sd[temb_key], dtype=torch.float16)
         sd = sd_map_replace(sd, T5_SD_MAP)
-    elif arch in {"llama"}:
+    elif arch in {"llama", "qwen2vl"}:
         # TODO: pass model_options["vocab_size"] to loader somehow
         temb_key = "token_embd.weight"
         if temb_key in sd and sd[temb_key].shape[0] >= (64 * 1024):
@@ -911,7 +911,8 @@ def gguf_clip_loader(path):
             logger.warning(f"Dequantizing {temb_key} to prevent runtime OOM.")
             sd[temb_key] = dequantize_tensor(sd[temb_key], dtype=torch.float16)
         sd = sd_map_replace(sd, LLAMA_SD_MAP)
-        sd = llama_permute(sd, 32, 8)  # L3
+        if arch == "llama":
+            sd = llama_permute(sd, 32, 8) # L3
     else:
         pass
     return sd

@@ -8,7 +8,7 @@ from typing import Optional, Tuple
 from ..common_dit import pad_to_patch_size
 from ..flux.layers import EmbedND
 from ..lightricks.model import TimestepEmbedding, Timesteps
-from ..modules.attention import optimized_attention_masked
+from ..modules.attention import optimized_attention_no_sage_masked as optimized_attention_masked
 
 
 class GELU(nn.Module):

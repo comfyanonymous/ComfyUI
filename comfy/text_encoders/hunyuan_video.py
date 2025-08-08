@@ -30,7 +30,7 @@ class LLAMA3Tokenizer(sd1_clip.SDTokenizer):
 
 
 class LLAMAModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="hidden", layer_idx=-3, dtype=None, attention_mask=True, model_options=None, special_tokens=None):
+    def __init__(self, device="cpu", layer="hidden", layer_idx=-3, dtype=None, attention_mask=True, model_options=None, special_tokens=None, textmodel_json_config=None):
         if special_tokens is None:
             special_tokens = {"start": 128000, "pad": 128258}
         if model_options is None:
@@ -40,7 +40,7 @@ class LLAMAModel(sd1_clip.SDClipModel):
             model_options = model_options.copy()
             model_options["scaled_fp8"] = llama_scaled_fp8
 
-        textmodel_json_config = {}
+        textmodel_json_config = textmodel_json_config or {}
         vocab_size = model_options.get("vocab_size", None)
         if vocab_size is not None:
             textmodel_json_config["vocab_size"] = vocab_size

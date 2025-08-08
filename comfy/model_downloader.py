@@ -5,6 +5,7 @@ import logging
 import operator
 import os
 import shutil
+import sys
 from collections.abc import Sequence, MutableSequence
 from functools import reduce
 from itertools import chain
@@ -12,16 +13,15 @@ from os.path import join
 from pathlib import Path
 from typing import List, Optional, Final, Set
 
-# enable better transfer
-os.environ["HF_XET_HIGH_PERFORMANCE"] = "True"
+from .component_model.hf_hub_download_with_disable_xet import hf_hub_download_with_retries
 
 import tqdm
 from huggingface_hub import hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem
-from huggingface_hub.file_download import are_symlinks_supported
 from huggingface_hub.utils import GatedRepoError, LocalEntryNotFoundError
 from requests import Session
 from safetensors import safe_open
 from safetensors.torch import save_file
+from huggingface_hub import dump_environment_info
 
 from .cli_args import args
 from .cmd import folder_paths
@@ -92,7 +92,7 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
             if known_file is None:
                 logger.debug(f"get_or_download could not find {filename} in {folder_name}, known_files={known_files}")
                 return path
-            with comfy_tqdm():
+            with comfy_tqdm() as watcher:
                 if isinstance(known_file, HuggingFile):
                     if known_file.save_with_filename is not None:
                         linked_filename = known_file.save_with_filename
@@ -139,14 +139,21 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                     except LocalEntryNotFoundError:
                         try:
                             logger.debug(f"{folder_name}/{filename} is being downloaded from {known_file.repo_id}/{known_file.filename} candidate_str_match={candidate_str_match} candidate_filename_match={candidate_filename_match} candidate_alternate_filenames_match={candidate_alternate_filenames_match} candidate_save_filename_match={candidate_save_filename_match}")
-                            path = hf_hub_download(repo_id=known_file.repo_id,
-                                                   filename=known_file.filename,
-                                                   repo_type=known_file.repo_type,
-                                                   revision=known_file.revision,
-                                                   local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
-                                                   )
+                            path = hf_hub_download_with_retries(repo_id=known_file.repo_id,
+                                                                filename=known_file.filename,
+                                                                repo_type=known_file.repo_type,
+                                                                revision=known_file.revision,
+                                                                watcher=watcher,
+                                                                local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
+                                                                )
                         except IOError as exc_info:
                             logger.error(f"cannot reach huggingface {known_file.repo_id}/{known_file.filename}", exc_info=exc_info)
+                        except Exception as exc_info:
+                            logger.error(f"an exception occurred while downloading {known_file.repo_id}/{known_file.filename}", exc_info=exc_info)
+                            dump_environment_info()
+                            for key, value in os.environ.items():
+                                if key.startswith("HF_XET"):
+                                    print(f"{key}={value}", file=sys.stderr)
 
                     if path is not None and known_file.convert_to_16_bit and file_size is not None and file_size != 0:
                         tensors = {}

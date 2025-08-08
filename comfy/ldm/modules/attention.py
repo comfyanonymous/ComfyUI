@@ -605,11 +605,13 @@ def attention_flash(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     return out
 
 
-optimized_attention = attention_basic
+optimized_attention = attention_pytorch
+optimized_attention_no_sage = attention_pytorch
 
 if model_management.sage_attention_enabled():
     logger.debug("Using sage attention")
     optimized_attention = attention_sage
+    optimized_attention_no_sage = attention_pytorch
 elif model_management.xformers_enabled():
     logger.debug("Using xformers attention")
     optimized_attention = attention_xformers
@@ -628,6 +630,7 @@ else:
         optimized_attention = attention_sub_quad
 
 optimized_attention_masked = optimized_attention
+optimized_attention_no_sage_masked = optimized_attention_no_sage
 
 
 def optimized_attention_for_device(device, mask=False, small_input=False):

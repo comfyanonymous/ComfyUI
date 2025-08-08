@@ -1,8 +1,7 @@
-from dataclasses import dataclass
-from typing import Optional, Any
-
 import torch
 import torch.nn as nn
+from dataclasses import dataclass
+from typing import Optional, Any
 
 from ..ldm.common_dit import rms_norm
 from ..ldm.modules.attention import optimized_attention_for_device
@@ -24,6 +23,7 @@ class Llama2Config:
     rms_norm_add = False
     mlp_activation = "silu"
     qkv_bias = False
+
 
 @dataclass
 class Qwen25_3BConfig:
@@ -59,6 +59,7 @@ class Qwen25_7BVLI_Config:
     rms_norm_add = False
     mlp_activation = "silu"
     qkv_bias = True
+
 
 @dataclass
 class Gemma2_2B_Config:
@@ -363,6 +364,7 @@ class Llama2(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
+
 class Qwen25_3B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
@@ -372,6 +374,7 @@ class Qwen25_3B(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
+
 class Qwen25_7BVLI(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
@@ -380,6 +383,7 @@ class Qwen25_7BVLI(BaseLlama, torch.nn.Module):
 
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
+
 
 class Gemma2_2B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):

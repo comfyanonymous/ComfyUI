@@ -11,12 +11,13 @@ from comfy.model_downloader import get_filename_list_with_downloadable, KNOWN_UP
 from comfy.model_management import load_models_gpu
 from comfy.model_management_types import ModelManageable
 
+logger = logging.getLogger(__name__)
 try:
     from spandrel_extra_arches import EXTRA_REGISTRY  # pylint: disable=import-error
     from spandrel import MAIN_REGISTRY
 
     MAIN_REGISTRY.add(*EXTRA_REGISTRY)
-    logging.debug("Successfully imported spandrel_extra_arches: support for non commercial upscale models.")
+    logger.debug("Successfully imported spandrel_extra_arches: support for non commercial upscale models.")
 except:
     pass
 

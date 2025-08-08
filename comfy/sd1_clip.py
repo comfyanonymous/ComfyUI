@@ -8,6 +8,7 @@ import os
 import re
 import traceback
 import zipfile
+import logging
 from pathlib import Path
 
 try:
@@ -26,6 +27,7 @@ from .component_model import files
 from .component_model.files import get_path_as_dict, get_package_as_path
 from .text_encoders.spiece_tokenizer import SPieceTokenizer
 
+logger = logging.getLogger(__name__)
 
 def gen_empty_tokens(special_tokens, length):
     start_token = special_tokens.get("start", None)
@@ -118,6 +120,10 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
 
         if textmodel_json_config is None and "model_name" not in model_options:
             model_options = {**model_options, "model_name": "clip_l"}
+
+        if "model_name" in model_options and "clip" not in model_options["model_name"].lower() and textmodel_json_config is None:
+            logger.warning(f"Text encoder {model_options["model_name"]} provided a None textmodel_json_config, when it should have been an empty dict")
+            textmodel_json_config = {}
 
         config = get_path_as_dict(textmodel_json_config, "sd1_clip_config.json", package=__package__)
 

@@ -31,7 +31,7 @@ import warnings
 from contextlib import contextmanager
 from pathlib import Path
 from pickle import UnpicklingError
-from typing import Optional, Any, Literal
+from typing import Optional, Any, Literal, Generator
 
 import numpy as np
 import safetensors.torch
@@ -48,7 +48,8 @@ from .cli_args import args
 from .component_model import files
 from .component_model.deprecation import _deprecate_method
 from .component_model.executor_types import ExecutorToClientProgress, ProgressMessage
-from .execution_context import current_execution_context, ExecutionContext
+from .component_model.tqdm_watcher import TqdmWatcher
+from .execution_context import current_execution_context
 from .gguf import gguf_sd_loader
 
 MMAP_TORCH_FILES = args.mmap_torch_files
@@ -115,9 +116,9 @@ def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=Fal
             if len(e.args) > 0:
                 message = e.args[0]
                 if "HeaderTooLarge" in message:
-                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt or invalid. Make sure this is actually a safetensors file and not a ckpt or pt or other filetype.".format(message, ckpt))
-                if "MetadataIncompleteBuffer" in message:
-                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt/incomplete. Check the file size and make sure you have copied/downloaded it correctly.".format(message, ckpt))
+                    raise ValueError(f"{message} (File path: {ckpt} The safetensors file is corrupt or invalid. Make sure this is actually a safetensors file and not a ckpt or pt or other filetype.")
+                if "MetadataIncompleteBuffer" in message or "InvalidHeaderDeserialization" in message:
+                    raise ValueError(f"{message} (File path: {ckpt} The safetensors file is corrupt/incomplete. Check the file size and make sure you have copied/downloaded it correctly.")
             raise e
     elif ckpt.lower().endswith("index.json"):
         # from accelerate
@@ -1191,42 +1192,49 @@ def get_project_root() -> str:
 
 
 @contextmanager
-def comfy_tqdm():
+def comfy_tqdm() -> Generator[TqdmWatcher, None, None]:
     """
-    Monky patches child calls to tqdm and sends the progress to the UI
-    :return:
+    Monkey patches child calls to tqdm, sends progress to the UI,
+    and yields a watcher object for stall detection.
     """
     _original_init = tqdm.__init__
     _original_call = tqdm.__call__
     _original_update = tqdm.update
+
+    # Create the watcher instance that the patched methods will update
+    # and that will be yielded to the caller.
+    watcher = TqdmWatcher()
     context = contextvars.copy_context()
+
     try:
+        # These inner functions are closures; they capture the `watcher` variable
+        # from the enclosing scope.
         def __init(self, *args, **kwargs):
             context.run(lambda: _original_init(self, *args, **kwargs))
             self._progress_bar = context.run(lambda: ProgressBar(self.total))
+            watcher.tick()  # Signal progress on initialization
 
         def __update(self, n=1):
             assert self._progress_bar is not None
             context.run(lambda: _original_update(self, n))
             context.run(lambda: self._progress_bar.update(n))
+            watcher.tick()  # Signal progress on update
 
         def __call(self, *args, **kwargs):
-            # When TQDM is called to wrap an iterable, ensure the instance is created
-            # with the captured context
             instance = context.run(lambda: _original_call(self, *args, **kwargs))
             return instance
 
         tqdm.__init__ = __init
         tqdm.__call__ = __call
         tqdm.update = __update
-        # todo: modify the tqdm class here to correctly copy the context into the function that tqdm is passed
-        yield
+
+        yield watcher
+
     finally:
         # Restore original tqdm
         tqdm.__init__ = _original_init
         tqdm.__call__ = _original_call
         tqdm.update = _original_update
-        # todo: restore the context copying away
 
 
 @contextmanager

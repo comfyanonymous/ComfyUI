@@ -74,7 +74,7 @@ def mock_openai_client():
         instance.images.generate = Mock()
         yield instance
 
-
+@pytest.mark.skip("broken transformers")
 def test_transformers_loader(has_gpu):
     if not has_gpu:
         pytest.skip("requires GPU")
