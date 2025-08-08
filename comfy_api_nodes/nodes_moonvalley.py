@@ -95,14 +95,14 @@ def get_video_url_from_response(response) -> Optional[str]:
         return None
 
 
-def poll_until_finished(
+async def poll_until_finished(
     auth_kwargs: dict[str, str],
     api_endpoint: ApiEndpoint[Any, R],
     result_url_extractor: Optional[Callable[[R], str]] = None,
     node_id: Optional[str] = None,
 ) -> R:
     """Polls the Moonvalley API endpoint until the task reaches a terminal state, then returns the response."""
-    return PollingOperation(
+    return await PollingOperation(
         poll_endpoint=api_endpoint,
         completed_statuses=[
             "completed",
@@ -394,10 +394,10 @@ class BaseMoonvalleyVideoNode:
         else:
             return control_map["Motion Transfer"]
 
-    def get_response(
+    async def get_response(
         self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
     ) -> MoonvalleyPromptResponse:
-        return poll_until_finished(
+        return await poll_until_finished(
             auth_kwargs,
             ApiEndpoint(
                 path=f"{API_PROMPTS_ENDPOINT}/{task_id}",
@@ -507,7 +507,7 @@ class MoonvalleyImg2VideoNode(BaseMoonvalleyVideoNode):
     RETURN_NAMES = ("video",)
     DESCRIPTION = "Moonvalley Marey Image to Video Node"
 
-    def generate(
+    async def generate(
         self, prompt, negative_prompt, unique_id: Optional[str] = None, **kwargs
     ):
         image = kwargs.get("image", None)
@@ -532,9 +532,9 @@ class MoonvalleyImg2VideoNode(BaseMoonvalleyVideoNode):
         # Get MIME type from tensor - assuming PNG format for image tensors
         mime_type = "image/png"
 
-        image_url = upload_images_to_comfyapi(
+        image_url = (await upload_images_to_comfyapi(
             image, max_images=1, auth_kwargs=kwargs, mime_type=mime_type
-        )[0]
+        ))[0]
 
         request = MoonvalleyTextToVideoRequest(
             image_url=image_url, prompt_text=prompt, inference_params=inference_params
@@ -549,14 +549,14 @@ class MoonvalleyImg2VideoNode(BaseMoonvalleyVideoNode):
             request=request,
             auth_kwargs=kwargs,
         )
-        task_creation_response = initial_operation.execute()
+        task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
         task_id = task_creation_response.id
 
-        final_response = self.get_response(
+        final_response = await self.get_response(
             task_id, auth_kwargs=kwargs, node_id=unique_id
         )
-        video = download_url_to_video_output(final_response.output_url)
+        video = await download_url_to_video_output(final_response.output_url)
         return (video,)
 
 
@@ -609,7 +609,7 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
     RETURN_TYPES = ("VIDEO",)
     RETURN_NAMES = ("video",)
 
-    def generate(
+    async def generate(
         self, prompt, negative_prompt, unique_id: Optional[str] = None, **kwargs
     ):
         video = kwargs.get("video")
@@ -620,7 +620,7 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
         video_url = ""
         if video:
             validated_video = validate_video_to_video_input(video)
-            video_url = upload_video_to_comfyapi(validated_video, auth_kwargs=kwargs)
+            video_url = await upload_video_to_comfyapi(validated_video, auth_kwargs=kwargs)
 
         control_type = kwargs.get("control_type")
         motion_intensity = kwargs.get("motion_intensity")
@@ -658,15 +658,15 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
             request=request,
             auth_kwargs=kwargs,
         )
-        task_creation_response = initial_operation.execute()
+        task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
         task_id = task_creation_response.id
 
-        final_response = self.get_response(
+        final_response = await self.get_response(
             task_id, auth_kwargs=kwargs, node_id=unique_id
         )
 
-        video = download_url_to_video_output(final_response.output_url)
+        video = await download_url_to_video_output(final_response.output_url)
 
         return (video,)
 
@@ -688,7 +688,7 @@ class MoonvalleyTxt2VideoNode(BaseMoonvalleyVideoNode):
                 del input_types["optional"][param]
         return input_types
 
-    def generate(
+    async def generate(
         self, prompt, negative_prompt, unique_id: Optional[str] = None, **kwargs
     ):
         validate_prompts(prompt, negative_prompt, MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
@@ -717,15 +717,15 @@ class MoonvalleyTxt2VideoNode(BaseMoonvalleyVideoNode):
             request=request,
             auth_kwargs=kwargs,
         )
-        task_creation_response = initial_operation.execute()
+        task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
         task_id = task_creation_response.id
 
-        final_response = self.get_response(
+        final_response = await self.get_response(
             task_id, auth_kwargs=kwargs, node_id=unique_id
         )
 
-        video = download_url_to_video_output(final_response.output_url)
+        video = await download_url_to_video_output(final_response.output_url)
         return (video,)
 
 
