@@ -14,16 +14,16 @@ class ContextWindowsManualNode(io.ComfyNode):
             description="Manually set context windows.",
             inputs=[
                 io.Model.Input("model", tooltip="The model to apply context windows to during sampling."),
-                io.Int.Input("context_length", min=1, default=1, tooltip="The length of the context window."),
-                io.Int.Input("context_overlap", min=0, default=0, tooltip="The overlap of the context window."),
+                io.Int.Input("context_length", min=1, default=16, tooltip="The length of the context window."),
+                io.Int.Input("context_overlap", min=0, default=4, tooltip="The overlap of the context window."),
                 io.Combo.Input("context_schedule", options=[
                     comfy.context_windows.ContextSchedules.STATIC_STANDARD,
                     comfy.context_windows.ContextSchedules.UNIFORM_STANDARD,
                     comfy.context_windows.ContextSchedules.UNIFORM_LOOPED,
                     comfy.context_windows.ContextSchedules.BATCHED,
                     ], tooltip="The stride of the context window."),
-                io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window."),
-                io.Boolean.Input("closed_loop", default=False, tooltip="Whether to close the context window loop."),
+                io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window; only applicable to uniform schedules."),
+                io.Boolean.Input("closed_loop", default=False, tooltip="Whether to close the context window loop; only applicable to looped schedules."),
                 io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethods.LIST_STATIC, default=comfy.context_windows.ContextFuseMethods.PYRAMID, tooltip="The method to use to fuse the context windows."),
                 io.Int.Input("dim", min=0, max=5, default=0, tooltip="The dimension to apply the context windows to."),
             ],
@@ -55,24 +55,27 @@ class WanContextWindowsManualNode(ContextWindowsManualNode):
         schema.node_id = "WanContextWindowsManual"
         schema.display_name = "WAN Context Windows (Manual)"
         schema.description = "Manually set context windows for WAN-like models (dim=2)."
-        # remove dim input; will always be 2
-        schema.inputs = [x for x in schema.inputs if x.id != "dim"]
-        # replace context_length input; should be in steps of 4
-        context_length_idx = -1
-        for idx, x in enumerate(schema.inputs):
-            if x.id == "context_length":
-                context_length_idx = idx
-                break
-        if context_length_idx == -1:
-            raise Exception("Context length input not found in schema; did something change?")
-        schema.inputs[context_length_idx] = io.Int.Input("context_length", min=1, max=nodes.MAX_RESOLUTION, step=4, default=81, tooltip="The length of the context window.")
+        schema.inputs = [
+            io.Model.Input("model", tooltip="The model to apply context windows to during sampling."),
+                io.Int.Input("context_length", min=1, max=nodes.MAX_RESOLUTION, step=4, default=81, tooltip="The length of the context window."),
+                io.Int.Input("context_overlap", min=0, default=30, tooltip="The overlap of the context window."),
+                io.Combo.Input("context_schedule", options=[
+                    comfy.context_windows.ContextSchedules.STATIC_STANDARD,
+                    comfy.context_windows.ContextSchedules.UNIFORM_STANDARD,
+                    comfy.context_windows.ContextSchedules.UNIFORM_LOOPED,
+                    comfy.context_windows.ContextSchedules.BATCHED,
+                    ], tooltip="The stride of the context window."),
+                io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window; only applicable to uniform schedules."),
+                io.Boolean.Input("closed_loop", default=False, tooltip="Whether to close the context window loop; only applicable to looped schedules."),
+                io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethods.LIST_STATIC, default=comfy.context_windows.ContextFuseMethods.PYRAMID, tooltip="The method to use to fuse the context windows."),
+        ]
         return schema
 
     @classmethod
     def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, context_stride: int, closed_loop: bool, fuse_method: str) -> io.Model:
         context_length = max(((context_length - 1) // 4) + 1, 1)  # at least length 1
         context_overlap = max(((context_overlap - 1) // 4) + 1, 0)  # at least overlap 0
-        return super().execute(model, context_length, context_overlap, context_schedule, context_stride, closed_loop, fuse_method, 2)
+        return super().execute(model, context_length, context_overlap, context_schedule, context_stride, closed_loop, fuse_method, dim=2)
 
 
 class ContextWindowsExtension(ComfyExtension):
