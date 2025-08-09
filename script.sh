@@ -53,10 +53,10 @@ wget -c https://huggingface.co/datasets/Heng365/mydataset/resolve/main/iniverseM
 # ln -s /kaggle/input/omnigen2-fp16/omnigen2_fp16.safetensors ./models/diffusion_models/omnigen2_fp16.safetensors
 
 # wan2.1 i2v
-# wget -c https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_480p_14B_fp8_scaled.safetensors -P ./models/diffusion_models
+wget -c https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_480p_14B_fp8_scaled.safetensors -P ./models/diffusion_models
 # wget -c https://huggingface.co/UmeAiRT/ComfyUI-Auto_installer/resolve/main/models/unet/WAN/Wan2.1-VACE-14B-Q5_K_S.gguf -P ./models/diffusion_models
 
-wget -c https://huggingface.co/UmeAiRT/ComfyUI-Auto_installer/resolve/main/models/unet/WAN/Wan2.1-VACE-14B-Q4_K_S.gguf -P ./models/diffusion_models
+# wget -c https://huggingface.co/UmeAiRT/ComfyUI-Auto_installer/resolve/main/models/unet/WAN/Wan2.1-VACE-14B-Q4_K_S.gguf -P ./models/diffusion_models
 wget -c https://huggingface.co/schwgHao/RealESRGAN_x4plus/resolve/main/RealESRGAN_x4plus.pth -P ./models/upscale_models
 
 ln -s /kaggle/input/clip-vision-h/clip_vision_h.safetensors ./models/clip_vision/clip_vision_h.safetensors
@@ -84,12 +84,11 @@ git clone https://github.com/mit-han-lab/ComfyUI-nunchaku nunchaku_nodes
 cd /kaggle/ComfyUI
 
 # 3 ComfyUI-GGUF
-# wget -c https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/flux1-dev-Q3_K_S.gguf -P ./models/unet
-cd custom_nodes
-git clone https://github.com/city96/ComfyUI-GGUF
-cd ComfyUI-GGUF
-pip install --upgrade gguf
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/city96/ComfyUI-GGUF
+# cd ComfyUI-GGUF
+# pip install --upgrade gguf
+# cd /kaggle/ComfyUI
 
 # 4 encrypt image
 cd custom_nodes
