@@ -16,6 +16,7 @@ import comfy.sampler_helpers
 import comfy.model_patcher
 import comfy.patcher_extension
 import comfy.hooks
+import comfy.context_windows
 import scipy.stats
 import numpy
 
@@ -198,14 +199,20 @@ def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.H
             hooked_to_run.setdefault(p.hooks, list())
             hooked_to_run[p.hooks] += [(p, i)]
 
-def calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
+def calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options: dict[str]):
+    handler: comfy.context_windows.ContextHandlerABC = model_options.get("context_handler", None)
+    if handler is None or not handler.should_use_context(model, conds, x_in, timestep, model_options):
+        return _calc_cond_batch_outer(model, conds, x_in, timestep, model_options)
+    return handler.execute(_calc_cond_batch_outer, model, conds, x_in, timestep, model_options)
+
+def _calc_cond_batch_outer(model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
     executor = comfy.patcher_extension.WrapperExecutor.new_executor(
         _calc_cond_batch,
         comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.CALC_COND_BATCH, model_options, is_model_options=True)
     )
     return executor.execute(model, conds, x_in, timestep, model_options)
 
-def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
+def _calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
     out_conds = []
     out_counts = []
     # separate conds by matching hooks
