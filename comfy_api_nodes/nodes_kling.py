@@ -1690,7 +1690,9 @@ class KlingImageGenerationNode(KlingImageGenerationBase):
     ):
         self.validate_prompt(prompt, negative_prompt)
 
-        if image is not None:
+        if image is None:
+            image_type = None
+        else:
             image = tensor_to_base64_string(image)
 
         initial_operation = SynchronousOperation(
