@@ -1,6 +1,13 @@
 @echo off
-call venv\scripts\activate
-pip uninstall numpy -y --quiet
-pip install numpy==1.26.4 --quiet
-echo numpy 1.26.4 reinstalled.
+:: Install numpy silently
+venv\Scripts\pip install --force-reinstall "numpy<2" --quiet
+
+:: Check if installation was successful
+if %ERRORLEVEL% neq 0 (
+    echo Error: Failed to install numpy
+    exit /b 1
+)
+
+:: Display version information
+venv\Scripts\python -c "import numpy; print(f'numpy {numpy.__version__} reinstalled.')"
 pause
