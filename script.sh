@@ -1,9 +1,9 @@
 #    -----  链接模型  ------------
 
-# cosmos
+# cosmos ？
 ln -s /kaggle/input/cosmos-predict2-2b-video2world-480p-16fps/cosmos_predict2_2B_video2world_480p_16fps.safetensors ./models/diffusion_models/cosmos_predict2_2B_video2world_480p_16fps.safetensors
 
-# sd lora
+# sd lora ？
 ln -s /kaggle/input/moxinv1/MoXinV1.safetensors ./models/loras/MoXinV1.safetensors
 ln -s /kaggle/input/blindbox-v1-mix/blindbox_v1_mix.safetensors ./models/loras/blindbox_v1_mix.safetensors
 ln -s /kaggle/input/dreamshaper-8/dreamshaper_8.safetensors ./models/checkpoints/dreamshaper_8.safetensors
@@ -53,7 +53,7 @@ wget -c https://huggingface.co/datasets/Heng365/mydataset/resolve/main/iniverseM
 # ln -s /kaggle/input/omnigen2-fp16/omnigen2_fp16.safetensors ./models/diffusion_models/omnigen2_fp16.safetensors
 
 # wan2.1 i2v
-wget -c https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_480p_14B_fp8_scaled.safetensors -P ./models/diffusion_models
+# wget -c https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_480p_14B_fp8_scaled.safetensors -P ./models/diffusion_models
 # wget -c https://huggingface.co/UmeAiRT/ComfyUI-Auto_installer/resolve/main/models/unet/WAN/Wan2.1-VACE-14B-Q5_K_S.gguf -P ./models/diffusion_models
 
 # wget -c https://huggingface.co/UmeAiRT/ComfyUI-Auto_installer/resolve/main/models/unet/WAN/Wan2.1-VACE-14B-Q4_K_S.gguf -P ./models/diffusion_models
@@ -118,6 +118,8 @@ cd /kaggle/ComfyUI
 # git clone https://github.com/Vander-Bilt/MyHTMLNode.git
 # cd /kaggle/ComfyUI
 
+
+# These custom nodes used by workflow VACE ControlNet 1.0 (base).json ------------ start ------------
 
 cd custom_nodes
 git clone https://github.com/kijai/ComfyUI-KJNodes.git
@@ -194,6 +196,17 @@ git clone https://github.com/Fannovel16/comfyui_controlnet_aux/
 cd comfyui_controlnet_aux
 pip install -r requirements.txt
 cd /kaggle/ComfyUI
+
+# These custom nodes used by workflow VACE ControlNet 1.0 (base).json ------------ end ------------
+
+
+# MV-Adapter
+cd custom_nodes
+git clone https://github.com/huanngzh/ComfyUI-MVAdapter.git
+cd ComfyUI-MVAdapter
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
 
 
 # REMOTE_PORT="$1"
