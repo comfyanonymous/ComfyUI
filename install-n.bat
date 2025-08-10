@@ -38,11 +38,15 @@ pip uninstall numpy -y --quiet
 pip install numpy==1.26.4 --quiet
 
 echo  ::  %time:~0,8%  ::  - Detecting Python version and installing appropriate triton package
-for /f "tokens=2 delims=." %%a in ('python -c "import sys; print(sys.version)"') do (
-    set "PY_MINOR=%%a"
+
+for /f "tokens=1,2 delims=." %%a in ('python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"') do (
+    set "PY_MAJOR=%%a"
+    set "PY_MINOR=%%b"
     goto :version_detected
 )
+
 :version_detected
+echo  ::  %time:~0,8%  ::  - Detected Python %PY_MAJOR%.%PY_MINOR%
 
 if "%PY_MINOR%"=="12" (
     echo  ::  %time:~0,8%  ::  - Python 3.12 detected, installing triton for 3.12
@@ -52,8 +56,8 @@ if "%PY_MINOR%"=="12" (
     pip install --force-reinstall https://github.com/lshqqytiger/triton/releases/download/a9c80202/triton-3.4.0+gita9c80202-cp311-cp311-win_amd64.whl
 ) else (
     echo  ::  %time:~0,8%  ::  - WARNING: Unsupported Python version 3.%PY_MINOR%, skipping triton installation
-    echo  ::  %time:~0,8%  ::  - Full version string:
-    python -c "import sys; print(sys.version)"
+    echo  ::  %time:~0,8%  ::  - Full version info:
+    python -c "import sys; print(f'Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
 )
 
 :: patching triton & torch (from sfinktah ; https://github.com/sfinktah/amd-torch )
@@ -137,5 +141,6 @@ set FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
 set MIOPEN_FIND_MODE=2
 set MIOPEN_LOG_LEVEL=3
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
+
 
 
