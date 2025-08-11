@@ -139,11 +139,10 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                     except LocalEntryNotFoundError:
                         try:
                             logger.debug(f"{folder_name}/{filename} is being downloaded from {known_file.repo_id}/{known_file.filename} candidate_str_match={candidate_str_match} candidate_filename_match={candidate_filename_match} candidate_alternate_filenames_match={candidate_alternate_filenames_match} candidate_save_filename_match={candidate_save_filename_match}")
-                            path = hf_hub_download_with_retries(repo_id=known_file.repo_id,
+                            path = hf_hub_download(repo_id=known_file.repo_id,
                                                                 filename=known_file.filename,
                                                                 repo_type=known_file.repo_type,
                                                                 revision=known_file.revision,
-                                                                watcher=watcher,
                                                                 local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
                                                                 )
                         except IOError as exc_info:
