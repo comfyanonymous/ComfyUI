@@ -109,7 +109,7 @@ class KlingApiError(Exception):
     pass
 
 
-def poll_until_finished(
+async def poll_until_finished(
     auth_kwargs: dict[str, str],
     api_endpoint: ApiEndpoint[Any, R],
     result_url_extractor: Optional[Callable[[R], str]] = None,
@@ -117,7 +117,7 @@ def poll_until_finished(
     node_id: Optional[str] = None,
 ) -> R:
     """Polls the Kling API endpoint until the task reaches a terminal state, then returns the response."""
-    return PollingOperation(
+    return await PollingOperation(
         poll_endpoint=api_endpoint,
         completed_statuses=[
             KlingTaskStatus.succeed.value,
@@ -278,18 +278,18 @@ def get_images_urls_from_response(response) -> Optional[str]:
         return None
 
 
-def video_result_to_node_output(
+async def video_result_to_node_output(
     video: KlingVideoResult,
 ) -> tuple[VideoFromFile, str, str]:
     """Converts a KlingVideoResult to a tuple of (VideoFromFile, str, str) to be used as a ComfyUI node output."""
     return (
-        download_url_to_video_output(video.url),
+        await download_url_to_video_output(str(video.url)),
         str(video.id),
         str(video.duration),
     )
 
 
-def image_result_to_node_output(
+async def image_result_to_node_output(
     images: list[KlingImageResult],
 ) -> torch.Tensor:
     """
@@ -297,9 +297,9 @@ def image_result_to_node_output(
     If multiple images are returned, they will be stacked along the batch dimension.
     """
     if len(images) == 1:
-        return download_url_to_image_tensor(images[0].url)
+        return await download_url_to_image_tensor(str(images[0].url))
     else:
-        return torch.cat([download_url_to_image_tensor(image.url) for image in images])
+        return torch.cat([await download_url_to_image_tensor(str(image.url)) for image in images])
 
 
 class KlingNodeBase(ComfyNodeABC):
@@ -467,10 +467,10 @@ class KlingTextToVideoNode(KlingNodeBase):
     RETURN_NAMES = ("VIDEO", "video_id", "duration")
     DESCRIPTION = "Kling Text to Video Node"
 
-    def get_response(
+    async def get_response(
         self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
     ) -> KlingText2VideoResponse:
-        return poll_until_finished(
+        return await poll_until_finished(
             auth_kwargs,
             ApiEndpoint(
                 path=f"{PATH_TEXT_TO_VIDEO}/{task_id}",
@@ -483,7 +483,7 @@ class KlingTextToVideoNode(KlingNodeBase):
             node_id=node_id,
         )
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         negative_prompt: str,
@@ -519,17 +519,17 @@ class KlingTextToVideoNode(KlingNodeBase):
             auth_kwargs=kwargs,
         )
 
-        task_creation_response = initial_operation.execute()
+        task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
 
         task_id = task_creation_response.data.task_id
-        final_response = self.get_response(
+        final_response = await self.get_response(
             task_id, auth_kwargs=kwargs, node_id=unique_id
         )
         validate_video_result_response(final_response)
 
         video = get_video_from_response(final_response)
-        return video_result_to_node_output(video)
+        return await video_result_to_node_output(video)
 
 
 class KlingCameraControlT2VNode(KlingTextToVideoNode):
@@ -581,7 +581,7 @@ class KlingCameraControlT2VNode(KlingTextToVideoNode):
 
     DESCRIPTION = "Transform text into cinematic videos with professional camera movements that simulate real-world cinematography. Control virtual camera actions including zoom, rotation, pan, tilt, and first-person view, while maintaining focus on your original text."
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         negative_prompt: str,
@@ -591,7 +591,7 @@ class KlingCameraControlT2VNode(KlingTextToVideoNode):
         unique_id: Optional[str] = None,
         **kwargs,
     ):
-        return super().api_call(
+        return await super().api_call(
             model_name=KlingVideoGenModelName.kling_v1,
             cfg_scale=cfg_scale,
             mode=KlingVideoGenMode.std,
@@ -670,10 +670,10 @@ class KlingImage2VideoNode(KlingNodeBase):
     RETURN_NAMES = ("VIDEO", "video_id", "duration")
     DESCRIPTION = "Kling Image to Video Node"
 
-    def get_response(
+    async def get_response(
         self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
     ) -> KlingImage2VideoResponse:
-        return poll_until_finished(
+        return await poll_until_finished(
             auth_kwargs,
             ApiEndpoint(
                 path=f"{PATH_IMAGE_TO_VIDEO}/{task_id}",
@@ -686,7 +686,7 @@ class KlingImage2VideoNode(KlingNodeBase):
             node_id=node_id,
         )
 
-    def api_call(
+    async def api_call(
         self,
         start_frame: torch.Tensor,
         prompt: str,
@@ -733,17 +733,17 @@ class KlingImage2VideoNode(KlingNodeBase):
             auth_kwargs=kwargs,
         )
 
-        task_creation_response = initial_operation.execute()
+        task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
         task_id = task_creation_response.data.task_id
 
-        final_response = self.get_response(
+        final_response = await self.get_response(
             task_id, auth_kwargs=kwargs, node_id=unique_id
         )
         validate_video_result_response(final_response)
 
         video = get_video_from_response(final_response)
-        return video_result_to_node_output(video)
+        return await video_result_to_node_output(video)
 
 
 class KlingCameraControlI2VNode(KlingImage2VideoNode):
@@ -798,7 +798,7 @@ class KlingCameraControlI2VNode(KlingImage2VideoNode):
 
     DESCRIPTION = "Transform still images into cinematic videos with professional camera movements that simulate real-world cinematography. Control virtual camera actions including zoom, rotation, pan, tilt, and first-person view, while maintaining focus on your original image."
 
-    def api_call(
+    async def api_call(
         self,
         start_frame: torch.Tensor,
         prompt: str,
@@ -809,7 +809,7 @@ class KlingCameraControlI2VNode(KlingImage2VideoNode):
         unique_id: Optional[str] = None,
         **kwargs,
     ):
-        return super().api_call(
+        return await super().api_call(
             model_name=KlingVideoGenModelName.kling_v1_5,
             start_frame=start_frame,
             cfg_scale=cfg_scale,
@@ -897,7 +897,7 @@ class KlingStartEndFrameNode(KlingImage2VideoNode):
 
     DESCRIPTION = "Generate a video sequence that transitions between your provided start and end images. The node creates all frames in between, producing a smooth transformation from the first frame to the last."
 
-    def api_call(
+    async def api_call(
         self,
         start_frame: torch.Tensor,
         end_frame: torch.Tensor,
@@ -912,7 +912,7 @@ class KlingStartEndFrameNode(KlingImage2VideoNode):
         mode, duration, model_name = KlingStartEndFrameNode.get_mode_string_mapping()[
             mode
         ]
-        return super().api_call(
+        return await super().api_call(
             prompt=prompt,
             negative_prompt=negative_prompt,
             model_name=model_name,
@@ -964,10 +964,10 @@ class KlingVideoExtendNode(KlingNodeBase):
     RETURN_NAMES = ("VIDEO", "video_id", "duration")
     DESCRIPTION = "Kling Video Extend Node. Extend videos made by other Kling nodes. The video_id is created by using other Kling Nodes."
 
-    def get_response(
+    async def get_response(
         self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
     ) -> KlingVideoExtendResponse:
-        return poll_until_finished(
+        return await poll_until_finished(
             auth_kwargs,
             ApiEndpoint(
                 path=f"{PATH_VIDEO_EXTEND}/{task_id}",
@@ -980,7 +980,7 @@ class KlingVideoExtendNode(KlingNodeBase):
             node_id=node_id,
         )
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         negative_prompt: str,
@@ -1006,17 +1006,17 @@ class KlingVideoExtendNode(KlingNodeBase):
             auth_kwargs=kwargs,
         )
 
-        task_creation_response = initial_operation.execute()
+        task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
         task_id = task_creation_response.data.task_id
 
-        final_response = self.get_response(
+        final_response = await self.get_response(
             task_id, auth_kwargs=kwargs, node_id=unique_id
         )
         validate_video_result_response(final_response)
 
         video = get_video_from_response(final_response)
-        return video_result_to_node_output(video)
+        return await video_result_to_node_output(video)
 
 
 class KlingVideoEffectsBase(KlingNodeBase):
@@ -1025,10 +1025,10 @@ class KlingVideoEffectsBase(KlingNodeBase):
     RETURN_TYPES = ("VIDEO", "STRING", "STRING")
     RETURN_NAMES = ("VIDEO", "video_id", "duration")
 
-    def get_response(
+    async def get_response(
         self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
     ) -> KlingVideoEffectsResponse:
-        return poll_until_finished(
+        return await poll_until_finished(
             auth_kwargs,
             ApiEndpoint(
                 path=f"{PATH_VIDEO_EFFECTS}/{task_id}",
@@ -1041,7 +1041,7 @@ class KlingVideoEffectsBase(KlingNodeBase):
             node_id=node_id,
         )
 
-    def api_call(
+    async def api_call(
         self,
         dual_character: bool,
         effect_scene: KlingDualCharacterEffectsScene | KlingSingleImageEffectsScene,
@@ -1084,17 +1084,17 @@ class KlingVideoEffectsBase(KlingNodeBase):
             auth_kwargs=kwargs,
         )
 
-        task_creation_response = initial_operation.execute()
+        task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
         task_id = task_creation_response.data.task_id
 
-        final_response = self.get_response(
+        final_response = await self.get_response(
             task_id, auth_kwargs=kwargs, node_id=unique_id
         )
         validate_video_result_response(final_response)
 
         video = get_video_from_response(final_response)
-        return video_result_to_node_output(video)
+        return await video_result_to_node_output(video)
 
 
 class KlingDualCharacterVideoEffectNode(KlingVideoEffectsBase):
@@ -1142,7 +1142,7 @@ class KlingDualCharacterVideoEffectNode(KlingVideoEffectsBase):
     RETURN_TYPES = ("VIDEO", "STRING")
     RETURN_NAMES = ("VIDEO", "duration")
 
-    def api_call(
+    async def api_call(
         self,
         image_left: torch.Tensor,
         image_right: torch.Tensor,
@@ -1153,7 +1153,7 @@ class KlingDualCharacterVideoEffectNode(KlingVideoEffectsBase):
         unique_id: Optional[str] = None,
         **kwargs,
     ):
-        video, _, duration = super().api_call(
+        video, _, duration = await super().api_call(
             dual_character=True,
             effect_scene=effect_scene,
             model_name=model_name,
@@ -1208,7 +1208,7 @@ class KlingSingleImageVideoEffectNode(KlingVideoEffectsBase):
 
     DESCRIPTION = "Achieve different special effects when generating a video based on the effect_scene."
 
-    def api_call(
+    async def api_call(
         self,
         image: torch.Tensor,
         effect_scene: KlingSingleImageEffectsScene,
@@ -1217,7 +1217,7 @@ class KlingSingleImageVideoEffectNode(KlingVideoEffectsBase):
         unique_id: Optional[str] = None,
         **kwargs,
     ):
-        return super().api_call(
+        return await super().api_call(
             dual_character=False,
             effect_scene=effect_scene,
             model_name=model_name,
@@ -1253,11 +1253,11 @@ class KlingLipSyncBase(KlingNodeBase):
                 f"Text is too long. Maximum length is {MAX_PROMPT_LENGTH_LIP_SYNC} characters."
             )
 
-    def get_response(
+    async def get_response(
         self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
     ) -> KlingLipSyncResponse:
         """Polls the Kling API endpoint until the task reaches a terminal state."""
-        return poll_until_finished(
+        return await poll_until_finished(
             auth_kwargs,
             ApiEndpoint(
                 path=f"{PATH_LIP_SYNC}/{task_id}",
@@ -1270,7 +1270,7 @@ class KlingLipSyncBase(KlingNodeBase):
             node_id=node_id,
         )
 
-    def api_call(
+    async def api_call(
         self,
         video: VideoInput,
         audio: Optional[AudioInput] = None,
@@ -1287,12 +1287,12 @@ class KlingLipSyncBase(KlingNodeBase):
         self.validate_lip_sync_video(video)
 
         # Upload video to Comfy API and get download URL
-        video_url = upload_video_to_comfyapi(video, auth_kwargs=kwargs)
+        video_url = await upload_video_to_comfyapi(video, auth_kwargs=kwargs)
         logging.info("Uploaded video to Comfy API. URL: %s", video_url)
 
         # Upload the audio file to Comfy API and get download URL
         if audio:
-            audio_url = upload_audio_to_comfyapi(audio, auth_kwargs=kwargs)
+            audio_url = await upload_audio_to_comfyapi(audio, auth_kwargs=kwargs)
             logging.info("Uploaded audio to Comfy API. URL: %s", audio_url)
         else:
             audio_url = None
@@ -1319,17 +1319,17 @@ class KlingLipSyncBase(KlingNodeBase):
             auth_kwargs=kwargs,
         )
 
-        task_creation_response = initial_operation.execute()
+        task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
         task_id = task_creation_response.data.task_id
 
-        final_response = self.get_response(
+        final_response = await self.get_response(
             task_id, auth_kwargs=kwargs, node_id=unique_id
         )
         validate_video_result_response(final_response)
 
         video = get_video_from_response(final_response)
-        return video_result_to_node_output(video)
+        return await video_result_to_node_output(video)
 
 
 class KlingLipSyncAudioToVideoNode(KlingLipSyncBase):
@@ -1357,7 +1357,7 @@ class KlingLipSyncAudioToVideoNode(KlingLipSyncBase):
 
     DESCRIPTION = "Kling Lip Sync Audio to Video Node. Syncs mouth movements in a video file to the audio content of an audio file. When using, ensure that the audio contains clearly distinguishable vocals and that the video contains a distinct face. The audio file should not be larger than 5MB. The video file should not be larger than 100MB, should have height/width between 720px and 1920px, and should be between 2s and 10s in length."
 
-    def api_call(
+    async def api_call(
         self,
         video: VideoInput,
         audio: AudioInput,
@@ -1365,7 +1365,7 @@ class KlingLipSyncAudioToVideoNode(KlingLipSyncBase):
         unique_id: Optional[str] = None,
         **kwargs,
     ):
-        return super().api_call(
+        return await super().api_call(
             video=video,
             audio=audio,
             voice_language=voice_language,
@@ -1469,7 +1469,7 @@ class KlingLipSyncTextToVideoNode(KlingLipSyncBase):
 
     DESCRIPTION = "Kling Lip Sync Text to Video Node. Syncs mouth movements in a video file to a text prompt. The video file should not be larger than 100MB, should have height/width between 720px and 1920px, and should be between 2s and 10s in length."
 
-    def api_call(
+    async def api_call(
         self,
         video: VideoInput,
         text: str,
@@ -1479,7 +1479,7 @@ class KlingLipSyncTextToVideoNode(KlingLipSyncBase):
         **kwargs,
     ):
         voice_id, voice_language = KlingLipSyncTextToVideoNode.get_voice_config()[voice]
-        return super().api_call(
+        return await super().api_call(
             video=video,
             text=text,
             voice_language=voice_language,
@@ -1533,10 +1533,10 @@ class KlingVirtualTryOnNode(KlingImageGenerationBase):
 
     DESCRIPTION = "Kling Virtual Try On Node. Input a human image and a cloth image to try on the cloth on the human. You can merge multiple clothing item pictures into one image with a white background."
 
-    def get_response(
+    async def get_response(
         self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
     ) -> KlingVirtualTryOnResponse:
-        return poll_until_finished(
+        return await poll_until_finished(
             auth_kwargs,
             ApiEndpoint(
                 path=f"{PATH_VIRTUAL_TRY_ON}/{task_id}",
@@ -1549,7 +1549,7 @@ class KlingVirtualTryOnNode(KlingImageGenerationBase):
             node_id=node_id,
         )
 
-    def api_call(
+    async def api_call(
         self,
         human_image: torch.Tensor,
         cloth_image: torch.Tensor,
@@ -1572,17 +1572,17 @@ class KlingVirtualTryOnNode(KlingImageGenerationBase):
             auth_kwargs=kwargs,
         )
 
-        task_creation_response = initial_operation.execute()
+        task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
         task_id = task_creation_response.data.task_id
 
-        final_response = self.get_response(
+        final_response = await self.get_response(
             task_id, auth_kwargs=kwargs, node_id=unique_id
         )
         validate_image_result_response(final_response)
 
         images = get_images_from_response(final_response)
-        return (image_result_to_node_output(images),)
+        return (await image_result_to_node_output(images),)
 
 
 class KlingImageGenerationNode(KlingImageGenerationBase):
@@ -1655,13 +1655,13 @@ class KlingImageGenerationNode(KlingImageGenerationBase):
 
     DESCRIPTION = "Kling Image Generation Node. Generate an image from a text prompt with an optional reference image."
 
-    def get_response(
+    async def get_response(
         self,
         task_id: str,
         auth_kwargs: Optional[dict[str, str]],
         node_id: Optional[str] = None,
     ) -> KlingImageGenerationsResponse:
-        return poll_until_finished(
+        return await poll_until_finished(
             auth_kwargs,
             ApiEndpoint(
                 path=f"{PATH_IMAGE_GENERATIONS}/{task_id}",
@@ -1674,7 +1674,7 @@ class KlingImageGenerationNode(KlingImageGenerationBase):
             node_id=node_id,
         )
 
-    def api_call(
+    async def api_call(
         self,
         model_name: KlingImageGenModelName,
         prompt: str,
@@ -1690,7 +1690,11 @@ class KlingImageGenerationNode(KlingImageGenerationBase):
     ):
         self.validate_prompt(prompt, negative_prompt)
 
-        if image is not None:
+        if image is None:
+            image_type = None
+        elif model_name == KlingImageGenModelName.kling_v1:
+            raise ValueError(f"The model {KlingImageGenModelName.kling_v1.value} does not support reference images.")
+        else:
             image = tensor_to_base64_string(image)
 
         initial_operation = SynchronousOperation(
@@ -1714,17 +1718,17 @@ class KlingImageGenerationNode(KlingImageGenerationBase):
             auth_kwargs=kwargs,
         )
 
-        task_creation_response = initial_operation.execute()
+        task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
         task_id = task_creation_response.data.task_id
 
-        final_response = self.get_response(
+        final_response = await self.get_response(
             task_id, auth_kwargs=kwargs, node_id=unique_id
         )
         validate_image_result_response(final_response)
 
         images = get_images_from_response(final_response)
-        return (image_result_to_node_output(images),)
+        return (await image_result_to_node_output(images),)
 
 
 NODE_CLASS_MAPPINGS = {

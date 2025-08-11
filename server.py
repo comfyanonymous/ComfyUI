@@ -235,7 +235,7 @@ class PromptServer():
                                     sid,
                                 )
 
-                                logging.info(
+                                logging.debug(
                                     f"Feature flags negotiated for client {sid}: {client_flags}"
                                 )
                             first_message = False

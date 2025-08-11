@@ -86,7 +86,7 @@ class MinimaxTextToVideoNode:
     API_NODE = True
     OUTPUT_NODE = True
 
-    def generate_video(
+    async def generate_video(
         self,
         prompt_text,
         seed=0,
@@ -104,12 +104,12 @@ class MinimaxTextToVideoNode:
         # upload image, if passed in
         image_url = None
         if image is not None:
-            image_url = upload_images_to_comfyapi(image, max_images=1, auth_kwargs=kwargs)[0]
+            image_url = (await upload_images_to_comfyapi(image, max_images=1, auth_kwargs=kwargs))[0]
 
         # TODO: figure out how to deal with subject properly, API returns invalid params when using S2V-01 model
         subject_reference = None
         if subject is not None:
-            subject_url = upload_images_to_comfyapi(subject, max_images=1, auth_kwargs=kwargs)[0]
+            subject_url = (await upload_images_to_comfyapi(subject, max_images=1, auth_kwargs=kwargs))[0]
             subject_reference = [SubjectReferenceItem(image=subject_url)]
 
 
@@ -130,7 +130,7 @@ class MinimaxTextToVideoNode:
             ),
             auth_kwargs=kwargs,
         )
-        response = video_generate_operation.execute()
+        response = await video_generate_operation.execute()
 
         task_id = response.task_id
         if not task_id:
@@ -151,7 +151,7 @@ class MinimaxTextToVideoNode:
             node_id=unique_id,
             auth_kwargs=kwargs,
         )
-        task_result = video_generate_operation.execute()
+        task_result = await video_generate_operation.execute()
 
         file_id = task_result.file_id
         if file_id is None:
@@ -167,7 +167,7 @@ class MinimaxTextToVideoNode:
             request=EmptyRequest(),
             auth_kwargs=kwargs,
         )
-        file_result = file_retrieve_operation.execute()
+        file_result = await file_retrieve_operation.execute()
 
         file_url = file_result.file.download_url
         if file_url is None:
@@ -182,7 +182,7 @@ class MinimaxTextToVideoNode:
                 message = f"Result URL: {file_url}"
             PromptServer.instance.send_progress_text(message, unique_id)
 
-        video_io = download_url_to_bytesio(file_url)
+        video_io = await download_url_to_bytesio(file_url)
         if video_io is None:
             error_msg = f"Failed to download video from {file_url}"
             logging.error(error_msg)
