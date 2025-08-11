@@ -424,7 +424,7 @@ class BaseMoonvalleyVideoNode:
                     MoonvalleyTextToVideoInferenceParams,
                     "negative_prompt",
                     multiline=True,
-                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, bright, vignette, artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, flare, saturation, distorted, warped, wide angle, contrast, saturated, vibrant, glowing, cross dissolve, texture, videogame, saturation, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, blown out, horrible, blurry, worst quality, bad, transition, dissolve, cross-dissolve, melt, fade in, fade out, wobbly, weird, low quality, plastic, stock footage, video camera, boring, static",
+                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, wobbly, weird, low quality, plastic, stock footage, video camera, boring",
                 ),
                 "resolution": (
                     IO.COMBO,
@@ -445,7 +445,7 @@ class BaseMoonvalleyVideoNode:
                     IO.FLOAT,
                     MoonvalleyTextToVideoInferenceParams,
                     "guidance_scale",
-                    default=13.0,
+                    default=10.0,
                     step=1,
                     min=1,
                     max=20,
@@ -576,7 +576,7 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
                     MoonvalleyVideoToVideoInferenceParams,
                     "negative_prompt",
                     multiline=True,
-                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, bright, vignette, artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, flare, saturation, distorted, warped, wide angle, contrast, saturated, vibrant, glowing, cross dissolve, texture, videogame, saturation, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, blown out, horrible, blurry, worst quality, bad, transition, dissolve, cross-dissolve, melt, fade in, fade out, wobbly, weird, low quality, plastic, stock footage, video camera, boring, static"
+                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, wobbly, weird, low quality, plastic, stock footage, video camera, boring"
                 ),
                 "seed": model_field_to_node_input(IO.INT,MoonvalleyVideoToVideoInferenceParams, "seed", default=9, min=0, max=4294967295, step=1, display="number", tooltip="Random seed value", control_after_generate=False),
                 "prompt_adherence": model_field_to_node_input(
