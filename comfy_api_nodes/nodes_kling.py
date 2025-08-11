@@ -1692,6 +1692,8 @@ class KlingImageGenerationNode(KlingImageGenerationBase):
 
         if image is None:
             image_type = None
+        elif model_name == KlingImageGenModelName.kling_v1:
+            raise ValueError(f"The model {KlingImageGenModelName.kling_v1.value} does not support reference images.")
         else:
             image = tensor_to_base64_string(image)
 
