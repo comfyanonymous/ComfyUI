@@ -164,163 +164,204 @@ ComfyUI follows a weekly release cycle targeting Friday but this regularly chang
 
 `Ctrl` can also be replaced with `Cmd` instead for macOS users
 
-# Installing
+# ComfyUI Installation Guide (Full Instructions)
 
-## Windows Portable
+ComfyUI is the most powerful and modular visual AI engine and application.  
+It lets you design and execute advanced Stable Diffusion pipelines using a graph/nodes/flowchart-based interface.
 
-There is a portable standalone build for Windows that should work for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
+---
 
-### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z)
+## Which Installation Method Should I Use?
 
-Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
+| Platform / Hardware           | Easiest Method                              | Recommended For                                   | Section |
+|--------------------------------|---------------------------------------------|---------------------------------------------------|---------|
+| **Windows – NVIDIA GPU**       | [Portable Build](#1-windows-portable-build--easiest-method) | Beginners, no Python setup, plug-and-play         | 1       |
+| **Windows – Any GPU / CPU**    | [Manual Install](#2-windows-or-linux-manual-install)       | Custom nodes, latest updates, flexibility         | 2       |
+| **Linux – NVIDIA GPU**         | [Manual Install](#2-windows-or-linux-manual-install)       | Performance + customization                       | 2       |
+| **Linux – AMD ROCm GPU**       | [Manual Install](#2-windows-or-linux-manual-install)       | Best AMD performance                              | 2 / 5   |
+| **Linux – Intel Arc GPU**      | [Manual Install](#2-windows-or-linux-manual-install)       | Nightly PyTorch XPU builds                        | 2       |
+| **macOS (Apple Silicon)**      | [macOS Install](#3-macos-apple-silicon-m1m2)               | M1 / M2 / M3 chips                                | 3       |
+| **Windows – AMD GPU**          | [DirectML](#4-other-hardware-setups)                      | Not recommended — only if no better option        | 4       |
+| **Special Hardware (NPUs, MLUs)** | [Other Hardware Setups](#4-other-hardware-setups)        | Ascend, Cambricon, Iluvatar devices               | 4       |
+| **Any OS – pip install**       | [comfy-cli](#6-optional-comfy-cli-install-any-os)          | Fast install via CLI                              | 6       |
 
-If you have trouble extracting it, right click the file -> properties -> unblock
+---
 
-#### How do I share models between another UI and ComfyUI?
+## 1. Windows Portable Build – Easiest Method
 
-See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
+**Best for**: NVIDIA GPU users or CPU-only usage.  
+No Python install required — works out of the box.
 
+### Steps
+1. **Download**
+   - [Direct Link – Portable NVIDIA Build](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z)  
+   - Or see [all releases](https://github.com/comfyanonymous/ComfyUI/releases).
 
-## [comfy-cli](https://docs.comfy.org/comfy-cli/getting-started)
+2. **Extract**
+   - Use [7-Zip](https://7-zip.org) to extract the `.7z` file.
+   - If extraction fails:
+     - Right-click file → **Properties** → check **Unblock** → Apply.
 
-You can install and start ComfyUI using comfy-cli:
+3. **Add Models**
+   - Place `.ckpt` or `.safetensors` into:
+     ```
+     ComfyUI/models/checkpoints
+     ```
+   - Place VAE files into:
+     ```
+     ComfyUI/models/vae
+     ```
+
+4. **Run ComfyUI**
+   - Double-click `run_nvidia_gpu.bat` (or CPU script if no GPU).
+
+5. **(Optional) Share Models**
+   - Rename `extra_model_paths.yaml.example` → `extra_model_paths.yaml`.
+   - Edit with your model paths.
+
+---
+
+## 2. Windows or Linux – Manual Install
+
+**Best for**: Latest features, custom nodes, all GPU types, CPU fallback.
+
+### Requirements
+- Python 3.12 (3.13 supported but may break custom nodes)
+- Git installed
+
+### Steps
+1. **Clone Repo**
+   ```bash
+   git clone https://github.com/comfyanonymous/ComfyUI.git
+   cd ComfyUI
+   ```
+
+2. **Add Models**
+   ```
+   models/checkpoints → .ckpt / .safetensors
+   models/vae         → VAE files
+   ```
+
+3. **Install PyTorch (GPU-specific)**
+
+   **NVIDIA:**
+   ```bash
+   pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu129
+   ```
+   *(Nightly)*:
+   ```bash
+   pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu129
+   ```
+
+   **AMD (Linux ROCm):**
+   ```bash
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.4
+   ```
+   *(Nightly)*:
+   ```bash
+   pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.4
+   ```
+
+   **Intel Arc (XPU – Nightly):**
+   ```bash
+   pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/xpu
+   ```
+
+   **Intel (IPEX – Conda):**
+   ```bash
+   conda install libuv
+   pip install torch==2.3.1.post0+cxx11.abi torchvision==0.18.1.post0+cxx11.abi torchaudio==2.3.1.post0+cxx11.abi intel-extension-for-pytorch==2.3.110.post0+xpu --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/cn/
+   ```
+
+4. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+5. **Run**
+   ```bash
+   python main.py
+   ```
+
+---
+
+## 3. macOS – Apple Silicon (M1/M2/M3)
+
+### Steps
+1. Install PyTorch nightly with Metal ([Apple’s Guide](https://developer.apple.com/metal/pytorch/)).
+2. Clone ComfyUI:
+   ```bash
+   git clone https://github.com/comfyanonymous/ComfyUI.git
+   cd ComfyUI
+   ```
+3. Add models (same as Manual Install).
+4. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+5. Run:
+   ```bash
+   python main.py
+   ```
+
+---
+
+## 4. Other Hardware Setups
+
+### AMD (Windows – DirectML)
+```bash
+pip install torch-directml
+python main.py --directml
+```
+
+### Ascend NPUs
+- Install Linux kernel as per [torch-npu guide](https://ascend.github.io/docs/sources/ascend/quick_install.html)
+- Install Ascend Basekit
+- Install PyTorch NPU packages ([instructions](https://ascend.github.io/docs/sources/pytorch/install.html#pytorch))
+- Install ComfyUI (Manual Install method)
+
+### Cambricon MLUs
+- Install [CNToolkit](https://www.cambricon.com/docs/sdk_1.15.0/cntoolkit_3.7.2/cntoolkit_install_3.7.2/index.html)
+- Install [torch_mlu](https://www.cambricon.com/docs/sdk_1.15.0/cambricon_pytorch_1.17.0/user_guide_1.9/index.html)
+- Run `python main.py`
+
+### Iluvatar Corex
+- Install [Iluvatar Toolkit](https://support.iluvatar.com/#/DocumentCentre?id=1&nameCenter=2&productId=520117912052801536)
+- Run `python main.py`
+
+---
+
+## 5. AMD ROCm Tips
+- Unsupported cards:
+  ```bash
+  HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py  # RDNA2
+  HSA_OVERRIDE_GFX_VERSION=11.0.0 python main.py  # RDNA3
+  ```
+- Speed tweaks:
+  ```bash
+  TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention
+  PYTORCH_TUNABLEOP_ENABLED=1 python main.py
+  ```
+
+---
+
+## 6. comfy-cli Install (Any OS)
 ```bash
 pip install comfy-cli
 comfy install
 ```
 
-## Manual Install (Windows, Linux)
+---
 
-python 3.13 is supported but using 3.12 is recommended because some custom nodes and their dependencies might not support it yet.
+## After Installation
+- Run:
+  ```bash
+  python main.py
+  ```
+- Open browser at the shown local address.
+- Place additional LoRAs, embeddings, etc. in `models/` subfolders.
 
-Git clone this repo.
-
-Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
-
-Put your VAE in: models/vae
-
-
-### AMD GPUs (Linux only)
-AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
-
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.4```
-
-This is the command to install the nightly with ROCm 6.4 which might have some performance improvements:
-
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.4```
-
-### Intel GPUs (Windows and Linux)
-
-(Option 1) Intel Arc GPU users can install native PyTorch with torch.xpu support using pip (currently available in PyTorch nightly builds). More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
-  
-1. To install PyTorch nightly, use the following command:
-
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/xpu```
-
-2. Launch ComfyUI by running `python main.py`
-
-
-(Option 2) Alternatively, Intel GPUs supported by Intel Extension for PyTorch (IPEX) can leverage IPEX for improved performance.
-
-1. For Intel® Arc™ A-Series Graphics utilizing IPEX, create a conda environment and use the commands below:
-
-```
-conda install libuv
-pip install torch==2.3.1.post0+cxx11.abi torchvision==0.18.1.post0+cxx11.abi torchaudio==2.3.1.post0+cxx11.abi intel-extension-for-pytorch==2.3.110.post0+xpu --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/cn/
-```
-
-For other supported Intel GPUs with IPEX, visit [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) for more information.
-
-Additional discussion and help can be found [here](https://github.com/comfyanonymous/ComfyUI/discussions/476).
-
-### NVIDIA
-
-Nvidia users should install stable pytorch using this command:
-
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu129```
-
-This is the command to install pytorch nightly instead which might have performance improvements.
-
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu129```
-
-#### Troubleshooting
-
-If you get the "Torch not compiled with CUDA enabled" error, uninstall torch with:
-
-```pip uninstall torch```
-
-And install it again with the command above.
-
-### Dependencies
-
-Install the dependencies by opening your terminal inside the ComfyUI folder and:
-
-```pip install -r requirements.txt```
-
-After this you should have everything installed and can proceed to running ComfyUI.
-
-### Others:
-
-#### Apple Mac silicon
-
-You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS version.
-
-1. Install pytorch nightly. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide (make sure to install the latest pytorch nightly).
-1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
-1. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI [you might be able to reuse the dependencies](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
-1. Launch ComfyUI by running `python main.py`
-
-> **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
-
-#### DirectML (AMD Cards on Windows)
-
-This is very badly supported and is not recommended. There are some unofficial builds of pytorch ROCm on windows that exist that will give you a much better experience than this. This readme will be updated once official pytorch ROCm builds for windows come out.
-
-```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
-
-#### Ascend NPUs
-
-For models compatible with Ascend Extension for PyTorch (torch_npu). To get started, ensure your environment meets the prerequisites outlined on the [installation](https://ascend.github.io/docs/sources/ascend/quick_install.html) page. Here's a step-by-step guide tailored to your platform and installation method:
-
-1. Begin by installing the recommended or newer kernel version for Linux as specified in the Installation page of torch-npu, if necessary.
-2. Proceed with the installation of Ascend Basekit, which includes the driver, firmware, and CANN, following the instructions provided for your specific platform.
-3. Next, install the necessary packages for torch-npu by adhering to the platform-specific instructions on the [Installation](https://ascend.github.io/docs/sources/pytorch/install.html#pytorch) page.
-4. Finally, adhere to the [ComfyUI manual installation](#manual-install-windows-linux) guide for Linux. Once all components are installed, you can run ComfyUI as described earlier.
-
-#### Cambricon MLUs
-
-For models compatible with Cambricon Extension for PyTorch (torch_mlu). Here's a step-by-step guide tailored to your platform and installation method:
-
-1. Install the Cambricon CNToolkit by adhering to the platform-specific instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cntoolkit_3.7.2/cntoolkit_install_3.7.2/index.html)
-2. Next, install the PyTorch(torch_mlu) following the instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cambricon_pytorch_1.17.0/user_guide_1.9/index.html)
-3. Launch ComfyUI by running `python main.py`
-
-#### Iluvatar Corex
-
-For models compatible with Iluvatar Extension for PyTorch. Here's a step-by-step guide tailored to your platform and installation method:
-
-1. Install the Iluvatar Corex Toolkit by adhering to the platform-specific instructions on the [Installation](https://support.iluvatar.com/#/DocumentCentre?id=1&nameCenter=2&productId=520117912052801536)
-2. Launch ComfyUI by running `python main.py`
-
-# Running
-
-```python main.py```
-
-### For AMD cards not officially supported by ROCm
-
-Try running it with this command if you have issues:
-
-For 6700, 6600 and maybe other RDNA2 or older: ```HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py```
-
-For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 python main.py```
-
-### AMD ROCm Tips
-
-You can enable experimental memory efficient attention on recent pytorch in ComfyUI on some AMD GPUs using this command, it should already be enabled by default on RDNA3. If this improves speed for you on latest pytorch on your GPU please report it so that I can enable it by default.
-
-```TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention```
-
-You can also try setting this env variable `PYTORCH_TUNABLEOP_ENABLED=1` which might speed things up at the cost of a very slow initial run.
+---
 
 # Notes
 
