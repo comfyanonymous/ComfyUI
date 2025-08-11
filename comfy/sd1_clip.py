@@ -122,7 +122,8 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             model_options = {**model_options, "model_name": "clip_l"}
 
         if "model_name" in model_options and "clip" not in model_options["model_name"].lower() and textmodel_json_config is None:
-            logger.warning(f"Text encoder {model_options["model_name"]} provided a None textmodel_json_config, when it should have been an empty dict")
+            _model_name = model_options['model_name']
+            logger.warning(f"Text encoder {_model_name} provided a None textmodel_json_config, when it should have been an empty dict")
             textmodel_json_config = {}
 
         config = get_path_as_dict(textmodel_json_config, "sd1_clip_config.json", package=__package__)
