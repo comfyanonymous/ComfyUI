@@ -322,7 +322,7 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
             node_id="Veo3VideoGenerationNode",
             display_name="Google Veo 3 Video Generation",
             category="api node/video/Veo",
-            description="Generates videos from text prompts using Google's Veo 2 API",
+            description="Generates videos from text prompts using Google's Veo 3 API",
             inputs=[
                 comfy_io.String.Input(
                     "prompt",
