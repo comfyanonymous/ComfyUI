@@ -384,6 +384,20 @@ class MultiCombo(ComfyTypeI):
             })
             return to_return
 
+@comfytype(io_type="ASSET")
+class Asset(ComfyTypeI):
+    class Input(WidgetInput):
+        def __init__(self, id: str, query_tags: list[str], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
+                    default: str=None, socketless: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless)
+            self.query_tags = query_tags
+
+        def as_dict(self):
+            to_return = super().as_dict() | prune_dict({
+                "query_tags": self.query_tags
+            })
+            return to_return
+
 @comfytype(io_type="IMAGE")
 class Image(ComfyTypeIO):
     Type = torch.Tensor
