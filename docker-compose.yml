@@ -1,0 +1,42 @@
+# Docker Compose file to run ComfyUI locally using Docker.
+#
+# Authors:
+# B. Bergeron <me@bbergeron.xyz>
+#
+
+services:
+  comfyui:
+    container_name: comfyui
+    build: .
+
+    ports:
+      - 127.0.0.1:8188:8188
+
+    # Optional: enable GPU access for hardware acceleration.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    volumes:
+      # Share custom nodes and models with the container.
+      - ./custom_nodes:/comfyui/custom_nodes
+      - ./models:/comfyui/models
+      # Optional: mount the user data directory.
+      #- data:/data/
+
+    environment:
+      # Overwrite the container user's UID and GID to match the host's. This
+      # allows files created by ComfyUI to be mounted on the host without
+      # permission issues.
+      UID: 1000
+      GID: 1000
+      # Declare additional Python packages to install. Useful when a custom node
+      # pack does not properly specify all its dependencies or relies on
+      # optional dependencies.
+      #PIP_EXTRA_PACKAGES:
+
+    # Optional: Override the default command. In this case, configure ComfyUI to
+    # listen on all network interfaces (which is required when not using
+    # `network_mode=host`.)
+    command: python ./main.py --listen 0.0.0.0
