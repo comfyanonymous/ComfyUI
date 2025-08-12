@@ -25,6 +25,7 @@ ln -s /kaggle/input/umt5-xxl-fp16/umt5_xxl_fp16.safetensors ./models/text_encode
 # wan lora: dabaichui
 wget -c https://huggingface.co/Heng365/dabaichui/resolve/main/dabaichui.safetensors -P ./models/loras
 
+wget -c https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl.vae.safetensors -P ./models/vae
 
 #Flux kontext
 ln -s /kaggle/input/flux-ae/flux-ae.safetensors ./models/vae/ae.safetensors
