@@ -209,56 +209,11 @@ cd /kaggle/ComfyUI
 
 
 
-
-# These custom nodes used by workflow V250117_MICKMUMPITZ_CCC_v01_FLUX_SIMPLE.json ------------ start ------------
-
-cd custom_nodes
-git clone https://github.com/chrisgoringe/cg-use-everywhere.git
-cd /kaggle/ComfyUI
-
-cd custom_nodes
-git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack comfyui-impact-pack
-cd comfyui-impact-pack
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
-
-cd custom_nodes
-git clone https://github.com/kijai/ComfyUI-IC-Light.git
-cd ComfyUI-IC-Light
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
-
-cd custom_nodes
-git clone https://github.com/cubiq/ComfyUI_essentials.git
-cd ComfyUI_essentials
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
-
-cd custom_nodes
-git clone https://github.com/ssitu/ComfyUI_UltimateSDUpscale --recursive
-cd /kaggle/ComfyUI
-
-cd custom_nodes
-git clone https://github.com/ltdrdata/ComfyUI-Impact-Subpack
-cd ComfyUI-Impact-Subpack
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
-
-
-cd custom_nodes
-git clone https://github.com/lldacing/ComfyUI_BiRefNet_ll.git
-cd ComfyUI_BiRefNet_ll
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
-
 cd custom_nodes
 git clone https://github.com/PowerHouseMan/ComfyUI-AdvancedLivePortrait.git
 cd ComfyUI-AdvancedLivePortrait
 pip install -r requirements.txt
 cd /kaggle/ComfyUI
-
-# These custom nodes used by workflow 250117_MICKMUMPITZ_CCC_v01_FLUX_SIMPLE.json ------------ end ------------
-
 
 # REMOTE_PORT="$1"
 
