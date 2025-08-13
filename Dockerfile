@@ -9,11 +9,10 @@
 # Use the recommended Python version 3.12, as specified in the README.
 FROM python:3.12.11-bookworm AS comfyui-base
 
+ARG APT_EXTRA_PACKAGES
+
 # Install cmake, which is an indirect installation dependencies
-RUN apt update                                      \
-	&& apt install -y --no-install-recommends cmake \
-	&& apt clean                                    \
-	&& rm -rf /var/lib/apt/lists/*
+RUN apt update && apt install -y --no-install-recommends cmake
 
 # Create a mount point for user-generated data.
 RUN mkdir -p      \
@@ -67,19 +66,16 @@ EXPOSE 8188
 #   virtual environment and into the user’s home directory.
 VOLUME [ "/data", "/comfyui/.venv", "/comfyui/custom_nodes", "/comfyui/models", "/home/comfyui" ]
 
-# Switch back to root to run the entrypoint and ensure it is executable.
+# Switch back to root to run the entrypoint and to install additional system
+# dependencies
 USER root
+
+# Install additional system dependencies
+RUN apt install -y --no-install-recommends $APT_EXTRA_PACKAGES \
+	&& apt clean                                               \
+	&& rm -rf /var/lib/apt/lists/*
+
+# Configure entrypoint
 RUN chmod +x entrypoint.sh
 ENTRYPOINT [ "./entrypoint.sh" ]
 CMD [ "python", "./main.py" ]
-
-# Known issue: Some custom nodes require additional system dependencies, which
-# are not as easy to install as Python dependencies. If this is the case, you
-# can use the instruction below to install the required packages.
-#RUN apt update                                \
-#	&& apt install -y --no-install-recommends \
-#		package-1 \
-#		package-2 \
-#		...       \
-#	&& apt clean                              \
-#	&& rm -rf /var/lib/apt/lists/*
