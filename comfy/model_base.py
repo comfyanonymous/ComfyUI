@@ -1140,10 +1140,6 @@ class WAN21(BaseModel):
         if time_dim_concat is not None:
             out['time_dim_concat'] = comfy.conds.CONDRegular(self.process_latent_in(time_dim_concat))
 
-        reference_latents = kwargs.get("reference_latents", None)
-        if reference_latents is not None:
-            out['reference_latent'] = comfy.conds.CONDRegular(self.process_latent_in(reference_latents[-1])[:, :, 0])
-
         return out
 
 
