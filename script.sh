@@ -22,7 +22,7 @@ ln -s /kaggle/input/umt5-xxl-fp16/umt5_xxl_fp16.safetensors ./models/text_encode
 # wget -c https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_vace_14B_fp16.safetensors -P ./models/diffusion_models
 # ln -s /kaggle/input/wan21-causvid-14b-t2v-lora-rank32/Wan21_CausVid_14B_T2V_lora_rank32.safetensors ./models/loras/Wan21_CausVid_14B_T2V_lora_rank32.safetensors
 
-# wan lora: dabaichui
+# wan lora: dabaichui 试一试哦！！
 wget -c https://huggingface.co/Heng365/dabaichui/resolve/main/dabaichui.safetensors -P ./models/loras
 
 # wget -c https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl.vae.safetensors -P ./models/vae
@@ -36,7 +36,7 @@ ln -s /kaggle/input/t5xxl-fp8-e4m3fn-scaled/t5xxl_fp8_e4m3fn_scaled.safetensors 
 #Flux dev
 ln -s /kaggle/input/flux1-dev-fp8/flux1-dev-fp8.safetensors ./models/checkpoints/flux1-dev-fp8.safetensors
 
-# kontext turnaround sheet lora
+# kontext turnaround sheet lora 做什么用的？
 wget -c https://huggingface.co/reverentelusarca/kontext-turnaround-sheet-lora-v1/resolve/main/kontext-turnaround-sheet-v1.safetensors -P ./models/loras
 
 #nunchaku
@@ -55,7 +55,7 @@ wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/mai
 # ln -s /kaggle/input/qwen-2-5-vl-fp16/qwen_2.5_vl_fp16.safetensors ./models/text_encoders/qwen_2.5_vl_fp16.safetensors
 # ln -s /kaggle/input/omnigen2-fp16/omnigen2_fp16.safetensors ./models/diffusion_models/omnigen2_fp16.safetensors
 
-# ComfyUI-Kolors-MZ faceid?
+# ComfyUI-Kolors-MZ faceid做什么用的?
 wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/ip_adapter_plus_general.bin -P ./models/ipadapter
 wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/image_encoder/pytorch_model.bin -P ./models/clip_vision
 
@@ -228,6 +228,33 @@ git clone https://github.com/PowerHouseMan/ComfyUI-AdvancedLivePortrait.git
 cd ComfyUI-AdvancedLivePortrait
 pip install -r requirements.txt
 cd /kaggle/ComfyUI
+
+
+
+cd custom_nodes
+git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack comfyui-impact-pack
+cd comfyui-impact-pack
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+
+cd custom_nodes
+git clone https://github.com/ltdrdata/ComfyUI-Impact-Subpack
+cd ComfyUI-Impact-Subpack
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+cd custom_nodes
+git clone https://github.com/cubiq/ComfyUI_InstantID
+cd ComfyUI_InstantID
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+cd custom_nodes
+git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus
+cd /kaggle/ComfyUI
+
+
 
 # REMOTE_PORT="$1"
 
