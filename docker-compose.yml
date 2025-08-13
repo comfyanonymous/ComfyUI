@@ -7,7 +7,11 @@
 services:
   comfyui:
     container_name: comfyui
-    build: .
+    build:
+      context: .
+      args:
+        # Declare additional system dependencies for custom nodes
+        APT_EXTRA_PACKAGES:
 
     ports:
       - 127.0.0.1:8188:8188
@@ -34,7 +38,7 @@ services:
       # Declare additional Python packages to install. Useful when a custom node
       # pack does not properly specify all its dependencies or relies on
       # optional dependencies.
-      #PIP_EXTRA_PACKAGES:
+      PIP_EXTRA_PACKAGES:
 
     # Optional: Override the default command. In this case, configure ComfyUI to
     # listen on all network interfaces (which is required when not using
