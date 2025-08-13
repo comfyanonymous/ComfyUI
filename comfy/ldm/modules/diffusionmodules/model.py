@@ -285,7 +285,7 @@ def pytorch_attention(q, k, v):
     )
 
     try:
-        out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
+        out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
         out = out.transpose(2, 3).reshape(orig_shape)
     except model_management.OOM_EXCEPTION:
         logging.warning("scaled_dot_product_attention OOMed: switched to slice attention")
