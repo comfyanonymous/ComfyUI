@@ -722,6 +722,10 @@ class BBOX(ComfyTypeIO):
 class SEGS(ComfyTypeIO):
     Type = Any # NOTE: I couldn't find any references in core code to POINT io_type. Does this exist?
 
+@comfytype(io_type="METADATA")
+class Metadata(ComfyTypeIO):
+    Type = Any
+
 @comfytype(io_type="*")
 class AnyType(ComfyTypeIO):
     Type = Any
@@ -1604,6 +1608,7 @@ class _IO:
     FaceAnalysis = FaceAnalysis
     BBOX = BBOX
     SEGS = SEGS
+    Metadata = Metadata
     AnyType = AnyType
     MultiType = MultiType
     #---------------------------------
