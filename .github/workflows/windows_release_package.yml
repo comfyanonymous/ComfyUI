@@ -66,6 +66,8 @@ jobs:
             sed -i '1i../ComfyUI' ./python3${{ inputs.python_minor }}._pth
 
             rm ./Lib/site-packages/torch/lib/dnnl.lib #I don't think this is actually used and I need the space
+            rm ./Lib/site-packages/torch/lib/libprotoc.lib
+            rm ./Lib/site-packages/torch/lib/libprotobuf.lib
             cd ..
 
             git clone --depth 1 https://github.com/comfyanonymous/taesd
