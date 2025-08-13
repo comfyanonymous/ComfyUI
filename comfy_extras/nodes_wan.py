@@ -103,6 +103,63 @@ class WanFunControlToVideo:
         out_latent["samples"] = latent
         return (positive, negative, out_latent)
 
+class Wan22FunControlToVideo:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"positive": ("CONDITIONING", ),
+                             "negative": ("CONDITIONING", ),
+                             "vae": ("VAE", ),
+                             "width": ("INT", {"default": 832, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
+                             "height": ("INT", {"default": 480, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
+                             "length": ("INT", {"default": 81, "min": 1, "max": nodes.MAX_RESOLUTION, "step": 4}),
+                             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
+                },
+                "optional": {"ref_image": ("IMAGE", ),
+                             "control_video": ("IMAGE", ),
+                             # "start_image": ("IMAGE", ),
+                }}
+
+    RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
+    RETURN_NAMES = ("positive", "negative", "latent")
+    FUNCTION = "encode"
+
+    CATEGORY = "conditioning/video_models"
+
+    def encode(self, positive, negative, vae, width, height, length, batch_size, ref_image=None, start_image=None, control_video=None):
+        latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+        concat_latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+        concat_latent = comfy.latent_formats.Wan21().process_out(concat_latent)
+        concat_latent = concat_latent.repeat(1, 2, 1, 1, 1)
+        mask = torch.ones((1, 1, latent.shape[2] * 4, latent.shape[-2], latent.shape[-1]))
+
+        if start_image is not None:
+            start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+            concat_latent_image = vae.encode(start_image[:, :, :, :3])
+            concat_latent[:,16:,:concat_latent_image.shape[2]] = concat_latent_image[:,:,:concat_latent.shape[2]]
+            mask[:, :, :start_image.shape[0] + 3] = 0.0
+
+        ref_latent = None
+        if ref_image is not None:
+            ref_image = comfy.utils.common_upscale(ref_image[:1].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+            ref_latent = vae.encode(ref_image[:, :, :, :3])
+
+        if control_video is not None:
+            control_video = comfy.utils.common_upscale(control_video[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+            concat_latent_image = vae.encode(control_video[:, :, :, :3])
+            concat_latent[:,:16,:concat_latent_image.shape[2]] = concat_latent_image[:,:,:concat_latent.shape[2]]
+
+        mask = mask.view(1, mask.shape[2] // 4, 4, mask.shape[3], mask.shape[4]).transpose(1, 2)
+        positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent, "concat_mask": mask, "concat_mask_index": 16})
+        negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent, "concat_mask": mask, "concat_mask_index": 16})
+
+        if ref_latent is not None:
+            positive = node_helpers.conditioning_set_values(positive, {"reference_latents": [ref_latent]}, append=True)
+            negative = node_helpers.conditioning_set_values(negative, {"reference_latents": [ref_latent]}, append=True)
+
+        out_latent = {}
+        out_latent["samples"] = latent
+        return (positive, negative, out_latent)
+
 class WanFirstLastFrameToVideo:
     @classmethod
     def INPUT_TYPES(s):
@@ -733,6 +790,7 @@ NODE_CLASS_MAPPINGS = {
     "WanTrackToVideo": WanTrackToVideo,
     "WanImageToVideo": WanImageToVideo,
     "WanFunControlToVideo": WanFunControlToVideo,
+    "Wan22FunControlToVideo": Wan22FunControlToVideo,
     "WanFunInpaintToVideo": WanFunInpaintToVideo,
     "WanFirstLastFrameToVideo": WanFirstLastFrameToVideo,
     "WanVaceToVideo": WanVaceToVideo,
