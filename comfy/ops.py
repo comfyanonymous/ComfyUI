@@ -23,17 +23,31 @@ from comfy.cli_args import args, PerformanceFeature
 import comfy.float
 import comfy.rmsnorm
 import contextlib
-from torch.nn.attention import SDPBackend, sdpa_kernel
+
+
+def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+    return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
+
+
+try:
+    if torch.cuda.is_available():
+        from torch.nn.attention import SDPBackend, sdpa_kernel
+
+        SDPA_BACKEND_PRIORITY = [
+            SDPBackend.FLASH_ATTENTION,
+            SDPBackend.EFFICIENT_ATTENTION,
+            SDPBackend.MATH,
+        ]
+
+        SDPA_BACKEND_PRIORITY.insert(0, SDPBackend.CUDNN_ATTENTION)
+
+        @sdpa_kernel(backends=SDPA_BACKEND_PRIORITY, set_priority=True)
+        def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+            return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
+except (ModuleNotFoundError, TypeError):
+    logging.warning("Could not set sdpa backend priority.")
 
 cast_to = comfy.model_management.cast_to #TODO: remove once no more references
-
-SDPA_BACKEND_PRIORITY = [
-    SDPBackend.FLASH_ATTENTION,
-    SDPBackend.EFFICIENT_ATTENTION,
-    SDPBackend.MATH,
-]
-if torch.cuda.is_available():
-    SDPA_BACKEND_PRIORITY.insert(0, SDPBackend.CUDNN_ATTENTION)
 
 def cast_to_input(weight, input, non_blocking=False, copy=True):
     return comfy.model_management.cast_to(weight, input.dtype, input.device, non_blocking=non_blocking, copy=copy)
@@ -258,10 +272,6 @@ class disable_weight_init:
         else:
             raise ValueError(f"unsupported dimensions: {dims}")
 
-    @staticmethod
-    @sdpa_kernel(backends=SDPA_BACKEND_PRIORITY, set_priority=True)
-    def scaled_dot_product_attention(q, k, v, *args, **kwargs):
-        return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
 
 class manual_cast(disable_weight_init):
     class Linear(disable_weight_init.Linear):
