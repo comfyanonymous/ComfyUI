@@ -46,8 +46,26 @@ ln -s /kaggle/input/svdq-int4-r32-flux-1-kontext-dev/svdq-int4_r32-flux.1-kontex
 # wget -c https://huggingface.co/Comfy-Org/stable-diffusion-3.5-fp8/resolve/main/sd3.5_large_fp8_scaled.safetensors -P /kaggle/working/
 # ln -s /kaggle/working/sd3.5_large_fp8_scaled.safetensors ./models/checkpoints/sd3.5_large_fp8_scaled.safetensors
 
-#iniverseMixSFWNSFW_ponyRealGuofengV51
+#iniverseMixSFWNSFW_ponyRealGuofengV51  dreamshaperXL_lightningDPMSDE
 wget -c https://huggingface.co/datasets/Heng365/mydataset/resolve/main/iniverseMixSFWNSFW_ponyRealGuofengV51.safetensors -P ./models/checkpoints
+wget -c https://huggingface.co/gingerlollipopdx/ModelsXL/resolve/57ff7db12ceda2efe09ac1048b6b25fb33406401/dreamshaperXL_lightningDPMSDE.safetensors -P ./models/checkpoints
+
+#InstantID
+wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ip-adapter.bin -P ./models/instantid -O instantid-ip-adapter.bin
+
+wget -c https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip -P ./models
+unzip ./models/antelopev2.zip -d ./models/insightface/models/antelopev2
+
+# place it in the ComfyUI controlnet directory. ?
+wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors -P ./models/controlnet -O instantid-controlnet.safetensors
+wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/config.json -P ./models/controlnet
+
+wget -c https://huggingface.co/lllyasviel/sd_control_collection/resolve/d1b278d0d1103a3a7c4f7c2c327d236b082a75b1/thibaud_xl_openpose.safetensors -P ./models/controlnet
+# where to put Eyes.pt?
+wget -c https://huggingface.co/Tenofas/ComfyUI/resolve/d79945fb5c16e8aef8a1eb3ba1788d72152c6d96/ultralytics/bbox/Eyes.pt -P ./models/bbox/Eyes.pt
+
+
+
 
 #omnigen2
 wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/omnigen2_fp16.safetensors -P ./models/diffusion_models
