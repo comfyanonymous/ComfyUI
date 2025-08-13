@@ -24,7 +24,12 @@ fi
 
 
 echo "[entrypoint] Changing directory ownership..."
-chown -R "$user:$user_group" /data /comfyui/custom_nodes /comfyui/.venv /home/comfyui
+chown -R "$user:$user_group" \
+    /data                    \
+    /comfyui/custom_nodes    \
+    /comfyui/models          \
+    /comfyui/.venv           \
+    /home/comfyui
 
 # Add the user to the groups owning /dev/nvidia* devices to ensure CUDA access.
 # Typically, these devices belong to a single "video" group, but to be safe, we
