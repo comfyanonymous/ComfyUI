@@ -62,9 +62,10 @@ EXPOSE 8188
 #   node managers,
 # - /comfyui/custom_nodes: stores custom nodes installed at runtime by custom
 #   node managers,
+# - /comfyui/models: Stores models installed by model managers,
 # - /home/comfyui: stores data from Python packages that may write outside the
 #   virtual environment and into the user’s home directory.
-VOLUME [ "/data", "/comfyui/.venv", "/comfyui/custom_nodes", "/home/comfyui" ]
+VOLUME [ "/data", "/comfyui/.venv", "/comfyui/custom_nodes", "/comfyui/models", "/home/comfyui" ]
 
 # Switch back to root to run the entrypoint and ensure it is executable.
 USER root
