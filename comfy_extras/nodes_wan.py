@@ -81,22 +81,19 @@ class WanFunControlToVideo:
         concat_latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
         concat_latent = comfy.latent_formats.Wan21().process_out(concat_latent)
         concat_latent = concat_latent.repeat(1, 2, 1, 1, 1)
-        mask = torch.ones((1, 1, latent.shape[2] * 4, latent.shape[-2], latent.shape[-1]))
 
         if start_image is not None:
             start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
             concat_latent_image = vae.encode(start_image[:, :, :, :3])
             concat_latent[:,16:,:concat_latent_image.shape[2]] = concat_latent_image[:,:,:concat_latent.shape[2]]
-            mask[:, :, :start_image.shape[0] + 3] = 0.0
 
         if control_video is not None:
             control_video = comfy.utils.common_upscale(control_video[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
             concat_latent_image = vae.encode(control_video[:, :, :, :3])
             concat_latent[:,:16,:concat_latent_image.shape[2]] = concat_latent_image[:,:,:concat_latent.shape[2]]
 
-        mask = mask.view(1, mask.shape[2] // 4, 4, mask.shape[3], mask.shape[4]).transpose(1, 2)
-        positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent, "concat_mask": mask})
-        negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent, "concat_mask": mask})
+        positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent})
+        negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent})
 
         if clip_vision_output is not None:
             positive = node_helpers.conditioning_set_values(positive, {"clip_vision_output": clip_vision_output})
