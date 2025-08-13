@@ -63,7 +63,7 @@ current_hash=$(
 )
 
 if [ ! -f "$packages_hash_file" ] || [ "$current_hash" != "$(cat $packages_hash_file)" ]; then
-    echo "[entrypoint] Installing new python dependencies..."
+    echo "[entrypoint] Installing new python dependencies, this might take a while..."
     reqs="-r requirements.txt"
     for req in custom_nodes/*/requirements.txt; do
         [ -f "$req" ] && reqs="$reqs -r $req"
