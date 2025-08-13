@@ -12,7 +12,7 @@ import torch
 try:
     import torchaudio
     TORCH_AUDIO_AVAILABLE = True
-except ImportError:
+except:
     TORCH_AUDIO_AVAILABLE = False
 from PIL import Image as PILImage
 from PIL.PngImagePlugin import PngInfo
