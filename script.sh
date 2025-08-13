@@ -25,7 +25,7 @@ ln -s /kaggle/input/umt5-xxl-fp16/umt5_xxl_fp16.safetensors ./models/text_encode
 # wan lora: dabaichui
 wget -c https://huggingface.co/Heng365/dabaichui/resolve/main/dabaichui.safetensors -P ./models/loras
 
-wget -c https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl.vae.safetensors -P ./models/vae
+# wget -c https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl.vae.safetensors -P ./models/vae
 
 #Flux kontext
 ln -s /kaggle/input/flux-ae/flux-ae.safetensors ./models/vae/ae.safetensors
@@ -54,6 +54,10 @@ wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/mai
 wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_fp16.safetensors -P ./models/text_encoders
 # ln -s /kaggle/input/qwen-2-5-vl-fp16/qwen_2.5_vl_fp16.safetensors ./models/text_encoders/qwen_2.5_vl_fp16.safetensors
 # ln -s /kaggle/input/omnigen2-fp16/omnigen2_fp16.safetensors ./models/diffusion_models/omnigen2_fp16.safetensors
+
+# ComfyUI-Kolors-MZ faceid?
+wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/ip_adapter_plus_general.bin -P ./models/ipadapter
+wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/image_encoder/pytorch_model.bin -P ./models/clip_vision
 
 # wan2.1 i2v
 # wget -c https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_480p_14B_fp8_scaled.safetensors -P ./models/diffusion_models
@@ -210,6 +214,13 @@ cd ComfyUI-MVAdapter
 pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
+
+#cog-consistent-character
+cd custom_nodes
+git clone --recurse-submodules https://github.com/fofr/cog-consistent-character.git
+cd cog-consistent-character
+python ./scripts/install_custom_nodes.py
+cd /kaggle/ComfyUI
 
 
 cd custom_nodes
