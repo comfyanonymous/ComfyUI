@@ -50,10 +50,16 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
 else:
     logging.info("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
 
+def is_html_file(file_path):
+    with open(file_path, "rb") as f:
+        content = f.read(100)
+        return b"<!DOCTYPE html>" in content or b"<html" in content
+
 def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
         device = torch.device("cpu")
     metadata = None
+
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
             with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
@@ -66,6 +72,8 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
                 if return_metadata:
                     metadata = f.metadata()
         except Exception as e:
+            if is_html_file(ckpt):
+                raise ValueError("{}\n\nFile path: {}\n\nThe requested file is an HTML document not a safetensors file. Please re-download the file, not the web page.".format(e, ckpt))
             if len(e.args) > 0:
                 message = e.args[0]
                 if "HeaderTooLarge" in message:
@@ -93,6 +101,13 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
                     sd = pl_sd
             else:
                 sd = pl_sd
+
+    try:
+        from app.model_processor import model_processor
+        model_processor.process_file(ckpt)
+    except Exception as e:
+        logging.error(f"Error processing file {ckpt}: {e}")
+
     return (sd, metadata) if return_metadata else sd
 
 def save_torch_file(sd, ckpt, metadata=None):

@@ -275,10 +275,7 @@ def filter_files_extensions(files: Collection[str], extensions: Collection[str])
 
 
 
-def get_full_path(folder_name: str, filename: str) -> str | None:
-    """
-    Get the full path of a file in a folder, has to be a file
-    """
+def get_full_path(folder_name: str, filename: str, allow_missing: bool = False) -> str | None:
     global folder_names_and_paths
     folder_name = map_legacy(folder_name)
     if folder_name not in folder_names_and_paths:
@@ -291,6 +288,8 @@ def get_full_path(folder_name: str, filename: str) -> str | None:
             return full_path
         elif os.path.islink(full_path):
             logging.warning("WARNING path {} exists but doesn't link anywhere, skipping.".format(full_path))
+        elif allow_missing:
+            return full_path
 
     return None
 
@@ -304,6 +303,27 @@ def get_full_path_or_raise(folder_name: str, filename: str) -> str:
         raise FileNotFoundError(f"Model in folder '{folder_name}' with filename '{filename}' not found.")
     return full_path
 
+
+def get_relative_path(full_path: str) -> tuple[str, str] | None:
+    """Convert a full path back to a type-relative path.
+
+    Args:
+        full_path: The full path to the file
+
+    Returns:
+        tuple[str, str] | None: A tuple of (model_type, relative_path) if found, None otherwise
+    """
+    global folder_names_and_paths
+    full_path = os.path.normpath(full_path)
+
+    for model_type, (paths, _) in folder_names_and_paths.items():
+        for base_path in paths:
+            base_path = os.path.normpath(base_path)
+            if full_path.startswith(base_path):
+                relative_path = os.path.relpath(full_path, base_path)
+                return model_type, relative_path
+
+    return None
 
 def get_filename_list_(folder_name: str) -> tuple[list[str], dict[str, float], float]:
     folder_name = map_legacy(folder_name)
