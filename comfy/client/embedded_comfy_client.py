@@ -4,9 +4,11 @@ import asyncio
 import copy
 import gc
 import json
+import logging
 import threading
 import uuid
 from asyncio import get_event_loop
+from dataclasses import dataclass
 from multiprocessing import RLock
 from typing import Optional
 
@@ -27,6 +29,8 @@ from ..distributed.server_stub import ServerStub
 from ..execution_context import current_execution_context
 
 _prompt_executor = threading.local()
+
+logger = logging.getLogger(__name__)
 
 
 def _execute_prompt(
@@ -216,7 +220,11 @@ class Comfy:
                            prompt: PromptDict | dict,
                            prompt_id: Optional[str] = None,
                            client_id: Optional[str] = None,
-                           partial_execution_targets: Optional[list[str]] = None) -> dict:
+                           partial_execution_targets: Optional[list[str]] = None,
+                           progress_handler: Optional[ExecutorToClientProgress] = None) -> dict:
+        if isinstance(self._executor, ProcessPoolExecutor) and progress_handler is not None:
+            logger.debug(f"a progress_handler={progress_handler} was passed, it must be pickleable to support ProcessPoolExecutor")
+        progress_handler = progress_handler or self._progress_handler
         with self._task_count_lock:
             self._task_count += 1
         prompt_id = prompt_id or str(uuid.uuid4())
@@ -233,7 +241,7 @@ class Comfy:
                 client_id,
                 carrier,
                 # todo: a proxy object or something more sophisticated will have to be done here to restore progress notifications for ProcessPoolExecutors
-                None if isinstance(self._executor, ProcessPoolExecutor) else self._progress_handler,
+                None if isinstance(self._executor, ProcessPoolExecutor) else progress_handler,
                 self._configuration,
                 partial_execution_targets,
             )

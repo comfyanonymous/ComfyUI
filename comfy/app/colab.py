@@ -4,14 +4,9 @@ import stat
 import subprocess
 import threading
 from asyncio import Task
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 
 import requests
-
-from ..cmd.folder_paths import init_default_paths, folder_names_and_paths  # pylint: disable=import-error
-# experimental workarounds for colab
-from ..cmd.main import _start_comfyui
-from ..execution_context import *
 
 
 class _ColabTuple(NamedTuple):
@@ -52,23 +47,22 @@ class CloudflaredTunnel:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
 
-            # Make the file executable (add execute permission for the owner)
-            current_permissions = os.stat(self._executable_path).st_mode
-            os.chmod(self._executable_path, current_permissions | stat.S_IEXEC)
+        current_permissions = os.stat(self._executable_path).st_mode
+        os.chmod(self._executable_path, current_permissions | stat.S_IEXEC)
 
     def _start_tunnel(self) -> str:
         """Starts the tunnel and returns the public URL."""
         command = [self._executable_path, "tunnel", "--url", f"http://localhost:{self._port}", "--no-autoupdate"]
 
-        # Using DEVNULL for stderr to keep the output clean, stdout is piped
         self._process = subprocess.Popen(
             command,
+            bufsize=1,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
             text=True
         )
 
-        for line in iter(self._process.stdout.readline, ""):
+        for line in self._process.stdout:
             if ".trycloudflare.com" in line:
                 # The line format is typically: "INFO |  https://<subdomain>.trycloudflare.com |"
                 try:
@@ -78,7 +72,6 @@ class CloudflaredTunnel:
                 except IndexError:
                     continue
 
-        # If the loop finishes without finding a URL
         self.stop()
         raise RuntimeError("Failed to start cloudflared tunnel or find URL.")
 
@@ -124,7 +117,16 @@ def start_server_in_colab() -> str:
     :return:
     """
     if len(_colab_instances) == 0:
+        from ..execution_context import ExecutionContext, ServerStub, comfyui_execution_context
+        from ..component_model.folder_path_types import FolderNames
+        from ..nodes.package_typing import ExportedNodes
+        from ..progress_types import ProgressRegistryStub
         comfyui_execution_context.set(ExecutionContext(server=ServerStub(), folder_names_and_paths=FolderNames(is_root=True), custom_nodes=ExportedNodes(), progress_registry=ProgressRegistryStub()))
+
+        # now we're ready to import
+        from ..cmd.folder_paths import init_default_paths, folder_names_and_paths
+        # experimental workarounds for colab
+        from ..cmd.main import _start_comfyui
 
         async def colab_server_loop():
             init_default_paths(folder_names_and_paths)
