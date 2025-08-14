@@ -51,32 +51,37 @@ wget -c https://huggingface.co/datasets/Heng365/mydataset/resolve/main/iniverseM
 wget -c https://huggingface.co/gingerlollipopdx/ModelsXL/resolve/57ff7db12ceda2efe09ac1048b6b25fb33406401/dreamshaperXL_lightningDPMSDE.safetensors -P ./models/checkpoints
 
 #InstantID
-wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ip-adapter.bin -P ./models/checkpoints
+mkdir -p ./models/instantid
+wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ip-adapter.bin -P ./models/instantid
 
 wget -c https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip -P ./models
 mkdir -p ./models/insightface/models
 unzip ./models/antelopev2.zip -d ./models/insightface/models
 
-# place it in the ComfyUI controlnet directory. ?
-wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors -P ./models/checkpoints -O instantid-controlnet.safetensors
-wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/config.json -P ./models/checkpoints
+# place it in the ComfyUI controlnet directory
+wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors -P ./models/controlnet -O instantid-controlnet.safetensors
+wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/config.json -P ./models/controlnet
 
 wget -c https://huggingface.co/lllyasviel/sd_control_collection/resolve/d1b278d0d1103a3a7c4f7c2c327d236b082a75b1/thibaud_xl_openpose.safetensors -P ./models/controlnet
-# where to put Eyes.pt?
-wget -c https://huggingface.co/Tenofas/ComfyUI/resolve/d79945fb5c16e8aef8a1eb3ba1788d72152c6d96/ultralytics/bbox/Eyes.pt -P ./models/bbox/Eyes.pt
 
+# When using ultralytics models, save them separately in models/ultralytics/bbox and models/ultralytics/segm depending on the type of model.
+mkdir -p ./models/ultralytics/bbox
+wget -c https://huggingface.co/Tenofas/ComfyUI/resolve/d79945fb5c16e8aef8a1eb3ba1788d72152c6d96/ultralytics/bbox/Eyes.pt -P ./models/ultralytics/bbox
 
+# ComfyUI_IPAdapter_plus models
+mkdir -p ./models/ipadapter
+wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors -P ./models/clip_vision -O CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors
+wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus-face_sdxl_vit-h.safetensors -P ./models/ipadapter
 
+#omnigen2 test a little later
+# wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/omnigen2_fp16.safetensors -P ./models/diffusion_models
+# wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_fp16.safetensors -P ./models/text_encoders
 
-#omnigen2
-wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/omnigen2_fp16.safetensors -P ./models/diffusion_models
-wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_fp16.safetensors -P ./models/text_encoders
-# ln -s /kaggle/input/qwen-2-5-vl-fp16/qwen_2.5_vl_fp16.safetensors ./models/text_encoders/qwen_2.5_vl_fp16.safetensors
-# ln -s /kaggle/input/omnigen2-fp16/omnigen2_fp16.safetensors ./models/diffusion_models/omnigen2_fp16.safetensors
 
 # ComfyUI-Kolors-MZ faceid做什么用的?
-wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/ip_adapter_plus_general.bin -P ./models/ipadapter
-wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/image_encoder/pytorch_model.bin -P ./models/clip_vision
+# wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/ip_adapter_plus_general.bin -P ./models/ipadapter
+# wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/image_encoder/pytorch_model.bin -P ./models/clip_vision
+
 
 # wan2.1 i2v
 # wget -c https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_480p_14B_fp8_scaled.safetensors -P ./models/diffusion_models
