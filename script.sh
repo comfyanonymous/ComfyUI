@@ -54,7 +54,8 @@ wget -c https://huggingface.co/gingerlollipopdx/ModelsXL/resolve/57ff7db12ceda2e
 wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ip-adapter.bin -P ./models/instantid -O instantid-ip-adapter.bin
 
 wget -c https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip -P ./models
-unzip ./models/antelopev2.zip -d ./models/insightface/models/antelopev2
+mkdir -p ./models/insightface/models
+unzip ./models/antelopev2.zip -d ./models/insightface/models
 
 # place it in the ComfyUI controlnet directory. ?
 wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors -P ./models/controlnet -O instantid-controlnet.safetensors
