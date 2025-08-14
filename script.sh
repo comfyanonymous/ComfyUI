@@ -51,15 +51,15 @@ wget -c https://huggingface.co/datasets/Heng365/mydataset/resolve/main/iniverseM
 wget -c https://huggingface.co/gingerlollipopdx/ModelsXL/resolve/57ff7db12ceda2efe09ac1048b6b25fb33406401/dreamshaperXL_lightningDPMSDE.safetensors -P ./models/checkpoints
 
 #InstantID
-wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ip-adapter.bin -P ./models/instantid -O instantid-ip-adapter.bin
+wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ip-adapter.bin -P ./models/checkpoints
 
 wget -c https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip -P ./models
 mkdir -p ./models/insightface/models
 unzip ./models/antelopev2.zip -d ./models/insightface/models
 
 # place it in the ComfyUI controlnet directory. ?
-wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors -P ./models/controlnet -O instantid-controlnet.safetensors
-wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/config.json -P ./models/controlnet
+wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors -P ./models/checkpoints -O instantid-controlnet.safetensors
+wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/config.json -P ./models/checkpoints
 
 wget -c https://huggingface.co/lllyasviel/sd_control_collection/resolve/d1b278d0d1103a3a7c4f7c2c327d236b082a75b1/thibaud_xl_openpose.safetensors -P ./models/controlnet
 # where to put Eyes.pt?
@@ -98,16 +98,18 @@ git clone https://github.com/ltdrdata/ComfyUI-Manager comfyui-manager
 cd /kaggle/ComfyUI
 
 # 2 安装 nunchaku
-pip install facexlib
-pip install onnxruntime
-pip install insightface
-pip install https://huggingface.co/mit-han-lab/nunchaku/resolve/main/nunchaku-0.3.1+torch2.6-cp311-cp311-linux_x86_64.whl
-# wget -c https://huggingface.co/mit-han-lab/nunchaku-flux.1-kontext-dev/resolve/main/svdq-int4_r32-flux.1-kontext-dev.safetensors -P ./models/diffusion_models
-cd /kaggle/ComfyUI
+# pip install facexlib
+# pip install onnxruntime
+# pip install insightface
+# pip install https://huggingface.co/mit-han-lab/nunchaku/resolve/main/nunchaku-0.3.1+torch2.6-cp311-cp311-linux_x86_64.whl
+# # wget -c https://huggingface.co/mit-han-lab/nunchaku-flux.1-kontext-dev/resolve/main/svdq-int4_r32-flux.1-kontext-dev.safetensors -P ./models/diffusion_models
+# cd /kaggle/ComfyUI
 
-cd custom_nodes
-git clone https://github.com/mit-han-lab/ComfyUI-nunchaku nunchaku_nodes
-cd /kaggle/ComfyUI
+# nunchaku_nodes: 报错！
+# cd custom_nodes
+# git clone https://github.com/mit-han-lab/ComfyUI-nunchaku nunchaku_nodes
+# cd /kaggle/ComfyUI
+
 
 # 3 ComfyUI-GGUF
 # cd custom_nodes
