@@ -132,7 +132,7 @@ class IndexListContextHandler(ContextHandlerABC):
                     cond_item = actual_cond[key]
                     if isinstance(cond_item, torch.Tensor):
                         # check that tensor is the expected length - x.size(0)
-                        if cond_item.ndim < self.dim and cond_item.size(self.dim) == x_in.size(self.dim):
+                        if self.dim < cond_item.ndim and cond_item.size(self.dim) == x_in.size(self.dim):
                             # if so, it's subsetting time - tell controls the expected indeces so they can handle them
                             actual_cond_item = window.get_tensor(cond_item)
                             resized_actual_cond[key] = actual_cond_item.to(device)
