@@ -890,6 +890,10 @@ class Flux(BaseModel):
             for lat in ref_latents:
                 latents.append(self.process_latent_in(lat))
             out['ref_latents'] = comfy.conds.CONDList(latents)
+
+            ref_latents_method = kwargs.get("reference_latents_method", None)
+            if ref_latents_method is not None:
+                out['ref_latents_method'] = comfy.conds.CONDConstant(ref_latents_method)
         return out
 
     def extra_conds_shapes(self, **kwargs):

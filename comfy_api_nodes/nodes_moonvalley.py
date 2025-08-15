@@ -1,6 +1,5 @@
 import logging
 from typing import Any, Callable, Optional, TypeVar
-import random
 import torch
 from comfy_api_nodes.util.validation_utils import (
     get_image_dimensions,
@@ -208,20 +207,29 @@ def _get_video_dimensions(video: VideoInput) -> tuple[int, int]:
 def _validate_video_dimensions(width: int, height: int) -> None:
     """Validates video dimensions meet Moonvalley V2V requirements."""
     supported_resolutions = {
-        (1920, 1080), (1080, 1920), (1152, 1152),
-        (1536, 1152), (1152, 1536)
+        (1920, 1080),
+        (1080, 1920),
+        (1152, 1152),
+        (1536, 1152),
+        (1152, 1536),
     }
 
     if (width, height) not in supported_resolutions:
-        supported_list = ', '.join([f'{w}x{h}' for w, h in sorted(supported_resolutions)])
-        raise ValueError(f"Resolution {width}x{height} not supported. Supported: {supported_list}")
+        supported_list = ", ".join(
+            [f"{w}x{h}" for w, h in sorted(supported_resolutions)]
+        )
+        raise ValueError(
+            f"Resolution {width}x{height} not supported. Supported: {supported_list}"
+        )
 
 
 def _validate_container_format(video: VideoInput) -> None:
     """Validates video container format is MP4."""
     container_format = video.get_container_format()
-    if container_format not in ['mp4', 'mov,mp4,m4a,3gp,3g2,mj2']:
-        raise ValueError(f"Only MP4 container format supported. Got: {container_format}")
+    if container_format not in ["mp4", "mov,mp4,m4a,3gp,3g2,mj2"]:
+        raise ValueError(
+            f"Only MP4 container format supported. Got: {container_format}"
+        )
 
 
 def _validate_and_trim_duration(video: VideoInput) -> VideoInput:
@@ -242,7 +250,6 @@ def _trim_if_too_long(video: VideoInput, duration: float) -> VideoInput:
     if duration > 5:
         return trim_video(video, 5)
     return video
-
 
 
 def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
@@ -302,7 +309,9 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
         # Calculate target frame count that's divisible by 16
         fps = input_container.streams.video[0].average_rate
         estimated_frames = int(duration_sec * fps)
-        target_frames = (estimated_frames // 16) * 16  # Round down to nearest multiple of 16
+        target_frames = (
+            estimated_frames // 16
+        ) * 16  # Round down to nearest multiple of 16
 
         if target_frames == 0:
             raise ValueError("Video too short: need at least 16 frames for Moonvalley")
@@ -424,7 +433,7 @@ class BaseMoonvalleyVideoNode:
                     MoonvalleyTextToVideoInferenceParams,
                     "negative_prompt",
                     multiline=True,
-                    default="low-poly, flat shader, bad rigging, stiff animation, uncanny eyes, low-quality textures, looping glitch, cheap effect, overbloom, bloom spam, default lighting, game asset, stiff face, ugly specular, AI artifacts",
+                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, wobbly, weird, low quality, plastic, stock footage, video camera, boring",
                 ),
                 "resolution": (
                     IO.COMBO,
@@ -441,12 +450,11 @@ class BaseMoonvalleyVideoNode:
                         "tooltip": "Resolution of the output video",
                     },
                 ),
-                # "length": (IO.COMBO,{"options":['5s','10s'], "default": '5s'}),
                 "prompt_adherence": model_field_to_node_input(
                     IO.FLOAT,
                     MoonvalleyTextToVideoInferenceParams,
                     "guidance_scale",
-                    default=7.0,
+                    default=10.0,
                     step=1,
                     min=1,
                     max=20,
@@ -455,13 +463,12 @@ class BaseMoonvalleyVideoNode:
                     IO.INT,
                     MoonvalleyTextToVideoInferenceParams,
                     "seed",
-                    default=random.randint(0, 2**32 - 1),
+                    default=9,
                     min=0,
                     max=4294967295,
                     step=1,
                     display="number",
                     tooltip="Random seed value",
-                    control_after_generate=True,
                 ),
                 "steps": model_field_to_node_input(
                     IO.INT,
@@ -532,9 +539,11 @@ class MoonvalleyImg2VideoNode(BaseMoonvalleyVideoNode):
         # Get MIME type from tensor - assuming PNG format for image tensors
         mime_type = "image/png"
 
-        image_url = (await upload_images_to_comfyapi(
-            image, max_images=1, auth_kwargs=kwargs, mime_type=mime_type
-        ))[0]
+        image_url = (
+            await upload_images_to_comfyapi(
+                image, max_images=1, auth_kwargs=kwargs, mime_type=mime_type
+            )
+        )[0]
 
         request = MoonvalleyTextToVideoRequest(
             image_url=image_url, prompt_text=prompt, inference_params=inference_params
@@ -570,17 +579,39 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
         return {
             "required": {
                 "prompt": model_field_to_node_input(
-                    IO.STRING, MoonvalleyVideoToVideoRequest, "prompt_text",
-                    multiline=True
+                    IO.STRING,
+                    MoonvalleyVideoToVideoRequest,
+                    "prompt_text",
+                    multiline=True,
                 ),
                 "negative_prompt": model_field_to_node_input(
                     IO.STRING,
                     MoonvalleyVideoToVideoInferenceParams,
                     "negative_prompt",
                     multiline=True,
-                    default="low-poly, flat shader, bad rigging, stiff animation, uncanny eyes, low-quality textures, looping glitch, cheap effect, overbloom, bloom spam, default lighting, game asset, stiff face, ugly specular, AI artifacts"
+                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, wobbly, weird, low quality, plastic, stock footage, video camera, boring",
                 ),
-                "seed": model_field_to_node_input(IO.INT,MoonvalleyVideoToVideoInferenceParams, "seed", default=random.randint(0, 2**32 - 1), min=0, max=4294967295, step=1, display="number", tooltip="Random seed value", control_after_generate=True),
+                "seed": model_field_to_node_input(
+                    IO.INT,
+                    MoonvalleyVideoToVideoInferenceParams,
+                    "seed",
+                    default=9,
+                    min=0,
+                    max=4294967295,
+                    step=1,
+                    display="number",
+                    tooltip="Random seed value",
+                    control_after_generate=False,
+                ),
+                "prompt_adherence": model_field_to_node_input(
+                    IO.FLOAT,
+                    MoonvalleyVideoToVideoInferenceParams,
+                    "guidance_scale",
+                    default=10.0,
+                    step=1,
+                    min=1,
+                    max=20,
+                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
@@ -588,7 +619,14 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
                 "unique_id": "UNIQUE_ID",
             },
             "optional": {
-                "video": (IO.VIDEO, {"default": "", "multiline": False, "tooltip": "The reference video used to generate the output video. Must be at least 5 seconds long. Videos longer than 5s will be automatically trimmed. Only MP4 format supported."}),
+                "video": (
+                    IO.VIDEO,
+                    {
+                        "default": "",
+                        "multiline": False,
+                        "tooltip": "The reference video used to generate the output video. Must be at least 5 seconds long. Videos longer than 5s will be automatically trimmed. Only MP4 format supported.",
+                    },
+                ),
                 "control_type": (
                     ["Motion Transfer", "Pose Transfer"],
                     {"default": "Motion Transfer"},
@@ -602,8 +640,14 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
                         "max": 100,
                         "tooltip": "Only used if control_type is 'Motion Transfer'",
                     },
-                )
-            }
+                ),
+                "image": model_field_to_node_input(
+                    IO.IMAGE,
+                    MoonvalleyTextToVideoRequest,
+                    "image_url",
+                    tooltip="The reference image used to generate the video",
+                ),
+            },
         }
 
     RETURN_TYPES = ("VIDEO",)
@@ -613,6 +657,7 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
         self, prompt, negative_prompt, unique_id: Optional[str] = None, **kwargs
     ):
         video = kwargs.get("video")
+        image = kwargs.get("image", None)
 
         if not video:
             raise MoonvalleyApiError("video is required")
@@ -620,8 +665,16 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
         video_url = ""
         if video:
             validated_video = validate_video_to_video_input(video)
-            video_url = await upload_video_to_comfyapi(validated_video, auth_kwargs=kwargs)
+            video_url = await upload_video_to_comfyapi(
+                validated_video, auth_kwargs=kwargs
+            )
+        mime_type = "image/png"
 
+        if not image is None:
+            validate_input_image(image, with_frame_conditioning=True)
+            image_url = await upload_images_to_comfyapi(
+                image=image, auth_kwargs=kwargs, max_images=1, mime_type=mime_type
+            )
         control_type = kwargs.get("control_type")
         motion_intensity = kwargs.get("motion_intensity")
 
@@ -631,12 +684,12 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
         # Only include motion_intensity for Motion Transfer
         control_params = {}
         if control_type == "Motion Transfer" and motion_intensity is not None:
-            control_params['motion_intensity'] = motion_intensity
+            control_params["motion_intensity"] = motion_intensity
 
-        inference_params=MoonvalleyVideoToVideoInferenceParams(
+        inference_params = MoonvalleyVideoToVideoInferenceParams(
             negative_prompt=negative_prompt,
             seed=kwargs.get("seed"),
-            control_params=control_params
+            control_params=control_params,
         )
 
         control = self.parseControlParameter(control_type)
@@ -647,6 +700,7 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
             prompt_text=prompt,
             inference_params=inference_params,
         )
+        request.image_url = image_url if not image is None else None
 
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
@@ -694,15 +748,15 @@ class MoonvalleyTxt2VideoNode(BaseMoonvalleyVideoNode):
         validate_prompts(prompt, negative_prompt, MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
         width_height = self.parseWidthHeightFromRes(kwargs.get("resolution"))
 
-        inference_params=MoonvalleyTextToVideoInferenceParams(
-                    negative_prompt=negative_prompt,
-                    steps=kwargs.get("steps"),
-                    seed=kwargs.get("seed"),
-                    guidance_scale=kwargs.get("prompt_adherence"),
-                    num_frames=128,
-                    width=width_height.get("width"),
-                    height=width_height.get("height"),
-                )
+        inference_params = MoonvalleyTextToVideoInferenceParams(
+            negative_prompt=negative_prompt,
+            steps=kwargs.get("steps"),
+            seed=kwargs.get("seed"),
+            guidance_scale=kwargs.get("prompt_adherence"),
+            num_frames=128,
+            width=width_height.get("width"),
+            height=width_height.get("height"),
+        )
         request = MoonvalleyTextToVideoRequest(
             prompt_text=prompt, inference_params=inference_params
         )
