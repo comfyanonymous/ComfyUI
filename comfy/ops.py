@@ -32,20 +32,21 @@ def scaled_dot_product_attention(q, k, v, *args, **kwargs):
 try:
     if torch.cuda.is_available():
         from torch.nn.attention import SDPBackend, sdpa_kernel
+        import inspect
+        if "set_priority" in inspect.signature(sdpa_kernel).parameters:
+            SDPA_BACKEND_PRIORITY = [
+                SDPBackend.FLASH_ATTENTION,
+                SDPBackend.EFFICIENT_ATTENTION,
+                SDPBackend.MATH,
+            ]
 
-        SDPA_BACKEND_PRIORITY = [
-            SDPBackend.FLASH_ATTENTION,
-            SDPBackend.EFFICIENT_ATTENTION,
-            SDPBackend.MATH,
-        ]
+            SDPA_BACKEND_PRIORITY.insert(0, SDPBackend.CUDNN_ATTENTION)
 
-        SDPA_BACKEND_PRIORITY.insert(0, SDPBackend.CUDNN_ATTENTION)
-
-        def scaled_dot_product_attention(q, k, v, *args, **kwargs):
-            # Use this (rather than the decorator syntax) to eliminate graph
-            # break for pytorch < 2.9
-            with sdpa_kernel(SDPA_BACKEND_PRIORITY, set_priority=True):
-                return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
+            def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+                with sdpa_kernel(SDPA_BACKEND_PRIORITY, set_priority=True):
+                    return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
+        else:
+            logging.warning("Torch version too old to set sdpa backend priority.")
 except (ModuleNotFoundError, TypeError):
     logging.warning("Could not set sdpa backend priority.")
 
