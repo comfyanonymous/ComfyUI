@@ -30,12 +30,26 @@ class CloudflaredTunnel:
         self._executable_path: str = "./cloudflared"
         self._process: Optional[subprocess.Popen] = None
         self._thread: Optional[threading.Thread] = None
-
-        # Download and set permissions for the executable
         self._setup_executable()
+        self.url: Optional[str] = None
 
-        # Start the tunnel process and capture the URL
-        self.url: str = self._start_tunnel()
+    def start_tunnel(self):
+        if self.url is None:
+            self.url: str = self._start_tunnel()
+
+    async def __aenter__(self):
+        self.start_tunnel()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+
+    def __enter__(self):
+        self.start_tunnel()
+        return self
+
+    def __exit__(self, *args):
+        self.stop()
 
     def _setup_executable(self):
         """Downloads cloudflared and makes it executable if it doesn't exist."""
@@ -64,7 +78,7 @@ class CloudflaredTunnel:
 
         for line in self._process.stdout:
             if ".trycloudflare.com" in line:
-                # The line format is typically: "INFO |  https://<subdomain>.trycloudflare.com |"
+                # the line format is typically: "INFO |  https://<subdomain>.trycloudflare.com |"
                 try:
                     url = line.split("|")[1].strip()
                     print(f"Tunnel is live at: {url}")
@@ -88,14 +102,6 @@ class CloudflaredTunnel:
                 self._process.kill()
         self._process = None
 
-    def __enter__(self):
-        """Enter context manager."""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit context manager, ensuring the tunnel is stopped."""
-        self.stop()
-
 
 def start_tunnel(port: int) -> CloudflaredTunnel:
     """
@@ -108,7 +114,9 @@ def start_tunnel(port: int) -> CloudflaredTunnel:
         A CloudflaredTunnel object that controls the tunnel process.
         This object has a `url` attribute and a `stop()` method.
     """
-    return CloudflaredTunnel(port)
+    tunnel = CloudflaredTunnel(port)
+    tunnel.start_tunnel()
+    return tunnel
 
 
 def start_server_in_colab() -> str:
@@ -124,7 +132,7 @@ def start_server_in_colab() -> str:
         comfyui_execution_context.set(ExecutionContext(server=ServerStub(), folder_names_and_paths=FolderNames(is_root=True), custom_nodes=ExportedNodes(), progress_registry=ProgressRegistryStub()))
 
         # now we're ready to import
-        from ..cmd.folder_paths import init_default_paths, folder_names_and_paths
+        from ..cmd.folder_paths import init_default_paths, folder_names_and_paths  # pylint: disable=import-error
         # experimental workarounds for colab
         from ..cmd.main import _start_comfyui
 
