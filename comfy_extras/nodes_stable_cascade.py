@@ -116,6 +116,7 @@ class StableCascade_SuperResolutionControlnet:
     RETURN_NAMES = ("controlnet_input", "stage_c", "stage_b")
     FUNCTION = "generate"
 
+    EXPERIMENTAL = True
     CATEGORY = "_for_testing/stable_cascade"
 
     def generate(self, image, vae):

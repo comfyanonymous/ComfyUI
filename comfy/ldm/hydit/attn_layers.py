@@ -159,7 +159,7 @@ class CrossAttention(nn.Module):
 
         q = q.transpose(-2, -3).contiguous()        # q ->  B, L1, H, C - B, H, L1, C
         k = k.transpose(-2, -3).contiguous()      # k ->  B, L2, H, C - B, H, C, L2
-        v = v.transpose(-2, -3).contiguous() 
+        v = v.transpose(-2, -3).contiguous()
 
         context = optimized_attention(q, k, v, self.num_heads, skip_reshape=True, attn_precision=self.attn_precision)
 

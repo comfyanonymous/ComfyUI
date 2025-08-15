@@ -1,5 +1,5 @@
 import functools
-from typing import Callable, Iterable, Union
+from typing import Iterable, Union
 
 import torch
 from einops import rearrange, repeat
@@ -194,6 +194,7 @@ def make_time_attn(
     attn_kwargs=None,
     alpha: float = 0,
     merge_strategy: str = "learned",
+    conv_op=ops.Conv2d,
 ):
     return partialclass(
         AttnVideoBlock, in_channels, alpha=alpha, merge_strategy=merge_strategy

@@ -7,19 +7,19 @@ on:
         description: 'cuda version'
         required: true
         type: string
-        default: "124"
+        default: "129"
 
       python_minor:
         description: 'python minor version'
         required: true
         type: string
-        default: "12"
+        default: "13"
 
       python_patch:
         description: 'python patch version'
         required: true
         type: string
-        default: "4"
+        default: "5"
 #  push:
 #    branches:
 #      - master
@@ -34,7 +34,7 @@ jobs:
     steps:
         - uses: actions/checkout@v4
           with:
-            fetch-depth: 0
+            fetch-depth: 30
             persist-credentials: false
         - uses: actions/setup-python@v5
           with:
@@ -53,10 +53,12 @@ jobs:
             ls ../temp_wheel_dir
             ./python.exe -s -m pip install --pre ../temp_wheel_dir/*
             sed -i '1i../ComfyUI' ./python3${{ inputs.python_minor }}._pth
+
+            rm ./Lib/site-packages/torch/lib/dnnl.lib #I don't think this is actually used and I need the space
             cd ..
 
             git clone --depth 1 https://github.com/comfyanonymous/taesd
-            cp taesd/*.pth ./ComfyUI_copy/models/vae_approx/
+            cp taesd/*.safetensors ./ComfyUI_copy/models/vae_approx/
 
             mkdir ComfyUI_windows_portable_nightly_pytorch
             mv python_embeded ComfyUI_windows_portable_nightly_pytorch
@@ -74,7 +76,7 @@ jobs:
             pause" > ./update/update_comfyui_and_python_dependencies.bat
             cd ..
 
-            "C:\Program Files\7-Zip\7z.exe" a -t7z -m0=lzma2 -mx=8 -mfb=64 -md=32m -ms=on -mf=BCJ2 ComfyUI_windows_portable_nightly_pytorch.7z ComfyUI_windows_portable_nightly_pytorch
+            "C:\Program Files\7-Zip\7z.exe" a -t7z -m0=lzma2 -mx=9 -mfb=128 -md=512m -ms=on -mf=BCJ2 ComfyUI_windows_portable_nightly_pytorch.7z ComfyUI_windows_portable_nightly_pytorch
             mv ComfyUI_windows_portable_nightly_pytorch.7z ComfyUI/ComfyUI_windows_portable_nvidia_or_cpu_nightly_pytorch.7z
 
             cd ComfyUI_windows_portable_nightly_pytorch

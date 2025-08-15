@@ -1,24 +1,17 @@
-from typing import Any, Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from torch.utils import checkpoint
 
 from comfy.ldm.modules.diffusionmodules.mmdit import (
-    Mlp,
     TimestepEmbedder,
     PatchEmbed,
-    RMSNorm,
 )
-from comfy.ldm.modules.diffusionmodules.util import timestep_embedding
 from .poolers import AttentionPool
 
 import comfy.latent_formats
 from .models import HunYuanDiTBlock, calc_rope
 
-from .posemb_layers import get_2d_rotary_pos_embed, get_fill_resize_and_crop
 
 
 class HunYuanControlNet(nn.Module):
@@ -170,9 +163,6 @@ class HunYuanControlNet(nn.Module):
                 hidden_size * 4, hidden_size, bias=True, dtype=dtype, device=device
             ),
         )
-
-        # Image embedding
-        num_patches = self.x_embedder.num_patches
 
         # HUnYuanDiT Blocks
         self.blocks = nn.ModuleList(

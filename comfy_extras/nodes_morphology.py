@@ -2,6 +2,7 @@ import torch
 import comfy.model_management
 
 from kornia.morphology import dilation, erosion, opening, closing, gradient, top_hat, bottom_hat
+import kornia.color
 
 
 class Morphology:
@@ -40,8 +41,45 @@ class Morphology:
         img_out = output.to(comfy.model_management.intermediate_device()).movedim(1, -1)
         return (img_out,)
 
+
+class ImageRGBToYUV:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",),
+                              }}
+
+    RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE")
+    RETURN_NAMES = ("Y", "U", "V")
+    FUNCTION = "execute"
+
+    CATEGORY = "image/batch"
+
+    def execute(self, image):
+        out = kornia.color.rgb_to_ycbcr(image.movedim(-1, 1)).movedim(1, -1)
+        return (out[..., 0:1].expand_as(image), out[..., 1:2].expand_as(image), out[..., 2:3].expand_as(image))
+
+class ImageYUVToRGB:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"Y": ("IMAGE",),
+                             "U": ("IMAGE",),
+                             "V": ("IMAGE",),
+                              }}
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "execute"
+
+    CATEGORY = "image/batch"
+
+    def execute(self, Y, U, V):
+        image = torch.cat([torch.mean(Y, dim=-1, keepdim=True), torch.mean(U, dim=-1, keepdim=True), torch.mean(V, dim=-1, keepdim=True)], dim=-1)
+        out = kornia.color.ycbcr_to_rgb(image.movedim(-1, 1)).movedim(1, -1)
+        return (out,)
+
 NODE_CLASS_MAPPINGS = {
     "Morphology": Morphology,
+    "ImageRGBToYUV": ImageRGBToYUV,
+    "ImageYUVToRGB": ImageYUVToRGB,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {

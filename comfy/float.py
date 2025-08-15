@@ -1,5 +1,4 @@
 import torch
-import math
 
 def calc_mantissa(abs_x, exponent, normal_mask, MANTISSA_BITS, EXPONENT_BIAS, generator=None):
     mantissa_scaled = torch.where(
@@ -42,6 +41,8 @@ def manual_stochastic_round_to_float8(x, dtype, generator=None):
         (2.0 ** (-EXPONENT_BIAS + 1)) * abs_x
     )
 
+    inf = torch.finfo(dtype)
+    torch.clamp(sign, min=inf.min, max=inf.max, out=sign)
     return sign
 
 

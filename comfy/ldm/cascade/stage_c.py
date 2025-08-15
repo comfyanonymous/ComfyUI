@@ -142,7 +142,7 @@ class StageC(nn.Module):
     #     nn.init.normal_(self.clip_img_mapper.weight, std=0.02)  # conditionings
     #     torch.nn.init.xavier_uniform_(self.embedding[1].weight, 0.02)  # inputs
     #     nn.init.constant_(self.clf[1].weight, 0)  # outputs
-    # 
+    #
     #     # blocks
     #     for level_block in self.down_blocks + self.up_blocks:
     #         for block in level_block:
@@ -152,7 +152,7 @@ class StageC(nn.Module):
     #                 for layer in block.modules():
     #                     if isinstance(layer, nn.Linear):
     #                         nn.init.constant_(layer.weight, 0)
-    # 
+    #
     # def _init_weights(self, m):
     #     if isinstance(m, (nn.Conv2d, nn.Linear)):
     #         torch.nn.init.xavier_uniform_(m.weight)

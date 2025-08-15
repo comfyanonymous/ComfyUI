@@ -1,4 +1,3 @@
-import torch
 from nodes import MAX_RESOLUTION
 
 class CLIPTextEncodeSDXLRefiner:
@@ -17,21 +16,21 @@ class CLIPTextEncodeSDXLRefiner:
 
     def encode(self, clip, ascore, width, height, text):
         tokens = clip.tokenize(text)
-        cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
-        return ([[cond, {"pooled_output": pooled, "aesthetic_score": ascore, "width": width,"height": height}]], )
+        return (clip.encode_from_tokens_scheduled(tokens, add_dict={"aesthetic_score": ascore, "width": width, "height": height}), )
 
 class CLIPTextEncodeSDXL:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
+            "clip": ("CLIP", ),
             "width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
             "height": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
             "crop_w": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION}),
             "crop_h": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION}),
             "target_width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
             "target_height": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
-            "text_g": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", ),
-            "text_l": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", ),
+            "text_g": ("STRING", {"multiline": True, "dynamicPrompts": True}),
+            "text_l": ("STRING", {"multiline": True, "dynamicPrompts": True}),
             }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
@@ -47,8 +46,7 @@ class CLIPTextEncodeSDXL:
                 tokens["l"] += empty["l"]
             while len(tokens["l"]) > len(tokens["g"]):
                 tokens["g"] += empty["g"]
-        cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
-        return ([[cond, {"pooled_output": pooled, "width": width, "height": height, "crop_w": crop_w, "crop_h": crop_h, "target_width": target_width, "target_height": target_height}]], )
+        return (clip.encode_from_tokens_scheduled(tokens, add_dict={"width": width, "height": height, "crop_w": crop_w, "crop_h": crop_h, "target_width": target_width, "target_height": target_height}), )
 
 NODE_CLASS_MAPPINGS = {
     "CLIPTextEncodeSDXLRefiner": CLIPTextEncodeSDXLRefiner,

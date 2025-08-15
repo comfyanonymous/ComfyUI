@@ -2,8 +2,8 @@
 
 import torch
 import torch.nn as nn
-from torch import Tensor, einsum
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, TypeVar, Union
+from torch import Tensor
+from typing import List, Union
 from einops import rearrange
 import math
 import comfy.ops

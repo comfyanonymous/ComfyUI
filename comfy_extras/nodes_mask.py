@@ -2,7 +2,11 @@ import numpy as np
 import scipy.ndimage
 import torch
 import comfy.utils
+import node_helpers
+import folder_paths
+import random
 
+import nodes
 from nodes import MAX_RESOLUTION
 
 def composite(destination, source, x, y, mask = None, multiplier = 8, resize_source = False):
@@ -87,6 +91,7 @@ class ImageCompositeMasked:
     CATEGORY = "image"
 
     def composite(self, destination, source, x, y, resize_source, mask = None):
+        destination, source = node_helpers.image_alpha_fix(destination, source)
         destination = destination.clone().movedim(-1, 1)
         output = composite(destination, source.movedim(-1, 1), x, y, mask, 1, resize_source).movedim(1, -1)
         return (output,)
@@ -147,7 +152,7 @@ class ImageColorToMask:
     def image_to_mask(self, image, color):
         temp = (torch.clamp(image, 0, 1.0) * 255.0).round().to(torch.int)
         temp = torch.bitwise_left_shift(temp[:,:,:,0], 16) + torch.bitwise_left_shift(temp[:,:,:,1], 8) + temp[:,:,:,2]
-        mask = torch.where(temp == color, 255, 0).float()
+        mask = torch.where(temp == color, 1.0, 0).float()
         return (mask,)
 
 class SolidMask:
@@ -242,7 +247,7 @@ class MaskComposite:
         visible_width, visible_height = (right - left, bottom - top,)
 
         source_portion = source[:, :visible_height, :visible_width]
-        destination_portion = destination[:, top:bottom, left:right]
+        destination_portion = output[:, top:bottom, left:right]
 
         if operation == "multiply":
             output[:, top:bottom, left:right] = destination_portion * source_portion
@@ -305,7 +310,7 @@ class FeatherMask:
             output[:, -y, :] *= feather_rate
 
         return (output,)
-    
+
 class GrowMask:
     @classmethod
     def INPUT_TYPES(cls):
@@ -316,7 +321,7 @@ class GrowMask:
                 "tapered_corners": ("BOOLEAN", {"default": True}),
             },
         }
-    
+
     CATEGORY = "mask"
 
     RETURN_TYPES = ("MASK",)
@@ -360,6 +365,30 @@ class ThresholdMask:
         mask = (mask > value).float()
         return (mask,)
 
+# Mask Preview - original implement from
+# https://github.com/cubiq/ComfyUI_essentials/blob/9d9f4bedfc9f0321c19faf71855e228c93bd0dc9/mask.py#L81
+# upstream requested in https://github.com/Kosinkadink/rfcs/blob/main/rfcs/0000-corenodes.md#preview-nodes
+class MaskPreview(nodes.SaveImage):
+    def __init__(self):
+        self.output_dir = folder_paths.get_temp_directory()
+        self.type = "temp"
+        self.prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
+        self.compress_level = 4
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {"mask": ("MASK",), },
+            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+        }
+
+    FUNCTION = "execute"
+    CATEGORY = "mask"
+
+    def execute(self, mask, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+        preview = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])).movedim(1, -1).expand(-1, -1, -1, 3)
+        return self.save_images(preview, filename_prefix, prompt, extra_pnginfo)
+
 
 NODE_CLASS_MAPPINGS = {
     "LatentCompositeMasked": LatentCompositeMasked,
@@ -374,6 +403,7 @@ NODE_CLASS_MAPPINGS = {
     "FeatherMask": FeatherMask,
     "GrowMask": GrowMask,
     "ThresholdMask": ThresholdMask,
+    "MaskPreview": MaskPreview
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {

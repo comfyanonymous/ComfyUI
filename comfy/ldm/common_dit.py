@@ -1,21 +1,16 @@
 import torch
-import comfy.ops
+import comfy.rmsnorm
+
 
 def pad_to_patch_size(img, patch_size=(2, 2), padding_mode="circular"):
-    if padding_mode == "circular" and torch.jit.is_tracing() or torch.jit.is_scripting():
+    if padding_mode == "circular" and (torch.jit.is_tracing() or torch.jit.is_scripting()):
         padding_mode = "reflect"
-    pad_h = (patch_size[0] - img.shape[-2] % patch_size[0]) % patch_size[0]
-    pad_w = (patch_size[1] - img.shape[-1] % patch_size[1]) % patch_size[1]
-    return torch.nn.functional.pad(img, (0, pad_w, 0, pad_h), mode=padding_mode)
 
-try:
-    rms_norm_torch = torch.nn.functional.rms_norm
-except:
-    rms_norm_torch = None
+    pad = ()
+    for i in range(img.ndim - 2):
+        pad = (0, (patch_size[i] - img.shape[i + 2] % patch_size[i]) % patch_size[i]) + pad
 
-def rms_norm(x, weight, eps=1e-6):
-    if rms_norm_torch is not None and not (torch.jit.is_tracing() or torch.jit.is_scripting()):
-        return rms_norm_torch(x, weight.shape, weight=comfy.ops.cast_to(weight, dtype=x.dtype, device=x.device), eps=eps)
-    else:
-        rrms = torch.rsqrt(torch.mean(x**2, dim=-1, keepdim=True) + eps)
-        return (x * rrms) * comfy.ops.cast_to(weight, dtype=x.dtype, device=x.device)
+    return torch.nn.functional.pad(img, pad, mode=padding_mode)
+
+
+rms_norm = comfy.rmsnorm.rms_norm

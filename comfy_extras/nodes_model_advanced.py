@@ -1,9 +1,10 @@
-import folder_paths
 import comfy.sd
 import comfy.model_sampling
 import comfy.latent_formats
 import nodes
 import torch
+import node_helpers
+
 
 class LCM(comfy.model_sampling.EPS):
     def calculate_denoised(self, sigma, model_output, model_input):
@@ -19,15 +20,11 @@ class LCM(comfy.model_sampling.EPS):
 
         return c_out * x0 + c_skip * model_input
 
-class X0(comfy.model_sampling.EPS):
-    def calculate_denoised(self, sigma, model_output, model_input):
-        return model_output
-
 class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete):
     original_timesteps = 50
 
-    def __init__(self, model_config=None):
-        super().__init__(model_config)
+    def __init__(self, model_config=None, zsnr=None):
+        super().__init__(model_config, zsnr=zsnr)
 
         self.skip_steps = self.num_timesteps // self.original_timesteps
 
@@ -51,30 +48,11 @@ class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete)
         return log_sigma.exp().to(timestep.device)
 
 
-def rescale_zero_terminal_snr_sigmas(sigmas):
-    alphas_cumprod = 1 / ((sigmas * sigmas) + 1)
-    alphas_bar_sqrt = alphas_cumprod.sqrt()
-
-    # Store old values.
-    alphas_bar_sqrt_0 = alphas_bar_sqrt[0].clone()
-    alphas_bar_sqrt_T = alphas_bar_sqrt[-1].clone()
-
-    # Shift so the last timestep is zero.
-    alphas_bar_sqrt -= (alphas_bar_sqrt_T)
-
-    # Scale so the first timestep is back to the old value.
-    alphas_bar_sqrt *= alphas_bar_sqrt_0 / (alphas_bar_sqrt_0 - alphas_bar_sqrt_T)
-
-    # Convert alphas_bar_sqrt to betas
-    alphas_bar = alphas_bar_sqrt**2  # Revert sqrt
-    alphas_bar[-1] = 4.8973451890853435e-08
-    return ((1 - alphas_bar) / alphas_bar) ** 0.5
-
 class ModelSamplingDiscrete:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["eps", "v_prediction", "lcm", "x0"],),
+                              "sampling": (["eps", "v_prediction", "lcm", "x0", "img_to_img"],),
                               "zsnr": ("BOOLEAN", {"default": False}),
                               }}
 
@@ -95,14 +73,14 @@ class ModelSamplingDiscrete:
             sampling_type = LCM
             sampling_base = ModelSamplingDiscreteDistilled
         elif sampling == "x0":
-            sampling_type = X0
+            sampling_type = comfy.model_sampling.X0
+        elif sampling == "img_to_img":
+            sampling_type = comfy.model_sampling.IMG_TO_IMG
 
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass
 
-        model_sampling = ModelSamplingAdvanced(model.model.model_config)
-        if zsnr:
-            model_sampling.set_sigmas(rescale_zero_terminal_snr_sigmas(model_sampling.sigmas))
+        model_sampling = ModelSamplingAdvanced(model.model.model_config, zsnr=zsnr)
 
         m.add_object_patch("model_sampling", model_sampling)
         return (m, )
@@ -211,7 +189,7 @@ class ModelSamplingContinuousEDM:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["v_prediction", "edm_playground_v2.5", "eps"],),
+                              "sampling": (["v_prediction", "edm", "edm_playground_v2.5", "eps", "cosmos_rflow"],),
                               "sigma_max": ("FLOAT", {"default": 120.0, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               "sigma_min": ("FLOAT", {"default": 0.002, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               }}
@@ -224,18 +202,25 @@ class ModelSamplingContinuousEDM:
     def patch(self, model, sampling, sigma_max, sigma_min):
         m = model.clone()
 
+        sampling_base = comfy.model_sampling.ModelSamplingContinuousEDM
         latent_format = None
         sigma_data = 1.0
         if sampling == "eps":
             sampling_type = comfy.model_sampling.EPS
+        elif sampling == "edm":
+            sampling_type = comfy.model_sampling.EDM
+            sigma_data = 0.5
         elif sampling == "v_prediction":
             sampling_type = comfy.model_sampling.V_PREDICTION
         elif sampling == "edm_playground_v2.5":
             sampling_type = comfy.model_sampling.EDM
             sigma_data = 0.5
             latent_format = comfy.latent_formats.SDXL_Playground_2_5()
+        elif sampling == "cosmos_rflow":
+            sampling_type = comfy.model_sampling.COSMOS_RFLOW
+            sampling_base = comfy.model_sampling.ModelSamplingCosmosRFlow
 
-        class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingContinuousEDM, sampling_type):
+        class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass
 
         model_sampling = ModelSamplingAdvanced(model.model.model_config)
@@ -262,7 +247,6 @@ class ModelSamplingContinuousV:
     def patch(self, model, sampling, sigma_max, sigma_min):
         m = model.clone()
 
-        latent_format = None
         sigma_data = 1.0
         if sampling == "v_prediction":
             sampling_type = comfy.model_sampling.V_PREDICTION
@@ -314,6 +298,24 @@ class RescaleCFG:
         m.set_model_sampler_cfg_function(rescale_cfg)
         return (m, )
 
+class ModelComputeDtype:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "dtype": (["default", "fp32", "fp16", "bf16"],),
+                              }}
+
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "advanced/debug/model"
+
+    def patch(self, model, dtype):
+        m = model.clone()
+        m.set_model_compute_dtype(node_helpers.string_to_torch_dtype(dtype))
+        return (m, )
+
+
 NODE_CLASS_MAPPINGS = {
     "ModelSamplingDiscrete": ModelSamplingDiscrete,
     "ModelSamplingContinuousEDM": ModelSamplingContinuousEDM,
@@ -323,4 +325,5 @@ NODE_CLASS_MAPPINGS = {
     "ModelSamplingAuraFlow": ModelSamplingAuraFlow,
     "ModelSamplingFlux": ModelSamplingFlux,
     "RescaleCFG": RescaleCFG,
+    "ModelComputeDtype": ModelComputeDtype,
 }

@@ -24,7 +24,7 @@ class AlignYourStepsScheduler:
     def INPUT_TYPES(s):
         return {"required":
                     {"model_type": (["SD1", "SDXL", "SVD"], ),
-                     "steps": ("INT", {"default": 10, "min": 10, "max": 10000}),
+                     "steps": ("INT", {"default": 10, "min": 1, "max": 10000}),
                      "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                       }
                }

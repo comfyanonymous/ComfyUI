@@ -23,7 +23,7 @@ jobs:
             runner_label: [self-hosted, Linux]
             flags: ""
           - os: windows
-            runner_label: [self-hosted, win]
+            runner_label: [self-hosted, Windows]
             flags: ""
     runs-on: ${{ matrix.runner_label }}
     steps:
