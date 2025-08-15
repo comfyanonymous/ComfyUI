@@ -71,11 +71,14 @@ wget -c https://huggingface.co/Tenofas/ComfyUI/resolve/d79945fb5c16e8aef8a1eb3ba
 # ComfyUI_IPAdapter_plus models
 mkdir -p ./models/ipadapter
 wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors -O ./models/clip_vision/CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors
+# SDXL ipadapter model
 wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus-face_sdxl_vit-h.safetensors -P ./models/ipadapter
+wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus_sdxl_vit-h.safetensors -P ./models/ipadapter
+wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors -P ./models/ipadapter
 
 #omnigen2 test a little later
-wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/omnigen2_fp16.safetensors -P ./models/diffusion_models
-wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_fp16.safetensors -P ./models/text_encoders
+# wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/omnigen2_fp16.safetensors -P ./models/diffusion_models
+# wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_fp16.safetensors -P ./models/text_encoders
 
 
 # ComfyUI-Kolors-MZ faceid做什么用的?
@@ -88,7 +91,9 @@ wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/mai
 # wget -c https://huggingface.co/UmeAiRT/ComfyUI-Auto_installer/resolve/main/models/unet/WAN/Wan2.1-VACE-14B-Q5_K_S.gguf -P ./models/diffusion_models
 
 # wget -c https://huggingface.co/UmeAiRT/ComfyUI-Auto_installer/resolve/main/models/unet/WAN/Wan2.1-VACE-14B-Q4_K_S.gguf -P ./models/diffusion_models
-wget -c https://huggingface.co/schwgHao/RealESRGAN_x4plus/resolve/main/RealESRGAN_x4plus.pth -P ./models/upscale_models
+
+# 放大
+# wget -c https://huggingface.co/schwgHao/RealESRGAN_x4plus/resolve/main/RealESRGAN_x4plus.pth -P ./models/upscale_models
 
 ln -s /kaggle/input/clip-vision-h/clip_vision_h.safetensors ./models/clip_vision/clip_vision_h.safetensors
 
