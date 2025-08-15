@@ -47,8 +47,8 @@ ln -s /kaggle/input/svdq-int4-r32-flux-1-kontext-dev/svdq-int4_r32-flux.1-kontex
 # ln -s /kaggle/working/sd3.5_large_fp8_scaled.safetensors ./models/checkpoints/sd3.5_large_fp8_scaled.safetensors
 
 #iniverseMixSFWNSFW_ponyRealGuofengV51  dreamshaperXL_lightningDPMSDE
-wget -c https://huggingface.co/datasets/Heng365/mydataset/resolve/main/iniverseMixSFWNSFW_ponyRealGuofengV51.safetensors -P ./models/checkpoints
-wget -c https://huggingface.co/gingerlollipopdx/ModelsXL/resolve/57ff7db12ceda2efe09ac1048b6b25fb33406401/dreamshaperXL_lightningDPMSDE.safetensors -P ./models/checkpoints
+wget -c "https://civitai.com/api/download/models/1759168?type=Model&format=SafeTensor&size=full&fp=fp16" -P ./models/checkpoints
+# wget -c https://huggingface.co/gingerlollipopdx/ModelsXL/resolve/57ff7db12ceda2efe09ac1048b6b25fb33406401/dreamshaperXL_lightningDPMSDE.safetensors -P ./models/checkpoints
 
 #InstantID
 mkdir -p ./models/instantid
@@ -242,11 +242,11 @@ cd /kaggle/ComfyUI
 
 
 #cog-consistent-character
-cd custom_nodes
-git clone --recurse-submodules https://github.com/fofr/cog-consistent-character.git
-cd cog-consistent-character
-python ./scripts/install_custom_nodes.py
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone --recurse-submodules https://github.com/fofr/cog-consistent-character.git
+# cd cog-consistent-character
+# python ./scripts/install_custom_nodes.py
+# cd /kaggle/ComfyUI
 
 
 cd custom_nodes
