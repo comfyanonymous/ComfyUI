@@ -40,15 +40,15 @@ ln -s /kaggle/input/flux1-dev-fp8/flux1-dev-fp8.safetensors ./models/checkpoints
 wget -c https://huggingface.co/reverentelusarca/kontext-turnaround-sheet-lora-v1/resolve/main/kontext-turnaround-sheet-v1.safetensors -P ./models/loras
 
 #nunchaku
-ln -s /kaggle/input/svdq-int4-r32-flux-1-kontext-dev/svdq-int4_r32-flux.1-kontext-dev.safetensors -P ./models/diffusion_models
+ln -s /kaggle/input/svdq-int4-r32-flux-1-kontext-dev/svdq-int4_r32-flux.1-kontext-dev.safetensors ./models/diffusion_models
 
 #SD3
 # wget -c https://huggingface.co/Comfy-Org/stable-diffusion-3.5-fp8/resolve/main/sd3.5_large_fp8_scaled.safetensors -P /kaggle/working/
 # ln -s /kaggle/working/sd3.5_large_fp8_scaled.safetensors ./models/checkpoints/sd3.5_large_fp8_scaled.safetensors
 
 #iniverseMixSFWNSFW_ponyRealGuofengV51  dreamshaperXL_lightningDPMSDE
-wget -c "https://civitai.com/api/download/models/1759168?type=Model&format=SafeTensor&size=full&fp=fp16" -O ./models/checkpoints/Juggernaut-XL-Ragnarok.safetensors
-# wget -c https://huggingface.co/gingerlollipopdx/ModelsXL/resolve/57ff7db12ceda2efe09ac1048b6b25fb33406401/dreamshaperXL_lightningDPMSDE.safetensors -P ./models/checkpoints
+# wget -c "https://civitai.com/api/download/models/1759168?type=Model&format=SafeTensor&size=full&fp=fp16" -O ./models/checkpoints/Juggernaut-XL-Ragnarok.safetensors
+ln -s /kaggle/input/juggernaut-xl-ragnarok/Juggernaut-XL-Ragnarok.safetensors ./models/checkpoints
 
 #InstantID
 mkdir -p ./models/instantid
@@ -108,17 +108,17 @@ git clone https://github.com/ltdrdata/ComfyUI-Manager comfyui-manager
 cd /kaggle/ComfyUI
 
 # 2 安装 nunchaku
-# pip install facexlib
-# pip install onnxruntime
-# pip install insightface
-# pip install https://huggingface.co/mit-han-lab/nunchaku/resolve/main/nunchaku-0.3.1+torch2.6-cp311-cp311-linux_x86_64.whl
-# # wget -c https://huggingface.co/mit-han-lab/nunchaku-flux.1-kontext-dev/resolve/main/svdq-int4_r32-flux.1-kontext-dev.safetensors -P ./models/diffusion_models
-# cd /kaggle/ComfyUI
+pip install facexlib
+pip install onnxruntime
+pip install insightface
+pip install https://huggingface.co/mit-han-lab/nunchaku/resolve/main/nunchaku-0.3.1+torch2.6-cp311-cp311-linux_x86_64.whl
+# wget -c https://huggingface.co/mit-han-lab/nunchaku-flux.1-kontext-dev/resolve/main/svdq-int4_r32-flux.1-kontext-dev.safetensors -P ./models/diffusion_models
+cd /kaggle/ComfyUI
 
-# nunchaku_nodes: 报错！
-# cd custom_nodes
-# git clone https://github.com/mit-han-lab/ComfyUI-nunchaku nunchaku_nodes
-# cd /kaggle/ComfyUI
+# nunchaku_nodes: 去掉加载model时候的-P,还报错吗？！
+cd custom_nodes
+git clone https://github.com/mit-han-lab/ComfyUI-nunchaku nunchaku_nodes
+cd /kaggle/ComfyUI
 
 
 # 3 ComfyUI-GGUF
