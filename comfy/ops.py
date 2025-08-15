@@ -41,9 +41,11 @@ try:
 
         SDPA_BACKEND_PRIORITY.insert(0, SDPBackend.CUDNN_ATTENTION)
 
-        @sdpa_kernel(backends=SDPA_BACKEND_PRIORITY, set_priority=True)
         def scaled_dot_product_attention(q, k, v, *args, **kwargs):
-            return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
+            # Use this (rather than the decorator syntax) to eliminate graph
+            # break for pytorch < 2.9
+            with sdpa_kernel(SDPA_BACKEND_PRIORITY, set_priority=True):
+                return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
 except (ModuleNotFoundError, TypeError):
     logging.warning("Could not set sdpa backend priority.")
 
