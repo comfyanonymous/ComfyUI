@@ -1,3 +1,6 @@
 /web/assets/** linguist-generated
 /web/** linguist-vendored
 comfy_api_nodes/apis/__init__.py linguist-generated
+# Force LF eol for Docker entrypoint (fix "exec: no such file or directory"
+# error with CRLF checkouts)
+entrypoint.sh text eol=lf

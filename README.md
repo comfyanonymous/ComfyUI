@@ -46,6 +46,12 @@ ComfyUI lets you design and execute advanced stable diffusion pipelines using a 
 - Get the latest commits and completely portable.
 - Available on Windows.
 
+#### [Docker Install](#running-with-docker)
+- Run ComfyUI inside an isolated Docker container
+- Most secure way to run ComfyUI and custom node packs
+- Requires Docker and Docker Compose
+- Supports NVIDIA GPUs (Not tested on other hardware.)
+
 #### [Manual Install](#manual-install-windows-linux)
 Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon, Ascend).
 
@@ -293,6 +299,25 @@ For models compatible with Iluvatar Extension for PyTorch. Here's a step-by-step
 
 1. Install the Iluvatar Corex Toolkit by adhering to the platform-specific instructions on the [Installation](https://support.iluvatar.com/#/DocumentCentre?id=1&nameCenter=2&productId=520117912052801536)
 2. Launch ComfyUI by running `python main.py`
+
+## Running with Docker
+
+Start by installing Docker and Docker Compose on your host. Next, edit
+`docker-compose.yaml` and update the `UID` and `GID` variables to match your
+user. Additional fields are documented in the file for further customization.
+
+Once ready, build and run the image locally:
+
+```
+docker compose build
+docker compose up
+```
+
+To stop and remove the container along with its volumes, run:
+
+```
+docker compose down -v
+```
 
 # Running
 
