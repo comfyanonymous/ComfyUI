@@ -296,6 +296,10 @@ pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
 cd custom_nodes
+git clone https://github.com/rgthree/rgthree-comfy.git
+cd /kaggle/ComfyUI
+
+cd custom_nodes
 git clone https://github.com/kijai/ComfyUI-FluxTrainer.git
 cd ComfyUI-FluxTrainer
 pip install -r requirements.txt
