@@ -25,7 +25,7 @@ ln -s /kaggle/input/umt5-xxl-fp16/umt5_xxl_fp16.safetensors ./models/text_encode
 # wan lora: dabaichui 试一试哦！！
 wget -c https://huggingface.co/Heng365/dabaichui/resolve/main/dabaichui.safetensors -P ./models/loras
 
-# wget -c https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl.vae.safetensors -P ./models/vae
+wget -c https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl.vae.safetensors -P ./models/vae
 
 #Flux kontext
 ln -s /kaggle/input/flux-ae/flux-ae.safetensors ./models/vae/ae.safetensors
@@ -76,9 +76,9 @@ wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapte
 wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus_sdxl_vit-h.safetensors -P ./models/ipadapter
 wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors -P ./models/ipadapter
 
-#omnigen2 test a little later
-# wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/omnigen2_fp16.safetensors -P ./models/diffusion_models
-# wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_fp16.safetensors -P ./models/text_encoders
+#omnigen2 test
+wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/omnigen2_fp16.safetensors -P ./models/diffusion_models
+wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_fp16.safetensors -P ./models/text_encoders
 
 
 # ComfyUI-Kolors-MZ faceid做什么用的?
