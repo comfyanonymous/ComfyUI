@@ -243,7 +243,7 @@ pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
 
-#cog-consistent-character
+#cog-consistent-character ??
 cd custom_nodes
 git clone --recurse-submodules https://github.com/fofr/cog-consistent-character.git
 cd cog-consistent-character
@@ -283,22 +283,24 @@ git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus
 cd /kaggle/ComfyUI
 
 
+# Goto test no pip install ...
+
 cd custom_nodes
 git clone https://github.com/cubiq/ComfyUI_essentials.git
-cd ComfyUI_essentials
-pip install -r requirements.txt
+# cd ComfyUI_essentials
+# pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
 cd custom_nodes
 git clone https://github.com/crystian/comfyui-crystools.git
-cd comfyui-crystools
-pip install -r requirements.txt
+# cd comfyui-crystools
+# pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
 cd custom_nodes
 git clone https://github.com/melMass/comfy_mtb.git
-cd comfy_mtb
-pip install -r requirements.txt
+# cd comfy_mtb
+# pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
 # Test: no pip install ...
@@ -308,8 +310,8 @@ cd /kaggle/ComfyUI
 
 cd custom_nodes
 git clone https://github.com/kijai/ComfyUI-FluxTrainer.git
-cd ComfyUI-FluxTrainer
-pip install -r requirements.txt
+# cd ComfyUI-FluxTrainer
+# pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
 # REMOTE_PORT="$1"
