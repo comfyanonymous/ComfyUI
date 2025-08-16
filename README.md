@@ -209,6 +209,14 @@ This is the command to install the nightly with ROCm 6.4 which might have some p
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.4```
 
+> **Note**: If you're using WSL+Ubuntu and receive a no HIP device error, you will need to run the following set of commands (from the official [ROCM documentation](https://rocm.docs.amd.com/projects/radeon/en/latest/docs/install/wsl/install-pytorch.html)) and will need to do so every time you update Pytorch:
+> 
+> ```location=$(pip show torch | grep Location | awk -F ": " '{print $2}')```
+> 
+> ```cd ${location}/torch/lib/```
+> 
+> ```rm libhsa-runtime64.so*```
+
 ### Intel GPUs (Windows and Linux)
 
 (Option 1) Intel Arc GPU users can install native PyTorch with torch.xpu support using pip. More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
