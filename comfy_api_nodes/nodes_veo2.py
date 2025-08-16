@@ -157,7 +157,6 @@ class VeoVideoGenerationNode(comfy_io.ComfyNode):
         image=None,
         model="veo-2.0-generate-001",
         generate_audio=False,
-        **kwargs,
     ):
         # Prepare the instances for the request
         instances = []
@@ -194,6 +193,10 @@ class VeoVideoGenerationNode(comfy_io.ComfyNode):
         if "veo-3.0" in model:
             parameters["generateAudio"] = generate_audio
 
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         # Initial request to start video generation
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
@@ -206,8 +209,7 @@ class VeoVideoGenerationNode(comfy_io.ComfyNode):
                 instances=instances,
                 parameters=parameters
             ),
-            auth_token=cls.hidden.auth_token_comfy_org,
-            comfy_api_key=cls.hidden.api_key_comfy_org,
+            auth_kwargs=auth,
         )
 
         initial_response = await initial_operation.execute()
@@ -241,8 +243,7 @@ class VeoVideoGenerationNode(comfy_io.ComfyNode):
             request=VeoGenVidPollRequest(
                 operationName=operation_name
             ),
-            auth_token=cls.hidden.auth_token_comfy_org,
-            comfy_api_key=cls.hidden.api_key_comfy_org,
+            auth_kwargs=auth,
             poll_interval=5.0,
             result_url_extractor=get_video_url_from_response,
             node_id=cls.hidden.unique_id,
