@@ -1,17 +1,18 @@
-import io
 import logging
 import base64
 import aiohttp
 import torch
+from io import BytesIO
 from typing import Optional
+from typing_extensions import override
 
-from comfy.comfy_types.node_typing import IO, ComfyNodeABC
+from comfy_api.latest import ComfyExtension, io as comfy_io
 from comfy_api.input_impl.video_types import VideoFromFile
 from comfy_api_nodes.apis import (
     VeoGenVidRequest,
     VeoGenVidResponse,
     VeoGenVidPollRequest,
-    VeoGenVidPollResponse
+    VeoGenVidPollResponse,
 )
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
@@ -22,7 +23,7 @@ from comfy_api_nodes.apis.client import (
 
 from comfy_api_nodes.apinode_utils import (
     downscale_image_tensor,
-    tensor_to_base64_string
+    tensor_to_base64_string,
 )
 
 AVERAGE_DURATION_VIDEO_GEN = 32
@@ -50,7 +51,7 @@ def get_video_url_from_response(poll_response: VeoGenVidPollResponse) -> Optiona
     return None
 
 
-class VeoVideoGenerationNode(ComfyNodeABC):
+class VeoVideoGenerationNode(comfy_io.ComfyNode):
     """
     Generates videos from text prompts using Google's Veo API.
 
@@ -59,101 +60,93 @@ class VeoVideoGenerationNode(ComfyNodeABC):
     """
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Text description of the video",
-                    },
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="VeoVideoGenerationNode",
+            display_name="Google Veo 2 Video Generation",
+            category="api node/video/Veo",
+            description="Generates videos from text prompts using Google's Veo 2 API",
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text description of the video",
                 ),
-                "aspect_ratio": (
-                    IO.COMBO,
-                    {
-                        "options": ["16:9", "9:16"],
-                        "default": "16:9",
-                        "tooltip": "Aspect ratio of the output video",
-                    },
+                comfy_io.Combo.Input(
+                    "aspect_ratio",
+                    options=["16:9", "9:16"],
+                    default="16:9",
+                    tooltip="Aspect ratio of the output video",
                 ),
-            },
-            "optional": {
-                "negative_prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Negative text prompt to guide what to avoid in the video",
-                    },
+                comfy_io.String.Input(
+                    "negative_prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Negative text prompt to guide what to avoid in the video",
+                    optional=True,
                 ),
-                "duration_seconds": (
-                    IO.INT,
-                    {
-                        "default": 5,
-                        "min": 5,
-                        "max": 8,
-                        "step": 1,
-                        "display": "number",
-                        "tooltip": "Duration of the output video in seconds",
-                    },
+                comfy_io.Int.Input(
+                    "duration_seconds",
+                    default=5,
+                    min=5,
+                    max=8,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    tooltip="Duration of the output video in seconds",
+                    optional=True,
                 ),
-                "enhance_prompt": (
-                    IO.BOOLEAN,
-                    {
-                        "default": True,
-                        "tooltip": "Whether to enhance the prompt with AI assistance",
-                    }
+                comfy_io.Boolean.Input(
+                    "enhance_prompt",
+                    default=True,
+                    tooltip="Whether to enhance the prompt with AI assistance",
+                    optional=True,
                 ),
-                "person_generation": (
-                    IO.COMBO,
-                    {
-                        "options": ["ALLOW", "BLOCK"],
-                        "default": "ALLOW",
-                        "tooltip": "Whether to allow generating people in the video",
-                    },
+                comfy_io.Combo.Input(
+                    "person_generation",
+                    options=["ALLOW", "BLOCK"],
+                    default="ALLOW",
+                    tooltip="Whether to allow generating people in the video",
+                    optional=True,
                 ),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFF,
-                        "step": 1,
-                        "display": "number",
-                        "control_after_generate": True,
-                        "tooltip": "Seed for video generation (0 for random)",
-                    },
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFF,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed for video generation (0 for random)",
+                    optional=True,
                 ),
-                "image": (IO.IMAGE, {
-                    "default": None,
-                    "tooltip": "Optional reference image to guide video generation",
-                }),
-                "model": (
-                    IO.COMBO,
-                    {
-                        "options": ["veo-2.0-generate-001"],
-                        "default": "veo-2.0-generate-001",
-                        "tooltip": "Veo 2 model to use for video generation",
-                    },
+                comfy_io.Image.Input(
+                    "image",
+                    tooltip="Optional reference image to guide video generation",
+                    optional=True,
                 ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+                comfy_io.Combo.Input(
+                    "model",
+                    options=["veo-2.0-generate-001"],
+                    default="veo-2.0-generate-001",
+                    tooltip="Veo 2 model to use for video generation",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                comfy_io.Video.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    RETURN_TYPES = (IO.VIDEO,)
-    FUNCTION = "generate_video"
-    CATEGORY = "api node/video/Veo"
-    DESCRIPTION = "Generates videos from text prompts using Google's Veo 2 API"
-    API_NODE = True
-
-    async def generate_video(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         prompt,
         aspect_ratio="16:9",
         negative_prompt="",
@@ -164,8 +157,6 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         image=None,
         model="veo-2.0-generate-001",
         generate_audio=False,
-        unique_id: Optional[str] = None,
-        **kwargs,
     ):
         # Prepare the instances for the request
         instances = []
@@ -202,6 +193,10 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         if "veo-3.0" in model:
             parameters["generateAudio"] = generate_audio
 
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         # Initial request to start video generation
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
@@ -214,7 +209,7 @@ class VeoVideoGenerationNode(ComfyNodeABC):
                 instances=instances,
                 parameters=parameters
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
 
         initial_response = await initial_operation.execute()
@@ -248,10 +243,10 @@ class VeoVideoGenerationNode(ComfyNodeABC):
             request=VeoGenVidPollRequest(
                 operationName=operation_name
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
             poll_interval=5.0,
             result_url_extractor=get_video_url_from_response,
-            node_id=unique_id,
+            node_id=cls.hidden.unique_id,
             estimated_duration=AVERAGE_DURATION_VIDEO_GEN,
         )
 
@@ -304,10 +299,10 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         logging.info("Video generation completed successfully")
 
         # Convert video data to BytesIO object
-        video_io = io.BytesIO(video_data)
+        video_io = BytesIO(video_data)
 
         # Return VideoFromFile object
-        return (VideoFromFile(video_io),)
+        return comfy_io.NodeOutput(VideoFromFile(video_io))
 
 
 class Veo3VideoGenerationNode(VeoVideoGenerationNode):
@@ -323,51 +318,104 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
     """
 
     @classmethod
-    def INPUT_TYPES(s):
-        parent_input = super().INPUT_TYPES()
-
-        # Update model options for Veo 3
-        parent_input["optional"]["model"] = (
-            IO.COMBO,
-            {
-                "options": ["veo-3.0-generate-001", "veo-3.0-fast-generate-001"],
-                "default": "veo-3.0-generate-001",
-                "tooltip": "Veo 3 model to use for video generation",
-            },
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="Veo3VideoGenerationNode",
+            display_name="Google Veo 3 Video Generation",
+            category="api node/video/Veo",
+            description="Generates videos from text prompts using Google's Veo 3 API",
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text description of the video",
+                ),
+                comfy_io.Combo.Input(
+                    "aspect_ratio",
+                    options=["16:9", "9:16"],
+                    default="16:9",
+                    tooltip="Aspect ratio of the output video",
+                ),
+                comfy_io.String.Input(
+                    "negative_prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Negative text prompt to guide what to avoid in the video",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "duration_seconds",
+                    default=8,
+                    min=8,
+                    max=8,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    tooltip="Duration of the output video in seconds (Veo 3 only supports 8 seconds)",
+                    optional=True,
+                ),
+                comfy_io.Boolean.Input(
+                    "enhance_prompt",
+                    default=True,
+                    tooltip="Whether to enhance the prompt with AI assistance",
+                    optional=True,
+                ),
+                comfy_io.Combo.Input(
+                    "person_generation",
+                    options=["ALLOW", "BLOCK"],
+                    default="ALLOW",
+                    tooltip="Whether to allow generating people in the video",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFF,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed for video generation (0 for random)",
+                    optional=True,
+                ),
+                comfy_io.Image.Input(
+                    "image",
+                    tooltip="Optional reference image to guide video generation",
+                    optional=True,
+                ),
+                comfy_io.Combo.Input(
+                    "model",
+                    options=["veo-3.0-generate-001", "veo-3.0-fast-generate-001"],
+                    default="veo-3.0-generate-001",
+                    tooltip="Veo 3 model to use for video generation",
+                    optional=True,
+                ),
+                comfy_io.Boolean.Input(
+                    "generate_audio",
+                    default=False,
+                    tooltip="Generate audio for the video. Supported by all Veo 3 models.",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                comfy_io.Video.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
         )
 
-        # Add generateAudio parameter
-        parent_input["optional"]["generate_audio"] = (
-            IO.BOOLEAN,
-            {
-                "default": False,
-                "tooltip": "Generate audio for the video. Supported by all Veo 3 models.",
-            }
-        )
 
-        # Update duration constraints for Veo 3 (only 8 seconds supported)
-        parent_input["optional"]["duration_seconds"] = (
-            IO.INT,
-            {
-                "default": 8,
-                "min": 8,
-                "max": 8,
-                "step": 1,
-                "display": "number",
-                "tooltip": "Duration of the output video in seconds (Veo 3 only supports 8 seconds)",
-            },
-        )
+class VeoExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+        return [
+            VeoVideoGenerationNode,
+            Veo3VideoGenerationNode,
+        ]
 
-        return parent_input
-
-
-# Register the nodes
-NODE_CLASS_MAPPINGS = {
-    "VeoVideoGenerationNode": VeoVideoGenerationNode,
-    "Veo3VideoGenerationNode": Veo3VideoGenerationNode,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "VeoVideoGenerationNode": "Google Veo 2 Video Generation",
-    "Veo3VideoGenerationNode": "Google Veo 3 Video Generation",
-}
+async def comfy_entrypoint() -> VeoExtension:
+    return VeoExtension()
