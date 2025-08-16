@@ -333,6 +333,10 @@ class IdeogramV1(comfy_io.ComfyNode):
         aspect_ratio = V1_V2_RATIO_MAP.get(aspect_ratio, None)
         model = "V_1_TURBO" if turbo else "V_1"
 
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/ideogram/generate",
@@ -353,8 +357,7 @@ class IdeogramV1(comfy_io.ComfyNode):
                     negative_prompt=negative_prompt if negative_prompt else None,
                 )
             ),
-            auth_token=cls.hidden.auth_token_comfy_org,
-            comfy_api_key=cls.hidden.api_key_comfy_org,
+            auth_kwargs=auth,
         )
 
         response = await operation.execute()
@@ -495,6 +498,10 @@ class IdeogramV2(comfy_io.ComfyNode):
         else:
             final_aspect_ratio = aspect_ratio if aspect_ratio != "ASPECT_1_1" else None
 
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/ideogram/generate",
@@ -518,8 +525,7 @@ class IdeogramV2(comfy_io.ComfyNode):
                     color_palette=color_palette if color_palette else None,
                 )
             ),
-            auth_token=cls.hidden.auth_token_comfy_org,
-            comfy_api_key=cls.hidden.api_key_comfy_org,
+            auth_kwargs=auth,
         )
 
         response = await operation.execute()
@@ -635,6 +641,10 @@ class IdeogramV3(comfy_io.ComfyNode):
         num_images=1,
         rendering_speed="BALANCED",
     ):
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         # Check if both image and mask are provided for editing mode
         if image is not None and mask is not None:
             # Edit mode
@@ -697,8 +707,7 @@ class IdeogramV3(comfy_io.ComfyNode):
                     "mask": mask_binary,
                 },
                 content_type="multipart/form-data",
-                auth_token=cls.hidden.auth_token_comfy_org,
-                comfy_api_key=cls.hidden.api_key_comfy_org,
+                auth_kwargs=auth,
             )
 
         elif image is not None or mask is not None:
@@ -739,8 +748,7 @@ class IdeogramV3(comfy_io.ComfyNode):
                     response_model=IdeogramGenerateResponse,
                 ),
                 request=gen_request,
-                auth_token=cls.hidden.auth_token_comfy_org,
-                comfy_api_key=cls.hidden.api_key_comfy_org,
+                auth_kwargs=auth,
             )
 
         # Execute the operation and process response
