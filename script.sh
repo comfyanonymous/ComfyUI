@@ -152,13 +152,15 @@ cd /kaggle/ComfyUI
 # cd /kaggle/ComfyUI
 
 
+cd custom_nodes
+git clone https://github.com/kijai/ComfyUI-KJNodes.git
+cd ComfyUI-KJNodes
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+
 # These custom nodes used by workflow VACE ControlNet 1.0 (base).json ------------ start ------------
 
-# cd custom_nodes
-# git clone https://github.com/kijai/ComfyUI-KJNodes.git
-# cd ComfyUI-KJNodes
-# pip install -r requirements.txt
-# cd /kaggle/ComfyUI
 
 # cd custom_nodes
 # git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git
@@ -288,8 +290,14 @@ pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
 cd custom_nodes
-git clone https://github.com/hgabha/WWAA-CustomNodes.git
-cd WWAA-CustomNodes
+git clone https://github.com/crystian/comfyui-crystools.git
+cd comfyui-crystools
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+cd custom_nodes
+git clone https://github.com/kijai/ComfyUI-FluxTrainer.git
+cd ComfyUI-FluxTrainer
 pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
