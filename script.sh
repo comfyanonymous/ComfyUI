@@ -31,20 +31,17 @@ wget -c https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl.v
 ln -s /kaggle/input/flux-ae/flux-ae.safetensors ./models/vae/ae.safetensors
 ln -s /kaggle/input/clip-l/clip_l.safetensors ./models/text_encoders/clip_l.safetensors
 ln -s /kaggle/input/t5xxl-fp8-e4m3fn-scaled/t5xxl_fp8_e4m3fn_scaled.safetensors ./models/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors
-# wget -c https://huggingface.co/Comfy-Org/flux1-kontext-dev_ComfyUI/resolve/main/split_files/diffusion_models/flux1-dev-kontext_fp8_scaled.safetensors -P ./models/diffusion_models
+ln -s /kaggle/input/flux1-dev-kontext-fp8-scaled/flux1-dev-kontext_fp8_scaled.safetensors ./models/diffusion_models/flux1-dev-kontext_fp8_scaled.safetensors
 
 #Flux dev
 ln -s /kaggle/input/flux1-dev-fp8/flux1-dev-fp8.safetensors ./models/checkpoints/flux1-dev-fp8.safetensors
 
-# kontext turnaround sheet lora 做什么用的？
-wget -c https://huggingface.co/reverentelusarca/kontext-turnaround-sheet-lora-v1/resolve/main/kontext-turnaround-sheet-v1.safetensors -P ./models/loras
+# kontext turnaround sheet lora: It won't work well on real human photos
+# wget -c https://huggingface.co/reverentelusarca/kontext-turnaround-sheet-lora-v1/resolve/main/kontext-turnaround-sheet-v1.safetensors -P ./models/loras
 
 #nunchaku
-ln -s /kaggle/input/svdq-int4-r32-flux-1-kontext-dev/svdq-int4_r32-flux.1-kontext-dev.safetensors ./models/diffusion_models
+# ln -s /kaggle/input/svdq-int4-r32-flux-1-kontext-dev/svdq-int4_r32-flux.1-kontext-dev.safetensors ./models/diffusion_models
 
-#SD3
-# wget -c https://huggingface.co/Comfy-Org/stable-diffusion-3.5-fp8/resolve/main/sd3.5_large_fp8_scaled.safetensors -P /kaggle/working/
-# ln -s /kaggle/working/sd3.5_large_fp8_scaled.safetensors ./models/checkpoints/sd3.5_large_fp8_scaled.safetensors
 
 #iniverseMixSFWNSFW_ponyRealGuofengV51  dreamshaperXL_lightningDPMSDE
 # wget -c "https://civitai.com/api/download/models/1759168?type=Model&format=SafeTensor&size=full&fp=fp16" -O ./models/checkpoints/Juggernaut-XL-Ragnarok.safetensors
@@ -52,14 +49,16 @@ ln -s /kaggle/input/juggernaut-xl-ragnarok/Juggernaut-XL-Ragnarok.safetensors ./
 
 #InstantID
 mkdir -p ./models/instantid
-wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ip-adapter.bin -P ./models/instantid
+# wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ip-adapter.bin -P ./models/instantid
+ln -s /kaggle/input/ip-adapter/ip-adapter.bin ./models/instantid/ip-adapter.bin
 
 wget -c https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip -P ./models
 mkdir -p ./models/insightface/models
 unzip ./models/antelopev2.zip -d ./models/insightface/models
 
 # place it in the ComfyUI controlnet directory： -O overrides -P if both are specified.
-wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors -O ./models/controlnet/instantid-controlnet.safetensors
+# wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors -O ./models/controlnet/instantid-controlnet.safetensors
+ln -s /kaggle/input/diffusion-pytorch-model/diffusion_pytorch_model.safetensors ./models/controlnet/instantid-controlnet.safetensors
 wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/config.json -P ./models/controlnet
 
 wget -c https://huggingface.co/lllyasviel/sd_control_collection/resolve/d1b278d0d1103a3a7c4f7c2c327d236b082a75b1/thibaud_xl_openpose.safetensors -P ./models/controlnet
@@ -76,10 +75,6 @@ wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapte
 wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus_sdxl_vit-h.safetensors -P ./models/ipadapter
 wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors -P ./models/ipadapter
 
-#omnigen2 test
-wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/omnigen2_fp16.safetensors -P ./models/diffusion_models
-wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_fp16.safetensors -P ./models/text_encoders
-
 
 # ComfyUI-Kolors-MZ faceid做什么用的?
 # wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/ip_adapter_plus_general.bin -P ./models/ipadapter
@@ -93,7 +88,7 @@ wget -c https://huggingface.co/Comfy-Org/Omnigen2_ComfyUI_repackaged/resolve/mai
 # wget -c https://huggingface.co/UmeAiRT/ComfyUI-Auto_installer/resolve/main/models/unet/WAN/Wan2.1-VACE-14B-Q4_K_S.gguf -P ./models/diffusion_models
 
 # 放大
-# wget -c https://huggingface.co/schwgHao/RealESRGAN_x4plus/resolve/main/RealESRGAN_x4plus.pth -P ./models/upscale_models
+wget -c https://huggingface.co/schwgHao/RealESRGAN_x4plus/resolve/main/RealESRGAN_x4plus.pth -P ./models/upscale_models
 
 ln -s /kaggle/input/clip-vision-h/clip_vision_h.safetensors ./models/clip_vision/clip_vision_h.safetensors
 
@@ -108,17 +103,17 @@ git clone https://github.com/ltdrdata/ComfyUI-Manager comfyui-manager
 cd /kaggle/ComfyUI
 
 # 2 安装 nunchaku
-pip install facexlib
-pip install onnxruntime
-pip install insightface
-pip install https://huggingface.co/mit-han-lab/nunchaku/resolve/main/nunchaku-0.3.1+torch2.6-cp311-cp311-linux_x86_64.whl
-# wget -c https://huggingface.co/mit-han-lab/nunchaku-flux.1-kontext-dev/resolve/main/svdq-int4_r32-flux.1-kontext-dev.safetensors -P ./models/diffusion_models
-cd /kaggle/ComfyUI
+# pip install facexlib
+# pip install onnxruntime
+# pip install insightface
+# pip install https://huggingface.co/mit-han-lab/nunchaku/resolve/main/nunchaku-0.3.1+torch2.6-cp311-cp311-linux_x86_64.whl
+# # wget -c https://huggingface.co/mit-han-lab/nunchaku-flux.1-kontext-dev/resolve/main/svdq-int4_r32-flux.1-kontext-dev.safetensors -P ./models/diffusion_models
+# cd /kaggle/ComfyUI
 
 # nunchaku_nodes: 去掉加载model时候的-P,还报错吗？！
-cd custom_nodes
-git clone https://github.com/mit-han-lab/ComfyUI-nunchaku nunchaku_nodes
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/mit-han-lab/ComfyUI-nunchaku nunchaku_nodes
+# cd /kaggle/ComfyUI
 
 
 # 3 ComfyUI-GGUF
@@ -159,81 +154,81 @@ cd /kaggle/ComfyUI
 
 # These custom nodes used by workflow VACE ControlNet 1.0 (base).json ------------ start ------------
 
-cd custom_nodes
-git clone https://github.com/kijai/ComfyUI-KJNodes.git
-cd ComfyUI-KJNodes
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/kijai/ComfyUI-KJNodes.git
+# cd ComfyUI-KJNodes
+# pip install -r requirements.txt
+# cd /kaggle/ComfyUI
 
-cd custom_nodes
-git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git
-cd ComfyUI-VideoHelperSuite
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
-
-
-cd custom_nodes
-git clone https://github.com/Smirnov75/ComfyUI-mxToolkit.git
-cd /kaggle/ComfyUI
-
-cd custom_nodes
-git clone https://github.com/facok/ComfyUI-HunyuanVideoMultiLora.git
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git
+# cd ComfyUI-VideoHelperSuite
+# pip install -r requirements.txt
+# cd /kaggle/ComfyUI
 
 
-cd custom_nodes
-git clone https://github.com/rgthree/rgthree-comfy.git
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/Smirnov75/ComfyUI-mxToolkit.git
+# cd /kaggle/ComfyUI
 
-cd custom_nodes
-git clone https://github.com/Fannovel16/ComfyUI-Frame-Interpolation.git
-cd ComfyUI-Frame-Interpolation
-python install.py
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/facok/ComfyUI-HunyuanVideoMultiLora.git
+# cd /kaggle/ComfyUI
 
 
-cd custom_nodes
-git clone https://github.com/WASasquatch/was-node-suite-comfyui.git
-cd was-node-suite-comfyui
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/rgthree/rgthree-comfy.git
+# cd /kaggle/ComfyUI
 
-cd custom_nodes
-git clone https://github.com/kijai/ComfyUI-Florence2.git
-cd ComfyUI-Florence2
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/Fannovel16/ComfyUI-Frame-Interpolation.git
+# cd ComfyUI-Frame-Interpolation
+# python install.py
+# cd /kaggle/ComfyUI
 
 
-cd custom_nodes
-git clone https://github.com/yuvraj108c/ComfyUI-Upscaler-Tensorrt.git
-cd ComfyUI-Upscaler-Tensorrt
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/WASasquatch/was-node-suite-comfyui.git
+# cd was-node-suite-comfyui
+# pip install -r requirements.txt
+# cd /kaggle/ComfyUI
 
-cd custom_nodes
-git clone https://github.com/pollockjj/ComfyUI-MultiGPU.git
-cd /kaggle/ComfyUI
-
-
-cd custom_nodes
-git clone https://github.com/chflame163/ComfyUI_LayerStyle.git
-cd ComfyUI_LayerStyle
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/kijai/ComfyUI-Florence2.git
+# cd ComfyUI-Florence2
+# pip install -r requirements.txt
+# cd /kaggle/ComfyUI
 
 
-cd custom_nodes
-git clone https://github.com/yolain/ComfyUI-Easy-Use
-cd ComfyUI-Easy-Use
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/yuvraj108c/ComfyUI-Upscaler-Tensorrt.git
+# cd ComfyUI-Upscaler-Tensorrt
+# pip install -r requirements.txt
+# cd /kaggle/ComfyUI
 
-cd custom_nodes
-git clone https://github.com/Fannovel16/comfyui_controlnet_aux/
-cd comfyui_controlnet_aux
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/pollockjj/ComfyUI-MultiGPU.git
+# cd /kaggle/ComfyUI
+
+
+# cd custom_nodes
+# git clone https://github.com/chflame163/ComfyUI_LayerStyle.git
+# cd ComfyUI_LayerStyle
+# pip install -r requirements.txt
+# cd /kaggle/ComfyUI
+
+
+# cd custom_nodes
+# git clone https://github.com/yolain/ComfyUI-Easy-Use
+# cd ComfyUI-Easy-Use
+# pip install -r requirements.txt
+# cd /kaggle/ComfyUI
+
+# cd custom_nodes
+# git clone https://github.com/Fannovel16/comfyui_controlnet_aux/
+# cd comfyui_controlnet_aux
+# pip install -r requirements.txt
+# cd /kaggle/ComfyUI
 
 # These custom nodes used by workflow VACE ControlNet 1.0 (base).json ------------ end ------------
 
@@ -247,11 +242,11 @@ cd /kaggle/ComfyUI
 
 
 #cog-consistent-character
-# cd custom_nodes
-# git clone --recurse-submodules https://github.com/fofr/cog-consistent-character.git
-# cd cog-consistent-character
-# python ./scripts/install_custom_nodes.py
-# cd /kaggle/ComfyUI
+cd custom_nodes
+git clone --recurse-submodules https://github.com/fofr/cog-consistent-character.git
+cd cog-consistent-character
+python ./scripts/install_custom_nodes.py
+cd /kaggle/ComfyUI
 
 
 cd custom_nodes
@@ -286,6 +281,17 @@ git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus
 cd /kaggle/ComfyUI
 
 
+cd custom_nodes
+git clone https://github.com/cubiq/ComfyUI_essentials.git
+cd ComfyUI_essentials
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+cd custom_nodes
+git clone https://github.com/hgabha/WWAA-CustomNodes.git
+cd WWAA-CustomNodes
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
 
 # REMOTE_PORT="$1"
 
