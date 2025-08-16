@@ -46,6 +46,8 @@ class GeminiModel(str, Enum):
 
     gemini_2_5_pro_preview_05_06 = "gemini-2.5-pro-preview-05-06"
     gemini_2_5_flash_preview_04_17 = "gemini-2.5-flash-preview-04-17"
+    gemini_2_5_pro = "gemini-2.5-pro"
+    gemini_2_5_flash = "gemini-2.5-flash"
 
 
 def get_gemini_endpoint(
@@ -97,7 +99,7 @@ class GeminiNode(ComfyNodeABC):
                     {
                         "tooltip": "The Gemini model to use for generating responses.",
                         "options": [model.value for model in GeminiModel],
-                        "default": GeminiModel.gemini_2_5_pro_preview_05_06.value,
+                        "default": GeminiModel.gemini_2_5_pro.value,
                     },
                 ),
                 "seed": (
