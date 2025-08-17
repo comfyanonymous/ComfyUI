@@ -67,6 +67,11 @@ wget -c https://huggingface.co/lllyasviel/sd_control_collection/resolve/d1b278d0
 mkdir -p ./models/ultralytics/bbox
 wget -c https://huggingface.co/Tenofas/ComfyUI/resolve/d79945fb5c16e8aef8a1eb3ba1788d72152c6d96/ultralytics/bbox/Eyes.pt -P ./models/ultralytics/bbox
 
+wget -c https://huggingface.co/YouLiXiya/YL-SAM/resolve/main/sam_vit_b_01ec64.pth -P  ./models/sams
+wget -c https://huggingface.co/datasets/Gourieff/ReActor/resolve/main/models/detection/bbox/face_yolov8m.pt -P ./models/ultralytics/bbox
+
+
+
 # ComfyUI_IPAdapter_plus models
 mkdir -p ./models/ipadapter
 wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors -O ./models/clip_vision/CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors
